@@ -547,7 +547,10 @@ func TestConnectionFailureCanBeFoundAndCopiedWithoutInventingAnHTTPError(t *test
 	if tt.Clipboard() != a.flows[0].conn.log {
 		t.Fatalf("clipboard = %q", tt.Clipboard())
 	}
-	if err := tt.Click("Explain"); err != nil {
+	if err := tt.Click("Inspector options"); err != nil {
+		t.Fatal(err)
+	}
+	if err := chooseMenu(tt, "Diagnose this connection"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame() // the failure scrolls into view
@@ -630,7 +633,10 @@ func TestConnectionExplanationScrollsLongErrorsWithoutTruncatingDiagnostics(t *t
 	a.flows = []flow{{id: 10, method: "CONNECT", scheme: "https", host: "example.test:443", status: 502, kind: "connect", conn: conn{errorStage: "TCP", error: raw}}}
 	a.applyFilter()
 	tt := ui.NewTester(a.view, 960, 600)
-	if err := tt.Click("Explain"); err != nil {
+	if err := tt.Click("Inspector options"); err != nil {
+		t.Fatal(err)
+	}
+	if err := chooseMenu(tt, "Diagnose this connection"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame() // the failure scrolls into view
@@ -1269,13 +1275,23 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 		tt.Frame()
 	}
 	waitCertificate()
-	if !tt.HasText("Encrypted tunnel — not individual requests") || !tt.HasText("Domain decryption disabled") || !tt.HasText("Trust not verified on this system") {
-		t.Fatalf("tunnel setup missing or an uninstalled CA was reported trusted: %q", tt.Texts())
+	if !tt.HasText("Encrypted, not decrypted — not individual requests") || !tt.HasText("Decrypt dc.dlife.cn:18443") {
+		t.Fatalf("tunnel setup missing: %q", tt.Texts())
 	}
-	click("Enable for dc.dlife.cn:18443")
-	if !tt.HasText("Domain rule enabled · reconnect to inspect new requests") || !tt.HasText("Encrypted tunnel — not individual requests") {
+	click("Connection")
+	if !tt.HasText("Off for dc.dlife.cn") || !tt.HasText("Trust not verified on this system") {
+		t.Fatalf("the rules that would decrypt it are not in the Connection tab, or an uninstalled CA was reported trusted: %q", tt.Texts())
+	}
+	click("HTTPS setup")
+	click("Decrypt dc.dlife.cn:18443")
+	if !tt.HasText("Encrypted, not decrypted — not individual requests") {
 		t.Fatalf("enabling a domain must not make the old CONNECT appear decrypted: %q", tt.Texts())
 	}
+	click("Connection")
+	if !tt.HasText("On for dc.dlife.cn") {
+		t.Fatalf("the domain rule did not reach the Connection tab: %q", tt.Texts())
+	}
+	click("HTTPS setup")
 	cfg, err := a.readSSL()
 	if err != nil || !cfg.Decrypts("api.dc.dlife.cn") || cfg.Decrypts("other.dlife.cn") || cfg.All || !srv.SSL().Decrypts("dc.dlife.cn") || srv.SSL().All {
 		t.Fatalf("domain selection was not saved with the correct scope: %+v, %v", cfg, err)
@@ -1305,8 +1321,8 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 	tt.Type("dlife.cn")
 	click("Save")
 	cfg, err = a.readSSL()
-	if err != nil || !cfg.Decrypts("other.dlife.cn") || cfg.Decrypts("notdlife.cn") || !tt.HasText("Domain rule enabled · reconnect to inspect new requests") {
-		t.Fatal("a parent-domain rule must enable its subdomains in the inspector too")
+	if err != nil || !cfg.Decrypts("other.dlife.cn") || cfg.Decrypts("notdlife.cn") {
+		t.Fatal("a parent-domain rule must enable its subdomains")
 	}
 }
 
@@ -1316,6 +1332,8 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	a.sslHosts = "existing.test"
 	a.certificate.checked = true
 	path := filepath.Join(t.TempDir(), "client")
+	// The desktop's icon lookup needs the running loop; the badge stands in.
+	a.iconLookup = func(string) ([]byte, bool) { return nil, false }
 	a.flows = []flow{
 		{id: 1, method: "CONNECT", scheme: "https", host: "one.test:8443", kind: "connect", status: 200, process: "client", processPath: path},
 		{id: 2, method: "CONNECT", scheme: "https", host: "two.test:443", kind: "connect", status: 200, process: "client"},
@@ -1336,15 +1354,21 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 		}
 		return cfg
 	}
-	inspector, _ := tt.Find("Request inspector")
-	tt.Scroll(inspector.X+inspector.W/2, inspector.Y+inspector.H-20, 0, 200)
-	click("Inspect all domains from client")
+	click("Inspector options")
+	if err := chooseMenu(tt, "Enable HTTPS for client"); err != nil {
+		t.Fatal(err)
+	}
 	cfg := load()
 	if cfg.All || len(cfg.Apps) != 1 || cfg.Apps[0].Path != path || !cfg.Decrypts("existing.test") || !cfg.DecryptsProcess("another.test:9443", path) || cfg.DecryptsProcess("another.test", "") {
 		t.Fatalf("app rule changed domain/global scope or lost its executable: %+v", cfg)
 	}
-	if !tt.HasText("App rule enabled · reconnect to inspect new requests") || !tt.HasText("Encrypted tunnel — not individual requests") {
-		t.Fatal("enabling an app incorrectly claimed this historical tunnel was decrypted")
+	click("Connection")
+	if !tt.HasText("On for client") {
+		t.Fatalf("the app rule did not reach the Connection tab: %q", tt.Texts())
+	}
+	click("HTTPS setup")
+	if !tt.HasText("Encrypted, not decrypted — not individual requests") {
+		t.Fatalf("enabling an app claimed this historical tunnel was decrypted: %q", tt.Texts())
 	}
 	click("Manage HTTPS rules")
 	click("Decryption domains")
@@ -1374,8 +1398,14 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 		t.Fatal("saving an app removal affected the independent domain rule")
 	}
 	click("two.test:443")
-	if tt.HasText("Enable HTTPS for client") || !tt.HasText("App rule unavailable · local executable identity not recorded") {
+	click("Inspector options")
+	if tt.HasText("Enable HTTPS for client") {
 		t.Fatal("an unidentified client was offered a same-name app permission")
+	}
+	tt.Key(0, ui.KeyEscape)
+	click("Connection")
+	if !tt.HasText("No local executable was recorded") {
+		t.Fatalf("the Connection tab does not say the app is unknown: %q", tt.Texts())
 	}
 }
 
@@ -6519,5 +6549,76 @@ func TestCountsAreSaidOnce(t *testing.T) {
 	}
 	if a.footerCountsText() != "1 of 2" {
 		t.Fatalf("footer counts %q", a.footerCountsText())
+	}
+}
+
+// tunnelApp is the window with one CONNECT row: a client that asked for TLS
+// and nothing that can be read inside it.
+func tunnelApp() *app {
+	a := workspaceApp()
+	a.iconLookup = func(string) ([]byte, bool) { return nil, false }
+	a.flows = []flow{{
+		id: 1, kind: "connect", method: "CONNECT", scheme: "https",
+		host: "api.github.com:443", url: "https://api.github.com:443", status: 200,
+		process: "Safari", processPath: "/Applications/Safari.app/Contents/MacOS/Safari",
+		conn: conn{proto: "HTTP/1.1", client: "Safari", remote: "140.82.121.6", log: "CONNECT api.github.com:443\n  tunnel established"},
+	}}
+	a.recount()
+	a.applyFilter()
+	return a
+}
+
+// A tunnel says what it is in one line and offers the way out of it. The rules
+// that would decrypt the next connection are the Connection tab's.
+func TestTunnelDetailSaysOneThingAndOffersDecrypting(t *testing.T) {
+	a := tunnelApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if !tt.HasText("Encrypted, not decrypted") {
+		t.Fatalf("the tunnel does not say what it is: %q", tt.Texts())
+	}
+	for _, gone := range []string{
+		"This connection is encrypted. CONNECT is not a decrypted HTTP response.",
+		"Known configuration",
+		"Domain decryption disabled",
+	} {
+		if tt.HasText(gone) {
+			t.Fatalf("the tunnel still explains itself: %q", gone)
+		}
+	}
+	if !tt.HasText("Decrypt api.github.com") {
+		t.Fatalf("the tunnel offers no way to decrypt it: %q", tt.Texts())
+	}
+	if err := tt.Click("Connection"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("Decryption") || !tt.HasText("App rule") || !tt.HasText("Trust") {
+		t.Fatalf("the rules that would decrypt it are not in the Connection tab: %q", tt.Texts())
+	}
+}
+
+// A tunnel row is a lock in Status and nothing in Path: "Tunnel" and a lock
+// before a "/" read as data that is not there.
+func TestTunnelRowsReadAsTunnels(t *testing.T) {
+	a := tunnelApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if tt.HasText("Tunnel") {
+		t.Fatalf("a tunnel row spells its status: %q", tt.Texts())
+	}
+	if !tt.HasText("CONNECT") || !tt.HasText("api.github.com:443") {
+		t.Fatalf("the tunnel row lost its request line: %q", tt.Texts())
+	}
+	if _, ok := tt.Find("api.github.com:443/"); ok {
+		t.Fatal("the tunnel row still shows a path")
+	}
+	status, ok := tt.Find(locales.TunnelTooltip(200))
+	if !ok {
+		t.Fatalf("the lock in Status says nothing: %q", tt.Texts())
+	}
+	table, _ := tt.Find("Captured requests")
+	if status.Y < table.Y || status.Y > table.Y+80 {
+		t.Fatalf("the lock is not in the row: %v in %v", status, table)
 	}
 }

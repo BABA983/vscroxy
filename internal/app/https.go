@@ -265,14 +265,10 @@ func (a *app) appInspectionActions(app capture.SSLApp) []action {
 func (a *app) connectPanel(c *ui.Context, f flow) {
 	t := c.Theme()
 	width, height := c.Size()
-	trust, trustColor := a.certificateStatus(t)
+	_, trustColor := a.certificateStatus(t)
 	domainEnabled := a.inspectionConfig().Decrypts(f.host)
-	appEnabled := a.appInspectionEnabled(f.processPath)
 	e := f.conn.explanation()
 	failed := f.conn.error != ""
-	// The broader executable permission widens inspection; it never repairs
-	// the failure on screen, so it stays a quiet link below the actions.
-	broadScope := !appEnabled && !a.sslAll && filepath.IsAbs(f.processPath)
 	inspection := func() {
 		padding, gap := float32(16), float32(10)
 		if height <= 760 {
@@ -284,19 +280,20 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 		// wide window.
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			ui.Column(c).MaxWidth(880).Padding(padding, t.Space(4)).Gap(gap).Children(func() {
-				title := "Encrypted tunnel"
+				// One line says what this row is, and the button beside it
+				// is the way out: everything else about why the tunnel is
+				// closed lives in the Connection tab.
+				title := "Encrypted, not decrypted"
 				if failed {
 					title = e.title
 				}
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					ui.Icon(c, lockIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
-					uikit.Heading(c, title).Label(title + " — not individual requests")
+					uikit.Heading(c, title).Label(title + " — not individual requests").Grow(1).SingleLine()
 				})
-				summary := "This connection is encrypted. CONNECT is not a decrypted HTTP response."
 				if failed {
-					summary = e.summary
+					uikit.Hint(c, e.summary)
 				}
-				uikit.Hint(c, summary)
 				if failed {
 					// What happened: the stage and the raw error, copyable.
 					ui.Column(c).FillWidth().Padding(0, t.Space(3)).Gap(t.Space(1)).BorderWidth(0, 0, 0, 2).BorderColor(t.Danger).Children(func() {
@@ -319,17 +316,10 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 				// still leads with the rule that would decrypt it.
 				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 					record := func() {
-						const tip = "Open this exchange's Connection tab: the recorded log and addresses"
+						const tip = "Open this exchange's Connection tab: the recorded log, addresses and rules"
 						button := uikit.Tip(c, uikit.SecondaryButton(c, locales.ViewConnectionRecord()), tip)
 						if button.Clicked() {
 							a.inspect.pane = inspectorConnection
-						}
-					}
-					enable := func() {
-						button := uikit.SecondaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).
-							Tooltip(locales.ConfigurationForNewConnectionsA())
-						if button.Clicked() {
-							a.decryptHost(f.host)
 						}
 					}
 					switch {
@@ -337,46 +327,24 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 						// Read the evidence first; enabling inspection is a
 						// configuration step, not the fix for this failure.
 						record()
-						if !domainEnabled {
-							enable()
-						}
 					default:
 						if !domainEnabled {
-							enable()
+							if uikit.SecondaryButton(c, "Decrypt "+hostOnly(f.host)).Label("Decrypt " + f.host).
+								Tooltip(locales.ConfigurationForNewConnectionsA()).Clicked() {
+								a.decryptHost(f.host)
+							}
 						}
 						record()
 					}
-					if uikit.Tip(c, uikit.SecondaryButton(c, locales.CertificateSetup()), locales.CheckOrInstallTheLocal()).Clicked() {
-						a.openSettings(2)
-						a.checkCertificate(false)
+					// Decrypting needs the CA trusted on the client: offer the
+					// certificate only while that is what is missing.
+					if trustColor != t.Success {
+						if uikit.Tip(c, uikit.SecondaryButton(c, locales.CertificateSetup()), locales.CheckOrInstallTheLocal()).Clicked() {
+							a.openSettings(2)
+							a.checkCertificate(false)
+						}
 					}
 				})
-				// Known configuration, secondary: today's rules never
-				// explain a tunnel that was recorded earlier.
-				uikit.Label(c, locales.KnownConfiguration())
-				if domainEnabled {
-					ui.Text(c, locales.DomainRuleEnabledReconnectTo()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text)
-				} else {
-					uikit.Meta(c, locales.DomainDecryptionDisabled())
-				}
-				if appEnabled {
-					uikit.Tip(c, ui.Text(c, locales.AppRuleEnabledReconnectTo()).FontSize(uikit.Scaled(uikit.TextMeta)), f.processPath)
-				} else if !filepath.IsAbs(f.processPath) {
-					uikit.Meta(c, locales.AppRuleUnavailableLocalExecutable())
-				}
-				ui.Text(c, trust).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(trustColor).
-					Tooltip(locales.SystemTrustIsNotProof())
-				if broadScope {
-					ui.Row(c).Children(func() {
-						if uikit.ToolbarButton(c, "Inspect all domains from "+f.process, "Wider scope for new connections from "+f.processPath+"; not a fix for this failure", false).
-							Height(uikit.HeightControl).Padding(0, t.Space(1)).Children(func() {
-							ui.Text(c, "Inspect all domains from \""+f.process+"\"…").FontSize(uikit.Scaled(uikit.TextMeta))
-						}).Clicked() {
-							a.setAppInspection(capture.SSLApp{Name: f.process, Path: f.processPath}, true)
-						}
-						ui.Spacer(c)
-					})
-				}
 			})
 		})
 	}

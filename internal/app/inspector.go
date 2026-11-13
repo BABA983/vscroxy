@@ -130,17 +130,36 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 	// what the exchange says on the right. Nothing here is the page's main
 	// action, so nothing wears the primary button.
 	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Tip(c, ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).SingleLine().Shrink(0), f.processPath)
+		// The client that opened the tunnel, if the capture knows it: a name
+		// with no icon was the placeholder this row used to spell out.
+		if f.process != "" {
+			if src, ok := a.clientIcon(f.process, f.processPath); ok {
+				ui.Image(c, src).Size(uikit.IconInline, uikit.IconInline)
+			} else {
+				clientBadge(c, f.process)
+			}
+			uikit.Tip(c, ui.Text(c, f.process).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).SingleLine().Shrink(0), f.processPath)
+		}
 		uikit.Tabs(c, &a.tab, "", locales.HttpsSetup(), locales.Connection())
 		ui.Spacer(c)
 		if f.conn.error != "" {
 			uikit.Tip(c, ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).SingleLine().Shrink(0), f.conn.error)
 		}
 		uikit.Tip(c, uikit.Meta(c, f.host).Font(uikit.FontMono).SingleLine().MinWidth(0).Shrink(1), f.url)
-		if uikit.Tip(c, uikit.SecondaryButton(c, locales.Explain()), locales.DiagnoseThisConnection()).Clicked() {
-			a.openDiagnostics(&f, diagnoseMac)
-		}
-		a.actionButton(c, "view.focus-inspector", "Focus")
+		// The pane's own commands, where every other pane keeps them: a
+		// text button here was cut to half a word in a narrow inspector.
+		uikit.MoreMenu(c, locales.InspectorOptions(), func(m *ui.Menu) {
+			items := []action{
+				do("connect.diagnose", locales.DiagnoseThisConnection(), func() { a.openDiagnostics(&f, diagnoseMac) }),
+				pick(a.actions(c), "view.focus-inspector"),
+			}
+			// Decrypting everything this app opens is the wider permission
+			// the panel used to offer as a link below the actions.
+			if f.processPath != "" && !a.sslAll {
+				items = append(items, a.appInspectionActions(capture.SSLApp{Name: f.process, Path: f.processPath})...)
+			}
+			actionMenu(m, items)
+		})
 	})
 	if a.tab == 1 {
 		a.connectionView(c, f)

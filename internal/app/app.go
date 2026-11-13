@@ -2575,9 +2575,14 @@ func (a *app) table(c *ui.Context) {
 			})
 		case "method":
 			// The verb is a name here, not a value: the interface font, in
-			// the method's own ink.
+			// the method's own ink. CONNECT opens a tunnel rather than
+			// asking for something, so it stays quiet.
+			ink := uikit.MethodColor(f.method, t)
+			if f.method == "CONNECT" {
+				ink = t.TextMuted
+			}
 			uikit.Tip(c, uikit.Body(c, f.method).FontSize(uikit.Scaled(uikit.TextData)).FontWeight(500).Height(15).FixedLineHeight(15).
-				TextColor(uikit.MethodColor(f.method, t)).SingleLine(), f.method).PopoverMenu(a.rowMenu(c, f))
+				TextColor(ink).SingleLine(), f.method).PopoverMenu(a.rowMenu(c, f))
 		case "host":
 			uikit.Tip(c, plain(f.host), f.url).PopoverMenu(a.rowMenu(c, f))
 		case "remote":
@@ -2598,7 +2603,9 @@ func (a *app) table(c *ui.Context) {
 			rest := t.Text
 			ui.Row(c).Gap(t.Space(0.5)).Children(func() {
 				if f.kind == "connect" {
-					uikit.Tip(c, ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(rest).MarginEnd(t.Space(1)), locales.EncryptedTunnelConnectSuccessIs())
+					// Nothing to read: the request line of a tunnel is its
+					// host, and the Status column says it is a tunnel.
+					return
 				}
 				if f.note != "" {
 					uikit.Tip(c, uikit.Glyph(c, noteIcon).MarginEnd(t.Space(1)), f.note)
@@ -2618,7 +2625,11 @@ func (a *app) table(c *ui.Context) {
 			if f.conn.error != "" {
 				uikit.Tip(c, text("Failed").TextColor(t.Danger), f.conn.errorStage+": "+f.conn.error).PopoverMenu(a.rowMenu(c, f))
 			} else if f.kind == "connect" {
-				uikit.Tip(c, quiet("Tunnel"), locales.TunnelTooltip(f.status)).PopoverMenu(a.rowMenu(c, f))
+				// A tunnel has no status of its own: the lock says what the
+				// row is, and the tooltip says how the setup went.
+				uikit.Tip(c, ui.Row(c).Grow(1).AlignItems(ui.Center).Children(func() {
+					uikit.Glyph(c, lockIcon)
+				}), locales.TunnelTooltip(f.status)).Label(locales.TunnelTooltip(f.status)).PopoverMenu(a.rowMenu(c, f))
 			} else {
 				// Only a client or server error is colored: a normal answer is
 				// its number in the secondary ink, with nothing beside it.
@@ -2897,6 +2908,31 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 	})
 	if f.conn.error != "" {
 		uikit.Tip(c, ui.Text(c, f.conn.error).Selectable().MaxLines(3), f.conn.error).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2))
+	}
+	if f.kind == "connect" {
+		// What decides whether the next connection is decrypted: the tunnel's
+		// own tab says what this one was, not what today's rules would do.
+		trust, trustColor := a.certificateStatus(t)
+		domain := "Off for " + hostOnly(f.host)
+		if a.inspectionConfig().Decrypts(f.host) {
+			domain = "On for " + hostOnly(f.host)
+		}
+		app := "No local executable was recorded"
+		if filepath.IsAbs(f.processPath) {
+			app = "Off for " + cmp.Or(f.process, filepath.Base(f.processPath))
+			if a.appInspectionEnabled(f.processPath) {
+				app = "On for " + cmp.Or(f.process, filepath.Base(f.processPath))
+			}
+		}
+		ui.Column(c).Padding(0, t.Space(3), t.Space(2)).Children(func() {
+			field(c, t, "Decryption", domain)
+			field(c, t, "App rule", app)
+			ui.Row(c).Gap(t.Space(2)).Padding(t.Space(0.5), 0).Children(func() {
+				uikit.Meta(c, locales.Trust()).Width(96)
+				ui.Text(c, trust).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(trustColor).Grow(1).
+					Tooltip(locales.SystemTrustIsNotProof())
+			})
+		})
 	}
 	text := cmp.Or(f.conn.log, "No connection history was recorded for this exchange (for example, an older or imported session).")
 	ui.TextArea(c, &text).ReadOnly(true).Label(locales.ConnectionLog()).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).FillWidth()
