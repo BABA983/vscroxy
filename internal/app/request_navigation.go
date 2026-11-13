@@ -90,7 +90,7 @@ func (a *app) sessionsTree(c *ui.Context, tree ui.TreeParts) {
 	item.Group(func() {
 		for _, s := range a.sessions.items {
 			leaf := tree.Item(nil)
-			session := treeRow(c, leaf, 1).Label(s.data.Title).Tooltip(s.data.Title).
+			session := uikit.Tip(c, treeRow(c, leaf, 1).Label(s.data.Title), s.data.Title).
 				OnClick(func() { a.goTo("session:" + s.key) }).
 				PopoverMenu(func(m *ui.Menu) {
 					actionMenu(m, []action{do("session.delete", locales.DeleteSession(), func() { a.confirmDeleteSession(s) })})
@@ -200,8 +200,8 @@ func (a *app) collectionTree(c *ui.Context) {
 			// The sidebar has one choice: a request only while it is shown.
 			chosen := a.page == pageRequest && a.requestChoice == r.key()
 			edited := slices.ContainsFunc(a.documents, func(d *requestDocument) bool { return d.savedKey == r.key() && d.dirty() })
-			row := treeRow(c, tree.Item(nil), depth).Label(r.Name).
-				Selected(chosen).Tooltip(method + " " + r.URL).
+			row := uikit.Tip(c, treeRow(c, tree.Item(nil), depth).Label(r.Name).
+				Selected(chosen), method+" "+r.URL).
 				OnClick(func() { a.openSaved(r.key()) }).PopoverMenu(menu)
 			if chosen {
 				uikit.Selected(c, row, !a.windowBehind)
@@ -260,8 +260,8 @@ func (a *app) unsavedRequests(c *ui.Context, tree ui.TreeParts, query string) {
 		for _, d := range unsaved {
 			method := cmp.Or(d.protocol, d.composeMethod)
 			chosen := a.page == pageRequest && a.requestDocument == d
-			item := treeRow(c, tree.Item(nil), 1).Label(locales.UnsavedPrefix(d.title())).
-				Selected(chosen).Tooltip(method + " " + d.composeURL).
+			item := uikit.Tip(c, treeRow(c, tree.Item(nil), 1).Label(locales.UnsavedPrefix(d.title())).
+				Selected(chosen), method+" "+d.composeURL).
 				OnClick(func() { a.requestDocument, a.requestChoice, a.page = d, "", pageRequest })
 			if chosen {
 				uikit.Selected(c, item, !a.windowBehind)

@@ -131,7 +131,7 @@ func (a *app) debugDrafts(c *ui.Context) {
 			continue
 		}
 		n++
-		if uikit.SecondaryButton(c, d.title()).Label(locales.OpenLinkedDraft(n)).FillWidth().Tooltip(d.composeMethod + " " + d.composeURL).Clicked() {
+		if uikit.Tip(c, uikit.SecondaryButton(c, d.title()).Label(locales.OpenLinkedDraft(n)).FillWidth(), d.composeMethod+" "+d.composeURL).Clicked() {
 			a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
 			s.open = false
 			d.urlInput.Focus()
@@ -165,7 +165,7 @@ func (a *app) debugWire(c *ui.Context, r experimentRecord) {
 	if len(wire.Actions) > 0 {
 		effects = strings.Join(wire.Actions, " · ")
 	}
-	uikit.Body(c, locales.RecordedInterventions(effects)).SingleLine().Tooltip(effects)
+	uikit.Tip(c, uikit.Body(c, locales.RecordedInterventions(effects)).SingleLine(), effects)
 	uikit.Meta(c, locales.WireEvidenceNotCurrentRules())
 }
 

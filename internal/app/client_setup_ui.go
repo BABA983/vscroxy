@@ -31,7 +31,7 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 				a.clientSetupExamples(c, t)
 			}
 			if s.problem != "" {
-				ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger).MaxLines(2).Tooltip(s.problem)
+				uikit.Tip(c, ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger).MaxLines(2), s.problem)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.PhoneTabletSetup()).Clicked() {
@@ -176,7 +176,7 @@ func (a *app) clientAndroidPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy
 	case s.androidLoading:
 		uikit.Meta(c, locales.LookingForAdbDevices())
 	case s.androidProblem != "":
-		ui.Text(c, s.androidProblem).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(2).Tooltip(s.androidProblem)
+		uikit.Tip(c, ui.Text(c, s.androidProblem).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(2), s.androidProblem)
 	case len(s.android) == 0:
 		uikit.Meta(c, locales.StartAnEmulatorOrConnect())
 	}
@@ -228,18 +228,18 @@ func (a *app) clientJavaPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, r
 		}
 	}
 	if s.javaCACerts == "" {
-		ui.Text(c, cmp.Or(s.javaProblem, "JDK cacerts are unavailable.")).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3).Tooltip(s.javaProblem)
+		uikit.Tip(c, ui.Text(c, cmp.Or(s.javaProblem, "JDK cacerts are unavailable.")).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3), s.javaProblem)
 		return
 	}
 	commands, err := clientsetup.JavaTruststoreCommands(p, keystore, s.javaCACerts)
 	if err != nil {
-		ui.Text(c, err.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3).Tooltip(err.Error())
+		uikit.Tip(c, ui.Text(c, err.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3), err.Error())
 		return
 	}
 	command := clientsetup.JoinCommands(commands, runtime.GOOS == "windows")
 	uikit.Hint(c, locales.CopiesTheJdkSCacerts())
-	uikit.Meta(c, "JDK cacerts: "+s.javaCACerts).Font(uikit.FontMono).Selectable().MaxLines(2).Tooltip(s.javaCACerts)
-	uikit.Meta(c, "Truststore: "+keystore).Font(uikit.FontMono).Selectable().MaxLines(2).Tooltip(keystore)
+	uikit.Tip(c, uikit.Meta(c, "JDK cacerts: "+s.javaCACerts).Font(uikit.FontMono).Selectable().MaxLines(2), s.javaCACerts)
+	uikit.Tip(c, uikit.Meta(c, "Truststore: "+keystore).Font(uikit.FontMono).Selectable().MaxLines(2), keystore)
 	ui.Text(c, command).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(8)
 	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 		if uikit.SecondaryButton(c, locales.CopyCommands()).Clicked() {

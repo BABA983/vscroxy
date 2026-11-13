@@ -28,7 +28,7 @@ var (
 // to stop the hover face.
 func ToolbarButton(c *ui.Context, label, tip string, active bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	b := ui.ButtonBase(c).Label(label).Tooltip(tip).Height(HeightControl).
+	b := Tip(c, ui.ButtonBase(c).Label(label), tip).Height(HeightControl).
 		Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(RadiusControl).
 		AlignItems(ui.Center).FontSize(TextBody).TextColor(t.TextMuted)
 	if !b.IsDisabled() {
@@ -53,7 +53,7 @@ func ToolbarButton(c *ui.Context, label, tip string, active bool) ui.Element {
 // quiet face, and the selection tint while what it switches is on.
 func FooterButton(c *ui.Context, label, tip string, on bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	b := ui.ButtonBase(c).Label(label).Tooltip(tip).Height(HeightFooterControl).
+	b := Tip(c, ui.ButtonBase(c).Label(label), tip).Height(HeightFooterControl).
 		Padding(0, t.Space(2)).Radius(RadiusInner).AlignItems(ui.Center).FontSize(TextMeta).
 		Background(p.Fill).TextColor(t.TextMuted)
 	b.Children(func() { ui.Text(c, label).FontSize(TextMeta) })
@@ -95,7 +95,7 @@ func SecondaryButton(c *ui.Context, label string) ui.Element {
 // surface, as every control does.
 func ChipButton(c *ui.Context, label, tip string) ui.Element {
 	t := c.Theme()
-	return faced(c, func() ui.Element { return ui.ButtonBase(c).Label(label).Tooltip(tip) }).
+	return faced(c, func() ui.Element { return Tip(c, ui.ButtonBase(c).Label(label), tip) }).
 		Height(HeightControl).Padding(0, t.Space(2)).Gap(t.Space(1.5)).Radius(RadiusControl).AlignItems(ui.Center)
 }
 
@@ -146,7 +146,7 @@ func RowButton(c *ui.Context, label string) ui.Element {
 // SwatchButton picks a color; the chosen one carries a check mark, and a hovered
 // one an outline, so the color itself stays unaltered.
 func SwatchButton(c *ui.Context, label string, color ui.Color, chosen bool) ui.Element {
-	b := ui.ButtonBase(c).Label(label).Tooltip(label).Checked(chosen).Size(HeightControl, HeightControl).
+	b := Tip(c, ui.ButtonBase(c).Label(label), label).Checked(chosen).Size(HeightControl, HeightControl).
 		Radius(RadiusControl).Background(color).Center()
 	if b.Hovered() {
 		b.Border(1, c.Theme().Text)
@@ -258,7 +258,7 @@ type Timing struct {
 func ResponseMeta(c *ui.Context, duration, detail string, timing Timing) ui.Element {
 	t := c.Theme()
 	return ui.Row(c).MinWidth(0).Shrink(1).AlignItems(ui.Center).Label(locales.ResponseResult()).Children(func() {
-		d := Meta(c, duration).Font(FontMono).FixedLineHeight(14).Shrink(0).Tooltip(duration)
+		d := Tip(c, Meta(c, duration).Font(FontMono).FixedLineHeight(14).Shrink(0), duration)
 		if len(timing.Phases) > 0 {
 			d.Description(locales.TimingHoverHelp())
 			ui.TooltipBase(c, d, func(tip ui.Element) {
@@ -267,8 +267,8 @@ func ResponseMeta(c *ui.Context, duration, detail string, timing Timing) ui.Elem
 			})
 		}
 		if detail != "" {
-			Meta(c, " · "+detail).Font(FontMono).FixedLineHeight(14).
-				SingleLine().Shrink(1).MinWidth(0).Tooltip(detail)
+			Tip(c, Meta(c, " · "+detail).Font(FontMono).FixedLineHeight(14).
+				SingleLine().Shrink(1).MinWidth(0), detail)
 		}
 	})
 }
@@ -369,6 +369,25 @@ func popoverFace(c *ui.Context, panel ui.Element) {
 		NoShadow().Shadow(0, 8, 28, 0, p.Shadow)
 }
 
+// Tip gives e a tip of the kit's look, as a popover has: the canvas on the
+// shadow, a hairline edge, the panel radius, and the popover's rise. It
+// describes e to assistive technology as MyGo's Tooltip does.
+func Tip(c *ui.Context, e ui.Element, text string) ui.Element {
+	if text == "" {
+		return e
+	}
+	t := c.Theme()
+	ui.TooltipBase(c, e, func(tip ui.Element) {
+		popoverFace(c, tip)
+		tip.MaxWidth(t.Space(80)).Padding(t.Space(1), t.Space(2)).Transition(popoverMotion())
+		tip.Children(func() {
+			ui.Text(c, text).FontSize(TextMeta).TextColor(t.Text).SingleLine()
+		})
+	})
+	e.Description(text)
+	return e
+}
+
 // Dialog content uses three width tiers inside Modal's shared padding.
 // Callers choose the height; long content scrolls without moving the footer.
 func DialogColumn(c *ui.Context, width float32) ui.Element {
@@ -414,7 +433,7 @@ func QueryChip(c *ui.Context, text string, edit, remove func()) ui.Element {
 		if edit == nil {
 			ui.Row(c).Padding(0, t.Space(1)).Children(label)
 		} else {
-			b := ui.ButtonBase(c).Label("Edit condition: "+text).Tooltip("Edit "+text).
+			b := Tip(c, ui.ButtonBase(c).Label("Edit condition: "+text), "Edit "+text).
 				Height(HeightControl-4).Padding(0, t.Space(1)).Radius(RadiusInner).AlignItems(ui.Center)
 			if b.Hovered() {
 				b.Background(p.FillHover)
@@ -424,7 +443,7 @@ func QueryChip(c *ui.Context, text string, edit, remove func()) ui.Element {
 				edit()
 			}
 		}
-		x := ui.ButtonBase(c).Label("Remove condition: "+text).Tooltip("Remove "+text).
+		x := Tip(c, ui.ButtonBase(c).Label("Remove condition: "+text), "Remove "+text).
 			Size(HeightControl-4, HeightControl-4).Radius(RadiusInner).Justify(ui.Center).AlignItems(ui.Center).TextColor(t.TextMuted)
 		if x.Hovered() {
 			x.Background(p.FillHover)
@@ -601,7 +620,7 @@ func Toasts(c *ui.Context) {
 							b.Children(func() { ui.Text(c, toast.Action).FontSize(TextBody) })
 						}
 					})
-					close := parts.CloseButton().Label(locales.DismissNotification()).Tooltip(locales.DismissNotification()).
+					close := Tip(c, parts.CloseButton().Label(locales.DismissNotification()), locales.DismissNotification()).
 						Size(HeightControl, HeightControl).Radius(RadiusControl).Center().TextColor(t.TextMuted)
 					if close.Pressed() {
 						close.Background(p.FillPressed)
@@ -750,7 +769,7 @@ func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
 	c.SetTheme(&ghost)
 	b := ui.PopoverMenuButton(c, "⋯", menu)
 	c.SetTheme(t)
-	return b.Label(label).Tooltip(label).Height(HeightControl).
+	return Tip(c, b.Label(label), label).Height(HeightControl).
 		Padding(0, t.Space(2)).FontSize(TextBody).TextColor(t.TextMuted)
 }
 
@@ -765,7 +784,7 @@ func TabMenu(c *ui.Context, label, name string, menu func(*ui.Menu)) ui.Element 
 	c.SetTheme(&ghost)
 	b := ui.PopoverMenuButton(c, label, menu)
 	c.SetTheme(t)
-	return b.Label(name).Tooltip(name).Height(HeightControl).Padding(0, t.Space(1.5)).
+	return Tip(c, b.Label(name), name).Height(HeightControl).Padding(0, t.Space(1.5)).
 		Radius(RadiusControl).AlignItems(ui.Center).Gap(t.Space(1)).FontSize(TextBody).TextColor(t.TextMuted)
 }
 
@@ -793,7 +812,7 @@ func PaneTitle(c *ui.Context, title, name string, dot, ink ui.Color, onClick fun
 	if ink.A == 0 {
 		ink = t.Text
 	}
-	b := ui.ButtonBase(c).Label(name).Tooltip(name).Height(HeightControl).Padding(0).
+	b := Tip(c, ui.ButtonBase(c).Label(name), name).Height(HeightControl).Padding(0).
 		Gap(t.Space(1.5)).Radius(RadiusControl).AlignItems(ui.Center).TextColor(ink)
 	b.Children(func() {
 		if dot.A > 0 {

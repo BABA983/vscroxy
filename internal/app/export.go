@@ -76,19 +76,19 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 						headersLabel = "Header columns"
 						headersTip = "Replace header-derived cells except Content-Type and Accept."
 					}
-					ui.Checkbox(c.Key("export-headers"), &s.options.Headers, headersLabel).Tooltip(headersTip)
-					ui.Checkbox(c.Key("export-query"), &s.options.Query, "URL query values").Tooltip(locales.ReplaceAllQueryValuesIncluding())
-					ui.Checkbox(c.Key("export-auth"), &s.options.Auth, "Authorization and URL credentials").Tooltip(locales.RemoveStructuredAuthUrlUserinfo())
+					uikit.Tip(c, ui.Checkbox(c.Key("export-headers"), &s.options.Headers, headersLabel), headersTip)
+					uikit.Tip(c, ui.Checkbox(c.Key("export-query"), &s.options.Query, "URL query values"), locales.ReplaceAllQueryValuesIncluding())
+					uikit.Tip(c, ui.Checkbox(c.Key("export-auth"), &s.options.Auth, "Authorization and URL credentials"), locales.RemoveStructuredAuthUrlUserinfo())
 					if s.csv == nil {
-						ui.Checkbox(c.Key("export-variables"), &s.options.Variables, "Collection, folder and environment variables").Tooltip(locales.ReplaceEveryVariableValueIncluding())
+						uikit.Tip(c, ui.Checkbox(c.Key("export-variables"), &s.options.Variables, "Collection, folder and environment variables"), locales.ReplaceEveryVariableValueIncluding())
 					}
 					bodyLabel, bodyTip := "Bodies and stream messages", "Remove request and response bodies, binary payloads and all stream messages."
 					if s.csv != nil {
 						bodyLabel, bodyTip = "Body-derived columns", "Replace request and response JSON cells."
 					}
-					ui.Checkbox(c.Key("export-bodies"), &s.options.Bodies, bodyLabel).Tooltip(bodyTip)
+					uikit.Tip(c, ui.Checkbox(c.Key("export-bodies"), &s.options.Bodies, bodyLabel), bodyTip)
 					if s.csv == nil {
-						ui.Checkbox(c.Key("export-notes"), &s.options.ScriptsNotes, "Scripts, Checks and private notes").Tooltip(locales.RemoveScriptsIncludingExportedChecks())
+						uikit.Tip(c, ui.Checkbox(c.Key("export-notes"), &s.options.ScriptsNotes, "Scripts, Checks and private notes"), locales.RemoveScriptsIncludingExportedChecks())
 					}
 				}
 				if before != s.options || raw != s.unredacted {

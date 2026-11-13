@@ -165,7 +165,7 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 	if p.result.typeName != "" {
 		note = "Message type: " + p.result.typeName
 	}
-	uikit.Meta(c, note).SingleLine().Tooltip(note).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+	uikit.Tip(c, uikit.Meta(c, note).SingleLine(), note).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	var visible []int
 	for i, message := range p.result.messages {
 		if p.query == "" || strings.Contains(strings.ToLower(message.text), strings.ToLower(p.query)) {
@@ -210,7 +210,7 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {
 				detail := fmt.Sprintf("Message %d · %s decoded", visible[p.selected]+1, humanBytes(message.size))
-				uikit.Meta(c, detail).Grow(1).MinWidth(0).SingleLine().Tooltip(detail)
+				uikit.Tip(c, uikit.Meta(c, detail).Grow(1).MinWidth(0).SingleLine(), detail)
 				if uikit.SecondaryButton(c, locales.CopyDecoded()).Shrink(0).Clicked() {
 					c.Services().WriteClipboard(message.text)
 					a.done(locales.CopiedDecodedProtobufMessage())

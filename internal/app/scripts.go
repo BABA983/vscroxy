@@ -665,7 +665,7 @@ func (a *app) scriptList(c *ui.Context, t *ui.Theme, s *scriptStore, active bool
 				}
 			})
 			if n, tip := a.scriptUsers(s, name); n > 0 {
-				uikit.Meta(c, fmt.Sprint(n)).Font(uikit.FontMono).FontFeatures("tnum").Tooltip(tip)
+				uikit.Tip(c, uikit.Meta(c, fmt.Sprint(n)).Font(uikit.FontMono).FontFeatures("tnum"), tip)
 			}
 		})
 	})
@@ -766,7 +766,7 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 		}
 		uikit.Meta(c, note).Grow(1).SingleLine()
 		ui.Row(c).Disabled(!modified).Children(func() {
-			if uikit.PrimaryButton(c, locales.Save()).Tooltip(locales.SaveCtrlCmdS()).Clicked() {
+			if uikit.Tip(c, uikit.PrimaryButton(c, locales.Save()), locales.SaveCtrlCmdS()).Clicked() {
 				a.saveScript(name)
 			}
 		})

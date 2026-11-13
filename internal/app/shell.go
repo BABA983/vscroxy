@@ -127,7 +127,7 @@ func (a *app) sidebarToggle(c *ui.Context) {
 	tip := label + " · " + sidebarShortcut()
 	b := uikit.IconButton(c, label, tip, icon)
 	if a.windowWidth < sidebarMinWidth {
-		b.Disabled(true).Tooltip(locales.WindowTooNarrowForTheSidebar(int(sidebarMinWidth)))
+		uikit.Tip(c, b.Disabled(true), locales.WindowTooNarrowForTheSidebar(int(sidebarMinWidth)))
 		return
 	}
 	if b.Clicked() {

@@ -342,7 +342,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 					if s.scope != nil {
 						f := s.scope.Exchange.flow()
-						uikit.Body(c, locales.SourceNumber(f.id, f.method, f.url, f.status)).FontFeatures("tnum").SingleLine().Tooltip(f.url)
+						uikit.Tip(c, uikit.Body(c, locales.SourceNumber(f.id, f.method, f.url, f.status)).FontFeatures("tnum").SingleLine(), f.url)
 						if s.reader == nil {
 							s.reader = &editor.State{Buffer: editor.NewBuffer(f.body(true)), ReadOnly: true, Label: locales.SourceSnapshotLabel(), NoScrollPastEnd: true}
 						}
@@ -350,7 +350,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 					return
 				}
-				ui.Text(c, locales.RunDraft(r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(500).SingleLine().Tooltip(r.Draft.URL)
+				uikit.Tip(c, ui.Text(c, locales.RunDraft(r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(500).SingleLine(), r.Draft.URL)
 				uikit.Meta(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontFeatures("tnum")
 				if r.Outcome != "" {
 					uikit.Meta(c, r.Outcome)
@@ -364,7 +364,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 						a.openDebugHistory(r.Source)
 					}
 					origin := slices.IndexFunc(a.documents, func(d *requestDocument) bool { return r.DraftKey != "" && d.debugKey == r.DraftKey })
-					if uikit.SecondaryButton(c, locales.OriginDraft()).Label(locales.OpenOriginatingDraft()).Disabled(origin < 0).Tooltip("Return to the original editable tab without overwriting its current edits: " + r.Draft.Name).Clicked() {
+					if uikit.Tip(c, uikit.SecondaryButton(c, locales.OriginDraft()).Label(locales.OpenOriginatingDraft()).Disabled(origin < 0), "Return to the original editable tab without overwriting its current edits: "+r.Draft.Name).Clicked() {
 						d := a.documents[origin]
 						a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
 						s.open = false

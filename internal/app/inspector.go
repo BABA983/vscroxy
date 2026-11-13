@@ -96,8 +96,8 @@ func (a *app) detail(c *ui.Context) {
 		if len(f.actions) > 0 {
 			// A note about what rules did, not a state: the accent is ink
 			// now, so it would read as ordinary body text.
-			ui.Text(c, locales.AppliedActions(strings.Join(f.actions, " · "))).FontSize(uikit.TextMeta).TextColor(t.TextMuted).
-				Padding(4, 14).SingleLine().Tooltip(strings.Join(f.actions, "\n"))
+			uikit.Tip(c, ui.Text(c, locales.AppliedActions(strings.Join(f.actions, " · "))).FontSize(uikit.TextMeta).TextColor(t.TextMuted).
+				Padding(4, 14).SingleLine(), strings.Join(f.actions, "\n"))
 		}
 		switch a.inspect.pane {
 		case inspectorDiff:
@@ -127,15 +127,15 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 		a.tab = 0
 	}
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(uikit.TextBody).FontWeight(500).SingleLine().Tooltip(f.processPath)
-		uikit.Hint(c, f.host).Font(uikit.FontMono).SingleLine().Tooltip(f.url)
+		uikit.Tip(c, ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(uikit.TextBody).FontWeight(500).SingleLine(), f.processPath)
+		uikit.Tip(c, uikit.Hint(c, f.host).Font(uikit.FontMono).SingleLine(), f.url)
 		if f.conn.error != "" {
 			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.TextBody).TextColor(t.Danger)
 		}
 		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
 			uikit.Tabs(c, &a.tab, "", locales.HttpsSetup(), locales.Connection())
 		})
-		if uikit.SecondaryButton(c, locales.Explain()).Tooltip(locales.DiagnoseThisConnection()).Clicked() {
+		if uikit.Tip(c, uikit.SecondaryButton(c, locales.Explain()), locales.DiagnoseThisConnection()).Clicked() {
 			a.openDiagnostics(&f, diagnoseMac)
 		}
 		a.actionButton(c, "view.focus-inspector", "Focus")
@@ -166,9 +166,9 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 	}
 	chip := uikit.StatusPill(c, status, color).Shrink(0)
 	if f.conn.error != "" {
-		chip = chip.Tooltip(cmp.Or(f.conn.errorStage, "Connection") + ": " + f.conn.error)
+		chip = uikit.Tip(c, chip, cmp.Or(f.conn.errorStage, "Connection")+": "+f.conn.error)
 	} else if doc := statusDoc(f.status); doc != "" {
-		chip = chip.Tooltip(doc)
+		chip = uikit.Tip(c, chip, doc)
 	}
 	if !compact {
 		ui.Text(c, "·").FontSize(uikit.TextBody).TextColor(t.Border)
@@ -742,7 +742,7 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 		title := uikit.PaneTitle(c, sum.title, locales.ResponsePaneName(), sum.dot, sum.ink, func() { a.inspect.focus = 0 })
 		if !showNumbers && sum.duration != "" {
 			// What the row has no room for, the status says on hover.
-			title.Tooltip(sum.title + " · " + strings.TrimSpace(sum.duration+" · "+sum.detail))
+			uikit.Tip(c, title, sum.title+" · "+strings.TrimSpace(sum.duration+" · "+sum.detail))
 		}
 		uikit.TabStrip(c, func() {
 			uikit.CountedTabs(c, &shown, locales.ResponsePaneName(), labels, nil)
@@ -929,7 +929,7 @@ func (a *app) inspectorPaneBar(c *ui.Context, t *ui.Theme, title, note string) {
 			a.inspect.pane = inspectorSplit
 		}
 		ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Text)
-		uikit.Meta(c, note).SingleLine().Tooltip(note)
+		uikit.Tip(c, uikit.Meta(c, note).SingleLine(), note)
 		ui.Spacer(c)
 	})
 }

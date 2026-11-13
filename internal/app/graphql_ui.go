@@ -289,7 +289,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 		}
 		status := uikit.Meta(c, statusText).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
 		if statusTip != "" {
-			status.Tooltip(statusTip)
+			uikit.Tip(c, status, statusTip)
 		}
 		if statusDanger {
 			status.TextColor(t.Danger)
@@ -322,9 +322,9 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 					d.graphql.OperationName = choice
 				}
 			case len(ops) == 1 && d.graphql.OperationName != "" && !matchesSaved:
-				uikit.Meta(c, locales.SelectOperation()).Tooltip(locales.TheSavedOperationNoLonger())
+				uikit.Tip(c, uikit.Meta(c, locales.SelectOperation()), locales.TheSavedOperationNoLonger())
 			case len(ops) == 1 && ops[0].Name != "":
-				uikit.Meta(c, "Operation · "+ops[0].Name).Tooltip(locales.TheDocumentSOnlyOperation())
+				uikit.Tip(c, uikit.Meta(c, "Operation · "+ops[0].Name), locales.TheDocumentSOnlyOperation())
 			case len(ops) == 1:
 				uikit.Meta(c, locales.AnonymousOperation())
 			}
@@ -333,7 +333,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 			validChoice := len(ops) == 1 || matchesSaved
 			generate := uikit.SecondaryButton(c, locales.GenerateVariables()).Disabled(
 				g.loading != nil || schema == nil || strings.TrimSpace(d.graphql.Variables) != "" || !validChoice)
-			generate.Tooltip(locales.FillAnEmptyVariablesEditor())
+			uikit.Tip(c, generate, locales.FillAnEmptyVariablesEditor())
 			if generate.Clicked() {
 				a.generateGraphQLVariables(d, schema, ops)
 			}
@@ -341,7 +341,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 	})
 	if g.problem != "" {
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Schema: "+oneLine(g.problem)).FontSize(uikit.TextMeta).TextColor(t.Danger).SingleLine().MinWidth(0).Ellipsis("…").Tooltip(g.problem)
+			uikit.Tip(c, ui.Text(c, "Schema: "+oneLine(g.problem)).FontSize(uikit.TextMeta).TextColor(t.Danger).SingleLine().MinWidth(0).Ellipsis("…"), g.problem)
 		})
 	}
 }

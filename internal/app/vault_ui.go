@@ -280,10 +280,10 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 						if r.revealed {
 							label = "Hide"
 						}
-						if uikit.SecondaryButton(c, "◉").Label(locales.SecretRow(label, i+1)).Tooltip(locales.SecretRow(label, i+1)).Width(34).Padding(0).Clicked() {
+						if uikit.Tip(c, uikit.SecondaryButton(c, "◉").Label(locales.SecretRow(label, i+1)), locales.SecretRow(label, i+1)).Width(34).Padding(0).Clicked() {
 							r.revealed = !r.revealed
 						}
-						if uikit.SecondaryButton(c, "×").Label(locales.RemoveSecret(i + 1)).Tooltip(locales.RemoveSecret(i + 1)).Width(34).Padding(0).Clicked() {
+						if uikit.Tip(c, uikit.SecondaryButton(c, "×").Label(locales.RemoveSecret(i+1)), locales.RemoveSecret(i+1)).Width(34).Padding(0).Clicked() {
 							remove = i
 						}
 					})

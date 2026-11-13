@@ -1811,7 +1811,7 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 						direction = "Client → server"
 					}
 					uikit.Body(c, direction+" · "+a.bp.MessageType)
-					uikit.Hint(c, a.bp.URL).SingleLine().Tooltip(a.bp.URL)
+					uikit.Tip(c, uikit.Hint(c, a.bp.URL).SingleLine(), a.bp.URL)
 					if a.bp.BodyReadOnly {
 						uikit.Hint(c, locales.MessageExceedsTheEditorLimit())
 					} else {
@@ -2092,7 +2092,7 @@ func (a *app) hostRow(c *ui.Context, d domain) {
 		})
 	}).Children(func() {
 		if a.filterTriage.Host == d.name {
-			ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(c.Theme().Accent).Tooltip(locales.HostFilterIsActiveRemove())
+			uikit.Tip(c, ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(c.Theme().Accent), locales.HostFilterIsActiveRemove())
 		}
 		uikit.Meta(c, fmt.Sprint(d.n)).FontFeatures("tnum")
 	})
@@ -2107,10 +2107,10 @@ func (a *app) clientRow(c *ui.Context, d domain) {
 		func(m *ui.Menu) { actionMenu(m, a.clientActions(d.name, apps)) }).
 		Children(func() {
 			if a.filterTriage.Client == d.name {
-				ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip(locales.AppFilterIsActiveRemove())
+				uikit.Tip(c, ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent), locales.AppFilterIsActiveRemove())
 			}
 			if slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return a.appInspectionEnabled(app.Path) }) {
-				ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).Tooltip(locales.AnExactExecutableRuleIs())
+				uikit.Tip(c, ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline), locales.AnExactExecutableRuleIs())
 			}
 			uikit.Meta(c, fmt.Sprint(d.n)).FontFeatures("tnum")
 		})
@@ -2278,7 +2278,7 @@ func (a *app) table(c *ui.Context) {
 					if failure {
 						color = t.Warning
 					}
-					ui.Text(c, note).FontSize(uikit.TextBody).TextColor(color).Tooltip(a.views.statusDetail())
+					uikit.Tip(c, ui.Text(c, note).FontSize(uikit.TextBody).TextColor(color), a.views.statusDetail())
 				}
 				if uikit.SecondaryButton(c, locales.EditFilters()).Clicked() {
 					a.openFilter()
@@ -2304,7 +2304,7 @@ func (a *app) table(c *ui.Context) {
 					// the launch: never on the thread that draws.
 					go a.startCapture()
 				}
-				if uikit.SecondaryButton(c, locales.ClientSetup()).Tooltip(locales.CopyAProcessScopedProxy()).Clicked() {
+				if uikit.Tip(c, uikit.SecondaryButton(c, locales.ClientSetup()), locales.CopyAProcessScopedProxy()).Clicked() {
 					a.openClientSetup()
 				}
 				if running && uikit.SecondaryButton(c, locales.DiagnoseCapture()).Clicked() {
@@ -2441,22 +2441,22 @@ func (a *app) table(c *ui.Context) {
 				quiet("—")
 				return
 			}
-			ui.Row(c).Grow(1).Justify(ui.Center).AlignItems(ui.Center).Tooltip(securityNote(f)).Children(func() {
+			uikit.Tip(c, ui.Row(c).Grow(1).Justify(ui.Center).AlignItems(ui.Center), securityNote(f)).Children(func() {
 				ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.Text)
 			})
 		case "method":
 			// The verb is a name here, not a value: the interface font, in
 			// the method's own ink.
-			uikit.Body(c, f.method).FontSize(uikit.TextData).FontWeight(500).Height(15).FixedLineHeight(15).
-				TextColor(uikit.MethodColor(f.method, t)).SingleLine().Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
+			uikit.Tip(c, uikit.Body(c, f.method).FontSize(uikit.TextData).FontWeight(500).Height(15).FixedLineHeight(15).
+				TextColor(uikit.MethodColor(f.method, t)).SingleLine(), f.method).PopoverMenu(a.rowMenu(c, f))
 		case "host":
-			plain(f.host).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
+			uikit.Tip(c, plain(f.host), f.url).PopoverMenu(a.rowMenu(c, f))
 		case "remote":
 			a.remoteCell(c, t, f, quiet)
 		case "url":
 			if a.edited(f.id) {
-				ui.Box(c).Size(6, 6).Radius(3).Background(uikit.Colors(t).Accent).MarginEnd(t.Space(1.5)).
-					Label(locales.Edited()).Tooltip(locales.EditedInTheInspectorThe())
+				uikit.Tip(c, ui.Box(c).Size(6, 6).Radius(3).Background(uikit.Colors(t).Accent).MarginEnd(t.Space(1.5)).
+					Label(locales.Edited()), locales.EditedInTheInspectorThe())
 			}
 			if f.pinned {
 				uikit.Glyph(c, pinIcon).MarginEnd(t.Space(1))
@@ -2469,27 +2469,27 @@ func (a *app) table(c *ui.Context) {
 			rest := t.Text
 			ui.Row(c).Gap(t.Space(0.5)).Children(func() {
 				if f.kind == "connect" {
-					ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(rest).MarginEnd(t.Space(1)).Tooltip(locales.EncryptedTunnelConnectSuccessIs())
+					uikit.Tip(c, ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(rest).MarginEnd(t.Space(1)), locales.EncryptedTunnelConnectSuccessIs())
 				}
 				if f.note != "" {
-					uikit.Glyph(c, noteIcon).MarginEnd(t.Space(1)).Tooltip(f.note)
+					uikit.Tip(c, uikit.Glyph(c, noteIcon).MarginEnd(t.Space(1)), f.note)
 				}
 				if f.dns != "" && !remoteShown {
 					// Without the Remote IP column, the path says a Host
 					// profile sent the request elsewhere.
 					accent := uikit.Colors(t).Accent
-					ui.Box(c).Height(15).Padding(0, t.Space(1)).Radius(uikit.RadiusControl).Background(accent.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
-						Label("Mapped by " + hostProfileLabel(f.hostProfile)).Tooltip(mappedBy(f)).Children(func() {
+					uikit.Tip(c, ui.Box(c).Height(15).Padding(0, t.Space(1)).Radius(uikit.RadiusControl).Background(accent.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
+						Label("Mapped by "+hostProfileLabel(f.hostProfile)), mappedBy(f)).Children(func() {
 						ui.Text(c, locales.Hosts()).FontSize(uikit.TextMeta).FontWeight(500).TextColor(accent)
 					})
 				}
-				text(cmp.Or(f.path, "/")).Label(f.host + f.path).TextColor(rest).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
+				uikit.Tip(c, text(cmp.Or(f.path, "/")).Label(f.host+f.path).TextColor(rest), f.url).PopoverMenu(a.rowMenu(c, f))
 			})
 		case "status":
 			if f.conn.error != "" {
-				text("Failed").TextColor(t.Danger).Tooltip(f.conn.errorStage + ": " + f.conn.error).PopoverMenu(a.rowMenu(c, f))
+				uikit.Tip(c, text("Failed").TextColor(t.Danger), f.conn.errorStage+": "+f.conn.error).PopoverMenu(a.rowMenu(c, f))
 			} else if f.kind == "connect" {
-				quiet("Tunnel").Tooltip(locales.TunnelTooltip(f.status)).PopoverMenu(a.rowMenu(c, f))
+				uikit.Tip(c, quiet("Tunnel"), locales.TunnelTooltip(f.status)).PopoverMenu(a.rowMenu(c, f))
 			} else {
 				// Only a client or server error is colored: a normal answer is
 				// its number in the secondary ink, with nothing beside it.
@@ -2527,13 +2527,13 @@ func (a *app) table(c *ui.Context) {
 				quiet("—")
 				return
 			}
-			plain(f.note).TextColor(t.Text).Tooltip(f.note)
+			uikit.Tip(c, plain(f.note).TextColor(t.Text), f.note)
 		case "tools":
 			if len(f.actions) == 0 {
 				quiet("—")
 				return
 			}
-			ui.Row(c).Grow(1).Justify(ui.Center).AlignItems(ui.Center).Tooltip(strings.Join(f.actions, "\n")).Children(func() {
+			uikit.Tip(c, ui.Row(c).Grow(1).Justify(ui.Center).AlignItems(ui.Center), strings.Join(f.actions, "\n")).Children(func() {
 				uikit.Glyph(c, toolsIcon)
 			})
 		case "captured":
@@ -2550,11 +2550,11 @@ func (a *app) table(c *ui.Context) {
 			if cc.derived() {
 				if cell := f.columnData[cc.id()]; cell != nil {
 					if cell.pending {
-						quiet("…").Tooltip(locales.ReadingRetainedBody())
+						uikit.Tip(c, quiet("…"), locales.ReadingRetainedBody())
 						return
 					}
 					if cell.problem != "" {
-						quiet("Unavailable").Tooltip(cell.problem)
+						uikit.Tip(c, quiet("Unavailable"), cell.problem)
 						return
 					}
 				}
@@ -2564,7 +2564,7 @@ func (a *app) table(c *ui.Context) {
 				quiet("—")
 				return
 			}
-			cell := text(value).TextColor(t.Text).Tooltip(value)
+			cell := uikit.Tip(c, text(value).TextColor(t.Text), value)
 			if cc.header() {
 				cell.PopoverMenu(a.headerFilterMenu(c, cc.Name, []string{value}))
 			}
@@ -2640,7 +2640,7 @@ func (a *app) remoteCell(c *ui.Context, t *ui.Theme, f flow, quiet func(string) 
 	if _, mapped, ok := strings.Cut(f.dns, " → "); ok && ip == "" {
 		ip = mapped
 	}
-	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Tooltip(mappedBy(f)).Label(locales.MappedBy(hostProfileLabel(f.hostProfile))).Children(func() {
+	uikit.Tip(c, ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center), mappedBy(f)).Label(locales.MappedBy(hostProfileLabel(f.hostProfile))).Children(func() {
 		quiet(ip).TextColor(accent).PopoverMenu(a.rowMenu(c, f))
 		ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(accent)
 	})
@@ -2703,7 +2703,7 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 					for _, color := range uikit.MarkColors {
 						selected := a.markColor == color.Name
-						uikit.SwatchButton(c, "Mark "+color.Name, color.Color, selected).Tooltip(color.Name).
+						uikit.Tip(c, uikit.SwatchButton(c, "Mark "+color.Name, color.Color, selected), color.Name).
 							OnClick(func() { a.markColor = color.Name })
 					}
 					if uikit.SecondaryButton(c, locales.None()).Clicked() {
@@ -2763,7 +2763,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		}
 	})
 	if f.conn.error != "" {
-		ui.Text(c, f.conn.error).Selectable().MaxLines(3).Tooltip(f.conn.error).FontSize(uikit.TextBody).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2))
+		uikit.Tip(c, ui.Text(c, f.conn.error).Selectable().MaxLines(3), f.conn.error).FontSize(uikit.TextBody).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2))
 	}
 	text := cmp.Or(f.conn.log, "No connection history was recorded for this exchange (for example, an older or imported session).")
 	ui.TextArea(c, &text).ReadOnly(true).Label(locales.ConnectionLog()).Font(uikit.FontMono).FontSize(uikit.TextBody).Grow(1).FillWidth()
@@ -2843,7 +2843,7 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 				uikit.Meta(c, count)
 			}
 		})
-		uikit.Meta(c, line).Font(uikit.FontMono).SingleLine().Selectable().Tooltip(strings.TrimSpace(line + "\n" + note))
+		uikit.Tip(c, uikit.Meta(c, line).Font(uikit.FontMono).SingleLine().Selectable(), strings.TrimSpace(line+"\n"+note))
 	})
 	ui.Divider(c)
 	side := 0
@@ -2865,7 +2865,7 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 			for _, key := range slices.Sorted(maps.Keys(block)) {
 				value := strings.Join(block[key], "\n")
 				ui.Row(c).Gap(t.Space(3)).Padding(t.Space(2), t.Space(3)).AlignItems(ui.Start).FillWidth().Children(func() {
-					uikit.Meta(c, key).Font(uikit.FontMono).Width(124).SingleLine().Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key)))
+					uikit.Tip(c, uikit.Meta(c, key).Font(uikit.FontMono).Width(124).SingleLine(), strings.TrimSpace(key+"\n"+headerDoc(key)))
 					ui.Text(c, value).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable()
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
@@ -3290,13 +3290,13 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Spacer(c)
 				if anyCurrent(a.varsRows) {
-					if uikit.SecondaryButton(c, locales.PersistAllCurrent()).Tooltip(locales.WriteNonSensitiveCurrentValues()).Clicked() {
+					if uikit.Tip(c, uikit.SecondaryButton(c, locales.PersistAllCurrent()), locales.WriteNonSensitiveCurrentValues()).Clicked() {
 						persisted, skipped := persistAllCurrent(a.varsRows)
 						if skipped > 0 {
 							a.inform(locales.PersistedValues(persisted, skipped))
 						}
 					}
-					if uikit.SecondaryButton(c, locales.ResetAllCurrent()).Tooltip(locales.DropEveryLocalOverrideAnd()).Clicked() {
+					if uikit.Tip(c, uikit.SecondaryButton(c, locales.ResetAllCurrent()), locales.DropEveryLocalOverrideAnd()).Clicked() {
 						resetAllCurrent(a.varsRows)
 					}
 				}
@@ -3309,7 +3309,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, a.varsProblem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, locales.ExportAsPostman()).Tooltip(locales.WritesTheInitialValuesShown()).Clicked() {
+				if uikit.Tip(c, uikit.SecondaryButton(c, locales.ExportAsPostman()), locales.WritesTheInitialValuesShown()).Clicked() {
 					a.exportPostmanVariables()
 				}
 				ui.Spacer(c)
@@ -3947,7 +3947,7 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 						ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
 							uikit.Body(c, app.Name)
-							uikit.Meta(c, app.Path).SingleLine().Tooltip(app.Path)
+							uikit.Tip(c, uikit.Meta(c, app.Path).SingleLine(), app.Path)
 						})
 						if uikit.SecondaryButton(c, locales.Remove()).Label(locales.RemoveHttpsApp(app.Path)).Clicked() {
 							remove = i

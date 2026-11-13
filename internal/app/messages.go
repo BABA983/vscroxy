@@ -302,10 +302,10 @@ func (m messageView) row(c *ui.Context) {
 		muted := t.TextMuted
 		ui.Text(c, m.stamp()).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(muted).Width(80).SingleLine()
 		label := ui.Text(c, m.label()).FontSize(uikit.TextMeta).TextColor(muted).Width(52).SingleLine()
-		label = label.Tooltip(m.kindLine())
+		label = uikit.Tip(c, label, m.kindLine())
 		preview := ui.Text(c, m.preview()).FontSize(uikit.TextBody).Font(uikit.FontMono).
 			TextColor(t.Text).SingleLine().Grow(1)
-		preview.Tooltip(m.preview())
+		uikit.Tip(c, preview, m.preview())
 		ui.Text(c, humanBytes(m.size)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(muted).Width(48).SingleLine()
 	})
 }
@@ -328,8 +328,8 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).MinHeight(uikit.HeightLarge).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, m.headline()).FontSize(uikit.TextBody).Font(uikit.FontMono).FontFeatures("tnum").TextColor(t.Text).
-				SingleLine().Grow(1).Tooltip(m.headline())
+			uikit.Tip(c, ui.Text(c, m.headline()).FontSize(uikit.TextBody).Font(uikit.FontMono).FontFeatures("tnum").TextColor(t.Text).
+				SingleLine().Grow(1), m.headline())
 			if uikit.SecondaryButton(c, locales.Copy()).Clicked() {
 				c.Services().WriteClipboard(payload)
 				a.done(locales.CopiedMessage(m.label(), humanBytes(len(payload))))
@@ -341,7 +341,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 				modes = append(modes, "Protobuf")
 			}
 			uikit.Segmented(c, &p.mode, modes...).Label(locales.ShowAs())
-			uikit.Meta(c, m.meta()).SingleLine().Grow(1).Tooltip(m.meta())
+			uikit.Tip(c, uikit.Meta(c, m.meta()).SingleLine().Grow(1), m.meta())
 		})
 		ui.Divider(c)
 		if p.loadedError != "" {
@@ -485,7 +485,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		if !f.at.IsZero() {
 			state = "Started " + f.at.Format("15:04:05.000") + " · " + state
 		}
-		uikit.Meta(c, state).FontFeatures("tnum").Grow(1).SingleLine().Tooltip(state + ". The engine does not provide close codes or an end reason.")
+		uikit.Tip(c, uikit.Meta(c, state).FontFeatures("tnum").Grow(1).SingleLine(), state+". The engine does not provide close codes or an end reason.")
 		pauseLabel := "Pause view"
 		if p.paused {
 			pauseLabel = "Resume"
@@ -513,8 +513,8 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 			newer -= p.frozen[len(p.frozen)-1].seq
 		}
 		note := locales.PausedViewNote(max(newer, 0))
-		uikit.Meta(c, note).FontFeatures("tnum").
-			Background(uikit.Colors(t).Chrome).Padding(t.Space(1), t.Space(3)).SingleLine().Tooltip(note)
+		uikit.Tip(c, uikit.Meta(c, note).FontFeatures("tnum").
+			Background(uikit.Colors(t).Chrome).Padding(t.Space(1), t.Space(3)).SingleLine(), note)
 		list = p.frozen
 	}
 	// The search and the direction filter are built first: they change what
@@ -523,7 +523,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		search := ui.SearchField(c, &p.query).Placeholder(locales.SearchMessagesPlaceholder()).Label(locales.SearchMessages()).
 			Width(180).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
-		search.Tooltip(locales.SearchesMetadataAndTheFull())
+		uikit.Tip(c, search, locales.SearchesMetadataAndTheFull())
 		if search.Changed() {
 			p.follow = true
 		}
@@ -549,7 +549,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		if n := len(p.searchCache.errs); n > 0 {
 			note += locales.PayloadsUnreadable(n)
 		}
-		uikit.Meta(c, note).FontFeatures("tnum").SingleLine().Tooltip(note)
+		uikit.Tip(c, uikit.Meta(c, note).FontFeatures("tnum").SingleLine(), note)
 		ui.Spacer(c)
 		if !p.follow && uikit.SecondaryButton(c, locales.Latest()).Clicked() {
 			p.follow = true

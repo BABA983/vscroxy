@@ -54,7 +54,7 @@ func (s *structuredInspector) view(c *ui.Context, source inspectionBody, content
 				label = fmt.Sprintf("%d parts · files are not previewed", len(s.job.body.Parts))
 			}
 		}
-		uikit.Meta(c, label).Grow(1).SingleLine().Tooltip(label)
+		uikit.Tip(c, uikit.Meta(c, label).Grow(1).SingleLine(), label)
 		ui.Row(c).Disabled(s.job.result == nil).Children(func() {
 			if uikit.SecondaryButton(c, locales.CopyView()).Clicked() {
 				c.Services().WriteClipboard(s.job.result.Buffer.String())
@@ -89,7 +89,7 @@ func (s *structuredInspector) view(c *ui.Context, source inspectionBody, content
 					}
 				}
 			}
-			uikit.Mono(c, clamp(value, 256)).SingleLine().Tooltip(clamp(raw, 4096)).Selectable()
+			uikit.Tip(c, uikit.Mono(c, clamp(value, 256)).SingleLine(), clamp(raw, 4096)).Selectable()
 		}).Label(locales.FormFields()).Grow(1).MinHeight(0)
 		if len(body.Fields) == 0 {
 			uikit.Hint(c, locales.NoFormFields())

@@ -274,11 +274,11 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				case len(r.data) > 0:
 					text, color = fmt.Sprintf("%s · %d %s · %s", r.dataName, len(r.data), plural(len(r.data), "row", "rows"), strings.Join(request.DataColumns(r.data), ", ")), t.Text
 				}
-				ui.Text(c, text).FontSize(uikit.TextMeta).TextColor(color).Grow(1).MinWidth(0).SingleLine().Tooltip(text)
+				uikit.Tip(c, ui.Text(c, text).FontSize(uikit.TextMeta).TextColor(color).Grow(1).MinWidth(0).SingleLine(), text)
 				if len(r.data) > 0 && uikit.SecondaryButton(c, locales.Remove()).Label(locales.RemoveDataFile()).Disabled(r.running).Clicked() {
 					r.data, r.dataName, r.iterations = nil, "", "1"
 				}
-				if uikit.SecondaryButton(c, locales.DataFile()).Tooltip(locales.CsvWithAHeaderRow()).Disabled(r.running).Clicked() {
+				if uikit.Tip(c, uikit.SecondaryButton(c, locales.DataFile()), locales.CsvWithAHeaderRow()).Disabled(r.running).Clicked() {
 					a.chooseRunnerData()
 				}
 			})
@@ -296,10 +296,10 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 							ui.Row(c.Key(i)).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).
 								Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 								ui.Checkbox(c, &step.enabled, step.request.Name).Label(locales.RunRequest(i + 1)).FontSize(uikit.TextBody).Grow(1).Disabled(r.running)
-								if uikit.SecondaryButton(c, "↑").Label(locales.MoveRequestUp(i + 1)).Tooltip(locales.MoveRequestUp(i + 1)).Width(uikit.HeightControl).Padding(0).Disabled(r.running || i == 0).Clicked() {
+								if uikit.Tip(c, uikit.SecondaryButton(c, "↑").Label(locales.MoveRequestUp(i+1)), locales.MoveRequestUp(i+1)).Width(uikit.HeightControl).Padding(0).Disabled(r.running || i == 0).Clicked() {
 									move, delta = i, -1
 								}
-								if uikit.SecondaryButton(c, "↓").Label(locales.MoveRequestDown(i + 1)).Tooltip(locales.MoveRequestDown(i + 1)).Width(uikit.HeightControl).Padding(0).Disabled(r.running || i == len(r.steps)-1).Clicked() {
+								if uikit.Tip(c, uikit.SecondaryButton(c, "↓").Label(locales.MoveRequestDown(i+1)), locales.MoveRequestDown(i+1)).Width(uikit.HeightControl).Padding(0).Disabled(r.running || i == len(r.steps)-1).Clicked() {
 									move, delta = i, 1
 								}
 							})
@@ -324,8 +324,8 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						if row.failed {
 							color = t.Danger
 						}
-						ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
-							Border(0, t.Border).BorderWidth(0, 0, 1, 0).Tooltip(row.summary).Children(func() {
+						uikit.Tip(c, ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
+							Border(0, t.Border).BorderWidth(0, 0, 1, 0), row.summary).Children(func() {
 							uikit.Body(c, fmt.Sprintf("%d · %s", row.iteration, row.name)).FontFeatures("tnum").Grow(1).MinWidth(0).SingleLine()
 							summary := ui.Text(c, row.summary).FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine().MaxWidth(240)
 							summary.TextColor(color)

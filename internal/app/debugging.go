@@ -355,7 +355,7 @@ drained:
 					uikit.Body(c, r.summary())
 				}
 				if r.problem != "" {
-					ui.Text(c, r.problem).FontSize(uikit.TextBody).TextColor(t.Danger).MaxLines(3).Tooltip(r.problem)
+					uikit.Tip(c, ui.Text(c, r.problem).FontSize(uikit.TextBody).TextColor(t.Danger).MaxLines(3), r.problem)
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {

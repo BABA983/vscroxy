@@ -285,8 +285,8 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		return // rebuild the chosen side before parsing or copying its bytes
 	}
 	if notice := strings.TrimSpace(a.bodyNotice[side]); notice != "" {
-		ui.Text(c, notice).FontSize(uikit.TextMeta).TextColor(t.Warning).Background(t.Warning.Alpha(0.12)).
-			Padding(t.Space(1), t.Space(3)).FillWidth().Tooltip(notice)
+		uikit.Tip(c, ui.Text(c, notice).FontSize(uikit.TextMeta).TextColor(t.Warning).Background(t.Warning.Alpha(0.12)).
+			Padding(t.Space(1), t.Space(3)).FillWidth(), notice)
 	}
 	if modes[mode] == inspect.BodyFormat(f.bodyContentType(side == 0)) {
 		a.structured[side].view(c, capturedInspectionBody(f, side), f.bodyContentType(side == 0))
@@ -321,7 +321,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		if mode == 3 {
 			placeholder = "Filter hex rows (hex bytes or text)…"
 		}
-		uikit.Input(c, &a.bodyQuery[side]).Label(locales.SearchBody()).Placeholder(placeholder).Tooltip(placeholder).
+		uikit.Tip(c, uikit.Input(c, &a.bodyQuery[side]).Label(locales.SearchBody()).Placeholder(placeholder), placeholder).
 			FontSize(uikit.TextBody).Height(uikit.HeightControl).Radius(uikit.RadiusControl).Margin(0, t.Space(3), t.Space(2)).FillWidth()
 	}
 	switch mode {
@@ -440,13 +440,13 @@ func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 	bar.Children(func() {
 		find.QueryInput(uikit.Input(c, find.Query()).Label(locales.SearchBody()).Placeholder(locales.FindInBody()).Width(140))
 		uikit.Meta(c, find.Status()).FontFeatures("tnum").MinWidth(40).Role(ui.RoleStatus)
-		if uikit.SecondaryButton(c, "↑").Label(locales.PreviousBodyMatch()).Tooltip(locales.PreviousMatchShiftEnter()).KeepFocus().Clicked() {
+		if uikit.Tip(c, uikit.SecondaryButton(c, "↑").Label(locales.PreviousBodyMatch()), locales.PreviousMatchShiftEnter()).KeepFocus().Clicked() {
 			find.Previous()
 		}
-		if uikit.SecondaryButton(c, "↓").Label(locales.NextBodyMatch()).Tooltip(locales.NextMatchEnter()).KeepFocus().Clicked() {
+		if uikit.Tip(c, uikit.SecondaryButton(c, "↓").Label(locales.NextBodyMatch()), locales.NextMatchEnter()).KeepFocus().Clicked() {
 			find.Next()
 		}
-		if uikit.SecondaryButton(c, "×").Label(locales.CloseBodySearch()).Tooltip(locales.CloseSearchEsc()).KeepFocus().Clicked() {
+		if uikit.Tip(c, uikit.SecondaryButton(c, "×").Label(locales.CloseBodySearch()), locales.CloseSearchEsc()).KeepFocus().Clicked() {
 			find.Close()
 		}
 	})
@@ -476,14 +476,14 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 					arrow, action = "▾", "Collapse"
 				}
 				label := action + " " + []string{"response", "request"}[side] + " JSON " + row.node.path
-				if uikit.SecondaryButton(c, arrow).Label(label).Tooltip(label).Expanded(expanded).Size(uikit.HeightControl, uikit.HeightControl).Padding(0).Clicked() {
+				if uikit.Tip(c, uikit.SecondaryButton(c, arrow).Label(label), label).Expanded(expanded).Size(uikit.HeightControl, uikit.HeightControl).Padding(0).Clicked() {
 					a.jsonExpanded[side][row.node.path] = !expanded
 				}
 			} else {
 				ui.Box(c).Width(uikit.HeightControl)
 			}
 			if row.node.key != "" {
-				ui.Text(c, row.node.key).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(keyColor).SingleLine().Tooltip(row.node.path)
+				uikit.Tip(c, ui.Text(c, row.node.key).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(keyColor).SingleLine(), row.node.path)
 				uikit.Hint(c, ":")
 			}
 			switch row.node.kind {

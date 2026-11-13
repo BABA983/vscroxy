@@ -149,7 +149,7 @@ func (a *app) breakTemplates(c *ui.Context, t *ui.Theme, valid bool) {
 			if a.bpTemplate != "" {
 				current = "Template: " + a.bpTemplate
 			}
-			uikit.MenuSelect(c, current, func(m *ui.Menu) {
+			uikit.Tip(c, uikit.MenuSelect(c, current, func(m *ui.Menu) {
 				for _, o := range mine {
 					if m.Item(o.Name).Radio(a.bpTemplate == o.Name).Chosen() {
 						a.applyBreakTemplate(o)
@@ -163,7 +163,7 @@ func (a *app) breakTemplates(c *ui.Context, t *ui.Theme, valid bool) {
 						}
 					}
 				})
-			}).Height(uikit.HeightControl).Label(locales.BreakpointTemplate()).Tooltip("Fill this " + phase + " with a saved one; the URL stays as paused")
+			}).Height(uikit.HeightControl).Label(locales.BreakpointTemplate()), "Fill this "+phase+" with a saved one; the URL stays as paused")
 		}
 		save := uikit.CompactButton(c, locales.SaveAsTemplate()).Disabled(!valid).
 			Tooltip("Keep this " + phase + " as edited to apply at a later pause")

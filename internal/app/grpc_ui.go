@@ -318,7 +318,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		if strings.HasPrefix(d.composeURL, "http://") {
 			transport = "Plaintext HTTP/2 · direct connection, not captured (h2c)."
 		}
-		uikit.Meta(c, transport).SingleLine().Tooltip(transport).Padding(0, t.Space(3), t.Space(1), t.Space(3))
+		uikit.Tip(c, uikit.Meta(c, transport).SingleLine(), transport).Padding(0, t.Space(3), t.Space(1), t.Space(3))
 	})
 }
 

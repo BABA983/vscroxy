@@ -191,10 +191,10 @@ func (a *app) hostProfilesPage(c *ui.Context, t *ui.Theme, window bool) {
 		}
 		a.profileList(c, t)
 		ui.Row(c).Gap(t.Space(1)).Wrap().Children(func() {
-			if uikit.CompactButton(c, locales.ImportSystemHosts()).Tooltip(locales.CopySystemHosts(hosts.SystemFile())).Clicked() {
+			if uikit.Tip(c, uikit.CompactButton(c, locales.ImportSystemHosts()), locales.CopySystemHosts(hosts.SystemFile())).Clicked() {
 				a.importSystemHosts()
 			}
-			if uikit.CompactButton(c, locales.SubscribeToUrl()).Tooltip(locales.AProfileFetchedFromA()).Clicked() {
+			if uikit.Tip(c, uikit.CompactButton(c, locales.SubscribeToUrl()), locales.AProfileFetchedFromA()).Clicked() {
 				a.newProfile("Subscription", "", "https://")
 				h.nameFor, h.urlFor = "", ""
 			}
@@ -249,7 +249,7 @@ func (a *app) profileList(c *ui.Context, t *ui.Theme) {
 				a.switchProfile(row.Index, on)
 			}
 			if p.URL != "" {
-				uikit.Glyph(c, subscribeIcon).Tooltip(locales.SubscribedUrl(p.URL))
+				uikit.Tip(c, uikit.Glyph(c, subscribeIcon), locales.SubscribedUrl(p.URL))
 			}
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 				ui.Text(c, p.Name).FontSize(uikit.TextBody).TextColor(t.Text).SingleLine()
@@ -258,10 +258,10 @@ func (a *app) profileList(c *ui.Context, t *ui.Theme) {
 				}
 			})
 			if n := conflicts[p.Name]; n > 0 && p.On {
-				ui.Box(c).Size(7, 7).Radius(uikit.RadiusControl).Background(t.Warning).
-					Label(fmt.Sprintf("%d %s", n, plural(n, "conflict", "conflicts"))).Tooltip(locales.AHigherProfileMapsThe())
+				uikit.Tip(c, ui.Box(c).Size(7, 7).Radius(uikit.RadiusControl).Background(t.Warning).
+					Label(fmt.Sprintf("%d %s", n, plural(n, "conflict", "conflicts"))), locales.AHigherProfileMapsThe())
 			}
-			uikit.Meta(c, fmt.Sprint(profileHosts(p))).Font(uikit.FontMono).FontFeatures("tnum").Tooltip(locales.HostsMapped())
+			uikit.Tip(c, uikit.Meta(c, fmt.Sprint(profileHosts(p))).Font(uikit.FontMono).FontFeatures("tnum"), locales.HostsMapped())
 		})
 	})
 	c.SetTheme(t)
@@ -369,13 +369,13 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 		}
 		uikit.Meta(c, note).Grow(1).SingleLine()
 		ui.Row(c).Disabled(a.srv == nil).Children(func() {
-			if uikit.SecondaryButton(c, locales.DropOpenConnections()).Tooltip(locales.CloseTheClientsOpenConnections()).Clicked() {
+			if uikit.Tip(c, uikit.SecondaryButton(c, locales.DropOpenConnections()), locales.CloseTheClientsOpenConnections()).Clicked() {
 				a.dropConnections()
 			}
 		})
 		if p.URL == "" {
 			ui.Row(c).Disabled(!modified).Children(func() {
-				save := uikit.PrimaryButton(c, locales.Save()).Tooltip(locales.SaveCtrlCmdS())
+				save := uikit.Tip(c, uikit.PrimaryButton(c, locales.Save()), locales.SaveCtrlCmdS())
 				save.OnClick(func() { a.saveProfile(i) })
 			})
 		}

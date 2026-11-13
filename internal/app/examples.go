@@ -120,7 +120,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				if uikit.Segmented(c, &d.exampleView, locales.Body(), locales.RequestHeadersLabel(), locales.Request()).Changed() {
 					d.exampleEditor = nil
 				}
-				if uikit.SecondaryButton(c, locales.Mock()).Label(locales.MockThisExample()).Tooltip(locales.AnswerMatchingRequestsWithThis()).Clicked() {
+				if uikit.Tip(c, uikit.SecondaryButton(c, locales.Mock()).Label(locales.MockThisExample()), locales.AnswerMatchingRequestsWithThis()).Clicked() {
 					a.mockExample(d.value().Request, *e)
 				}
 				if uikit.SecondaryButton(c, locales.Delete()).Label(locales.DeleteExample()).Clicked() {

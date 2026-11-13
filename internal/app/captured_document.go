@@ -150,11 +150,11 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 		// Assistive technology hears the request itself, as the bar below
 		// shows it.
 		title := f.method + " " + cmp.Or(f.url, f.scheme+"://"+f.host+f.path)
-		uikit.Meta(c, source).Label(title).FontFeatures("tnum").SingleLine().MinWidth(0).Tooltip(title)
+		uikit.Tip(c, uikit.Meta(c, source).Label(title).FontFeatures("tnum").SingleLine().MinWidth(0), title)
 		a.capturedRequestMatch(c, t, f)
 		if d == nil {
 			// Streams and tunnels read as they were; the path names them.
-			uikit.Mono(c, f.method+" "+cmp.Or(f.path, "/")).SingleLine().MinWidth(48).Tooltip(f.url)
+			uikit.Tip(c, uikit.Mono(c, f.method+" "+cmp.Or(f.path, "/")).SingleLine().MinWidth(48), f.url)
 		}
 		if a.edited(f.id) {
 			// The source names give way first; the mark and the status stay.
@@ -164,8 +164,8 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 			// Which Host profile sent it elsewhere, as the Remote IP says.
 			profile, _, _ := strings.CutLast(f.hostProfile, ":")
 			_, ip, _ := strings.Cut(f.dns, " → ")
-			ui.Text(c, locales.MappedTo(profile, ip)).FontSize(uikit.TextMeta).TextColor(uikit.Colors(t).Accent).
-				SingleLine().MinWidth(0).Tooltip(mappedBy(f))
+			uikit.Tip(c, ui.Text(c, locales.MappedTo(profile, ip)).FontSize(uikit.TextMeta).TextColor(uikit.Colors(t).Accent).
+				SingleLine().MinWidth(0), mappedBy(f))
 		}
 		ui.Spacer(c)
 		// The original response names its result in the pane. Keep the
@@ -174,7 +174,7 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 			a.exchangeResult(c, t, f, compact)
 		}
 		if f.conn.error != "" {
-			if uikit.SecondaryButton(c, locales.Explain()).Tooltip(locales.DiagnoseThisConnection()).Clicked() {
+			if uikit.Tip(c, uikit.SecondaryButton(c, locales.Explain()), locales.DiagnoseThisConnection()).Clicked() {
 				a.openDiagnostics(&f, diagnoseMac)
 			}
 		}
@@ -249,11 +249,11 @@ func (a *app) capturedReadOnly(c *ui.Context, t *ui.Theme, f flow, problem strin
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		if problem == "spilled" {
 			uikit.Hint(c, locales.LargeRequestBodyKeptOn()).Grow(1)
-			if uikit.SecondaryButton(c, locales.EditRequest()).Tooltip(locales.ReadTheBodyFromDisk()).Clicked() {
+			if uikit.Tip(c, uikit.SecondaryButton(c, locales.EditRequest()), locales.ReadTheBodyFromDisk()).Clicked() {
 				a.editCapture(f)
 			}
 			return
 		}
-		uikit.Hint(c, problem).SingleLine().Grow(1).Tooltip(problem)
+		uikit.Tip(c, uikit.Hint(c, problem).SingleLine().Grow(1), problem)
 	})
 }

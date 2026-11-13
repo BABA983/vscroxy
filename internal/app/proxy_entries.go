@@ -372,7 +372,7 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 					if ui.Switch(c, &enabled).Label("Reverse proxy on port " + strconv.Itoa(r.Port)).Changed() {
 						a.setReverseEnabled(r.ID, enabled)
 					}
-					uikit.Mono(c, r.Target).SingleLine().MaxWidth(280).TextColor(t.TextMuted).Tooltip(r.Target)
+					uikit.Tip(c, uikit.Mono(c, r.Target).SingleLine().MaxWidth(280).TextColor(t.TextMuted), r.Target)
 					if uikit.SecondaryButton(c, locales.Edit()).Clicked() {
 						a.openReverseProxy(r.ID)
 					}

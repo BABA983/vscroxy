@@ -117,7 +117,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 						uikit.Body(c, cmp.Or(s.cert.Subject.CommonName, s.cert.Subject.String()))
 						uikit.Meta(c, "Valid: "+s.cert.NotBefore.Local().Format("2006-01-02")+" → "+s.cert.NotAfter.Local().Format("2006-01-02"))
 						fingerprint := fmt.Sprintf("%X", sha256.Sum256(s.cert.Raw))
-						uikit.Meta(c, "SHA-256: "+fingerprint).Font(uikit.FontMono).SingleLine().Tooltip(fingerprint).Selectable()
+						uikit.Tip(c, uikit.Meta(c, "SHA-256: "+fingerprint).Font(uikit.FontMono).SingleLine(), fingerprint).Selectable()
 					}
 					if s.installing {
 						uikit.Meta(c, locales.IfTheSystemAsksFor())
@@ -127,13 +127,13 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 						if errors.Is(s.err, os.ErrNotExist) {
 							problem = "CA file not found. Start capture, then check again."
 						}
-						ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Warning).SingleLine().Tooltip(s.err.Error())
+						uikit.Tip(c, ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Warning).SingleLine(), s.err.Error())
 					}
 					if s.installErr != nil {
 						if errors.Is(s.installErr, system.ErrInstallCancelled) {
 							uikit.Meta(c, locales.InstallationCancelledYouCanTry())
 						} else {
-							ui.Text(c, "Installation failed: "+s.installErr.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(2).Tooltip(s.installErr.Error())
+							uikit.Tip(c, ui.Text(c, "Installation failed: "+s.installErr.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(2), s.installErr.Error())
 							switch runtime.GOOS {
 							case "darwin":
 								uikit.Meta(c, locales.ManualFallbackUseShowCertificate())
@@ -150,13 +150,13 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 			// gray the Trust label.
 			ui.Field(c, "", func() {
 				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-					if uikit.PrimaryButton(c, locales.InstallTrust()).Tooltip(locales.TrustTheLocalCaOn()).Disabled(s.checking || s.cert == nil || s.checked && s.err == nil).Clicked() {
+					if uikit.Tip(c, uikit.PrimaryButton(c, locales.InstallTrust()), locales.TrustTheLocalCaOn()).Disabled(s.checking || s.cert == nil || s.checked && s.err == nil).Clicked() {
 						a.checkCertificate(true)
 					}
 					if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(s.checking).Clicked() {
 						a.checkCertificate(false)
 					}
-					if uikit.SecondaryButton(c, locales.ShowCertificate()).Tooltip(a.caPath).Disabled(a.caPath == "").Clicked() {
+					if uikit.Tip(c, uikit.SecondaryButton(c, locales.ShowCertificate()), a.caPath).Disabled(a.caPath == "").Clicked() {
 						a.revealCA()
 					}
 				})
@@ -188,7 +188,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 						a.leaveSettings()
 						a.sslOpen = true
 					}
-					uikit.Hint(c, summary).SingleLine().Shrink(1).MinWidth(0).Tooltip(summary)
+					uikit.Tip(c, uikit.Hint(c, summary).SingleLine().Shrink(1).MinWidth(0), summary)
 				})
 			}).Description(hint)
 		})
@@ -199,7 +199,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 						a.leaveSettings()
 						a.openKeyLog()
 					}
-					uikit.Mono(c, cmp.Or(a.keyLogPath, "Off")).TextColor(t.TextMuted).SingleLine().MaxWidth(260).Tooltip(a.keyLogPath)
+					uikit.Tip(c, uikit.Mono(c, cmp.Or(a.keyLogPath, "Off")).TextColor(t.TextMuted).SingleLine().MaxWidth(260), a.keyLogPath)
 					restartPending(c, a.keyLogPath != a.launchKeyLog)
 				})
 			}).Description(locales.WriteTlsSecretsToA())
@@ -310,7 +310,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 								a.done(locales.CopiedTheRecordedError())
 							}
 						})
-						ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.Danger).Selectable().SingleLine().Tooltip(f.conn.error)
+						uikit.Tip(c, ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.Danger).Selectable().SingleLine(), f.conn.error)
 					})
 				}
 				// What to do next. A failure is read before anything is
@@ -322,9 +322,9 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 						const tip = "Open this exchange's Connection tab: the recorded log and addresses"
 						var button ui.Element
 						if primary {
-							button = uikit.PrimaryButton(c, locales.ViewConnectionRecord()).Tooltip(tip)
+							button = uikit.Tip(c, uikit.PrimaryButton(c, locales.ViewConnectionRecord()), tip)
 						} else {
-							button = uikit.SecondaryButton(c, locales.ViewConnectionRecord()).Tooltip(tip)
+							button = uikit.Tip(c, uikit.SecondaryButton(c, locales.ViewConnectionRecord()), tip)
 						}
 						if button.Clicked() {
 							a.inspect.pane = inspectorConnection
@@ -360,7 +360,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 						}
 						record(false)
 					}
-					if uikit.SecondaryButton(c, locales.CertificateSetup()).Tooltip(locales.CheckOrInstallTheLocal()).Clicked() {
+					if uikit.Tip(c, uikit.SecondaryButton(c, locales.CertificateSetup()), locales.CheckOrInstallTheLocal()).Clicked() {
 						a.openSettings(2)
 						a.checkCertificate(false)
 					}
@@ -374,7 +374,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 					uikit.Meta(c, locales.DomainDecryptionDisabled())
 				}
 				if appEnabled {
-					ui.Text(c, locales.AppRuleEnabledReconnectTo()).FontSize(uikit.TextMeta).Tooltip(f.processPath)
+					uikit.Tip(c, ui.Text(c, locales.AppRuleEnabledReconnectTo()).FontSize(uikit.TextMeta), f.processPath)
 				} else if !filepath.IsAbs(f.processPath) {
 					uikit.Meta(c, locales.AppRuleUnavailableLocalExecutable())
 				}

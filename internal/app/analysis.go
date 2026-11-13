@@ -87,7 +87,7 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 			if uikit.SecondaryButton(c, locales.Summary()).Clicked() {
 				s.tab = 0
 			}
-			if uikit.SecondaryButton(c, locales.CompareTwo()).Disabled(len(selected) != 2).Tooltip(locales.ChooseExactlyTwoRowsWith()).Clicked() {
+			if uikit.Tip(c, uikit.SecondaryButton(c, locales.CompareTwo()).Disabled(len(selected) != 2), locales.ChooseExactlyTwoRowsWith()).Clicked() {
 				s.tab = 1
 			}
 			if uikit.SecondaryButton(c, locales.InspectFocused()).Clicked() {
@@ -133,7 +133,7 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 					if uikit.SecondaryButton(c, locales.InspectNumbered(f.id)).Clicked() {
 						a.inspectCapture(f.id)
 					}
-					uikit.Body(c, f.method+" "+f.host+f.path).SingleLine().Grow(1).Tooltip(f.url)
+					uikit.Tip(c, uikit.Body(c, f.method+" "+f.host+f.path).SingleLine().Grow(1), f.url)
 					ui.Text(c, locales.Millis(f.millis)).FontSize(uikit.TextMeta).FontFeatures("tnum").FontWeight(500).Width(65)
 				})
 			}
@@ -197,8 +197,8 @@ func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]str
 			if i == 1 {
 				label = "Right"
 			}
-			ui.Text(c, fmt.Sprintf("%s %s · %s %s · %d · %d ms", label, labels[i], f.method, f.path, f.status, f.millis)).
-				FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine().Grow(1).Tooltip(f.url)
+			uikit.Tip(c, ui.Text(c, fmt.Sprintf("%s %s · %s %s · %d · %d ms", label, labels[i], f.method, f.path, f.status, f.millis)).
+				FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine().Grow(1), f.url)
 		}
 	})
 	uikit.Meta(c, locales.ReadOnlyComparisonBodiesLimited()).Padding(t.Space(1), t.Space(3))

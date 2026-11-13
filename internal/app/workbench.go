@@ -187,8 +187,8 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
 		Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 		mode := cmp.Or(a.searchMode, "Text")
-		if uikit.SelectLabels(c.Key("capture-search-mode"), &mode, searchModes, optionLabel).Label(locales.CaptureSearchMode()).
-			MinWidth(94).Width(94).Tooltip(locales.TextLiteralContainsAndKey()).Changed() {
+		if uikit.Tip(c, uikit.SelectLabels(c.Key("capture-search-mode"), &mode, searchModes, optionLabel).Label(locales.CaptureSearchMode()).
+			MinWidth(94).Width(94), locales.TextLiteralContainsAndKey()).Changed() {
 			a.searchMode = mode
 			if mode == "Text" {
 				a.searchMode = ""
@@ -346,7 +346,7 @@ func (a *app) captureConditions(c *ui.Context) {
 	if a.filterAny {
 		note = "Any content field may match (OR); search, sidebar, protocol and time range still narrow"
 	}
-	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Tooltip(note).Children(func() {
+	uikit.Tip(c, ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center), note).Children(func() {
 		changed := func() {
 			a.views.capture(a)
 			a.applyFilter()
@@ -723,7 +723,7 @@ func (a *app) commandPalette(c *ui.Context) {
 			c.SetTheme(uikit.ListTheme(t, focused))
 			list := ui.List(c, &w.commands, len(matches), func(i int) {
 				item := matches[i]
-				b := uikit.RowButton(c, item.label).Disabled(!item.enabled).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Tooltip(item.detail)
+				b := uikit.Tip(c, uikit.RowButton(c, item.label).Disabled(!item.enabled).Height(uikit.HeightLarge).Padding(0, t.Space(3)), item.detail)
 				// The list's highlight shows through; RowButton saw the row
 				// before Disabled, so an unavailable command drops its hover too.
 				if !item.enabled || i == w.command && !b.Pressed() {
@@ -770,7 +770,7 @@ func (a *app) commandPalette(c *ui.Context) {
 				case !a.page.capture() && a.requestDocument != nil:
 					message = "Draft · " + a.title()
 				}
-				uikit.Meta(c, message).SingleLine().Tooltip(message)
+				uikit.Tip(c, uikit.Meta(c, message).SingleLine(), message)
 			}
 			if assets.more > 0 {
 				uikit.Meta(c, locales.MoreResults(assets.more)).SingleLine()

@@ -43,7 +43,7 @@ func (a *app) timingView(c *ui.Context, f flow) {
 		ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), 0).Children(func() {
 			ui.Text(c, locales.Total()).FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Text).Shrink(0)
 			target := f.method + " " + f.host + f.path
-			uikit.Meta(c, target).Grow(1).Shrink(1).MinWidth(0).SingleLine().Tooltip(target)
+			uikit.Tip(c, uikit.Meta(c, target).Grow(1).Shrink(1).MinWidth(0).SingleLine(), target)
 			ui.Text(c, fmt.Sprintf("%d ms", f.millis)).Font(uikit.FontMono).FontSize(uikit.TextMeta).FontFeatures("tnum").FontWeight(500).TextColor(t.Text).Shrink(0)
 		})
 		uikit.Meta(c, connectionNote(f)).Padding(t.Space(1), 0, 0, 0)
@@ -165,12 +165,12 @@ func timingWaterfall(c *ui.Context, timing *capture.Timing) {
 						uikit.Meta(c, locales.Failed()).TextColor(t.Danger)
 					}
 					if p.Incomplete {
-						uikit.Meta(c, locales.Open()).Tooltip(locales.UnfinishedAtCapture())
+						uikit.Tip(c, uikit.Meta(c, locales.Open()), locales.UnfinishedAtCapture())
 					}
 					uikit.Meta(c, timingDuration(p.DurationNS)).Font(uikit.FontMono).FontFeatures("tnum")
 				})
-				ui.Box(c).FillWidth().Height(8).Radius(4).Background(t.Border.Alpha(0.3)).
-					Label(locales.TimingPhaseLabel(i+1, p.Name)).Description(description).Tooltip(description).
+				uikit.Tip(c, ui.Box(c).FillWidth().Height(8).Radius(4).Background(t.Border.Alpha(0.3)).
+					Label(locales.TimingPhaseLabel(i+1, p.Name)).Description(description), description).
 					Draw(func(painter *ui.Painter, r ui.Rect) {
 						total := float64(max(timing.TotalNS, 1))
 						for tick := 1; tick < 4; tick++ {
@@ -219,7 +219,7 @@ func waterfallRow(c *ui.Context, t *ui.Theme, label, detail string, ms, offset, 
 	ui.Column(c).FillWidth().Gap(t.Space(1)).Padding(t.Space(1), 0).Children(func() {
 		ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, label).FontSize(uikit.TextBody).TextColor(t.Text).Shrink(0)
-			uikit.Meta(c, detail).Grow(1).Shrink(1).MinWidth(0).SingleLine().Tooltip(detail)
+			uikit.Tip(c, uikit.Meta(c, detail).Grow(1).Shrink(1).MinWidth(0).SingleLine(), detail)
 			uikit.Meta(c, fmt.Sprintf("%d ms", ms)).Font(uikit.FontMono).FontFeatures("tnum").Shrink(0)
 		})
 		ui.Row(c).FillWidth().Height(8).Children(func() {

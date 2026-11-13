@@ -1018,7 +1018,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 		if failure {
 			color = t.Danger
 		}
-		ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(color).Tooltip(v.statusDetail()).Padding(t.Space(1), t.Space(3))
+		uikit.Tip(c, ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(color), v.statusDetail()).Padding(t.Space(1), t.Space(3))
 	}
 	if closing >= 0 {
 		v.closeView(a, closing)
@@ -1127,7 +1127,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 				if failure {
 					color = t.Danger
 				}
-				ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(color).Tooltip(v.statusDetail())
+				uikit.Tip(c, ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(color), v.statusDetail())
 			}
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
 				if uikit.SecondaryButton(c, locales.Clear()).Clicked() {
@@ -1188,7 +1188,7 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 			for _, f := range v.filters {
 				name := f.Name
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					uikit.Body(c, name).Grow(1).SingleLine().Tooltip(name)
+					uikit.Tip(c, uikit.Body(c, name).Grow(1).SingleLine(), name)
 					if uikit.CompactButton(c, locales.Apply()).Label(locales.ApplyNamed(strconv.Quote(name))).Clicked() {
 						v.applySaved(a, name)
 					}

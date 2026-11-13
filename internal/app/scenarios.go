@@ -128,7 +128,7 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 						n++
 					}
 				}
-				uikit.Meta(c, fmt.Sprint(n)).Font(uikit.FontMono).FontFeatures("tnum").Tooltip(locales.RulesCount(n))
+				uikit.Tip(c, uikit.Meta(c, fmt.Sprint(n)).Font(uikit.FontMono).FontFeatures("tnum"), locales.RulesCount(n))
 			})
 		})
 		c.SetTheme(t)
@@ -200,7 +200,7 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 				if ui.Switch(c, &on).Label(locales.EnableRule(i + 1)).Changed() {
 					a.switchRule(i, on)
 				}
-				uikit.Glyph(c, ruleIcons[max(slices.Index(ruleTypes, r.Type), 0)]).Tooltip(ruleLabel(r.Type))
+				uikit.Tip(c, uikit.Glyph(c, ruleIcons[max(slices.Index(ruleTypes, r.Type), 0)]), ruleLabel(r.Type))
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 					ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.TextBody).TextColor(t.Text).SingleLine()
 					uikit.Meta(c, ruleSummary(r)).Font(uikit.FontMono).SingleLine()

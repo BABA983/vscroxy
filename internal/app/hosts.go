@@ -243,7 +243,7 @@ func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 			}
 			ui.Text(c, p.Name).FontSize(uikit.TextBody).TextColor(t.Text).SingleLine().MinWidth(0)
 			if p.URL != "" {
-				uikit.Glyph(c, subscribeIcon).Tooltip("Subscribed: " + p.URL)
+				uikit.Tip(c, uikit.Glyph(c, subscribeIcon), "Subscribed: "+p.URL)
 			}
 			if n := conflicts[p.Name]; n > 0 && p.On {
 				ui.Text(c, locales.ConflictsCount(n)).FontSize(uikit.TextMeta).TextColor(t.Warning).SingleLine().
@@ -257,7 +257,7 @@ func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), t.Space(2)).Children(func() {
 		uikit.Meta(c, locales.AppliesToNewConnections()).Grow(1).SingleLine()
 		ui.Row(c).Disabled(a.srv == nil).Children(func() {
-			if uikit.CompactButton(c, locales.DropOpenConnections()).Tooltip(locales.CloseTheClientsOpenConnections()).Clicked() {
+			if uikit.Tip(c, uikit.CompactButton(c, locales.DropOpenConnections()), locales.CloseTheClientsOpenConnections()).Clicked() {
 				a.dropConnections()
 			}
 		})

@@ -283,7 +283,7 @@ func (a *app) loadRunnerModal(c *ui.Context, t *ui.Theme) {
 				uikit.Meta(c, locales.EachUserHasIsolatedVariables())
 			})
 			status := cmp.Or(r.status, "Ready · closing this panel keeps an active load running")
-			ui.Text(c, status).FontSize(uikit.TextBody).TextColor(t.Text).SingleLine().Tooltip(status)
+			uikit.Tip(c, ui.Text(c, status).FontSize(uikit.TextBody).TextColor(t.Text).SingleLine(), status)
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, locales.CloseKeepsRunningQuitCancels()).Grow(1)
 				uikit.SecondaryButton(c, locales.Close()).OnClick(func() { r.open = false })

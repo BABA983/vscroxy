@@ -115,7 +115,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 							for _, i := range g.flows {
 								f := w.flows[i]
 								ui.Row(c.Key(i)).Gap(t.Space(2)).Height(uikit.HeightLarge).Children(func() {
-									uikit.Mono(c, cmp.Or(f.path, f.url)).Grow(1).MinWidth(0).SingleLine().Tooltip(f.url)
+									uikit.Tip(c, uikit.Mono(c, cmp.Or(f.path, f.url)).Grow(1).MinWidth(0).SingleLine(), f.url)
 									ui.Text(c, strconv.Itoa(f.status)).Font(uikit.FontMono).FontSize(uikit.TextData).TextColor(uikit.StatusColor(f.status, t)).Width(32)
 									uikit.Meta(c, fmt.Sprintf("%d ms", f.millis)).Width(52)
 								})
@@ -239,7 +239,7 @@ func (a *app) collectionVariablesEditor(c *ui.Context, t *ui.Theme) {
 		h := &w.hosts[i]
 		ui.Row(c.Key(h.origin)).Gap(t.Space(2)).Children(func() {
 			uikit.Input(c, &h.variable).Label("Host variable " + h.origin).Width(140).Font(uikit.FontMono)
-			uikit.Mono(c, h.origin).SingleLine().Grow(1).MinWidth(0).Tooltip(h.origin)
+			uikit.Tip(c, uikit.Mono(c, h.origin).SingleLine().Grow(1).MinWidth(0), h.origin)
 		})
 	}
 	ui.Divider(c)

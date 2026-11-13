@@ -111,7 +111,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 					if opts.enable {
 						ui.Box(c).Width(uikit.HeightLarge).FillHeight().Center().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 							enabled := !r.Disabled
-							if ui.Checkbox(c, &enabled, "").Label(locales.EnableVariable(i + 1)).Tooltip(locales.UncheckedRowsStayHereAnd()).Changed() {
+							if uikit.Tip(c, ui.Checkbox(c, &enabled, "").Label(locales.EnableVariable(i+1)), locales.UncheckedRowsStayHereAnd()).Changed() {
 								r.Disabled, changed = !enabled, true
 							}
 						})

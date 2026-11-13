@@ -319,7 +319,7 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 	ui.Column(c.Key(check.title)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, icon).Size(20, 20).TextColor(color)
-			row := uikit.RowButton(c, check.title).Grow(1).MinWidth(0).Tooltip(locales.ShowDetails())
+			row := uikit.Tip(c, uikit.RowButton(c, check.title).Grow(1).MinWidth(0), locales.ShowDetails())
 			row.Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 					ui.Text(c, strconv.Itoa(i+1)+".  "+check.title).FontSize(uikit.TextBody).FontWeight(500)
@@ -327,7 +327,7 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 					if check.state == checkFail {
 						resultColor = t.Danger
 					}
-					ui.Text(c, check.result).FontSize(uikit.TextBody).TextColor(resultColor).SingleLine().Tooltip(check.result)
+					uikit.Tip(c, ui.Text(c, check.result).FontSize(uikit.TextBody).TextColor(resultColor).SingleLine(), check.result)
 				})
 			})
 			if row.Clicked() {

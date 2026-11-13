@@ -157,7 +157,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 						if e.Direction == "" {
 							label = fmt.Sprintf("#%d %s", e.Sequence, e.Detail)
 						}
-						b := uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.Sequence)).Label(locales.SessionMessageLabel(e.Sequence)).FillWidth().Tooltip(label)
+						b := uikit.Tip(c, uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.Sequence)).Label(locales.SessionMessageLabel(e.Sequence)).FillWidth(), label)
 						if e.Sequence == s.picked {
 							uikit.Selected(c, b, !a.windowBehind)
 						}
@@ -205,7 +205,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 			})
 			uikit.Meta(c, locales.Latest200Events64Kib2())
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, locales.CopyShownPayload()).Disabled(s.reader == nil || s.viewMode == 2).Tooltip(locales.CopiesDisplayedTextHexUse()).Clicked() {
+				if uikit.Tip(c, uikit.SecondaryButton(c, locales.CopyShownPayload()).Disabled(s.reader == nil || s.viewMode == 2), locales.CopiesDisplayedTextHexUse()).Clicked() {
 					c.Services().WriteClipboard(s.reader.Buffer.String())
 				}
 				if uikit.SecondaryButton(c, locales.DisconnectClose()).Clicked() {

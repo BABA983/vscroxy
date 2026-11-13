@@ -385,7 +385,7 @@ func (a *app) mcpToolsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 	description := cmp.Or(tool.Description, tool.Title, "No description")
 	uikit.Meta(c, description).MaxLines(2)
 	if tool.Annotations != "" && tool.Annotations != "null" {
-		uikit.Meta(c, tool.Annotations).SingleLine().Tooltip(locales.ToolAnnotations())
+		uikit.Tip(c, uikit.Meta(c, tool.Annotations).SingleLine(), locales.ToolAnnotations())
 	}
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		uikit.Segmented(c, &u.toolTab, locales.Arguments(), locales.InputSchema())

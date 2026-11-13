@@ -416,7 +416,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 						ui.Spinner(c).Label(locales.SystemProxy())
 					}
 				})
-				uikit.Meta(c, detail).SingleLine().Tooltip(full)
+				uikit.Tip(c, uikit.Meta(c, detail).SingleLine(), full)
 			})
 		})
 		// The buttons are their own field, so a disabled one does not gray
@@ -425,7 +425,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 			ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 				enable := uikit.PrimaryButton(c, locales.EnableSystemProxy()).Disabled(!running || busy)
 				if !running {
-					enable.Tooltip(locales.StartCaptureFirst())
+					uikit.Tip(c, enable, locales.StartCaptureFirst())
 				}
 				if enable.Clicked() {
 					a.setSystemProxy(true)

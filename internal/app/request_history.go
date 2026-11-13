@@ -81,7 +81,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if f := r.Exchange; f != nil {
 					status, millis = f.Status, f.Millis
 				}
-				row := uikit.RowButton(c.Key(strconv.Itoa(r.ID)), fmt.Sprintf("Run #%d", r.ID)).Tooltip(r.Summary)
+				row := uikit.Tip(c, uikit.RowButton(c.Key(strconv.Itoa(r.ID)), fmt.Sprintf("Run #%d", r.ID)), r.Summary)
 				if r.ID == d.historyPick {
 					uikit.Selected(c, row, !a.windowBehind)
 				}
@@ -93,7 +93,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					ui.Text(c, shown).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(uikit.StatusColor(status, t)).Width(28)
 					uikit.Body(c, runTime(r.At)).FontFeatures("tnum").SingleLine().Grow(1).MinWidth(0)
 					if r.ID == a.experiments.log.Baseline {
-						uikit.Glyph(c, pinIcon).Tooltip(locales.Baseline())
+						uikit.Tip(c, uikit.Glyph(c, pinIcon), locales.Baseline())
 					}
 					if status != 0 {
 						uikit.Meta(c, fmt.Sprintf("%d ms", millis)).FontFeatures("tnum")
@@ -140,7 +140,7 @@ func (a *app) historyResponse(c *ui.Context, t *ui.Theme, d *requestDocument, r 
 				uikit.Meta(c, fmt.Sprintf("%d ms", f.Millis)).FontFeatures("tnum")
 				uikit.Meta(c, humanBytes(f.Bytes)).FontFeatures("tnum")
 			}
-			if uikit.CompactButton(c, locales.OpenAsDraft()).Tooltip(locales.OpenThisRunAsA()).Clicked() {
+			if uikit.Tip(c, uikit.CompactButton(c, locales.OpenAsDraft()), locales.OpenThisRunAsA()).Clicked() {
 				a.openRecord(*r)
 				return
 			}
@@ -149,13 +149,13 @@ func (a *app) historyResponse(c *ui.Context, t *ui.Theme, d *requestDocument, r 
 			}
 		})
 		ui.Row(c).Padding(t.Space(1), t.Space(3)).Children(func() {
-			if uikit.CompactButton(c, locales.RunDetails()).Tooltip(locales.NotesBaselineAndComparisonIn()).Clicked() {
+			if uikit.Tip(c, uikit.CompactButton(c, locales.RunDetails()), locales.NotesBaselineAndComparisonIn()).Clicked() {
 				a.openSendHistory(d)
 				a.experiments.pick(r.ID)
 			}
 		})
 		if r.Outcome != "" || r.Summary != "" {
-			uikit.Meta(c, r.Summary).Padding(t.Space(1), t.Space(3)).SingleLine().Tooltip(r.Summary)
+			uikit.Tip(c, uikit.Meta(c, r.Summary).Padding(t.Space(1), t.Space(3)).SingleLine(), r.Summary)
 		}
 		if d.historyReader == nil {
 			d.historyReader = &editor.State{Buffer: editor.NewBuffer(r.resultText()), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: fmt.Sprintf("Run #%d result", r.ID)}

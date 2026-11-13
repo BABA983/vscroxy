@@ -96,7 +96,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 							first, _, _ := strings.Cut(e.detail, "\n")
 							label = fmt.Sprintf("#%d %s", e.seq, first)
 						}
-						b := uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.seq)).Label(locales.SseEventLabel(e.seq)).FillWidth().Tooltip(label)
+						b := uikit.Tip(c, uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.seq)).Label(locales.SseEventLabel(e.seq)).FillWidth(), label)
 						if e.seq == s.picked {
 							uikit.Selected(c, b, !a.windowBehind)
 						}

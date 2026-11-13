@@ -126,7 +126,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 							continue
 						}
 						matched++
-						row := uikit.RowButton(c.Key(strconv.Itoa(i)), fmt.Sprintf("Read exchange %d", f.ID)).Height(uikit.HeightBar).FillWidth().Tooltip(f.URL)
+						row := uikit.Tip(c, uikit.RowButton(c.Key(strconv.Itoa(i)), fmt.Sprintf("Read exchange %d", f.ID)).Height(uikit.HeightBar).FillWidth(), f.URL)
 						if item.picked == i {
 							uikit.Selected(c, row, !a.windowBehind)
 						}
@@ -138,7 +138,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 							ui.Text(c, strconv.Itoa(f.Status)).FontSize(uikit.TextMeta).Width(30).TextColor(uikit.StatusColor(f.Status, t))
 							uikit.Meta(c, cmp.Or(f.URL, f.Path)).SingleLine().Grow(1).MinWidth(0)
 							if dot, ok := highlightColor(f.Color); ok {
-								ui.Box(c).Size(8, 8).Radius(uikit.RadiusControl).Background(dot).Tooltip(f.Color)
+								uikit.Tip(c, ui.Box(c).Size(8, 8).Radius(uikit.RadiusControl).Background(dot), f.Color)
 							}
 						})
 						if row.Clicked() {
@@ -191,7 +191,7 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 			item.reveal, item.reader = !item.reveal, nil
 		}
 	})
-	uikit.Meta(c, f.URL).Padding(0, t.Space(2)).SingleLine().Tooltip(f.URL)
+	uikit.Tip(c, uikit.Meta(c, f.URL).Padding(0, t.Space(2)).SingleLine(), f.URL)
 	ui.Row(c).Padding(t.Space(2)).Gap(t.Space(2)).Children(func() {
 		if uikit.Input(c, &f.Note).Label(locales.SessionExchangeNote()).Placeholder(locales.AddANote()).Grow(1).Changed() {
 			item.persist(a.invalidate)

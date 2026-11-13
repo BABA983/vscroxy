@@ -645,7 +645,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 				}
 				for _, domain := range slices.Sorted(maps.Keys(groups)) {
 					ui.Row(c.Key("domain:" + domain)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-						uikit.Label(c, domain).SingleLine().Grow(1).Tooltip("Cookies for " + domain)
+						uikit.Tip(c, uikit.Label(c, domain).SingleLine().Grow(1), "Cookies for "+domain)
 						if uikit.CompactButton(c, locales.Clear()).Label("Clear cookies for " + domain).Clicked() {
 							a.requestCookies().clearDomain(domain)
 							clear(e.reveal)

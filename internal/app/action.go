@@ -179,7 +179,7 @@ func (a *app) actionButton(c *ui.Context, id, label string) ui.Element {
 	if x.id == "" {
 		return ui.Element{}
 	}
-	b := uikit.SecondaryButton(c, label).Disabled(!x.enabled).Tooltip(x.hint())
+	b := uikit.Tip(c, uikit.SecondaryButton(c, label).Disabled(!x.enabled), x.hint())
 	if b.Clicked() {
 		x.run()
 	}

@@ -110,7 +110,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 				row.Children(func() {
 					ui.Box(c).Width(uikit.HeightLarge).FillHeight().Center().Children(func() {
 						enabled := !r.Disabled
-						if ui.Checkbox(c, &enabled, "").Label(locales.EnableRow(noun, i+1)).Tooltip(locales.UncheckedRowsStayHereAnd()).Changed() {
+						if uikit.Tip(c, ui.Checkbox(c, &enabled, "").Label(locales.EnableRow(noun, i+1)), locales.UncheckedRowsStayHereAnd()).Changed() {
 							r.Disabled, changed = !enabled, true
 						}
 					})
@@ -140,7 +140,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 						if !masked && len(r.Value) > 20 {
 							// A long value reads in full on hover, without the click
 							// that would move the keyboard into it.
-							value.Tooltip(r.Value)
+							uikit.Tip(c, value, r.Value)
 						}
 						if value.Changed() {
 							changed = true

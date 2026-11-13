@@ -22,7 +22,7 @@ import (
 // restartPending marks a saved setting the running app does not use yet.
 func restartPending(c *ui.Context, pending bool) {
 	if pending {
-		uikit.StatusPill(c, locales.RestartToApply(), uikit.Colors(c.Theme()).Warning).Tooltip(locales.SavedTheAppUsesIt())
+		uikit.Tip(c, uikit.StatusPill(c, locales.RestartToApply(), uikit.Colors(c.Theme()).Warning), locales.SavedTheAppUsesIt())
 	}
 }
 

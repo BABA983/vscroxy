@@ -481,7 +481,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 				a.editRule(-1, capture.Rule{Type: kind})
 			}
 		})
-		uikit.Input(c, &e.test).Label(locales.TestARequest()).Placeholder(locales.TestGetHttpsApiExample()).Tooltip(locales.MethodUrlAppHeaderValue()).Font(uikit.FontMono).FillWidth()
+		uikit.Tip(c, uikit.Input(c, &e.test).Label(locales.TestARequest()).Placeholder(locales.TestGetHttpsApiExample()), locales.MethodUrlAppHeaderValue()).Font(uikit.FontMono).FillWidth()
 		if e.draft.Operation != "" || slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Operation != "" }) {
 			ui.TextArea(c, &e.testBody).Label(locales.TestGraphqlBody()).Placeholder(`{"query":"query Search { items { id } }"}`).Height(80).FillWidth().Font(uikit.FontMono).FontSize(uikit.TextMeta).
 				Tooltip(locales.PostUsesJsonByDefault())
@@ -560,7 +560,7 @@ func (a *app) ruleScenario(c *ui.Context) {
 	if active != "" {
 		current = locales.ScenarioLabel(active)
 	}
-	uikit.MenuSelect(c, current, func(m *ui.Menu) {
+	uikit.Tip(c, uikit.MenuSelect(c, current, func(m *ui.Menu) {
 		if m.Item("No scenario").Radio(active == "").Chosen() {
 			a.selectRuleScenario("")
 		}
@@ -570,7 +570,7 @@ func (a *app) ruleScenario(c *ui.Context) {
 				a.selectRuleScenario(name)
 			}
 		}
-	}).Label(locales.ActiveScenario()).Tooltip(locales.OnlyTheActiveScenarioS()).FillWidth()
+	}).Label(locales.ActiveScenario()), locales.OnlyTheActiveScenarioS()).FillWidth()
 }
 
 // ruleList is the rules with their switches, in the order they are tried;
@@ -611,7 +611,7 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture
 		if preview != nil {
 			p = preview[i]
 			if p.Reason != "" {
-				line.Tooltip(p.Reason)
+				uikit.Tip(c, line, p.Reason)
 			}
 			if p.Step == 0 {
 				line.Opacity(0.45)
@@ -629,7 +629,7 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture
 			case capture.BlockDrop:
 				kind = "Block · drop connection"
 			}
-			uikit.Glyph(c, icon).Tooltip(kind)
+			uikit.Tip(c, uikit.Glyph(c, icon), kind)
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.TextBody).TextColor(t.Text).Grow(1).SingleLine()
@@ -650,7 +650,7 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					uikit.Meta(c, ruleSummary(r)).Font(uikit.FontMono).Grow(1).SingleLine()
 					if r.Scenario != "" {
-						uikit.Meta(c, r.Scenario).MaxWidth(96).SingleLine().Tooltip("In scenario " + r.Scenario)
+						uikit.Tip(c, uikit.Meta(c, r.Scenario).MaxWidth(96).SingleLine(), "In scenario "+r.Scenario)
 					}
 				})
 			})
@@ -837,7 +837,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 		} else {
 			uikit.Meta(c, locales.ChangesApplyToNewRequests()).Grow(1).SingleLine()
 		}
-		if uikit.PrimaryButton(c, locales.SaveRule()).Tooltip(locales.SaveCtrlCmdS()).Clicked() {
+		if uikit.Tip(c, uikit.PrimaryButton(c, locales.SaveRule()), locales.SaveCtrlCmdS()).Clicked() {
 			a.saveRule()
 		}
 	})
@@ -898,7 +898,7 @@ func (a *app) ruleScriptField(c *ui.Context, t *ui.Theme) {
 			}
 		}).Label(locales.RuleScript()).Width(240)
 		if current != "" && slices.Contains(a.scripts.names, current) {
-			if uikit.SecondaryButton(c, locales.EditScript()).Tooltip("Defines " + scriptHooks(&a.scripts, current)).Clicked() {
+			if uikit.Tip(c, uikit.SecondaryButton(c, locales.EditScript()), "Defines "+scriptHooks(&a.scripts, current)).Clicked() {
 				a.openScript(current)
 			}
 		}

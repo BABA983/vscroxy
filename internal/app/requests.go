@@ -520,7 +520,7 @@ func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 		ui.Spacer(c)
 		if names := a.envNames(); len(names) > 0 {
 			env := ui.SelectBase(c.Key("active-environment"), &a.activeEnv)
-			env.Trigger.Label(locales.ActiveEnvironment()).Tooltip(locales.ActiveEnvironment()).Width(132).Height(uikit.HeightControl).
+			uikit.Tip(c, env.Trigger.Label(locales.ActiveEnvironment()), locales.ActiveEnvironment()).Width(132).Height(uikit.HeightControl).
 				Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(t.Accent)
 				uikit.Body(c, cmp.Or(a.activeEnv, "No environment")).SingleLine().Grow(1)
@@ -1082,13 +1082,13 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 		formats := a.draftBodyFormats(d)
 		shown := formats[min(max(d.bodyRead, 0), len(formats)-1)]
 		ui.Row(c).Disabled(d.bodyMode != "Raw").Children(func() {
-			uikit.MenuSelect(c, shown, func(m *ui.Menu) {
+			uikit.Tip(c, uikit.MenuSelect(c, shown, func(m *ui.Menu) {
 				for i, name := range formats {
 					if m.Item(name).Checked(i == d.bodyRead).Chosen() {
 						d.bodyRead = i
 					}
 				}
-			}).Label(locales.ReadBodyAs()).Tooltip(locales.ReadBodyAsHelp()).FontSize(uikit.TextMeta)
+			}).Label(locales.ReadBodyAs()), locales.ReadBodyAsHelp()).FontSize(uikit.TextMeta)
 		})
 		text, seen := &d.composeBody, &d.bodyFor
 		formatLabel := locales.FormatBody()
@@ -1273,8 +1273,8 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				room.fits(paneTextWidth(c, locales.DecodeResponseText(), uikit.TextBody, 400)+20)
 			if d.responseTab == resViewBody && d.response != nil {
 				if showFormat {
-					uikit.MenuSelect(c, shown, func(m *ui.Menu) { actionMenu(m, a.responseFormatActions(d)) }).
-						Label(locales.ResponseFormat()).Tooltip(locales.ResponseBodyFormat())
+					uikit.Tip(c, uikit.MenuSelect(c, shown, func(m *ui.Menu) { actionMenu(m, a.responseFormatActions(d)) }).
+						Label(locales.ResponseFormat()), locales.ResponseBodyFormat())
 				} else {
 					leftOut = append(leftOut, submenu(locales.ResponseFormat(), a.responseFormatActions(d)...))
 				}
