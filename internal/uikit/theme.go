@@ -14,6 +14,9 @@ type Palette struct {
 	// field on chrome is Canvas with a hairline instead. Hairline separates
 	// two regions of the same surface, never two surfaces.
 	Chrome, Canvas, Well, Hairline ui.Color
+	// Sidebar is the card beside the content: the same canvas family, a step
+	// away from it, so two cards on the shell read as one workspace.
+	Sidebar ui.Color
 	// Fill, FillHover and FillPressed are the text color laid thinly over
 	// whatever is beneath: the face of a control at rest, hovered and
 	// pressed, so one button reads the same on every surface.
@@ -44,38 +47,38 @@ func fills(p Palette, rest, hover, pressed float32) Palette {
 // selected, primary or on, and green only for what passed or is recording.
 // TextFaint is only for icons and placeholders; it carries no information.
 var Paper = fills(Palette{
-	Chrome: ui.Hex("#f4f3f0"), Canvas: ui.Hex("#ffffff"), Well: ui.Hex("#ecebe7"),
-	Hairline: ui.Hex("#e3e1dc"),
-	Text:     ui.Hex("#1a1a18"), TextMuted: ui.Hex("#5f5d58"), TextFaint: ui.Hex("#9e9c96"),
-	Accent: ui.Hex("#1a1a18"), AccentHover: ui.Hex("#33332f"), AccentPressed: ui.Hex("#474743"),
-	AccentText: ui.Hex("#ffffff"), AccentTint: ui.Hex("#d8d4cb"),
-	Success: ui.Hex("#26734a"),
-	Info:    ui.Hex("#2f6ea5"), Warning: ui.Hex("#9c5906"), Danger: ui.Hex("#c0392b"),
+	Chrome: ui.Hex("#edf3ea"), Canvas: ui.Hex("#f9fdf6"), Well: ui.Hex("#ebebeb"),
+	Hairline: ui.Hex("#ebefe8"), Sidebar: ui.Hex("#f3f8f0"),
+	Text:     ui.Hex("#0b0d0b"), TextMuted: ui.Hex("#595959"), TextFaint: ui.Hex("#8a8f88"),
+	Accent: ui.Hex("#141614"), AccentHover: ui.Hex("#2a2d2a"), AccentPressed: ui.Hex("#3d413d"),
+	AccentText: ui.Hex("#f9fdf6"), AccentTint: ui.Hex("#d6dcd6"),
+	Success: ui.Hex("#2f8052"),
+	Info:    ui.Hex("#2f6ea5"), Warning: ui.Hex("#86600f"), Danger: ui.Hex("#c44f4a"),
 	MethodGet: ui.Hex("#2f6ea5"), MethodPost: ui.Hex("#5b6b1c"), MethodPatch: ui.Hex("#7a3e6d"),
 	Socket:  ui.Hex("#2b6868"),
-	Inverse: ui.Hex("#1a1a18"), InverseText: ui.Hex("#ffffff"),
-	Shadow: ui.RGBA(26, 26, 24, 0.16),
-}, 0.06, 0.10, 0.14)
+	Inverse: ui.Hex("#0b0d0b"), InverseText: ui.Hex("#f9fdf6"),
+	Shadow: ui.RGBA(11, 13, 11, 0.16),
+}, 0.07, 0.11, 0.15)
 
 // Ink is the dark theme: the same warm neutral structure on a black board,
 // with the accent lightened to carry on it and green kept for pass and
 // recording only. Chrome is the window behind the panel and Canvas the panel
 // itself, so the content sits a step above the shell as it does in Paper.
 var Ink = fills(Palette{
-	// The shell is the darker of the two in Ink: the content panel is
-	// raised, so it is the lighter surface, as it is in Paper.
-	Chrome: ui.Hex("#171716"), Canvas: ui.Hex("#1f1f1d"), Well: ui.Hex("#101010"),
-	Hairline: ui.Hex("#2e2e2b"),
-	Text:     ui.Hex("#e9e8e4"), TextMuted: ui.Hex("#a09e98"), TextFaint: ui.Hex("#686660"),
-	Accent: ui.Hex("#e9e8e4"), AccentHover: ui.Hex("#ffffff"), AccentPressed: ui.Hex("#cfcdc8"),
-	AccentText: ui.Hex("#101010"), AccentTint: ui.Hex("#45443f"),
-	Success: ui.Hex("#7cc492"),
-	Info:    ui.Hex("#8fb3d1"), Warning: ui.Hex("#e0a458"), Danger: ui.Hex("#e8806f"),
+	// The shell is the darker of the two in Ink: the cards are raised, so
+	// they are the lighter surfaces, as they are in Paper.
+	Chrome: ui.Hex("#070807"), Canvas: ui.Hex("#0c1516"), Well: ui.Hex("#192121"),
+	Hairline: ui.Hex("#1b2324"), Sidebar: ui.Hex("#0c1313"),
+	Text:     ui.Hex("#f6fff5"), TextMuted: ui.Hex("#9ca49c"), TextFaint: ui.Hex("#6d766e"),
+	Accent: ui.Hex("#eaf3e9"), AccentHover: ui.Hex("#ffffff"), AccentPressed: ui.Hex("#cfd8ce"),
+	AccentText: ui.Hex("#0c1516"), AccentTint: ui.Hex("#2f372f"),
+	Success: ui.Hex("#54b879"),
+	Info:    ui.Hex("#8fb3d1"), Warning: ui.Hex("#d6a038"), Danger: ui.Hex("#d67670"),
 	MethodGet: ui.Hex("#8fb3d1"), MethodPost: ui.Hex("#b5c27a"), MethodPatch: ui.Hex("#c99abd"),
 	Socket:  ui.Hex("#6fc3d6"),
-	Inverse: ui.Hex("#e9e8e4"), InverseText: ui.Hex("#101010"),
+	Inverse: ui.Hex("#f6fff5"), InverseText: ui.Hex("#0c1516"),
 	Shadow: ui.RGBA(0, 0, 0, 0.5),
-}, 0.08, 0.12, 0.17)
+}, 0.07, 0.11, 0.15)
 
 // Theme is MyGo's theme for a palette. Background is the canvas and Surface
 // is chrome: MyGo's own table heads, toolbars and panels frame the window,
