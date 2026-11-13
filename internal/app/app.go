@@ -2027,17 +2027,17 @@ const (
 // a long list of hosts never pushes the collections off the window.
 func (a *app) sidebar(c *ui.Context) {
 	t := c.Theme()
-	// The sidebar is its own card on the shell, a step off the content's.
-	panel := uikit.Colors(t).Sidebar
+	// The sidebar is part of the shell, not a card on it: it paints chrome, the
+	// same surface as the title bar above it and the footer below, so the
+	// brand's row and the sidebar meet without a seam.
+	panel := uikit.Colors(t).Chrome
 	// MyGo draws a source list on its Surface, and the window has one
 	// Surface for the panel too: here the sidebar's own surface is chrome,
 	// so the list does not cut a canvas hole in the frame.
 	local := *t
 	local.Surface = panel
 	c.SetTheme(&local)
-	// The card rounds the corners that face the shell: its left edge is the
-	// window's, so those two corners stay square.
-	ui.Column(c).Fill().Background(panel).Radius(0, uikit.RadiusPanel, uikit.RadiusPanel, 0).Clip().Children(func() {
+	ui.Column(c).Fill().Background(panel).Children(func() {
 		if a.macChrome {
 			a.brandBar(c, t)
 		}

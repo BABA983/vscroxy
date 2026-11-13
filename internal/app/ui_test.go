@@ -2311,10 +2311,10 @@ func TestShellIsOneSurfaceAroundTheRaisedPanel(t *testing.T) {
 			}
 		}
 		if !hidden {
-			// The sidebar is its own card, a step off the shell rather than
-			// the shell itself.
-			if got := im.RGBAAt(100, 300); got == chrome {
-				t.Fatalf("the sidebar is the shell's own color, not a card on it")
+			// The sidebar is part of the shell: the brand's row, the sidebar
+			// and the footer are one surface, with no seam at the top left.
+			if got := im.RGBAAt(100, 300); got != chrome {
+				t.Fatalf("the sidebar is %v, not the shell's %v", got, chrome)
 			}
 		}
 		canvas := im.RGBAAt(640, 300)
