@@ -7,15 +7,27 @@
       "layers": [
         {
           "image-name": "Eyes.svg",
-          "name": "Eyes"
+          "name": "Eyes",
+          "opacity": 1,
+          "blend-mode": "normal",
+          "glass": false
         },
         {
           "image-name": "Cat.svg",
-          "name": "Cat"
+          "name": "Cat",
+          "opacity": 1,
+          "blend-mode": "normal",
+          "glass": false
         }
       ],
-      "lighting": "combined",
+      "opacity": 1,
+      "lighting": "individual",
       "specular": false,
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      },
+      "blur-material": 0,
       "shadow": {
         "kind": "none",
         "opacity": 0
