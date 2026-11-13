@@ -318,7 +318,7 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 	}
 	ui.Column(c.Key(check.title)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, icon).Size(20, 20).TextColor(color)
+			ui.Icon(c, icon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(color)
 			row := uikit.Tip(c, uikit.RowButton(c, check.title).Grow(1).MinWidth(0), locales.ShowDetails())
 			row.Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {

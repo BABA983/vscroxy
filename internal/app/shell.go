@@ -575,7 +575,7 @@ func footerChipRow(c *ui.Context, t *ui.Theme, chip footerChip) {
 			ui.Icon(c, chip.icon).Size(uikit.IconInline, uikit.IconInline)
 			ui.Text(c, chip.label).FontSize(uikit.Scaled(uikit.TextMeta)).MaxWidth(180).SingleLine()
 			if chip.panel != nil {
-				ui.Icon(c, chevronIcon).Size(uikit.IconInline-4, uikit.IconInline-4)
+				ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline)
 			}
 		})
 		label.TextColor(ink)

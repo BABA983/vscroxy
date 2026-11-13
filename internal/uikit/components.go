@@ -451,7 +451,7 @@ func QueryChip(c *ui.Context, text string, edit, remove func()) ui.Element {
 		if x.Hovered() {
 			x.Background(p.FillHover)
 		}
-		x.Children(func() { ui.Icon(c, closeIcon).Size(10, 10) })
+		x.Children(func() { ui.Icon(c, closeIcon).Size(IconInline, IconInline) })
 		if x.Clicked() {
 			remove()
 		}

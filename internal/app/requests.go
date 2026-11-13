@@ -883,7 +883,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 					Disabled(d.composeWaiting || d.grpcUI != nil && d.grpcUI.loading != nil)
 				proto.Children(func() {
 					ui.Text(c, cmp.Or(d.protocol, "HTTP")).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.TextMuted).SingleLine()
-					ui.Icon(c, chevronIcon).Size(10, 10).TextColor(t.TextMuted)
+					ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
 				})
 				proto.PopoverMenuButton(func(m *ui.Menu) {
 					for _, protocol := range []string{"HTTP", "gRPC", "Socket.IO", "MQTT", "MCP"} {
@@ -956,7 +956,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 				if chosen, ok := method.Chosen(); ok {
 					d.composeMethod = chosen
 				}
-				if uikit.IconButton(c, locales.MethodList(), locales.CommonMethods(), chevronIcon).Size(18, 18).Clicked() {
+				if uikit.IconButton(c, locales.MethodList(), locales.CommonMethods(), chevronIcon).Clicked() {
 					method.SetOpen(!method.Open())
 					method.Input.Focus()
 				}

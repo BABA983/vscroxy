@@ -130,7 +130,7 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 			// A step that is behind you passed: green is that, and nothing
 			// else in the checklist is.
 			mark.Background(p.Success).TextColor(p.AccentText).Label(locales.Done()).Children(func() {
-				ui.Icon(c, checkIcon).Size(12, 12)
+				ui.Icon(c, checkIcon).Size(uikit.IconInline, uikit.IconInline)
 			})
 		case current:
 			mark.Background(p.Accent).TextColor(p.AccentText).Children(func() {
