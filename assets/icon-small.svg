@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- The cat at 16 and 32 points: head, ears and eyes, closer in and with
+       no tail, so the eyes keep their shape where the full icon's do not. -->
+  <rect width="1024" height="1024" fill="#F4F2EC"/>
+  <defs>
+    <clipPath id="eye-left"><ellipse cx="322" cy="842" rx="160" ry="122" transform="rotate(-15 322 842)"/></clipPath>
+    <clipPath id="eye-right"><ellipse cx="706" cy="798" rx="144" ry="128" transform="rotate(-18 706 798)"/></clipPath>
+  </defs>
+  <g transform="translate(-149.7,-317.6) scale(1.3)">
+    <!-- Head and ears. -->
+    <path d="M 8 1032 C 14 900 34 770 66 650 C 80 597 82 530 94 494 C 100 482 112 482 124 488 C 190 520 252 566 306 616 C 400 578 520 562 617 581 C 664 528 716 474 772 444 C 786 436 798 440 804 454 C 826 496 842 540 853 584 C 880 640 915 700 931 760 C 975 850 1000 940 1010 1032 Z" fill="#111110" stroke="#111110" stroke-width="12" stroke-linejoin="round"/>
+    <ellipse cx="322" cy="842" rx="160" ry="122" transform="rotate(-15 322 842)" fill="#FFFFFF"/>
+    <ellipse cx="706" cy="798" rx="144" ry="128" transform="rotate(-18 706 798)" fill="#FFFFFF"/>
+    <g clip-path="url(#eye-left)">
+      <ellipse cx="414" cy="800" rx="31" ry="84" transform="rotate(8 414 800)" fill="#111110"/>
+      <ellipse cx="405" cy="762" rx="9" ry="14" transform="rotate(8 405 762)" fill="#FFFFFF"/>
+    </g>
+    <g clip-path="url(#eye-right)">
+      <ellipse cx="778" cy="744" rx="31" ry="82" transform="rotate(8 778 744)" fill="#111110"/>
+      <ellipse cx="769" cy="706" rx="9" ry="14" transform="rotate(8 769 706)" fill="#FFFFFF"/>
+    </g>
+  </g>
+</svg>
