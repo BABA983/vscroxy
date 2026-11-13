@@ -25,7 +25,7 @@ v1 统一了结构和 token，但界面仍然是一张普通表格加一堆表�
 VSCROXY_UIKIT_SNAPSHOTS="$PWD/docs/design" go test ./internal/uikit -run '^TestOverviewSnapshots$' -count=1
 ```
 
-真实窗口的截图在 macos-27 上跑 `go run ./cmd/vscroxy`、用 `curl -x` 打真实流量后 `screencapture -x` 拍，`paper-*`／`ink-*` 分别是浅色和深色外观。
+命令也会写出悬停／按下的按钮状态图，图版里只留总览这一张。真实窗口的截图在 macos-27 上跑 `go run ./cmd/vscroxy`、用 `curl -x` 打真实流量后 `screencapture -x` 拍，`paper-*`／`ink-*` 分别是浅色和深色外观；图版缩到 1600 宽、128 色，总量约 1 MB。
 
 v3 的设计稿是一份可切换的 artifact，含 Capture／Request editor／System 三屏和 Light／Dark 两套：<https://ampcode.com/artifacts/visuals/vscroxy-design-system-v3-302b0099-8f58-4b2f-abe7-53ca7710b330>。**颜色、表面、尺寸和组件以它为准**，本文第 5、6 节是它的落地记录；屏幕的布局和结构仍按第 3 节。
 
