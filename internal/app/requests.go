@@ -500,7 +500,9 @@ func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
 // sidebar: saved ones in their collection, new ones under Unsaved.
 func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 	d := a.requestDocument
-	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).Background(uikit.Colors(t).Chrome).Children(func() {
+	// The editor's first row is the panel's, as the capture screen's filter
+	// bar is: chrome only frames the window, never a line inside the panel.
+	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).Background(t.Background).Children(func() {
 		if d != nil {
 			crumb := uikit.ToolbarButton(c, locales.RenameRequest(), locales.RenameOrMoveToAnother(), false).Height(uikit.HeightControl).
 				Padding(0, t.Space(1)).Gap(t.Space(1)).MinWidth(0)
