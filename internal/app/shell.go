@@ -17,7 +17,11 @@ import (
 // with the counts, so the bar itself stays quiet.
 func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
-	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).AlignItems(ui.Center).DragWindow().Children(func() {
+	// The bar is the shell's own surface. On macOS the window's root is clear
+	// so the sidebar's material can show, and without this the bar would show
+	// the desktop behind it instead of chrome.
+	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).Background(uikit.Colors(t).Chrome).
+		AlignItems(ui.Center).DragWindow().Children(func() {
 		if !a.macChrome || !a.sidebarShown() {
 			a.barLeading(c, t)
 		}
