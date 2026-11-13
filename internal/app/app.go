@@ -2066,7 +2066,9 @@ func (a *app) trafficRegion(c *ui.Context, t *ui.Theme) {
 		}
 		uikit.SidebarHeading(c, locales.Sources(), sources, func() { a.sourcesSwitch(c, t) })
 		if *sources {
-			ui.Column(c.Key("sources-region")).Gap(0).Transition(uikit.RegionMotion).Children(func() {
+			// The Sources list scrolls in its own region: the scopes above it
+			// stay where they are, however many hosts or apps arrive.
+			ui.Scroll(c.Key("sources-region")).Grow(1).MinHeight(0).Transition(uikit.RegionMotion).Children(func() {
 				a.sourcesRows(c, t)
 			})
 		}
@@ -2210,20 +2212,24 @@ func (a *app) collectionsRegion(c *ui.Context, t *ui.Theme) {
 			return
 		}
 		ui.Column(c.Key("collections-region")).Gap(0).Transition(uikit.RegionMotion).Children(func() {
+			// The search stays above the tree: what is typed is not scrolled
+			// away with the rows it narrows.
 			uikit.SearchField(c, &a.requestQuery, locales.SearchCollections(), locales.Search(), true).
 				Margin(t.Space(1), t.Space(3), t.Space(2), t.Space(3))
-			a.collectionTree(c)
-			query := strings.ToLower(strings.TrimSpace(a.requestQuery))
-			for _, d := range a.apis {
-				if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
-					continue
-				}
-				uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label(locales.ApiTitle(d.title())).Children(func() {
-					if d.dirty() {
-						ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label(locales.UnsavedApi())
+			ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+				a.collectionTree(c)
+				query := strings.ToLower(strings.TrimSpace(a.requestQuery))
+				for _, d := range a.apis {
+					if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
+						continue
 					}
-				})
-			}
+					uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label(locales.ApiTitle(d.title())).Children(func() {
+						if d.dirty() {
+							ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label(locales.UnsavedApi())
+						}
+					})
+				}
+			})
 		})
 	}).Padding(t.Space(1), 0).Gap(0).Grow(1)
 	if region.Changed() {
