@@ -392,7 +392,10 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				uikit.Hint(c, locales.WaitingForMessages()).Padding(t.Space(3))
 				return
 			}
-			g.selected = max(0, min(g.selected, len(s.events)-1))
+			// The list maps a selected key it no longer has to -1: the event
+			// went away with the ring, and the detail says so rather than
+			// jumping to the oldest one left.
+			settleEvent(&g.selected, len(s.events))
 			e := s.events[g.selected]
 			key := fmt.Sprint(e.seq)
 			if g.readerKey != key {

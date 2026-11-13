@@ -211,7 +211,10 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}).Grow(1)
 			c.SetTheme(t)
 		}, func() {
-			u.selected = max(0, min(u.selected, len(events)-1))
+			// A selected key the list no longer has comes back as -1: the event
+			// went away, and the detail says nothing is selected rather than
+			// showing the oldest one left.
+			settleEvent(&u.selected, len(events))
 			e := events[u.selected]
 			key := fmt.Sprint(e.seq)
 			if u.readerKey != key {

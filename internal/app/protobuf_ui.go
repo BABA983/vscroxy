@@ -184,7 +184,9 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 	if p.split == 0 {
 		p.split = 180
 	}
-	p.selected = max(0, min(p.selected, len(visible)-1))
+	if p.selected >= len(visible) {
+		p.selected = len(visible) - 1
+	}
 	ui.Split(c, &p.split, func() {
 		p.list.Selected = &p.selected
 		p.list.Key = func(i int) any { return visible[i] }
@@ -204,8 +206,9 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 		}).Grow(1)
 		c.SetTheme(t)
 	}, func() {
-		// List may remap a selected key to -1 when a search removes it.
-		p.selected = max(0, min(p.selected, len(visible)-1))
+		// List maps a selected key it no longer has to -1: the message went
+		// away, and the detail says so rather than showing the oldest one.
+		settleEvent(&p.selected, len(visible))
 		message := p.result.messages[visible[p.selected]]
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {

@@ -6200,3 +6200,22 @@ func TestCopyConcealsWhatCarriesACredential(t *testing.T) {
 		}
 	}
 }
+
+// A selected event that the ring drops comes back as -1 from the list: the
+// detail goes to the newest event still there, not back to the oldest one.
+func TestAnEvictedEventSelectsTheNewestOneLeft(t *testing.T) {
+	for _, c := range []struct {
+		selected, n, want int
+	}{
+		{-1, 4, 3}, // the selected key went away
+		{0, 4, 0},  // the first event stays chosen
+		{3, 4, 3},  // the last event stays chosen
+		{4, 4, 3},  // past the end
+	} {
+		selected := c.selected
+		settleEvent(&selected, c.n)
+		if selected != c.want {
+			t.Fatalf("settleEvent(%d, %d) = %d, want %d", c.selected, c.n, selected, c.want)
+		}
+	}
+}
