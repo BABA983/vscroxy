@@ -1,7 +1,6 @@
 package app
 
 import (
-	"math"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/uikit"
@@ -11,11 +10,6 @@ import (
 const activitySpan = 5 * time.Minute
 const activityStep = 5 * time.Second
 const activityBuckets = int(activitySpan / activityStep)
-
-// activityMinBuckets is the shortest axis the strip draws, in buckets: with
-// traffic spread over a few seconds, a shorter one would put a handful of
-// requests in a single bucket at the axis' edge.
-const activityMinBuckets = 6
 
 // activityRange belongs to a capture view, not a saved filter. The overview's
 // end is frozen while brushing; new traffic cannot move the selected times.
@@ -54,30 +48,12 @@ func (a *app) activityEnd(now time.Time) time.Time {
 	return latest.Truncate(activityStep).Add(activityStep)
 }
 
-// activityAxis is the span the strip draws, and how many of its buckets that
-// takes. It is the last five minutes, unless the traffic in them is shorter than
-// that: then the axis starts a little before the first request, so a handful of
-// requests spreads across the plot instead of gathering in its last corner.
+// activityAxis is the span the strip draws: the last five minutes, whatever
+// the traffic in them. An axis cut to the traffic moved every bar as each
+// request arrived, so a bucket keeps its place now and new traffic walks in
+// from the right.
 func (a *app) activityAxis(end time.Time) (time.Time, int) {
-	start := end.Add(-activitySpan)
-	earliest := time.Time{}
-	for _, at := range a.activityRows {
-		t := a.flows[at].at
-		if !t.Before(end) {
-			continue
-		}
-		if earliest.IsZero() || t.Before(earliest) {
-			earliest = t
-		}
-	}
-	if earliest.IsZero() {
-		return start, activityBuckets
-	}
-	// A bucket of air before the first request, and never less than the
-	// shortest axis.
-	used := int(math.Ceil(float64(end.Sub(earliest))/float64(activityStep))) + 1
-	used = min(activityBuckets, max(activityMinBuckets, used))
-	return end.Add(-time.Duration(used) * activityStep), used
+	return end.Add(-activitySpan), activityBuckets
 }
 
 // activityCache is the strip's counts for the rows, end and brush it was
