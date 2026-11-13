@@ -1793,7 +1793,15 @@ func (a *app) panel(c *ui.Context, t *ui.Theme) {
 		if left > 0 {
 			ui.Box(c).Width(left).Shrink(0).FillHeight()
 		}
-		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Background(p.Canvas).Radius(uikit.RadiusPanel).Clip().Children(func() {
+		// The content card meets the window's right edge, so only the corners
+		// that face the shell are round: both of them once the sidebar is
+		// gone and the shell runs down its left side too.
+		radii := [4]float32{uikit.RadiusPanel, 0, 0, uikit.RadiusPanel}
+		if !a.sidebarShown() {
+			radii = [4]float32{uikit.RadiusPanel, uikit.RadiusPanel, uikit.RadiusPanel, uikit.RadiusPanel}
+		}
+		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Background(p.Canvas).
+			Radius(radii[0], radii[1], radii[2], radii[3]).Clip().Children(func() {
 			if a.srv == nil && a.errText != "" {
 				ui.Text(c, locales.ProxyUnavailable(a.errText)).Padding(t.Space(2), t.Space(3)).FontSize(uikit.TextBody).TextColor(t.Danger)
 			}
@@ -2027,7 +2035,9 @@ func (a *app) sidebar(c *ui.Context) {
 	local := *t
 	local.Surface = panel
 	c.SetTheme(&local)
-	ui.Column(c).Fill().Background(panel).Children(func() {
+	// The card rounds the corners that face the shell: its left edge is the
+	// window's, so those two corners stay square.
+	ui.Column(c).Fill().Background(panel).Radius(0, uikit.RadiusPanel, uikit.RadiusPanel, 0).Clip().Children(func() {
 		if a.macChrome {
 			a.brandBar(c, t)
 		}
