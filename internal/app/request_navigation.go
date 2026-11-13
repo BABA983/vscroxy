@@ -123,11 +123,11 @@ func (a *app) collectionTree(c *ui.Context) {
 				if slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Scenario == path }) {
 					mock = "Rebuild scenario “" + path + "” from examples"
 				}
-				actions := append([]action{do("collection.docs", locales.ViewDocumentation(), func() { a.openDocs(path) }).in("context")}, a.folderSettingsActions(path)...)
+				actions := append([]action{do("collection.docs", locales.ViewDocumentation(), func() { a.openDocs(path) }).in("open")}, a.folderSettingsActions(path)...)
 				actionMenu(m, append(actions,
 					do("collection.mock", mock, func() { a.scenarioFromExamples(path) }).
-						when(a.examplesUnder(path), "Save a response as an example first").in("mock"),
-					do("collection.delete", "Delete “"+path+"”…", func() { a.confirmDeleteFolder(path) }).in("export")))
+						when(a.examplesUnder(path), "Save a response as an example first").in("edit"),
+					do("collection.delete", "Delete “"+path+"”…", func() { a.confirmDeleteFolder(path) }).in("danger")))
 			}
 			parts := tree.Item(open)
 			row := treeRow(c, parts, depth).Label(locales.CollectionPath(path)).PopoverMenu(menu)
@@ -148,9 +148,10 @@ func (a *app) collectionTree(c *ui.Context) {
 				continue
 			}
 			menu := func(m *ui.Menu) {
-				actionMenu(m, append([]action{
-					do("request.delete", locales.DeleteRequest(), func() { a.confirmDeleteRequest(r.key(), r.Name) }).in("delete"),
-				}, a.folderSettingsActions(r.Collection)...))
+				actionMenu(m, append(append([]action{
+					do("request.open", locales.Open(), func() { a.openSaved(r.key()) }).in("open"),
+				}, a.folderSettingsActions(r.Collection)...),
+					do("request.delete", locales.DeleteRequest(), func() { a.confirmDeleteRequest(r.key(), r.Name) }).in("danger")))
 			}
 			// The sidebar has one choice: a request only while it is shown.
 			chosen := a.page == pageRequest && a.requestChoice == r.key()

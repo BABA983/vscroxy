@@ -2151,7 +2151,7 @@ func (a *app) sessionsRows(c *ui.Context, t *ui.Theme) {
 		id := "session:" + s.key
 		uikit.SidebarItem(c, id, clockIcon, s.data.Title, a.sidebarChoice == id, !a.windowBehind).
 			PopoverMenu(func(m *ui.Menu) {
-				actionMenu(m, []action{do("session.delete", locales.DeleteSession(), func() { a.confirmDeleteSession(s) })})
+				actionMenu(m, []action{do("session.delete", locales.DeleteSession()+"…", func() { a.confirmDeleteSession(s) }).in("danger")})
 			}).Children(func() {
 			uikit.Meta(c, fmt.Sprint(s.count)).FontFeatures("tnum")
 		})
@@ -2229,9 +2229,9 @@ func (a *app) sourcesRows(c *ui.Context, t *ui.Theme) {
 func (a *app) hostRow(c *ui.Context, d domain) {
 	uikit.SidebarItemLetter(c, "host:"+d.name, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind).PopoverMenu(func(m *ui.Menu) {
 		actionMenu(m, []action{
-			do("collection.from-host", locales.CreateCollection(), func() { a.openCollectionWizard(a.collectionScope(d.name, "")) }),
-			do("collection.record-host", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", d.name, "") }),
-			do("dns.map-host", locales.MapThisHost(), func() { a.openDNSRule(hostOnly(d.name), "") }),
+			do("collection.from-host", locales.CreateCollection(), func() { a.openCollectionWizard(a.collectionScope(d.name, "")) }).in("edit"),
+			do("collection.record-host", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", d.name, "") }).in("edit"),
+			do("dns.map-host", locales.MapThisHost(), func() { a.openDNSRule(hostOnly(d.name), "") }).in("edit"),
 		})
 	}).Children(func() {
 		if a.filterTriage.Host == d.name {
@@ -2367,11 +2367,12 @@ func (a *app) clientActions(name string, apps []capture.SSLApp) []action {
 		}
 		actions = append(actions, submenu(locales.HttpsInspectionByExecutable(), executables...))
 	}
-	return append(actions,
-		do("collection.from-app", locales.CreateCollection(), func() { a.openCollectionWizard(a.collectionScope("", name)) }).in("collection"),
-		do("collection.record-app", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", name) }).in("collection"),
-		do("https.rules", locales.ViewHttpsRules(), func() { a.sslOpen = true }),
-		do("dns.map-client", "Map a host for "+name+"…", func() { a.openDNSRule("", name) }).in("map"),
+	return append(append([]action{
+		do("https.rules", locales.ViewHttpsRules(), func() { a.sslOpen = true }).in("open"),
+	}, actions...),
+		do("collection.from-app", locales.CreateCollection(), func() { a.openCollectionWizard(a.collectionScope("", name)) }).in("edit"),
+		do("collection.record-app", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", name) }).in("edit"),
+		do("dns.map-client", "Map a host for "+name+"…", func() { a.openDNSRule("", name) }).in("edit"),
 	)
 }
 
@@ -3350,14 +3351,19 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	services := c.Services()
 	requests := a.requestActions(c, f, true)
 	actions := []action{
-		pick(requests, "flow.replay").as("Replay"),
-		pick(requests, "flow.edit"),
-		pick(requests, "collection.from-capture"),
-		do("flow.save-request", locales.SaveAsRequest(), func() { a.saveCapture(f) }).
-			when(f.kind != "connect" && f.method != "CONNECT", "Tunnels cannot be saved as requests"),
+		pick(requests, "flow.replay").as("Replay").in("open"),
+		pick(requests, "flow.edit").in("open"),
 	}
+	if f.kind == "" && f.url != "" {
+		actions = append(actions, do("flow.open-browser", locales.OpenInBrowser(), func() { services.OpenURL(f.url) }).in("open"))
+	}
+	actions = append(actions,
+		pick(requests, "collection.from-capture").in("edit"),
+		do("flow.save-request", locales.SaveAsRequest(), func() { a.saveCapture(f) }).
+			when(f.kind != "connect" && f.method != "CONNECT", "Tunnels cannot be saved as requests").in("edit"),
+	)
 	if chosen := a.selectedFlows(); len(chosen) > 1 {
-		actions = append(actions, do("flow.save-chosen", fmt.Sprintf("Save %d requests to collection…", len(chosen)), func() { a.openCollectionSave(chosen) }))
+		actions = append(actions, do("flow.save-chosen", fmt.Sprintf("Save %d requests to collection…", len(chosen)), func() { a.openCollectionSave(chosen) }).in("edit"))
 	}
 	var formats []action
 	for _, format := range requestCopyFormats {
@@ -3374,19 +3380,15 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 		services.WriteClipboard(f.body(true))
 		a.done(locales.CopiedResponseBody())
 	}).when(f.resBody != "", "The response has no body"))
-	actions = append(actions, submenu(locales.Copy(), copyItems...).in("copy"))
-	if f.kind == "" && f.url != "" {
-		actions = append(actions, do("flow.open-browser", locales.OpenInBrowser(), func() { services.OpenURL(f.url) }).in("copy"))
-	}
 	// Sync the conditions on the next frame; changing visible rows while the
 	// table is building would invalidate its row indices.
 	filters := []action{
 		do("flow.filter-host", "Host: "+f.host, func() { a.filterTriage.Host = f.host; c.AnimationFrame() }).
-			when(f.host != "", ""),
+			when(f.host != "", "").in("edit"),
 		do("flow.filter-app", "App: "+cmp.Or(f.process, "unidentified"), func() { a.filterTriage.Client = f.process; c.AnimationFrame() }).
-			when(f.process != "", ""),
+			when(f.process != "", "").in("edit"),
 		do("flow.filter-method", "Method: "+f.method, func() { a.filterTriage.Method = f.method; c.AnimationFrame() }).
-			when(f.method != "", ""),
+			when(f.method != "", "").in("edit"),
 	}
 	// A CONNECT status acknowledges a tunnel; it is not the status of an
 	// HTTP response from the destination.
@@ -3411,13 +3413,14 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 			do("https.rules", locales.ViewHttpsRules(), func() { a.sslOpen = true }))...).in("host"),
 	)
 	return append(actions,
-		submenu(locales.FilterCaptures(), filters...).in("copy"),
-		do("flow.pin", cmp.Or(pinLabel(f), "Pin"), func() { a.togglePin(f) }).in("keep"),
-		do("flow.mark", locales.Mark(), func() { a.openMark(f) }).in("keep"),
-		submenu(locales.Tools(), tools...).in("keep"),
-		do("flow.save-evidence", locales.SaveEvidenceToSessions(), func() { a.saveEvidence(f) }).in("save"),
+		submenu(locales.FilterCaptures(), filters...).in("edit"),
+		do("flow.pin", cmp.Or(pinLabel(f), "Pin"), func() { a.togglePin(f) }).in("edit"),
+		do("flow.mark", locales.Mark(), func() { a.openMark(f) }).in("edit"),
+		submenu(locales.Tools(), tools...).in("edit"),
 		do("flow.regression", locales.SaveAsRegression(), func() { a.regressionFrom(f) }).
-			when(f.status != 0 && f.method != "CONNECT" && f.kind != "ws", "Needs a finished HTTP exchange").in("save"),
+			when(f.status != 0 && f.method != "CONNECT" && f.kind != "ws", "Needs a finished HTTP exchange").in("edit"),
+		submenu(locales.Copy(), copyItems...).in("copy"),
+		do("flow.save-evidence", locales.SaveEvidenceToSessions(), func() { a.saveEvidence(f) }).in("copy"),
 	)
 }
 

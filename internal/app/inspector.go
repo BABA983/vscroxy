@@ -1179,19 +1179,18 @@ func (a *app) inspectorActions(c *ui.Context, f flow) []action {
 	if f.kind == "ws" || f.kind == "sse" {
 		actions = append(actions, pane("inspector.messages", "Messages", inspectorMessages))
 	}
-	actions = append(actions,
-		do("flow.discard-edits", locales.DiscardEdits(), func() {
-			delete(a.flowDrafts, f.id)
-			a.liveFor = 0 // The capture opens unchanged again.
-		}).when(a.flowDrafts[f.id] != nil, "This request has no edits").in("flow"),
-		pick(a.actions(c), "flow.replay").as("Replay…").in("flow"),
-		do("flow.save-evidence", locales.SaveEvidenceToSessions(), func() { a.saveEvidence(f) }).in("flow"),
-		do("flow.connection-details", locales.ConnectionDetails(), func() { a.connOpen = !a.connOpen }).in("flow"),
-		do("flow.history", locales.History(), func() { a.openDebugHistory(newDebugSource(f)) }).in("flow"),
-		copyAsMenu(append(a.requestCopyActions(c, f, nil), a.captureCopyActions(c, []flow{f})...)).in("flow"),
-	)
 	for _, x := range a.pickActions(c, "view.focus-inspector", "view.layout-right", "view.layout-bottom") {
 		actions = append(actions, x.in("view"))
 	}
-	return actions
+	// The exchange's own commands are the row's menu, so the inspector's
+	// actions and the table's right-click cannot drift apart.
+	actions = append(actions,
+		do("flow.connection-details", locales.ConnectionDetails(), func() { a.connOpen = !a.connOpen }).in("open"),
+		do("flow.history", locales.History(), func() { a.openDebugHistory(newDebugSource(f)) }).in("open"),
+		do("flow.discard-edits", locales.DiscardEdits(), func() {
+			delete(a.flowDrafts, f.id)
+			a.liveFor = 0 // The capture opens unchanged again.
+		}).when(a.flowDrafts[f.id] != nil, "This request has no edits").in("edit"),
+	)
+	return append(actions, a.flowActions(c, f)...)
 }
