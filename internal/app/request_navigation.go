@@ -207,6 +207,9 @@ func (a *app) collectionTree(c *ui.Context) {
 				uikit.Selected(c, row, !a.windowBehind)
 			}
 			row.Children(func() {
+				// The arrow's slot, empty: a request's method and name start
+				// where a folder's name does, at every depth.
+				ui.Box(c).Size(uikit.IconLarge, uikit.IconLarge).Shrink(0)
 				ui.Row(c).Grow(1).FillHeight().Gap(c.Theme().Space(2)).AlignItems(ui.Center).Label(method + "  " + r.Name).Children(func() {
 					methodCell(c, method, a.treeMethodSlot())
 					uikit.Body(c, r.Name).SingleLine().Grow(1)
@@ -225,11 +228,15 @@ func (a *app) collectionTree(c *ui.Context) {
 	tree.Root.Gap(0).Children(func() {
 		a.unsavedRequests(c, tree, query)
 		branch("", 0)
+		// An empty tree says where a request would go, in the tree's own
+		// inset, before the sessions that are not a collection.
+		if len(a.requests) == 0 && len(paths) == 0 {
+			ui.Row(c).Padding(c.Theme().Space(1.5), c.Theme().Space(1.5)).PaddingStart(c.Theme().Space(3.5)).Children(func() {
+				uikit.Hint(c, locales.SaveARequestHereOr())
+			})
+		}
 		a.sessionsTree(c, tree)
 	})
-	if len(a.requests) == 0 && len(paths) == 0 {
-		uikit.Hint(c, locales.SaveARequestHereOr()).Padding(c.Theme().Space(2))
-	}
 }
 
 // unsavedGroup keys the Unsaved group's open state among the collections'.
