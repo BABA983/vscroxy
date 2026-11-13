@@ -43,9 +43,10 @@ func ToolbarButton(c *ui.Context, label, tip string, active bool) ui.Element {
 		case active:
 			b.Background(p.AccentTint)
 		}
-	} else {
-		b.TextColor(p.TextFaint)
 	}
+	// A disabled control keeps its own text color: MyGo already draws disabled
+	// elements at half opacity, and painting the faint color as well dimmed
+	// them twice.
 	return hoverMotion(b, b.Hovered() || b.Pressed())
 }
 
@@ -136,7 +137,6 @@ func RowButton(c *ui.Context, label string) ui.Element {
 		FontSize(TextBody).TextColor(t.Text)
 	switch {
 	case b.IsDisabled():
-		b.TextColor(p.TextFaint)
 	case b.Pressed():
 		b.Background(p.FillPressed)
 	}
