@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
-	"hash/fnv"
 	"io/fs"
 	"log/slog"
 	"maps"
@@ -3329,23 +3328,14 @@ func appBundle(path string) (string, bool) {
 	return found, found != ""
 }
 
-// clientBadge draws the app's initial in its color, for an app whose icon the
-// system does not have.
+// clientBadge draws the app's initial for an app whose icon the system does
+// not have: the same neutral block a host row uses, never a color of its own.
 func clientBadge(c *ui.Context, name string) {
-	letter := "?"
-	if runes := []rune(name); len(runes) > 0 {
-		letter = strings.ToUpper(string(runes[0]))
+	label := name
+	if label == "" {
+		label = locales.UnknownClient()
 	}
-	ui.Box(c).Size(uikit.IconInline, uikit.IconInline).Radius(uikit.RadiusControl).Background(badgeColor(name)).Center().Children(func() {
-		ui.Text(c, letter).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).TextColor(uikit.SwatchText)
-	})
-}
-
-// badgeColor is a stable color per app name.
-func badgeColor(name string) ui.Color {
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(name))
-	return uikit.BadgeColors[int(h.Sum32())%len(uikit.BadgeColors)]
+	uikit.LetterSquare(c, name, uikit.IconInline, uikit.Colors(c.Theme()).TextMuted).Label(label)
 }
 
 func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {

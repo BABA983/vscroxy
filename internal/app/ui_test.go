@@ -7124,3 +7124,24 @@ func TestTunnelStatusSeparatesOpenedFromRefused(t *testing.T) {
 		t.Fatal("a refused tunnel reads as an opened one")
 	}
 }
+
+// An app the system cannot name or picture gets a neutral initial block, the
+// same one a host row uses, not a color of its own.
+func TestUnknownClientBadgeIsNeutral(t *testing.T) {
+	a := workspaceApp()
+	a.iconLookup = func(string) ([]byte, bool) { return nil, false }
+	a.flows = []flow{{id: 1, method: "GET", scheme: "https", host: "example.test", path: "/", status: 200}}
+	a.recount()
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1600, 900)
+	tt.Frame()
+	badge, ok := tt.Find(locales.UnknownClient())
+	if !ok {
+		t.Fatalf("no client badge: %q", tt.Texts())
+	}
+	im := tt.Image()
+	p := im.RGBAAt(int(badge.X)+2, int(badge.Y+badge.H/2))
+	if spread := max(p.R, max(p.G, p.B)) - min(p.R, min(p.G, p.B)); spread > 8 {
+		t.Fatalf("the badge is colored: %v", p)
+	}
+}

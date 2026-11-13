@@ -188,9 +188,3 @@ var MarkColors = []Swatch{
 	{"Blue", ui.Hex("#2563eb")},
 	{"Purple", ui.Hex("#7c3aed")},
 }
-
-// BadgeColors color a client's initial when the system has no icon for it.
-var BadgeColors = []ui.Color{
-	ui.Hex("#2563eb"), ui.Hex("#7c3aed"), ui.Hex("#db2777"), ui.Hex("#ea580c"),
-	ui.Hex("#0891b2"), ui.Hex("#16a34a"), ui.Hex("#ca8a04"),
-}

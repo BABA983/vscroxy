@@ -170,15 +170,23 @@ func SidebarItemImage(c *ui.Context, id string, src ui.ImageSource, label string
 // column of dots that all meant the same thing is gone.
 func SidebarItemLetter(c *ui.Context, id, label string, chosen, active bool) ui.Element {
 	return sidebarRow(c, id, label, chosen, active, func(ink ui.Color) {
-		t := c.Theme()
-		letter := "?"
-		if r := []rune(strings.TrimSpace(label)); len(r) > 0 {
-			letter = strings.ToUpper(string(r[0]))
-		}
-		ui.Row(c).Size(IconLarge, IconLarge).Shrink(0).Justify(ui.Center).AlignItems(ui.Center).
-			Radius(RadiusControl).Background(Colors(t).Fill).Children(func() {
-			ui.Text(c, letter).FontSize(Scaled(TextMeta)).FontWeight(500).TextColor(ink).SingleLine()
-		})
+		LetterSquare(c, label, IconLarge, ink)
+	})
+}
+
+// LetterSquare is a name's first letter in a neutral block, where an icon
+// would sit: the control face, not a color of its own, so an app the system
+// cannot picture and a host without a favicon look alike. size is the block's
+// edge; ink colors the letter.
+func LetterSquare(c *ui.Context, label string, size float32, ink ui.Color) ui.Element {
+	t := c.Theme()
+	letter := "?"
+	if r := []rune(strings.TrimSpace(label)); len(r) > 0 {
+		letter = strings.ToUpper(string(r[0]))
+	}
+	return ui.Row(c).Size(size, size).Shrink(0).Justify(ui.Center).AlignItems(ui.Center).
+		Radius(RadiusControl).Background(Colors(t).Fill).Children(func() {
+		ui.Text(c, letter).FontSize(Scaled(TextMeta)).FontWeight(500).TextColor(ink).SingleLine()
 	})
 }
 

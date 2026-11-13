@@ -23249,3 +23249,13 @@ func SetUpAClient() string { return In(i18n.Locale()).SetUpAClient() }
 func (msgs Messages) SetUpAClient() string {
 	return Catalog.Format(msgs.locale, "setUpAClient", nil)
 }
+
+// UnknownClient says "Unknown client"
+// in the language the app shows.
+func UnknownClient() string { return In(i18n.Locale()).UnknownClient() }
+
+// UnknownClient says "Unknown client"
+// in the language of msgs.
+func (msgs Messages) UnknownClient() string {
+	return Catalog.Format(msgs.locale, "unknownClient", nil)
+}

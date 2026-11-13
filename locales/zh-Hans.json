@@ -2301,5 +2301,6 @@
       }
     }
   },
-  "setUpAClient": "设置客户端…"
+  "setUpAClient": "设置客户端…",
+  "unknownClient": "未知客户端"
 }
