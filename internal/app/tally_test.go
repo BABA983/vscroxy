@@ -61,3 +61,36 @@ func TestIncrementalArrivalMatchesAFullRecount(t *testing.T) {
 		}
 	}
 }
+
+// The table reads in the order its numbers were handed out. A request is
+// numbered when it starts and arrives when it ends, so a slow one lands after
+// faster ones that started behind it: it has to fall back to where its number
+// says, or the # column steps backwards.
+func TestRowsReadByTheirNumberNotByArrival(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	a := newApp()
+	defer a.views.stopSearch()
+	if a.srv != nil {
+		defer a.srv.Close()
+	}
+	if a.sort.Column != "id" || a.sort.Descending {
+		t.Fatalf("default sort = %+v, want the number ascending", a.sort)
+	}
+	a.flows = []flow{
+		{id: 4, method: "GET", scheme: "https", host: "slow.test", path: "/", status: 200},
+		{id: 1, method: "GET", scheme: "https", host: "fast.test", path: "/", status: 200},
+		{id: 3, method: "GET", scheme: "https", host: "fast.test", path: "/", status: 200},
+		{id: 2, method: "GET", scheme: "https", host: "slow.test", path: "/", status: 200},
+	}
+	a.recount()
+	a.applyFilter()
+	ids := make([]int, 0, len(a.visible))
+	for _, at := range a.visible {
+		ids = append(ids, a.flows[at].id)
+	}
+	if !slices.Equal(ids, []int{1, 2, 3, 4}) {
+		t.Fatalf("rows read %v, want the numbers in order", ids)
+	}
+}

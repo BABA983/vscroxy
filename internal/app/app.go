@@ -566,10 +566,14 @@ func newApp() *app {
 		sidebarWidth:   220,
 		tablePercent:   44,
 		collectionOpen: make(map[string]*bool),
-		detailFor:      -1,
-		frames:         make(map[int][]frame),
-		throttle:       capture.Presets[0],
-		workbench:      desktopWorkbench{layout: "right"},
+		// A flow is numbered when it starts and arrives when it ends, so
+		// arrival order puts 6 above 5. The number is the start order: the
+		// table reads by it, and the # column says so with its arrow.
+		sort:      ui.SortOrder{Column: "id"},
+		detailFor: -1,
+		frames:    make(map[int][]frame),
+		throttle:  capture.Presets[0],
+		workbench: desktopWorkbench{layout: "right"},
 	}
 	// The engine reads SSLKEYLOGFILE on its first handshake, so a key log the
 	// settings ask for has to be in the environment before it starts.
@@ -2807,20 +2811,21 @@ func mappedBy(f flow) string {
 	return f.dns + " · " + hostProfileLabel(f.hostProfile)
 }
 
-// slowMillis is where a request's duration turns vermilion in the table.
+// slowMillis is where a request's duration turns amber in the table.
 const slowMillis = 1000
 
 // durationCell lays a bar behind the number, a row's height less a
 // little, that always covers the number and reaches further left by the
 // logarithm of the time up to a minute: a column of numbers becomes a
 // column of lengths without a column of its own, and no edge cuts through
-// a digit. Slow requests fill in vermilion.
+// a digit. A slow request fills in amber: slow is not broken, so it keeps
+// out of the color a failure uses.
 func durationCell(c *ui.Context, t *ui.Theme, millis int, number func(string) ui.Element) {
 	// A normal row is its numbers and nothing else; only a slow exchange
 	// carries the signal color.
 	cell := number(fmt.Sprintf("%d ms", millis))
 	if millis >= slowMillis {
-		cell.TextColor(t.Danger)
+		cell.TextColor(t.Warning)
 	}
 }
 
