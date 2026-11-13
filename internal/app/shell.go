@@ -45,7 +45,7 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 			if uikit.IconButton(c, locales.Settings(), locales.SettingsCtrlCmd(), settingsIcon).Clicked() {
 				a.openSettings(-1)
 			}
-			uikit.IconButton(c, locales.More(), locales.MoreCommands(), moreIcon).PopoverMenuButton(func(m *ui.Menu) { a.moreMenu(c, m) })
+			uikit.MoreButton(c, locales.More(), locales.MoreCommands(), func(m *ui.Menu) { a.moreMenu(c, m) })
 		})
 	})
 }

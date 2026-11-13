@@ -758,6 +758,13 @@ func EdgeFade(c *ui.Context, from bool, fill ui.Color) ui.Element {
 	return edge.Right(0).Gradient(fill.Alpha(0), fill, 90)
 }
 
+// MoreButton is the "⋯" that opens a menu: an icon button with the menu on it
+// and no chevron, since the three dots already say one opens.
+func MoreButton(c *ui.Context, label, tip string, menu func(*ui.Menu)) ui.Element {
+	b := IconButton(c, label, tip, lucide.Ellipsis()).PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { PopoverPanel(c, panel) }})
+	return b
+}
+
 // MoreMenu is the quiet "⋯" button that opens a menu of further actions;
 // label names it for assistive technology and in its tooltip. It has no
 // face until hovered, as a toolbar button has none.
@@ -767,7 +774,10 @@ func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
 	ghost.Surface, ghost.SurfaceHover, ghost.SurfacePressed = ui.Color{}, p.FillHover, p.FillPressed
 	ghost.Border = ui.Color{}
 	c.SetTheme(&ghost)
-	b := ui.PopoverMenuButton(c, "⋯", menu)
+	// A button of our own with a menu on it, not the library's menu button:
+	// that one draws a chevron after its label, and a ⋯ already says a menu
+	// opens. The menu itself is the library's, panel and motion included.
+	b := ui.ButtonBase(c).Label("⋯").PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { PopoverPanel(c, panel) }})
 	c.SetTheme(t)
 	return Tip(c, b.Label(label), label).Height(HeightControl).
 		Padding(0, t.Space(2)).FontSize(Scaled(TextBody)).TextColor(t.TextMuted)
@@ -782,7 +792,7 @@ func TabMenu(c *ui.Context, label, name string, menu func(*ui.Menu)) ui.Element 
 	ghost.Surface, ghost.SurfaceHover, ghost.SurfacePressed = ui.Color{}, p.FillHover, p.FillPressed
 	ghost.Border = ui.Color{}
 	c.SetTheme(&ghost)
-	b := ui.PopoverMenuButton(c, label, menu)
+	b := ui.ButtonBase(c).Label(label).PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { PopoverPanel(c, panel) }})
 	c.SetTheme(t)
 	return Tip(c, b.Label(name), name).Height(HeightControl).Padding(0, t.Space(1.5)).
 		Radius(RadiusControl).AlignItems(ui.Center).Gap(t.Space(1)).FontSize(Scaled(TextBody)).TextColor(t.TextMuted)

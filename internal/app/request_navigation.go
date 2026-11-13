@@ -179,7 +179,7 @@ func (a *app) collectionTree(c *ui.Context) {
 			row.Children(func() {
 				branchArrow(c, open)
 				uikit.Body(c, name).SingleLine().Grow(1)
-				action := uikit.IconButton(c, locales.CollectionActionsPrefix(path), locales.CollectionActions(), moreIcon).PopoverMenuButton(menu).
+				action := uikit.MoreButton(c, locales.CollectionActionsPrefix(path), locales.CollectionActions(), menu).
 					Absolute().Right(0).Top(2).Background(uikit.Colors(c.Theme()).Chrome)
 				if !row.Hovered() && !row.FocusWithin() {
 					action.Opacity(0)
@@ -216,7 +216,7 @@ func (a *app) collectionTree(c *ui.Context) {
 					if edited {
 						unsavedDot(c)
 					}
-					action := uikit.IconButton(c, locales.RequestActionsPrefix(r.Name), locales.RequestActions(), moreIcon).PopoverMenuButton(menu).
+					action := uikit.MoreButton(c, locales.RequestActionsPrefix(r.Name), locales.RequestActions(), menu).
 						Absolute().Right(0).Top(2).Background(uikit.Colors(c.Theme()).Chrome)
 					if !row.Hovered() && !row.FocusWithin() {
 						action.Opacity(0)

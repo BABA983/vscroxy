@@ -2198,7 +2198,7 @@ func (a *app) collectionsRegion(c *ui.Context, t *ui.Theme) {
 	collections := a.regionOpen("collections")
 	region := ui.Sidebar(c, &a.sidebarChoice, func() {
 		head := uikit.SidebarHeading(c, locales.Collections(), collections, func() {
-			uikit.IconButton(c, locales.CollectionOptions(), locales.CollectionsApisEnvironmentsAndRuns(), moreIcon).PopoverMenuButton(a.collectionsMenu)
+			uikit.MoreButton(c, locales.CollectionOptions(), locales.CollectionsApisEnvironmentsAndRuns(), a.collectionsMenu)
 			if uikit.IconButton(c, locales.NewRequest(), locales.NewRequest(), plusIcon).Clicked() {
 				a.openCompose()
 			}
