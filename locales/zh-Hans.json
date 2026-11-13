@@ -133,6 +133,7 @@
   "authorizationUrl": "授权 URL",
   "auto": "自动",
   "autoFollow": "自动跟随",
+  "autoFollowCount": "{count} 条新请求",
   "autoFollowNew": "自动跟随关闭 · {count} 条新请求 ↓",
   "autoFollowOff": "自动跟随关闭 · 最新 ↓",
   "autoFollowOffTip": "列表停留在你阅读的位置。点击跳到最新请求并重新跟随。",

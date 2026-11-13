@@ -289,12 +289,14 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 				if !on {
 					tip = locales.AutoFollowOffTip()
 				}
-				follow := uikit.FooterButton(c, locales.AutoFollow(), tip, on)
+				follow := uikit.FooterButton(c, locales.AutoFollow(), tip, on).Gap(t.Space(1))
 				// New traffic that is not being followed says so on the
-				// button, so the count is not hidden behind a tint.
+				// button, so the count is not hidden behind a tint. The count
+				// is its own run: run into the label it reads "Auto-follow6
+				// new".
 				if n := a.newRows; n > 0 {
 					follow.Children(func() {
-						ui.Text(c, fmt.Sprintf("%d new", n)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text)
+						ui.Text(c, locales.AutoFollowCount(n)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted)
 					})
 				}
 				if follow.Clicked() {

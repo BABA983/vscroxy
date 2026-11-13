@@ -1280,6 +1280,16 @@ func (msgs Messages) AutoFollow() string {
 	return Catalog.Format(msgs.locale, "autoFollow", nil)
 }
 
+// AutoFollowCount says "{count} new"
+// in the language the app shows.
+func AutoFollowCount(count int) string { return In(i18n.Locale()).AutoFollowCount(count) }
+
+// AutoFollowCount says "{count} new"
+// in the language of msgs.
+func (msgs Messages) AutoFollowCount(count int) string {
+	return Catalog.Format(msgs.locale, "autoFollowCount", map[string]any{"count": count})
+}
+
 // AutoFollowNew says "Auto-follow off · {count} new ↓"
 // in the language the app shows.
 func AutoFollowNew(count int) string { return In(i18n.Locale()).AutoFollowNew(count) }

@@ -2504,6 +2504,47 @@ func TestFooterActionsClearFilterAndFollow(t *testing.T) {
 	}
 }
 
+// The count of traffic that arrived while the list was paused is its own run
+// beside the label, in the muted color: glued to it, the button read
+// "Auto-follow6 new".
+func TestFooterKeepsTheNewCountApartFromTheLabel(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	plain, ok := tt.Find("Auto-follow")
+	if !ok {
+		t.Fatalf("no Auto-follow button: %q", tt.Texts())
+	}
+	a.newRows = 6
+	tt.Frame()
+	button, ok := tt.Find("Auto-follow")
+	if !ok {
+		t.Fatalf("no Auto-follow button with a count: %q", tt.Texts())
+	}
+	count, ok := tt.Find("6 new")
+	if !ok {
+		t.Fatalf("the count is not its own run: %q", tt.Texts())
+	}
+	// The button grew by the count and the space before it, so the space is
+	// what the growth leaves after the text itself.
+	if gap := button.W - plain.W - count.W; gap < 3 {
+		t.Fatalf("the count sits %.1f DIP after the label, want a gap", gap)
+	}
+	// Muted, not the label's ink: the count is a state, not part of the name.
+	im := tt.Image()
+	darkest := uint8(255)
+	for y := int(count.Y); y < int(count.Y+count.H); y++ {
+		for x := int(count.X); x < int(count.X+count.W); x++ {
+			if p := im.RGBAAt(x, y); p.R < darkest {
+				darkest = p.R
+			}
+		}
+	}
+	if darkest < 0x30 {
+		t.Fatalf("the count is drawn in the label's ink (%#x), want the muted color", darkest)
+	}
+}
+
 // Tools that are on sit at the footer's end; the ones the window has no room
 // for fold into a count that lists them, rather than running under the edge.
 func TestFooterToolChipsFoldIntoACount(t *testing.T) {

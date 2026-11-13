@@ -31,6 +31,13 @@
       }
     }
   },
+  "@autoFollowCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@autoFollowNew": {
     "placeholders": {
       "count": {
@@ -1446,6 +1453,7 @@
   "authorizationUrl": "Authorization URL",
   "auto": "Auto",
   "autoFollow": "Auto-follow",
+  "autoFollowCount": "{count} new",
   "autoFollowNew": "Auto-follow off · {count} new ↓",
   "autoFollowOff": "Auto-follow off · latest ↓",
   "autoFollowOffTip": "The list stays where you are reading. Click to jump to the newest request and follow again.",
