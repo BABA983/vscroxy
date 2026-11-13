@@ -39,9 +39,29 @@ func lookupSocket(client, server netip.AddrPort) Process {
 		return Process{}
 	}
 	comm, err := exec.Command("ps", "-p", owner, "-o", "comm=").Output()
-	path := strings.TrimSpace(string(comm))
-	if err != nil || !filepath.IsAbs(path) {
+	if err != nil {
 		return Process{}
 	}
-	return Process{Name: filepath.Base(path), Path: path}
+	return executable(owner, strings.TrimSpace(string(comm)))
+}
+
+// executable turns ps's command column into a process. ps prints a full path
+// for a process it can name that way, and the bare command name for one it
+// cannot — curl is "curl", not "/usr/bin/curl" — so a relative name is
+// resolved through the text file lsof lists for the process.
+func executable(pid, comm string) Process {
+	if filepath.IsAbs(comm) {
+		return Process{Name: filepath.Base(comm), Path: comm}
+	}
+	name := filepath.Base(comm)
+	out, err := exec.Command("lsof", "-nP", "-p", pid, "-a", "-d", "txt", "-Fn").Output()
+	if err == nil {
+		for line := range strings.SplitSeq(string(out), "\n") {
+			if path, ok := strings.CutPrefix(line, "n"); ok && filepath.IsAbs(path) {
+				return Process{Name: filepath.Base(path), Path: path}
+			}
+		}
+	}
+	// A name without a path still names the app; only its icon is missing.
+	return Process{Name: name}
 }
