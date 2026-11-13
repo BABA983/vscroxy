@@ -40,6 +40,7 @@ func (s *Server) awaitUnrecorded(id uuid.UUID, done <-chan struct{}) {
 	case <-s.closed:
 	}
 	s.mu.Lock()
+	delete(s.ids, id)
 	delete(s.started, id)
 	delete(s.firstByte, id)
 	delete(s.original, id)

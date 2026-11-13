@@ -3114,6 +3114,49 @@ func TestMockOfAnExampleAnswersForAnUnresolvableHTTPSHost(t *testing.T) {
 	}
 }
 
+// A request the client gives up on still ends: the error flow publishes, and
+// the number it was given at its start is gone with the rest of its state.
+func TestAbortedRequestLeavesNoReservedID(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(2 * time.Second)
+		fmt.Fprint(w, "late")
+	}))
+	defer upstream.Close()
+	s, _ := startServer(t)
+	conn, err := net.Dial("tcp", s.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	host := upstream.Listener.Addr().String()
+	fmt.Fprintf(conn, "GET http://%s/slow HTTP/1.1\r\nHost: %s\r\n\r\n", host, host)
+	time.Sleep(200 * time.Millisecond)
+	conn.Close()
+	f := waitFlow(t, s)
+	if f.Conn.Error == "" {
+		t.Fatalf("the aborted request published without an error: %+v", f)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.ids) != 0 || len(s.started) != 0 {
+		t.Fatalf("after the aborted request: %d reserved IDs, %d started", len(s.ids), len(s.started))
+	}
+}
+
+// An unrecorded exchange publishes no row, so its reserved number must go
+// with its other per-exchange state when it ends.
+func TestUnrecordedExchangeDropsItsReservedID(t *testing.T) {
+	var s Server
+	id := uuid.New()
+	s.ids = map[uuid.UUID]int{id: 7}
+	s.started = map[uuid.UUID]time.Time{id: time.Now()}
+	done := make(chan struct{})
+	close(done)
+	s.awaitUnrecorded(id, done)
+	if len(s.ids) != 0 || len(s.started) != 0 {
+		t.Fatalf("after the unrecorded exchange: %d reserved IDs, %d started", len(s.ids), len(s.started))
+	}
+}
+
 // A decrypted tunnel publishes no row of its own, so it takes no number: the
 // first request the table shows is #1, not #2.
 func TestDecryptedTunnelTakesNoID(t *testing.T) {
