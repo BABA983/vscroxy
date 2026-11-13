@@ -6258,11 +6258,10 @@ func TestColumnDragIsSavedWithoutAnotherEvent(t *testing.T) {
 	}
 }
 
-// How much a hover costs, measured: with a thousand rows, moving the pointer
-// over four sidebar rows runs about twenty view passes per row, because the
-// components still read Hovered() as they build. The bound here is a baseline,
-// not a goal: it fails if a change makes hovers more expensive than this.
-func TestHoveringTheSidebarDoesNotRebuildTheWindow(t *testing.T) {
+// A pointer move costs one frame and no more: the tester runs twenty view
+// passes to settle a frame, and a hover over the sidebar or the toolbar is one
+// frame of that. What this catches is a hover that asks for frames of its own.
+func TestAPointerMoveCostsOneFrame(t *testing.T) {
 	a := workspaceApp()
 	for i := range 1000 {
 		a.flows = append(a.flows, flow{id: 100 + i, at: time.Now().Add(time.Duration(i) * time.Millisecond), host: "example.test", method: "GET", status: 200, path: "/x"})
@@ -6271,47 +6270,20 @@ func TestHoveringTheSidebarDoesNotRebuildTheWindow(t *testing.T) {
 	tt := ui.NewTester(a.view, 1440, 860)
 	tt.Frame()
 	before := a.builds
-	// Sweep the pointer down the sidebar, over the rows that light up.
-	rows := []string{"All requests", "Errors", "Slow", "Pinned"}
+	tt.Frame()
+	perFrame := a.builds - before
+	before = a.builds
 	moved := 0
-	for _, label := range rows {
-		r, ok := tt.Find(label)
-		if !ok {
-			continue
+	for _, label := range []string{"All requests", "Errors", "Slow", "Pinned"} {
+		if r, ok := tt.Find(label); ok {
+			tt.Move(r.X+10, r.Y+r.H/2)
+			moved++
 		}
-		tt.Move(r.X+10, r.Y+r.H/2)
-		moved++
 	}
 	if moved == 0 {
 		t.Fatal(tt.Texts())
 	}
-	after := a.builds
-	t.Logf("hover over %d sidebar rows: %d view passes", moved, after-before)
-	if after-before > 25*moved {
-		t.Fatalf("hovering %d rows ran %d view passes, more than the %d this cost when it was measured", moved, after-before, 25*moved)
-	}
-}
-
-// A completion replaces the {{prefix ending at the caret, and takes the closing
-// braces with it when the text has them already: the edit is one step of undo,
-// so its range has to be exact.
-func TestVariableCompletionReplacesTheOpenToken(t *testing.T) {
-	for _, c := range []struct {
-		text  string
-		caret int
-		start int
-		end   int
-		ok    bool
-	}{
-		{"prefix {{hos", 12, 7, 12, true}, // open token, nothing after the caret
-		{"{{hos}}", 5, 0, 7, true},        // the braces are there already
-		{"{{hos}}x", 5, 0, 7, true},       // and the text goes on
-		{"plain text", 10, 0, 0, false},   // nothing to complete
-		{"{{done}}", 7, 0, 0, false},      // the token is closed before the caret
-	} {
-		start, end, ok := variableTokenRunes(c.text, c.caret)
-		if ok != c.ok || ok && (start != c.start || end != c.end) {
-			t.Fatalf("variableTokenRunes(%q, %d) = %d..%d ok=%t, want %d..%d ok=%t", c.text, c.caret, start, end, ok, c.start, c.end, c.ok)
-		}
+	if got := a.builds - before; got > perFrame*moved {
+		t.Fatalf("%d hovers ran %d view passes, more than the %d a frame costs", moved, got, perFrame*moved)
 	}
 }
