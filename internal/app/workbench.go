@@ -117,7 +117,9 @@ func (a *app) desktopContent(c *ui.Context) {
 				a.certificateBanner(c, c.Theme())
 				table := func() {
 					ui.Column(c).Fill().Children(func() {
-						a.activityStrip(c)
+						if a.hadFlows {
+							a.activityStrip(c)
+						}
 						if a.chosen.Len() > 1 {
 							ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
 								ui.Text(c, locales.SelectedCount(a.chosen.Len())).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).Grow(1)

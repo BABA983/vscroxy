@@ -433,6 +433,10 @@ type app struct {
 	filterAny     bool
 	activity      activityRange
 	activityRows  []int // matching rows before the time brush, for its full context
+	// hadFlows is sticky for the session: the activity strip is a timeline of
+	// what was captured, so it keeps its place after Clear rather than
+	// appearing and disappearing as rows come and go.
+	hadFlows bool
 	// activityCounts caches the strip's buckets until the rows, its end or
 	// the brush change.
 	activityCounts activityCache
@@ -1552,6 +1556,9 @@ func (a *app) view(c *ui.Context) {
 	c.SetTheme(theme)
 	c.SetMenuPresentation(ui.PopoverMenus)
 	a.drain()
+	// The activity strip is the session's timeline, not the current rows':
+	// once traffic has been here it keeps its place through Clear.
+	a.hadFlows = a.hadFlows || len(a.flows) > 0
 	a.drainUpstream()
 	a.drainGRPC()
 	a.drainGraphQL()

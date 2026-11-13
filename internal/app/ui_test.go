@@ -2504,6 +2504,34 @@ func TestFooterActionsClearFilterAndFollow(t *testing.T) {
 	}
 }
 
+// The activity strip is this session's timeline: it is not drawn before the
+// first request, and Clear does not take it away, so the table does not jump.
+func TestActivityStripWaitsForTheFirstRequest(t *testing.T) {
+	a := workspaceApp()
+	a.flows, a.hadFlows = nil, false
+	a.recount()
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if _, ok := tt.Find("Activity time range"); ok {
+		t.Fatal("the strip is drawn before anything was captured")
+	}
+	a.pending = []capture.Flow{{ID: 1, Method: "GET", Host: "example.test", Path: "/one", Kind: "http", Status: 200, At: time.Now()}}
+	a.drain()
+	tt.Frame()
+	if _, ok := tt.Find("Activity time range"); !ok {
+		t.Fatalf("the first request did not bring the strip: %q", tt.Texts())
+	}
+	a.clearCaptured()
+	tt.Frame()
+	if len(a.flows) != 0 {
+		t.Fatalf("%d flows survived Clear", len(a.flows))
+	}
+	if _, ok := tt.Find("Activity time range"); !ok {
+		t.Fatal("Clear took the strip away; the row must keep its place")
+	}
+}
+
 // The count of traffic that arrived while the list was paused is its own run
 // beside the label, in the muted color: glued to it, the button read
 // "Auto-follow6 new".
