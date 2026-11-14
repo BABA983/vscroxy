@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -48,8 +49,9 @@ func snapshotProfiles(a *app) {
 	a.profiles.rev++
 }
 
-// TestUISnapshots is opt-in: normal tests neither render the matrix nor write
-// files. It uses no listener, real traffic, user settings or system proxy.
+// TestUISnapshots is opt-in: it renders the full theme/width/layout matrix
+// and writes files. TestSnapshotText checks the same scenes on every run.
+// Neither uses a listener, real traffic, user settings or system proxy.
 func TestUISnapshots(t *testing.T) {
 	dir := os.Getenv("VSCROXY_SNAPSHOTS")
 	if dir == "" {
@@ -69,19 +71,186 @@ func TestUISnapshots(t *testing.T) {
 	if len(entries) != 0 {
 		t.Fatal("snapshot output directory must be empty; keep the baseline and choose a new directory")
 	}
+	snapshotUTC(t)
+	states := snapshotStates(t)
+
+	manifest := struct {
+		Platform string
+		Go       string
+		Scale    int
+		Files    map[string]string
+	}{runtime.GOOS + "/" + runtime.GOARCH, runtime.Version(), 1, map[string]string{}}
+	write := func(t *testing.T, name string, data []byte) {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, data, 0644); err != nil {
+			t.Fatal(err)
+		}
+		manifest.Files[filepath.ToSlash(name)] = fmt.Sprintf("%x", sha256.Sum256(data))
+	}
+	for _, dark := range []bool{false, true} {
+		theme := "light"
+		if dark {
+			theme = "dark"
+		}
+		for _, state := range states {
+			widths := []int{1280}
+			if strings.HasPrefix(state.name, "capture-timing") || strings.HasPrefix(state.name, "capture-search") || state.name == "capture-form-xml" || state.name == "capture-multipart" || state.name == "capture-messagepack" || state.name == "capture-structured-error" {
+				widths = append(widths, 960)
+			}
+			if strings.HasPrefix(state.name, "tools-rules-network") || state.name == "capture-selected" || strings.HasPrefix(state.name, "capture-activity") || state.name == "capture-response-error" || state.name == "capture-no-response" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || strings.HasPrefix(state.name, "active-tools") {
+				widths = append(widths, 960)
+			}
+			// Live traffic reads in both layouts: the inspector beside the
+			// list (the default) and below it.
+			layouts := []string{"right"}
+			if strings.HasPrefix(state.name, "capture-") {
+				layouts = append(layouts, "bottom")
+			}
+			for _, layout := range layouts {
+				for _, width := range widths {
+					heights := []int{800}
+					if state.short && width == 960 {
+						heights = append(heights, 600)
+					}
+					for _, height := range heights {
+						name := fmt.Sprintf("%s-%d", state.name, width)
+						if height != 800 {
+							name += fmt.Sprintf("x%d", height)
+						}
+						if layout == "bottom" {
+							name += "-stacked"
+						}
+						t.Run(theme+"/"+name, func(t *testing.T) {
+							tt := snapshotTester(t, state, dark, width, height, layout)
+							base := filepath.Join(theme, name)
+							var b bytes.Buffer
+							if err := png.Encode(&b, tt.Image()); err != nil {
+								t.Fatal(err)
+							}
+							write(t, base+".png", b.Bytes())
+						})
+					}
+				}
+			}
+		}
+	}
+	if t.Failed() {
+		return // A partial run must not publish a success manifest.
+	}
+	data, err := json.Marshal(manifest, jsontext.WithIndent("  "), json.Deterministic(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), append(data, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("wrote %d artifacts to %s", len(manifest.Files), dir)
+}
+
+// TestSnapshotText checks every scene's visible text and menu on one theme
+// and width, so a wording change cannot leave the opt-in image export stale.
+// The image matrix stays opt-in and covers themes, widths and layouts.
+func TestSnapshotText(t *testing.T) {
+	snapshotUTC(t)
+	for _, state := range snapshotStates(t) {
+		t.Run(state.name, func(t *testing.T) {
+			tt := snapshotTester(t, state, false, 1280, 800, "right")
+			if state.want != "" && !tt.HasText(state.want) {
+				t.Fatalf("missing %q: %v", state.want, tt.Texts())
+			}
+			if state.menu != "" && !snapshotHasMenu(tt, state.menu) {
+				t.Fatalf("missing menu item %q: %v", state.menu, tt.Menu())
+			}
+		})
+	}
+}
+
+// snapshotHasMenu checks a drawn menu item. Tester.Menu exposes the top-level
+// items; a submenu's label is drawn and visible through HasText.
+func snapshotHasMenu(tt *ui.Tester, label string) bool {
+	return slices.Contains(tt.Menu(), label) || tt.HasText(label)
+}
+
+// snapshotTester renders one scene. The scene table is shared by the default
+// text assertions and the opt-in image export.
+func snapshotTester(t *testing.T, state snapshot, dark bool, width, height int, layout string) *ui.Tester {
+	t.Helper()
+	a := snapshotApp()
+	a.library.root = filepath.Join(t.TempDir(), "collections")
+	a.appearance = appearanceOf(dark)
+	a.workbench.layout = layout
+	t.Cleanup(a.protobuf.stop)
+	t.Cleanup(a.socket.protobuf.stop)
+	t.Cleanup(a.jsonQuery.job.stop)
+	t.Cleanup(a.columnRead.stop)
+	t.Cleanup(func() {
+		a.structured[0].stop()
+		a.structured[1].stop()
+		if a.requestDocument != nil {
+			a.requestDocument.structured.stop()
+		}
+	})
+	if state.setup != nil {
+		state.setup(a)
+	}
+	announced := false
+	tt := ui.NewTester(func(c *ui.Context) {
+		if !announced {
+			for _, toast := range state.toasts {
+				c.AddToast(toast)
+			}
+			announced = true
+		}
+		a.view(c)
+	}, width, height)
+	tt.SetLocale("en-US")
+	if state.act != nil {
+		state.act(t, tt)
+	}
+	// Body inspection is asynchronous. Wait for completion, not
+	// an arbitrary sleep, and never capture an intermediate frame.
+	deadline := time.NewTimer(time.Minute)
+	defer deadline.Stop()
+	for a.columnRead.dirty || a.columnRead.answers != nil || len(a.columnRead.queue) > 0 || a.protobuf.answers != nil || a.socket.protobuf.answers != nil || a.jsonQuery.job.answers != nil || a.structured[0].job.answers != nil || a.structured[1].job.answers != nil || (a.requestDocument != nil && a.requestDocument.structured.job.answers != nil) {
+		select {
+		case <-deadline.C:
+			t.Fatal("body inspection render did not settle")
+		default:
+		}
+		runtime.Gosched()
+		tt.Frame()
+	}
+	tt.Advance(250 * time.Millisecond) // Complete toast entry motion.
+	tt.Frame()
+	return tt
+}
+
+// snapshotUTC keeps rendered times stable across machines and time zones.
+func snapshotUTC(t *testing.T) {
+	t.Helper()
 	zone := time.Local
 	time.Local = time.UTC
 	t.Cleanup(func() { time.Local = zone })
+}
 
-	type snapshot struct {
-		name   string
-		setup  func(*app)
-		act    func(*testing.T, *ui.Tester)
-		want   string
-		menu   string // Drawn menu label, included in tt.Image().
-		toasts []ui.Toast
-		short  bool // Also inspect the modal at the minimum window height.
-	}
+type snapshot struct {
+	name   string
+	setup  func(*app)
+	act    func(*testing.T, *ui.Tester)
+	want   string
+	menu   string // Drawn menu label, included in tt.Image().
+	toasts []ui.Toast
+	short  bool // Also inspect the modal at the minimum window height.
+}
+
+// snapshotStates builds the scenes shared by the text assertions and the
+// opt-in image export. Keep this table the only source of scenes.
+func snapshotStates(t *testing.T) []snapshot {
+	t.Helper()
 	click := func(label string) func(*testing.T, *ui.Tester) {
 		return func(t *testing.T, tt *ui.Tester) {
 			t.Helper()
@@ -293,7 +462,7 @@ func TestUISnapshots(t *testing.T) {
 		{name: "requests-socketio-connection", setup: func(a *app) {
 			a.addDocument(savedRequest{Protocol: "Socket.IO", Name: "Admin events", URL: "https://api.example.com/socket.io/", SocketIO: request.SocketIOConfig{Namespace: "/admin", Auth: `{"token":"{{vault:socket-token}}"}`}}, "")
 			a.socketIOState().tab = 2
-		}, want: "Namespace auth JSON object · {{variables}} / {{vault:name}} supported; saved as authored"},
+		}, want: "JSON object; {{variables}} and {{vault:name}} expand."},
 		{name: "requests-socketio-attachments", setup: func(a *app) {
 			a.addDocument(savedRequest{Protocol: "Socket.IO", Name: "Binary events", URL: "https://api.example.com/socket.io/", Body: `[{"_placeholder":true,"num":0}]`, SocketIO: request.SocketIOConfig{Event: "bytes", Attachments: `["/wBJwyg=", ""]`}}, "")
 			a.socketIOState().tab = 1
@@ -506,7 +675,7 @@ func TestUISnapshots(t *testing.T) {
 			tt.Type("no-match")
 		}, want: "No matching requests"},
 		{name: "capture-multiple", setup: func(a *app) { a.chosen.Add(2) }, want: "2 selected"},
-		{name: "capture-connect", setup: func(a *app) { a.flows[0].kind, a.flows[0].method = "connect", "CONNECT" }, want: "Encrypted tunnel"},
+		{name: "capture-connect", setup: func(a *app) { a.flows[0].kind, a.flows[0].method = "connect", "CONNECT" }, want: "Encrypted, not decrypted — not individual requests"},
 		{name: "capture-connect-failed", setup: func(a *app) {
 			a.flows[0].kind, a.flows[0].method = "connect", "CONNECT"
 			a.flows[0].conn = conn{errorStage: "TLS client", error: "remote error: tls: unknown certificate authority"}
@@ -545,7 +714,7 @@ func TestUISnapshots(t *testing.T) {
 			click("Filter status")(t, tt)
 			tt.Type("200")
 			click("Apply")(t, tt)
-		}, want: "1 of 1 selected"},
+		}, want: "1 of 2"},
 		{name: "capture-query", act: func(t *testing.T, tt *ui.Tester) {
 			click("Search host or path")(t, tt)
 			tt.Type("status:2xx app:Browser projects method:")
@@ -652,7 +821,7 @@ func TestUISnapshots(t *testing.T) {
 			a.flows[0].wait, a.flows[0].download = 0, 0
 		}, want: "No timing for this flow"},
 		{name: "requests-empty", setup: func(a *app) { a.page = pageRequest }, want: "Open a saved request or create a new one"},
-		{name: "requests-editing", setup: draft, want: "Send a request to see its response"},
+		{name: "requests-editing", setup: draft, want: sendShortcut() + "  Send"},
 		{name: "requests-header-masked", setup: func(a *app) {
 			draft(a)
 			a.composeHeaders += "\nAuthorization: Bearer snapshot-only"
@@ -1109,7 +1278,7 @@ func TestUISnapshots(t *testing.T) {
 			snapshotProfiles(a)
 			a.flows[0].dns, a.flows[0].hostProfile, a.flows[0].conn.remote = "api.example.com → 10.0.3.21", "Staging:2", "10.0.3.21"
 			a.flows[1].conn.remote = "93.184.216.34"
-		}, want: "Hosts: Staging + Default"},
+		}, want: "Staging +1"},
 		{name: "tools-hosts", setup: func(a *app) { snapshotProfiles(a); a.openTools("hosts") }, want: "Test a host"},
 		{name: "tools-hosts-test", setup: func(a *app) {
 			snapshotProfiles(a)
@@ -1332,7 +1501,7 @@ func TestUISnapshots(t *testing.T) {
 			a.filterTriage.Method, a.filterStatus, a.filterAny = "DELETE", "5xx", true
 			a.views.capture(a)
 			a.applyFilter()
-		}, want: "Any content field may match"},
+		}, want: "Content: OR"},
 		{name: "capture-search-text", setup: func(a *app) {
 			a.views.init(a, "")
 			a.query = "projects"
@@ -1536,7 +1705,7 @@ func TestUISnapshots(t *testing.T) {
 		{name: "dialog-client-oneclick-ios", setup: func(a *app) {
 			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetIOS,
 				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem"}
-		}, want: "iOS simulators run only on macOS", short: true},
+		}, want: "iOS simulator", short: true},
 		{name: "dialog-client-oneclick-java", setup: func(a *app) {
 			a.settingsPath = filepath.Join(os.TempDir(), "vscroxy-snapshot", "settings.json")
 			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetJava,
@@ -1635,7 +1804,7 @@ func TestUISnapshots(t *testing.T) {
 		{name: "collections-menu", act: click("Collection options"), menu: "Generate API from collection…"},
 		{name: "body-menu", setup: func(a *app) { a.workbench.sidePercent = 40 },
 			act: click("Response body format"), menu: "Pretty"},
-		{name: "inspector-menu", act: click("Inspector options"), menu: "Replay…"},
+		{name: "inspector-menu", act: click("Inspector options"), menu: "Replay"},
 		{name: "request-menu", setup: draft, act: click("Request options"), menu: "Copy as cURL"},
 		{name: "capture-copy-menu", act: click("Copy as…"), menu: "Markdown table"},
 		{name: "capture-selection-csv", setup: func(a *app) { a.chosen.Add(2) }, want: "Export CSV…"},
@@ -1727,135 +1896,7 @@ func TestUISnapshots(t *testing.T) {
 		a.requests[0].URL = "https://api.example.com/projects"
 	}, act: click("Matches: Get project"), want: "Save response as example"})
 
-	manifest := struct {
-		Platform string
-		Go       string
-		Scale    int
-		Files    map[string]string
-	}{runtime.GOOS + "/" + runtime.GOARCH, runtime.Version(), 1, map[string]string{}}
-	write := func(t *testing.T, name string, data []byte) {
-		t.Helper()
-		path := filepath.Join(dir, name)
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, data, 0644); err != nil {
-			t.Fatal(err)
-		}
-		manifest.Files[filepath.ToSlash(name)] = fmt.Sprintf("%x", sha256.Sum256(data))
-	}
-	for _, dark := range []bool{false, true} {
-		theme := "light"
-		if dark {
-			theme = "dark"
-		}
-		for _, state := range states {
-			widths := []int{1280}
-			if strings.HasPrefix(state.name, "capture-timing") || strings.HasPrefix(state.name, "capture-search") || state.name == "capture-form-xml" || state.name == "capture-multipart" || state.name == "capture-messagepack" || state.name == "capture-structured-error" {
-				widths = append(widths, 960)
-			}
-			if strings.HasPrefix(state.name, "tools-rules-network") || state.name == "capture-selected" || strings.HasPrefix(state.name, "capture-activity") || state.name == "capture-response-error" || state.name == "capture-no-response" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || strings.HasPrefix(state.name, "active-tools") {
-				widths = append(widths, 960)
-			}
-			// Live traffic reads in both layouts: the inspector beside the
-			// list (the default) and below it.
-			layouts := []string{"right"}
-			if strings.HasPrefix(state.name, "capture-") {
-				layouts = append(layouts, "bottom")
-			}
-			for _, layout := range layouts {
-				for _, width := range widths {
-					heights := []int{800}
-					if state.short && width == 960 {
-						heights = append(heights, 600)
-					}
-					for _, height := range heights {
-						name := fmt.Sprintf("%s-%d", state.name, width)
-						if height != 800 {
-							name += fmt.Sprintf("x%d", height)
-						}
-						if layout == "bottom" {
-							name += "-stacked"
-						}
-						t.Run(theme+"/"+name, func(t *testing.T) {
-							a := snapshotApp()
-							a.library.root = filepath.Join(t.TempDir(), "collections")
-							a.appearance = appearanceOf(dark)
-							a.workbench.layout = layout
-							t.Cleanup(a.protobuf.stop)
-							t.Cleanup(a.socket.protobuf.stop)
-							t.Cleanup(a.jsonQuery.job.stop)
-							t.Cleanup(a.columnRead.stop)
-							t.Cleanup(func() {
-								a.structured[0].stop()
-								a.structured[1].stop()
-								if a.requestDocument != nil {
-									a.requestDocument.structured.stop()
-								}
-							})
-							if state.setup != nil {
-								state.setup(a)
-							}
-							announced := false
-							tt := ui.NewTester(func(c *ui.Context) {
-								if !announced {
-									for _, toast := range state.toasts {
-										c.AddToast(toast)
-									}
-									announced = true
-								}
-								a.view(c)
-							}, width, height)
-							tt.SetLocale("en-US")
-							if state.act != nil {
-								state.act(t, tt)
-							}
-							// Body inspection is asynchronous. Wait for completion, not
-							// an arbitrary sleep, and never capture an intermediate frame.
-							deadline := time.NewTimer(time.Minute)
-							defer deadline.Stop()
-							for a.columnRead.dirty || a.columnRead.answers != nil || len(a.columnRead.queue) > 0 || a.protobuf.answers != nil || a.socket.protobuf.answers != nil || a.jsonQuery.job.answers != nil || a.structured[0].job.answers != nil || a.structured[1].job.answers != nil || (a.requestDocument != nil && a.requestDocument.structured.job.answers != nil) {
-								select {
-								case <-deadline.C:
-									t.Fatal("body inspection render did not settle")
-								default:
-								}
-								runtime.Gosched()
-								tt.Frame()
-							}
-							tt.Advance(250 * time.Millisecond) // Complete toast entry motion.
-							tt.Frame()
-							if state.want != "" && !tt.HasText(state.want) {
-								t.Fatalf("missing %q: %v", state.want, tt.Texts())
-							}
-							base := filepath.Join(theme, name)
-							if state.menu != "" {
-								if !tt.HasText(state.menu) {
-									t.Fatalf("missing menu item %q: %v", state.menu, tt.Texts())
-								}
-							}
-							var b bytes.Buffer
-							if err := png.Encode(&b, tt.Image()); err != nil {
-								t.Fatal(err)
-							}
-							write(t, base+".png", b.Bytes())
-						})
-					}
-				}
-			}
-		}
-	}
-	if t.Failed() {
-		return // A partial run must not publish a success manifest.
-	}
-	data, err := json.Marshal(manifest, jsontext.WithIndent("  "), json.Deterministic(true))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), append(data, '\n'), 0644); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("wrote %d artifacts to %s", len(manifest.Files), dir)
+	return states
 }
 
 var graphqlSnapshotDoc *requestDocument
