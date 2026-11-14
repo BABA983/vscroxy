@@ -37,11 +37,15 @@ VSCROXY_GALLERY_OUT="$PWD/.amp/in/artifacts/gallery" go test ./internal/gallery 
 
 ```bash
 for f in .amp/in/artifacts/gallery/*.png; do
-  magick "$f" -resize '1600x>' -colors 128 -depth 8 -define png:compression-level=9 "docs/design/$(basename "$f")"
+  magick "$f" -resize '1600x>' -dither None -colors 128 -depth 8 -define png:compression-level=9 "docs/design/$(basename "$f")"
 done
 ```
 
+`-dither None` 是为平涂界面加的：默认的 Riemersma 抖动会在文字和面板边缘撒一层噪点，既放大文件，也在截图里多出并不存在的颜色。128 色足够容纳两套主题的全部 token。
+
 画廊不启动抓包服务器，所以抓包页标题栏的 pill 读作 Proxy stopped，表格里是假数据。屏幕条目在画廊里占满整个窗口（目录收进左上角的 Catalog 抽屉），因为 `internal/app` 的视图按窗口尺寸排版，不能放进比窗口窄的一栏。
+
+Screens 组现在覆盖：抓包（空、流量、错误、隧道、刷选）、请求编辑器（HTTP、MQTT、gRPC、WebSocket、Socket.IO）、Settings 的七个分类和证书编辑状态、命令面板、收起侧栏、Tools 的五个分类（规则、场景、脚本、Host 方案、Mock）、Client setup、Diagnostics、HTTPS rules、API 的端点页、Runs（记录、运行中、结果）、Sessions、集合向导、Postman 导入报告、环境变量、Protobuf 检查器、SSE 会话、调查板、首次启动引导和 MCP 目录。画廊里的入口都构造自假数据，不启动代理、不读写设置、不发请求；需要文件的检查器（Protobuf schema）写进临时目录，关闭时删除。
 
 v3 的设计稿是一份可切换的 artifact，含 Capture／Request editor／System 三屏和 Light／Dark 两套：<https://ampcode.com/artifacts/visuals/vscroxy-design-system-v3-302b0099-8f58-4b2f-abe7-53ca7710b330>。**颜色、表面、尺寸和组件以它为准**，本文第 5、6 节是它的落地记录；屏幕的布局和结构仍按第 3 节。
 
