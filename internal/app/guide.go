@@ -197,9 +197,16 @@ func (a *app) guideCapture(c *ui.Context, t *ui.Theme) {
 func (a *app) guideCertificate(c *ui.Context, t *ui.Theme) {
 	s := &a.certificate
 	status, color := a.certificateStatus(t)
-	ui.Row(c).Children(func() {
+	ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 		if uikit.PrimaryButton(c, locales.InstallAndTrust()).Disabled(s.checking).Clicked() {
 			a.checkCertificate(true)
+		}
+		// Until the check verifies trust, the Diagnostics page shows why and
+		// offers the same install fix.
+		if s.checked && (s.cert == nil || s.err != nil) {
+			if uikit.SecondaryButton(c, locales.Diagnose()).Clicked() {
+				a.openDiagnostics(nil, diagnoseMac)
+			}
 		}
 	})
 	ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color)

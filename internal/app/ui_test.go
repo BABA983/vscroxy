@@ -4931,6 +4931,35 @@ func TestSetupGuideAdvancesFromWhatTheAppObserves(t *testing.T) {
 	}
 }
 
+func TestSetupGuideTrustStepOffersDiagnosticsUntilTrusted(t *testing.T) {
+	a := workspaceApp()
+	a.flows = []flow{{id: 1, live: true, kind: "connect", method: "CONNECT", host: "api.example.com:443", process: "Browser"}}
+	a.applyFilter()
+	a.srv = requestProxy(t)
+	a.guide = true
+	a.systemProxy.read = func(string) system.ProxyCheck { return system.ProxyCheck{Status: system.ProxyOff} }
+	a.certificate.checked = true
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if !tt.HasText("Install and trust") || !tt.HasText("Diagnose…") {
+		t.Fatalf("untrusted CA step lacks Diagnostics: %q", tt.Texts())
+	}
+	if err := tt.Click("Diagnose…"); err != nil {
+		t.Fatal(err)
+	}
+	if a.page != pageDiagnostics {
+		t.Fatalf("Diagnose did not open Diagnostics: page %v", a.page)
+	}
+	// Opening Diagnostics starts a real trust check on this machine; replace
+	// its result with the trusted state this test needs.
+	a.page, a.guide = pageLive, true
+	a.certificate = certificateSetup{checked: true, certificateResult: certificateResult{cert: &x509.Certificate{}}}
+	tt.Frame()
+	if tt.HasText("Diagnose…") {
+		t.Fatal("trusted CA still offers Diagnostics in the guide")
+	}
+}
+
 func TestCaptureEmptyStateOffersSetupWithoutConfusingFilteredTraffic(t *testing.T) {
 	a := workspaceApp()
 	a.flows = nil

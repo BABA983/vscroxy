@@ -65,8 +65,11 @@ go tool mygo dev
 On the first launch (no `~/.vscroxy` yet) the traffic list shows a four-step
 setup guide: start capturing, trust the certificate, choose what to decrypt,
 and the first decrypted request, which the guide selects as it closes. Each
-step completes on its own as the app sees it done. **Skip guide** closes it;
-**Show setup guide** in the command palette opens it again.
+step completes on its own as the app sees it done. The trust step runs the same
+check as Settings → HTTPS; while trust is unverified it also offers
+**Diagnose…**, which opens the Diagnostics page with the install fix.
+**Skip guide** closes it; **Show setup guide** in the command palette opens it
+again.
 
 ## One-click client setup
 
