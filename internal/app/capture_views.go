@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"io"
+	"net"
 	"os"
 	"slices"
 	"strconv"
@@ -59,14 +60,17 @@ type savedCaptureFilter struct {
 // captureTriage is shared by live views and portable saved filters. Numeric
 // conditions name their units in the UI; there are no implicit KiB conversions.
 type captureTriage struct {
-	Host      string `json:"host,omitempty"`
-	Client    string `json:"client,omitempty"`
-	Method    string `json:"method,omitempty"`
-	Duration  string `json:"duration,omitempty"`
-	Size      string `json:"size,omitempty"`
-	Color     string `json:"color,omitempty"`
-	Note      string `json:"note,omitempty"`
-	Operation string `json:"operation,omitempty"`
+	Host        string `json:"host,omitempty"`
+	Client      string `json:"client,omitempty"`
+	IP          string `json:"ip,omitempty"`
+	Query       string `json:"query,omitempty"`
+	Method      string `json:"method,omitempty"`
+	Duration    string `json:"duration,omitempty"`
+	Size        string `json:"size,omitempty"`
+	RequestSize string `json:"requestSize,omitempty"`
+	Color       string `json:"color,omitempty"`
+	Note        string `json:"note,omitempty"`
+	Operation   string `json:"operation,omitempty"`
 }
 
 func numericCondition(value int, expression string) (bool, bool) {
@@ -115,8 +119,17 @@ func (a *app) matchesContent(f flow) (matched, active bool) {
 			matched = matched && ok
 		}
 	}
-	check(q.Host, q.Host == f.host)
-	check(q.Client, q.Client == f.process)
+	text := func(expr string, def byte, targets ...string) {
+		if strings.TrimSpace(expr) != "" {
+			check(expr, a.textFor(expr, def).match(targets...))
+		}
+	}
+	_, query, _ := strings.Cut(f.path, "?")
+	text(q.Host, '=', f.host)
+	text(q.Client, '=', f.process)
+	text(q.IP, '=', clientAddress(f.conn.client), f.conn.remote)
+	text(q.Query, '~', query)
+	text(q.Note, '~', f.note)
 	if q.Operation != "" {
 		check(q.Operation, f.hasOperation(q.Operation))
 	}
@@ -129,10 +142,11 @@ func (a *app) matchesContent(f flow) (matched, active bool) {
 	}
 	duration, _ := numericCondition(f.millis, q.Duration)
 	size, _ := numericCondition(f.resSize, q.Size)
+	requestSize, _ := numericCondition(f.wireSize(), q.RequestSize)
 	check(q.Duration, duration)
 	check(q.Size, size)
+	check(q.RequestSize, requestSize)
 	check(q.Color, q.Color == f.color || q.Color == "Marked" && f.color != "")
-	check(q.Note, strings.Contains(strings.ToLower(f.note), strings.ToLower(q.Note)))
 	if a.filterStatus != "" {
 		check(a.filterStatus, statusMatches(a.filterStatus, f.status))
 	}
@@ -148,15 +162,24 @@ func (a *app) matchesContent(f flow) (matched, active bool) {
 func (q captureTriage) summary() []string {
 	var parts []string
 	for _, field := range []struct{ name, value string }{
-		{"host", q.Host}, {"app", q.Client},
+		{"host", q.Host}, {"app", q.Client}, {"ip", q.IP}, {"query", q.Query},
 		{"operation", q.Operation},
-		{"method", q.Method}, {"duration ms", q.Duration}, {"response bytes", q.Size}, {"color", q.Color}, {"note", q.Note},
+		{"method", q.Method}, {"duration ms", q.Duration}, {"response bytes", q.Size}, {"request bytes", q.RequestSize},
+		{"color", q.Color}, {"note", q.Note},
 	} {
 		if field.value != "" {
 			parts = append(parts, field.name+" "+field.value)
 		}
 	}
 	return parts
+}
+
+// clientAddress is the client's IP address, without the port that follows it.
+func clientAddress(endpoint string) string {
+	if host, _, err := net.SplitHostPort(endpoint); err == nil {
+		return host
+	}
+	return endpoint
 }
 
 // loadCaptureFilters reads the saved filters, an empty list when there is no
@@ -1123,6 +1146,11 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 			}).Description(locales.OnlyVerifiedSelectedOperationsMatch())
 			if operation := strings.TrimSpace(v.editTriage.Operation); operation != "" {
 				problem = checkOperation(operation)
+			}
+			for _, expr := range []string{v.editTriage.Host, v.editTriage.Client, v.editTriage.Note} {
+				if _, text := parseTextExpr(expr, '='); text != "" {
+					problem = text
+				}
 			}
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, locales.MethodCommaSeparated(), func() {

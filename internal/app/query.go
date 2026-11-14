@@ -19,34 +19,77 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/rules"
+	"github.com/baba983/vscroxy/locales"
 )
 
 // queryKey is one key of the syntax and the condition it sets. check returns
-// what is wrong with a value, or "" when the value is valid.
+// what is wrong with a value, or "" when the value is valid. A text key holds
+// several conditions, one per token, in the text syntax of text_conditions.go;
+// def is the operator a bare value takes.
 type queryKey struct {
-	name, hint string
-	field      func(a *app) *string
-	check      func(string) string
+	name  string
+	text  bool
+	def   byte
+	field func(a *app) *string
+	check func(string) string
 }
 
 // queryKeys are in the order their chips show.
 var queryKeys = []queryKey{
-	{"app", "Client app", func(a *app) *string { return &a.filterTriage.Client }, nil},
-	{"host", "Exact host", func(a *app) *string { return &a.filterTriage.Host }, nil},
-	{"status", "Code, class or range", func(a *app) *string { return &a.filterStatus }, checkStatus},
-	{"method", "HTTP method", func(a *app) *string { return &a.filterTriage.Method }, nil},
-	{"operation", "Exact GraphQL operation", func(a *app) *string { return &a.filterTriage.Operation }, checkOperation},
-	{"duration", "Milliseconds", func(a *app) *string { return &a.filterTriage.Duration }, checkNumber("duration", "ms")},
-	{"size", "Response bytes", func(a *app) *string { return &a.filterTriage.Size }, checkNumber("size", "response bytes")},
-	{"header", "Name, or name: value", func(a *app) *string { return &a.filterHeader }, nil},
-	{"body", "Text in either body", func(a *app) *string {
+	{name: "app", text: true, def: '=', field: func(a *app) *string { return &a.filterTriage.Client }},
+	{name: "host", text: true, def: '=', field: func(a *app) *string { return &a.filterTriage.Host }},
+	{name: "ip", text: true, def: '=', field: func(a *app) *string { return &a.filterTriage.IP }},
+	{name: "query", text: true, def: '~', field: func(a *app) *string { return &a.filterTriage.Query }},
+	{name: "status", field: func(a *app) *string { return &a.filterStatus }, check: checkStatus},
+	{name: "method", field: func(a *app) *string { return &a.filterTriage.Method }},
+	{name: "operation", field: func(a *app) *string { return &a.filterTriage.Operation }, check: checkOperation},
+	{name: "duration", field: func(a *app) *string { return &a.filterTriage.Duration }, check: checkNumber("duration", "ms")},
+	{name: "size", field: func(a *app) *string { return &a.filterTriage.Size }, check: checkNumber("size", "response bytes")},
+	{name: "reqsize", field: func(a *app) *string { return &a.filterTriage.RequestSize }, check: checkNumber("reqsize", "request bytes")},
+	{name: "header", field: func(a *app) *string { return &a.filterHeader }},
+	{name: "body", field: func(a *app) *string {
 		if view := a.views.activeView(); view != nil {
 			return &view.body
 		}
 		return nil
-	}, nil},
-	{"color", "Row color", func(a *app) *string { return &a.filterTriage.Color }, nil},
-	{"note", "Text in the note", func(a *app) *string { return &a.filterTriage.Note }, nil},
+	}},
+	{name: "color", field: func(a *app) *string { return &a.filterTriage.Color }},
+	{name: "note", text: true, def: '~', field: func(a *app) *string { return &a.filterTriage.Note }},
+}
+
+// queryKeyHint says what a key takes, for the suggestions the query bar lists.
+func queryKeyHint(name string) string {
+	switch name {
+	case "app":
+		return locales.QueryKeyApp()
+	case "host":
+		return locales.QueryKeyHost()
+	case "ip":
+		return locales.QueryKeyIP()
+	case "query":
+		return locales.QueryKeyQuery()
+	case "status":
+		return locales.QueryKeyStatus()
+	case "method":
+		return locales.QueryKeyMethod()
+	case "operation":
+		return locales.QueryKeyOperation()
+	case "duration":
+		return locales.QueryKeyDuration()
+	case "size":
+		return locales.QueryKeySize()
+	case "reqsize":
+		return locales.QueryKeyRequestSize()
+	case "header":
+		return locales.QueryKeyHeader()
+	case "body":
+		return locales.QueryKeyBody()
+	case "color":
+		return locales.QueryKeyColor()
+	case "note":
+		return locales.QueryKeyNote()
+	}
+	return ""
 }
 
 // slowQuery is what the bare word "slow" sets: the same 1 s threshold as the
@@ -214,6 +257,22 @@ func (a *app) commitQuery(all bool) bool {
 			kept = append(kept, t.raw)
 			continue
 		}
+		if key.text {
+			// A text key adds one condition, keeping the others on the field.
+			// Its text is the token as written after the colon, so quotes and
+			// operators such as ! or ^ survive.
+			cond := t.raw[strings.IndexByte(t.raw, ':')+1:]
+			_, problem := parseTextCondition(cond, key.def)
+			field := key.field(a)
+			if problem != "" || field == nil {
+				a.queryProblem = cmp.Or(a.queryProblem, problem)
+				kept = append(kept, t.raw)
+				continue
+			}
+			*field = addTextCondition(*field, cond)
+			committed = true
+			continue
+		}
 		problem := ""
 		if t.value == "" {
 			problem = t.key + " needs a value, such as " + t.key + ":…"
@@ -297,7 +356,7 @@ func (a *app) querySuggestions(prefix string, asked bool) []querySuggestion {
 		lower := strings.ToLower(prefix)
 		for _, k := range queryKeys {
 			if strings.HasPrefix(k.name, lower) {
-				out = append(out, querySuggestion{k.name + ":", k.hint})
+				out = append(out, querySuggestion{k.name + ":", queryKeyHint(k.name)})
 			}
 		}
 		if strings.HasPrefix("slow", lower) && lower != "slow" {

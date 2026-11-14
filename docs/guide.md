@@ -479,6 +479,26 @@ Editing an existing content chip in pattern mode opens Filters without
 overwriting the expression. Compact windows scroll the protocol tabs to keep
 search and chip controls usable.
 
+Text conditions cover host, app, client or upstream IP, query string and note.
+Type them in the search field as `key:value` chips; **Filters…** edits host,
+app and note with the same syntax. A bare value is exact for host, app and IP, and a
+contains match for query and note. A leading operator chooses the test: `=`
+is exact ignoring case, `^` starts with, `~` contains, and `/…/` is a
+case-insensitive regular expression (Go/RE2, at most 4096 bytes). A `!` before
+the operator negates it: `host:!~example` hides hosts containing "example", and
+`app:!/chrome|safari/` hides both browsers. Each condition is its own chip, so
+one can be removed or edited without the others. Positive conditions on one
+field match when any of them does (`app:=curl app:=safari`); every negative
+condition must hold. A value with spaces is quoted, as in `app:"Google Chrome"`.
+Saved filters keep the text as written, so a value with spaces typed without
+quotes before this syntax reads as two conditions and needs quoting again. The
+IP condition matches the client's address without its port, or the upstream
+address the proxy reached. `query:` searches the text after `?`, and
+`reqsize:` takes the request body in bytes, as `size:` takes the response. The
+⋯ menu's protocol and content chips are Form (a form-encoded or multipart
+request), XML, JS, CSS, Media, and h1 or h2 for the HTTP version the client
+spoke.
+
 Use **Filters…** for headers, bodies and status codes. Status accepts comma-separated
 alternatives (for example `4xx, 5xx`) and validates malformed expressions before
 applying them. A filtered-out list explains that captured traffic is hidden and
@@ -508,8 +528,8 @@ methods, duration in milliseconds, captured response-body bytes, color/marked
 state and case-insensitive note text. Numeric fields accept `<`, `<=`, `=`, `>=`
 or `>` with a non-negative integer. **Match populated fields** defaults to
 **All (AND)**; choose **Any (OR)** to match any non-empty content field.
-Host, App, method, status, operation, header, body, duration, size, color and
-note are independent alternatives in OR mode; empty fields are not alternatives.
+Host, App, IP, query, method, status, operation, header, body, duration, size,
+request size, color and note are independent alternatives in OR mode; empty fields are not alternatives.
 Methods and status alternatives within one field always combine with OR.
 This is one flat group, not a nested Boolean expression language. Search text,
 sidebar, protocol/content-type and the time brush always narrow the group's

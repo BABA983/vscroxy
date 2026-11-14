@@ -747,6 +747,46 @@
   "filterHost": "筛选主机",
   "filterMethod": "筛选方法",
   "filterName": "筛选名称",
+  "form": "表单",
+  "media": "媒体",
+  "queryKeyApp": "客户端 App",
+  "queryKeyHost": "精确主机",
+  "queryKeyIP": "客户端或上游 IP 地址",
+  "queryKeyQuery": "查询字符串中的文本",
+  "queryKeyStatus": "状态码、类别或范围",
+  "queryKeyMethod": "HTTP 方法",
+  "queryKeyOperation": "精确的 GraphQL 操作",
+  "queryKeyDuration": "毫秒",
+  "queryKeySize": "响应字节数",
+  "queryKeyRequestSize": "请求字节数",
+  "queryKeyHeader": "名称，或 名称: 值",
+  "queryKeyBody": "任一正文中的文本",
+  "queryKeyColor": "行颜色",
+  "queryKeyNote": "备注中的文本",
+  "textConditionNeedsValue": "{condition} 需要一个值，例如 =value 或 /pattern/",
+  "@textConditionNeedsValue": {
+    "placeholders": {
+      "condition": {
+        "type": "String"
+      }
+    }
+  },
+  "textPatternTooLong": "模式最多 {limit} 字节。",
+  "@textPatternTooLong": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "textPatternInvalid": "模式无效：{error}",
+  "@textPatternInvalid": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "filterNamed": "筛选 {name}",
   "filterNote": "筛选备注",
   "filterStatus": "筛选状态",

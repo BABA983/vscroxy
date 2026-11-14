@@ -90,7 +90,7 @@
 | 自定义列：header、query | 已有 | | |
 | 自定义列：JSON body 字段、Remote IP | 已有 | 请求/响应标量 JSON pointer，后台完整正文读取；Remote IP 显隐 | M2 / M5 |
 | 自定义列：GraphQL operation | 已有 | 实际选中的 operation 类型／名称，后台完整正文解析，支持 batch | M5 |
-| 筛选：多条件 AND/OR 组合 | 已有首版 | 内容字段可选全部／任一匹配，含完整正文；外层范围仍 AND，暂不支持嵌套组 | M5 |
+| 筛选：多条件 AND/OR 组合 | 已有首版 | 文本字段（host、app、IP、query、note）可多条件，支持精确、开头、包含、取反和正则，每个条件一个 chip；内容字段可选全部／任一匹配，含完整正文；外层范围仍 AND，暂不支持嵌套组；⋯ 菜单新增 Form／XML／JS／CSS／Media／h1／h2 | M5 |
 | 搜索支持通配符和正则 | 已有 | 显式 Text／Wildcard／Regex 模式，匹配 host＋路径（含查询串）；错误模式不回退，随视图／保存筛选保留 | M5 |
 | Body 全文搜索 | 已有 | | |
 | Body 查看：Pretty、JSON 树、Hex、图片、HTML、Protobuf | 已有 | | |

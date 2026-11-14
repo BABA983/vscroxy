@@ -61,6 +61,10 @@ func optionLabelFor(msgs locales.Messages, value string) string {
 		return msgs.Pretty()
 	case "Preview":
 		return msgs.Preview()
+	case "Form":
+		return msgs.Form()
+	case "Media":
+		return msgs.Media()
 	case "In":
 		return msgs.InText()
 	case "Out":
@@ -183,7 +187,8 @@ var optionIdentifiers = map[string]bool{
 	"PHP": true, "Ruby": true, "Swift": true, "Kotlin": true,
 	"Basic": true, "Bearer": true, "Digest": true, "OAuth 1.0": true,
 	"OAuth 2.0": true, "Hawk": true, "AWS Signature": true, "NTLM": true,
-	"Cookie":          true,
+	"Cookie": true,
+	"XML":    true, "JS": true, "CSS": true, "h1": true, "h2": true,
 	"Streamable HTTP": true, "stdio": true,
 	"502 Bad Gateway": true, "429 Too Many Requests": true, "503 Service Unavailable": true,
 }

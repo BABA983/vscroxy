@@ -1526,6 +1526,13 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.views.capture(a)
 			a.applyFilter()
 		}, want: "Invalid search pattern"},
+		{name: "capture-search-text-conditions", setup: func(a *app) {
+			a.views.init(a, "")
+			a.query = `host:!~example app:=curl app:=safari`
+			a.commitQuery(true)
+			a.views.capture(a)
+			a.applyFilter()
+		}, want: "app:=safari"},
 		{name: "tools-graphql-rule", setup: func(a *app) {
 			r := capture.Rule{Name: "Search only", Type: capture.RuleBlock, Match: "/graphql", Operation: "Search"}
 			a.rules = []capture.Rule{r}

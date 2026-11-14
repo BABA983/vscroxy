@@ -5716,7 +5716,7 @@ func TestQuerySyntaxTurnsFinishedTokensIntoChips(t *testing.T) {
 	tt.Type(`slow app:"Google Chrome" method:post operation:Search`)
 	tt.Key(0, ui.KeyEnter)
 	tt.Frame()
-	if a.query != "" || a.filterTriage.Client != "Google Chrome" || a.filterTriage.Method != "POST" || a.filterTriage.Duration != ">=1000" || a.filterTriage.Operation != "Search" ||
+	if a.query != "" || a.filterTriage.Client != `"Google Chrome"` || a.filterTriage.Method != "POST" || a.filterTriage.Duration != ">=1000" || a.filterTriage.Operation != "Search" ||
 		!tt.HasText(`Remove condition: app:"Google Chrome"`) || !tt.HasText("Remove condition: slow") {
 		t.Fatalf("query %q, triage %+v", a.query, a.filterTriage)
 	}

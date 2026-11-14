@@ -7550,6 +7550,198 @@ func (msgs Messages) FilterName() string {
 	return Catalog.Format(msgs.locale, "filterName", nil)
 }
 
+// Form says "Form"
+// in the language the app shows.
+func Form() string { return In(i18n.Locale()).Form() }
+
+// Form says "Form"
+// in the language of msgs.
+func (msgs Messages) Form() string {
+	return Catalog.Format(msgs.locale, "form", nil)
+}
+
+// Media says "Media"
+// in the language the app shows.
+func Media() string { return In(i18n.Locale()).Media() }
+
+// Media says "Media"
+// in the language of msgs.
+func (msgs Messages) Media() string {
+	return Catalog.Format(msgs.locale, "media", nil)
+}
+
+// QueryKeyApp says "Client app"
+// in the language the app shows.
+func QueryKeyApp() string { return In(i18n.Locale()).QueryKeyApp() }
+
+// QueryKeyApp says "Client app"
+// in the language of msgs.
+func (msgs Messages) QueryKeyApp() string {
+	return Catalog.Format(msgs.locale, "queryKeyApp", nil)
+}
+
+// QueryKeyHost says "Exact host"
+// in the language the app shows.
+func QueryKeyHost() string { return In(i18n.Locale()).QueryKeyHost() }
+
+// QueryKeyHost says "Exact host"
+// in the language of msgs.
+func (msgs Messages) QueryKeyHost() string {
+	return Catalog.Format(msgs.locale, "queryKeyHost", nil)
+}
+
+// QueryKeyIP says "Client or upstream IP address"
+// in the language the app shows.
+func QueryKeyIP() string { return In(i18n.Locale()).QueryKeyIP() }
+
+// QueryKeyIP says "Client or upstream IP address"
+// in the language of msgs.
+func (msgs Messages) QueryKeyIP() string {
+	return Catalog.Format(msgs.locale, "queryKeyIP", nil)
+}
+
+// QueryKeyQuery says "Text in the query string"
+// in the language the app shows.
+func QueryKeyQuery() string { return In(i18n.Locale()).QueryKeyQuery() }
+
+// QueryKeyQuery says "Text in the query string"
+// in the language of msgs.
+func (msgs Messages) QueryKeyQuery() string {
+	return Catalog.Format(msgs.locale, "queryKeyQuery", nil)
+}
+
+// QueryKeyStatus says "Code, class or range"
+// in the language the app shows.
+func QueryKeyStatus() string { return In(i18n.Locale()).QueryKeyStatus() }
+
+// QueryKeyStatus says "Code, class or range"
+// in the language of msgs.
+func (msgs Messages) QueryKeyStatus() string {
+	return Catalog.Format(msgs.locale, "queryKeyStatus", nil)
+}
+
+// QueryKeyMethod says "HTTP method"
+// in the language the app shows.
+func QueryKeyMethod() string { return In(i18n.Locale()).QueryKeyMethod() }
+
+// QueryKeyMethod says "HTTP method"
+// in the language of msgs.
+func (msgs Messages) QueryKeyMethod() string {
+	return Catalog.Format(msgs.locale, "queryKeyMethod", nil)
+}
+
+// QueryKeyOperation says "Exact GraphQL operation"
+// in the language the app shows.
+func QueryKeyOperation() string { return In(i18n.Locale()).QueryKeyOperation() }
+
+// QueryKeyOperation says "Exact GraphQL operation"
+// in the language of msgs.
+func (msgs Messages) QueryKeyOperation() string {
+	return Catalog.Format(msgs.locale, "queryKeyOperation", nil)
+}
+
+// QueryKeyDuration says "Milliseconds"
+// in the language the app shows.
+func QueryKeyDuration() string { return In(i18n.Locale()).QueryKeyDuration() }
+
+// QueryKeyDuration says "Milliseconds"
+// in the language of msgs.
+func (msgs Messages) QueryKeyDuration() string {
+	return Catalog.Format(msgs.locale, "queryKeyDuration", nil)
+}
+
+// QueryKeySize says "Response bytes"
+// in the language the app shows.
+func QueryKeySize() string { return In(i18n.Locale()).QueryKeySize() }
+
+// QueryKeySize says "Response bytes"
+// in the language of msgs.
+func (msgs Messages) QueryKeySize() string {
+	return Catalog.Format(msgs.locale, "queryKeySize", nil)
+}
+
+// QueryKeyRequestSize says "Request bytes"
+// in the language the app shows.
+func QueryKeyRequestSize() string { return In(i18n.Locale()).QueryKeyRequestSize() }
+
+// QueryKeyRequestSize says "Request bytes"
+// in the language of msgs.
+func (msgs Messages) QueryKeyRequestSize() string {
+	return Catalog.Format(msgs.locale, "queryKeyRequestSize", nil)
+}
+
+// QueryKeyHeader says "Name, or name: value"
+// in the language the app shows.
+func QueryKeyHeader() string { return In(i18n.Locale()).QueryKeyHeader() }
+
+// QueryKeyHeader says "Name, or name: value"
+// in the language of msgs.
+func (msgs Messages) QueryKeyHeader() string {
+	return Catalog.Format(msgs.locale, "queryKeyHeader", nil)
+}
+
+// QueryKeyBody says "Text in either body"
+// in the language the app shows.
+func QueryKeyBody() string { return In(i18n.Locale()).QueryKeyBody() }
+
+// QueryKeyBody says "Text in either body"
+// in the language of msgs.
+func (msgs Messages) QueryKeyBody() string {
+	return Catalog.Format(msgs.locale, "queryKeyBody", nil)
+}
+
+// QueryKeyColor says "Row color"
+// in the language the app shows.
+func QueryKeyColor() string { return In(i18n.Locale()).QueryKeyColor() }
+
+// QueryKeyColor says "Row color"
+// in the language of msgs.
+func (msgs Messages) QueryKeyColor() string {
+	return Catalog.Format(msgs.locale, "queryKeyColor", nil)
+}
+
+// QueryKeyNote says "Text in the note"
+// in the language the app shows.
+func QueryKeyNote() string { return In(i18n.Locale()).QueryKeyNote() }
+
+// QueryKeyNote says "Text in the note"
+// in the language of msgs.
+func (msgs Messages) QueryKeyNote() string {
+	return Catalog.Format(msgs.locale, "queryKeyNote", nil)
+}
+
+// TextConditionNeedsValue says "{condition} needs a value, such as =value or /pattern/"
+// in the language the app shows.
+func TextConditionNeedsValue(condition string) string {
+	return In(i18n.Locale()).TextConditionNeedsValue(condition)
+}
+
+// TextConditionNeedsValue says "{condition} needs a value, such as =value or /pattern/"
+// in the language of msgs.
+func (msgs Messages) TextConditionNeedsValue(condition string) string {
+	return Catalog.Format(msgs.locale, "textConditionNeedsValue", map[string]any{"condition": condition})
+}
+
+// TextPatternTooLong says "Patterns are limited to {limit} bytes."
+// in the language the app shows.
+func TextPatternTooLong(limit int) string { return In(i18n.Locale()).TextPatternTooLong(limit) }
+
+// TextPatternTooLong says "Patterns are limited to {limit} bytes."
+// in the language of msgs.
+func (msgs Messages) TextPatternTooLong(limit int) string {
+	return Catalog.Format(msgs.locale, "textPatternTooLong", map[string]any{"limit": limit})
+}
+
+// TextPatternInvalid says "Invalid pattern: {error}"
+// in the language the app shows.
+func TextPatternInvalid(error string) string { return In(i18n.Locale()).TextPatternInvalid(error) }
+
+// TextPatternInvalid says "Invalid pattern: {error}"
+// in the language of msgs.
+func (msgs Messages) TextPatternInvalid(error string) string {
+	return Catalog.Format(msgs.locale, "textPatternInvalid", map[string]any{"error": error})
+}
+
 // FilterNamed says "Filter {name}"
 // in the language the app shows.
 func FilterNamed(name string) string { return In(i18n.Locale()).FilterNamed(name) }

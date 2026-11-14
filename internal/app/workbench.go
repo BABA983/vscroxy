@@ -156,7 +156,7 @@ func (a *app) desktopContent(c *ui.Context) {
 	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(content)
 }
 
-var captureKinds = []string{"All", "HTTP", "HTTPS", "WebSocket", "SSE", "JSON", "Images", "HTML"}
+var captureKinds = []string{"All", "HTTP", "HTTPS", "WebSocket", "SSE", "JSON", "Images", "HTML", "Form", "XML", "JS", "CSS", "Media", "h1", "h2"}
 
 // captureProtocols are the filters the toolbar shows; the rest live in its
 // overflow menu.
@@ -366,6 +366,21 @@ func (a *app) captureConditions(c *ui.Context) {
 			if field == nil || *field == "" {
 				continue
 			}
+			if key.text {
+				// Each condition of a text field is its own chip, so one can be
+				// removed or edited without the others.
+				for _, t := range tokenizeQuery(*field) {
+					text := key.name + ":" + t.raw
+					uikit.QueryChip(c, text, func() {
+						*field = removeTextCondition(*field, t.raw)
+						a.query = strings.TrimSpace(strings.TrimSpace(a.query) + " " + text)
+						a.queryCaret = new(utf8.RuneCountInString(a.query))
+						changed()
+						a.search.Focus(c)
+					}, func() { *field = removeTextCondition(*field, t.raw); changed() })
+				}
+				continue
+			}
 			text := queryChip(key.name, *field)
 			uikit.QueryChip(c, text, func() {
 				*field = ""
@@ -388,7 +403,7 @@ func (a *app) captureActions() []action {
 		do("tokens.analyze", locales.RecognizeTokenLinks(), func() { a.openTokenLinks(a.tokenLinkScope()) }),
 		do("capture.saved-filters", locales.SaveFilter(), func() { a.views.openSaved(a) }),
 	}
-	for _, index := range []int{6, 7} {
+	for index := 6; index < len(captureKinds); index++ {
 		actions = append(actions, do("capture.kind", optionLabel(captureKinds[index]), func() {
 			a.chip = index
 			a.applyFilter()

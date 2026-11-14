@@ -451,9 +451,11 @@ type app struct {
 	filterHeader  string
 	filterBody    string
 	filterTriage  captureTriage
-	filterAny     bool
-	activity      activityRange
-	activityRows  []int // matching rows before the time brush, for its full context
+	// textExprs holds the compiled text conditions of the filters, by field and text.
+	textExprs    map[string]textExpr
+	filterAny    bool
+	activity     activityRange
+	activityRows []int // matching rows before the time brush, for its full context
 	// hadFlows is sticky for the session: the activity strip is a timeline of
 	// what was captured, so it keeps its place after Clear rather than
 	// appearing and disappearing as rows come and go.
@@ -2112,7 +2114,7 @@ func (a *app) goTo(choice string) {
 	if host, ok := strings.CutPrefix(choice, "host:"); ok {
 		a.filterTriage.Host = host
 	} else if client, ok := strings.CutPrefix(choice, "client:"); ok {
-		a.filterTriage.Client = client
+		a.filterTriage.Client = textToken(client)
 	} else {
 		a.filter = cmp.Or(choice, "all")
 	}
@@ -2328,7 +2330,7 @@ func (a *app) hostRow(c *ui.Context, d domain) {
 			do("dns.map-host", locales.MapThisHost(), func() { a.openDNSRule(hostOnly(d.name), "") }).in("edit"),
 		})
 	}).Children(func() {
-		if a.filterTriage.Host == d.name {
+		if a.filterTriage.Host == textToken(d.name) {
 			uikit.Tip(c, ui.Text(c, "✓").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(c.Theme().Accent), locales.HostFilterIsActiveRemove())
 		}
 		uikit.Meta(c, fmt.Sprint(d.n)).FontFeatures("tnum")
@@ -2365,7 +2367,7 @@ func (a *app) clientRow(c *ui.Context, d domain) {
 	}
 	row.PopoverMenu(func(m *ui.Menu) { actionMenu(m, a.clientActions(d.name, apps)) }).
 		Children(func() {
-			if a.filterTriage.Client == d.name {
+			if a.filterTriage.Client == textToken(d.name) {
 				uikit.Tip(c, ui.Text(c, "✓").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Accent), locales.AppFilterIsActiveRemove())
 			}
 			if slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return a.appInspectionEnabled(app.Path) }) {
@@ -3488,9 +3490,9 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	// Sync the conditions on the next frame; changing visible rows while the
 	// table is building would invalidate its row indices.
 	filters := []action{
-		do("flow.filter-host", "Host: "+f.host, func() { a.filterTriage.Host = f.host; c.AnimationFrame() }).
+		do("flow.filter-host", "Host: "+f.host, func() { a.filterTriage.Host = textToken(f.host); c.AnimationFrame() }).
 			when(f.host != "", "").in("edit"),
-		do("flow.filter-app", "App: "+cmp.Or(f.process, "unidentified"), func() { a.filterTriage.Client = f.process; c.AnimationFrame() }).
+		do("flow.filter-app", "App: "+cmp.Or(f.process, "unidentified"), func() { a.filterTriage.Client = textToken(f.process); c.AnimationFrame() }).
 			when(f.process != "", "").in("edit"),
 		do("flow.filter-method", "Method: "+f.method, func() { a.filterTriage.Method = f.method; c.AnimationFrame() }).
 			when(f.method != "", "").in("edit"),
@@ -4255,6 +4257,7 @@ func (a *app) openSaved(key string) {
 // table: a protocol, or a kind of body.
 func (a *app) matchesChip(f flow) bool {
 	json := strings.Contains(f.contentType(true), "json")
+	version := cmp.Or(f.conn.proto, f.resProto)
 	switch a.chip {
 	case 1: // HTTP
 		return f.kind == "" && f.scheme == "http"
@@ -4270,6 +4273,23 @@ func (a *app) matchesChip(f flow) bool {
 		return strings.HasPrefix(f.contentType(true), "image/")
 	case 7: // HTML
 		return strings.Contains(f.contentType(true), "html")
+	case 8: // Form: the request body is form-encoded or multipart
+		ct := f.contentType(false)
+		return ct == "application/x-www-form-urlencoded" || ct == "multipart/form-data"
+	case 9: // XML
+		return strings.Contains(f.contentType(true), "xml")
+	case 10: // JS
+		ct := f.contentType(true)
+		return strings.Contains(ct, "javascript") || strings.Contains(ct, "ecmascript")
+	case 11: // CSS
+		return f.contentType(true) == "text/css"
+	case 12: // Media
+		ct := f.contentType(true)
+		return strings.HasPrefix(ct, "audio/") || strings.HasPrefix(ct, "video/")
+	case 13: // h1: the client spoke HTTP/1.x
+		return strings.HasPrefix(version, "HTTP/1")
+	case 14: // h2
+		return strings.HasPrefix(version, "HTTP/2")
 	}
 	return true
 }

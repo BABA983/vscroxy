@@ -137,6 +137,58 @@ func TestCaptureSearchSyntax(t *testing.T) {
 	}
 }
 
+// A text field holds conditions for one field: a bare value is exact for host,
+// app and ip and contains for query and note; a leading operator chooses the
+// test, and ! negates it. Positive conditions on one field are OR, negative
+// ones must all hold, and fields combine as the view's AND/OR mode says.
+func TestTextConditions(t *testing.T) {
+	flows := []flow{
+		{id: 1, host: "api.example.com", path: "/v1/projects?expand=1", process: "Google Chrome", conn: conn{client: "127.0.0.1:5000", remote: "10.0.0.1"}},
+		{id: 2, host: "other.test", path: "/login", process: "curl", conn: conn{client: "10.1.2.3:6000"}},
+		{id: 3, host: "api.example.com", path: "/LOGIN?x=2", process: "Safari", conn: conn{client: "[::1]:7000"}},
+	}
+	for _, tc := range []struct {
+		name, query, want string
+		problem           bool
+	}{
+		{"equals ignores case", "host:=API.EXAMPLE.COM", "[1 3]", false},
+		{"equals is not a prefix", "host:=api", "[]", false},
+		{"bare value is exact", "host:other.test", "[2]", false},
+		{"starts with", "host:^api", "[1 3]", false},
+		{"starts with is not contains", "host:^test", "[]", false},
+		{"contains", "host:~test", "[2]", false},
+		{"negated contains", "host:!~example", "[2]", false},
+		{"negated equals", "host:!=api.example.com", "[2]", false},
+		{"negated starts with", "app:!^goo", "[2 3]", false},
+		{"positive conditions on one field are OR", "app:=curl app:=safari", "[2 3]", false},
+		{"negative conditions on one field all hold", "app:!=curl app:!=safari", "[1]", false},
+		{"positive OR with a negative", "host:~example host:!=other.test", "[1 3]", false},
+		{"quoted value keeps its space", `app:"Google Chrome"`, "[1]", false},
+		{"negated regex", "app:!/chrome|safari/", "[2]", false},
+		{"regex ignores case by default", "app:/CHROME/", "[1]", false},
+		{"query string is searched", "query:x=2", "[3]", false},
+		{"ip matches the client without its port", "ip:10.1.2.3", "[2]", false},
+		{"ip matches the upstream address", "ip:10.0.0.1", "[1]", false},
+		{"ip is an IPv6 client without brackets", "ip:::1", "[3]", false},
+		{"negated starts with, on the client or upstream", "ip:!^10.", "[3]", false},
+		{"free text still narrows with a condition", "login host:^api", "[3]", false},
+		{"a bad regex keeps the table and says why", "host:/[/", "[1 2 3]", true},
+		{"a condition without a value says why", "host:!", "[1 2 3]", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := workspaceApp()
+			a.flows = flows
+			a.recount()
+			a.query = tc.query
+			a.commitQuery(true)
+			a.applyFilter()
+			if got := fmt.Sprint(visibleIDs(a)); got != tc.want || (a.queryProblem != "") != tc.problem {
+				t.Fatalf("shown %s (want %s), problem %q", got, tc.want, a.queryProblem)
+			}
+		})
+	}
+}
+
 // A pattern is the field's text, so views and saved filters carry it as the
 // query it was typed as, and a view switch never turns it into words.
 func TestCapturePatternSurvivesViewsAndSavedFilters(t *testing.T) {

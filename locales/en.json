@@ -2060,6 +2060,46 @@
   "filterHost": "Filter host",
   "filterMethod": "Filter method",
   "filterName": "Filter name",
+  "form": "Form",
+  "media": "Media",
+  "queryKeyApp": "Client app",
+  "queryKeyHost": "Exact host",
+  "queryKeyIP": "Client or upstream IP address",
+  "queryKeyQuery": "Text in the query string",
+  "queryKeyStatus": "Code, class or range",
+  "queryKeyMethod": "HTTP method",
+  "queryKeyOperation": "Exact GraphQL operation",
+  "queryKeyDuration": "Milliseconds",
+  "queryKeySize": "Response bytes",
+  "queryKeyRequestSize": "Request bytes",
+  "queryKeyHeader": "Name, or name: value",
+  "queryKeyBody": "Text in either body",
+  "queryKeyColor": "Row color",
+  "queryKeyNote": "Text in the note",
+  "textConditionNeedsValue": "{condition} needs a value, such as =value or /pattern/",
+  "@textConditionNeedsValue": {
+    "placeholders": {
+      "condition": {
+        "type": "String"
+      }
+    }
+  },
+  "textPatternTooLong": "Patterns are limited to {limit} bytes.",
+  "@textPatternTooLong": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "textPatternInvalid": "Invalid pattern: {error}",
+  "@textPatternInvalid": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "filterNamed": "Filter {name}",
   "filterNote": "Filter note",
   "filterStatus": "Filter status",
