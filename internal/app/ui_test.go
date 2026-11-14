@@ -461,6 +461,86 @@ func TestBreakpointDialogValidatesEditsAndKeepsOriginalActionReachable(t *testin
 	}
 }
 
+func TestBreakpointQueryFormAndRawTextWriteBackToTheSameMessage(t *testing.T) {
+	rowText := func(rows []request.Field) string {
+		var parts []string
+		for _, r := range rows {
+			parts = append(parts, r.Name+"="+r.Value)
+		}
+		return strings.Join(parts, ";")
+	}
+	base, rows, ok := splitQuery("https://api.example.com/search?q=a+b&tag=x%26y&tag=2&empty=")
+	if !ok || base != "https://api.example.com/search" || rowText(rows) != "q=a b;tag=x&y;tag=2;empty=" {
+		t.Fatalf("query split into %q %q, ok %v", base, rowText(rows), ok)
+	}
+	if got := encodeRows(rows); got != "q=a+b&tag=x%26y&tag=2&empty=" {
+		t.Fatalf("query written back as %q", got)
+	}
+	if _, _, ok := splitQuery("https://api.example.com/?a=%zz"); ok {
+		t.Fatal("an invalid escape should stay as text")
+	}
+	if got := encodeRows([]request.Field{{Name: "off", Value: "1", Disabled: true}, {}, {Name: "on", Value: "1"}}); got != "on=1" {
+		t.Fatalf("unchecked and empty rows should not be sent: %q", got)
+	}
+
+	a := workspaceApp()
+	a.bp = &capture.Breakpoint{Phase: capture.PhaseRequest, Method: "POST", URL: "https://api.example.com/search?q=a+b", Header: http.Header{"Content-Type": {"application/x-www-form-urlencoded"}}, Body: "name=a+b&x=1"}
+	a.bpMethod, a.bpURL, a.bpHeaders, a.bpBody = a.bp.Method, a.bp.URL, request.HeaderBlock(a.bp.Header), a.bp.Body
+	a.splitTables()
+	if a.bpURL != "https://api.example.com/search" || len(a.bpQuery) != 1 || !a.bpFormRows || rowText(a.bpForm) != "name=a b;x=1" {
+		t.Fatalf("tables: url %q query %q form %q", a.bpURL, rowText(a.bpQuery), rowText(a.bpForm))
+	}
+	if a.composedURL() != "https://api.example.com/search?q=a+b" || a.composedBody() != "name=a+b&x=1" {
+		t.Fatalf("composed %q %q", a.composedURL(), a.composedBody())
+	}
+
+	a.bpRawMode, a.bpRaw = true, a.rawMessage()
+	if want := "POST https://api.example.com/search?q=a+b HTTP/1.1\nContent-Type: application/x-www-form-urlencoded\n\nname=a+b&x=1"; a.bpRaw != want {
+		t.Fatalf("raw message = %q, want %q", a.bpRaw, want)
+	}
+	a.bpRaw = "POST https://api.example.com/search?q=new HTTP/1.1\nContent-Type: application/x-www-form-urlencoded\n\nname=b"
+	a.syncRaw()
+	if a.bpRawNote != "" || a.composedURL() != "https://api.example.com/search?q=new" || a.composedBody() != "name=b" {
+		t.Fatalf("raw edit read as %q %q, note %q", a.composedURL(), a.composedBody(), a.bpRawNote)
+	}
+
+	a.bpRaw = "POST\n\nbody"
+	a.syncRaw()
+	if a.bpRawNote == "" || a.breakpointError() != a.bpRawNote || a.bpMethod != "POST" || a.composedURL() != "https://api.example.com/search?q=new" {
+		t.Fatalf("a malformed start line should keep the last fields and say why: note %q, url %q", a.bpRawNote, a.composedURL())
+	}
+}
+
+func TestBreakpointRawSplitKeepsTheBodyByteForByte(t *testing.T) {
+	head, body := splitRawMessage("GET / HTTP/1.1\r\nHost: a\r\n\r\nbody\r\n\r\nend")
+	if head != "GET / HTTP/1.1\r\nHost: a" || body != "body\r\n\r\nend" {
+		t.Fatalf("CRLF split = %q, %q", head, body)
+	}
+	head, body = splitRawMessage("POST /x HTTP/1.1\nHost: a\n\n{\"a\":1}")
+	if head != "POST /x HTTP/1.1\nHost: a" || body != `{"a":1}` {
+		t.Fatalf("LF split = %q, %q", head, body)
+	}
+	f, problem := parseRawMessage("HTTP/1.1 503 Service Unavailable\nX-A: 1\n\nbody", true)
+	if problem != "" || f.status != "503" || f.headers != "X-A: 1" || f.body != "body" {
+		t.Fatalf("response = %+v, %q", f, problem)
+	}
+	if _, problem := parseRawMessage("GET\n\n", false); problem == "" {
+		t.Fatal("a request line without a URL should be refused")
+	}
+}
+
+func TestBreakpointWaitChoiceIsSavedAndApplied(t *testing.T) {
+	a := workspaceApp()
+	if got := a.breakWait(); got != 2*time.Minute {
+		t.Fatalf("default wait = %v", got)
+	}
+	a.bpWait = breakWaitLabel(600)
+	a.setBreakWait()
+	if a.breakWaitSeconds != 600 || a.breakWait() != 10*time.Minute {
+		t.Fatalf("saved %d, wait %v", a.breakWaitSeconds, a.breakWait())
+	}
+}
+
 func TestWebSocketBreakpointOverSessionAndPayloadValidation(t *testing.T) {
 	for _, kind := range []string{"text", "binary", "read-only"} {
 		t.Run(kind, func(t *testing.T) {

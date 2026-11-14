@@ -863,13 +863,34 @@ inline and cannot be applied.
   as it reached that breakpoint, including any earlier script changes.
 - **Abort** answers with the selected `502`, `429` or `503` status. Escape or an
   outside click does not abort a live exchange.
+- **Drop connection** closes the client's connection without any answer, as a
+  `drop` block rule does. The exchange still appears in the list.
+
+**Raw** switches the dialog to the whole message as HTTP text: the start line,
+the headers, a blank line and the body. Leaving the raw view reads the text back
+into the fields. A start line without a method and URL (or, for a response,
+without a status) keeps the raw view open and says what is missing; the fields
+keep their last good values. The body after the first blank line is kept byte
+for byte.
+
+A request's query string, and a body sent as `application/x-www-form-urlencoded`,
+show as tables of rows, like the request editor's parameter tables. On apply the
+URL's query and the form body are written from those rows, in order and with
+repeated names. Unchecked and empty rows are not sent. A query or form that does
+not decode stays as text.
 
 Binary, undecodable and text bodies over 1 MiB are preserved read-only; their
-headers can still be edited. Streamed exchanges do not offer body breakpoints.
-The dialog shows the pending count; queued pauses appear in turn. The existing
-two-minute pause timeout continues the exchange unchanged if no decision arrives.
-Turning Breakpoints off releases all waiting pauses unchanged. Expired queued
-dialogs are skipped; an expired open dialog is dismissed on the next UI refresh.
+headers can still be edited. The 1 MiB limit is shared with scripts, so a pause
+and a script see the same bytes; it is kept as it is. Streamed exchanges do not
+offer body breakpoints. The dialog shows the pending count; queued pauses
+appear in turn.
+
+**Continue after** sets how long an unanswered pause waits before it continues
+unchanged: 30 seconds, 1, 2 (the default), 5 or 10 minutes. The choice is saved
+with the settings and applies to pauses that begin after it changes. Turning
+Breakpoints off releases all waiting pauses unchanged.
+Expired queued dialogs are skipped; an expired open dialog is dismissed on the
+next UI refresh.
 
 The flow's duration is the exchange's, not the time you spent at the
 breakpoint.

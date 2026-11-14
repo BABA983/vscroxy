@@ -565,6 +565,19 @@ type app struct {
 	bpSaving        bool
 	bpName          string
 	bpNote          string
+	// bpQuery and bpForm are the query and a form body as rows, the form
+	// shown as rows when bpFormRows. bpRawMode shows the message as text in
+	// bpRaw; bpRawNote says why that text does not read yet.
+	bpQuery    []request.Field
+	bpForm     []request.Field
+	bpFormRows bool
+	bpRawMode  bool
+	bpRaw      string
+	bpRawNote  string
+	// bpWait is the label the wait select shows; breakWaitSeconds is how long
+	// an unanswered pause lasts, zero for the default.
+	bpWait           string
+	breakWaitSeconds int
 
 	// mu guards what the capture goroutine hands to the view: the flows not
 	// yet drained, and a startup error.
@@ -708,6 +721,7 @@ func newApp() *app {
 	} else {
 		a.srv = srv
 		srv.SetCertificates(a.certificates)
+		srv.SetBreakWait(a.breakWait())
 		a.upstreamPending = make(chan upstreamLoadResult, 1)
 		if a.upstreamCfg.Enabled() {
 			// A PAC URL may be slow or unreachable. Requests fail closed while
@@ -1043,14 +1057,16 @@ func (a *app) collectBreakpoints() {
 	}
 }
 
-// resolveBreak answers the paused exchange and lets the proxy go on.
-func (a *app) resolveBreak(abort, original bool) {
+// resolveBreak answers the paused exchange and lets the proxy go on. drop
+// closes the client's connection without an answer.
+func (a *app) resolveBreak(abort, original, drop bool) {
 	bp := a.bp
 	if bp == nil {
 		return
 	}
+	a.syncRaw()
 	if a.srv != nil {
-		if !abort && !original && a.breakpointError() != "" {
+		if !abort && !original && !drop && a.breakpointError() != "" {
 			return
 		}
 		status := 0
@@ -1059,16 +1075,18 @@ func (a *app) resolveBreak(abort, original bool) {
 		}
 		abortCode, _, _ := strings.Cut(a.bpAbort, " ")
 		abortStatus, _ := strconv.Atoi(abortCode)
+		body := a.composedBody()
 		resumed := a.srv.Resume(bp.ID, capture.Decision{
 			Abort:       abort,
 			AbortStatus: abortStatus,
 			Original:    original,
+			Drop:        drop,
 			Method:      a.bpMethod,
-			URL:         a.bpURL,
+			URL:         a.composedURL(),
 			Status:      status,
-			Body:        a.bpBody,
+			Body:        body,
 			Header:      request.ParseHeaderBlock(a.bpHeaders),
-			KeepBody:    bp.BodyReadOnly || a.bpBody == bp.Body,
+			KeepBody:    bp.BodyReadOnly || body == bp.Body,
 		})
 		if !resumed {
 			a.bp, a.bpOpen = nil, false
@@ -1078,6 +1096,10 @@ func (a *app) resolveBreak(abort, original bool) {
 	}
 	a.bp = nil
 	a.bpOpen = false
+	if drop {
+		a.inform(locales.BreakpointDropped(bp.Method, bp.URL))
+		return
+	}
 	if abort {
 		if bp.Phase == capture.PhaseMessage {
 			a.inform(locales.DroppedWebsocketMessageConnectionRemains())
@@ -1097,6 +1119,9 @@ func (a *app) resolveBreak(abort, original bool) {
 func (a *app) breakpointError() string {
 	if a.bp == nil {
 		return ""
+	}
+	if a.bpRawMode && a.bpRawNote != "" {
+		return a.bpRawNote
 	}
 	if a.bp.Phase == capture.PhaseMessage {
 		if a.bp.BodyReadOnly {
@@ -1242,6 +1267,8 @@ func (a *app) drain() {
 			a.bpHeaders = request.HeaderBlock(next.Header)
 			a.bpAbort = "502 Bad Gateway"
 			a.bpTemplate, a.bpSaving, a.bpNote = "", false, ""
+			a.bpRawMode, a.bpRawNote = false, ""
+			a.splitTables()
 		}
 	}
 	if a.recordingPaused {
@@ -1985,6 +2012,10 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 	default:
 	}
 	message := a.bp.Phase == capture.PhaseMessage
+	a.syncRaw()
+	if a.bpWait == "" {
+		a.bpWait = breakWaitLabel(a.waitSeconds())
+	}
 	// Feedback from a previous decision must not cover this pause's footer,
 	// especially when queued breakpoints open in a small window.
 	c.CloseToast("")
@@ -2011,6 +2042,22 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 					a.breakTemplates(c, t, validation == "")
 				}
 			})
+			if !message {
+				ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					view := locales.Raw()
+					if a.bpRawMode {
+						view = locales.FieldsView()
+					}
+					if uikit.SecondaryButton(c, view).Clicked() {
+						a.toggleRaw()
+					}
+					ui.Row(c).Grow(1)
+					uikit.Meta(c, locales.BreakWaitLabel())
+					if uikit.Select(c, &a.bpWait, breakWaitLabels()).Width(190).Label(locales.BreakWaitLabel()).Changed() {
+						a.setBreakWait()
+					}
+				})
+			}
 			if a.bpNote != "" {
 				uikit.Hint(c, a.bpNote)
 			}
@@ -2030,6 +2077,13 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 					}
 					return
 				}
+				if a.bpRawMode {
+					ui.TextArea(c, &a.bpRaw).Height(340).Label(locales.RawMessage()).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+					if a.bp.BodyReadOnly {
+						uikit.Hint(c, locales.BinaryUndecodableOrLargeBody())
+					}
+					return
+				}
 				if a.bp.Phase == capture.PhaseResponse {
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
 						uikit.Input(c, &a.bpStatus).Width(90).Label(locales.Status())
@@ -2041,10 +2095,19 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 						uikit.Input(c, &a.bpURL).Grow(1).MinWidth(0).Label(locales.Url())
 					})
 				}
+				if a.bp.Phase == capture.PhaseRequest {
+					uikit.Meta(c, locales.QueryParameters())
+					a.requestFieldsEditor(c, &a.bpQuery, fieldsOptions{}, locales.Parameter())
+					uikit.Meta(c, locales.UncheckedRowsStayHereAnd())
+				}
 				uikit.Meta(c, locales.HeadersOneNameValuePer())
 				ui.TextArea(c, &a.bpHeaders).Height(130).Label(locales.BreakpointHeaders()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 				if a.bp.BodyReadOnly {
 					uikit.Hint(c, locales.BinaryUndecodableOrLargeBody())
+				} else if a.bpFormRows {
+					uikit.Meta(c, locales.FormFields())
+					a.requestFieldsEditor(c, &a.bpForm, fieldsOptions{}, locales.Parameter())
+					uikit.Meta(c, locales.UncheckedRowsStayHereAnd())
 				} else {
 					ui.TextArea(c, &a.bpBody).Height(160).Label(locales.Body()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 					uikit.Meta(c, locales.BodyEditsUseDecodedBytes())
@@ -2060,13 +2123,16 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 					abortLabel = "Abort"
 				}
 				if uikit.SecondaryButton(c, abortLabel).Clicked() {
-					a.resolveBreak(true, false)
+					a.resolveBreak(true, false, false)
+				}
+				if !message && uikit.SecondaryButton(c, locales.DropConnection()).Clicked() {
+					a.resolveBreak(false, false, true)
 				}
 				if uikit.SecondaryButton(c, locales.ContinueOriginal()).Clicked() {
-					a.resolveBreak(false, true)
+					a.resolveBreak(false, true, false)
 				}
 				if uikit.PrimaryButton(c, locales.ApplyContinue()).Disabled(validation != "").Clicked() {
-					a.resolveBreak(false, false)
+					a.resolveBreak(false, false, false)
 				}
 			})
 		})

@@ -2101,6 +2101,27 @@
       }
     }
   },
+  "rawNeedsStatusLine": "The first line needs an HTTP status, such as HTTP/1.1 200 OK.",
+  "rawNeedsRequestLine": "The first line needs a method and a URL, such as GET https://example.com/.",
+  "breakWait30Seconds": "30 seconds",
+  "breakWait1Minute": "1 minute",
+  "breakWait2Minutes": "2 minutes",
+  "breakWait5Minutes": "5 minutes",
+  "breakWait10Minutes": "10 minutes",
+  "breakWaitLabel": "Continue after",
+  "fieldsView": "Fields",
+  "breakpointDropped": "Dropped the connection for {method} {url} at a breakpoint.",
+  "@breakpointDropped": {
+    "placeholders": {
+      "method": {
+        "type": "String"
+      },
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "queryParameters": "Query parameters",
   "filterNamed": "Filter {name}",
   "filterNote": "Filter note",
   "filterStatus": "Filter status",

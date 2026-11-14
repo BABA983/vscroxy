@@ -1625,6 +1625,84 @@ func TestBreakpointEditsRequest(t *testing.T) {
 	}
 }
 
+func TestBreakpointDropClosesTheClientConnection(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "upstream")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBreak, Match: upstream.URL})
+	s.SetBreak(true)
+	client := clientFor(t, s, nil)
+
+	errs := make(chan error, 1)
+	go func() {
+		resp, err := client.Get(upstream.URL + "/drop")
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+		errs <- err
+	}()
+
+	var bp Breakpoint
+	select {
+	case bp = <-s.Breakpoints():
+	case <-time.After(5 * time.Second):
+		t.Fatal("no breakpoint")
+	}
+	if !s.Resume(bp.ID, Decision{Drop: true}) {
+		t.Fatal("resume found no waiter")
+	}
+	select {
+	case err := <-errs:
+		if err == nil {
+			t.Fatal("the client got an answer after the connection was dropped")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the client connection was not closed")
+	}
+	waitFlow(t, s)
+}
+
+func TestBreakpointWaitSetsHowLongAPauseLasts(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "upstream")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBreak, Match: upstream.URL})
+	s.SetBreak(true)
+	s.SetBreakWait(100 * time.Millisecond)
+	client := clientFor(t, s, nil)
+
+	body := make(chan string, 1)
+	go func() {
+		resp, err := client.Get(upstream.URL + "/wait")
+		if err != nil {
+			body <- "error: " + err.Error()
+			return
+		}
+		b, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		body <- string(b)
+	}()
+
+	// Nobody answers: the pause must end on its own and send the original.
+	select {
+	case <-s.Breakpoints():
+	case <-time.After(5 * time.Second):
+		t.Fatal("no breakpoint")
+	}
+	select {
+	case got := <-body:
+		if got != "upstream" {
+			t.Fatalf("unanswered pause sent %q, want the original response", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the pause did not end after the configured wait")
+	}
+}
+
 func TestBreakpointAborts(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "upstream")

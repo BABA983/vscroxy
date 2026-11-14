@@ -1432,6 +1432,13 @@ func snapshotStates(t *testing.T) []snapshot {
 			snapshotBreakpoint(a)
 			a.bp.Phase, a.bp.BodyReadOnly, a.bpStatus = capture.PhaseResponse, true, "503"
 		}, want: "Breakpoint · response paused", short: true},
+		{name: "dialog-breakpoint-tables", setup: func(a *app) {
+			snapshotFormBreakpoint(a)
+		}, want: "Form fields", short: true},
+		{name: "dialog-breakpoint-raw", setup: func(a *app) {
+			snapshotFormBreakpoint(a)
+			a.toggleRaw()
+		}, want: "Raw message", short: true},
 		{name: "dialog-breakpoint-templates", setup: func(a *app) {
 			snapshotBreakpoint(a)
 			body := `{"name":"Admin project","owner":"admin"}`
@@ -1916,6 +1923,15 @@ func snapshotSettings(a *app, tab int) {
 	a.systemProxy.checked, a.systemProxy.shown = true, true
 	a.systemProxy.check.Target = a.systemProxyTarget()
 	a.certificate.checked = true
+}
+
+// snapshotFormBreakpoint pauses a form POST with a query, so the breakpoint
+// shows its query and form tables as the proxy hands the pause over.
+func snapshotFormBreakpoint(a *app) {
+	bp := capture.Breakpoint{ID: 1, Method: "POST", URL: "https://api.example.com/search?q=a+b", Header: http.Header{"Content-Type": {"application/x-www-form-urlencoded"}}, Body: "name=a+b&x=1"}
+	a.bp, a.bpOpen = &bp, true
+	a.bpMethod, a.bpURL, a.bpHeaders, a.bpBody = bp.Method, bp.URL, request.HeaderBlock(bp.Header), bp.Body
+	a.splitTables()
 }
 
 func snapshotBreakpoint(a *app) {

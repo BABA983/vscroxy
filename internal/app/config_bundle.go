@@ -91,6 +91,7 @@ func (a *app) currentSettings() settings {
 		KeyLogPath:           a.keyLogPath,
 		ProjectDir:           a.projectDir,
 		ProxyPort:            a.proxyPort,
+		BreakWait:            a.breakWaitSeconds,
 		SOCKSOn:              a.socksOn,
 		SOCKSPort:            a.socksPort,
 		SOCKSAuth:            a.socksAuth,
@@ -483,6 +484,7 @@ func (a *app) applySettingsPrepared(s settings, prepared *upstream.Config) error
 		}
 	}
 	a.socksOn, a.socksPort, a.socksAuth = s.SOCKSOn, s.SOCKSPort, socksAuth
+	a.breakWaitSeconds = s.BreakWait
 	a.socksUsername, a.socksPassword = s.SOCKSUsername, socksPassword
 	a.resetSOCKSDrafts()
 	a.reverses = slices.Clone(s.ReverseProxies)

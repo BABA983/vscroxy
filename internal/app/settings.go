@@ -54,6 +54,9 @@ type settings struct {
 	ProjectDir string `json:"projectDir,omitempty"`
 	// ProxyPort is the fixed loopback port, or zero for automatic selection.
 	ProxyPort int `json:"proxyPort,omitzero"`
+	// BreakWait is how many seconds an unanswered breakpoint waits before it
+	// goes on unchanged; zero is the default.
+	BreakWait int `json:"breakWait,omitzero"`
 	// SOCKSOn opens the SOCKS5 entry on the next launch; SOCKSPort is its
 	// fixed loopback port, or zero for automatic selection. SOCKSAuth asks
 	// clients for the RFC 1929 username and password.
@@ -208,6 +211,7 @@ func sameSettings(x, y settings) bool {
 		x.KeyLogPath == y.KeyLogPath &&
 		x.ProjectDir == y.ProjectDir &&
 		x.ProxyPort == y.ProxyPort &&
+		x.BreakWait == y.BreakWait &&
 		x.SOCKSOn == y.SOCKSOn && x.SOCKSPort == y.SOCKSPort &&
 		x.SOCKSAuth == y.SOCKSAuth && x.SOCKSUsername == y.SOCKSUsername &&
 		x.SOCKSPassword == y.SOCKSPassword &&

@@ -324,6 +324,7 @@ type Decision struct {
 	Body        string
 	Header      http.Header // nil preserves headers; an empty map removes them
 	KeepBody    bool        // header-only edit of a body the text editor cannot represent
+	Drop        bool        // close the client's connection without an answer
 }
 
 // Server is the running MITM proxy. Start it once; Flows drains what it
@@ -445,6 +446,7 @@ type Server struct {
 	reverseToken string
 
 	breakOn     atomic.Bool
+	breakWait   atomic.Int64 // how long a pause waits for a decision, in nanoseconds
 	noCaching   atomic.Bool
 	bpNext      atomic.Int64
 	bpMu        sync.Mutex
@@ -1070,6 +1072,14 @@ func (s *Server) SetBreak(on bool) {
 	}
 }
 
+// defaultBreakWait is how long a paused exchange waits for its user before it
+// goes on unchanged.
+const defaultBreakWait = 2 * time.Minute
+
+// SetBreakWait sets how long a paused exchange waits for a decision; zero
+// restores the default. A pause that has begun keeps the timer it started with.
+func (s *Server) SetBreakWait(d time.Duration) { s.breakWait.Store(int64(d)) }
+
 // Breaking reports whether breakpoints are on.
 func (s *Server) Breaking() bool { return s.breakOn.Load() }
 
@@ -1183,9 +1193,16 @@ func (s *Server) waitBreakpoint(ctx context.Context, bp Breakpoint) *Decision {
 		}
 	case <-ctx.Done():
 	case <-s.closed:
-	case <-time.After(2 * time.Minute):
+	case <-time.After(s.breakTimeout()):
 	}
 	return nil
+}
+
+func (s *Server) breakTimeout() time.Duration {
+	if d := time.Duration(s.breakWait.Load()); d > 0 {
+		return d
+	}
+	return defaultBreakWait
 }
 
 // ruleRequest is what the rules look at in an exchange, as it is now: after
@@ -1814,6 +1831,11 @@ func (a *addon) Request(f *proxy.Flow) {
 	}
 	a.server.runRequestScripts(f)
 	if d := a.server.maybeBreak(f, PhaseRequest); d != nil {
+		if d.Drop {
+			recordAction(f, "Request breakpoint · drop connection")
+			a.server.dropAtBreakpoint(f)
+			return
+		}
 		recordAction(f, "Request breakpoint applied")
 		if d.Abort {
 			f.Response = breakpointAbort(d.AbortStatus)
@@ -1978,6 +2000,11 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	}
 	if breaking {
 		if d := a.server.maybeBreak(f, PhaseResponse); d != nil {
+			if d.Drop {
+				recordAction(f, "Response breakpoint · drop connection")
+				a.server.dropAtBreakpoint(f)
+				return a.server.throttleDown(f, bytes.NewReader(nil))
+			}
 			recordAction(f, "Response breakpoint applied")
 			applyResponseDecision(f, d)
 			edited = true
@@ -1998,6 +2025,16 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	body := f.Response.Body
 	f.Response.Body = nil
 	return a.server.throttleDown(f, bytes.NewReader(body))
+}
+
+// dropAtBreakpoint publishes the flow and closes the client's connection,
+// with no answer, as a block rule's drop does.
+func (s *Server) dropAtBreakpoint(f *proxy.Flow) {
+	f.Error = errDropped
+	if d := debugOf(f); d != nil {
+		d.drop = true
+	}
+	s.answer(f, breakpointAbort(http.StatusBadGateway))
 }
 
 // applyResponseDecision writes what the user chose at a response breakpoint.

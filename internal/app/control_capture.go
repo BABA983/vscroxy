@@ -87,9 +87,9 @@ func (a *app) controlCapture(command control.Command) (any, error) {
 		}
 		switch p.Outcome {
 		case "continue": // unchanged, as Continue original
-			a.resolveBreak(false, true)
+			a.resolveBreak(false, true, false)
 		case "abort":
-			a.resolveBreak(true, false)
+			a.resolveBreak(true, false, false)
 		default:
 			return nil, errors.New("outcome must be continue or abort")
 		}

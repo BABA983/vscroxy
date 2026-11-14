@@ -788,6 +788,27 @@
       }
     }
   },
+  "rawNeedsStatusLine": "第一行需要 HTTP 状态，例如 HTTP/1.1 200 OK。",
+  "rawNeedsRequestLine": "第一行需要方法和 URL，例如 GET https://example.com/。",
+  "breakWait30Seconds": "30 秒",
+  "breakWait1Minute": "1 分钟",
+  "breakWait2Minutes": "2 分钟",
+  "breakWait5Minutes": "5 分钟",
+  "breakWait10Minutes": "10 分钟",
+  "breakWaitLabel": "超时后继续",
+  "fieldsView": "字段",
+  "breakpointDropped": "已在断点处断开 {method} {url} 的连接。",
+  "@breakpointDropped": {
+    "placeholders": {
+      "method": {
+        "type": "String"
+      },
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "queryParameters": "查询参数",
   "filterNamed": "筛选 {name}",
   "filterNote": "筛选备注",
   "filterStatus": "筛选状态",

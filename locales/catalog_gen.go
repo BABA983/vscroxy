@@ -7752,6 +7752,118 @@ func (msgs Messages) TextPatternInvalid(error string) string {
 	return Catalog.Format(msgs.locale, "textPatternInvalid", map[string]any{"error": error})
 }
 
+// RawNeedsStatusLine says "The first line needs an HTTP status, such as HTTP/1.1 200 OK."
+// in the language the app shows.
+func RawNeedsStatusLine() string { return In(i18n.Locale()).RawNeedsStatusLine() }
+
+// RawNeedsStatusLine says "The first line needs an HTTP status, such as HTTP/1.1 200 OK."
+// in the language of msgs.
+func (msgs Messages) RawNeedsStatusLine() string {
+	return Catalog.Format(msgs.locale, "rawNeedsStatusLine", nil)
+}
+
+// RawNeedsRequestLine says "The first line needs a method and a URL, such as GET https://example.com/."
+// in the language the app shows.
+func RawNeedsRequestLine() string { return In(i18n.Locale()).RawNeedsRequestLine() }
+
+// RawNeedsRequestLine says "The first line needs a method and a URL, such as GET https://example.com/."
+// in the language of msgs.
+func (msgs Messages) RawNeedsRequestLine() string {
+	return Catalog.Format(msgs.locale, "rawNeedsRequestLine", nil)
+}
+
+// BreakWait30Seconds says "30 seconds"
+// in the language the app shows.
+func BreakWait30Seconds() string { return In(i18n.Locale()).BreakWait30Seconds() }
+
+// BreakWait30Seconds says "30 seconds"
+// in the language of msgs.
+func (msgs Messages) BreakWait30Seconds() string {
+	return Catalog.Format(msgs.locale, "breakWait30Seconds", nil)
+}
+
+// BreakWait1Minute says "1 minute"
+// in the language the app shows.
+func BreakWait1Minute() string { return In(i18n.Locale()).BreakWait1Minute() }
+
+// BreakWait1Minute says "1 minute"
+// in the language of msgs.
+func (msgs Messages) BreakWait1Minute() string {
+	return Catalog.Format(msgs.locale, "breakWait1Minute", nil)
+}
+
+// BreakWait2Minutes says "2 minutes"
+// in the language the app shows.
+func BreakWait2Minutes() string { return In(i18n.Locale()).BreakWait2Minutes() }
+
+// BreakWait2Minutes says "2 minutes"
+// in the language of msgs.
+func (msgs Messages) BreakWait2Minutes() string {
+	return Catalog.Format(msgs.locale, "breakWait2Minutes", nil)
+}
+
+// BreakWait5Minutes says "5 minutes"
+// in the language the app shows.
+func BreakWait5Minutes() string { return In(i18n.Locale()).BreakWait5Minutes() }
+
+// BreakWait5Minutes says "5 minutes"
+// in the language of msgs.
+func (msgs Messages) BreakWait5Minutes() string {
+	return Catalog.Format(msgs.locale, "breakWait5Minutes", nil)
+}
+
+// BreakWait10Minutes says "10 minutes"
+// in the language the app shows.
+func BreakWait10Minutes() string { return In(i18n.Locale()).BreakWait10Minutes() }
+
+// BreakWait10Minutes says "10 minutes"
+// in the language of msgs.
+func (msgs Messages) BreakWait10Minutes() string {
+	return Catalog.Format(msgs.locale, "breakWait10Minutes", nil)
+}
+
+// BreakWaitLabel says "Continue after"
+// in the language the app shows.
+func BreakWaitLabel() string { return In(i18n.Locale()).BreakWaitLabel() }
+
+// BreakWaitLabel says "Continue after"
+// in the language of msgs.
+func (msgs Messages) BreakWaitLabel() string {
+	return Catalog.Format(msgs.locale, "breakWaitLabel", nil)
+}
+
+// FieldsView says "Fields"
+// in the language the app shows.
+func FieldsView() string { return In(i18n.Locale()).FieldsView() }
+
+// FieldsView says "Fields"
+// in the language of msgs.
+func (msgs Messages) FieldsView() string {
+	return Catalog.Format(msgs.locale, "fieldsView", nil)
+}
+
+// BreakpointDropped says "Dropped the connection for {method} {url} at a breakpoint."
+// in the language the app shows.
+func BreakpointDropped(method string, url string) string {
+	return In(i18n.Locale()).BreakpointDropped(method, url)
+}
+
+// BreakpointDropped says "Dropped the connection for {method} {url} at a breakpoint."
+// in the language of msgs.
+func (msgs Messages) BreakpointDropped(method string, url string) string {
+	return Catalog.Format(msgs.locale, "breakpointDropped", map[string]any{"method": method, "url": url})
+}
+
+// QueryParameters says "Query parameters"
+// in the language the app shows.
+func QueryParameters() string { return In(i18n.Locale()).QueryParameters() }
+
+// QueryParameters says "Query parameters"
+// in the language of msgs.
+func (msgs Messages) QueryParameters() string {
+	return Catalog.Format(msgs.locale, "queryParameters", nil)
+}
+
 // FilterNamed says "Filter {name}"
 // in the language the app shows.
 func FilterNamed(name string) string { return In(i18n.Locale()).FilterNamed(name) }
