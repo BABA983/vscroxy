@@ -19,13 +19,29 @@ v1 统一了结构和 token，但界面仍然是一张普通表格加一堆表�
 
 ## 2. 设计稿
 
-设计系统的图版在 `docs/design/`：`paper-overview.png`／`ink-overview.png` 是 uikit 组件总览，`paper-capture.png`／`ink-capture.png`、`paper-editor.png`／`ink-editor.png`、`paper-settings.png`／`ink-settings.png` 是真实窗口。总览图从代码重新生成：
+设计稿就是这个仓库：`cmd/vscroxy-gallery` 打开设计画廊，左边是目录、右边是画布，分 Foundations（token）、Components（uikit 的每个公开组件及其状态）和 Screens（抓包页、请求编辑器、设置、命令面板等）三组；画布顶部切换 Light／Dark 和文字 1.0×／1.35×。
 
 ```bash
-VSCROXY_UIKIT_SNAPSHOTS="$PWD/docs/design" go test ./internal/uikit -run '^TestOverviewSnapshots$' -count=1
+go run ./cmd/vscroxy-gallery
 ```
 
-命令也会写出悬停／按下的按钮状态图，图版里只留总览这一张。真实窗口的截图在 macos-27 上跑 `go run ./cmd/vscroxy`、用 `curl -x` 打真实流量后 `screencapture -x` 拍，`paper-*`／`ink-*` 分别是浅色和深色外观；图版缩到 1600 宽、128 色，总量约 1 MB。
+每个条目都用真代码画：token 读自 `internal/uikit`，组件是 uikit 的公开组件，屏幕是 `internal/app` 的真实视图加假数据（`internal/app/gallery.go` 构造，不启动抓包服务器）。悬停和按下随指针出现，焦点用 Tab；导出的图版会把指针停在悬停样张上、把焦点移到焦点样张上。`VSCROXY_GALLERY_ENTRY=<条目 id>` 直接打开一个条目，`VSCROXY_GALLERY_DARK=1` 以深色打开，用来截图。
+
+图版在 `docs/design/`，一个条目一张，命名 `<组>-<条目>-<light|dark>.png`，例如 `screens-capture-traffic-light.png`。重新生成：
+
+```bash
+VSCROXY_GALLERY_OUT="$PWD/.amp/in/artifacts/gallery" go test ./internal/gallery -run '^TestGallerySnapshots$' -count=1
+```
+
+测试按 Light 和 Dark 各写一张 PNG；不设置 `VSCROXY_GALLERY_OUT` 时它只检查每个条目都能渲染、不 panic。把导出的图缩到 1600 宽、128 色再放进 `docs/design/`，总量控制在 3 MB 以内：
+
+```bash
+for f in .amp/in/artifacts/gallery/*.png; do
+  magick "$f" -resize '1600x>' -colors 128 -depth 8 -define png:compression-level=9 "docs/design/$(basename "$f")"
+done
+```
+
+画廊不启动抓包服务器，所以抓包页标题栏的 pill 读作 Proxy stopped，表格里是假数据。屏幕条目在画廊里占满整个窗口（目录收进左上角的 Catalog 抽屉），因为 `internal/app` 的视图按窗口尺寸排版，不能放进比窗口窄的一栏。
 
 v3 的设计稿是一份可切换的 artifact，含 Capture／Request editor／System 三屏和 Light／Dark 两套：<https://ampcode.com/artifacts/visuals/vscroxy-design-system-v3-302b0099-8f58-4b2f-abe7-53ca7710b330>。**颜色、表面、尺寸和组件以它为准**，本文第 5、6 节是它的落地记录；屏幕的布局和结构仍按第 3 节。
 
