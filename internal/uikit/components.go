@@ -82,11 +82,40 @@ func IconButton(c *ui.Context, label, tip string, icon *ui.SVG) ui.Element {
 	})
 }
 
+// ButtonState is one of the faces a button can wear. It lets a gallery or a
+// documentation plate draw a face without moving the pointer or holding the
+// button down.
+type ButtonState int
+
+const (
+	ButtonRest ButtonState = iota
+	ButtonHover
+	ButtonPressed
+)
+
 // PrimaryButton is the one action a screen or dialog is for. Green is the
 // accent and nothing else is filled with it.
 func PrimaryButton(c *ui.Context, label string) ui.Element {
-	return ui.PrimaryButton(c, label).Height(ControlHeight).Padding(0, Scaled(ControlPaddingX)).
+	return PrimaryButtonState(c, label, ButtonRest)
+}
+
+// PrimaryButtonState draws the primary button with one of its faces. The
+// constructor still owns the geometry and label; only the theme's accent
+// colors change, so a plate shows exactly what the pointer would.
+func PrimaryButtonState(c *ui.Context, label string, state ButtonState) ui.Element {
+	t := c.Theme()
+	face := *t
+	switch state {
+	case ButtonHover:
+		face.Accent, face.AccentHover, face.AccentPressed = t.AccentHover, t.AccentHover, t.AccentHover
+	case ButtonPressed:
+		face.Accent, face.AccentHover, face.AccentPressed = t.AccentPressed, t.AccentPressed, t.AccentPressed
+	}
+	c.SetTheme(&face)
+	b := ui.PrimaryButton(c, label).Height(ControlHeight).Padding(0, Scaled(ControlPaddingX)).
 		FontSize(Scaled(TextBody)).FontWeight(500).Radius(RadiusControl)
+	c.SetTheme(t)
+	return b
 }
 
 // SecondaryButton has no border: its face is the text color laid thinly

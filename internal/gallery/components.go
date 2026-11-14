@@ -148,8 +148,10 @@ func (k *components) buttonPlate(c *ui.Context) {
 		uikit.CompactButton(c, "Copy")
 		link(c, "+ Add property")
 	})
-	stateRow(c, "Hover", func() { labelled(uikit.PrimaryButton(c, "Send"), hoverButtons) })
-	stateRow(c, "Pressed", func() { uikit.PrimaryButton(c, "Send") })
+	// The plate draws the pointer faces itself, so they are visible before the
+	// pointer arrives; the export still puts the pointer on Hover.
+	stateRow(c, "Hover", func() { labelled(uikit.PrimaryButtonState(c, "Send", uikit.ButtonHover), hoverButtons) })
+	stateRow(c, "Pressed", func() { uikit.PrimaryButtonState(c, "Send", uikit.ButtonPressed) })
 	stateRow(c, "Focus", func() { labelled(uikit.PrimaryButton(c, "Send"), focusButtons) })
 	stateRow(c, "Link", func() {
 		link(c, "+ Add property")
