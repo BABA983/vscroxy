@@ -274,45 +274,6 @@ func mqttMessageLabel(messages []request.MQTTMessage, i int) string {
 	return fmt.Sprintf("%d · %s", i+1, cmp.Or(messages[i].Name, messages[i].Topic, "Untitled message"))
 }
 
-// protocolNumber edits a whole number with its unit beside it, as [60] s.
-// MyGo's NumberInput puts a step button on each side; in a settings row those
-// two faces read heavier than the field, and every number here is typed, not
-// stepped. text holds the value across builds so a half-typed number is not
-// replaced under the caret.
-func protocolNumber(c *ui.Context, text *string, value *float64, lo, hi float64, unit, label, tip string, changed func()) ui.Element {
-	t := c.Theme()
-	row := ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center)
-	row.Children(func() {
-		in := uikit.Input(c, text).Label(label).Width(88).Font(uikit.FontMono)
-		if tip != "" {
-			in = uikit.Tip(c, in, tip)
-		}
-		if in.Changed() {
-			if v, err := strconv.ParseFloat(strings.TrimSpace(*text), 64); err == nil && v >= lo && v <= hi {
-				*value = v
-				if changed != nil {
-					changed()
-				}
-			}
-		}
-		if !in.Focused() {
-			*text = strconv.Itoa(int(*value))
-		}
-		if unit != "" {
-			uikit.Meta(c, unit)
-		}
-	})
-	return row
-}
-
-// protocolLink is LinkButton with its label drawn. The kit's LinkButton
-// names the action for assistive technology but paints no text yet.
-func protocolLink(c *ui.Context, label string) ui.Element {
-	b := uikit.LinkButton(c, label)
-	b.Children(func() { ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextMeta)) })
-	return b
-}
-
 // mqttEditor is the document's own tabs: connection, subscriptions, publish
 // drafts and the last will.
 func (a *app) mqttEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
@@ -344,7 +305,7 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 	ui.Scroll(c).Grow(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
 		uikit.SettingsGroup(c, locales.Broker(), func() {
 			uikit.SettingsRow(c, locales.Protocol(), func() ui.Element {
-				sel := uikit.Select(c, &u.version, []string{"MQTT 3.1.1", "MQTT 5.0"}).Label(locales.Protocol()).Width(160).Height(uikit.ControlHeight)
+				sel := uikit.Select(c, &u.version, []string{"MQTT 3.1.1", "MQTT 5.0"}).Label(locales.Protocol()).Width(160)
 				uikit.Tip(c, sel, locales.PropertiesAndSubscriptionOptionsNeed())
 				if sel.Changed() {
 					c1.Version = request.MQTT5
@@ -396,11 +357,11 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 				})
 			}, "")
 			uikit.SettingsRow(c, locales.KeepAlive(), func() ui.Element {
-				return protocolNumber(c, &u.keepAliveText, &u.keepAlive, 0, 65535, "s", locales.KeepAliveInSeconds(), "",
+				return uikit.NumberField(c, &u.keepAliveText, &u.keepAlive, 0, 65535, "s", locales.KeepAliveInSeconds(), "",
 					func() { c1.KeepAlive = int(u.keepAlive) })
 			}, locales.Seconds0DisablesKeepAlive())
 			uikit.SettingsRow(c, locales.ConnectTimeout(), func() ui.Element {
-				return protocolNumber(c, &u.connectTimeoutText, &u.connectTimeout, 0, 600000, "ms",
+				return uikit.NumberField(c, &u.connectTimeoutText, &u.connectTimeout, 0, 600000, "ms",
 					locales.ConnectTimeoutInMilliseconds(), locales.MsForTcpTlsWebsocket(),
 					func() { c1.ConnectTimeoutMs = int(u.connectTimeout) })
 			}, "")
@@ -427,17 +388,17 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 func mqttConnectPropertiesEditor(c *ui.Context, t *ui.Theme, u *mqttDocument, c1 *request.MQTTConfig) {
 	uikit.SettingsGroup(c, locales.Mqtt50ConnectProperties(), func() {
 		uikit.SettingsRow(c, locales.SessionExpiry(), func() ui.Element {
-			return protocolNumber(c, &u.sessionExpiryText, &u.sessionExpiry, 0, 4294967295, "s",
+			return uikit.NumberField(c, &u.sessionExpiryText, &u.sessionExpiry, 0, 4294967295, "s",
 				locales.MqttSessionExpiryInSeconds(), "",
 				func() { c1.Properties.SessionExpiry = int(u.sessionExpiry) })
 		}, locales.Seconds0EndsTheSession())
 		uikit.SettingsRow(c, locales.ReceiveMaximum(), func() ui.Element {
-			return protocolNumber(c, &u.receiveMaximumText, &u.receiveMaximum, 0, 65535, "",
+			return uikit.NumberField(c, &u.receiveMaximumText, &u.receiveMaximum, 0, 65535, "",
 				locales.MqttReceiveMaximum(), locales.N0LeavesTheBrokerS(),
 				func() { c1.Properties.ReceiveMaximum = int(u.receiveMaximum) })
 		}, "")
 		uikit.SettingsRow(c, locales.MaximumPacket(), func() ui.Element {
-			return protocolNumber(c, &u.maximumPacketText, &u.maximumPacketSize, 0, 268435455, "B",
+			return uikit.NumberField(c, &u.maximumPacketText, &u.maximumPacketSize, 0, 268435455, "B",
 				locales.MqttMaximumPacketSizeIn(), "",
 				func() { c1.Properties.MaximumPacketSize = int(u.maximumPacketSize) })
 		}, locales.Bytes0Advertises1Mib())
@@ -454,7 +415,7 @@ func (a *app) mqttSubscriptionsTab(c *ui.Context, t *ui.Theme, d *requestDocumen
 	c1 := &d.mqttConfig
 	s := u.session.snapshot()
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if protocolLink(c, locales.AddTopic()).Clicked() {
+		if uikit.LinkButton(c, locales.AddTopic()).Clicked() {
 			u.appendTopic(c1)
 		}
 		a.actionButton(c, "request.mqtt-subscribe", locales.SubscribeListed())
@@ -474,7 +435,7 @@ func (a *app) mqttSubscriptionsTab(c *ui.Context, t *ui.Theme, d *requestDocumen
 					in := a.variableInput(c, fmt.Sprintf("mqtt-topic-%d", i), &topic.Name, locales.TopicFilter(), d.composeCollection).
 						Placeholder(locales.MqttTopicExample()).Grow(1).MinWidth(0)
 					uikit.Tip(c, in, locales.TopicFiltersAcceptForOne())
-					if uikit.Select(c, &row.qos, []string{"0", "1", "2"}).Label(locales.TopicQos()).Width(64).Height(uikit.ControlHeight).Changed() {
+					if uikit.Select(c, &row.qos, []string{"0", "1", "2"}).Label(locales.TopicQos()).Width(64).Changed() {
 						topic.QoS = mqttQoS(row.qos)
 					}
 					if i < len(u.topicSubscribe) {
@@ -491,14 +452,14 @@ func (a *app) mqttSubscriptionsTab(c *ui.Context, t *ui.Theme, d *requestDocumen
 					ui.Checkbox(c, &topic.NoLocal, locales.NoLocal())
 					ui.Checkbox(c, &topic.RetainAsPublished, locales.RetainAsPublished())
 					if c1.Version == request.MQTT5 {
-						if uikit.Select(c, &row.retainHandling, []string{"0", "1", "2"}).Label(locales.RetainHandling()).Width(64).Height(uikit.ControlHeight).Changed() {
+						if uikit.Select(c, &row.retainHandling, []string{"0", "1", "2"}).Label(locales.RetainHandling()).Width(64).Changed() {
 							topic.RetainHandling = mqttQoS(row.retainHandling)
 						}
 					}
 				})
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					uikit.Label(c, locales.SubscriptionId())
-					protocolNumber(c, &row.idText, &row.subscriptionID, 0, 268435455, "",
+					uikit.NumberField(c, &row.idText, &row.subscriptionID, 0, 268435455, "",
 						locales.SubscriptionIdentifier(), "", func() { topic.SubscriptionIdentifier = int(row.subscriptionID) })
 				})
 				if c1.Version == request.MQTT5 {
@@ -552,10 +513,10 @@ func (a *app) mqttPublishTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 			uikit.SettingsRowMultiline(c, locales.Payload(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(2)).Children(func() {
 					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-						if uikit.SelectLabels(c, &u.publish.message.Type, []string{"text", "json", "hex", "base64"}, optionLabel).Label(locales.PayloadEncoding()).Width(120).Height(uikit.ControlHeight).Changed() {
+						if uikit.SelectLabels(c, &u.publish.message.Type, []string{"text", "json", "hex", "base64"}, optionLabel).Label(locales.PayloadEncoding()).Width(120).Changed() {
 							u.payloadEditor, u.payloadType = nil, ""
 						}
-						uikit.Select(c, &u.publish.qos, []string{"0", "1", "2"}).Label(locales.PublishQos()).Width(64).Height(uikit.ControlHeight)
+						uikit.Select(c, &u.publish.qos, []string{"0", "1", "2"}).Label(locales.PublishQos()).Width(64)
 						ui.Checkbox(c, &u.publish.message.Retain, "Retain")
 					})
 					language := "text"
@@ -590,12 +551,12 @@ func (a *app) mqttPublishPropertiesEditor(c *ui.Context, t *ui.Theme, u *mqttDoc
 			return uikit.Input(c, &u.publish.message.Properties.CorrelationData).Placeholder(locales.OpaqueReplyCorrelationValue()).Label(locales.CorrelationData())
 		}, "")
 		uikit.SettingsRow(c, locales.Expiry(), func() ui.Element {
-			return protocolNumber(c, &u.publish.expiryText, &u.publish.expiry, 0, 4294967295, "s",
+			return uikit.NumberField(c, &u.publish.expiryText, &u.publish.expiry, 0, 4294967295, "s",
 				locales.MessageExpiryInSeconds(), "",
 				func() { u.publish.message.Properties.MessageExpiry = int(u.publish.expiry) })
 		}, "")
 		uikit.SettingsRow(c, locales.TopicAlias(), func() ui.Element {
-			return protocolNumber(c, &u.publish.aliasText, &u.publish.alias, 0, 65535, "",
+			return uikit.NumberField(c, &u.publish.aliasText, &u.publish.alias, 0, 65535, "",
 				locales.TopicAlias(), "",
 				func() { u.publish.message.Properties.TopicAlias = int(u.publish.alias) })
 		}, "")
@@ -617,11 +578,11 @@ func (a *app) mqttWillTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *mqt
 				uikit.SettingsRowMultiline(c, locales.Payload(), func() ui.Element {
 					return ui.Column(c).Gap(t.Space(2)).Children(func() {
 						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-							if uikit.SelectLabels(c, &u.willType, []string{"text", "json", "hex", "base64"}, optionLabel).Label(locales.WillPayloadEncoding()).Width(120).Height(uikit.ControlHeight).Changed() {
+							if uikit.SelectLabels(c, &u.willType, []string{"text", "json", "hex", "base64"}, optionLabel).Label(locales.WillPayloadEncoding()).Width(120).Changed() {
 								c1.Will.Type = u.willType
 								u.willPayloadEditor, u.willPayloadType = nil, ""
 							}
-							if uikit.Select(c, &u.willQoS, []string{"0", "1", "2"}).Label(locales.WillQos()).Width(64).Height(uikit.ControlHeight).Changed() {
+							if uikit.Select(c, &u.willQoS, []string{"0", "1", "2"}).Label(locales.WillQos()).Width(64).Changed() {
 								c1.Will.QoS = mqttQoS(u.willQoS)
 							}
 							ui.Checkbox(c, &c1.Will.Retain, "Retain")
@@ -648,12 +609,12 @@ func (a *app) mqttWillPropertiesEditor(c *ui.Context, t *ui.Theme, d *requestDoc
 	c1 := &d.mqttConfig
 	uikit.SettingsGroup(c, locales.Mqtt50WillProperties(), func() {
 		uikit.SettingsRow(c, locales.Delay(), func() ui.Element {
-			return protocolNumber(c, &u.willDelayText, &u.willDelay, 0, 4294967295, "s",
+			return uikit.NumberField(c, &u.willDelayText, &u.willDelay, 0, 4294967295, "s",
 				locales.WillDelayInSeconds(), "",
 				func() { c1.Will.Properties.WillDelay = int(u.willDelay) })
 		}, "")
 		uikit.SettingsRow(c, locales.Expiry(), func() ui.Element {
-			return protocolNumber(c, &u.willExpiryText, &u.willExpiry, 0, 4294967295, "s",
+			return uikit.NumberField(c, &u.willExpiryText, &u.willExpiry, 0, 4294967295, "s",
 				locales.WillMessageExpiryInSeconds(), "",
 				func() { c1.Will.Properties.MessageExpiry = int(u.willExpiry) })
 		}, "")
@@ -694,7 +655,7 @@ func mqttPropertyEditor(c *ui.Context, t *ui.Theme, props *[]request.MQTTPropert
 	}
 	if len(*props) < 64 {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			if protocolLink(c, locales.AddProperty()).Clicked() {
+			if uikit.LinkButton(c, "+ "+locales.AddProperty()).Clicked() {
 				*props = append(*props, request.MQTTProperty{})
 			}
 		})

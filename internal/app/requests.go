@@ -930,9 +930,6 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 							d.protocol = ""
 						}
 						d.composeURL = protocolDefaultURL(protocol, d.composeURL)
-						if protocol == "MQTT" {
-							d.ensureMQTT()
-						}
 					}
 				})
 				ui.Box(c).Width(1).Height(18).Background(t.Border)

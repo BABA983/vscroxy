@@ -138,7 +138,7 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 						if !slices.Contains(s.owed, u.ackID) {
 							u.ackID = s.owed[0]
 						}
-						uikit.Select(c, &u.ackID, s.owed).Label(locales.SocketIoAckRequest()).Width(88).Height(uikit.ControlHeight).Disabled(!s.ready || s.busy)
+						uikit.Select(c, &u.ackID, s.owed).Label(locales.SocketIoAckRequest()).Width(88).Disabled(!s.ready || s.busy)
 						a.actionButton(c, "request.socketio-ack", "Reply ACK")
 					})
 				}

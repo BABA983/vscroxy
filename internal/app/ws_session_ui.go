@@ -124,7 +124,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					if s.encoding == "" {
 						s.encoding = "Text"
 					}
-					uikit.SelectLabels(c, &s.encoding, []string{"Text", "Hex", "Base64"}, optionLabel).Label(locales.WebsocketMessageEncoding()).Width(110).Height(uikit.ControlHeight)
+					uikit.SelectLabels(c, &s.encoding, []string{"Text", "Hex", "Base64"}, optionLabel).Label(locales.WebsocketMessageEncoding()).Width(110)
 					uikit.Input(c, &s.message).Label(locales.WebsocketMessage()).Placeholder(locales.TextHexBytesOrPadded()).Grow(1).MinWidth(0).Font(uikit.FontMono)
 					label := locales.SendText()
 					if s.encoding != "Text" {
@@ -162,7 +162,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					if s.direction == "" {
 						s.direction = "All"
 					}
-					uikit.SelectLabels(c, &s.direction, directions, optionLabel).Width(100).Height(uikit.ControlHeight).Label(locales.SessionDirection())
+					uikit.SelectLabels(c, &s.direction, directions, optionLabel).Width(100).Label(locales.SessionDirection())
 					retained := uikit.Meta(c, locales.RetainedEvicted(len(events), evicted))
 					uikit.Tip(c, retained, locales.Latest200Events64Kib2())
 					if uikit.SecondaryButton(c, locales.LatestMessage()).Clicked() {
