@@ -347,6 +347,10 @@ type Server struct {
 	original      map[uuid.UUID]url.URL
 	clients       map[clientSocket]clientIdentity // active socket -> immutable ownership
 	replayClients map[string]replayOrigin         // replay socket address -> local send
+	lookupBatch   func([]procinfo.Endpoint) []procinfo.Process
+	lookupMu      sync.Mutex
+	lookupPending []clientLookup
+	lookupRunning bool
 	closeOnce     sync.Once
 	socketMu      sync.Mutex
 	socketWG      sync.WaitGroup
@@ -467,6 +471,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		original:      make(map[uuid.UUID]url.URL),
 		clients:       make(map[clientSocket]clientIdentity),
 		replayClients: make(map[string]replayOrigin),
+		lookupBatch:   procinfo.LookupBatch,
 		dnsHits:       make(map[uuid.UUID]DNSHit),
 		bpWait:        make(map[int]chan Decision),
 		breakpoints:   make(chan Breakpoint, 16),
@@ -2239,6 +2244,12 @@ func socketOf(conn net.Conn) clientSocket {
 	return clientSocket{conn.RemoteAddr().String(), conn.LocalAddr().String()}
 }
 
+type clientLookup struct {
+	addr   clientSocket
+	client *proxy.ClientConn
+	ready  chan struct{}
+}
+
 type clientIdentity struct {
 	client       *proxy.ClientConn
 	process      procinfo.Process
@@ -2286,16 +2297,54 @@ func (s *Server) noteClient(client *proxy.ClientConn, connected bool) {
 	// lsof can take longer than a short-lived connection. The accept path
 	// must not wait for it: the request handler waits for the result only
 	// while it needs an owner, and publish can use it after disconnect.
+	s.queueLookup(clientLookup{addr: addr, client: client, ready: identity.ready})
+}
+
+// queueLookup joins the next batch. Queries that arrive together share one
+// lsof pass, so a burst of connections does not start a burst of lsof
+// processes that then time out together.
+func (s *Server) queueLookup(req clientLookup) {
+	s.lookupMu.Lock()
+	s.lookupPending = append(s.lookupPending, req)
+	if s.lookupRunning {
+		s.lookupMu.Unlock()
+		return
+	}
+	s.lookupRunning = true
+	s.lookupMu.Unlock()
 	go func() {
-		process := procinfo.Lookup(addr.remote, addr.local)
-		s.mu.Lock()
-		current := s.clients[addr]
-		if current.client == client {
-			current.process = process
-			s.clients[addr] = current
+		for {
+			// Let the burst arrive before asking the OS once for all of it.
+			time.Sleep(30 * time.Millisecond)
+			s.lookupMu.Lock()
+			pending := s.lookupPending
+			s.lookupPending = nil
+			if len(pending) == 0 {
+				s.lookupRunning = false
+				s.lookupMu.Unlock()
+				return
+			}
+			s.lookupMu.Unlock()
+			endpoints := make([]procinfo.Endpoint, len(pending))
+			for i, req := range pending {
+				endpoints[i] = procinfo.Endpoint{Client: req.addr.remote, Server: req.addr.local}
+			}
+			batch := s.lookupBatch
+			if batch == nil {
+				batch = procinfo.LookupBatch
+			}
+			results := batch(endpoints)
+			for i, req := range pending {
+				s.mu.Lock()
+				current := s.clients[req.addr]
+				if current.client == req.client {
+					current.process = results[i]
+					s.clients[req.addr] = current
+				}
+				close(req.ready)
+				s.mu.Unlock()
+			}
 		}
-		close(identity.ready)
-		s.mu.Unlock()
 	}()
 }
 
@@ -2304,34 +2353,53 @@ func (s *Server) noteClient(client *proxy.ClientConn, connected bool) {
 // after disconnect. A missing owner stays empty rather than borrowing a process
 // from a recycled port.
 func (s *Server) socketProcess(addr clientSocket, client *proxy.ClientConn) procinfo.Process {
-	s.mu.Lock()
-	identity := s.clients[addr]
-	s.mu.Unlock()
-	if client == nil || identity.client != client {
+	if client == nil {
+		return procinfo.Process{}
+	}
+	identity, ok := s.waitLookup(addr, client, 150*time.Millisecond)
+	if !ok {
 		return procinfo.Process{}
 	}
 	if identity.process.Name != "" || identity.disconnected {
-		if identity.process.Name == "" {
-			fmt.Fprintf(os.Stderr, "EMPTY-DISCONNECTED remote=%s local=%s\n", addr.remote, addr.local)
-		}
 		return identity.process
 	}
-	if identity.ready != nil {
+	// The batch may have run before the OS listed this socket. A live
+	// connection gets one retry through the same batched path.
+	ready := make(chan struct{})
+	s.mu.Lock()
+	current := s.clients[addr]
+	if current.client != client || current.disconnected {
+		s.mu.Unlock()
+		return current.process
+	}
+	current.ready = ready
+	s.clients[addr] = current
+	s.mu.Unlock()
+	s.queueLookup(clientLookup{addr: addr, client: client, ready: ready})
+	identity, _ = s.waitLookup(addr, client, 150*time.Millisecond)
+	return identity.process
+}
+
+func (s *Server) waitLookup(addr clientSocket, client *proxy.ClientConn, wait time.Duration) (clientIdentity, bool) {
+	s.mu.Lock()
+	identity := s.clients[addr]
+	s.mu.Unlock()
+	if identity.client != client {
+		return clientIdentity{}, false
+	}
+	if identity.ready != nil && identity.process.Name == "" && !identity.disconnected {
 		select {
 		case <-identity.ready:
-		case <-time.After(150 * time.Millisecond):
+		case <-time.After(wait):
 		}
 		s.mu.Lock()
 		identity = s.clients[addr]
 		s.mu.Unlock()
 		if identity.client != client {
-			return procinfo.Process{}
+			return clientIdentity{}, false
 		}
 	}
-	if identity.process.Name == "" {
-		fmt.Fprintf(os.Stderr, "EMPTY-WAIT remote=%s local=%s\n", addr.remote, addr.local)
-	}
-	return identity.process
+	return identity, true
 }
 
 // clientProcess returns the process behind the connection a flow arrived on.

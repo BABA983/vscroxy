@@ -101,3 +101,11 @@ func processOf(inode string) Process {
 	}
 	return owner
 }
+
+func lookupBatch(endpoints []Endpoint) []Process {
+	out := make([]Process, len(endpoints))
+	for i, endpoint := range endpoints {
+		out[i] = Lookup(endpoint.Client, endpoint.Server)
+	}
+	return out
+}

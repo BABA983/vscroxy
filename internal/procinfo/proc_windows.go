@@ -62,3 +62,11 @@ func taskName(pid string) string {
 	name, _, _ := strings.Cut(strings.TrimSpace(string(out)), ",")
 	return strings.TrimSuffix(strings.Trim(name, `"`), ".exe")
 }
+
+func lookupBatch(endpoints []Endpoint) []Process {
+	out := make([]Process, len(endpoints))
+	for i, endpoint := range endpoints {
+		out[i] = Lookup(endpoint.Client, endpoint.Server)
+	}
+	return out
+}

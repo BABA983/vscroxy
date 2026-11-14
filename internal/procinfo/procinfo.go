@@ -41,3 +41,17 @@ func loopbackEndpoint(addr string) (netip.AddrPort, bool) {
 	ap, err := endpoint(addr)
 	return ap, err == nil && ap.Addr().IsLoopback() && ap.Port() != 0
 }
+
+// Endpoint is one accepted loopback connection: the client's side and the
+// proxy's side.
+type Endpoint struct {
+	Client string
+	Server string
+}
+
+// LookupBatch resolves several connections in one pass. The Darwin
+// implementation runs one lsof for the whole batch; other platforms use
+// their cheap per-socket lookup.
+func LookupBatch(endpoints []Endpoint) []Process {
+	return lookupBatch(endpoints)
+}
