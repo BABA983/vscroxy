@@ -464,6 +464,16 @@
 			location: location,
 			skipRequest: function () { host.skip(); },
 			setNextRequest: function (name) { host.next(name === null || name === undefined ? null : text(name)); },
+			runRequest: function (id, options) {
+				var res, failure = null;
+				try {
+					var overrides = (options && options.variables) || {};
+					var pairs = Object.keys(overrides).map(function (k) { return [k, text(overrides[k])]; });
+					var got = host.runRequest(text(id || ""), pairs);
+					res = got === null ? null : makeResponse(got);
+				} catch (e) { failure = e; }
+				return failure ? Promise.reject(failure) : Promise.resolve(res);
+			},
 		},
 		cookies: (function () {
 			var list = pairList(host.cookies);

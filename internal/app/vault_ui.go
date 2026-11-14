@@ -128,6 +128,7 @@ func (a *app) sendContext(r request.Request) request.Context {
 	in.Environment, in.ScriptVault, in.Tokens = a.activeEnv, a.vault.scripts, &a.tokens
 	in.Certificates = a.certificates.Clone()
 	in.EnvironmentInitial = maps.Clone(a.activeEnvironment().Vars)
+	in.Resolve = a.runResolver()
 	r.Auth, _ = in.InheritAuth(r.Auth)
 	names := r.Variables()
 	if r.Auth.Type == request.AuthOAuth2 {

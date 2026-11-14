@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/library"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/vault"
 	"github.com/baba983/vscroxy/locales"
@@ -43,6 +44,22 @@ func (a *app) inheritance(path string) request.Context {
 		folders[i].Variables = a.folderVariables(folders[i].Path, folders[i].Variables)
 	}
 	return request.Context{Folders: folders, Globals: a.globalValues(), GlobalsInitial: maps.Clone(a.globals), Addons: a.addons.sources()}
+}
+
+// runResolver finds the requests a script calls with pm.execution.runRequest,
+// among all saved requests. Folder values are resolved as a send sees them,
+// and the snapshot stays put while a send or run is in flight.
+func (a *app) runResolver() request.Resolver {
+	requests := make([]request.Request, len(a.requests))
+	for i, saved := range a.requests {
+		requests[i] = saved.Request
+	}
+	folders := make([]request.Folder, len(a.folders))
+	for i, f := range a.folders {
+		f.Variables = a.folderVariables(f.Path, f.Variables)
+		folders[i] = f
+	}
+	return library.Resolver(requests, folders)
 }
 
 // folderVariables resolves one level's Initial rows and local Current values.

@@ -66,6 +66,11 @@ type Context struct {
 	Data map[string]string
 	// Addons are the user's modules scripts require by name, as source.
 	Addons map[string]string
+	// Resolve finds the requests scripts call with pm.execution.runRequest.
+	// nil means this run cannot call requests, and such calls fail.
+	Resolve Resolver
+	// nested counts the runRequest calls this request is under.
+	nested int
 }
 
 // scriptRun is the scope state the scripts of r's send start from.

@@ -296,6 +296,10 @@ type scriptRun struct {
 	vault   func(name, host string) (string, error)
 	secrets map[string]*string
 	jar     http.CookieJar
+	// call is pm.execution.runRequest, nil where the run cannot call requests.
+	// calls counts the calls this send's scripts made.
+	call  func(ref string, overrides map[string]string) (Execution, error)
+	calls int
 }
 
 // cookieRemover is a cookie jar that removes cookies by name or host. The
@@ -958,6 +962,31 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 		}
 		run.message("log", fmt.Sprintf("pm.sendRequest %s %s → %d", req.Method, req.URL, got.Status))
 		return vm.ToValue(responseObject(vm, &jsResponse{Status: got.Status, Body: got.ResponseBody, Header: got.ResponseHeader, Millis: got.Millis, Bytes: got.Bytes}, pairs)), nil
+	})
+	set("runRequest", func(ref string, overrides [][]string) (goja.Value, error) {
+		if run.call == nil {
+			return nil, errors.New("pm.execution.runRequest is not available in this run")
+		}
+		vars := map[string]string{}
+		for _, pair := range overrides {
+			if len(pair) == 2 {
+				vars[pair[0]] = pair[1]
+			}
+		}
+		clock.pause()
+		got, err := run.call(ref, vars)
+		clock.resume()
+		if err != nil {
+			return nil, fmt.Errorf("pm.execution.runRequest: %w", err)
+		}
+		if got.Skipped {
+			return goja.Null(), nil
+		}
+		if got.Response == nil {
+			return nil, fmt.Errorf("pm.execution.runRequest: %s did not return an HTTP response", ref)
+		}
+		res := got.Response
+		return vm.ToValue(responseObject(vm, &jsResponse{Status: res.Status, Body: res.ResponseBody, Header: res.ResponseHeader, Millis: res.Millis, Bytes: res.Bytes}, pairs)), nil
 	})
 	set("btoa", func(s string) (string, error) {
 		b := make([]byte, 0, len(s))

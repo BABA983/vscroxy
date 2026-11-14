@@ -36,6 +36,9 @@ discarded.
   not supported; supply CI credentials in environment variables/files instead.
 - Binary paths remain authored paths, relative to the process working directory.
   GraphQL and other bodies use the same encoding and validation as Send.
+- `pm.execution.runRequest` in `run` reaches any request in the collection,
+  including ones outside `--folder`. `load` has no request lookup, so those calls
+  fail with “not available in this run”.
 - `--bail` stops at the first failed attempt; otherwise the run continues.
   `setNextRequest(null)` deliberately stops the entire run, as on the desktop.
   An unknown next request is incomplete, not a green result.

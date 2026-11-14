@@ -77,6 +77,11 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 		return srv.ReplayWithCookies(ctx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body}, jar, true)
 	}
 	run.jar = jar
+	if in.Resolve != nil {
+		run.call = func(ref string, overrides map[string]string) (Execution, error) {
+			return run.callRequest(ctx, srv, in, jar, ref, overrides)
+		}
+	}
 	out = Execution{Vars: run.vars, Stage: "Request setup failed"}
 	defer func() {
 		out.Locals, out.Writes, out.Next = run.locals, run.writes, run.next

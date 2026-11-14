@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/library"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
 	"github.com/baba983/vscroxy/internal/store"
@@ -86,6 +87,12 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "Could not load collection:", err)
 		return 2
 	}
+	all, _, _, err := loadCollection(flags.Arg(0), "")
+	if err != nil {
+		fmt.Fprintln(stderr, "Could not load collection:", err)
+		return 2
+	}
+	resolve := library.Resolver(all, folders)
 	for _, warning := range warnings {
 		fmt.Fprintln(stderr, "Import warning:", warning)
 	}
@@ -174,7 +181,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	tokens := &request.Tokens{}
 	steps := make([]runner.Step, len(requests))
 	for i, r := range requests {
-		steps[i] = runner.Step{Request: r, Context: request.Context{Environment: name, Folders: request.Chain(folders, r.Collection), Globals: globals, Tokens: tokens, Addons: addons, Certificates: certificates}}
+		steps[i] = runner.Step{Request: r, Context: request.Context{Environment: name, Folders: request.Chain(folders, r.Collection), Globals: globals, Tokens: tokens, Addons: addons, Certificates: certificates, Resolve: resolve}}
 	}
 	runCtx, cancel := context.WithTimeout(ctx, *timeout)
 	defer cancel()

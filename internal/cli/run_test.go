@@ -270,6 +270,22 @@ func TestRunLoadsAddons(t *testing.T) {
 	}
 }
 
+func TestRunRequestReachesOtherFolders(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer upstream.Close()
+	root := t.TempDir()
+	child := request.Request{ID: "child", Name: "Child", Method: "GET", URL: upstream.URL + "/child"}
+	parent := request.Request{ID: "parent", Name: "Parent", Method: "GET", URL: upstream.URL + "/parent",
+		Pre: `const res = await pm.execution.runRequest("child"); if (res.code !== 200) throw new Error("child " + res.code)`}
+	write(t, filepath.Join(root, "collections", "Shop", "Parent.request.json"), parent)
+	write(t, filepath.Join(root, "collections", "Other", "Child.request.json"), child)
+	var out, errOut bytes.Buffer
+	// Only Shop is selected; the child in Other is reached by its ID.
+	if code := cli.Run(t.Context(), []string{"run", "--folder", "Shop", filepath.Join(root, "collections")}, &out, &errOut); code != 0 {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, &out, &errOut)
+	}
+}
+
 func TestRunNTLM(t *testing.T) {
 	auth := &ntlmtest.Server{Username: "ann", Password: "s3" + "cret", Domain: "EXAMPLE"}
 	upstream := httptest.NewUnstartedServer(auth)

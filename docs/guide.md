@@ -2385,8 +2385,20 @@ at the top level, with two seconds of run time (time spent waiting on
   callbacks, `pm.test.skip`, and `pm.expect`, which is Chai 4's `expect`.
   The **Tests** tab shows why a test failed.
 - **Flow**: `pm.sendRequest` (callback or `await`; sent through the proxy, so it
-  is captured too), `pm.execution.skipRequest()` in a pre-request script, and
-  `pm.execution.setNextRequest(name)` or `(null)` in the Runner. `pm.info`,
+  is captured too), `pm.execution.skipRequest()` in a pre-request script,
+  `pm.execution.setNextRequest(name)` or `(null)` in the Runner, and
+  `pm.execution.runRequest(requestId, { variables })`, which sends another saved
+  request and returns its response, or `null` if that request calls
+  `skipRequest`. The called request uses its own folders' auth, scripts and
+  variables; the `variables` overrides and the caller's `pm.variables` apply to
+  it, and its tests, console output and environment or global changes join the
+  caller's run. A script calls it at most ten times, requests nest five levels
+  deep (a cycle stops with an error), and a name shared by two requests is
+  refused, so call requests by ID. The desktop Send and Runner, MCP runs and
+  `vscroxy-cli run` reach any request in the collection. Limitation:
+  `vscroxy-cli load` has no request lookup, so there such a call fails with
+  “not available in this run”. Postman documents `runRequest` as unsupported in
+  Newman; this app does not run Newman. `pm.info`,
   `pm.cookies` (the cookie jar's cookies for the request URL),
   `pm.cookies.jar()` (`get(url, name)`, `getAll(url)`, `set(url, name, value)`,
   `unset(url, name)` and `clear(url)` on the send's jar, each with an optional

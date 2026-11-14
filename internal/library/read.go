@@ -133,3 +133,40 @@ func UnescapeName(s string) string {
 	}
 	return b.String()
 }
+
+// FindRequest returns the one request ref names: the request with that ID, or
+// else the only request with that name. A name several requests share is
+// refused rather than guessed at.
+func FindRequest(requests []request.Request, ref string) (request.Request, error) {
+	for _, r := range requests {
+		if r.ID == ref {
+			return r, nil
+		}
+	}
+	var named []request.Request
+	for _, r := range requests {
+		if r.Name == ref {
+			named = append(named, r)
+		}
+	}
+	switch len(named) {
+	case 0:
+		return request.Request{}, fmt.Errorf("no request with the ID or name %q", ref)
+	case 1:
+		return named[0], nil
+	default:
+		return request.Request{}, fmt.Errorf("%d requests are named %q; call it by request ID", len(named), ref)
+	}
+}
+
+// Resolver finds the requests a script calls with pm.execution.runRequest, with
+// the folders each one lives under, from requests and folders already read.
+func Resolver(requests []request.Request, folders []request.Folder) request.Resolver {
+	return func(ref string) (request.Callee, error) {
+		r, err := FindRequest(requests, ref)
+		if err != nil {
+			return request.Callee{}, err
+		}
+		return request.Callee{Request: r, Folders: request.Chain(folders, r.Collection)}, nil
+	}
+}

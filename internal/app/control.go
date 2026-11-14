@@ -487,6 +487,7 @@ func (a *app) controlRunSteps(id string, collection *string, environmentName str
 	}
 	var steps []runner.Step
 	tokens := &request.Tokens{}
+	resolve := a.runResolver()
 	for _, saved := range a.requests {
 		r := saved.Request
 		selected := id != "" && r.ID == id
@@ -501,6 +502,7 @@ func (a *app) controlRunSteps(id string, collection *string, environmentName str
 		in := a.inheritance(r.Collection)
 		in.Certificates = a.certificates.Clone()
 		in.Environment, in.Tokens, in.EnvironmentInitial = env.Name, tokens, maps.Clone(env.Vars)
+		in.Resolve = resolve
 		for i := range in.Folders {
 			in.Folders[i].Variables = slices.Clone(in.Folders[i].Variables)
 		}
