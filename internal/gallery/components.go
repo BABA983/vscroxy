@@ -230,7 +230,10 @@ func (k *components) inputPlate(c *ui.Context) {
 		labelled(uikit.Input(c, &k.host).Label("Host").Width(240), hoverInputs)
 	})
 	stateRow(c, "Focus", func() {
-		labelled(uikit.Input(c, &k.host).Label("Host").Width(240), focusInputs)
+		// A field's focus face is uikit's, drawn from the field's own state:
+		// force it here so the plate shows the edge and halo without the
+		// keyboard, and Tab shows the same face when it reaches the field.
+		labelled(uikit.FieldFace(c, uikit.InputControl(c, &k.host).Label("Host"), true).Width(240), focusInputs)
 	})
 	stateRow(c, "Empty", func() {
 		uikit.Input(c, &k.empty).Label("Empty").Placeholder("Search host or path").Width(240)
