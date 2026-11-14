@@ -458,10 +458,20 @@ func TestProjectFolderHoldsOpenAPISpecsAndAddons(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(addons, "shared.js"), []byte("export const shared = 1;\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// A scoped addon is a folder's file, found by its name with the folder.
+	if err := os.MkdirAll(filepath.Join(addons, "@team"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(addons, "@team", "pkg.js"), []byte("export const pkg = 1;\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	a.setProjectDir(project)
-	if a.addons.dir != addons || !slices.Contains(a.addons.names, "shared") {
+	if a.addons.dir != addons || !slices.Contains(a.addons.names, "shared") || !slices.Contains(a.addons.names, "@team/pkg") {
 		t.Fatalf("addons not read from the project: dir %q, names %v", a.addons.dir, a.addons.names)
+	}
+	if a.addonsChangedOnDisk() {
+		t.Fatal("the folder watch lists the addons differently from the loader")
 	}
 
 	spec := `{"openapi":"3.0.3","info":{"title":"Shop","version":"1"},"paths":{}}`

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -164,13 +163,13 @@ func (a *app) addonsChangedOnDisk() bool {
 	if s.dir == "" {
 		return false
 	}
-	entries, err := os.ReadDir(s.dir)
+	files, err := scriptFiles(s.dir)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return true
 	}
 	var names []string
-	for _, e := range entries {
-		if name, ok := strings.CutSuffix(e.Name(), ".js"); ok && !e.IsDir() && checkAddonName(name) == nil {
+	for _, rel := range files {
+		if name, ok := strings.CutSuffix(rel, ".js"); ok && checkAddonName(name) == nil {
 			names = append(names, name)
 		}
 	}

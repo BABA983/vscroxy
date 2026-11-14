@@ -981,7 +981,11 @@ stay Postman's CommonJS, get with `require("name")` (a default export is at
 `.default`). An addon written as CommonJS, with `module.exports`, works too.
 An addon can import the built-in libraries and other addons; it runs once per
 script run, so state does not carry between exchanges. The list says how many
-scripts import or require each. Names cannot be a built-in library name.
+scripts import or require each. Names cannot be a built-in library name. A name
+may have folders, as a team package does: `@team/pkg` is
+`tools/addons/@team/pkg.js`, and `pm.require("@team/pkg")` loads it. Each part
+of the name follows the script name rules. `vscroxy-cli --addons` reads only the
+addons at the top of its folder, so it does not load folder addons yet.
 Configuration export includes them.
 `vscroxy-cli run --addons DIR`
 loads them for headless runs.

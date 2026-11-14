@@ -428,10 +428,24 @@ func TestAddonsLoadInRuleAndRequestScripts(t *testing.T) {
 	if n, _ := a.scriptUsers(&a.addons, "tag"); n != 1 {
 		t.Errorf("addon users = %d, want the one rule script", n)
 	}
+	// A scoped addon, @team/pkg, is required by its name with the folder.
+	if err := a.writeScript(&a.addons, "@team/pkg", "export const pkg = () => \"scoped\";\n"); err != nil {
+		t.Fatal(err)
+	}
+	scoped := request.Request{Method: "GET", URL: upstream.URL, Pre: `pm.request.headers.upsert("X-Scoped", require("@team/pkg").pkg())`}
+	if out := scoped.Execute(t.Context(), a.srv, a.inheritance(""), nil, nil); out.Err != nil || got.Get("X-Scoped") != "scoped" {
+		t.Fatalf("scoped addon header = %q, %v", got.Get("X-Scoped"), out.Err)
+	}
 	// A name require already loads is not an addon's.
 	for _, name := range []string{"lodash", "moment", "cheerio", "xml2js", "uuid"} {
 		if _, ok := a.newScript(&a.addons, name, ""); ok {
 			t.Errorf("an addon named %s was saved", name)
+		}
+	}
+	// Folder names follow the script rules part by part.
+	for _, name := range []string{"@team/", "/pkg", "a/../b", "a//b"} {
+		if checkAddonName(name) == nil {
+			t.Errorf("addon name %q was accepted", name)
 		}
 	}
 }

@@ -179,6 +179,26 @@ func (a *app) loadScripts() {
 	a.loadScriptDir(&a.scripts)
 }
 
+// scriptFiles lists the .js files under dir, as paths relative to dir with
+// / separators. An addon such as @team/pkg lives in a folder of its own.
+func scriptFiles(dir string) ([]string, error) {
+	var files []string
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && strings.HasSuffix(path, ".js") {
+			rel, err := filepath.Rel(dir, path)
+			if err != nil {
+				return err
+			}
+			files = append(files, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	return files, err
+}
+
 func (a *app) loadScriptDir(s *scriptStore) {
 	if s.dir == "" {
 		return
@@ -189,7 +209,7 @@ func (a *app) loadScriptDir(s *scriptStore) {
 			a.win.Update(func() { a.applyWrites(w) })
 		}
 	}
-	files, err := os.ReadDir(s.dir)
+	files, err := scriptFiles(s.dir)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		s.problem = err
 		a.fail(s.dir+" could not be read", err)
@@ -198,16 +218,16 @@ func (a *app) loadScriptDir(s *scriptStore) {
 	s.problem = nil
 	s.names, s.texts, s.problems = nil, map[string]string{}, map[string]error{}
 	parsed := map[string]*request.ProxyScript{}
-	for _, f := range files {
-		name, ok := strings.CutSuffix(f.Name(), ".js")
+	for _, rel := range files {
+		name, ok := strings.CutSuffix(rel, ".js")
 		check := capture.CheckScriptName
 		if s.addon {
 			check = checkAddonName
 		}
-		if !ok || f.IsDir() || check(name) != nil {
+		if !ok || check(name) != nil {
 			continue
 		}
-		data, err := a.file(filepath.Join(s.dir, f.Name())).Read()
+		data, err := a.file(filepath.Join(s.dir, filepath.FromSlash(rel))).Read()
 		if err != nil {
 			a.fail(locales.ScriptUnreadable(name), err)
 			continue
@@ -217,7 +237,7 @@ func (a *app) loadScriptDir(s *scriptStore) {
 		if p, err := s.parse(name, string(data)); err != nil {
 			s.problems[name] = err
 		} else if p != nil {
-			parsed[f.Name()] = p
+			parsed[rel] = p
 		}
 	}
 	slices.SortFunc(s.names, func(x, y string) int { return strings.Compare(strings.ToLower(x), strings.ToLower(y)) })
@@ -326,12 +346,18 @@ export function sign(text, key) {
 }
 
 // checkAddonName adds to a script's name rules that an addon's name is not
-// a library require already loads.
+// a library require already loads. An addon's name may have folders, as a
+// scoped package's @team/pkg does; each part follows the script name rules.
 func checkAddonName(name string) error {
 	if slices.Contains(request.Libraries, name) {
 		return fmt.Errorf("require(%q) loads the built-in library", name)
 	}
-	return capture.CheckScriptName(name)
+	for _, part := range strings.Split(name, "/") {
+		if err := capture.CheckScriptName(part); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // newScript saves a new script or addon named from base and chooses it. A
