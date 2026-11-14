@@ -257,6 +257,7 @@ func (a *app) splitInspector(c *ui.Context, f flow) {
 	if a.inspect.percent == 0 {
 		a.inspect.percent = splitShare
 	}
+	a.protoOwner = a.protobufOwner(f)
 	request := func() { a.requestPane(c, f) }
 	response := func() { a.responsePane(c, f) }
 	if a.sidesStacked(c) {
