@@ -87,7 +87,7 @@
 
 #### Toast（变基后）
 
-- 现状：`Toasts` 的面板宽 360，图标 + 标题/描述一列，动作是同行的 22pt ghost link，关闭按钮在后（`internal/uikit/components.go:672-703`）。变基后的图版 `components-toasts-light.png` 里，“Request deleted / Undo” 在同一行，符合新提交 `a27cdb7` 的意图。
+- 现状：`Toasts` 的面板宽 360，图标 + 标题/描述一列，动作是同行的 22pt ghost link，关闭按钮在后（`internal/uikit/components.go:672-703`）。变基后的图版 `components-toasts-light.png` 和 `-dark.png` 里，“Request deleted / Undo” 在同一行，符合新提交 `a27cdb7` 的意图。
 - 问题：动作在静止时用 `TextMuted`（`internal/uikit/components.go:689`），和关闭按钮同色；在深色 toast 上它读起来像禁用链接，而不是“撤销”。shadcn 的 toast action 用前景色/主色，关闭才是 muted。
 - 建议：动作静止用 `t.InverseText`（toast 是反色面），hover 再用 `t.Text`；关闭保持 `TextMuted`。成本一行。P2。
 - 值不值得做：值得，极低。
