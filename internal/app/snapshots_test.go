@@ -28,6 +28,7 @@ import (
 	"github.com/baba983/vscroxy/internal/imports"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/rules"
+	"github.com/baba983/vscroxy/internal/runner"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/baba983/vscroxy/internal/upstream"
 	"github.com/egoist/mygo/ui"
@@ -1093,6 +1094,7 @@ func snapshotStates(t *testing.T) []snapshot {
 		{name: "secondary-runner-focused", setup: snapshotRunner, act: click("2 · Check project"), want: "expected 200, received 503"},
 		{name: "secondary-runner-running", setup: func(a *app) { snapshotRunner(a); a.runner.running, a.runner.status = true, "Running…" }, want: "Cancel run"},
 		{name: "secondary-runner-error", setup: func(a *app) { a.openRunner(); a.runner.dataProblem = "data.csv: duplicate column name" }, want: "duplicate column name"},
+		{name: "secondary-runner-history", setup: snapshotRunHistory, want: "Past runs"},
 		{name: "secondary-runs-empty", setup: func(a *app) { a.page = pageRuns }, want: "Send a request to record an experiment."},
 		{name: "secondary-runs-result", setup: snapshotRuns, want: "Experiment result"},
 		{name: "secondary-runs-filtered", setup: func(a *app) {
@@ -2173,6 +2175,17 @@ func snapshotRunner(a *app) {
 		{name: "Create project", iteration: 1, summary: "201 · 43 B · 47 ms · 1/1 tests", recordID: 1, tests: []request.TestResult{{Name: "Created", Pass: true}}},
 		{name: "Check project", iteration: 2, summary: "503 · 41 B · 132 ms · 0/1 tests", failed: true, recordID: 2, tests: []request.TestResult{{Name: "Available", Error: "expected 200, received 503"}}},
 	}
+}
+
+// snapshotRunHistory shows a finished run chosen from two in the session.
+func snapshotRunHistory(a *app) {
+	snapshotRunner(a)
+	r := &a.runner
+	r.history = []pastRun{
+		{label: "14:02:11 · / · Finished · 1 completed · 0 failed", report: runner.Report{Completed: 1}},
+		{label: "13:58:40 · Workspace · Finished · 2 completed · 1 failed", rows: r.rows, report: runner.Report{Completed: 2, Failed: 1}},
+	}
+	r.showRun(1)
 }
 
 func snapshotSources(a *app) {

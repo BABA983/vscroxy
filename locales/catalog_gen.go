@@ -17984,6 +17984,66 @@ func (msgs Messages) RunnerCollection() string {
 	return Catalog.Format(msgs.locale, "runnerCollection", nil)
 }
 
+// RunnerDelay says "Delay between requests (ms)"
+// in the language the app shows.
+func RunnerDelay() string { return In(i18n.Locale()).RunnerDelay() }
+
+// RunnerDelay says "Delay between requests (ms)"
+// in the language of msgs.
+func (msgs Messages) RunnerDelay() string {
+	return Catalog.Format(msgs.locale, "runnerDelay", nil)
+}
+
+// RunnerDelayRange says "Delay must be between 0 and 3600000 ms"
+// in the language the app shows.
+func RunnerDelayRange() string { return In(i18n.Locale()).RunnerDelayRange() }
+
+// RunnerDelayRange says "Delay must be between 0 and 3600000 ms"
+// in the language of msgs.
+func (msgs Messages) RunnerDelayRange() string {
+	return Catalog.Format(msgs.locale, "runnerDelayRange", nil)
+}
+
+// KeepVariableValues says "Keep variable values"
+// in the language the app shows.
+func KeepVariableValues() string { return In(i18n.Locale()).KeepVariableValues() }
+
+// KeepVariableValues says "Keep variable values"
+// in the language of msgs.
+func (msgs Messages) KeepVariableValues() string {
+	return Catalog.Format(msgs.locale, "keepVariableValues", nil)
+}
+
+// PastRuns says "Past runs"
+// in the language the app shows.
+func PastRuns() string { return In(i18n.Locale()).PastRuns() }
+
+// PastRuns says "Past runs"
+// in the language of msgs.
+func (msgs Messages) PastRuns() string {
+	return Catalog.Format(msgs.locale, "pastRuns", nil)
+}
+
+// ExportRunJSON says "Export JSON…"
+// in the language the app shows.
+func ExportRunJSON() string { return In(i18n.Locale()).ExportRunJSON() }
+
+// ExportRunJSON says "Export JSON…"
+// in the language of msgs.
+func (msgs Messages) ExportRunJSON() string {
+	return Catalog.Format(msgs.locale, "exportRunJSON", nil)
+}
+
+// ExportRunJUnit says "Export JUnit…"
+// in the language the app shows.
+func ExportRunJUnit() string { return In(i18n.Locale()).ExportRunJUnit() }
+
+// ExportRunJUnit says "Export JUnit…"
+// in the language of msgs.
+func (msgs Messages) ExportRunJUnit() string {
+	return Catalog.Format(msgs.locale, "exportRunJUnit", nil)
+}
+
 // RunnerDataFile says "Runner data file"
 // in the language the app shows.
 func RunnerDataFile() string { return In(i18n.Locale()).RunnerDataFile() }

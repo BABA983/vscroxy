@@ -2978,6 +2978,14 @@ The starting environment is snapshotted; script variables and session cookies
 carry into later steps. Results show status, timing and assertions (latest 1000
 rows, with cumulative totals). Closing the dialog leaves the run active;
 **Cancel run** stops it. Unsaved request tabs are not run or modified.
+**Delay** (milliseconds, 0–3600000) waits before each request after the first,
+including the first request of a later iteration; **Cancel run** ends the wait.
+**Keep variable values** is on by default, so the run's variable writes are saved
+to the environment, globals and collection as usual. Turn it off to chain values
+inside the run without changing anything saved. **Past runs** keeps the last 10
+finished runs of this session, and **Export JSON…** or **Export JUnit…** saves the
+selected run's report. Exports leave out assertion names and error text, as the
+CLI does by default.
 Each delivered attempt also appears in **History**, including failures and
 in-flight cancellation; **Inspect retained run** opens its immutable snapshot
 and Console.

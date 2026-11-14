@@ -193,7 +193,7 @@
 | Examples 作为 Mock 响应（本地 mock） | 已有 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples；`vscroxy-cli mock` 在回环地址按集合 Examples 提供 mock（见[自动化](automation.md#mock-server)），未提供 MCP 工具和桌面启动控制 | M4 |
 | 集合 mock 服务（独立端口） | 已有首版 | 集合菜单 Start mock server 在 127.0.0.1 随机端口提供集合 Examples，不经过代理；按 `X-Mock-Response-Name`、`X-Mock-Response-Code`、`x-mock-match-request-body` 选择；启动后的 Example 修改需重启；不支持每个 Example 的延迟；`vscroxy-cli` 子命令另行接入（internal/mockserver） | M6 |
 | 代码 Mock（脚本生成本地响应） | 首版已有 | Code Mock 规则运行 `onMock`，读取 `pm.request`、生成 `pm.response`；复用编辑器／Scenario／配置导出，失败返回本地错误而不穿透原站；不是 Postman Node.js／`pm.mock` 服务兼容层 | M9 |
-| Runner：数据文件、迭代、setNextRequest | 已有 | | |
+| Runner：数据文件、迭代、setNextRequest | 已有 | 请求间隔（毫秒）、保留变量值开关、本次会话最近 10 次运行的历史、导出 JSON／JUnit（不含断言名和错误文本）；CLI 为 `run --delay-request` | |
 | Runner：性能测试（虚拟用户、时长、指标） | 已有首版 | 内置固定并发集合负载；复用 Runner、HdrHistogram 执行耗时；原生／CLI／MCP。无固定 RPS、爬坡或分布式压测 | M9 |
 | 命令行运行集合（CI，JUnit/JSON 报告） | 已有 | 独立无 UI CLI；本地集合/Postman、环境/数据文件、超时/取消/执行预算、私有报告 | M9 |
 | Cookies 管理 | 已有 | 按域名分组，值默认遮罩；可按域名或全部清除 | |

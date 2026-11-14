@@ -539,6 +539,44 @@ func TestCollectionRunnerChainsVariablesCookiesAssertionsAndStops(t *testing.T) 
 	}
 }
 
+// A run with variable values kept off chains values inside the run but saves
+// none of them; each finished run stays in the session history with a report
+// that omits assertion names by default.
+func TestCollectionRunnerDiscardsVariablesAndKeepsHistory(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/login" {
+			fmt.Fprint(w, `{"id":27}`)
+			return
+		}
+		fmt.Fprint(w, `{"ok":true}`)
+	}))
+	defer upstream.Close()
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.envs = []environment{{Name: "Local", Vars: map[string]string{"base": upstream.URL}}}
+	a.activeEnv = "Local"
+	a.requests = []savedRequest{
+		{Name: "01 Login", Method: "GET", URL: "{{base}}/login", Post: `pm.environment.set("id",String(pm.response.json().id));pm.test("login ok",function(){pm.expect(pm.response.code).to.equal(200)})`},
+		{Name: "02 Detail", Method: "GET", URL: "{{base}}/api/{{id}}"},
+	}
+	a.openRunner()
+	a.runner.discardVars = true
+	a.startRunner()
+	waitRunner(t, a)
+	if _, ok := a.activeVars()["id"]; ok || a.runner.completed != 2 || a.runner.failures != 0 {
+		t.Fatalf("discarded run: vars=%v results=%+v", a.activeVars(), a.runner)
+	}
+	if len(a.runner.history) != 1 || a.runner.report.Completed != 2 || a.runner.report.Results[0].Tests[0].Name != "Test 1" {
+		t.Fatalf("history=%+v report=%+v", a.runner.history, a.runner.report)
+	}
+	a.runner.discardVars = false
+	a.startRunner()
+	waitRunner(t, a)
+	if a.activeVars()["id"] != "27" || len(a.runner.history) != 2 || a.runner.viewKey != "1" {
+		t.Fatalf("kept run: vars=%v history=%d viewKey=%q", a.activeVars(), len(a.runner.history), a.runner.viewKey)
+	}
+}
+
 func TestInFlightCurrentCredentialsStayOutOfExports(t *testing.T) {
 	for _, mode := range []string{"Send", "Runner"} {
 		for _, removal := range []string{"script unset", "editor removal"} {
