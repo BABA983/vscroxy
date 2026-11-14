@@ -3693,7 +3693,7 @@ func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 	importedSource := strings.Replace(referencedOpenAPI, "    post:\n", "    get:\n      summary: Read widget\n      responses: {'200': {description: Read}}\n    post:\n", 1)
 	edit("OpenAPI source", importedSource)
 	click("Save API")
-	stored, err := loadAPIs(a.apisPath)
+	stored, err := loadAPIs(a.file(a.apisPath))
 	if err != nil || len(stored) != 2 || stored[0].Source != source || stored[1].Source != importedSource {
 		t.Fatalf("saving another API wrote an invalid draft or normalized YAML: %v (%v)", stored, err)
 	}
@@ -3720,7 +3720,7 @@ func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 	if !tt.HasText("Endpoint: GET /projects-v2") || !tt.HasText("Unsaved draft") {
 		t.Fatal("regeneration did not create a fresh draft from the saved collection")
 	}
-	stored, err = loadAPIs(a.apisPath)
+	stored, err = loadAPIs(a.file(a.apisPath))
 	if err != nil || len(stored) != 2 || stored[0].Source != manual {
 		t.Fatal("regeneration overwrote the hand-edited, saved specification")
 	}

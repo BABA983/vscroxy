@@ -293,9 +293,10 @@ func (l *libraryState) apply(files map[string][]byte) error {
 	return nil
 }
 
-// setProjectDir keeps the request library in dir/.vscroxy/collections, or in
-// the app's own collections when dir is empty. A missing folder is refused, so
-// a typo cannot start a library somewhere unintended.
+// setProjectDir makes dir the project folder: the collections, environments,
+// OpenAPI specs and addons are read from and saved to its .vscroxy directory,
+// or to ~/.vscroxy when dir is empty. A missing folder is refused, so a typo
+// cannot start a library somewhere unintended.
 func (a *app) setProjectDir(dir string) {
 	dir = strings.TrimSpace(dir)
 	home, err := os.UserHomeDir()
@@ -306,19 +307,41 @@ func (a *app) setProjectDir(dir string) {
 	if rest, ok := strings.CutPrefix(dir, "~/"); ok {
 		dir = filepath.Join(home, rest)
 	}
-	root := filepath.Join(home, ".vscroxy", "collections")
 	if dir != "" {
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 			a.fail(locales.ProjectFolder(), fmt.Errorf("%s is not a folder", dir))
 			return
 		}
-		root = filepath.Join(dir, ".vscroxy", "collections")
 	}
 	a.projectDir, a.projectInput = dir, dir
-	a.library.root = root
+	a.placeProjectFiles()
 	a.loadRequestAssets()
+	a.loadSavedAPIs()
+	a.loadScripts()
 	a.persistSettings()
-	a.done(locales.ReloadedRequests(len(a.requests), root))
+	a.done(locales.ReloadedRequests(len(a.requests), a.library.root))
+}
+
+// placeProjectFiles points the library, the OpenAPI specs and the addons at
+// the project folder's .vscroxy directory, or at ~/.vscroxy when no project
+// folder is set.
+func (a *app) placeProjectFiles() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	a.library.root = a.projectPath(filepath.Join(home, ".vscroxy", "collections"), "collections")
+	a.apisPath = a.projectPath(filepath.Join(home, ".vscroxy", "apis.json"), "apis.json")
+	a.addons.dir = a.projectPath(filepath.Join(home, ".vscroxy", "tools", "addons"), "addons")
+}
+
+// projectPath is where a project file lives: in the project folder's .vscroxy
+// directory when one is set, otherwise at def.
+func (a *app) projectPath(def, name string) string {
+	if path := a.projectFile(name); path != "" {
+		return path
+	}
+	return def
 }
 
 // loadRequestLibrary reads the library into the app.

@@ -974,8 +974,8 @@ For static saved responses, continue using Examples and Map Local.
 ### Addons
 
 **Addons** are your own modules for request and rule scripts. **Tools →
-Scripts → Addons** edits them; each is a file under `~/.vscroxy/tools/addons/`
-(`name.js`). An addon is an ES module like a rule script: what it exports,
+Scripts → Addons** edits them; each is a file under `tools/addons/` (`name.js`)
+in the project folder, or in `~/.vscroxy/tools/addons/` without one. An addon is an ES module like a rule script: what it exports,
 rule scripts and other addons import `from "name"`, and request scripts, which
 stay Postman's CommonJS, get with `require("name")` (a default export is at
 `.default`). An addon written as CommonJS, with `module.exports`, works too.
@@ -2924,10 +2924,16 @@ the value set here.
 | --- | --- | --- |
 | Collections, folders and requests | `collections/` | |
 | Environments and globals: names and Initial values | `environments.json` | |
+| OpenAPI specs (one file with every saved spec) | `apis.json` | |
+| Addons (`name.js`, shared script modules) | `addons/` | |
+| Rule scripts | | `tools/scripts/` |
 | Current values of environments, globals, collections and folders | | `env.json` |
 | Credential marks and the active environment | | `env.json` |
 | Vault secrets | | `vault.json`, `vault.key` |
 | Cookies, rules and Host profiles | | `cookies.json`, `rules.json`, `tools/hosts/` |
+
+OpenAPI specs are stored in one file, so two people who edit different specs
+in the same branch can still conflict in Git.
 
 `environments.json` has no field for Current values or credential marks, so
 they cannot be written into the project. `env.json` keeps a copy of the

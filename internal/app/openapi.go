@@ -8,18 +8,16 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io/fs"
 	"maps"
 	"mime"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/yamlguard"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -35,41 +33,29 @@ type apiSpec struct {
 	Notes       []string `json:"notes,omitempty"`
 }
 
-func loadAPIs(path string) ([]apiSpec, error) {
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
+// loadAPIs reads the saved specs. A file that does not parse stays read-only,
+// so a save cannot replace it.
+func loadAPIs(file *store.File) ([]apiSpec, error) {
+	data, err := file.Read()
+	if err != nil || data == nil {
 		return nil, err
 	}
 	var specs []apiSpec
-	err = json.Unmarshal(data, &specs)
-	return specs, err
+	if err := json.Unmarshal(data, &specs); err != nil {
+		file.Fail(err)
+		return nil, err
+	}
+	return specs, nil
 }
 
-func saveAPIs(path string, specs []apiSpec) error {
+// saveAPIs replaces the saved specs unless the file changed on disk since it
+// was read.
+func saveAPIs(file *store.File, specs []apiSpec) error {
 	data, err := json.Marshal(specs)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(filepath.Dir(path), ".apis-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	_, err = f.Write(append(data, '\n'))
-	closed := f.Close()
-	if err != nil {
-		return err
-	}
-	if closed != nil {
-		return closed
-	}
-	return os.Rename(f.Name(), path)
+	return file.Write(append(data, '\n'))
 }
 
 // Parsing a standalone contract must never follow a ref onto the network or

@@ -443,3 +443,45 @@ func TestProjectFolderKeepsTheLibraryInsideTheProject(t *testing.T) {
 		t.Fatalf("default library should be empty here, got %d requests", len(a.requests))
 	}
 }
+
+func TestProjectFolderHoldsOpenAPISpecsAndAddons(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	a := libraryApp(t)
+	a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
+	a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
+	project := t.TempDir()
+	addons := filepath.Join(project, ".vscroxy", "addons")
+	if err := os.MkdirAll(addons, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(addons, "shared.js"), []byte("export const shared = 1;\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	a.setProjectDir(project)
+	if a.addons.dir != addons || !slices.Contains(a.addons.names, "shared") {
+		t.Fatalf("addons not read from the project: dir %q, names %v", a.addons.dir, a.addons.names)
+	}
+
+	spec := `{"openapi":"3.0.3","info":{"title":"Shop","version":"1"},"paths":{}}`
+	a.addAPI(apiSpec{Source: spec}, false)
+	a.saveAPI(a.activeAPI())
+	apis := filepath.Join(project, ".vscroxy", "apis.json")
+	if _, err := os.Stat(apis); err != nil {
+		t.Fatalf("spec not saved into the project: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".vscroxy", "apis.json")); err == nil {
+		t.Fatal("spec also saved under the home folder")
+	}
+
+	// A spec file changed outside the app is not replaced by the next save.
+	outside := []byte("[]\n")
+	if err := os.WriteFile(apis, outside, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a.saveAPI(a.activeAPI())
+	if data, _ := os.ReadFile(apis); string(data) != string(outside) {
+		t.Fatalf("the spec file changed outside the app was overwritten: %s", data)
+	}
+}

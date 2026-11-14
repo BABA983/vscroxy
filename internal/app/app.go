@@ -749,16 +749,8 @@ func newApp() *app {
 		a.customColumns, a.hiddenColumns = slices.Clone(saved.CustomColumns), saved.HiddenColumns
 		a.shownColumns = slices.Clone(saved.ShownColumns)
 	}
-	if home, err := os.UserHomeDir(); err == nil {
-		a.apisPath = filepath.Join(home, ".vscroxy", "apis.json")
-		if specs, err := loadAPIs(a.apisPath); err != nil {
-			a.fail(locales.Apis(), err)
-		} else {
-			for _, spec := range specs {
-				a.addAPI(spec, true)
-			}
-		}
-	}
+	a.placeProjectFiles()
+	a.loadSavedAPIs()
 	a.recount()
 	a.applyFilter()
 	if home, err := os.UserHomeDir(); err == nil {

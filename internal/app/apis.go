@@ -62,6 +62,35 @@ func (d *apiDocument) validate() bool {
 	return true
 }
 
+// loadSavedAPIs shows the specs saved at apisPath. Drafts with unsaved changes
+// stay as they are, and a saved spec under the same ID is not shown twice.
+func (a *app) loadSavedAPIs() {
+	if a.apisPath == "" {
+		return
+	}
+	specs, err := loadAPIs(a.file(a.apisPath))
+	if err != nil {
+		a.fail(locales.Apis(), err)
+		return
+	}
+	var kept []*apiDocument
+	for _, d := range a.apis {
+		if d.dirty() {
+			kept = append(kept, d)
+		}
+	}
+	choice := a.apiChoice
+	a.apis = kept
+	for _, spec := range specs {
+		if !slices.ContainsFunc(kept, func(d *apiDocument) bool { return d.spec.ID == spec.ID }) {
+			a.addAPI(spec, true)
+		}
+	}
+	if slices.ContainsFunc(a.apis, func(d *apiDocument) bool { return d.spec.ID == choice }) {
+		a.apiChoice = choice
+	}
+}
+
 func (a *app) activeAPI() *apiDocument {
 	for _, d := range a.apis {
 		if d.spec.ID == a.apiChoice {
@@ -111,7 +140,7 @@ func (a *app) saveAPI(d *apiDocument) {
 		a.warn(locales.ApisNoLocalStoragePath())
 		return
 	}
-	if err := saveAPIs(a.apisPath, list); err != nil {
+	if err := saveAPIs(a.file(a.apisPath), list); err != nil {
 		a.fail(locales.SaveApi(), err)
 		return
 	}
