@@ -245,7 +245,9 @@ func TestOneClickFirefoxKeepsTheProfileAfterTheLauncherExits(t *testing.T) {
 	if err := tt.Click("Open Firefox"); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
+	// A loaded macOS runner can take several seconds to start the fake
+	// launcher; wait for the file it writes, with a bound well above that.
+	deadline := time.Now().Add(20 * time.Second)
 	var args string
 	for time.Now().Before(deadline) {
 		data, err := os.ReadFile(log)
