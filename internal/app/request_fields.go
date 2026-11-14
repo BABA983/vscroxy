@@ -17,7 +17,49 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 )
 
+// pathEditor edits the values of the URL's :name path segments. The names come
+// from the URL, so there are no rows to add or remove; a blank value is sent as
+// {{name}}.
+func (a *app) pathEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
+	d.pathRows = pathRowsFor(d.composeURL, d.pathRows)
+	if len(d.pathRows) == 0 {
+		return
+	}
+	noun := locales.Parameter()
+	ui.Column(c).Gap(t.Space(2)).Children(func() {
+		uikit.Label(c, locales.PathParameters())
+		for i := range d.pathRows {
+			r := &d.pathRows[i]
+			ui.Row(c.Key(fmt.Sprintf("path-row-%d", i))).Height(uikit.HeightControl).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, ":"+r.Name).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Width(t.Space(27)).SingleLine()
+				ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().Children(func() {
+					a.variableGridInput(c, fmt.Sprintf("path-value-%d", i), &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), d.composeCollection, false)
+				})
+			})
+		}
+	})
+}
+
+// pathRowsFor keeps the value of each :name segment of url, in URL order, from
+// the rows that already hold it. A name the URL no longer has is dropped, and a
+// name with no row is blank.
+func pathRowsFor(url string, rows []request.Field) []request.Field {
+	var out []request.Field
+	for _, name := range request.PathNames(url) {
+		if slices.ContainsFunc(out, func(f request.Field) bool { return f.Name == name }) {
+			continue
+		}
+		value := ""
+		if at := slices.IndexFunc(rows, func(f request.Field) bool { return f.Name == name }); at >= 0 {
+			value = rows[at].Value
+		}
+		out = append(out, request.Field{Name: name, Value: value})
+	}
+	return out
+}
+
 func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
+	a.pathEditor(c, d, t)
 	if d.querySource != d.composeURL {
 		d.querySource, d.queryRows, d.queryError = d.composeURL, nil, ""
 		u, err := url.Parse(d.composeURL)

@@ -301,7 +301,7 @@ func (r *reader) request(it pmItem, parent string, ordinal int) error {
 			return fmt.Errorf("read request %q in %s: %w", it.Name, parent, err)
 		}
 		out.Method = strings.ToUpper(cmp.Or(strings.TrimSpace(req.Method), "GET"))
-		out.URL = r.url(req.URL)
+		out.URL, out.PathVariables = r.url(req.URL)
 		out.HeaderList = readHeaders(req.Header)
 		r.body(&out, req.Body)
 		if a, set := r.auth(req.Auth, "request auth"); set {
@@ -391,7 +391,9 @@ func (r *reader) examples(list []jsontext.Value, requestID string) []request.Exa
 			var req pmRequest
 			if json.Unmarshal(res.OriginalRequest, &req) == nil {
 				e.Request.Method = strings.ToUpper(cmp.Or(strings.TrimSpace(req.Method), "GET"))
-				e.Request.URL = r.url(req.URL)
+				// An example records what was sent, so its path values are filled in.
+				raw, vars := r.url(req.URL)
+				e.Request.URL = request.FillPath(raw, vars)
 				e.Request.Headers = headerBlock(readHeaders(req.Header))
 				if req.Body != nil && req.Body.Mode == "raw" {
 					e.Request.Body = req.Body.Raw
@@ -662,14 +664,15 @@ func readHeaders(v jsontext.Value) []request.Field {
 }
 
 // url reads a string or object URL: raw when present, else rebuilt from its
-// parts, with path variables filled in.
-func (r *reader) url(v jsontext.Value) string {
+// parts. The path variables come back as rows; the URL keeps its :name
+// segments, so the values stay editable.
+func (r *reader) url(v jsontext.Value) (string, []request.Field) {
 	if v.Kind() != '{' {
-		return text(v)
+		return text(v), nil
 	}
 	var u pmURL
 	if json.Unmarshal(v, &u) != nil {
-		return ""
+		return "", nil
 	}
 	disabled := 0
 	for _, q := range u.Query {
@@ -682,14 +685,11 @@ func (r *reader) url(v jsontext.Value) string {
 	if raw == "" {
 		raw = rebuildURL(u)
 	}
-	if len(u.Variable) == 0 {
-		return raw
-	}
-	vars := map[string]string{}
+	var vars []request.Field
 	for _, pv := range u.Variable {
-		vars[pv.Key] = text(pv.Value)
+		vars = append(vars, request.Field{Name: pv.Key, Value: text(pv.Value)})
 	}
-	return fillPathVariables(raw, vars)
+	return raw, vars
 }
 
 // rebuildURL writes a URL object without raw from its parts.
@@ -751,32 +751,6 @@ func joinParts(v jsontext.Value, sep string) string {
 		parts[i] = text(part)
 	}
 	return strings.Join(parts, sep)
-}
-
-// fillPathVariables replaces each ":key" path segment of raw with the
-// variable's value, or {{key}} when the value is empty.
-func fillPathVariables(raw string, vars map[string]string) string {
-	start := 0
-	if scheme, _, ok := strings.Cut(raw, "://"); ok && !strings.ContainsAny(scheme, "/?#") {
-		start = len(scheme) + len("://")
-	}
-	slash := strings.IndexByte(raw[start:], '/')
-	if slash < 0 {
-		return raw
-	}
-	begin, end := start+slash, len(raw)
-	if i := strings.IndexAny(raw[begin:], "?#"); i >= 0 {
-		end = begin + i
-	}
-	segments := strings.Split(raw[begin:end], "/")
-	for i, seg := range segments {
-		if key, ok := strings.CutPrefix(seg, ":"); ok {
-			if value, ok := vars[key]; ok {
-				segments[i] = cmp.Or(value, "{{"+key+"}}")
-			}
-		}
-	}
-	return raw[:begin] + strings.Join(segments, "/") + raw[end:]
 }
 
 // rawContentTypes are the Content-Type headers Postman sends for a raw

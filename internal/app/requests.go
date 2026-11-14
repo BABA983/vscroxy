@@ -88,6 +88,8 @@ type requestDocument struct {
 	formFields  []request.Field
 	queryRows   []request.Field
 	querySource string
+	// pathRows are the values of the URL's :name segments, in URL order.
+	pathRows    []request.Field
 	queryError  string
 	composePre  string
 	composePost string
@@ -179,7 +181,7 @@ func (d *requestDocument) value() savedRequest {
 	r := savedRequest{
 		ID: d.assetID, Source: d.origin,
 		Name: d.composeName, Collection: d.composeCollection,
-		Method: d.composeMethod, URL: d.composeURL, Headers: d.composeHeaders,
+		Method: d.composeMethod, URL: d.composeURL, PathVariables: pathRowsFor(d.composeURL, d.pathRows), Headers: d.composeHeaders,
 		Protocol: d.protocol, GRPC: d.grpcConfig, SocketIO: d.socketIOConfig, MQTT: d.mqttConfig, MCP: d.mcpConfig,
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
 		Auth: d.auth, BodyMode: d.bodyMode, BodyFile: d.bodyFile, Form: slices.Clone(d.formFields),
@@ -280,6 +282,7 @@ func (d *requestDocument) load(a *app, r savedRequest, key string) {
 	d.examples, d.example, d.exampleEditor = slices.Clone(r.Examples), 0, nil
 	d.auth, d.bodyMode, d.formFields = r.Auth, cmp.Or(r.BodyMode, "Raw"), slices.Clone(r.Form)
 	d.bodyFile = r.BodyFile
+	d.pathRows = slices.Clone(r.PathVariables)
 	d.graphql = r.GraphQL
 	if d.headerRows == nil && d.composeHeaders != "" {
 		d.headerRows, d.headerFor = parseHeaderRows(d.composeHeaders), d.composeHeaders

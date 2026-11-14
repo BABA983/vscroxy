@@ -2009,7 +2009,12 @@ one the list lacks is still typed and kept. **Params**,
 edited. **Params** and **Headers** are tables of an enable box, a key and a
 value under **KEY** and **VALUE** titles, so order, duplicate names, empty
 values and switched-off rows survive; a cell keeps a quiet border until the
-pointer or the keyboard is on it. Header values whose name is a credential
+pointer or the keyboard is on it. A URL's `:name` path segments are listed
+above the query table under **Path parameters**, each with its value. The URL
+keeps the `:name` template, so a Postman collection's path variables stay
+editable after import and export; a blank value is sent as `{{name}}`. The
+table has no rows to add or remove: a name leaves it when the URL no longer
+has that segment, and a Postman variable the URL does not use is not kept. Header values whose name is a credential
 (`Authorization`, `Cookie`, `X-Api-Key`, anything with `token`, `secret` or
 `password`) are masked by default and show in plain text only when that row's
 eye reveals them: moving the keyboard through the table never reveals one, and

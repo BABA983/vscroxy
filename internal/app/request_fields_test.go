@@ -911,3 +911,37 @@ func TestNTLMAuthEditor(t *testing.T) {
 		t.Fatal("the disable-retry checkbox did not update the auth")
 	}
 }
+
+func TestPathVariablesEditTheSendAndKeepTheURLTemplate(t *testing.T) {
+	a := workspaceApp()
+	a.addDocument(savedRequest{Request: request.Request{Method: "GET", URL: "https://example.com/orders/:orderId/items/:itemId",
+		PathVariables: []request.Field{{Name: "orderId", Value: "42"}, {Name: "itemId"}}}}, "")
+	tt := ui.NewTester(a.view, 1100, 700)
+	if err := tt.Click("Params"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText(":orderId") || !tt.HasText(":itemId") {
+		t.Fatalf("path parameters not shown: %q", tt.Texts())
+	}
+	if err := tt.Click("parameter value 2"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("9")
+	tt.Frame()
+	d := a.requestDocument
+	if a.composeURL != "https://example.com/orders/:orderId/items/:itemId" {
+		t.Fatalf("the URL lost its path template: %q", a.composeURL)
+	}
+	if !d.dirty() {
+		t.Fatal("editing a path value did not make the request dirty")
+	}
+	got := d.value()
+	if !reflect.DeepEqual(got.PathVariables, []request.Field{{Name: "orderId", Value: "42"}, {Name: "itemId", Value: "9"}}) {
+		t.Fatalf("path values: %+v", got.PathVariables)
+	}
+	prepared, err := got.Request.Prepare(nil)
+	if err != nil || prepared.URL != "https://example.com/orders/42/items/9" {
+		t.Fatalf("sent URL %q, %v", prepared.URL, err)
+	}
+}

@@ -84,13 +84,14 @@ type outHeader struct {
 }
 
 type outURL struct {
-	Raw      string     `json:"raw"`
-	Protocol string     `json:"protocol,omitempty"`
-	Host     []string   `json:"host,omitempty"`
-	Port     string     `json:"port,omitempty"`
-	Path     []string   `json:"path,omitempty"`
-	Query    []outQuery `json:"query,omitempty"`
-	Hash     string     `json:"hash,omitempty"`
+	Raw      string        `json:"raw"`
+	Protocol string        `json:"protocol,omitempty"`
+	Host     []string      `json:"host,omitempty"`
+	Port     string        `json:"port,omitempty"`
+	Path     []string      `json:"path,omitempty"`
+	Query    []outQuery    `json:"query,omitempty"`
+	Hash     string        `json:"hash,omitempty"`
+	Variable []outVariable `json:"variable,omitempty"`
 }
 
 type outQuery struct {
@@ -296,7 +297,7 @@ func writeProfile(s request.Settings) *outProfile {
 }
 
 func writeRequest(r request.Request) *outRequest {
-	out := &outRequest{Method: strings.ToUpper(strings.TrimSpace(r.Method)), Header: []outHeader{}, URL: writeURL(r.URL)}
+	out := &outRequest{Method: strings.ToUpper(strings.TrimSpace(r.Method)), Header: []outHeader{}, URL: writeURL(r.URL, r.PathVariables)}
 	if out.Method == "" {
 		out.Method = "GET"
 	}
@@ -539,8 +540,11 @@ func writeVariables(vars []request.Variable) []outVariable {
 
 // writeURL splits raw into Postman's parts without judging it: {{var}}
 // hosts and missing schemes are fine, and raw stays verbatim.
-func writeURL(raw string) outURL {
+func writeURL(raw string, pathVariables []request.Field) outURL {
 	u := outURL{Raw: raw}
+	for _, v := range pathVariables {
+		u.Variable = append(u.Variable, outVariable{Key: v.Name, Value: v.Value, Type: "string"})
+	}
 	rest := strings.TrimSpace(raw)
 	rest, u.Hash, _ = strings.Cut(rest, "#")
 	rest, query, hasQuery := strings.Cut(rest, "?")

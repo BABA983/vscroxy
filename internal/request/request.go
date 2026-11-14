@@ -40,10 +40,13 @@ type Request struct {
 	MCP      MCPConfig      `json:"mcp,omitzero"`
 	Method   string         `json:"method"`
 	URL      string         `json:"url"`
-	Headers  string         `json:"headers,omitempty"`
-	Body     string         `json:"body,omitempty"`
-	Auth     Auth           `json:"auth,omitzero"`
-	BodyMode string         `json:"bodyMode,omitempty"`
+	// PathVariables are the values of the URL's :name path segments; the
+	// URL keeps the segments as written.
+	PathVariables []Field `json:"pathVariables,omitempty"`
+	Headers       string  `json:"headers,omitempty"`
+	Body          string  `json:"body,omitempty"`
+	Auth          Auth    `json:"auth,omitzero"`
+	BodyMode      string  `json:"bodyMode,omitempty"`
 	// BodyFile is a local path for Binary bodies; only the path is saved.
 	BodyFile string      `json:"bodyFile,omitempty"`
 	GraphQL  GraphQLBody `json:"graphql,omitzero"`
@@ -146,6 +149,61 @@ type Field struct {
 	Revealed bool `json:"-"`
 }
 
+// splitPath cuts raw into what comes before its path, the path's segments and
+// what follows it (query and fragment). Segments are nil for a URL with no path.
+func splitPath(raw string) (head string, segments []string, tail string) {
+	start := 0
+	if scheme, _, ok := strings.Cut(raw, "://"); ok && !strings.ContainsAny(scheme, "/?#") {
+		start = len(scheme) + len("://")
+	}
+	slash := strings.IndexByte(raw[start:], '/')
+	if slash < 0 {
+		return raw, nil, ""
+	}
+	begin, end := start+slash, len(raw)
+	if i := strings.IndexAny(raw[begin:], "?#"); i >= 0 {
+		end = begin + i
+	}
+	return raw[:begin], strings.Split(raw[begin:end], "/"), raw[end:]
+}
+
+// PathNames lists the :name path segments of raw, in order.
+func PathNames(raw string) []string {
+	_, segments, _ := splitPath(raw)
+	var names []string
+	for _, seg := range segments {
+		if name, ok := strings.CutPrefix(seg, ":"); ok && name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// FillPath replaces each :name path segment of raw with the value of the first
+// enabled row called name. A blank value becomes {{name}}, a variable the send
+// resolves like any other, and a segment with no row stays as written. The
+// values are not expanded here: the caller expands the whole URL once.
+func FillPath(raw string, rows []Field) string {
+	head, segments, tail := splitPath(raw)
+	if segments == nil {
+		return raw
+	}
+	values := map[string]string{}
+	for _, r := range rows {
+		if _, ok := values[r.Name]; !ok && !r.Disabled {
+			values[r.Name] = r.Value
+		}
+	}
+	for i, seg := range segments {
+		if name, ok := strings.CutPrefix(seg, ":"); ok {
+			if value, ok := values[name]; ok && name != "" {
+				segments[i] = cmp.Or(value, "{{"+name+"}}")
+			}
+		}
+	}
+	return head + strings.Join(segments, "/") + tail
+}
+
 // Prepare is the encoder shared by Send, Runner and cURL export.
 // Send/Runner run pre-scripts on templates first, then encode with final vars.
 func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
@@ -154,7 +212,7 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 	}
 	req := &Prepared{
 		Method: strings.ToUpper(strings.TrimSpace(cmp.Or(ExpandVars(r.Method, vars), "GET"))),
-		URL:    strings.TrimSpace(ExpandVars(r.URL, vars)), Body: ExpandVars(r.Body, vars),
+		URL:    strings.TrimSpace(ExpandVars(FillPath(r.URL, r.PathVariables), vars)), Body: ExpandVars(r.Body, vars),
 		Header: ParseHeaderBlock(ExpandVars(r.Headers, vars)),
 	}
 	if req.URL == "" {

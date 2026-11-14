@@ -196,8 +196,9 @@ func TestReadCollection(t *testing.T) {
 		},
 		{
 			Name: "Get order", Collection: orders + "/Archive", Method: "GET",
-			URL:  "{{baseUrl}}/orders/42/items/{{itemId}}",
-			Auth: request.Auth{Type: "API key", Key: "api_key", Value: "{{apiKey}}", Location: "Query"},
+			URL:           "{{baseUrl}}/orders/:orderId/items/:itemId",
+			PathVariables: []request.Field{{Name: "orderId", Value: "42"}, {Name: "itemId"}},
+			Auth:          request.Auth{Type: "API key", Key: "api_key", Value: "{{apiKey}}", Location: "Query"},
 		},
 		{
 			ID: "req-login", Name: "Login", Collection: "Shop API/Auth", Method: "POST", URL: "{{baseUrl}}/login",
@@ -1311,3 +1312,29 @@ func TestPostmanRedirectSettingsInheritIndependently(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// A path variable keeps its :name segment and its value through export and
+// import, so the value stays editable after a Postman round trip.
+func TestPathVariablesRoundTrip(t *testing.T) {
+	requests := []request.Request{{ID: "order", Name: "Order", Collection: "Shop", Method: "GET",
+		URL:           "{{baseUrl}}/orders/:orderId/items/:itemId?expand=1",
+		PathVariables: []request.Field{{Name: "orderId", Value: "42"}, {Name: "itemId"}}}}
+	data, warnings, err := postman.WriteCollection("Shop", requests, nil)
+	if err != nil || len(warnings) != 0 {
+		t.Fatalf("%v, warnings %q", err, warnings)
+	}
+	if compact := strings.Join(strings.Fields(string(data)), ""); !strings.Contains(compact, `"variable":[{"key":"orderId","value":"42","type":"string"},{"key":"itemId","value":"","type":"string"}]`) {
+		t.Errorf("export lacks the path variables:\n%s", data)
+	}
+	got, err := postman.ReadCollection(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Requests) != 1 {
+		t.Fatalf("requests: %+v", got.Requests)
+	}
+	r := got.Requests[0]
+	if r.URL != requests[0].URL || !reflect.DeepEqual(r.PathVariables, requests[0].PathVariables) {
+		t.Errorf("round trip: URL %q, path variables %+v", r.URL, r.PathVariables)
+	}
+}

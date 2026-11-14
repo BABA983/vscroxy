@@ -139,8 +139,8 @@ func TestReadCollectionDirV3(t *testing.T) {
 	}
 
 	get := v3Request(t, col, "Shop API/Users", "Get user")
-	if get.URL != "{{baseUrl}}/users/42" {
-		t.Errorf("path variable URL = %q, want the :id segment filled", get.URL)
+	if get.URL != "{{baseUrl}}/users/:id" || len(get.PathVariables) != 1 || get.PathVariables[0] != (request.Field{Name: "id", Value: "42"}) {
+		t.Errorf("path variables = %q %+v, want :id kept with its value 42", get.URL, get.PathVariables)
 	}
 
 	health := v3Request(t, col, "Shop API", "Health/check")
