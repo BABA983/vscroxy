@@ -198,6 +198,7 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 // request bar, the request's parts with the capture's own reader beside
 // them, and the captured response until the document is sent.
 func (a *app) capturedDocument(c *ui.Context, t *ui.Theme, f flow, d *requestDocument) {
+	a.protoOwner = a.protobufOwnerForDocument(f, d)
 	a.requestBar(c, t, d, func() {
 		// A narrow inspector keeps its width for the URL.
 		var save ui.Element

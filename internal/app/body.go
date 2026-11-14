@@ -208,23 +208,80 @@ func (a *app) bodyModes(f flow, side int) []string {
 // one message choice.
 func (a *app) protobufOwner(f flow) int {
 	for _, side := range []int{a.inspect.focus, 1 - a.inspect.focus} {
-		modes := a.bodyModes(f, side)
-		if len(modes) < 6 {
-			continue
-		}
-		mode := a.bodyMode[side]
-		if mode == 0 {
-			body := a.body
-			if side == 1 {
-				body = a.reqBody
-			}
-			mode = a.autoBodyMode(f, side, body)
-		}
-		if mode == 5 && modes[mode] == "Protobuf" {
+		if a.capturedShowsProtobuf(f, side) {
 			return side
 		}
 	}
 	return -1
+}
+
+// capturedShowsProtobuf reports whether one captured side's body view is
+// reading its bytes as protobuf.
+func (a *app) capturedShowsProtobuf(f flow, side int) bool {
+	modes := a.bodyModes(f, side)
+	if len(modes) <= 5 || modes[5] != "Protobuf" {
+		return false
+	}
+	mode := a.bodyMode[side]
+	if mode == 0 {
+		body := a.body
+		if side == 1 {
+			body = a.reqBody
+		}
+		mode = a.autoBodyMode(f, side, body)
+	}
+	return mode == 5
+}
+
+// draftShowsProtobuf reports whether the editable request is reading its
+// draft bytes as protobuf.
+func (a *app) draftShowsProtobuf(d *requestDocument) bool {
+	if d == nil {
+		return false
+	}
+	formats := a.draftBodyFormats(d)
+	view := min(max(d.bodyRead, 0), len(formats)-1)
+	return formats[view] == "Protobuf"
+}
+
+// protobufOwnerForDocument picks the one side that may draw the shared
+// protobuf reader while a capture is edited. The request's draft body is a
+// candidate even though its bytes are not the capture's.
+func (a *app) protobufOwnerForDocument(f flow, d *requestDocument) int {
+	request := a.draftShowsProtobuf(d)
+	response := d != nil && !d.sentSet && !d.composeWaiting && d.response == nil && a.capturedShowsProtobuf(f, 0)
+	if a.inspect.focus == 1 {
+		if request {
+			return 1
+		}
+		if response {
+			return 0
+		}
+	} else {
+		if response {
+			return 0
+		}
+		if request {
+			return 1
+		}
+	}
+	return -1
+}
+
+// protobufReadElsewhere says this side must not draw the shared reader. The
+// pane that owns it is named, so the other side still says where to read.
+func (a *app) protobufReadElsewhere(c *ui.Context, side int) bool {
+	if a.protoOwner == side {
+		return false
+	}
+	if a.protoOwner >= 0 {
+		name := "response"
+		if a.protoOwner == 1 {
+			name = "request"
+		}
+		uikit.Hint(c, locales.ProtobufReadInPane(name)).Padding(c.Theme().Space(4))
+	}
+	return true
 }
 
 // autoBodyMode uses explicit formats where possible. A failed structured
@@ -293,14 +350,8 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		return
 	}
 	if mode == 5 {
-		// One inspector reads one side: when both sides are protobuf, the
-		// response owns it and the request says where to read.
-		if owner := a.protobufOwner(f); owner != side && owner >= 0 {
-			name := "response"
-			if owner == 1 {
-				name = "request"
-			}
-			uikit.Hint(c, locales.ProtobufReadInPane(name)).Padding(t.Space(4))
+		// One inspector reads one side: the other says where to read.
+		if a.protobufReadElsewhere(c, side) {
 			return
 		}
 		a.protobufReader(c, f, side)

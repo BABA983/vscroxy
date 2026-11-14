@@ -276,6 +276,47 @@ func TestCaptureErrorsIncludeGRPCFailures(t *testing.T) {
 	}
 }
 
+// A capture can show protobuf on both sides at once: the request's draft
+// reader and the captured response. They share one inspector, so only the
+// side the reader chose may draw it; the other says where to read.
+func TestProtobufReaderHasOneOwnerWhenRequestAndResponseBothRead(t *testing.T) {
+	a := workspaceApp()
+	f := flow{id: 4, method: "POST", scheme: "https", host: "api.example.com", path: "/api.Catalog/Fetch", url: "https://api.example.com/api.Catalog/Fetch", status: 200, reqBody: string(pbMessage(pbBytes(1, []byte("find")))), resBody: string(append(pbMessage(pbBytes(1, []byte("alpha"))), pbMessage(pbBytes(1, []byte("beta")))...)), reqHeader: http.Header{"Content-Type": {"application/grpc"}}, respHeader: http.Header{"Content-Type": {"application/grpc"}}, resTrailer: http.Header{"Grpc-Status": {"0"}}}
+	a.flows = []flow{f}
+	a.applyFilter()
+	t.Cleanup(a.protobuf.stop)
+	a.protobuf.store = filepath.Join(t.TempDir(), "protobuf.pb")
+	a.workbench.layout = "bottom"
+	tt := ui.NewTester(a.view, 1240, 850)
+	tt.Frame()
+	d := a.requestDocument
+	if d == nil {
+		t.Fatal("the capture has no editable draft")
+	}
+	for i, format := range a.draftBodyFormats(d) {
+		if format == "Protobuf" {
+			d.bodyRead = i
+		}
+	}
+	// The response pane has focus, so it owns the shared reader; the draft
+	// still reads as protobuf and must not build a second List over it.
+	a.inspect.focus = 0
+	a.inspect.tab[0], a.inspect.tab[1] = composeTabBody, resViewBody
+	tt.Frame()
+	readers := 0
+	for _, text := range tt.Texts() {
+		if text == "Protobuf reader" {
+			readers++
+		}
+	}
+	if readers != 1 {
+		t.Fatalf("the shared protobuf reader was drawn %d times: %v", readers, tt.Texts())
+	}
+	if !tt.HasText("Protobuf is read in the response pane.") {
+		t.Fatalf("the request pane did not say where protobuf is read: %v", tt.Texts())
+	}
+}
+
 func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 	path, _, _ := protoFixture(t)
 	a := workspaceApp()

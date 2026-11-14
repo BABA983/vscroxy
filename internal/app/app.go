@@ -266,8 +266,10 @@ type app struct {
 	jsonOK       [2]bool
 	protoFor     [2]string
 	protoOK      [2]bool
-	protobuf     protoInspector
-	structured   [2]structuredInspector
+	// protoOwner is the side whose shared protobuf reader is live this frame.
+	protoOwner int
+	protobuf   protoInspector
+	structured [2]structuredInspector
 
 	// newRows counts traffic that arrived while the list was paused, so the
 	// footer can offer to resume following without moving the reader.
@@ -1600,6 +1602,7 @@ func (a *app) syncDetail() {
 	a.jsonScroll, a.hexScroll = [2]ui.ListState{}, [2]ui.ListState{}
 	a.jsonFor, a.protoFor, a.htmlFor, a.imageFor = [2]string{}, [2]string{}, [2]string{}, [2]string{}
 	a.jsonOK, a.protoOK = [2]bool{}, [2]bool{}
+	a.protoOwner = -1
 	a.htmlDoc, a.imageBmp, a.imageErr = [2]*richtext.Document{}, [2]*ui.Bitmap{}, [2]string{}
 	a.protobuf.stop()
 	previous, baseline := a.previousResponse()

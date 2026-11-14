@@ -728,6 +728,9 @@ func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
 	case view <= 0:
 		a.requestBodyText(c, d)
 	case formats[view] == "Protobuf":
+		if a.protobufReadElsewhere(c, 1) {
+			return
+		}
 		a.protobufReader(c, draftFlow(d), 1)
 	case formats[view] == inspect.BodyFormat(ct):
 		a.structured[1].view(c, inspectionBody{text: body}, ct)

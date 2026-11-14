@@ -576,6 +576,10 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 		})
 		return
 	}
+	a.protoOwner = -1
+	if a.draftShowsProtobuf(d) {
+		a.protoOwner = 1
+	}
 	ui.Column(c.Key(d.id)).Fill().Children(func() {
 		a.requestBar(c, t, d, nil)
 		a.requestVariablesPanel(c, t, d)
