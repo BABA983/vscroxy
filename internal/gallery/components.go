@@ -55,7 +55,7 @@ type components struct {
 	range_                            uikit.ActivityRange
 	open                              bool
 	on, off, check                    bool
-	toasts                            bool
+	toastsFor                         map[*ui.Context]bool
 	icon                              ui.ImageSource
 }
 
@@ -560,8 +560,13 @@ func (k *components) settingsPlate(c *ui.Context) {
 }
 
 func (k *components) toastPlate(c *ui.Context) {
-	if !k.toasts {
-		k.toasts = true
+	// Toasts belong to a window, not to the plate builder: the light and dark
+	// exports each get their own context and their own three toasts.
+	if k.toastsFor == nil {
+		k.toastsFor = make(map[*ui.Context]bool)
+	}
+	if !k.toastsFor[c] {
+		k.toastsFor[c] = true
 		c.AddToast(ui.Toast{Title: "Request deleted", Action: "Undo", Type: "success", Timeout: -1})
 		c.AddToast(ui.Toast{Title: "Certificate is not trusted", Description: "Install it to read HTTPS.", Type: "warning"})
 		c.AddToast(ui.Toast{Title: "The proxy stopped", Description: "Port 7890 is in use.", Type: "error", Timeout: -1})
