@@ -402,20 +402,26 @@ func Tip(c *ui.Context, e ui.Element, text string) ui.Element {
 	return e
 }
 
-// breakLong gives a long unbroken string, such as a URL, places to wrap: a
-// zero-width space every 32 characters keeps it inside the tip.
+// breakLong gives a long string places to wrap. A URL gets a zero-width
+// space after the characters that already divide it; only a run with none of
+// them is broken after 32 characters.
 func breakLong(s string) string {
-	if len(s) <= 32 {
-		return s
-	}
+	const limit = 32
 	var b strings.Builder
-	for i, r := range s {
-		if i > 0 && i%32 == 0 {
-			b.WriteRune('\u200b')
-		}
+	run := 0
+	for _, r := range s {
 		b.WriteRune(r)
+		if r == '\u200b' {
+			run = 0
+			continue
+		}
+		run++
+		if strings.ContainsRune("/?&=-_.", r) || run >= limit {
+			b.WriteRune('\u200b')
+			run = 0
+		}
 	}
-	return b.String()
+	return strings.TrimSuffix(b.String(), "\u200b")
 }
 
 // Dialog content uses three width tiers inside Modal's shared padding.
