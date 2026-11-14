@@ -872,6 +872,23 @@ var requestMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "
 // requestBar is the line a person edits and sends: method, URL, and the one
 // prominent action.
 // requestBar is the method, URL and Send; more adds what follows Send.
+// protocolDefaultURL gives a new protocol a URL that its editor can use,
+// but only while the URL is still the untouched https:// a new request
+// starts with.
+func protocolDefaultURL(protocol, current string) string {
+	if current != "https://" {
+		return current
+	}
+	switch protocol {
+	case "MQTT":
+		return "mqtts://"
+	case "WebSocket":
+		return "wss://"
+	default:
+		return current
+	}
+}
+
 func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more func()) {
 	ui.Row(c).Height(48).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		field := ui.Row(c).Grow(1).Height(uikit.HeightLarge).AlignItems(ui.Center)
@@ -912,6 +929,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 						if protocol == "HTTP" {
 							d.protocol = ""
 						}
+						d.composeURL = protocolDefaultURL(protocol, d.composeURL)
 						if protocol == "MQTT" {
 							d.ensureMQTT()
 						}
@@ -965,6 +983,9 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			placeholder := "https://api.example.com/v1/resource"
 			if d.protocol == "MQTT" {
 				placeholder = "mqtts://broker.example.com:8883"
+			}
+			if d.protocol == "Socket.IO" {
+				placeholder = "https://host/socket.io"
 			}
 			input := ui.TextInputBase(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(uikit.HeightControl).Padding(0, t.Space(2)).Label(locales.Url()).
 				Placeholder(placeholder).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody))
