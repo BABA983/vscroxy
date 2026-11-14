@@ -518,6 +518,7 @@ type app struct {
 	oauth             oauthState
 	runner            collectionRunner
 	loadRunner        collectionLoadRunner
+	mocks             map[string]*collectionMock // running collection mock servers, by path
 	cookies           *cookieStore
 	cookiesPath       string
 	cookiePersistence bool
@@ -3318,6 +3319,7 @@ func Run() error {
 	defer a.closeControl()
 	mygo.App.OnQuit(a.closeControl)
 	mygo.App.OnQuit(a.closeLoadRunner)
+	mygo.App.OnQuit(a.stopCollectionMocks)
 	defer a.closeLoadRunner()
 	mygo.App.OnQuit(a.flushCookies)
 	defer a.flushCookies()

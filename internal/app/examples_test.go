@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/mockserver"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 )
@@ -221,5 +222,38 @@ func TestExampleStatusNewAndDuplicateByHand(t *testing.T) {
 	}
 	if d.exampleEditor == nil || d.exampleEditor.Label != "Example 201 Created 2" {
 		t.Fatal("the editor does not show the duplicate")
+	}
+}
+
+// A collection's mock server listens on loopback, answers from the examples
+// under its collection, and stops when asked.
+func TestCollectionMockServesItsExamplesOnLoopback(t *testing.T) {
+	a := workspaceApp()
+	path := a.requests[0].Collection
+	a.requests[0].Examples = []request.Example{
+		{ID: "e1", Name: "201 Created", Status: 201, Body: "created", Request: request.ExampleRequest{Method: "GET", URL: "https://api.example.com/projects"}},
+		{ID: "e2", Name: "404 Not Found", Status: 404, Body: "missing", Request: request.ExampleRequest{Method: "GET", URL: "https://api.example.com/projects"}},
+	}
+	a.startCollectionMock(path)
+	m := a.mocks[path]
+	if m == nil || !strings.HasPrefix(m.url, "http://127.0.0.1:") {
+		t.Fatalf("mock server = %+v, want a loopback URL", m)
+	}
+	req, _ := http.NewRequest(http.MethodGet, m.url+"/projects", nil)
+	req.Header.Set(mockserver.CodeHeader, "404")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 from the 404 example", resp.StatusCode)
+	}
+	a.stopCollectionMock(path)
+	if _, err := http.Get(m.url + "/projects"); err == nil {
+		t.Fatal("the mock server still answers after it was stopped")
+	}
+	if a.mocks[path] != nil {
+		t.Fatal("the stopped mock server is still recorded")
 	}
 }

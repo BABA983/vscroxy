@@ -12386,6 +12386,48 @@ func (msgs Messages) NewExample() string {
 	return Catalog.Format(msgs.locale, "newExample", nil)
 }
 
+// StartMockServer says "Start mock server"
+// in the language the app shows.
+func StartMockServer() string { return In(i18n.Locale()).StartMockServer() }
+
+// StartMockServer says "Start mock server"
+// in the language of msgs.
+func (msgs Messages) StartMockServer() string {
+	return Catalog.Format(msgs.locale, "startMockServer", nil)
+}
+
+// StopMockServerAt says "Stop mock server at {url}"
+// in the language the app shows.
+func StopMockServerAt(url string) string { return In(i18n.Locale()).StopMockServerAt(url) }
+
+// StopMockServerAt says "Stop mock server at {url}"
+// in the language of msgs.
+func (msgs Messages) StopMockServerAt(url string) string {
+	return Catalog.Format(msgs.locale, "stopMockServerAt", map[string]any{"url": url})
+}
+
+// MockServerRunning says "Mock server for “{path}” listens at {url}"
+// in the language the app shows.
+func MockServerRunning(path string, url string) string {
+	return In(i18n.Locale()).MockServerRunning(path, url)
+}
+
+// MockServerRunning says "Mock server for “{path}” listens at {url}"
+// in the language of msgs.
+func (msgs Messages) MockServerRunning(path string, url string) string {
+	return Catalog.Format(msgs.locale, "mockServerRunning", map[string]any{"path": path, "url": url})
+}
+
+// MockServerStopped says "Stopped the mock server for “{path}”"
+// in the language the app shows.
+func MockServerStopped(path string) string { return In(i18n.Locale()).MockServerStopped(path) }
+
+// MockServerStopped says "Stopped the mock server for “{path}”"
+// in the language of msgs.
+func (msgs Messages) MockServerStopped(path string) string {
+	return Catalog.Format(msgs.locale, "mockServerStopped", map[string]any{"path": path})
+}
+
 // NewLocalCurrentVariable says "New local Current variable"
 // in the language the app shows.
 func NewLocalCurrentVariable() string { return In(i18n.Locale()).NewLocalCurrentVariable() }

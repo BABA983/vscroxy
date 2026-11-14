@@ -124,7 +124,13 @@ func (a *app) collectionTree(c *ui.Context) {
 					mock = "Rebuild scenario “" + path + "” from examples"
 				}
 				actions := append([]action{do("collection.docs", locales.ViewDocumentation(), func() { a.openDocs(path) }).in("open")}, a.folderSettingsActions(path)...)
+				serve := do("collection.mockserve", locales.StartMockServer(), func() { a.startCollectionMock(path) }).
+					when(a.examplesUnder(path), "Save a response as an example first").in("edit")
+				if running := a.mocks[path]; running != nil {
+					serve = do("collection.mockstop", locales.StopMockServerAt(running.url), func() { a.stopCollectionMock(path) }).in("edit")
+				}
 				actionMenu(m, append(actions,
+					serve,
 					do("collection.mock", mock, func() { a.scenarioFromExamples(path) }).
 						when(a.examplesUnder(path), "Save a response as an example first").in("edit"),
 					do("collection.delete", "Delete “"+path+"”…", func() { a.confirmDeleteFolder(path) }).in("danger")))

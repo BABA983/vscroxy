@@ -791,6 +791,27 @@ first answers by default and the others when the request sends
 it. **Rebuild scenario “…” from examples** replaces the scenario's rules and
 the mock files they used, in the same place in the list, keeping it on or off.
 
+**Start mock server** in a collection's menu serves the collection's examples on
+`http://127.0.0.1:<port>`, a free loopback port; the menu then offers **Stop mock
+server at** that URL, and a notice shows it. The server does not go through the
+proxy, so a front end only changes its base URL. Each example answers at the
+method and URL it was saved from: `{{variables}}` in the URL are filled from the
+collection's environment, a `:name` or `{{name}}` path segment matches any one
+segment, and the query is ignored. A request with no matching route gets 404.
+Within a route, the example is chosen by the request:
+
+- `X-Mock-Response-Name` with the example's name;
+- `X-Mock-Response-Code` with a status code, which picks the first example with
+  that status;
+- `x-mock-match-request-body: true`, which answers only from examples whose
+  request body equals the request's body, after variables are filled in. A body
+  no example has gets 404.
+
+A name beats a code, and a name or code no example has falls back to the first
+example. The server answers from the examples as they were when it started, so
+restart it after editing one. It stops when you choose the menu item again or
+quit the app. Per-example response delays are not supported yet.
+
 ## Connection diagnostics
 
 The app's own log is `~/.vscroxy/logs/vscroxy.log`, rotated at 5 MiB with five

@@ -191,6 +191,7 @@
 | 客户端证书（按域名）、自定义 CA | 已有 | Settings → Certificates 按 host（可带端口、`*.` 通配，IDN 转 punycode）配置客户端证书和额外根证书；Send、Runner、CLI/MCP 运行集合、WebSocket、SSE、gRPC、Socket.IO、MCP 生效；PEM cert+key 或 PKCS#12/PFX，口令密封保存，文件每次发送读取；重定向按每一跳的目标 host 重新选证书和根，明文跳不读证书文件；关闭证书校验仍接受任意证书，与自定义 CA 互不影响 | M6 |
 | Examples | 已有 | Examples 标签可手写：New example 新建（200、空正文、继承请求的 Content-Type），Duplicate 复制当前示例（如加一个 404 用例），状态码、名称、正文和响应头都可编辑，下一次 Save 保存；请求视图只读 | |
 | Examples 作为 Mock 响应（本地 mock） | 已有 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples；`vscroxy-cli mock` 在回环地址按集合 Examples 提供 mock（见[自动化](automation.md#mock-server)），未提供 MCP 工具和桌面启动控制 | M4 |
+| 集合 mock 服务（独立端口） | 已有首版 | 集合菜单 Start mock server 在 127.0.0.1 随机端口提供集合 Examples，不经过代理；按 `X-Mock-Response-Name`、`X-Mock-Response-Code`、`x-mock-match-request-body` 选择；启动后的 Example 修改需重启；不支持每个 Example 的延迟；`vscroxy-cli` 子命令另行接入（internal/mockserver） | M6 |
 | 代码 Mock（脚本生成本地响应） | 首版已有 | Code Mock 规则运行 `onMock`，读取 `pm.request`、生成 `pm.response`；复用编辑器／Scenario／配置导出，失败返回本地错误而不穿透原站；不是 Postman Node.js／`pm.mock` 服务兼容层 | M9 |
 | Runner：数据文件、迭代、setNextRequest | 已有 | | |
 | Runner：性能测试（虚拟用户、时长、指标） | 已有首版 | 内置固定并发集合负载；复用 Runner、HdrHistogram 执行耗时；原生／CLI／MCP。无固定 RPS、爬坡或分布式压测 | M9 |
