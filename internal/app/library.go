@@ -318,6 +318,7 @@ func (a *app) setProjectDir(dir string) {
 	a.loadRequestAssets()
 	a.loadSavedAPIs()
 	a.loadScripts()
+	a.startProjectWatch()
 	a.persistSettings()
 	a.done(locales.ReloadedRequests(len(a.requests), a.library.root))
 }

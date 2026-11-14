@@ -485,3 +485,70 @@ func TestProjectFolderHoldsOpenAPISpecsAndAddons(t *testing.T) {
 		t.Fatalf("the spec file changed outside the app was overwritten: %s", data)
 	}
 }
+
+func TestProjectFolderReloadsOutsideChangesButKeepsDrafts(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	a := libraryApp(t)
+	a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
+	a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
+	project := t.TempDir()
+	a.setProjectDir(project)
+	root := a.library.root
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// Files that a pull brings in: a request, Initial values and an addon.
+	pulled := filepath.Join(root, "Pulled.request.json")
+	if err := os.WriteFile(pulled, []byte(`{"name":"Pulled","method":"GET"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, ".vscroxy", "environments.json"), []byte(`{"environments":[{"name":"dev","vars":{"host":"pulled.example"}}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(project, ".vscroxy", "addons"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, ".vscroxy", "addons", "later.js"), []byte("export const later = 1;\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	a.syncProject(project)
+	pulledAt := func() int {
+		return slices.IndexFunc(a.requests, func(r savedRequest) bool { return r.Name == "Pulled" })
+	}
+	if pulledAt() < 0 {
+		t.Fatalf("pulled request not shown: %+v", a.requests)
+	}
+	if len(a.envs) != 1 || a.envs[0].Vars["host"] != "pulled.example" {
+		t.Fatalf("pulled environment not shown: %+v", a.envs)
+	}
+	if !slices.Contains(a.addons.names, "later") {
+		t.Fatalf("pulled addon not shown: %v", a.addons.names)
+	}
+	if a.projectPending.Load() {
+		t.Fatal("the sync waits although nothing has unsaved edits")
+	}
+
+	// A request open with unsaved edits keeps them, and the outside change waits.
+	at := pulledAt()
+	a.addDocument(a.requests[at], a.requests[at].key())
+	a.requestDocument.composeURL = "https://mine.example"
+	if !a.requestDocument.dirty() {
+		t.Fatal("setup: the edit did not make the request dirty")
+	}
+	if err := os.WriteFile(pulled, []byte(`{"name":"Pulled","method":"PUT"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a.syncProject(project)
+	if a.requests[at].Method != "GET" || !a.projectPending.Load() {
+		t.Fatalf("an outside change reloaded over an open edit: method %q, pending %v", a.requests[at].Method, a.projectPending.Load())
+	}
+
+	// Discarding the draft lets the waiting change load.
+	a.documents, a.requestDocument = nil, nil
+	a.syncProject(project)
+	if at := pulledAt(); at < 0 || a.requests[at].Method != "PUT" || a.projectPending.Load() {
+		t.Fatalf("the waiting change did not load after the draft was discarded: %+v", a.requests)
+	}
+}

@@ -107,7 +107,7 @@ func (f *File) Write(data []byte) error {
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	if exists != f.exists || exists && sha256.Sum256(disk) != f.sum {
+	if f.changedFrom(disk, exists) {
 		return ErrChanged
 	}
 	if exists && bytes.Equal(disk, data) {
@@ -118,6 +118,21 @@ func (f *File) Write(data []byte) error {
 	}
 	f.remember(data, true)
 	return nil
+}
+
+// Changed reports whether the file on disk differs from what the last Read or
+// Write saw: a file that appeared, vanished or has other contents.
+func (f *File) Changed() (bool, error) {
+	disk, err := os.ReadFile(f.Path)
+	exists := err == nil
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return false, err
+	}
+	return f.changedFrom(disk, exists), nil
+}
+
+func (f *File) changedFrom(disk []byte, exists bool) bool {
+	return exists != f.exists || exists && sha256.Sum256(disk) != f.sum
 }
 
 func (f *File) remember(data []byte, exists bool) {

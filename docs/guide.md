@@ -2935,6 +2935,12 @@ the value set here.
 OpenAPI specs are stored in one file, so two people who edit different specs
 in the same branch can still conflict in Git.
 
+With a project folder set, the app checks those files every two seconds, so a
+`git pull` shows up without a restart. A file changed outside the app is
+reloaded when nothing open has unsaved edits in it. Otherwise the reload waits
+until those edits are saved or discarded, and a save in the meantime reports the
+outside change rather than replacing it.
+
 `environments.json` has no field for Current values or credential marks, so
 they cannot be written into the project. `env.json` keeps a copy of the
 Initial values from the last save, which **Use default folder** restores. A

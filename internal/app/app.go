@@ -428,10 +428,13 @@ type app struct {
 	keyLogOpen  bool
 	keyLogInput string
 
-	// projectDir is the project folder whose .vscroxy/collections is the
-	// request library, and projectInput is its Settings field.
-	projectDir   string
-	projectInput string
+	// projectDir is the project folder whose .vscroxy directory holds the
+	// shared files, and projectInput is its Settings field. The watch polls
+	// that folder; projectPending says a change waits on unsaved edits.
+	projectDir       string
+	projectInput     string
+	projectWatchStop chan struct{}
+	projectPending   atomic.Bool
 
 	// Connection overlays belong to the inspected request, not the list.
 	connOpen bool
@@ -776,6 +779,11 @@ func newApp() *app {
 func (a *app) loadRequestAssets() {
 	a.loadRequestLibrary()
 	a.refreshDocuments()
+	a.loadEnvsState()
+}
+
+// loadEnvsState reads the environments and variables in use from their files.
+func (a *app) loadEnvsState() {
 	if f, err := a.loadEnvFile(); err != nil {
 		a.envsProblem = fmt.Sprintf("Variables (%s): %v", a.envsPath, err)
 	} else {
@@ -3309,6 +3317,7 @@ func Run() error {
 		a.win.OnFocus(func() { a.win.Update(func() { a.windowBehind = false }) })
 		a.win.OnBlur(func() { a.win.Update(func() { a.windowBehind = true }) })
 		a.win.OnFileDrop(func(e *mygo.FileDropEvent) { a.importDropped(e.Paths) })
+		a.startProjectWatch()
 		a.win.OnClose(func(e *mygo.CloseEvent) {
 			if !a.systemProxy.quitReady {
 				e.PreventDefault()
