@@ -76,6 +76,13 @@ func TestUIScreensUseTheCatalog(t *testing.T) {
 			if strings.HasSuffix(path, "_test.go") {
 				continue
 			}
+			// gallery.go is the design gallery's fake data, not a screen: its
+			// strings are what a plate shows (a WebSocket session line, an
+			// editor label), and the gallery is English-only on purpose, so
+			// they are neither catalog messages nor untranslated app text.
+			if filepath.Base(path) == "gallery.go" {
+				continue
+			}
 			for _, text := range screenStrings(t, path) {
 				if allowed[text] {
 					continue
