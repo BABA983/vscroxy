@@ -573,6 +573,7 @@ v3 六个阶段落地后，和设计稿仍有这些差别，都是有意保留�
 
 - **悬停只重绘，做不到（2026-11-13）。** 悬停底色要在 `Draw` 里读指针才能只重绘；但 `p.AnimationFrame()` 请求的是只重绘不重建的帧，这种帧里 `Element.Hovered()` 用的还是上一轮构建的元素，MyGo 判它过期并 panic：`ui: element from pass 143 used in pass 146; keep a ui.Handle instead`。`ui.Handle` 只有 `Focused`／`Bounds`，没有 `Hovered`，所以换 handle 也读不到。23 处悬停仍在构建期读，用 `hoverMotion` 保留 120 ms 淡出；等 MyGo 给 painter 级的指针信息或可在重绘帧读的 hover 才能改。
 - **表格行不能拖进集合（2026-11-14）。** MyGo 0.9.0 有 `DragRows`／`Drop`，tester 里的合成拖动也能通过，但在真机上按住表格行拖动时，表格从不开始拖动会话（没有幽灵行，集合行也没有 `DragOver`），所以松手不会保存。拖放已整条回退，等 MyGo 提供可在真机工作的拖动源，或改用自绘的拖动层。
+- **Darwin 上第三方进程读不到 TCP 控制块（2026-11-14）。** `/usr/sbin/netstat` 带有 `com.apple.private.network.statistics` 权限，从终端直接运行时能看到每个连接的进程和 pid；但由 Go／C 子进程（甚至 `/bin/sh -c` 子进程）启动时输出 0 字节，`netstat -anv -p tcp` 的 pid 列不会给第三方 responsible process。`sysctl -b net.inet.tcp.pcblist_n` 在终端返回 170064 字节，而 Go 的 `unix.SysctlRaw` 和 C 的 `sysctlbyname` 都只拿到 48 字节的 `xinpgen` 头。M6 的 PCB 读取因此删掉，客户端归属仍走 lsof 批量查询；只有 `lsof` 能在本机实际拿到 socket 的 pid。
 - **侧栏 Apps 的行只能画字形图标，画不了应用自己的图标（2026-11-13）。** `ui.SidebarItem` 的图标槽收 `*ui.SVG`，而我们自己 `.Children(...)` 加的内容会排在文字之后；`mygo.Shell.FileIcon` 能取到 `.app`／exe 的位图，但没有地方把它放进行首。流量表的 Client 列不受影响（那里是我们自己排的行）。
 
 - **表格行下方的一大片空白还在（2026-11-13）。** 审计建议画斑马空行延续网格，或让最后一行之后的点击取消选中。前者要 MyGo 的 `Table` 给出滚动偏移或一个空白区的绘制钩子，它两个都没有，画在表格矩形里的横线滚动后会穿过行；后者和「永远有一行被选中、检查器跟着它」冲突（第 77 条）。
