@@ -2240,14 +2240,20 @@ func socketOf(conn net.Conn) clientSocket {
 }
 
 type clientIdentity struct {
-	client  *proxy.ClientConn
-	process procinfo.Process
+	client       *proxy.ClientConn
+	process      procinfo.Process
+	ready        chan struct{}
+	disconnected bool
 }
 
 type clientProcessKey struct{}
 
-// noteClient resolves ownership using the full accepted socket. Unknown
-// identities fail closed, rather than borrowing a process from a recycled port.
+// noteClient starts resolving ownership from the full accepted socket as soon
+// as it is accepted, so a short-lived connection does not have to survive the
+// lookup. A disconnected identity keeps its process for a short grace: a failed
+// CONNECT often publishes after its client has gone. A new connection reusing
+// the address replaces it, and the old flow's connection pointer no longer
+// matches, so history cannot borrow a recycled port.
 func (s *Server) noteClient(client *proxy.ClientConn, connected bool) {
 	if client == nil || client.Conn == nil {
 		return
@@ -2255,21 +2261,48 @@ func (s *Server) noteClient(client *proxy.ClientConn, connected bool) {
 	addr := socketOf(client.Conn)
 	if !connected {
 		s.mu.Lock()
-		if s.clients[addr].client == client {
-			delete(s.clients, addr)
+		identity := s.clients[addr]
+		if identity.client == client {
+			identity.disconnected = true
+			s.clients[addr] = identity
+			// A failed CONNECT can publish after its client closed. Keep the
+			// process it was accepted with for a short grace, then forget it.
+			time.AfterFunc(10*time.Second, func() {
+				s.mu.Lock()
+				if current := s.clients[addr]; current.client == client && current.disconnected {
+					delete(s.clients, addr)
+				}
+				s.mu.Unlock()
+			})
 			delete(s.replayClients, addr.remote)
 		}
 		s.mu.Unlock()
 		return
 	}
-	process := procinfo.Lookup(addr.remote, addr.local)
+	identity := clientIdentity{client: client, ready: make(chan struct{})}
 	s.mu.Lock()
-	s.clients[addr] = clientIdentity{client: client, process: process}
+	s.clients[addr] = identity
 	s.mu.Unlock()
+	// lsof can take longer than a short-lived connection. The accept path
+	// must not wait for it: the request handler waits for the result only
+	// while it needs an owner, and publish can use it after disconnect.
+	go func() {
+		process := procinfo.Lookup(addr.remote, addr.local)
+		s.mu.Lock()
+		current := s.clients[addr]
+		if current.client == client {
+			current.process = process
+			s.clients[addr] = current
+		}
+		close(identity.ready)
+		s.mu.Unlock()
+	}()
 }
 
-// socketProcess retries an unreadable owner only while the exact accepted
-// connection is still active. The OS may not list its socket at accept time.
+// socketProcess returns the owner of the exact accepted connection. It waits
+// briefly for the lookup started at accept, then uses the retained answer even
+// after disconnect. A missing owner stays empty rather than borrowing a process
+// from a recycled port.
 func (s *Server) socketProcess(addr clientSocket, client *proxy.ClientConn) procinfo.Process {
 	s.mu.Lock()
 	identity := s.clients[addr]
@@ -2277,18 +2310,28 @@ func (s *Server) socketProcess(addr clientSocket, client *proxy.ClientConn) proc
 	if client == nil || identity.client != client {
 		return procinfo.Process{}
 	}
-	if identity.process.Path != "" {
+	if identity.process.Name != "" || identity.disconnected {
+		if identity.process.Name == "" {
+			fmt.Fprintf(os.Stderr, "EMPTY-DISCONNECTED remote=%s local=%s\n", addr.remote, addr.local)
+		}
 		return identity.process
 	}
-	process := procinfo.Lookup(addr.remote, addr.local)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.clients[addr].client != identity.client {
-		return procinfo.Process{}
+	if identity.ready != nil {
+		select {
+		case <-identity.ready:
+		case <-time.After(150 * time.Millisecond):
+		}
+		s.mu.Lock()
+		identity = s.clients[addr]
+		s.mu.Unlock()
+		if identity.client != client {
+			return procinfo.Process{}
+		}
 	}
-	identity.process = process
-	s.clients[addr] = identity
-	return process
+	if identity.process.Name == "" {
+		fmt.Fprintf(os.Stderr, "EMPTY-WAIT remote=%s local=%s\n", addr.remote, addr.local)
+	}
+	return identity.process
 }
 
 // clientProcess returns the process behind the connection a flow arrived on.

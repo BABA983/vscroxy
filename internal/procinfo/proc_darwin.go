@@ -3,16 +3,26 @@
 package procinfo
 
 import (
+	"context"
 	"net/netip"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
+
+const commandTimeout = 500 * time.Millisecond
+
+func output(name string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	return exec.CommandContext(ctx, name, args...).Output()
+}
 
 // lookupSocket asks lsof for both endpoints and rejects non-unique owners.
 func lookupSocket(client, server netip.AddrPort) Process {
-	out, err := exec.Command("lsof", "-nP", "-a", "-iTCP:"+strconv.Itoa(int(client.Port())), "-sTCP:ESTABLISHED", "-Fpn").Output()
+	out, err := output("lsof", "-nP", "-a", "-iTCP:"+strconv.Itoa(int(client.Port())), "-Fpn")
 	if err != nil {
 		return Process{}
 	}
@@ -38,7 +48,7 @@ func lookupSocket(client, server netip.AddrPort) Process {
 	if owner == "" {
 		return Process{}
 	}
-	comm, err := exec.Command("ps", "-p", owner, "-o", "comm=").Output()
+	comm, err := output("ps", "-p", owner, "-o", "comm=")
 	if err != nil {
 		return Process{}
 	}
@@ -54,7 +64,7 @@ func executable(pid, comm string) Process {
 		return Process{Name: filepath.Base(comm), Path: comm}
 	}
 	name := filepath.Base(comm)
-	out, err := exec.Command("lsof", "-nP", "-p", pid, "-a", "-d", "txt", "-Fn").Output()
+	out, err := output("lsof", "-nP", "-p", pid, "-a", "-d", "txt", "-Fn")
 	if err == nil {
 		for line := range strings.SplitSeq(string(out), "\n") {
 			if path, ok := strings.CutPrefix(line, "n"); ok && filepath.IsAbs(path) {
