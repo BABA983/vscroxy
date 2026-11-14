@@ -16762,11 +16762,11 @@ func (msgs Messages) ResponseHeadersLabel() string {
 	return Catalog.Format(msgs.locale, "responseHeadersLabel", nil)
 }
 
-// ResponseInformation says "Response info"
+// ResponseInformation says "Response information"
 // in the language the app shows.
 func ResponseInformation() string { return In(i18n.Locale()).ResponseInformation() }
 
-// ResponseInformation says "Response info"
+// ResponseInformation says "Response information"
 // in the language of msgs.
 func (msgs Messages) ResponseInformation() string {
 	return Catalog.Format(msgs.locale, "responseInformation", nil)

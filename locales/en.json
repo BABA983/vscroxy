@@ -2966,7 +2966,7 @@
   "responseHeadersCount": "{count, plural, one {# header} other {# headers}}",
   "responseHeadersExactValueAny": "Response headers · exact value, any repeated value may match",
   "responseHeadersLabel": "Headers",
-  "responseInformation": "Response info",
+  "responseInformation": "Response information",
   "responseJson": "Response JSON",
   "responsePaneName": "Response pane",
   "responsePaneOptions": "Response pane options",
