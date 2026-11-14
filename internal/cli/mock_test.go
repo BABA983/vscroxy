@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"net"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -84,14 +82,15 @@ func startMock(t *testing.T, args ...string) (string, *syncText, func() int) {
 	return base, stderr, stop
 }
 
-func mockGet(t *testing.T, method, url, selectName string) (int, string) {
+// mockGet sends one request; header holds name, value pairs.
+func mockGet(t *testing.T, method, url string, header ...string) (int, string) {
 	t.Helper()
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if selectName != "" {
-		req.Header.Set(mockserver.SelectHeader, selectName)
+	for i := 0; i+1 < len(header); i += 2 {
+		req.Header.Set(header[i], header[i+1])
 	}
 	client := http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Do(req)
@@ -105,16 +104,19 @@ func mockGet(t *testing.T, method, url, selectName string) (int, string) {
 
 func TestMockServesSavedExamplesUntilInterrupted(t *testing.T) {
 	base, _, stop := startMock(t, mockCollection(t))
-	if code, body := mockGet(t, "GET", base+"/items/42?x=1", ""); code != 200 || body != `{"from":"first"}` {
+	if code, body := mockGet(t, "GET", base+"/items/42?x=1"); code != 200 || body != `{"from":"first"}` {
 		t.Errorf("default example: %d %q; want the first example", code, body)
 	}
-	if code, body := mockGet(t, "GET", base+"/items/42", "gone"); code != 404 || body != `{"from":"gone"}` {
+	if code, body := mockGet(t, "GET", base+"/items/42", mockserver.SelectHeader, "gone"); code != 404 || body != `{"from":"gone"}` {
 		t.Errorf("X-Mock-Response-Name: gone: %d %q; want the second example", code, body)
 	}
-	if code, body := mockGet(t, "GET", base+"/nope", ""); code != 404 || !strings.Contains(body, "no example") {
+	if code, body := mockGet(t, "GET", base+"/items/42", mockserver.CodeHeader, "404"); code != 404 || body != `{"from":"gone"}` {
+		t.Errorf("X-Mock-Response-Code: 404: %d %q; want the second example", code, body)
+	}
+	if code, body := mockGet(t, "GET", base+"/nope"); code != 404 || !strings.Contains(body, "no example") {
 		t.Errorf("unknown path: %d %q; want 404 with no example", code, body)
 	}
-	if code, _ := mockGet(t, "POST", base+"/items/42", ""); code != 404 {
+	if code, _ := mockGet(t, "POST", base+"/items/42"); code != 404 {
 		t.Errorf("POST to a GET route: %d; want 404", code)
 	}
 	if code := stop(); code != 130 {
@@ -123,15 +125,11 @@ func TestMockServesSavedExamplesUntilInterrupted(t *testing.T) {
 }
 
 func TestMockPortAndNonLoopbackWarning(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	port := ln.Addr().(*net.TCPAddr).Port
-	ln.Close()
-	base, stderr, stop := startMock(t, "--port", strconv.Itoa(port), mockCollection(t))
-	if want := "http://127.0.0.1:" + strconv.Itoa(port); base != want {
-		t.Errorf("base = %q; want %q", base, want)
+	// --port 0 replaces the port in --addr with an OS-assigned one, so the
+	// fixed :9 is never bound and no port is picked twice.
+	base, stderr, stop := startMock(t, "--addr", "127.0.0.1:9", "--port", "0", mockCollection(t))
+	if !strings.HasPrefix(base, "http://127.0.0.1:") || base == "http://127.0.0.1:9" {
+		t.Errorf("base = %q; want an OS-assigned port on 127.0.0.1", base)
 	}
 	if strings.Contains(stderr.String(), "not a loopback") {
 		t.Errorf("loopback address warned: %q", stderr.String())

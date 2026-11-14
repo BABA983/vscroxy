@@ -148,8 +148,13 @@ free loopback port; `--port` replaces the port in `--addr`. Each example answers
 at the method and URL it was saved with. A `:name` or `{{name}}` path segment
 matches any one segment, the scheme, host and query are ignored, and
 `{{variables}}` are filled from globals, the environment and `--var`, in that
-order. The route's first example answers; send `X-Mock-Response-Name: <example
-name>` to choose another. A route that matches nothing returns 404. Ctrl-C stops
+order. The route's first example answers unless the request chooses another:
+`X-Mock-Response-Name: <example name>` picks an example by name, and
+`X-Mock-Response-Code: <status>` picks the first example with that status; the
+name wins when both are sent. `x-mock-match-request-body: true` limits the
+choice to examples whose saved request body equals this request's body, after
+variables are filled in, and a request with no such example gets 404. A route
+that matches nothing returns 404. Ctrl-C stops
 the server with exit code 130. An address other than loopback prints a warning,
 because anyone who can reach it gets the examples without authentication. A
 collection with no saved examples is refused. There is no MCP tool for mock
