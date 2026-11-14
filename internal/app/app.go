@@ -519,8 +519,12 @@ type app struct {
 	cookies           *cookieStore
 	cookiesPath       string
 	cookiePersistence bool
-	cookieUI          cookieEditor
-	exportUI          exportReview
+	// localControl is the saved choice to run the local automation endpoint;
+	// controlPath is its discovery file in ~/.vscroxy.
+	localControl bool
+	controlPath  string
+	cookieUI     cookieEditor
+	exportUI     exportReview
 
 	// envs are the variables a request uses as {{name}}, one set in use.
 	envsPath       string
@@ -633,6 +637,7 @@ func newApp() *app {
 		}
 		a.mcpConsents, _ = loadMCPConsents(a.mcpConsentsPath)
 		a.vault.path = filepath.Join(home, ".vscroxy", "vault.json")
+		a.controlPath = filepath.Join(home, ".vscroxy", "control.json")
 		a.vault.keyPath = filepath.Join(home, ".vscroxy", "vault.key")
 		if saved, err := loadSettings(a.settingsPath); err != nil {
 			a.errText = err.Error()
@@ -647,6 +652,7 @@ func newApp() *app {
 			a.systemProxyBypassSet = saved.SystemProxyBypassSet
 			a.systemProxyBypassText = strings.Join(a.systemProxyBypass, "\n")
 			a.cookiePersistence = saved.CookiePersistence
+			a.localControl = saved.LocalControl
 			a.launchPort, a.launchKeyLog = saved.ProxyPort, saved.KeyLogPath
 			a.socksOn, a.socksPort, a.socksAuth = saved.SOCKSOn, saved.SOCKSPort, saved.SOCKSAuth
 			a.socksUsername, a.socksPassword = saved.SOCKSUsername, saved.SOCKSPassword
@@ -3327,7 +3333,12 @@ func Run() error {
 		mygo.App.SetMenu(a.menu())
 		a.syncNativeAppearance()
 		a.checkSystemProxy(true) // retry only a recorded, interrupted proxy session
-		if path := os.Getenv("VSCROXY_CONTROL_FILE"); path != "" {
+		// An explicit VSCROXY_CONTROL_FILE wins over the saved Settings choice.
+		path := os.Getenv("VSCROXY_CONTROL_FILE")
+		if path == "" && a.localControl {
+			path = a.controlPath
+		}
+		if path != "" {
 			if err := a.startControl(path); err != nil {
 				a.fail(locales.EnableLocalAutomation(), err)
 			}

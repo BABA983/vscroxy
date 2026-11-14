@@ -6470,6 +6470,56 @@ func (msgs Messages) EnableLocalAutomation() string {
 	return Catalog.Format(msgs.locale, "enableLocalAutomation", nil)
 }
 
+// DiscoveryFile says "Discovery file"
+// in the language the app shows.
+func DiscoveryFile() string { return In(i18n.Locale()).DiscoveryFile() }
+
+// DiscoveryFile says "Discovery file"
+// in the language of msgs.
+func (msgs Messages) DiscoveryFile() string {
+	return Catalog.Format(msgs.locale, "discoveryFile", nil)
+}
+
+// LocalAutomation says "Local automation"
+// in the language the app shows.
+func LocalAutomation() string { return In(i18n.Locale()).LocalAutomation() }
+
+// LocalAutomation says "Local automation"
+// in the language of msgs.
+func (msgs Messages) LocalAutomation() string {
+	return Catalog.Format(msgs.locale, "localAutomation", nil)
+}
+
+// LocalAutomationAbout says "Lets vscroxy-cli and vscroxy-mcp read and change this app on this computer. Any program that can read the private dis…"
+// in the language the app shows.
+func LocalAutomationAbout() string { return In(i18n.Locale()).LocalAutomationAbout() }
+
+// LocalAutomationAbout says "Lets vscroxy-cli and vscroxy-mcp read and change this app on this computer. Any program that can read the private dis…"
+// in the language of msgs.
+func (msgs Messages) LocalAutomationAbout() string {
+	return Catalog.Format(msgs.locale, "localAutomationAbout", nil)
+}
+
+// LocalAutomationOff says "Local automation is off"
+// in the language the app shows.
+func LocalAutomationOff() string { return In(i18n.Locale()).LocalAutomationOff() }
+
+// LocalAutomationOff says "Local automation is off"
+// in the language of msgs.
+func (msgs Messages) LocalAutomationOff() string {
+	return Catalog.Format(msgs.locale, "localAutomationOff", nil)
+}
+
+// LocalAutomationOn says "Local automation is on"
+// in the language the app shows.
+func LocalAutomationOn() string { return In(i18n.Locale()).LocalAutomationOn() }
+
+// LocalAutomationOn says "Local automation is on"
+// in the language of msgs.
+func (msgs Messages) LocalAutomationOn() string {
+	return Catalog.Format(msgs.locale, "localAutomationOn", nil)
+}
+
 // EnableRow says "Enable {noun} {index}"
 // in the language the app shows.
 func EnableRow(noun string, index int) string { return In(i18n.Locale()).EnableRow(noun, index) }

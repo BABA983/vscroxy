@@ -94,9 +94,9 @@ func TestStdioProcess(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := 14
+			want := 17
 			if tc.write {
-				want = 25
+				want = 37
 			}
 			if len(listed.Tools) != want {
 				t.Errorf("%d tools; want %d", len(listed.Tools), want)
@@ -210,9 +210,9 @@ func TestWorkflowStdioProcess(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					wantCount := 14
+					wantCount := 17
 					if write {
-						wantCount = 25
+						wantCount = 37
 					}
 					if len(listed.Tools) != wantCount {
 						t.Fatalf("%d tools; want %d", len(listed.Tools), wantCount)

@@ -19,8 +19,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var queries = []string{"collection-recording.get", "collections.list", "flows.export-har", "flows.get", "flows.list", "requests.get", "requests.list", "rules.list", "runs.get", "status", "system-proxy.get", "token-links.analyze", "token-links.get", "token-links.prepare"}
-var writes = []string{"capture.recording", "collection-recording.start", "collection-recording.stop", "collection.load", "collection.run", "request.run", "rules.import", "rules.set-enabled", "runs.cancel", "system-proxy.set-enabled", "token-links.apply"}
+var queries = []string{"breakpoints.list", "collection-recording.get", "collections.list", "flows.export-har", "flows.get", "flows.list", "requests.get", "requests.list", "rules.list", "runs.get", "sessions.list", "ssl.get", "status", "system-proxy.get", "token-links.analyze", "token-links.get", "token-links.prepare"}
+var writes = []string{"breakpoints.resolve", "capture.recording", "collection-recording.start", "collection-recording.stop", "collection.load", "collection.run", "flows.annotate", "flows.clear", "request.run", "rules.create", "rules.delete", "rules.import", "rules.set-enabled", "rules.update", "runs.cancel", "sessions.open", "sessions.save", "ssl.update", "system-proxy.set-enabled", "token-links.apply"}
 
 func endpoint(t *testing.T, dispatch control.Dispatch) string {
 	t.Helper()
@@ -38,6 +38,11 @@ func endpoint(t *testing.T, dispatch control.Dispatch) string {
 }
 
 func connect(t *testing.T, path string, options mcpserver.Options, protocol string) *mcp.ClientSession {
+	t.Helper()
+	return connectWith(t, path, options, protocol)
+}
+
+func connectWith(t *testing.T, path string, options mcpserver.Options, protocol string) *mcp.ClientSession {
 	t.Helper()
 	server, err := mcpserver.New(path, options)
 	if err != nil {
@@ -968,4 +973,28 @@ func TestTokenLinksBackendResultsForwardedOnce(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestDisableToolsAndTypedRuleForwarding(t *testing.T) {
+	path := endpoint(t, func(_ context.Context, c control.Command) (any, error) {
+		return map[string]any{"action": c.Action, "params": c.Params}, nil
+	})
+	if _, err := mcpserver.New(path, mcpserver.Options{AllowWrite: true, Disable: []string{"no.such.tool"}}); err == nil {
+		t.Fatal("unknown disabled tool was accepted")
+	}
+	if _, err := mcpserver.New(path, mcpserver.Options{Disable: []string{"request.run"}}); err == nil {
+		t.Fatal("a write tool was accepted as disabled without --allow-write")
+	}
+	cs := connectWith(t, path, mcpserver.Options{AllowWrite: true, Disable: []string{"request.run", "flows.list"}}, "2025-11-25")
+	listed, err := cs.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range listed.Tools {
+		if tool.Name == "request.run" || tool.Name == "flows.list" {
+			t.Fatalf("disabled tool %s is still offered", tool.Name)
+		}
+	}
+	requireJSON(t, call(t, cs, "rules.create", map[string]any{"rule": map[string]any{"type": "block", "match": "example.com"}}),
+		`{"action":"rules.create","params":{"rule":{"type":"block","match":"example.com"},"confirm":true}}`)
 }

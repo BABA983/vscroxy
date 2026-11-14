@@ -74,6 +74,21 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, locales.OneFileWithTheSettings())
 		})
+		uikit.SettingsGroup(c, locales.LocalAutomation(), func() {
+			uikit.SettingsRow(c, locales.EnableLocalAutomation(), func() ui.Element {
+				on := a.controlRunning()
+				toggle := ui.Switch(c, &on)
+				if toggle.Changed() {
+					a.setLocalControl(on)
+				}
+				return toggle
+			}, locales.LocalAutomationAbout())
+			if a.controlRunning() {
+				uikit.SettingsRow(c, locales.DiscoveryFile(), func() ui.Element {
+					return uikit.Mono(c, shortenHome(a.controlPath)).Selectable()
+				}, "")
+			}
+		})
 		uikit.SettingsGroup(c, locales.Help(), func() {
 			uikit.SettingsRow(c, locales.SetupGuide(), func() ui.Element {
 				return ui.Row(c).Children(func() {

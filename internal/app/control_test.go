@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -390,5 +392,182 @@ func TestDesktopControlRuleImportIsAtomicPersistentAndAppliesToTraffic(t *testin
 	data, err := os.ReadFile(a.rulesPath)
 	if err != nil || string(data) != "externally changed" {
 		t.Fatal("external edit overwritten")
+	}
+}
+
+func TestDesktopControlRuleEditsUseFingerprintsAndNormalize(t *testing.T) {
+	a := &app{rulesPath: filepath.Join(t.TempDir(), "rules.json"), rules: []capture.Rule{{Name: "Block", Type: capture.RuleBlock, Match: "example.com"}}}
+	client := desktopClient(t, a)
+	keyAt := func(index int) string {
+		var rows []struct {
+			Key string `json:"key"`
+		}
+		if err := json.Unmarshal(desktopCall(t, client, "rules.list", nil), &rows); err != nil || len(rows) <= index {
+			t.Fatalf("rules: %+v %v", rows, err)
+		}
+		return rows[index].Key
+	}
+	var created struct {
+		Index int    `json:"index"`
+		Key   string `json:"key"`
+	}
+	value := desktopCall(t, client, "rules.create", map[string]any{"rule": map[string]any{"type": "break", "match": " /api/login ", "method": "post", "scenario": "Login"}, "confirm": true})
+	if err := json.Unmarshal(value, &created); err != nil || created.Index != 1 {
+		t.Fatalf("create: %s %v", value, err)
+	}
+	// Breakpoints take no scenario, and methods and match text are trimmed.
+	if got := a.rules[1]; got.Scenario != "" || got.Match != "/api/login" || got.Method != "POST" || got.ScenarioActive {
+		t.Fatalf("created rule not normalized: %+v", got)
+	}
+	if value := desktopCall(t, client, "rules.update", map[string]any{"index": 1, "key": "stale", "rule": map[string]any{"type": "block", "match": "x.test"}, "confirm": true}); !strings.Contains(string(value), `"error":`) {
+		t.Fatalf("stale key accepted: %s", value)
+	}
+	if value := desktopCall(t, client, "rules.create", map[string]any{"rule": map[string]any{"type": "rewrite", "match": "x.test"}, "confirm": true}); !strings.Contains(string(value), `"error":`) {
+		t.Fatalf("unknown type accepted: %s", value)
+	}
+	a.ruleUI.open = true
+	if value := desktopCall(t, client, "rules.update", map[string]any{"index": 1, "key": keyAt(1), "rule": map[string]any{"type": "block", "match": "x.test"}, "confirm": true}); !strings.Contains(string(value), `"error":`) {
+		t.Fatalf("update accepted under an open editor: %s", value)
+	}
+	a.ruleUI.open = false
+	desktopCall(t, client, "rules.update", map[string]any{"index": 1, "key": created.Key, "rule": map[string]any{"type": "map_remote", "match": "api.example.com", "target": "https://other.test"}, "confirm": true})
+	if a.rules[1].Type != capture.RuleMapRemote || a.rules[1].Target != "https://other.test" {
+		t.Fatalf("update not applied: %+v", a.rules[1])
+	}
+	if value := desktopCall(t, client, "rules.delete", map[string]any{"index": 0, "key": "stale", "confirm": true}); !strings.Contains(string(value), `"error":`) || len(a.rules) != 2 {
+		t.Fatalf("stale delete accepted: %s", value)
+	}
+	desktopCall(t, client, "rules.delete", map[string]any{"index": 0, "key": keyAt(0), "confirm": true})
+	if len(a.rules) != 1 || a.rules[0].Type != capture.RuleMapRemote {
+		t.Fatalf("delete left %+v", a.rules)
+	}
+	data, err := os.ReadFile(a.rulesPath)
+	if err != nil || strings.Contains(string(data), `"block"`) || !strings.Contains(string(data), "other.test") {
+		t.Fatalf("persisted rules: %s %v", data, err)
+	}
+}
+
+func TestDesktopControlFlowFiltersMarksAndClear(t *testing.T) {
+	at := time.Date(2026, 11, 14, 10, 0, 0, 0, time.UTC)
+	a := &app{flows: []flow{
+		{id: 1, live: true, method: "GET", host: "api.example.com:443", status: 200, at: at},
+		{id: 2, live: true, method: "POST", host: "api.example.com:443", status: 500, at: at.Add(time.Hour)},
+		{id: 3, live: true, method: "GET", host: "other.test", status: 200, at: at.Add(2 * time.Hour)},
+	}}
+	client := desktopClient(t, a)
+	ids := func(params map[string]any) []int {
+		var page struct {
+			Items []struct {
+				ID int `json:"id"`
+			} `json:"items"`
+		}
+		if err := json.Unmarshal(desktopCall(t, client, "flows.list", params), &page); err != nil {
+			t.Fatal(err)
+		}
+		var got []int
+		for _, item := range page.Items {
+			got = append(got, item.ID)
+		}
+		return got
+	}
+	for _, tc := range []struct {
+		name   string
+		params map[string]any
+		want   []int
+	}{
+		{"host ignores case and matches the hostname of host:port", map[string]any{"host": "API.example.com"}, []int{2, 1}},
+		{"host with port and method", map[string]any{"host": "api.example.com:443", "method": "get"}, []int{1}},
+		{"status", map[string]any{"status": 200}, []int{3, 1}},
+		{"inclusive time window", map[string]any{"since": at.Add(time.Hour).Format(time.RFC3339Nano), "until": at.Add(time.Hour).Format(time.RFC3339)}, []int{2}},
+	} {
+		if got := ids(tc.params); !slices.Equal(got, tc.want) {
+			t.Errorf("%s: got %v; want %v", tc.name, got, tc.want)
+		}
+	}
+	if value := desktopCall(t, client, "flows.annotate", map[string]any{"id": 1, "color": "Teal", "confirm": true}); !strings.Contains(string(value), `"error":`) {
+		t.Fatalf("unknown color accepted: %s", value)
+	}
+	desktopCall(t, client, "flows.annotate", map[string]any{"id": 1, "color": "Blue", "note": "  checkout  ", "pinned": true, "confirm": true})
+	if f := a.flows[0]; f.color != "Blue" || f.note != "checkout" || !f.pinned {
+		t.Fatalf("annotation not applied: %+v", f)
+	}
+	desktopCall(t, client, "flows.clear", map[string]any{"confirm": true})
+	if got := ids(nil); !slices.Equal(got, []int{1}) {
+		t.Fatalf("clear kept %v; want only the pinned flow", got)
+	}
+}
+
+func TestDesktopControlBreakpointsSSLAndSessions(t *testing.T) {
+	a := &app{}
+	a.bp = &capture.Breakpoint{ID: 7, Method: "GET", URL: "https://api.example.com/?token=secret-token"}
+	a.bps = []capture.Breakpoint{{ID: 8, Phase: capture.PhaseResponse, Method: "POST", URL: "https://api.example.com/queued"}}
+	client := desktopClient(t, a)
+	list := string(desktopCall(t, client, "breakpoints.list", nil))
+	if strings.Contains(list, "secret-token") || !strings.Contains(list, `"current":true`) || !strings.Contains(list, `"phase":"response"`) {
+		t.Fatalf("breakpoints.list = %s", list)
+	}
+	if value := desktopCall(t, client, "breakpoints.resolve", map[string]any{"id": 8, "outcome": "continue", "confirm": true}); !strings.Contains(string(value), `"error":`) {
+		t.Fatalf("queued breakpoint resolved: %s", value)
+	}
+	desktopCall(t, client, "breakpoints.resolve", map[string]any{"id": 7, "outcome": "abort", "confirm": true})
+	if a.bp != nil {
+		t.Fatal("abort left the breakpoint on screen")
+	}
+
+	desktopCall(t, client, "ssl.update", map[string]any{"domains": []string{"API.example.com", "*.internal.test"}, "confirm": true})
+	if value := desktopCall(t, client, "ssl.update", map[string]any{"domains": []string{"https://x.test"}, "confirm": true}); !strings.Contains(string(value), `"error":`) {
+		t.Fatalf("URL accepted as a domain: %s", value)
+	}
+	ssl := string(desktopCall(t, client, "ssl.get", nil))
+	if !strings.Contains(ssl, `"hosts":["api.example.com","*.internal.test"]`) || !strings.Contains(ssl, `"all":false`) {
+		t.Fatalf("ssl.get = %s", ssl)
+	}
+	desktopCall(t, client, "ssl.update", map[string]any{"all": true, "confirm": true})
+	if ssl := string(desktopCall(t, client, "ssl.get", nil)); !strings.Contains(ssl, `"all":true`) || !strings.Contains(ssl, `"*.internal.test"`) {
+		t.Fatalf("all did not keep domains: %s", ssl)
+	}
+
+	if value := desktopCall(t, client, "sessions.open", map[string]any{"key": "missing", "confirm": true}); !strings.Contains(string(value), `"error":`) {
+		t.Fatalf("missing session opened: %s", value)
+	}
+	var saved struct {
+		Key string `json:"key"`
+	}
+	if err := json.Unmarshal(desktopCall(t, client, "sessions.save", map[string]any{"confirm": true}), &saved); err != nil || saved.Key == "" {
+		t.Fatalf("save: %+v %v", saved, err)
+	}
+	if list := string(desktopCall(t, client, "sessions.list", nil)); !strings.Contains(list, saved.Key) {
+		t.Fatalf("saved session not listed: %s", list)
+	}
+	if value := desktopCall(t, client, "sessions.open", map[string]any{"key": saved.Key, "confirm": true}); string(value) != `{"opened":true}` {
+		t.Fatalf("open: %s", value)
+	}
+}
+
+func TestLocalControlSettingStartsAndStopsEndpoint(t *testing.T) {
+	dir := t.TempDir()
+	a := &app{controlPath: filepath.Join(dir, "control.json"), settingsPath: filepath.Join(dir, "settings.json")}
+	a.setLocalControl(true)
+	if !a.controlRunning() {
+		t.Fatal("switch on did not start the endpoint")
+	}
+	if _, err := control.Load(a.controlPath); err != nil {
+		t.Fatalf("discovery file: %v", err)
+	}
+	if saved, err := loadSettings(a.settingsPath); err != nil || !saved.LocalControl {
+		t.Fatalf("choice not saved: %+v %v", saved, err)
+	}
+	if bundle, _ := a.exportConfig(); bundle.Settings == nil || bundle.Settings.LocalControl {
+		t.Fatal("exported configuration carries this computer's automation choice")
+	}
+	a.setLocalControl(false)
+	if a.controlRunning() {
+		t.Fatal("switch off left the endpoint running")
+	}
+	if _, err := os.Stat(a.controlPath); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("discovery file survived: %v", err)
+	}
+	if saved, err := loadSettings(a.settingsPath); err != nil || saved.LocalControl {
+		t.Fatalf("off not saved: %+v %v", saved, err)
 	}
 }

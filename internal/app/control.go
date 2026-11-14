@@ -21,6 +21,7 @@ import (
 	"github.com/baba983/vscroxy/internal/control"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
+	"github.com/baba983/vscroxy/locales"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -43,7 +44,9 @@ type controlJob struct {
 }
 
 func (a *app) startControl(path string) error {
-	c := &desktopControl{jobs: map[string]*controlJob{}}
+	if a.control == nil {
+		a.control = &desktopControl{jobs: map[string]*controlJob{}}
+	}
 	win := a.win
 	server, err := control.Start(path, func(ctx context.Context, command control.Command) (any, error) {
 		return a.dispatchControl(ctx, command, win.Update)
@@ -51,8 +54,57 @@ func (a *app) startControl(path string) error {
 	if err != nil {
 		return err
 	}
-	c.server, a.control = server, c
+	a.control.server = server
 	return nil
+}
+
+// controlRunning reports whether the endpoint is listening.
+func (a *app) controlRunning() bool {
+	return a.control != nil && a.control.server != nil
+}
+
+// setLocalControl is the Settings switch. A start that fails, such as a
+// discovery file another instance owns, leaves the saved choice off.
+func (a *app) setLocalControl(on bool) {
+	if !on {
+		a.stopControl()
+		a.localControl = false
+		a.lastSave = time.Time{}
+		if err := a.persistSettings(); err != nil {
+			a.fail(locales.EnableLocalAutomation(), err)
+			return
+		}
+		a.inform(locales.LocalAutomationOff())
+		return
+	}
+	// VSCROXY_CONTROL_FILE may already run the endpoint; keep that one.
+	if !a.controlRunning() {
+		if err := a.startControl(a.controlPath); err != nil {
+			a.fail(locales.EnableLocalAutomation(), err)
+			return
+		}
+	}
+	a.localControl = true
+	a.lastSave = time.Time{}
+	if err := a.persistSettings(); err != nil {
+		a.fail(locales.EnableLocalAutomation(), err)
+		return
+	}
+	a.done(locales.LocalAutomationOn())
+}
+
+// stopControl closes the endpoint and its discovery file. Running jobs are
+// canceled; they report nothing until the endpoint is started again.
+func (a *app) stopControl() {
+	c := a.control
+	if c == nil || c.server == nil {
+		return
+	}
+	_ = c.server.Close()
+	c.server = nil
+	for _, job := range c.jobs {
+		job.cancel()
+	}
 }
 
 // controlWork owns an immutable UI snapshot; its I/O runs on the HTTP worker.
@@ -176,13 +228,30 @@ func (a *app) controlValue(command control.Command) (any, error) {
 		return nil, errors.New("request not found")
 	case "flows.list", "flows.get":
 		p, err := controlParams[struct {
-			ID      int  `json:"id"`
-			Limit   int  `json:"limit"`
-			Before  int  `json:"before"`
-			Details bool `json:"details"`
+			ID      int    `json:"id"`
+			Limit   int    `json:"limit"`
+			Before  int    `json:"before"`
+			Details bool   `json:"details"`
+			Host    string `json:"host"`
+			Method  string `json:"method"`
+			Status  int    `json:"status"`
+			Since   string `json:"since"`
+			Until   string `json:"until"`
 		}](command)
-		if err != nil || p.Limit < 0 || p.Limit > 200 || p.Before < 0 {
+		if err != nil || p.Limit < 0 || p.Limit > 200 || p.Before < 0 || p.Status != 0 && (p.Status < 100 || p.Status > 999) {
 			return nil, errors.New("invalid flow parameters")
+		}
+		// Times are inclusive and compared with each flow's start time.
+		var since, until time.Time
+		if p.Since != "" {
+			if since, err = time.Parse(time.RFC3339Nano, p.Since); err != nil {
+				return nil, errors.New("invalid flow parameters")
+			}
+		}
+		if p.Until != "" {
+			if until, err = time.Parse(time.RFC3339Nano, p.Until); err != nil {
+				return nil, errors.New("invalid flow parameters")
+			}
 		}
 		// Concurrent captures can be delivered out of ID order. Cursor paging
 		// must use ID order, independent of arrival or the table's sort.
@@ -205,6 +274,11 @@ func (a *app) controlValue(command control.Command) (any, error) {
 			if p.Before != 0 && f.id >= p.Before {
 				continue
 			}
+			if p.Host != "" && !strings.EqualFold(f.host, p.Host) && !strings.EqualFold(hostOnly(f.host), p.Host) ||
+				p.Method != "" && !strings.EqualFold(f.method, p.Method) || p.Status != 0 && f.status != p.Status ||
+				!since.IsZero() && f.at.Before(since) || !until.IsZero() && f.at.After(until) {
+				continue
+			}
 			rows = append(rows, controlFlow(f, false))
 			if len(rows) == cmp.Or(p.Limit, 50) {
 				return map[string]any{"items": rows, "nextBefore": f.id}, nil
@@ -216,6 +290,10 @@ func (a *app) controlValue(command control.Command) (any, error) {
 		return map[string]any{"items": rows, "nextBefore": 0}, nil
 	case "flows.export-har":
 		return a.controlHAR(command)
+	case "flows.clear", "flows.annotate", "breakpoints.list", "breakpoints.resolve", "ssl.get", "ssl.update", "sessions.list", "sessions.save", "sessions.open":
+		return a.controlCapture(command)
+	case "rules.create", "rules.update", "rules.delete":
+		return a.controlRules(command)
 	case "system-proxy.get", "system-proxy.set-enabled":
 		return a.controlSystemProxy(command)
 	case "collection-recording.get", "collection-recording.start", "collection-recording.stop":

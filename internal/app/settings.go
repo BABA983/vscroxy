@@ -83,6 +83,9 @@ type settings struct {
 	CookiePersistence bool `json:"cookiePersistence,omitzero"`
 	// Guide keeps the setup guide open until it is finished or skipped.
 	Guide bool `json:"guide,omitzero"`
+	// LocalControl keeps the local automation endpoint on across launches.
+	// It is this computer's choice and is never exported.
+	LocalControl bool `json:"localControl,omitzero"`
 	// AllowList narrows the table to the hosts and apps in allow.txt and
 	// allow-apps.txt.
 	AllowList bool `json:"allowList,omitzero"`
@@ -216,6 +219,7 @@ func sameSettings(x, y settings) bool {
 		x.VaultScripts == y.VaultScripts &&
 		x.CookiePersistence == y.CookiePersistence &&
 		x.Guide == y.Guide &&
+		x.LocalControl == y.LocalControl &&
 		x.AllowList == y.AllowList &&
 		x.FlowLimit == y.FlowLimit && x.MemoryLimit == y.MemoryLimit && x.DiskLimit == y.DiskLimit &&
 		slices.Equal(x.Columns.Order, y.Columns.Order) &&

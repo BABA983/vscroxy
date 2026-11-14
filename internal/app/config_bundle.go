@@ -102,6 +102,7 @@ func (a *app) currentSettings() settings {
 		SystemProxyBypassSet: a.systemProxyBypassSet,
 		VaultScripts:         a.vault.scripts,
 		CookiePersistence:    a.cookiePersistence,
+		LocalControl:         a.localControl,
 		Guide:                a.guide,
 		AllowList:            a.allowOn,
 		FlowLimit:            a.flowLimit,
@@ -123,10 +124,10 @@ func (a *app) configLists() map[string]*string {
 // or too large stay paths on this computer.
 func (a *app) exportConfig() (b configBundle, notes []string) {
 	s := a.currentSettings()
-	// The key log, project folder, setup guide and cookie retention are this
-	// computer's: a configuration file never turns cookie persistence on
-	// elsewhere.
-	s.KeyLogPath, s.ProjectDir, s.Guide, s.CookiePersistence = "", "", false, false
+	// The key log, project folder, setup guide, cookie retention and local
+	// automation are this computer's: a configuration file never turns cookie
+	// persistence or the control endpoint on elsewhere.
+	s.KeyLogPath, s.ProjectDir, s.Guide, s.CookiePersistence, s.LocalControl = "", "", false, false, false
 	s.Language = ""      // the reader's language, not the bundle's
 	s.SOCKSPassword = "" // a credential, never in a shared bundle
 	ssl := a.inspectionConfig()

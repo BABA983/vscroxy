@@ -132,8 +132,14 @@ samples. No coordinated-omission correction or open-model latency claim is made.
 
 ## Control a running desktop
 
-Desktop control is **off by default**. Explicitly set `VSCROXY_CONTROL_FILE` to
-a nonexistent file in an existing, private directory when launching the app:
+Desktop control is **off by default**. Turn on **Settings → General → Local
+automation** to run the endpoint at `~/.vscroxy/control.json`. The switch is kept
+across launches, is not part of an exported configuration, and turning it off
+stops the endpoint and removes the discovery file.
+
+For a custom path or a scripted launch, explicitly set `VSCROXY_CONTROL_FILE` to
+a nonexistent file in an existing, private directory when launching the app. That
+variable wins over the Settings switch:
 
 ```sh copy Copy Desktop Control Launch
 mkdir -p "$HOME/.vscroxy"
@@ -181,7 +187,7 @@ mutation on transport timeout: its outcome may be unknown.
 | `collections.list` | Runnable saved collection/folder names |
 | `requests.list` | Optional `collection` (descendants included; explicit empty selects unfiled requests) |
 | `requests.get` | Saved `id`; optional `details` |
-| `flows.list` | Optional `limit` (default 50, max 200), exclusive `before` ID cursor; `nextBefore:0` ends paging |
+| `flows.list` | Optional `limit` (default 50, max 200), exclusive `before` ID cursor, and filters `host` (host or host:port, case-insensitive), `method`, `status` (100–999), `since`/`until` (RFC 3339, inclusive); `nextBefore:0` ends paging |
 | `flows.get` | Live capture `id`; optional `details` |
 | `flows.export-har` | Required `ids` (1–200 unique live HTTP IDs, in export order); optional `details`; returns a HAR 1.2 document |
 | `rules.list` | Index, fingerprint `key`, name, type and enabled state |
@@ -200,6 +206,21 @@ mutation on transport timeout: its outcome may be unknown.
 | `token-links.apply` | Reviewed proposal `key`; persists scripts/references and an empty private Current slot; requires confirmation |
 | `rules.set-enabled` | Required `index`, current `key` and boolean `enabled`; persists through the existing rules store |
 | `rules.import` | Required `document` string containing a native JSON array of 1–100 rules; append-only, all-or-nothing |
+| `rules.create` | Required `rule` object with typed fields (`type`, `match`, and the optional fields of a rule); validated as a whole list before saving; returns `index` and `key` |
+| `rules.update` | Required `index` and current `key`, plus a `rule` object; fails while the rule editor is open |
+| `rules.delete` | Required `index` and current `key`; fails while the rule editor is open |
+| `flows.clear` | Removes unpinned captured flows from the live table; pinned flows stay |
+| `flows.annotate` | Required `id`; optional `pinned`, `color` (Red, Orange, Yellow, Green, Blue, Purple, or empty) and `note` (up to 4096 bytes); only supplied fields change |
+| `breakpoints.list` | Paused exchanges: the one on screen (`current:true`) and queued ones, with ID, phase, method, redacted URL and status; no bodies or headers |
+| `breakpoints.resolve` | Required `id` (must be the breakpoint on screen) and `outcome`: `continue` (unchanged) or `abort` |
+| `ssl.get` | Whether all traffic is decrypted, the listed domains, and the count of listed applications |
+| `ssl.update` | Optional `all` and `domains` (replacement list of host names, no schemes or paths); application entries are kept |
+| `sessions.list` | Saved sessions: `key`, title, exchange count and creation time |
+| `sessions.save` | Saves the live table as a new session file in the desktop; returns its `key` |
+| `sessions.open` | Required `key` from `sessions.list`; shows that session in the desktop |
+
+Pin, color and note are the same marks the desktop's Mark dialog sets. Session
+files contain captured bodies and headers, as the desktop's own session files do.
 
 All mutations require `confirm:true`; CLI `--confirm` supplies it. Rule
 fingerprints reject stale targets after a concurrent edit/reorder. Each app-state
@@ -483,9 +504,9 @@ paths (replace both placeholders; shell `$HOME` expansion is not assumed):
 }
 ```
 
-The default catalog contains fourteen read-only tools, named like desktop actions:
+The default catalog contains seventeen read-only tools, named like desktop actions:
 `status`, `collection-recording.get`, `system-proxy.get`, `collections.list`, `requests.list`, `requests.get`, `flows.list`,
-`flows.get`, `flows.export-har`, `rules.list`, `runs.get`, `token-links.analyze`,
+`flows.get`, `flows.export-har`, `breakpoints.list`, `ssl.get`, `sessions.list`, `rules.list`, `runs.get`, `token-links.analyze`,
 `token-links.get`, and `token-links.prepare`. Analyze/prepare replace ephemeral
 staging despite being read-only; they are not idempotent. Every tool has a typed, closed input
 schema and an explicit read-only/destructive/open-world annotation. Results are
@@ -495,10 +516,12 @@ MCP `isError`; a run job's acceptance still requires polling its final report.
 Two **independent startup capabilities**, never tool parameters, widen access:
 
 - `--allow-write` registers `request.run`, `collection.run`, `collection.load`, `runs.cancel`,
-  `capture.recording`, `rules.set-enabled`, `rules.import`, and
-  `system-proxy.set-enabled`, plus `collection-recording.start` and
-  `collection-recording.stop`, and `token-links.apply` (25 tools in total). It explicitly authorizes those
-  tools to supply the desktop's confirmation. Request execution can affect real
+  `capture.recording`, `rules.set-enabled`, `rules.import`, `rules.create`, `rules.update`, `rules.delete`,
+  `system-proxy.set-enabled`, `collection-recording.start`, `collection-recording.stop`, `token-links.apply`,
+  `flows.clear`, `flows.annotate`, `breakpoints.resolve`, `ssl.update`, `sessions.save`, and `sessions.open`
+  (37 tools in total with the read-only set). It explicitly authorizes those tools to supply the desktop's
+  confirmation. Clearing, annotating, resolving breakpoints, changing HTTPS inspection domains and rules
+  change what the desktop captures or sends; `sessions.save` writes captured bodies to a local file. Request execution can affect real
   external systems; enable it only for a trusted client and trusted collections.
   Collection recording persists captured content locally, potentially including
   sensitive query/body values; `--allow-write` authorizes that persistence without
@@ -508,6 +531,9 @@ Two **independent startup capabilities**, never tool parameters, widen access:
   `requests.get` / `flows.get` / `flows.export-har`. It does not register mutations or change the
   default query response. Raw headers, query values, bodies and saved scripts
   may contain credentials or private data sent to the client's model provider.
+- `--disable-tool <name>` (repeatable, for example `--disable-tool request.run`)
+  removes one tool from the catalog a client sees. It only narrows access. An
+  unknown name stops the server at startup.
 
 Append the desired capability flags to `args` only after considering that access.
 MCP tool annotations describe effects; they are not authorization. Retain your

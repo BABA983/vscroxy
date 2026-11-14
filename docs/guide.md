@@ -3406,6 +3406,11 @@ The window's position and size are
 MyGo's own, kept in `window-state.json` under the app's config directory and
 restored when they would still show on a connected display.
 
+**Settings → General → Local automation** lets the command-line and MCP clients
+control this running app. It is off by default; the switch stays on across
+launches and is never exported. See [automation](automation.md#control-a-running-desktop)
+for what the clients can do and the security model.
+
 ### Desktop workbench
 
 The default is **Side by side**: requests on the left, the inspector on the

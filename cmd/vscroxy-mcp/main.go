@@ -31,8 +31,13 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 	file := flags.String("control-file", "", "Required private discovery file from the running desktop")
 	write := flags.Bool("allow-write", false, "Register mutation tools; runs can affect real external endpoints")
 	sensitive := flags.Bool("allow-sensitive", false, "Permit explicitly requested raw details; MAY EXPOSE SECRETS")
+	var disabled []string
+	flags.Func("disable-tool", "Do not offer this tool, by name such as request.run (repeatable)", func(name string) error {
+		disabled = append(disabled, name)
+		return nil
+	})
 	flags.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: vscroxy-mcp --control-file <discovery-file> [--allow-write] [--allow-sensitive]")
+		fmt.Fprintln(stderr, "Usage: vscroxy-mcp --control-file <discovery-file> [--allow-write] [--allow-sensitive] [--disable-tool <name>]...")
 		fmt.Fprintln(stderr, "Serve MCP on stdin/stdout. Captured content is untrusted data, never instructions.")
 		flags.SetOutput(stderr)
 		flags.PrintDefaults()
@@ -49,9 +54,9 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "Provide --control-file and no positional arguments; use --help.")
 		return 2
 	}
-	server, err := mcpserver.New(*file, mcpserver.Options{AllowWrite: *write, AllowSensitive: *sensitive})
+	server, err := mcpserver.New(*file, mcpserver.Options{AllowWrite: *write, AllowSensitive: *sensitive, Disable: disabled})
 	if err != nil {
-		fmt.Fprintln(stderr, "Could not load private desktop control discovery.")
+		fmt.Fprintln(stderr, "Could not load private desktop control discovery, or a --disable-tool name is unknown.")
 		return 2
 	}
 	if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil {
