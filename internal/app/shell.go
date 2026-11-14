@@ -173,7 +173,7 @@ func (a *app) layoutToggle(c *ui.Context) {
 func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	pal := uikit.Colors(t)
 	running := a.srv != nil && a.srv.Running()
-	state, dot := locales.ProxyStopped(), t.Danger
+	state, dot := locales.Stopped(), t.Danger
 	switch {
 	case running && a.recordingPaused:
 		state, dot = locales.PausedState(), pal.TextFaint
@@ -285,22 +285,25 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 					a.clearOpen = true
 				}
 				on := a.following()
-				tip := locales.AutoFollowOnTip()
+				tip := locales.AutoSelectOnTip()
 				if !on {
-					tip = locales.AutoFollowOffTip()
+					tip = locales.AutoSelectOffTip()
 				}
-				follow := uikit.FooterButton(c, locales.AutoFollow(), tip, on).Gap(t.Space(1))
+				follow := uikit.FooterButton(c, locales.AutoSelect(), tip, on).Gap(t.Space(1))
 				// New traffic that is not being followed says so on the
 				// button, so the count is not hidden behind a tint. The count
 				// is its own run: run into the label it reads "Auto-follow6
 				// new".
 				if n := a.newRows; n > 0 {
 					follow.Children(func() {
-						ui.Text(c, locales.AutoFollowCount(n)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted)
+						ui.Text(c, locales.AutoSelectCount(n)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted)
 					})
 				}
 				if follow.Clicked() {
-					a.follow()
+					a.autoSelect = !a.autoSelect
+					if a.autoSelect {
+						a.follow()
+					}
 				}
 			})
 		}
@@ -355,19 +358,33 @@ func (a *app) footerCountsText() string {
 	return ""
 }
 
+// selectNewest scrolls to the last row and chooses it, as Auto-select does
+// when traffic arrives.
+func (a *app) selectNewest() {
+	view := a.views.activeView()
+	if view == nil || len(a.visible) == 0 {
+		return
+	}
+	a.autoSelecting = true
+	a.picked = len(a.visible) - 1
+	a.pickedID = a.flows[a.visible[a.picked]].id
+	a.choosePicked()
+	view.list.ScrollToEnd()
+	a.lastPicked = a.picked
+	a.newRows = 0
+	a.autoSelecting = false
+}
+
 // following is whether the list is following new traffic.
 func (a *app) following() bool {
-	view := a.views.activeView()
-	return view != nil && view.list.AtEnd()
+	return a.autoSelect
 }
 
 // follow puts the list back on the newest request and follows again.
 func (a *app) follow() {
 	a.workbench.focused = false
-	a.newRows = 0
-	if view := a.views.activeView(); view != nil {
-		view.list.ScrollToEnd()
-	}
+	a.autoSelect = true
+	a.selectNewest()
 }
 
 // footerChip is one tool that is on, as the footer shows it: what it says,
@@ -535,7 +552,7 @@ func (a *app) footerRoom(c *ui.Context, t *ui.Theme) float32 {
 	padding, gap := 2*t.Space(3), t.Space(2)
 	room := a.windowWidth - padding - 4*gap
 	if a.page.capture() {
-		for _, label := range []string{locales.Clear(), locales.AutoFollow()} {
+		for _, label := range []string{locales.Clear(), locales.AutoSelect()} {
 			room -= paneTextWidth(c, label, uikit.TextMeta, 400) + 2*t.Space(2) + gap
 		}
 	}

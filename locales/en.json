@@ -31,14 +31,7 @@
       }
     }
   },
-  "@autoFollowCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "@autoFollowNew": {
+  "@autoSelectCount": {
     "placeholders": {
       "count": {
         "type": "int"
@@ -1452,13 +1445,10 @@
   "authorizationType": "Authorization type",
   "authorizationUrl": "Authorization URL",
   "auto": "Auto",
-  "autoFollow": "Auto-follow",
-  "autoFollowCount": "{count} new",
-  "autoFollowNew": "Auto-follow off · {count} new ↓",
-  "autoFollowOff": "Auto-follow off · latest ↓",
-  "autoFollowOffTip": "The list stays where you are reading. Click to jump to the newest request and follow again.",
-  "autoFollowOn": "Auto-follow on · latest ↓",
-  "autoFollowOnTip": "The list follows new traffic. Click to jump to the newest request.",
+  "autoSelect": "Auto-select",
+  "autoSelectCount": "{count} new",
+  "autoSelectOffTip": "The list stays where you are reading. Click to select the newest request and keep selecting it.",
+  "autoSelectOnTip": "New traffic is selected as it arrives. Click to stop selecting it.",
   "autoNegotiatesTheLatestVersion": "auto negotiates the latest version; a fixed version fails if the server chooses another",
   "autoResolvesHttpGrpcMethods": "Auto resolves HTTP gRPC methods; WebSocket messages remain schema-less until you choose a type",
   "automatic": "Automatic",
@@ -3334,6 +3324,7 @@
   "stackedLayout": "Stacked layout",
   "startAnEmulatorOrConnect": "Start an emulator or connect a device with USB debugging, then Refresh.",
   "startCapture": "Start capture",
+  "stopCapture": "Stop capture",
   "startCaptureFirst": "Start capture first",
   "startCaptureFirstTheseActions": "Start capture first; these actions stay disabled until the proxy is listening.",
   "startCollectionRecording": "Start collection recording",

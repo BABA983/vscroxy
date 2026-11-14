@@ -1314,6 +1314,24 @@ func (s *Server) Start() error {
 	return nil
 }
 
+// Stop closes the listening socket and the extra entries, and leaves the
+// server ready to Start again with the same settings. Close is the one-way
+// shutdown at quit; Stop is the capture switch.
+func (s *Server) Stop() error {
+	s.listenMu.Lock()
+	defer s.listenMu.Unlock()
+	if s.listener == nil {
+		return nil
+	}
+	s.running.Store(false)
+	s.stopSOCKS()
+	s.stopReverseProxies()
+	s.DropConnections()
+	err := s.listener.Close()
+	s.listener = nil
+	return err
+}
+
 // Close stops the proxy and closes Flows.
 func (s *Server) Close() error {
 	var err error

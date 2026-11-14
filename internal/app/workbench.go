@@ -383,6 +383,8 @@ func (a *app) captureConditions(c *ui.Context) {
 // captureActions are the capture toolbar's ⋯ menu.
 func (a *app) captureActions() []action {
 	actions := []action{
+		do("capture.stop", locales.StopCapture(), a.stopCapture).when(a.srv != nil && a.srv.Running(), "Capture is not running").keys(ui.Cmd, ui.KeyPeriod),
+		do("capture.start", locales.StartCapture(), func() { go a.startCapture() }).when(a.srv != nil && !a.srv.Running(), "Capture is already running").keys(ui.Cmd, ui.KeyPeriod),
 		do("tools.rules", locales.DebuggingRules2(), a.openRules),
 		do("collection.record", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", "") }),
 		do("tokens.analyze", locales.RecognizeTokenLinks(), func() { a.openTokenLinks(a.tokenLinkScope()) }),
@@ -540,6 +542,8 @@ func (a *app) actions(c *ui.Context) []action {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
 		}).when(a.srv != nil, ""),
+		do("capture.stop", locales.StopCapture(), a.stopCapture).when(proxyReady, "Capture is not running").keys(ui.Cmd, ui.KeyPeriod),
+		do("capture.start", locales.StartCapture(), func() { go a.startCapture() }).when(a.srv != nil && !proxyReady, "Capture is already running").keys(ui.Cmd, ui.KeyPeriod),
 		do("capture.recording", recording, func() { a.recordingPaused = !a.recordingPaused }).
 			when(a.srv != nil && a.srv.Running(), ""),
 		do("collection.record", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", "") }),

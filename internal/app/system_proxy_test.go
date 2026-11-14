@@ -146,7 +146,7 @@ func TestProxySettingsCheckTheOSOnEntry(t *testing.T) {
 	if !tt.HasText("HTTP and HTTPS point at this app") {
 		t.Fatalf("a matching configuration was not reported: %q", tt.Texts())
 	}
-	if !tt.HasText("Wi-Fi · manual · HTTP 127.0.0.1:7890 · HTTPS 127.0.0.1:7890") {
+	if !tt.HasText("Wi-Fi points at 127.0.0.1:7890; the other 0 have no proxy") {
 		t.Fatalf("the panel did not show what the OS holds: %q", tt.Texts())
 	}
 	if !tt.HasText("Read from this computer's OS settings") {
@@ -221,13 +221,13 @@ func TestProxySettingsDistinguishEveryOSState(t *testing.T) {
 			name:    "off",
 			check:   system.ProxyCheck{Status: system.ProxyOff, Configs: []system.ProxyConfig{{Scope: "Wi-Fi"}}},
 			status:  "No system proxy is set",
-			details: []string{"Wi-Fi · no proxy"},
+			details: []string{"1 network service has no proxy"},
 		},
 		{
 			name:    "elsewhere",
 			check:   system.ProxyCheck{Status: system.ProxyMismatch, Configs: []system.ProxyConfig{manualProxy(t, "Wi-Fi", "10.0.0.2:8080")}},
 			status:  "Points at another proxy",
-			details: []string{"Wi-Fi · manual · HTTP 10.0.0.2:8080 · HTTPS 10.0.0.2:8080"},
+			details: []string{"Wi-Fi points at 10.0.0.2:8080; the other 0 have no proxy"},
 		},
 		{
 			name: "automatic",
@@ -235,7 +235,7 @@ func TestProxySettingsDistinguishEveryOSState(t *testing.T) {
 				{Scope: "Wi-Fi", Mode: system.ProxyModeAutomatic, PAC: "http://pac.example/proxy.pac"},
 			}},
 			status:  "Automatic configuration takes precedence",
-			details: []string{"Wi-Fi · automatic script http://pac.example/proxy.pac"},
+			details: []string{"1 network service has no proxy"},
 		},
 		{
 			name:    "unreadable",

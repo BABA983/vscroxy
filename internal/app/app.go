@@ -107,7 +107,9 @@ type app struct {
 	settingsTab     int
 	// settingsChoice is the category list's id for settingsTab, which the list
 	// chooses by.
-	settingsChoice string
+	settingsChoice      string
+	appearanceChoice    int
+	appearanceChoiceSet bool
 	// settingsWin is the Settings window while it is open, and
 	// settingsFocused whether it is in front; both only on the main thread.
 	settingsWin     *mygo.Window
@@ -262,7 +264,11 @@ type app struct {
 
 	// newRows counts traffic that arrived while the list was paused, so the
 	// footer can offer to resume following without moving the reader.
-	newRows int
+	newRows          int
+	autoSelect       bool
+	autoSelecting    bool
+	lastPicked       int
+	inspectorEditing bool
 
 	// recordingPaused keeps the proxy forwarding without keeping ambient
 	// traffic; unrecorded holds what it let pass, so their messages are not
@@ -275,6 +281,7 @@ type app struct {
 	collectionRecording *collectionRecording
 
 	srv         *capture.Server
+	collecting  bool
 	win         *mygo.Window
 	control     *desktopControl
 	caPath      string
@@ -572,11 +579,12 @@ func newApp() *app {
 		// A flow is numbered when it starts and arrives when it ends, so
 		// arrival order puts 6 above 5. The number is the start order: the
 		// table reads by it, and the # column says so with its arrow.
-		sort:      ui.SortOrder{Column: "id"},
-		detailFor: -1,
-		frames:    make(map[int][]frame),
-		throttle:  capture.Presets[0],
-		workbench: desktopWorkbench{layout: "right"},
+		sort:       ui.SortOrder{Column: "id"},
+		detailFor:  -1,
+		frames:     make(map[int][]frame),
+		throttle:   capture.Presets[0],
+		autoSelect: true,
+		workbench:  desktopWorkbench{layout: "right"},
 	}
 	// The engine reads SSLKEYLOGFILE on its first handshake, so a key log the
 	// settings ask for has to be in the environment before it starts.
@@ -856,6 +864,22 @@ func (a *app) invalidate() {
 	}
 }
 
+// syncNativeAppearance makes the desktop's own chrome follow the app's
+// Light, Dark or System choice: native title bars, menus and sheets.
+func (a *app) syncNativeAppearance() {
+	if a.win == nil {
+		return // the native theme waits for the first window
+	}
+	switch a.appearance {
+	case "dark":
+		mygo.Theme.SetSource(mygo.ThemeDark)
+	case "light":
+		mygo.Theme.SetSource(mygo.ThemeLight)
+	default:
+		mygo.Theme.SetSource(mygo.ThemeSystem)
+	}
+}
+
 // clamp shortens a label where its full text is available separately.
 func clamp(msg string, max int) string {
 	r := []rune(msg)
@@ -909,6 +933,28 @@ func (a *app) replayFlow(ctx context.Context, f flow, record bool) (capture.Flow
 	return reply, nil
 }
 
+// stopCapture closes the listener and releases the system proxy if this
+// session set it. Start brings the same server back; the collectors keep
+// reading its channels across the switch.
+func (a *app) stopCapture() {
+	if a.srv == nil || !a.srv.Running() {
+		return
+	}
+	if a.systemProxy.owned() {
+		if err := a.systemProxy.change(false, "", a.writeSystemProxy); err != nil {
+			a.fail(locales.StopCapture(), err)
+			return
+		}
+	}
+	if err := a.srv.Stop(); err != nil {
+		a.fail(locales.StopCapture(), err)
+		return
+	}
+	a.recordingPaused = false
+	a.newRows = 0
+	a.invalidate()
+}
+
 func (a *app) startCapture() {
 	if a.srv == nil {
 		return
@@ -929,6 +975,12 @@ func (a *app) startCapture() {
 		}
 	}
 	a.invalidate()
+	if a.collecting {
+		// Stop closed the socket; the collectors are still reading the
+		// server's channels and will see the restarted listener's flows.
+		return
+	}
+	a.collecting = true
 	go a.collectBreakpoints()
 	go a.collectFrames()
 	done := make(chan struct{})
@@ -1177,11 +1229,13 @@ func (a *app) drain() {
 	if pending = a.record(pending); len(pending) == 0 {
 		return
 	}
-	// New traffic arriving while the reader is away from the end is counted,
-	// not scrolled to: the footer offers to resume following instead.
-	paused := false
+	// New traffic is selected and scrolled to while Auto-select is on. A
+	// draft being edited keeps the reader where they are: the arrivals are
+	// counted on the footer instead of replacing the row under the cursor.
+	editing := a.requestDocument != nil && a.requestDocument.dirty()
+	paused := !a.autoSelect || editing
 	if view := a.views.activeView(); view != nil && len(a.visible) > 0 && !view.list.AtEnd() {
-		paused = true
+		paused = paused || !a.autoSelect
 	}
 	// Code that replaced a.flows without recounting leaves the tally and the
 	// rows stale: rebuild both rather than merge into them.
@@ -1299,9 +1353,12 @@ func (a *app) drain() {
 	} else {
 		a.showArrivals(arrived)
 	}
-	if paused {
+	switch {
+	case len(pending) > 0 && a.autoSelect && !editing:
+		a.selectNewest()
+	case paused:
 		a.newRows += len(pending)
-	} else {
+	default:
 		a.newRows = 0
 	}
 	if a.srv != nil {
@@ -1554,7 +1611,15 @@ func (a *app) view(c *ui.Context) {
 	theme.Accent, theme.AccentHover, theme.AccentPressed, theme.AccentText = uikit.Theme(a.dark).Accent, uikit.Theme(a.dark).AccentHover, uikit.Theme(a.dark).AccentPressed, uikit.Theme(a.dark).AccentText
 	c.SetTheme(theme)
 	c.SetMenuPresentation(ui.PopoverMenus)
+	a.inspectorEditing = a.workbench.inspector.FocusWithin(c)
 	a.drain()
+	// A row the reader picked by hand is theirs: Auto-select steps aside.
+	// A missing row normalizes to -1; that is the list being empty, not the
+	// reader taking over. Only a move between two real rows is a manual pick.
+	if a.picked >= 0 && a.lastPicked >= 0 && a.picked != a.lastPicked && !a.autoSelecting {
+		a.autoSelect = false
+	}
+	a.lastPicked = a.picked
 	// The activity strip is the session's timeline, not the current rows':
 	// once traffic has been here it keeps its place through Clear.
 	a.hadFlows = a.hadFlows || len(a.flows) > 0
@@ -1815,11 +1880,14 @@ func (a *app) sidebarGrip(c *ui.Context, t *ui.Theme) {
 	// property only while the element carried it in the frame before, so the
 	// frame the pointer leaves keeps the hover color and fades from it.
 	lit := held || handle.Hovered()
-	face, d := ui.Color{}, uikit.DurationHover
+	// A zero color would leave the previous frame's line in place; alpha 0
+	// paints the resting state. The resting line does not animate: a
+	// transition that runs on every pointer move costs a frame of its own.
 	if lit {
-		face, d = p.Text.Alpha(0.28), -1
+		line.Background(p.Text.Alpha(0.12)).Transition(ui.ElementTransition{Colors: true, Duration: -1})
+	} else {
+		line.Background(p.Text.Alpha(0)).Transition(ui.ElementTransition{})
 	}
-	line.Background(face).Transition(ui.ElementTransition{Colors: true, Duration: d})
 }
 
 // clampSidebar keeps the sidebar between a size it can be read at and one that
@@ -1873,7 +1941,6 @@ func (a *app) panel(c *ui.Context, t *ui.Theme) {
 			}
 			a.desktopContent(c.Key("workspace-content"))
 		})
-		ui.Box(c).Width(t.Space(2)).Shrink(0).FillHeight()
 	})
 }
 
@@ -2250,7 +2317,14 @@ func (a *app) clientRow(c *ui.Context, d domain) {
 	// An app has its own icon: the row shows it where a host has its dot.
 	row := ui.Element{}
 	if len(apps) > 0 {
-		if src, ok := a.clientIcon(d.name, apps[0].Path); ok {
+		path := ""
+		for _, app := range apps {
+			if app.Path != "" {
+				path = app.Path
+				break
+			}
+		}
+		if src, ok := a.clientIcon(d.name, path); ok {
 			row = uikit.SidebarItemImage(c, id, src, d.name, active, !a.windowBehind)
 		}
 	}
@@ -2564,20 +2638,6 @@ func (a *app) table(c *ui.Context) {
 	state.Selected = &a.picked
 	state.Selection = &a.chosen
 	state.Key = func(row int) any { return a.flows[a.visible[row]].id }
-	// A row dragged out of the table carries the exchanges it stands for;
-	// the collection tree takes them as a drop and saves them there.
-	state.DragRows = func(rows []int) any {
-		flows := make([]flow, 0, len(rows))
-		for _, row := range rows {
-			if row >= 0 && row < len(a.visible) {
-				flows = append(flows, a.flows[a.visible[row]])
-			}
-		}
-		if len(flows) == 0 {
-			return nil
-		}
-		return capturedDrag{flows: flows}
-	}
 	state.Sort = &a.sort
 	// The table owns the live layout while it is on screen: the app's copy is
 	// only what it was given, or what it changed from its own menus.
@@ -3238,6 +3298,7 @@ func Run() error {
 			}
 		})
 		mygo.App.SetMenu(a.menu())
+		a.syncNativeAppearance()
 		a.checkSystemProxy(true) // retry only a recorded, interrupted proxy session
 		if path := os.Getenv("VSCROXY_CONTROL_FILE"); path != "" {
 			if err := a.startControl(path); err != nil {
@@ -3352,10 +3413,6 @@ func clientBadge(c *ui.Context, name string) {
 	}
 	uikit.LetterSquare(c, name, uikit.IconInline, uikit.Colors(c.Theme()).TextMuted).Label(label)
 }
-
-// capturedDrag is what a table row drags into a collection: the exchanges
-// chosen when the gesture started.
-type capturedDrag struct{ flows []flow }
 
 func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 	return func(m *ui.Menu) { actionMenu(m, a.flowActions(c, f)) }

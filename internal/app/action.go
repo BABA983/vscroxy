@@ -256,6 +256,8 @@ func (s shortcut) accelerator() string {
 		return text + "Tab"
 	case s.key == ui.KeyComma:
 		return text + ","
+	case s.key == ui.KeyPeriod:
+		return text + "."
 	case s.key == ui.KeyBracketLeft:
 		return text + "["
 	}

@@ -78,9 +78,15 @@ func (a *app) appearanceSettings(c *ui.Context, t *ui.Theme) {
 			uikit.SettingsRow(c, locales.Appearance(), func() ui.Element {
 				return ui.Row(c).Children(func() { // as wide as its segments
 					modes := []string{"", "light", "dark"}
-					choice := max(slices.Index(modes, a.appearance), 0)
-					uikit.Segmented(c, &choice, locales.System(), locales.Light(), locales.Dark()).Label(locales.Appearance())
-					a.appearance = modes[choice]
+					if !a.appearanceChoiceSet {
+						a.appearanceChoice, a.appearanceChoiceSet = max(slices.Index(modes, a.appearance), 0), true
+					}
+					uikit.Segmented(c, &a.appearanceChoice, locales.System(), locales.Light(), locales.Dark()).Label(locales.Appearance())
+					if a.appearanceChoice >= 0 && a.appearanceChoice < len(modes) && modes[a.appearanceChoice] != a.appearance {
+						a.appearance = modes[a.appearanceChoice]
+						a.syncNativeAppearance()
+						a.persistSettings()
+					}
 				})
 			}, locales.SystemFollowsThisComputerS())
 		})

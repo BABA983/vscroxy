@@ -3,6 +3,7 @@ package uikit
 import (
 	"cmp"
 	"fmt"
+	"strings"
 
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
@@ -223,7 +224,10 @@ func fieldFace(p *Palette, field ui.Element, onChrome, focused bool) ui.Element 
 	if onChrome {
 		face = p.Canvas
 	}
-	field.Radius(RadiusControl).Background(face)
+	// The face's radius also clips what sits inside it: a method control's
+	// hover or a chip's fill follows the field's corners instead of squaring
+	// them off.
+	field.Radius(RadiusControl).Background(face).Clip()
 	switch {
 	case focused:
 		field.InsetShadow(0, 0, 0, 1, p.TextMuted).Shadow(0, 0, 0, 3, p.AccentTint)
@@ -379,16 +383,39 @@ func Tip(c *ui.Context, e ui.Element, text string) ui.Element {
 	if text == "" {
 		return e
 	}
-	t := c.Theme()
+	t, p := c.Theme(), Colors(c.Theme())
 	ui.TooltipBase(c, e, func(tip ui.Element) {
-		popoverFace(c, tip)
-		tip.MaxWidth(t.Space(80)).Padding(t.Space(1), t.Space(2)).Transition(popoverMotion())
+		tip.Background(p.Inverse).TextColor(p.InverseText).Radius(RadiusControl).
+			MaxWidth(Scaled(360)).Padding(t.Space(1.5), t.Space(2.5)).Transition(popoverMotion())
 		tip.Children(func() {
-			ui.Text(c, text).FontSize(Scaled(TextMeta)).TextColor(t.Text).SingleLine()
+			body := text
+			font := FontUI
+			if strings.Contains(text, "://") || strings.Contains(text, " ") && strings.Count(text, " ") < 2 && len(text) > 60 {
+				font = FontMono
+				body = breakLong(text)
+			}
+			ui.Text(c, body).Font(font).FontSize(Scaled(TextMeta)).TextColor(p.InverseText).
+				MaxLines(8).LineHeight(LineProse)
 		})
 	})
 	e.Description(text)
 	return e
+}
+
+// breakLong gives a long unbroken string, such as a URL, places to wrap: a
+// zero-width space every 32 characters keeps it inside the tip.
+func breakLong(s string) string {
+	if len(s) <= 32 {
+		return s
+	}
+	var b strings.Builder
+	for i, r := range s {
+		if i > 0 && i%32 == 0 {
+			b.WriteRune('\u200b')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 // Dialog content uses three width tiers inside Modal's shared padding.
@@ -914,22 +941,30 @@ func SettingsGroup(c *ui.Context, legend string, fields func()) ui.Element {
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
 }
 
+// first returns the first value, or fallback when there is none.
+func first(values []string, fallback string) string {
+	if len(values) > 0 && values[0] != "" {
+		return values[0]
+	}
+	return fallback
+}
+
 // SettingsRow is one setting as a row: its label in a fixed left column, its
 // control beside it, and a hint under the control when it needs one. The
 // label column is Scaled so it follows the text size, the label is centered
 // on a single-line control, and the hint stays a meta line within the
 // control's width instead of running across the page.
-func SettingsRow(c *ui.Context, label string, control func() ui.Element, hint string) ui.Element {
-	return settingsRow(c, label, control, hint, false)
+func SettingsRow(c *ui.Context, label string, control func() ui.Element, hint string, tip ...string) ui.Element {
+	return settingsRow(c, label, control, hint, first(tip, hint), false)
 }
 
 // SettingsRowMultiline is SettingsRow for a control taller than one line,
 // such as a text area: the label lines up with the control's first line.
 func SettingsRowMultiline(c *ui.Context, label string, control func() ui.Element, hint string) ui.Element {
-	return settingsRow(c, label, control, hint, true)
+	return settingsRow(c, label, control, hint, hint, true)
 }
 
-func settingsRow(c *ui.Context, label string, control func() ui.Element, hint string, multiline bool) ui.Element {
+func settingsRow(c *ui.Context, label string, control func() ui.Element, hint, tip string, multiline bool) ui.Element {
 	t := c.Theme()
 	align := ui.Center
 	if multiline {
@@ -942,8 +977,8 @@ func settingsRow(c *ui.Context, label string, control func() ui.Element, hint st
 		settingsRowBody(c, label, control, align)
 		ui.Row(c).Children(func() {
 			ui.Box(c).Width(Scaled(112) + t.Space(4)).Shrink(0)
-			ui.Text(c, hint).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted).
-				MaxWidth(Scaled(400)).LineHeight(LineProse)
+			Tip(c, ui.Text(c, hint).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted).
+				MaxWidth(Scaled(400)).LineHeight(LineProse), tip)
 		})
 	})
 }

@@ -1270,74 +1270,44 @@ func (msgs Messages) Auto() string {
 	return Catalog.Format(msgs.locale, "auto", nil)
 }
 
-// AutoFollow says "Auto-follow"
+// AutoSelect says "Auto-select"
 // in the language the app shows.
-func AutoFollow() string { return In(i18n.Locale()).AutoFollow() }
+func AutoSelect() string { return In(i18n.Locale()).AutoSelect() }
 
-// AutoFollow says "Auto-follow"
+// AutoSelect says "Auto-select"
 // in the language of msgs.
-func (msgs Messages) AutoFollow() string {
-	return Catalog.Format(msgs.locale, "autoFollow", nil)
+func (msgs Messages) AutoSelect() string {
+	return Catalog.Format(msgs.locale, "autoSelect", nil)
 }
 
-// AutoFollowCount says "{count} new"
+// AutoSelectCount says "{count} new"
 // in the language the app shows.
-func AutoFollowCount(count int) string { return In(i18n.Locale()).AutoFollowCount(count) }
+func AutoSelectCount(count int) string { return In(i18n.Locale()).AutoSelectCount(count) }
 
-// AutoFollowCount says "{count} new"
+// AutoSelectCount says "{count} new"
 // in the language of msgs.
-func (msgs Messages) AutoFollowCount(count int) string {
-	return Catalog.Format(msgs.locale, "autoFollowCount", map[string]any{"count": count})
+func (msgs Messages) AutoSelectCount(count int) string {
+	return Catalog.Format(msgs.locale, "autoSelectCount", map[string]any{"count": count})
 }
 
-// AutoFollowNew says "Auto-follow off · {count} new ↓"
+// AutoSelectOffTip says "The list stays where you are reading. Click to select the newest request and keep selecting it."
 // in the language the app shows.
-func AutoFollowNew(count int) string { return In(i18n.Locale()).AutoFollowNew(count) }
+func AutoSelectOffTip() string { return In(i18n.Locale()).AutoSelectOffTip() }
 
-// AutoFollowNew says "Auto-follow off · {count} new ↓"
+// AutoSelectOffTip says "The list stays where you are reading. Click to select the newest request and keep selecting it."
 // in the language of msgs.
-func (msgs Messages) AutoFollowNew(count int) string {
-	return Catalog.Format(msgs.locale, "autoFollowNew", map[string]any{"count": count})
+func (msgs Messages) AutoSelectOffTip() string {
+	return Catalog.Format(msgs.locale, "autoSelectOffTip", nil)
 }
 
-// AutoFollowOff says "Auto-follow off · latest ↓"
+// AutoSelectOnTip says "New traffic is selected as it arrives. Click to stop selecting it."
 // in the language the app shows.
-func AutoFollowOff() string { return In(i18n.Locale()).AutoFollowOff() }
+func AutoSelectOnTip() string { return In(i18n.Locale()).AutoSelectOnTip() }
 
-// AutoFollowOff says "Auto-follow off · latest ↓"
+// AutoSelectOnTip says "New traffic is selected as it arrives. Click to stop selecting it."
 // in the language of msgs.
-func (msgs Messages) AutoFollowOff() string {
-	return Catalog.Format(msgs.locale, "autoFollowOff", nil)
-}
-
-// AutoFollowOffTip says "The list stays where you are reading. Click to jump to the newest request and follow again."
-// in the language the app shows.
-func AutoFollowOffTip() string { return In(i18n.Locale()).AutoFollowOffTip() }
-
-// AutoFollowOffTip says "The list stays where you are reading. Click to jump to the newest request and follow again."
-// in the language of msgs.
-func (msgs Messages) AutoFollowOffTip() string {
-	return Catalog.Format(msgs.locale, "autoFollowOffTip", nil)
-}
-
-// AutoFollowOn says "Auto-follow on · latest ↓"
-// in the language the app shows.
-func AutoFollowOn() string { return In(i18n.Locale()).AutoFollowOn() }
-
-// AutoFollowOn says "Auto-follow on · latest ↓"
-// in the language of msgs.
-func (msgs Messages) AutoFollowOn() string {
-	return Catalog.Format(msgs.locale, "autoFollowOn", nil)
-}
-
-// AutoFollowOnTip says "The list follows new traffic. Click to jump to the newest request."
-// in the language the app shows.
-func AutoFollowOnTip() string { return In(i18n.Locale()).AutoFollowOnTip() }
-
-// AutoFollowOnTip says "The list follows new traffic. Click to jump to the newest request."
-// in the language of msgs.
-func (msgs Messages) AutoFollowOnTip() string {
-	return Catalog.Format(msgs.locale, "autoFollowOnTip", nil)
+func (msgs Messages) AutoSelectOnTip() string {
+	return Catalog.Format(msgs.locale, "autoSelectOnTip", nil)
 }
 
 // AutoNegotiatesTheLatestVersion says "auto negotiates the latest version; a fixed version fails if the server chooses another"
@@ -20426,6 +20396,16 @@ func StartCapture() string { return In(i18n.Locale()).StartCapture() }
 // in the language of msgs.
 func (msgs Messages) StartCapture() string {
 	return Catalog.Format(msgs.locale, "startCapture", nil)
+}
+
+// StopCapture says "Stop capture"
+// in the language the app shows.
+func StopCapture() string { return In(i18n.Locale()).StopCapture() }
+
+// StopCapture says "Stop capture"
+// in the language of msgs.
+func (msgs Messages) StopCapture() string {
+	return Catalog.Format(msgs.locale, "stopCapture", nil)
 }
 
 // StartCaptureFirst says "Start capture first"

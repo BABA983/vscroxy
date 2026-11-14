@@ -353,3 +353,19 @@ func TestHandEditedConfigIsNotOverwritten(t *testing.T) {
 		t.Fatalf("damaged file changed: %s", disk)
 	}
 }
+
+// The Appearance segments change the app, not only the control: the native
+// chrome follows the chosen Light, Dark or System appearance.
+func TestAppearanceSegmentChangesTheApp(t *testing.T) {
+	a := workspaceApp()
+	a.settingsOpen, a.settingsTab, a.settingsChoice = true, 3, "3"
+	tt := ui.NewTester(a.settingsView, 760, 560)
+	tt.Frame()
+	if err := tt.Click("Dark"); err != nil {
+		t.Fatalf("Dark: %v", err)
+	}
+	tt.Frame()
+	if a.appearance != "dark" {
+		t.Fatalf("appearance = %q, want dark", a.appearance)
+	}
+}

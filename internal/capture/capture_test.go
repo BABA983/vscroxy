@@ -3241,3 +3241,32 @@ func TestReserveIDsSharesTheLiveCounter(t *testing.T) {
 		t.Fatalf("nil server reservation = %d", first)
 	}
 }
+
+// Stop closes the socket a client connects to and Start listens on it again:
+// the capture switch is not the one-way Close at quit.
+func TestStopClosesThePortAndStartListensAgain(t *testing.T) {
+	s, err := New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.Start(); err != nil {
+		t.Fatal(err)
+	}
+	addr := s.Addr()
+	if err := s.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	if conn, err := net.DialTimeout("tcp", addr, 300*time.Millisecond); err == nil {
+		conn.Close()
+		t.Fatal("the port still accepts connections after Stop")
+	}
+	if err := s.Start(); err != nil {
+		t.Fatalf("Start after Stop: %v", err)
+	}
+	conn, err := net.DialTimeout("tcp", s.Addr(), time.Second)
+	if err != nil {
+		t.Fatalf("the restarted listener does not accept connections: %v", err)
+	}
+	conn.Close()
+}

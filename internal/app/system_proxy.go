@@ -2,10 +2,14 @@ package app
 
 import (
 	"errors"
-	"github.com/baba983/vscroxy/internal/uikit"
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	"github.com/baba983/vscroxy/internal/uikit"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -376,17 +380,52 @@ func (a *app) systemProxyDetail(target string) (line, tooltip string) {
 		line = "Change failed: " + s.writeErr.Error()
 	case s.check.Err != nil:
 		line = "Read failed: " + s.check.Err.Error()
-	case scopes != "":
-		return scopes, scopes
+	case len(s.check.Configs) > 0:
+		line = proxySummary(s.check.Configs)
 	case target != "":
 		line = "This app's proxy address: " + target
 	default:
 		line = "Capture has no address yet"
 	}
-	if scopes == "" {
-		return line, line
+	if scopes != "" {
+		return line, line + " · " + scopes
 	}
-	return line, line + " · " + scopes
+	return line, line
+}
+
+// proxySummary says in one line how many network services point at a proxy:
+// the full list belongs in the tip, not in the panel.
+func proxySummary(configs []system.ProxyConfig) string {
+	var pointed []string
+	for _, cfg := range configs {
+		ep := cfg.HTTP
+		if !ep.Enabled {
+			ep = cfg.HTTPS
+		}
+		if ep.Enabled {
+			pointed = append(pointed, cfg.Scope+" points at "+net.JoinHostPort(ep.Host, strconv.Itoa(ep.Port)))
+		}
+	}
+	switch len(pointed) {
+	case 0:
+		if len(configs) == 1 {
+			return "1 network service has no proxy"
+		}
+		return fmt.Sprintf("%d network services have no proxy", len(configs))
+	case 1:
+		return fmt.Sprintf("%s; the other %d have no proxy", pointed[0], len(configs)-1)
+	default:
+		return fmt.Sprintf("%d of %d network services point at a proxy", len(pointed), len(configs))
+	}
+}
+
+// systemProxyHint says why the switch cannot be used while capture is
+// stopped, and otherwise what the OS holds.
+func systemProxyHint(detail string, running bool) string {
+	if !running {
+		return locales.StartCaptureFirst() + " · " + detail
+	}
+	return detail + " · " + locales.ReadFromThisComputerS()
 }
 
 // systemProxySettings reports the machine's proxy configuration and offers the
@@ -406,7 +445,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 	running := a.srv != nil && a.srv.Running()
 	busy := s.checking || s.applying || s.quitting
 	status, _ := a.systemProxyStatus(t)
-	detail, _ := a.systemProxyDetail(target)
+	detail, detailTip := a.systemProxyDetail(target)
 	uikit.SettingsGroup(c, locales.SystemProxy(), func() {
 		// One row: the name, the switch that changes the OS, what the OS
 		// says, and the check. The scope and the sentence read beneath it,
@@ -432,7 +471,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 					a.checkSystemProxy(true)
 				}
 			})
-		}, detail+" · "+locales.ReadFromThisComputerS())
+		}, systemProxyHint(detail, running), systemProxyHint(detailTip, running))
 		uikit.SettingsRowMultiline(c, locales.BypassList(), func() ui.Element {
 			return ui.Column(c).Gap(t.Space(2)).Children(func() {
 				ui.Checkbox(c, &a.systemProxyBypassSet, "Replace the system bypass list")

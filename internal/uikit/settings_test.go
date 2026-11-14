@@ -72,3 +72,15 @@ func TestSettingsRowCentersTheLabelOnASingleLineControl(t *testing.T) {
 		t.Fatalf("label center %.1f, control center %.1f: they differ by %.1f", label.Y+label.H/2, control.Y+control.H/2, dy)
 	}
 }
+
+// A long URL in a tip gets places to wrap; a sentence keeps its words.
+func TestTipBreaksALongURL(t *testing.T) {
+	url := "https://example.com/" + strings.Repeat("segment", 12)
+	broken := breakLong(url)
+	if !strings.Contains(broken, "\u200b") {
+		t.Fatalf("a long URL has no break: %q", broken)
+	}
+	if got := breakLong("short"); got != "short" {
+		t.Fatalf("short text changed to %q", got)
+	}
+}

@@ -815,7 +815,7 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if !tt.HasText(row) || tt.HasText("api.example.com/capture/5001") {
 		t.Fatal("new traffic pulled the reader away from older requests")
 	}
-	// Following is the footer's Auto-follow button, so its state is the
+	// Following is the footer's Auto-select button, so its state is the
 	// app's: new traffic must not have put the list back on the end.
 	if a.following() {
 		t.Fatalf("new traffic pulled the reader to the end: %q", tt.Texts())
@@ -823,14 +823,14 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if err := tt.Click(row); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Auto-follow"); err != nil {
+	if err := tt.Click("Auto-select"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("api.example.com/capture/5001") {
 		t.Fatal("Latest must scroll, not only change the selection")
 	}
-	if f, ok := a.current(); !ok || f.id != 1 || !a.chosen.Has(1) || a.chosen.Len() != 1 {
-		t.Fatal("following the list replaced the inspected request or bulk choice")
+	if f, ok := a.current(); !ok || f.id != 5001 || !a.chosen.Has(5001) || a.chosen.Len() != 1 {
+		t.Fatal("Auto-select did not inspect and choose the newest request")
 	}
 	appendFlow(5002)
 	if !tt.HasText("api.example.com/capture/5002") {
@@ -971,7 +971,7 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 	a.systemProxy.read = fake.read
 	a.srv, a.flows, a.visible = srv, nil, nil
 	tt := ui.NewTester(a.view, 1240, 800)
-	if !tt.HasText("Proxy stopped") || tt.HasText(srv.Addr()) {
+	if !tt.HasText("Stopped") || tt.HasText(srv.Addr()) {
 		t.Fatal("an unstarted server must not appear live")
 	}
 	a.setSystemProxy(true)
@@ -2206,7 +2206,7 @@ func TestCaptureStartsBelowFourBars(t *testing.T) {
 		t.Fatalf("the first request is not below the head: %v", row)
 	}
 	// The status bar closes the window with the same 24.
-	if footer, ok := tt.Find("Auto-follow"); !ok || footer.Y < height-uikit.HeightStatus || footer.Y+footer.H > height {
+	if footer, ok := tt.Find("Auto-select"); !ok || footer.Y < height-uikit.HeightStatus || footer.Y+footer.H > height {
 		t.Fatalf("the status bar is not the last 24 of the window: %v", footer)
 	}
 }
@@ -2448,10 +2448,10 @@ func TestShellIsOneSurfaceAroundTheRaisedPanel(t *testing.T) {
 		if canvas == chrome {
 			t.Fatalf("sidebarHidden=%t: the panel is the shell's own color", hidden)
 		}
-		// The panel stops short of the window's right edge, and of its left
-		// edge too once the sidebar is not there to hold it.
-		if got := im.RGBAAt(1276, 300); got != chrome {
-			t.Fatalf("the panel runs to the window's right edge: %v", got)
+		// The panel runs to the window's right edge; its left edge is the
+		// sidebar, or the shell once the sidebar is away.
+		if got := im.RGBAAt(1276, 300); got == chrome {
+			t.Fatalf("the panel stops short of the window's right edge: %v", got)
 		}
 		if hidden {
 			if got := im.RGBAAt(4, 300); got != chrome {
@@ -2486,7 +2486,7 @@ func TestFooterActionsClearFilterAndFollow(t *testing.T) {
 	}
 	tt.Key(0, ui.KeyEscape)
 	tt.Frame()
-	// Scrolled away from the end, Auto-follow is off and brings the list back.
+	// A manual pick turns Auto-select off; its button brings it back.
 	for i := range 60 {
 		a.flows = append(a.flows, flow{id: 100 + i, method: "GET", scheme: "https", host: "api.example.com", path: fmt.Sprintf("/more/%d", i), url: fmt.Sprintf("https://api.example.com/more/%d", i), status: 200})
 	}
@@ -2495,12 +2495,13 @@ func TestFooterActionsClearFilterAndFollow(t *testing.T) {
 	table, _ := tt.Find("Captured requests")
 	tt.Scroll(table.X+table.W/2, table.Y+table.H/2, 0, -1e6)
 	tt.Frame()
-	if a.following() {
-		t.Fatal("the list still follows after scrolling to the start")
+	click("api.example.com/projects")
+	if a.autoSelect {
+		t.Fatal("a manual pick left Auto-select on")
 	}
-	click("Auto-follow")
-	if !a.following() {
-		t.Fatal("the footer's Auto-follow did not return to the newest request")
+	click("Auto-select")
+	if !a.following() || a.picked != len(a.visible)-1 {
+		t.Fatal("the footer's Auto-select did not select the newest request")
 	}
 }
 
@@ -2550,15 +2551,15 @@ func TestFooterKeepsTheNewCountApartFromTheLabel(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1280, 800)
 	tt.Frame()
-	plain, ok := tt.Find("Auto-follow")
+	plain, ok := tt.Find("Auto-select")
 	if !ok {
-		t.Fatalf("no Auto-follow button: %q", tt.Texts())
+		t.Fatalf("no Auto-select button: %q", tt.Texts())
 	}
 	a.newRows = 6
 	tt.Frame()
-	button, ok := tt.Find("Auto-follow")
+	button, ok := tt.Find("Auto-select")
 	if !ok {
-		t.Fatalf("no Auto-follow button with a count: %q", tt.Texts())
+		t.Fatalf("no Auto-select button with a count: %q", tt.Texts())
 	}
 	count, ok := tt.Find("6 new")
 	if !ok {
@@ -2586,39 +2587,28 @@ func TestFooterKeepsTheNewCountApartFromTheLabel(t *testing.T) {
 
 // Auto-follow at rest, under the pointer and on are three faces: on borrows
 // the chosen segment's raised canvas, not a tint that reads as hover.
-func TestFooterAutoFollowFacesAreDistinct(t *testing.T) {
+func TestFooterAutoSelectFacesAreDistinct(t *testing.T) {
 	a := workspaceApp()
-	for i := range 60 {
-		a.flows = append(a.flows, flow{id: 100 + i, method: "GET", scheme: "https", host: "api.example.com", path: fmt.Sprintf("/more/%d", i), url: fmt.Sprintf("https://api.example.com/more/%d", i), status: 200})
-	}
-	a.applyFilter()
 	tt := ui.NewTester(a.view, 1280, 800)
 	tt.Frame()
 	tt.Advance(400 * time.Millisecond)
-	button, ok := tt.Find("Auto-follow")
+	button, ok := tt.Find("Auto-select")
 	if !ok {
-		t.Fatalf("no Auto-follow button: %q", tt.Texts())
+		t.Fatalf("no Auto-select button: %q", tt.Texts())
 	}
 	// The button's padding, left of the label's first glyph.
 	face := func() (r, g, b uint8) {
 		c := tt.Image().RGBAAt(int(button.X)+3, int(button.Y+button.H/2))
 		return c.R, c.G, c.B
 	}
-	table, _ := tt.Find("Captured requests")
-	tt.Scroll(table.X+table.W/2, table.Y+table.H/2, 0, -1e6)
+	a.autoSelect = false
 	tt.Frame()
 	tt.Advance(400 * time.Millisecond)
 	restR, restG, restB := face()
-	if a.following() {
-		t.Fatal("the list still follows after scrolling to the start")
-	}
-	tt.Scroll(table.X+table.W/2, table.Y+table.H/2, 0, 1e6)
+	a.autoSelect = true
 	tt.Frame()
 	tt.Advance(400 * time.Millisecond)
 	onR, onG, onB := face()
-	if !a.following() {
-		t.Fatal("scrolling back to the end did not resume following")
-	}
 	tt.Move(button.X+button.W/2, button.Y+button.H/2)
 	tt.Frame()
 	tt.Advance(400 * time.Millisecond)
@@ -6547,8 +6537,10 @@ func TestAPointerMoveCostsOneFrame(t *testing.T) {
 	if moved == 0 {
 		t.Fatal(tt.Texts())
 	}
-	if got := a.builds - before; got > perFrame*moved {
-		t.Fatalf("%d hovers ran %d view passes, more than the %d a frame costs", moved, got, perFrame*moved)
+	// A hover may also lay out the tip it reveals, one pass more than the
+	// hover's own frame.
+	if got := a.builds - before; got > (perFrame+1)*moved {
+		t.Fatalf("%d hovers ran %d view passes, more than the %d a frame and a tip cost", moved, got, (perFrame+1)*moved)
 	}
 }
 
