@@ -54,6 +54,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	bail := flags.Bool("bail", false, "Stop after the first failed attempt")
 	timeout := flags.Duration("timeout", 5*time.Minute, "Whole-run timeout (must be positive)")
 	stepTimeout := flags.Duration("request-timeout", 30*time.Second, "Per-request timeout (must be positive)")
+	delayRequest := flags.Duration("delay-request", 0, "Wait before each request after the first, including between iterations (0 for none)")
 	maxSteps := flags.Int("max-steps", 10000, "Maximum attempts, including script jumps (1–100000)")
 	jsonPath := flags.String("report-json", "", "Write a private JSON report")
 	xmlPath := flags.String("report-junit", "", "Write a private JUnit XML report")
@@ -75,8 +76,8 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	iterationsSet := false
 	flags.Visit(func(f *flag.Flag) { iterationsSet = iterationsSet || f.Name == "iterations" })
-	if flags.NArg() != 1 || *timeout <= 0 || *stepTimeout <= 0 || *iterations < 0 || iterationsSet && *iterations == 0 || *iterations > request.MaxDataRows || *maxSteps < 1 || *maxSteps > 100000 {
-		fmt.Fprintln(stderr, "Provide one collection input, positive timeouts, 1–1000 iterations, and 1–100000 max steps.")
+	if flags.NArg() != 1 || *timeout <= 0 || *stepTimeout <= 0 || *delayRequest < 0 || *iterations < 0 || iterationsSet && *iterations == 0 || *iterations > request.MaxDataRows || *maxSteps < 1 || *maxSteps > 100000 {
+		fmt.Fprintln(stderr, "Provide one collection input, positive timeouts, a non-negative request delay, 1–1000 iterations, and 1–100000 max steps.")
 		return 2
 	}
 	if *jsonPath != "" && *xmlPath != "" {
@@ -190,7 +191,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 	start := time.Now()
 	report := runner.Report{Version: 1, StartedAt: start.UTC()}
-	summary, runErr := runner.Run(runCtx, srv, steps, runner.Options{Iterations: *iterations, Timeout: *stepTimeout, StopOnFailure: *bail, Vars: values, Data: rows, Cookies: jar, MaxSteps: *maxSteps}, func(result runner.Result) error {
+	summary, runErr := runner.Run(runCtx, srv, steps, runner.Options{Iterations: *iterations, Timeout: *stepTimeout, Delay: *delayRequest, StopOnFailure: *bail, Vars: values, Data: rows, Cookies: jar, MaxSteps: *maxSteps}, func(result runner.Result) error {
 		r := requests[result.Index]
 		report.Append(r, result, *details)
 		state := "PASS"

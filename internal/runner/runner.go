@@ -27,8 +27,11 @@ type Options struct {
 	// of 30 seconds and lets a request's own timeout raise or remove it. A
 	// non-zero caller cap always wins over a request's longer or unlimited
 	// setting.
-	Timeout       time.Duration
-	MaxSteps      int // zero is unlimited; counts script jumps too
+	Timeout  time.Duration
+	MaxSteps int // zero is unlimited; counts script jumps too
+	// Delay waits before every attempt except the first, including the first
+	// attempt of a later iteration. Zero adds no wait; load runs never set it.
+	Delay         time.Duration
 	StopOnFailure bool
 	Data          []map[string]string
 	Vars          map[string]string
@@ -81,6 +84,9 @@ func run(ctx context.Context, srv *capture.Server, steps []Step, opts Options, r
 	if opts.MaxSteps < 0 {
 		return summary, fmt.Errorf("maximum steps must not be negative")
 	}
+	if opts.Delay < 0 {
+		return summary, fmt.Errorf("request delay must not be negative")
+	}
 	// Keep whether the caller supplied a cap before applying the desktop
 	// default. Only the desktop Runner may let a request raise or remove it.
 	callerTimeout := opts.Timeout
@@ -97,6 +103,13 @@ func run(ctx context.Context, srv *capture.Server, steps []Step, opts Options, r
 			}
 			if opts.MaxSteps > 0 && summary.Completed >= opts.MaxSteps {
 				return summary, ErrStepLimit
+			}
+			if opts.Delay > 0 && summary.Completed > 0 {
+				select {
+				case <-time.After(opts.Delay):
+				case <-ctx.Done():
+					return summary, ctx.Err()
+				}
 			}
 			if reserve != nil {
 				if err := reserve(); err != nil {

@@ -161,6 +161,7 @@ func TestRunFailureBudgetAndSelection(t *testing.T) {
 		{"skip", `pm.execution.skipRequest()`, nil, 0, 2, false},
 		{"empty selection", "", []string{"--folder", "missing"}, 2, 0, false},
 		{"zero iterations", "", []string{"--iterations", "0"}, 2, 0, false},
+		{"negative delay", "", []string{"--delay-request", "-1s"}, 2, 0, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -183,6 +184,27 @@ func TestRunFailureBudgetAndSelection(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// --delay-request waits once between the two attempts, not before the first.
+func TestRunDelayRequestSpacesAttempts(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer upstream.Close()
+	root := t.TempDir()
+	input, output := filepath.Join(root, "collections"), filepath.Join(root, "run.json")
+	write(t, filepath.Join(input, "first.request.json"), request.Request{Name: "First", Method: "GET", URL: upstream.URL})
+	write(t, filepath.Join(input, "last.request.json"), request.Request{Name: "Last", Method: "GET", URL: upstream.URL})
+	const delay = 400 * time.Millisecond
+	var stdout, stderr bytes.Buffer
+	start := time.Now()
+	code := cli.Run(t.Context(), []string{"run", "--report-json", output, "--delay-request", delay.String(), input}, &stdout, &stderr)
+	elapsed := time.Since(start)
+	if code != 0 {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, &stdout, &stderr)
+	}
+	if elapsed < delay || elapsed >= 2*delay {
+		t.Fatalf("elapsed %v, want one delay of %v between two requests", elapsed, delay)
 	}
 }
 

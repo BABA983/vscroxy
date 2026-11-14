@@ -153,3 +153,51 @@ func TestNTLMRequestInRunner(t *testing.T) {
 		t.Errorf("connections=%d requests=%+v, want one connection with three steps", auth.Connections(), auth.Requests())
 	}
 }
+
+// Three waits separate four attempts over two iterations: none before the
+// first attempt, and one before each later attempt, including the first
+// attempt of the second iteration.
+func TestRequestDelaySpacesAttempts(t *testing.T) {
+	ok := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer ok.Close()
+	srv := runnerProxy(t)
+
+	const delay = 250 * time.Millisecond
+	steps := []Step{
+		{Request: request.Request{Method: "GET", URL: ok.URL}},
+		{Request: request.Request{Method: "GET", URL: ok.URL}},
+	}
+	start := time.Now()
+	summary, err := Run(t.Context(), srv, steps, Options{Iterations: 2, Delay: delay}, func(Result) error { return nil })
+	elapsed := time.Since(start)
+	if err != nil || summary.Completed != 4 {
+		t.Fatalf("run = %+v, %v", summary, err)
+	}
+	if elapsed < 3*delay || elapsed >= 4*delay {
+		t.Fatalf("elapsed %v, want three delays of %v", elapsed, delay)
+	}
+}
+
+// A cancelled run does not wait out its delay before the next attempt.
+func TestRequestDelayStopsWhenRunIsCancelled(t *testing.T) {
+	ok := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer ok.Close()
+	srv := runnerProxy(t)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	stop := time.AfterFunc(100*time.Millisecond, cancel)
+	defer stop.Stop()
+	steps := []Step{
+		{Request: request.Request{Method: "GET", URL: ok.URL}},
+		{Request: request.Request{Method: "GET", URL: ok.URL}},
+	}
+	start := time.Now()
+	summary, err := Run(ctx, srv, steps, Options{Iterations: 1, Delay: time.Minute}, func(Result) error { return nil })
+	if !errors.Is(err, context.Canceled) || summary.Completed != 1 {
+		t.Fatalf("run = %+v, %v; want one attempt then cancellation", summary, err)
+	}
+	if elapsed := time.Since(start); elapsed > 10*time.Second {
+		t.Fatalf("cancelled run took %v; the delay ignored cancellation", elapsed)
+	}
+}

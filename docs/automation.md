@@ -45,6 +45,9 @@ discarded.
 - `--request-timeout` defaults to 30s, `--timeout` to 5m for the whole execution,
   and `--max-steps` to 10000 attempts including jumps. Both timeouts must be
   positive; max steps is 1..100000. These bounds prevent endless polling scripts.
+- `--delay-request` (default 0) waits before every attempt after the first,
+  including the first attempt of a later iteration, to pace a run against a
+  rate-limited server. The wait ends early when the run is cancelled.
 
 Each run starts an isolated loopback proxy with an ephemeral CA directory.
 It does not change the system proxy, trust store, desktop rules or settings.
