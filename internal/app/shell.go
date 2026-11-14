@@ -70,12 +70,13 @@ func (a *app) barLeading(c *ui.Context, t *ui.Theme) {
 // title bar always carries.
 func (a *app) recordButton(c *ui.Context, t *ui.Theme) {
 	running := a.srv != nil && a.srv.Running()
-	label, icon := locales.StartCapture(), recordIcon
+	if !running {
+		return
+	}
+	label, icon := locales.PauseCapture(), pauseIcon
 	switch {
-	case running && a.recordingPaused:
-		label, icon = locales.ResumeRecording(), resumeIcon
-	case running:
-		label, icon = locales.PauseRecording(), pauseIcon
+	case a.recordingPaused:
+		label, icon = locales.ResumeCapture(), resumeIcon
 	}
 	if uikit.IconButton(c, label, label, icon).Clicked() {
 		switch {
@@ -158,9 +159,7 @@ func (a *app) layoutToggle(c *ui.Context) {
 	if w.layout != "right" {
 		next, label, icon = "right", locales.SideBySideLayout(), sideLayoutIcon
 	}
-	b := uikit.ToolbarButton(c, label, label, false).
-		Size(uikit.HeightControl, uikit.HeightControl).Padding(0).Justify(ui.Center).
-		Children(func() { ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline) })
+	b := uikit.IconButton(c, label, label, icon)
 	if b.Clicked() {
 		w.layout, w.focused = next, false
 	}
@@ -184,7 +183,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	if running {
 		tip = locales.ProxyTipOn()
 	}
-	b := uikit.ToolbarButton(c, locales.ProxyStatus(), tip, false).Height(uikit.HeightControl).
+	b := uikit.ToolbarButton(c, locales.ProxyStatus(), tip, false).
 		Padding(0, t.Space(2)).Gap(t.Space(1.5)).Radius(uikit.RadiusControl).Background(pal.Fill)
 	b.Children(func() {
 		mark := ui.Box(c).Size(7, 7).Shrink(0)
@@ -215,9 +214,16 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 		}
 		ui.Text(c, addr).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").SingleLine()
 	})
-	if b.Clicked() {
-		a.openSettings(1)
-	}
+	b.PopoverMenuButton(func(m *ui.Menu) {
+		start := do("capture.start", locales.StartCapture(), func() { go a.startCapture() })
+		stop := do("capture.stop", locales.StopCapture(), a.stopCapture)
+		settings := do("app.settings", locales.OpenSettings(), func() { a.openSettings(-1) })
+		if running {
+			actionMenu(m, []action{stop, settings})
+		} else {
+			actionMenu(m, []action{start, settings})
+		}
+	})
 }
 
 // hostsShortcut spells the Host profiles shortcut for its tooltip.

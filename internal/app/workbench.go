@@ -315,13 +315,11 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				a.applyFilter()
 			}
 		})
-		breakButton := uikit.ToolbarButton(c, locales.Breakpoints(), locales.PauseEachMatchingRequestOr(), a.breakOn).
-			Width(uikit.HeightControl).Padding(0).Justify(ui.Center)
+		breakButton := uikit.IconButton(c, locales.Breakpoints(), locales.PauseEachMatchingRequestOr(), breakIcon)
 		if breakButton.Clicked() && a.srv != nil {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
 		}
-		breakButton.Children(func() { ui.Icon(c, breakIcon).Size(uikit.IconInline, uikit.IconInline) })
 		uikit.MoreMenu(c, locales.MoreCaptureOptions(), func(m *ui.Menu) { actionMenu(m, a.captureActions()) })
 	})
 	ui.Divider(c)
@@ -463,9 +461,9 @@ func (a *app) actions(c *ui.Context) []action {
 	if w.focused {
 		focus = "Back to list"
 	}
-	recording := "Pause recording"
+	recording := locales.PauseCapture()
 	if a.recordingPaused {
-		recording = "Resume recording"
+		recording = locales.ResumeCapture()
 	}
 	primary := "Focus request list"
 	if tab {

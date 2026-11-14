@@ -13826,14 +13826,14 @@ func (msgs Messages) PauseEachMatchingRequestOr() string {
 	return Catalog.Format(msgs.locale, "pauseEachMatchingRequestOr", nil)
 }
 
-// PauseRecording says "Pause recording"
+// PauseCapture says "Pause capture"
 // in the language the app shows.
-func PauseRecording() string { return In(i18n.Locale()).PauseRecording() }
+func PauseCapture() string { return In(i18n.Locale()).PauseCapture() }
 
-// PauseRecording says "Pause recording"
+// PauseCapture says "Pause capture"
 // in the language of msgs.
-func (msgs Messages) PauseRecording() string {
-	return Catalog.Format(msgs.locale, "pauseRecording", nil)
+func (msgs Messages) PauseCapture() string {
+	return Catalog.Format(msgs.locale, "pauseCapture", nil)
 }
 
 // PausedExchanges says "{count} paused · changes apply only to this exchange"
@@ -16752,14 +16752,14 @@ func (msgs Messages) ResultsNotFinal() string {
 	return Catalog.Format(msgs.locale, "resultsNotFinal", nil)
 }
 
-// ResumeRecording says "Resume recording"
+// ResumeCapture says "Resume capture"
 // in the language the app shows.
-func ResumeRecording() string { return In(i18n.Locale()).ResumeRecording() }
+func ResumeCapture() string { return In(i18n.Locale()).ResumeCapture() }
 
-// ResumeRecording says "Resume recording"
+// ResumeCapture says "Resume capture"
 // in the language of msgs.
-func (msgs Messages) ResumeRecording() string {
-	return Catalog.Format(msgs.locale, "resumeRecording", nil)
+func (msgs Messages) ResumeCapture() string {
+	return Catalog.Format(msgs.locale, "resumeCapture", nil)
 }
 
 // RetainAsPublished says "Retain as published"
@@ -20446,16 +20446,6 @@ func StartLoadTest() string { return In(i18n.Locale()).StartLoadTest() }
 // in the language of msgs.
 func (msgs Messages) StartLoadTest() string {
 	return Catalog.Format(msgs.locale, "startLoadTest", nil)
-}
-
-// StartProxy says "Start proxy"
-// in the language the app shows.
-func StartProxy() string { return In(i18n.Locale()).StartProxy() }
-
-// StartProxy says "Start proxy"
-// in the language of msgs.
-func (msgs Messages) StartProxy() string {
-	return Catalog.Format(msgs.locale, "startProxy", nil)
 }
 
 // StartServer says "Start server"

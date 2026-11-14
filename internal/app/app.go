@@ -2533,7 +2533,7 @@ func (a *app) table(c *ui.Context) {
 		// sidebar's footer; a stopped listener is the other way forward.
 		uikit.EmptyState(c, title, hint, func() {
 			ui.Row(c).Gap(t.Space(2)).Wrap().Justify(ui.Center).Children(func() {
-				if !running && uikit.PrimaryButton(c, locales.StartProxy()).Disabled(a.srv == nil).Clicked() {
+				if !running && uikit.PrimaryButton(c, locales.StartCapture()).Disabled(a.srv == nil).Clicked() {
 					// The listener runs until it is closed, as it does from
 					// the launch: never on the thread that draws.
 					go a.startCapture()
@@ -3043,7 +3043,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		} else {
 			uikit.Hint(c, locales.ConnectionLogSnapshotAtCapture()).Grow(1)
 		}
-		if uikit.SecondaryButton(c, locales.CopyConnectionLog()).Height(uikit.HeightControl).Disabled(f.conn.log == "").Clicked() {
+		if uikit.SecondaryButton(c, locales.CopyConnectionLog()).Disabled(f.conn.log == "").Clicked() {
 			c.Services().WriteClipboard(f.conn.log)
 			a.done(locales.CopiedConnectionLog())
 		}

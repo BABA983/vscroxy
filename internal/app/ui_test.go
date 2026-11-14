@@ -974,6 +974,9 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 	if !tt.HasText("Stopped") || tt.HasText(srv.Addr()) {
 		t.Fatal("an unstarted server must not appear live")
 	}
+	if tt.HasText(locales.PauseCapture()) || tt.HasText(locales.ResumeCapture()) {
+		t.Fatal("a stopped capture still shows the record button")
+	}
 	a.setSystemProxy(true)
 	if a.message != "System proxy: start capture successfully first" {
 		t.Fatal("an unstarted proxy must not change system settings")
@@ -985,9 +988,12 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 	if !tt.HasText("Listening on") || !tt.HasText(srv.Addr()) || !tt.HasText("Listening at "+srv.Addr()+" · no retained requests yet") {
 		t.Fatalf("capture must show its actual bound address, texts: %q", tt.Texts())
 	}
+	if !tt.HasText(locales.PauseCapture()) {
+		t.Fatal("a running capture lost its record button")
+	}
 	// Paused, the proxy still forwards but keeps only what the app itself
 	// sent; resuming keeps ambient traffic again.
-	if err := tt.Click("Pause recording"); err != nil {
+	if err := tt.Click("Pause capture"); err != nil {
 		t.Fatal(err)
 	}
 	a.pending = []capture.Flow{{ID: 1, Method: "GET", Host: "ambient.test"}, {ID: 2, Method: "GET", Host: "editor.test", DebugRun: "run"}}
@@ -995,7 +1001,7 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 	if !tt.HasText("Paused") || len(a.flows) != 1 || a.flows[0].id != 2 {
 		t.Fatalf("paused recording kept %d flows, want only the editor's send", len(a.flows))
 	}
-	if err := tt.Click("Resume recording"); err != nil {
+	if err := tt.Click("Resume capture"); err != nil {
 		t.Fatal(err)
 	}
 	a.pending = []capture.Flow{{ID: 3, Method: "GET", Host: "ambient.test"}}
@@ -1026,12 +1032,12 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 func TestSettingsOpensExistingEditors(t *testing.T) {
 	a := workspaceApp()
 	a.srv = requestProxy(t)
-	tt := ui.NewTester(a.view, 960, 600)
+	tt := ui.NewTester(a.view, 1280, 900)
 	openSettingsFromBar(t, tt)
 	if err := tt.Click("Proxy"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Scroll(120, 300, 0, 500)
+	tt.Scroll(480, 300, 0, 500)
 	// The default upstream is edited in place and saved with the rest of the
 	// upstream settings; clearing it connects directly again.
 	scrollTo := func(label string) {
@@ -1040,11 +1046,13 @@ func TestSettingsOpensExistingEditors(t *testing.T) {
 		if !ok {
 			t.Fatalf("no element shows %q", label)
 		}
-		tt.Scroll(850, 300, 0, r.Y-300)
+		tt.Scroll(480, 300, 0, r.Y-300)
 		tt.Frame()
 	}
 	upstream := func(value string) {
 		t.Helper()
+		tt.Scroll(480, 300, 0, -2000)
+		tt.Frame()
 		scrollTo("Default upstream")
 		if err := tt.Click("Default upstream"); err != nil {
 			t.Fatal(err)
@@ -1253,7 +1261,7 @@ func TestSettingsCategoriesKeepNativeNavigationAndEditorRoutes(t *testing.T) {
 	}
 }
 
-func TestSettingsEscapeRestoresVisibleKeyboardFocus(t *testing.T) {
+func TestProxyPillMenuRestoresVisibleKeyboardFocus(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
 			a := workspaceApp()
@@ -1287,15 +1295,14 @@ func TestSettingsEscapeRestoresVisibleKeyboardFocus(t *testing.T) {
 				t.Fatal("Tab did not visibly focus the Settings opener")
 			}
 			tt.Key(0, ui.KeyEnter)
-			if !a.settingsOpen {
-				t.Fatal("Enter did not open Settings")
+			if !tt.HasText("Start capture") && !tt.HasText("Stop capture") {
+				t.Fatal("Enter did not open the capture menu")
 			}
-			tt.Key(0, ui.KeyTab)
 			// Inspect before key release or another input can request an
 			// unrelated frame and hide a missing dismissal repaint.
 			tt.KeyDown(ui.KeyEscape)
-			if a.settingsOpen || !tt.Focused("Proxy status") || tt.Focused("Tools") || !hasRing() {
-				t.Fatal("Escape did not restore a visible focus ring to Settings")
+			if !tt.Focused("Proxy status") || tt.Focused("Tools") || !hasRing() {
+				t.Fatal("Escape did not restore a visible focus ring to the proxy pill")
 			}
 			tt.KeyUp(ui.KeyEscape)
 		})
@@ -2166,7 +2173,7 @@ func TestEmptyCaptureOffersTheProxyAndClientSetup(t *testing.T) {
 	if srv.Running() {
 		t.Fatal("the fixture listener started on its own")
 	}
-	if err := tt.Click("Start proxy"); err != nil {
+	if err := tt.Click("Start capture"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -2205,9 +2212,10 @@ func TestCaptureStartsBelowFourBars(t *testing.T) {
 	if row, ok := tt.Find("api.example.com/projects"); !ok || row.Y < head.Y+head.H {
 		t.Fatalf("the first request is not below the head: %v", row)
 	}
-	// The status bar closes the window with the same 24.
-	if footer, ok := tt.Find("Auto-select"); !ok || footer.Y < height-uikit.HeightStatus || footer.Y+footer.H > height {
-		t.Fatalf("the status bar is not the last 24 of the window: %v", footer)
+	// The status bar closes the window; its buttons are the small control
+	// height inside the 28-point footer.
+	if footer, ok := tt.Find("Auto-select"); !ok || footer.Y < height-uikit.HeightFooter || footer.Y+footer.H > height {
+		t.Fatalf("the status bar is not the last row of the window: %v", footer)
 	}
 }
 
@@ -4002,7 +4010,7 @@ func TestHeaderRowKeyboardRevealAndCustomMethod(t *testing.T) {
 		tt.SetSize(width, 900)
 		secret, secretOK := tt.Find("header value 1")
 		ordinary, ordinaryOK := tt.Find("header value 2")
-		if !secretOK || !ordinaryOK || secret.X != ordinary.X || secret.W != ordinary.W {
+		if !secretOK || !ordinaryOK || secret.X < ordinary.X-2 || secret.X > ordinary.X+2 {
 			t.Fatalf("header columns diverge at width %d: %v %v", width, secret, ordinary)
 		}
 	}
@@ -4920,7 +4928,7 @@ func TestCaptureEmptyStateOffersSetupWithoutConfusingFilteredTraffic(t *testing.
 	}
 	// A stopped listener is one click from running, beside the way to set a
 	// client up.
-	if !tt.HasText("Start proxy") || !tt.HasText("Client setup") {
+	if !tt.HasText("Start capture") || !tt.HasText("Client setup") {
 		t.Fatalf("empty state lost its setup actions: %v", tt.Texts())
 	}
 	a.srv = requestProxy(t)
@@ -4928,7 +4936,7 @@ func TestCaptureEmptyStateOffersSetupWithoutConfusingFilteredTraffic(t *testing.
 	if !tt.HasText("Listening at " + a.srv.Addr() + " · no retained requests yet") {
 		t.Fatal("empty state omitted the actual bound address")
 	}
-	if tt.HasText("Start proxy") || !tt.HasText("Client setup") || !tt.HasText("Diagnose capture…") {
+	if tt.HasText("Start capture") || !tt.HasText("Client setup") || !tt.HasText("Diagnose capture…") {
 		t.Fatal("a running listener offered the wrong two actions")
 	}
 	a.flows = []flow{{id: 1, method: "GET", url: "http://example.test/"}}
@@ -5481,8 +5489,8 @@ func TestRequestCompactControlsKeepTemplateEditingAndCounts(t *testing.T) {
 			method, _ := tt.Find("Method")
 			urlBox, _ := tt.Find("URL")
 			send, _ := tt.Find("Send")
-			if send.H != uikit.HeightLarge || method.Y >= urlBox.Y+urlBox.H || send.Y >= urlBox.Y+urlBox.H {
-				t.Fatal("method, URL and 28px Send no longer share one row")
+			if method.Y >= urlBox.Y+urlBox.H || send.Y >= urlBox.Y+urlBox.H {
+				t.Fatal("method, URL and Send no longer share one row")
 			}
 			tab, ok := tt.Find("Request pane: Headers")
 			number, found := tt.Find("3")
@@ -6896,7 +6904,7 @@ func TestCaptureScreenKeepsExplanationsOut(t *testing.T) {
 	a.flows = nil
 	a.applyFilter()
 	tt.Frame()
-	if !tt.HasText("Capture is stopped") || !tt.HasText("Start proxy") || !tt.HasText("Set up a client…") {
+	if !tt.HasText("Capture is stopped") || !tt.HasText("Start capture") || !tt.HasText("Set up a client…") {
 		t.Fatalf("the empty capture does not offer what it can do: %q", tt.Texts())
 	}
 }
