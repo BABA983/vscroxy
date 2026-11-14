@@ -255,25 +255,36 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
 			uikit.Tabs(c, &g.tab, locales.GrpcEditorTabPrefix(), locales.Message(), locales.Metadata(), locales.Auth(), locales.Schema2()).Grow(1)
 		})
-		ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
-			var methods []string
-			if g.schema != nil {
-				methods = g.schema.methods
-			}
-			field := ui.Combobox(c, &d.grpcConfig.Method, methods).Label(locales.GrpcMethod()).Placeholder(locales.SelectServiceMethod()).
-				Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextBody)).Disabled(d.composeWaiting || g.loading != nil)
-			uikit.FieldFace(c, field, field.Focused())
-			deadline := strconv.Itoa(cmp.Or(d.grpcConfig.TimeoutSeconds, 30))
-			uikit.Select(c, &deadline, []string{"10", "30", "60", "300", "3600"}).Label(locales.GrpcDeadlineSeconds()).Width(88).
-				Tooltip(locales.CallDeadlineInSecondsCancelling()).Disabled(d.composeWaiting).OnChange(func() {
-				d.grpcConfig.TimeoutSeconds, _ = strconv.Atoi(deadline)
+		ui.Column(c).Padding(t.Space(2), t.Space(3)).Children(func() {
+			uikit.SettingsGroup(c, locales.Call(), func() {
+				uikit.SettingsRow(c, locales.Method(), func() ui.Element {
+					var methods []string
+					if g.schema != nil {
+						methods = g.schema.methods
+					}
+					field := ui.Combobox(c, &d.grpcConfig.Method, methods).Label(locales.GrpcMethod()).Placeholder(locales.SelectServiceMethod()).
+						Grow(1).MinWidth(0).Height(uikit.ControlHeight).FontSize(uikit.Scaled(uikit.TextBody)).Disabled(d.composeWaiting || g.loading != nil)
+					uikit.FieldFace(c, field, field.Focused())
+					uikit.Tip(c, field, locales.GrpcTransportHelp())
+					return field
+				}, "")
+				uikit.SettingsRow(c, locales.Deadline(), func() ui.Element {
+					deadline := strconv.Itoa(cmp.Or(d.grpcConfig.TimeoutSeconds, 30))
+					sel := uikit.SelectLabels(c, &deadline, []string{"10", "30", "60", "300", "3600"},
+						func(value string) string { return value + " s" }).Label(locales.GrpcDeadlineSeconds()).Width(120).
+						Height(uikit.ControlHeight).Disabled(d.composeWaiting)
+					uikit.Tip(c, sel, locales.CallDeadlineInSecondsCancelling())
+					if sel.Changed() {
+						d.grpcConfig.TimeoutSeconds, _ = strconv.Atoi(deadline)
+					}
+					return sel
+				}, "")
+				if method, err := g.schema.method(d.grpcConfig.Method); err == nil {
+					kind := grpcMethodKind(method)
+					uikit.Meta(c, kind+" · "+string(method.Input().FullName())+" → "+string(method.Output().FullName())).SingleLine()
+				}
 			})
 		})
-		if method, err := g.schema.method(d.grpcConfig.Method); err == nil {
-			kind := grpcMethodKind(method)
-			uikit.Meta(c, kind+" · "+string(method.Input().FullName())+" → "+string(method.Output().FullName())).
-				Padding(0, t.Space(3)).SingleLine()
-		}
 		if g.problem != "" {
 			ui.Text(c, g.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).Padding(0, t.Space(3)).MaxHeight(55)
 		}
@@ -286,13 +297,13 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 			switch g.tab {
 			case 0:
-				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					uikit.Meta(c, locales.ProtobufJson1MibPer()).Grow(1)
-					if d.composeWaiting {
+				if d.composeWaiting {
+					ui.Row(c).Gap(t.Space(2)).Children(func() {
+						ui.Spacer(c).Grow(1)
 						a.actionButton(c, "request.grpc-send-message", "Send message")
 						a.actionButton(c, "request.grpc-finish", "Finish sending")
-					}
-				})
+					})
+				}
 				authoredText(c, &d.composeBody, &d.bodyEditor, &d.bodyFor, "gRPC request JSON", "json")
 			case 1:
 				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.headerEditor(c, d, t) })
@@ -300,9 +311,15 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.authEditor(c, d, t) })
 			case 3:
 				ui.Scroll(c).Grow(1).Gap(t.Space(2)).Disabled(d.composeWaiting).Padding(0, t.Space(1)).Children(func() {
-					uikit.Hint(c, locales.ImportProtoDescriptorSetOr())
-					uikit.Input(c, &g.source).Label(locales.GrpcSchemaFile()).Placeholder("/path/to/service.proto").Disabled(g.loading != nil)
-					ui.TextArea(c, &g.roots).Label(locales.GrpcIncludeRoots()).Placeholder(locales.IncludeRootsOnePerLine()).Height(50).Disabled(g.loading != nil)
+					uikit.Meta(c, locales.ImportProtoDescriptorSetOr())
+					uikit.SettingsGroup(c, locales.Schema2(), func() {
+						uikit.SettingsRow(c, locales.SchemaFile(), func() ui.Element {
+							return uikit.Input(c, &g.source).Label(locales.GrpcSchemaFile()).Placeholder("/path/to/service.proto").Disabled(g.loading != nil)
+						}, "")
+						uikit.SettingsRowMultiline(c, locales.IncludeRoots(), func() ui.Element {
+							return ui.TextArea(c, &g.roots).Label(locales.GrpcIncludeRoots()).Placeholder(locales.IncludeRootsOnePerLine()).Height(50).Disabled(g.loading != nil)
+						}, "")
+					})
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
 						a.actionButton(c, "request.grpc-import", "Import schema")
 						a.actionButton(c, "request.grpc-reflect", "Reflect services")
@@ -314,11 +331,6 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				})
 			}
 		})
-		transport := "TLS verifies certificates; HTTPS uses capture while the proxy is running."
-		if strings.HasPrefix(d.composeURL, "http://") {
-			transport = "Plaintext HTTP/2 · direct connection, not captured (h2c)."
-		}
-		uikit.Tip(c, uikit.Meta(c, transport).SingleLine(), transport).Padding(0, t.Space(3), t.Space(1), t.Space(3))
 	})
 }
 
@@ -353,8 +365,10 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	s := g.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
-			uikit.Tabs(c, &g.responseTab, "gRPC response", locales.MessagesTab(), locales.Metadata(), locales.Status()).Grow(1)
-			uikit.Meta(c, stateLabel(s.state)).SingleLine()
+			uikit.Tabs(c, &g.responseTab, locales.GrpcResponse(), locales.MessagesTab(), locales.Metadata(), locales.Status()).Grow(1)
+			if g.session != nil {
+				uikit.Meta(c, stateLabel(s.state)).SingleLine()
+			}
 		})
 		if g.session == nil {
 			uikit.EmptyState(c, locales.NoGrpcCallYet(), locales.LoadASchemaSelectA(), nil)

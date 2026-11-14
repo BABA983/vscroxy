@@ -1924,6 +1924,16 @@ func (msgs Messages) Caching() string {
 	return Catalog.Format(msgs.locale, "caching", nil)
 }
 
+// Call says "Call"
+// in the language the app shows.
+func Call() string { return In(i18n.Locale()).Call() }
+
+// Call says "Call"
+// in the language of msgs.
+func (msgs Messages) Call() string {
+	return Catalog.Format(msgs.locale, "call", nil)
+}
+
 // CallAToolReadA says "Call a tool, read a resource or get a prompt. The Result tab shows text, image and audio blocks, structured content a…"
 // in the language the app shows.
 func CallAToolReadA() string { return In(i18n.Locale()).CallAToolReadA() }
@@ -5164,6 +5174,16 @@ func (msgs Messages) DataFile() string {
 	return Catalog.Format(msgs.locale, "dataFile", nil)
 }
 
+// Deadline says "Deadline"
+// in the language the app shows.
+func Deadline() string { return In(i18n.Locale()).Deadline() }
+
+// Deadline says "Deadline"
+// in the language of msgs.
+func (msgs Messages) Deadline() string {
+	return Catalog.Format(msgs.locale, "deadline", nil)
+}
+
 // DebuggingRules says "Debugging rules"
 // in the language the app shows.
 func DebuggingRules() string { return In(i18n.Locale()).DebuggingRules() }
@@ -8160,6 +8180,16 @@ func (msgs Messages) GrpcMethods(count int) string {
 	return Catalog.Format(msgs.locale, "grpcMethods", map[string]any{"count": count})
 }
 
+// GrpcResponse says "gRPC response"
+// in the language the app shows.
+func GrpcResponse() string { return In(i18n.Locale()).GrpcResponse() }
+
+// GrpcResponse says "gRPC response"
+// in the language of msgs.
+func (msgs Messages) GrpcResponse() string {
+	return Catalog.Format(msgs.locale, "grpcResponse", nil)
+}
+
 // GrpcSchemaFile says "gRPC schema file"
 // in the language the app shows.
 func GrpcSchemaFile() string { return In(i18n.Locale()).GrpcSchemaFile() }
@@ -8168,6 +8198,16 @@ func GrpcSchemaFile() string { return In(i18n.Locale()).GrpcSchemaFile() }
 // in the language of msgs.
 func (msgs Messages) GrpcSchemaFile() string {
 	return Catalog.Format(msgs.locale, "grpcSchemaFile", nil)
+}
+
+// GrpcTransportHelp says "https:// uses TLS through the capture proxy; http:// is plaintext h2c and is not captured."
+// in the language the app shows.
+func GrpcTransportHelp() string { return In(i18n.Locale()).GrpcTransportHelp() }
+
+// GrpcTransportHelp says "https:// uses TLS through the capture proxy; http:// is plaintext h2c and is not captured."
+// in the language of msgs.
+func (msgs Messages) GrpcTransportHelp() string {
+	return Catalog.Format(msgs.locale, "grpcTransportHelp", nil)
 }
 
 // Har says "HAR"
@@ -9410,6 +9450,16 @@ func InUseSummary(memory string, disk string, count int) string {
 // in the language of msgs.
 func (msgs Messages) InUseSummary(memory string, disk string, count int) string {
 	return Catalog.Format(msgs.locale, "inUseSummary", map[string]any{"memory": memory, "disk": disk, "count": count})
+}
+
+// IncludeRoots says "Include roots"
+// in the language the app shows.
+func IncludeRoots() string { return In(i18n.Locale()).IncludeRoots() }
+
+// IncludeRoots says "Include roots"
+// in the language of msgs.
+func (msgs Messages) IncludeRoots() string {
+	return Catalog.Format(msgs.locale, "includeRoots", nil)
 }
 
 // IncludeRootsOnePerLine says "Include roots, one per line"
@@ -14440,16 +14490,6 @@ func ProtobufIncludeRoots() string { return In(i18n.Locale()).ProtobufIncludeRoo
 // in the language of msgs.
 func (msgs Messages) ProtobufIncludeRoots() string {
 	return Catalog.Format(msgs.locale, "protobufIncludeRoots", nil)
-}
-
-// ProtobufJson1MibPer says "Protobuf JSON · 1 MiB per message"
-// in the language the app shows.
-func ProtobufJson1MibPer() string { return In(i18n.Locale()).ProtobufJson1MibPer() }
-
-// ProtobufJson1MibPer says "Protobuf JSON · 1 MiB per message"
-// in the language of msgs.
-func (msgs Messages) ProtobufJson1MibPer() string {
-	return Catalog.Format(msgs.locale, "protobufJson1MibPer", nil)
 }
 
 // ProtobufLoaded says "Loaded: {count} message types"
