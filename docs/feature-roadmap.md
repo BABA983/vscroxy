@@ -189,7 +189,7 @@
 | 请求描述、集合文档视图 | 已有 | 请求、文件夹、集合的 Markdown 描述随资产落盘，在请求 Docs 页和层级设置里编辑；集合菜单的 View documentation… 只读渲染描述并列出请求的 method、URL 和描述；Postman 导入导出保留 | M6 |
 | 单个请求的设置：超时、跟随重定向、证书校验 | 已有 | 请求 Settings 页和文件夹/集合的 Request defaults；Send 和 Runner 生效；跟随与最大次数分别继承，`maxRedirects: 0` 视为不跟随；Postman `protocolProfileBehavior` 的 `followRedirects`、`maxRedirects`、`strictSSL` 往返，cURL（Bash/CMD/PowerShell）的 `-L`、`--max-redirs`、`-k`、`--max-time` 与 PowerShell 对应参数往返；Postman 没有请求超时字段；关闭校验有明确警告，仍接受任意证书，自定义 CA 只在校验开启时作为额外信任，二者互不影响 | M6 |
 | 客户端证书（按域名）、自定义 CA | 已有 | Settings → Certificates 按 host（可带端口、`*.` 通配，IDN 转 punycode）配置客户端证书和额外根证书；Send、Runner、CLI/MCP 运行集合、WebSocket、SSE、gRPC、Socket.IO、MCP 生效；PEM cert+key 或 PKCS#12/PFX，口令密封保存，文件每次发送读取；重定向按每一跳的目标 host 重新选证书和根，明文跳不读证书文件；关闭证书校验仍接受任意证书，与自定义 CA 互不影响 | M6 |
-| Examples | 已有 | | |
+| Examples | 已有 | 正文和响应头可在 Examples 标签直接编辑，下一次 Save 保存；请求视图只读 | |
 | Examples 作为 Mock 响应（本地 mock） | 已有 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples | M4 |
 | 代码 Mock（脚本生成本地响应） | 首版已有 | Code Mock 规则运行 `onMock`，读取 `pm.request`、生成 `pm.response`；复用编辑器／Scenario／配置导出，失败返回本地错误而不穿透原站；不是 Postman Node.js／`pm.mock` 服务兼容层 | M9 |
 | Runner：数据文件、迭代、setNextRequest | 已有 | | |

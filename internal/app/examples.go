@@ -151,9 +151,22 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				if language != "" {
 					buf.SetLanguage(editor.LanguageNamed(language))
 				}
-				d.exampleEditor = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Example " + e.Name}
+				d.exampleEditor = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: "Example " + e.Name}
+				d.exampleShown = text
 			}
+			// The body and headers are edited in place, and an edit is written
+			// back to the example, so the draft is dirty and Save keeps it. The
+			// request view is what was sent, so it stays read-only.
+			d.exampleEditor.ReadOnly = d.exampleView == 2
 			requestCodeEditor(c, d.exampleEditor)
+			if current := d.exampleEditor.Buffer.String(); d.exampleView != 2 && current != d.exampleShown {
+				d.exampleShown = current
+				if d.exampleView == 1 {
+					e.Headers = current
+				} else {
+					e.Body = current
+				}
+			}
 		})
 	})
 }

@@ -2971,7 +2971,9 @@ that got it as authored, `{{variables}}` unexpanded, so no secret is written
 with it. Text bodies up to 5 MiB can be kept. Examples are part of the draft:
 a saved request with no other unsaved edits is saved at once, otherwise the
 next **Save** keeps them. The **Examples** tab lists them, renames and deletes
-them, and shows each one's body, headers and request. They live in the
+them, and shows each one's body, headers and request. The body and headers
+are edited in place, and the next **Save** keeps the edit; the request view is
+read-only, as it is what was sent. They live in the
 request's file and travel through Postman import and export; sends and Run
 records leave them out.
 

@@ -104,10 +104,13 @@ type requestDocument struct {
 	tokenSources []request.TokenSource
 	// examples are the draft's kept responses; example is the one shown,
 	// exampleView its Body, Headers or Request view.
-	examples        []request.Example
-	example         int
-	exampleView     int
-	exampleEditor   *editor.State
+	examples      []request.Example
+	example       int
+	exampleView   int
+	exampleEditor *editor.State
+	// exampleShown is the text exampleEditor was built from, so an edit is
+	// the difference from it, not the display's formatting.
+	exampleShown    string
 	composeTab      int
 	scriptTab       int
 	composeResult   string

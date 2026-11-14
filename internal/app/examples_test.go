@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -77,5 +78,68 @@ func TestSaveAsExampleKeepsTheResponseWithTheAuthoredRequest(t *testing.T) {
 	choosePaneView(t, tt, "Request pane", "Examples")
 	if !tt.HasText("GET {{base}}/projects") {
 		t.Fatalf("the Examples tab does not show the example's request: %q", tt.Texts())
+	}
+}
+
+// An example's body and headers are edited in the Examples tab. The edit is
+// the draft's change, so Save keeps it, and the request view stays read-only.
+func TestExampleBodyAndHeadersEditInPlace(t *testing.T) {
+	a := workspaceApp()
+	a.library.root = filepath.Join(t.TempDir(), "collections")
+	a.page = pageRequest
+	tt := ui.NewTester(a.view, 1280, 760)
+	if err := tt.Click("List projects"); err != nil {
+		t.Fatal(err)
+	}
+	d := a.requestDocument
+	d.examples = []request.Example{{ID: "e1", Name: "201 Created", Status: 201,
+		Headers: "Content-Type: text/plain", Body: "kept",
+		Request: request.ExampleRequest{Method: "GET", URL: "{{base}}/projects"}}}
+	choosePaneView(t, tt, "Request pane", "Examples")
+	tt.Frame()
+	// focus clicks the example's editor, found by its accessible name.
+	// segment picks the example's Body, Headers or Request view; the request
+	// pane has tabs of the same names, so it is found by its bounds.
+	segment := func(name string) {
+		t.Helper()
+		for _, n := range tt.AccessAll() {
+			if n.Name == name && n.Bounds.X > 600 {
+				tt.ClickAt(n.Bounds.X+n.Bounds.W/2, n.Bounds.Y+n.Bounds.H/2)
+				tt.Frame()
+				return
+			}
+		}
+		t.Fatalf("no %s view for the example", name)
+	}
+	focus := func() {
+		t.Helper()
+		info, ok := tt.AccessByRole(ui.RoleTextField, "Example 201 Created")
+		if !ok {
+			t.Fatal("no editor for the example")
+		}
+		tt.ClickAt(info.Bounds.X+info.Bounds.W/2, info.Bounds.Y+info.Bounds.H/2)
+		tt.Frame()
+	}
+
+	focus()
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("edited body")
+	tt.Frame()
+	if d.examples[0].Body != "edited body" || !d.dirty() {
+		t.Fatalf("body edit: example body %q, dirty %v", d.examples[0].Body, d.dirty())
+	}
+
+	segment("Headers")
+	focus()
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("Content-Type: application/json")
+	tt.Frame()
+	if d.examples[0].Headers != "Content-Type: application/json" {
+		t.Fatalf("headers edit: example headers %q", d.examples[0].Headers)
+	}
+
+	segment("Request")
+	if d.exampleEditor == nil || !d.exampleEditor.ReadOnly {
+		t.Fatal("the request view of an example is editable")
 	}
 }
