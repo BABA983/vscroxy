@@ -132,27 +132,34 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					ui.Checkbox(c, &d.socketIOConfig.WantACK, "Request ACK")
 					a.actionButton(c, "request.socketio-emit", "Emit event")
 				})
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					uikit.Meta(c, locales.JsonArgumentArraySharedBy()).Grow(1).SingleLine()
-					if !slices.Contains(s.owed, u.ackID) {
-						u.ackID = ""
-						if len(s.owed) > 0 {
+				if len(s.owed) > 0 {
+					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+						uikit.Label(c, locales.SocketIoAckRequest())
+						if !slices.Contains(s.owed, u.ackID) {
 							u.ackID = s.owed[0]
 						}
-					}
-					uikit.Select(c, &u.ackID, s.owed).Label(locales.SocketIoAckRequest()).Width(64).Disabled(!s.ready || s.busy || len(s.owed) == 0)
-					a.actionButton(c, "request.socketio-ack", "Reply ACK")
-				})
+						uikit.Select(c, &u.ackID, s.owed).Label(locales.SocketIoAckRequest()).Width(88).Height(uikit.ControlHeight).Disabled(!s.ready || s.busy)
+						a.actionButton(c, "request.socketio-ack", "Reply ACK")
+					})
+				}
 				authoredText(c, &d.composeBody, &d.bodyEditor, &d.bodyFor, "Socket.IO arguments JSON", "json")
 			case 1:
-				uikit.Hint(c, locales.BinaryAttachmentsJsonArrayOf())
+				uikit.Tip(c, uikit.Meta(c, locales.AttachmentsHelp()), locales.BinaryAttachmentsJsonArrayOf())
 				authoredText(c, &d.socketIOConfig.Attachments, &u.attachmentEditor, &u.attachmentsFor, "Socket.IO attachments JSON", "json")
 			case 2:
-				uikit.Hint(c, locales.SocketIoV3V4Default())
-				ui.Column(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Disabled(d.composeWaiting).Children(func() {
-					uikit.Input(c, &d.socketIOConfig.Namespace).Label(locales.SocketIoNamespace()).Placeholder(locales.DefaultText())
-					uikit.Meta(c, locales.NamespaceAuthJsonObjectVariables())
-					authoredText(c, &d.socketIOConfig.Auth, &u.authEditor, &u.authFor, "Socket.IO namespace auth JSON", "json")
+				ui.Scroll(c).Grow(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Disabled(d.composeWaiting).Children(func() {
+					uikit.SettingsGroup(c, locales.Connection(), func() {
+						uikit.SettingsRow(c, locales.Namespace(), func() ui.Element {
+							in := uikit.Input(c, &d.socketIOConfig.Namespace).Label(locales.SocketIoNamespace()).Placeholder(locales.DefaultText())
+							uikit.Tip(c, in, locales.SocketIoNamespaceHelp())
+							return in
+						}, "")
+						uikit.SettingsRowMultiline(c, locales.NamespaceAuth(), func() ui.Element {
+							return ui.Box(c).Height(180).FillWidth().Children(func() {
+								authoredText(c, &d.socketIOConfig.Auth, &u.authEditor, &u.authFor, "Socket.IO namespace auth JSON", "json")
+							})
+						}, locales.NamespaceAuthJsonObjectVariables())
+					})
 				})
 			case 3:
 				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.headerEditor(c, d, t) })
@@ -169,10 +176,12 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, locales.SocketIoMessages()).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1)
-			uikit.Meta(c, stateLabel(s.state)).SingleLine()
+			if u.session != nil {
+				uikit.Meta(c, stateLabel(s.state)).SingleLine()
+			}
 		})
 		if u.session == nil {
-			uikit.EmptyState(c, locales.NoSocketIoConnectionYet(), locales.SetTheEndpointNamespaceAnd(), nil)
+			uikit.EmptyState(c, locales.NoSocketIoConnectionYet(), locales.ConnectToEmitAndReceive(), nil)
 			return
 		}
 		if s.problem != "" {
@@ -190,7 +199,11 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 		}
 		if len(events) == 0 {
-			uikit.EmptyState(c, locales.NoMatchingSocketIoMessages(), locales.ChangeTheSearchOrWait3(), nil)
+			if strings.TrimSpace(u.query) != "" {
+				uikit.EmptyState(c, locales.NoMatchingSocketIoMessages(), locales.ChangeTheSearchOrWait3(), nil)
+			} else {
+				uikit.EmptyState(c, locales.NoSocketIoEventsYet(), locales.EmitOrWaitForTheServer(), nil)
+			}
 			return
 		}
 		ui.Split(c, &u.split, func() {

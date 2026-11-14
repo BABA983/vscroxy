@@ -1180,6 +1180,16 @@ func (msgs Messages) Attachments() string {
 	return Catalog.Format(msgs.locale, "attachments", nil)
 }
 
+// AttachmentsHelp says "Padded base64 strings, one per attachment."
+// in the language the app shows.
+func AttachmentsHelp() string { return In(i18n.Locale()).AttachmentsHelp() }
+
+// AttachmentsHelp says "Padded base64 strings, one per attachment."
+// in the language of msgs.
+func (msgs Messages) AttachmentsHelp() string {
+	return Catalog.Format(msgs.locale, "attachmentsHelp", nil)
+}
+
 // Auth says "Auth"
 // in the language the app shows.
 func Auth() string { return In(i18n.Locale()).Auth() }
@@ -3860,6 +3870,16 @@ func (msgs Messages) ConnectTimeoutInMilliseconds() string {
 	return Catalog.Format(msgs.locale, "connectTimeoutInMilliseconds", nil)
 }
 
+// ConnectToEmitAndReceive says "Connect to emit and receive events on the live connection."
+// in the language the app shows.
+func ConnectToEmitAndReceive() string { return In(i18n.Locale()).ConnectToEmitAndReceive() }
+
+// ConnectToEmitAndReceive says "Connect to emit and receive events on the live connection."
+// in the language of msgs.
+func (msgs Messages) ConnectToEmitAndReceive() string {
+	return Catalog.Format(msgs.locale, "connectToEmitAndReceive", nil)
+}
+
 // ConnectToPublishAndSubscribe says "Connect to publish and subscribe on the live broker."
 // in the language the app shows.
 func ConnectToPublishAndSubscribe() string { return In(i18n.Locale()).ConnectToPublishAndSubscribe() }
@@ -6328,6 +6348,16 @@ func ElectronApp() string { return In(i18n.Locale()).ElectronApp() }
 // in the language of msgs.
 func (msgs Messages) ElectronApp() string {
 	return Catalog.Format(msgs.locale, "electronApp", nil)
+}
+
+// EmitOrWaitForTheServer says "Emit an event or wait for the server."
+// in the language the app shows.
+func EmitOrWaitForTheServer() string { return In(i18n.Locale()).EmitOrWaitForTheServer() }
+
+// EmitOrWaitForTheServer says "Emit an event or wait for the server."
+// in the language of msgs.
+func (msgs Messages) EmitOrWaitForTheServer() string {
+	return Catalog.Format(msgs.locale, "emitOrWaitForTheServer", nil)
 }
 
 // EmitSocketIoEvent says "Emit Socket.IO event"
@@ -9894,16 +9924,6 @@ func (msgs Messages) Json() string {
 	return Catalog.Format(msgs.locale, "json", nil)
 }
 
-// JsonArgumentArraySharedBy says "JSON argument array · shared by Emit and Reply ACK"
-// in the language the app shows.
-func JsonArgumentArraySharedBy() string { return In(i18n.Locale()).JsonArgumentArraySharedBy() }
-
-// JsonArgumentArraySharedBy says "JSON argument array · shared by Emit and Reply ACK"
-// in the language of msgs.
-func (msgs Messages) JsonArgumentArraySharedBy() string {
-	return Catalog.Format(msgs.locale, "jsonArgumentArraySharedBy", nil)
-}
-
 // JsonObjectVariablesSupportedBlank says "JSON object · '{{variables}}' supported · blank sends '{}'"
 // in the language the app shows.
 func JsonObjectVariablesSupportedBlank() string {
@@ -11774,13 +11794,33 @@ func (msgs Messages) NamesAreSignedInThis() string {
 	return Catalog.Format(msgs.locale, "namesAreSignedInThis", nil)
 }
 
-// NamespaceAuthJsonObjectVariables says "Namespace auth JSON object · '{{variables}}' / '{{vault:name}}' supported; saved as authored"
+// Namespace says "Namespace"
+// in the language the app shows.
+func Namespace() string { return In(i18n.Locale()).Namespace() }
+
+// Namespace says "Namespace"
+// in the language of msgs.
+func (msgs Messages) Namespace() string {
+	return Catalog.Format(msgs.locale, "namespace", nil)
+}
+
+// NamespaceAuth says "Namespace auth"
+// in the language the app shows.
+func NamespaceAuth() string { return In(i18n.Locale()).NamespaceAuth() }
+
+// NamespaceAuth says "Namespace auth"
+// in the language of msgs.
+func (msgs Messages) NamespaceAuth() string {
+	return Catalog.Format(msgs.locale, "namespaceAuth", nil)
+}
+
+// NamespaceAuthJsonObjectVariables says "JSON object; '{{variables}}' and '{{vault:name}}' expand."
 // in the language the app shows.
 func NamespaceAuthJsonObjectVariables() string {
 	return In(i18n.Locale()).NamespaceAuthJsonObjectVariables()
 }
 
-// NamespaceAuthJsonObjectVariables says "Namespace auth JSON object · '{{variables}}' / '{{vault:name}}' supported; saved as authored"
+// NamespaceAuthJsonObjectVariables says "JSON object; '{{variables}}' and '{{vault:name}}' expand."
 // in the language of msgs.
 func (msgs Messages) NamespaceAuthJsonObjectVariables() string {
 	return Catalog.Format(msgs.locale, "namespaceAuthJsonObjectVariables", nil)
@@ -12648,6 +12688,16 @@ func NoSocketIoConnectionYet() string { return In(i18n.Locale()).NoSocketIoConne
 // in the language of msgs.
 func (msgs Messages) NoSocketIoConnectionYet() string {
 	return Catalog.Format(msgs.locale, "noSocketIoConnectionYet", nil)
+}
+
+// NoSocketIoEventsYet says "No events yet"
+// in the language the app shows.
+func NoSocketIoEventsYet() string { return In(i18n.Locale()).NoSocketIoEventsYet() }
+
+// NoSocketIoEventsYet says "No events yet"
+// in the language of msgs.
+func (msgs Messages) NoSocketIoEventsYet() string {
+	return Catalog.Format(msgs.locale, "noSocketIoEventsYet", nil)
 }
 
 // NoTimingForThisFlow says "No timing for this flow"
@@ -19410,16 +19460,6 @@ func (msgs Messages) SetProxy() string {
 	return Catalog.Format(msgs.locale, "setProxy", nil)
 }
 
-// SetTheEndpointNamespaceAnd says "Set the endpoint, namespace and auth, then Connect. Emit sends only on the live connection."
-// in the language the app shows.
-func SetTheEndpointNamespaceAnd() string { return In(i18n.Locale()).SetTheEndpointNamespaceAnd() }
-
-// SetTheEndpointNamespaceAnd says "Set the endpoint, namespace and auth, then Connect. Emit sends only on the live connection."
-// in the language of msgs.
-func (msgs Messages) SetTheEndpointNamespaceAnd() string {
-	return Catalog.Format(msgs.locale, "setTheEndpointNamespaceAnd", nil)
-}
-
 // SetUpALocalClient says "Set up a local client…"
 // in the language the app shows.
 func SetUpALocalClient() string { return In(i18n.Locale()).SetUpALocalClient() }
@@ -20174,14 +20214,14 @@ func (msgs Messages) SocketIoNamespace() string {
 	return Catalog.Format(msgs.locale, "socketIoNamespace", nil)
 }
 
-// SocketIoV3V4Default says "Socket.IO v3/v4 · default parser · Engine.IO 4 · WebSocket only. URL path is the endpoint (default /socket.io/), n…"
+// SocketIoNamespaceHelp says "The namespace path, not the endpoint URL. Blank is /."
 // in the language the app shows.
-func SocketIoV3V4Default() string { return In(i18n.Locale()).SocketIoV3V4Default() }
+func SocketIoNamespaceHelp() string { return In(i18n.Locale()).SocketIoNamespaceHelp() }
 
-// SocketIoV3V4Default says "Socket.IO v3/v4 · default parser · Engine.IO 4 · WebSocket only. URL path is the endpoint (default /socket.io/), n…"
+// SocketIoNamespaceHelp says "The namespace path, not the endpoint URL. Blank is /."
 // in the language of msgs.
-func (msgs Messages) SocketIoV3V4Default() string {
-	return Catalog.Format(msgs.locale, "socketIoV3V4Default", nil)
+func (msgs Messages) SocketIoNamespaceHelp() string {
+	return Catalog.Format(msgs.locale, "socketIoNamespaceHelp", nil)
 }
 
 // Socks5 says "SOCKS5"
