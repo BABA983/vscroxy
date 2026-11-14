@@ -211,7 +211,7 @@ func (a *app) applyTokenLink(p *tokenLinkPlan) error {
 		if err := func() error {
 			f := a.localEnvs()
 			f.Envs = envs
-			return saveEnvs(a.file(a.envsPath), f)
+			return a.saveEnvFile(f)
 		}(); err != nil {
 			return errors.New("could not reserve private Current value; reload environments before retrying")
 		}

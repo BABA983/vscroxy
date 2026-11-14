@@ -494,7 +494,7 @@ func (a *app) dropFolderCurrent(path string) {
 func (a *app) saveFolderCurrent(next map[string]map[string]string, credentials map[string]map[string]bool) error {
 	f := a.localEnvs()
 	f.FolderCurrent, f.FolderCredentials = next, credentials
-	if err := saveEnvs(a.file(a.envsPath), f); err != nil {
+	if err := a.saveEnvFile(f); err != nil {
 		return err
 	}
 	a.folderCurrent, a.folderCredentials = next, credentials

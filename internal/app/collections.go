@@ -160,7 +160,7 @@ func (a *app) applyWrites(writes []request.Write) {
 		} else {
 			f := a.localEnvs()
 			f.GlobalsCurrent, f.FolderCurrent, f.FolderCredentials = globals, folderCurrent, folderCredentials
-			if err := saveEnvs(a.file(a.envsPath), f); err != nil {
+			if err := a.saveEnvFile(f); err != nil {
 				problems = append(problems, "variables: "+err.Error())
 			} else {
 				a.globalsCurrent, a.folderCurrent, a.folderCredentials = globals, folderCurrent, folderCredentials
@@ -269,7 +269,7 @@ func (a *app) saveFolder() {
 	}
 	envs := a.localEnvs()
 	envs.FolderCurrent, envs.FolderCredentials = next, nextCredentials
-	if err := saveEnvs(a.file(a.envsPath), envs); err != nil {
+	if err := a.saveEnvFile(envs); err != nil {
 		f.problem = "Settings saved, but local Current values were not: " + err.Error()
 		return
 	}

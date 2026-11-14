@@ -141,7 +141,7 @@ func (a *app) importData(data []byte, path string) {
 			f := a.localEnvs()
 			f.Envs = envs
 			f.Globals = globals
-			return saveEnvs(a.file(a.envsPath), f)
+			return a.saveEnvFile(f)
 		}(); err != nil {
 			a.fail(locales.ImportPostmanEnvironment(), err)
 			return

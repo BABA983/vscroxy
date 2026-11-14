@@ -2513,9 +2513,11 @@ its requests, folders and settings move together, and open tabs follow.
   rows are skipped. **Request variables** names the source of each value.
 - **Initial and Current values**: every environment, global, collection and
   folder variable has a shared **Initial** value and a local **Current** value.
-  Initial is saved with the environment export or the collection directory, so
-  it can be committed to Git. Current stays in `~/.vscroxy/env.json` on this
-  machine and is never written to the collection directory or an export. Sends
+  Initial is saved with the environment export or the collection directory, and
+  with a project folder environments and globals Initial values go to
+  `.vscroxy/environments.json` there, so they can be committed to Git. Current
+  stays in `~/.vscroxy/env.json` on this machine and is never written to the
+  project folder, the collection directory or an export. Sends
   use a nonempty Current and fall back to Initial when Current is empty; an
   explicit empty Current therefore means “no local override”, as in Postman. A
   Current-only row with no Initial still defines an empty local value, which
@@ -2909,14 +2911,35 @@ them, and shows each one's body, headers and request. They live in the
 request's file and travel through Postman import and export; sends and Run
 records leave them out.
 
+#### Project folder
+
+**Settings → General → Collections → Project folder** names a repository
+folder. The app then keeps the files a team shares in its `.vscroxy/`
+directory, so they can be committed to Git. The folder must already exist, and
+**Use default folder** switches back to `~/.vscroxy`. The project folder path
+itself is this computer's: configuration exports leave it out, and imports keep
+the value set here.
+
+| What | In the project folder (`.vscroxy/`) | Stays in `~/.vscroxy/` |
+| --- | --- | --- |
+| Collections, folders and requests | `collections/` | |
+| Environments and globals: names and Initial values | `environments.json` | |
+| Current values of environments, globals, collections and folders | | `env.json` |
+| Credential marks and the active environment | | `env.json` |
+| Vault secrets | | `vault.json`, `vault.key` |
+| Cookies, rules and Host profiles | | `cookies.json`, `rules.json`, `tools/hosts/` |
+
+`environments.json` has no field for Current values or credential marks, so
+they cannot be written into the project. `env.json` keeps a copy of the
+Initial values from the last save, which **Use default folder** restores. A
+Current value whose environment the project no longer has is dropped on the
+next save.
+
 #### The request library on disk
 
-The library is a directory tree in `~/.vscroxy/collections/`, or, when
-**Settings → General → Collections → Project folder** names a folder, in that
-folder's `.vscroxy/collections/`. The project location lets a repository commit
-its collections. It must already exist; **Use default folder** switches back.
-Import and export of a configuration file never carry this folder, since it is
-this computer's. The tree can be kept in Git or edited by hand:
+The library is a directory tree in `~/.vscroxy/collections/`, or, with a
+project folder set, in that folder's `.vscroxy/collections/`. A repository can
+commit its collections this way. The tree can be kept in Git or edited by hand:
 
 ```text
 collections/

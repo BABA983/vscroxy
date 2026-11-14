@@ -549,7 +549,7 @@ func (a *app) keepRecordedCapture(f flow, result recordedCapture) error {
 	if err := func() error {
 		f := a.localEnvs()
 		f.Envs = envs
-		return saveEnvs(a.file(a.envsPath), f)
+		return a.saveEnvFile(f)
 	}(); err != nil {
 		return errors.New("Could not save recording variables; resolve the environment file conflict and restart")
 	}

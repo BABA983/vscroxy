@@ -2,6 +2,9 @@ package app
 
 import (
 	"encoding/json/v2"
+	"os"
+	"path/filepath"
+	"slices"
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
@@ -73,6 +76,88 @@ func saveEnvs(file *store.File, f envFile) error {
 	return file.Write(append(data, '\n'))
 }
 
+// projectEnvFile is the project's environments file: the environments'
+// Initial values and the globals. It has no field for Current values or
+// credential marks, so neither can be written into the project.
+type projectEnvFile struct {
+	Globals      map[string]string    `json:"globals,omitempty"`
+	Environments []projectEnvironment `json:"environments,omitempty"`
+}
+
+type projectEnvironment struct {
+	Name string            `json:"name"`
+	Vars map[string]string `json:"vars,omitempty"`
+}
+
+// loadEnvFile reads the environments in use. With a project folder set, their
+// Initial values and globals come from the project's environments file, and
+// the local file supplies this machine's Current values and credential marks
+// by environment name. Until the project has that file, the local file's own
+// values are used, and the first save writes the project file.
+func (a *app) loadEnvFile() (envFile, error) {
+	f, err := loadEnvs(a.file(a.envsPath))
+	path := a.projectFile("environments.json")
+	if err != nil || path == "" {
+		return f, err
+	}
+	project := a.file(path)
+	data, err := project.Read()
+	if err != nil || data == nil {
+		return f, err
+	}
+	var shared projectEnvFile
+	if err := json.Unmarshal(data, &shared); err != nil {
+		project.Fail(err)
+		return f, err
+	}
+	local := f.Envs
+	f.Envs, f.Globals = nil, shared.Globals
+	for _, e := range shared.Environments {
+		env := environment{Name: e.Name, Vars: e.Vars}
+		if at := slices.IndexFunc(local, func(l environment) bool { return l.Name == e.Name }); at >= 0 {
+			env.Current, env.Credentials = local[at].Current, local[at].Credentials
+		}
+		f.Envs = append(f.Envs, env)
+	}
+	return f, nil
+}
+
+// saveEnvFile writes the environments. With a project folder set, the Initial
+// values and globals go to the project file first, which refuses to replace a
+// change made on disk. The local file then gets the whole set, including a
+// copy of the Initial values for Use default folder, so Current values and
+// credential marks stay here.
+func (a *app) saveEnvFile(f envFile) error {
+	if path := a.projectFile("environments.json"); path != "" {
+		shared := projectEnvFile{Globals: f.Globals}
+		for _, e := range f.Envs {
+			shared.Environments = append(shared.Environments, projectEnvironment{Name: e.Name, Vars: e.Vars})
+		}
+		// Do not create an empty file in the repository for a project with
+		// no environments yet.
+		_, statErr := os.Stat(path)
+		if len(shared.Environments) > 0 || len(shared.Globals) > 0 || statErr == nil {
+			data, err := json.Marshal(shared)
+			if err != nil {
+				return err
+			}
+			if err := a.file(path).Write(append(data, '\n')); err != nil {
+				return err
+			}
+		}
+	}
+	return saveEnvs(a.file(a.envsPath), f)
+}
+
+// projectFile is a file in the project folder's .vscroxy directory, or "" when
+// no project folder is set.
+func (a *app) projectFile(name string) string {
+	if a.projectDir == "" {
+		return ""
+	}
+	return filepath.Join(a.projectDir, ".vscroxy", name)
+}
+
 // localEnvs is the whole local variables file: every save writes all scopes,
 // so one editor never drops another's Current values.
 func (a *app) localEnvs() envFile {
@@ -83,7 +168,7 @@ func (a *app) localEnvs() envFile {
 // saveLocalEnvs writes the environments, globals and local collection Current
 // values as they are in memory.
 func (a *app) saveLocalEnvs() error {
-	return saveEnvs(a.file(a.envsPath), a.localEnvs())
+	return a.saveEnvFile(a.localEnvs())
 }
 
 // globalValues are what a send reads from globals: a nonempty Current wins,

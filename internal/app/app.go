@@ -784,7 +784,7 @@ func newApp() *app {
 func (a *app) loadRequestAssets() {
 	a.loadRequestLibrary()
 	a.refreshDocuments()
-	if f, err := loadEnvs(a.file(a.envsPath)); err != nil {
+	if f, err := a.loadEnvFile(); err != nil {
 		a.envsProblem = fmt.Sprintf("Variables (%s): %v", a.envsPath, err)
 	} else {
 		a.envs, a.activeEnv, a.globals, a.globalsCurrent, a.folderCurrent, a.folderCredentials, a.envsProblem = f.Envs, f.Active, f.Globals, f.GlobalsCurrent, f.FolderCurrent, f.FolderCredentials, ""
@@ -3736,7 +3736,7 @@ func (a *app) saveVars() {
 	if a.varsGlobals {
 		f := a.localEnvs()
 		f.Globals, f.GlobalsCurrent = initial, current
-		if err := saveEnvs(a.file(a.envsPath), f); err != nil {
+		if err := a.saveEnvFile(f); err != nil {
 			a.varsProblem = "Save failed: " + err.Error()
 			return
 		}
@@ -3758,7 +3758,7 @@ func (a *app) saveVars() {
 	}
 	f := a.localEnvs()
 	f.Active, f.Envs = name, envs
-	if err := saveEnvs(a.file(a.envsPath), f); err != nil {
+	if err := a.saveEnvFile(f); err != nil {
 		a.varsProblem = "Save failed: " + err.Error()
 		return
 	}

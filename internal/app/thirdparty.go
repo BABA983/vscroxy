@@ -271,7 +271,7 @@ func (a *app) mergeImportedEnvironments(incoming []imports.Environment) (title s
 	}
 	f := a.localEnvs()
 	f.Envs = envs
-	if err := saveEnvs(a.file(a.envsPath), f); err != nil {
+	if err := a.saveEnvFile(f); err != nil {
 		return "", warnings, err
 	}
 	a.envs = envs

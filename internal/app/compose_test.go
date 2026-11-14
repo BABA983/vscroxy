@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -214,5 +215,67 @@ func TestEnvsRoundTrip(t *testing.T) {
 	}
 	if missing, err := loadEnvs(&store.File{Path: t.TempDir() + "/none.json"}); err != nil || missing.Envs != nil || missing.Active != "" {
 		t.Errorf("missing file = %+v, %v; want nothing", missing, err)
+	}
+}
+
+func TestProjectEnvironmentsHoldInitialValuesOnly(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	a := libraryApp(t)
+	a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
+	a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
+	project := t.TempDir()
+	projectEnvs := filepath.Join(project, ".vscroxy", "environments.json")
+	const secret = "tok-local-only"
+
+	a.setProjectDir(project)
+	a.envs = []environment{{Name: "dev", Vars: map[string]string{"host": "api.example.com"},
+		Current: map[string]string{"token": secret}, Credentials: map[string]bool{"token": true}}}
+	a.activeEnv = "dev"
+	a.globals, a.globalsCurrent = map[string]string{"team": "shop"}, map[string]string{"team": "local-team"}
+	if err := a.saveLocalEnvs(); err != nil {
+		t.Fatal(err)
+	}
+
+	shared, err := os.ReadFile(projectEnvs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, leak := range []string{secret, "local-team", "token", "credentials", "current", "active"} {
+		if strings.Contains(string(shared), leak) {
+			t.Fatalf("project file holds %q: %s", leak, shared)
+		}
+	}
+	if !strings.Contains(string(shared), "api.example.com") || !strings.Contains(string(shared), `"shop"`) {
+		t.Fatalf("project file lost the Initial values: %s", shared)
+	}
+
+	// A restart reads the Initial values from the project and the rest from home.
+	a.envs, a.globals, a.globalsCurrent = nil, nil, nil
+	a.loadRequestAssets()
+	if len(a.envs) != 1 || a.envs[0].Vars["host"] != "api.example.com" || a.envs[0].Current["token"] != secret || !a.envs[0].Credentials["token"] {
+		t.Fatalf("environments after reload: %+v", a.envs)
+	}
+	if a.globals["team"] != "shop" || a.globalsCurrent["team"] != "local-team" {
+		t.Fatalf("globals after reload: %v / %v", a.globals, a.globalsCurrent)
+	}
+
+	// A change made in the project file since it was read is not replaced.
+	edited := []byte(`{"environments":[{"name":"dev","vars":{"host":"changed.example"}}]}`)
+	if err := os.WriteFile(projectEnvs, edited, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a.envs[0].Vars["host"] = "mine"
+	if err := a.saveLocalEnvs(); err == nil {
+		t.Fatal("saved over a project file changed on disk")
+	}
+	if data, _ := os.ReadFile(projectEnvs); string(data) != string(edited) {
+		t.Fatalf("the project file changed: %s", data)
+	}
+
+	// Use default folder keeps the Initial values this machine last saved.
+	a.setProjectDir("")
+	if len(a.envs) != 1 || a.envs[0].Vars["host"] != "api.example.com" || a.envs[0].Current["token"] != secret {
+		t.Fatalf("default folder lost the environments: %+v", a.envs)
 	}
 }
