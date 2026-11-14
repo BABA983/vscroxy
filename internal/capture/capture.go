@@ -705,7 +705,11 @@ func (s *Server) noteDNS(f *proxy.Flow) {
 	if host == "" {
 		return
 	}
-	rule, ok := hosts.Lookup(s.dns.Rules(), host, s.clientProcess(f).Name)
+	app := s.clientProcessReady(f).Name
+	if app == "" && slices.ContainsFunc(s.dns.Rules(), func(r hosts.Rule) bool { return len(r.Apps) > 0 }) {
+		app = s.clientProcess(f).Name
+	}
+	rule, ok := hosts.Lookup(s.dns.Rules(), host, app)
 	if !ok {
 		return
 	}
@@ -1187,11 +1191,16 @@ func (s *Server) waitBreakpoint(ctx context.Context, bp Breakpoint) *Decision {
 // ruleRequest is what the rules look at in an exchange, as it is now: after
 // a Map Remote rule, the URL it was sent to.
 func (s *Server) ruleRequest(f *proxy.Flow) rules.Request {
-	req := rules.Request{URL: f.Request.URL.String(), Method: f.Request.Method, Host: f.Request.URL.Hostname(),
-		App: s.clientProcess(f).Name, Header: f.Request.Header}
 	s.rulesMu.RLock()
 	needed := slices.ContainsFunc(s.rules, func(r Rule) bool { return r.Operation != "" && !r.Disabled && (r.Scenario == "" || r.ScenarioActive) })
+	needsApp := slices.ContainsFunc(s.rules, func(r Rule) bool { return !r.Disabled && len(r.Apps) > 0 })
 	s.rulesMu.RUnlock()
+	app := s.clientProcessReady(f).Name
+	if needsApp && app == "" {
+		app = s.clientProcess(f).Name
+	}
+	req := rules.Request{URL: f.Request.URL.String(), Method: f.Request.Method, Host: f.Request.URL.Hostname(),
+		App: app, Header: f.Request.Header}
 	if !needed {
 		return req
 	}
@@ -1727,7 +1736,7 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	if raw := f.Request.Raw(); raw != nil {
 		// Keep the socket's identity on the exchange before it disconnects.
 		// A later connection reusing its address must not change history.
-		process := a.server.clientProcess(f)
+		process := a.server.clientProcessReady(f)
 		*raw = *raw.WithContext(context.WithValue(raw.Context(), clientProcessKey{}, process))
 	}
 	if raw := f.Request.Raw(); raw != nil && f.ConnContext != nil && f.ConnContext.ClientConn != nil && f.ConnContext.ClientConn.Conn != nil {
@@ -2387,7 +2396,12 @@ func (s *Server) waitLookup(addr clientSocket, client *proxy.ClientConn, wait ti
 	if identity.client != client {
 		return clientIdentity{}, false
 	}
-	if identity.ready != nil && identity.process.Name == "" && !identity.disconnected {
+	// A connection can close before its owner lookup finishes. Publication
+	// still needs that answer: ignore and allow rules must see the app, and a
+	// disconnected socket with no owner is not evidence that the app is
+	// unknown. Wait for the lookup that was already queued, never longer than
+	// wait; forwarding has finished by the time publish reaches here.
+	if identity.ready != nil && identity.process.Name == "" {
 		select {
 		case <-identity.ready:
 		case <-time.After(wait):
@@ -2406,7 +2420,7 @@ func (s *Server) waitLookup(addr clientSocket, client *proxy.ClientConn, wait ti
 func (s *Server) clientProcess(f *proxy.Flow) procinfo.Process {
 	if f.Request != nil {
 		if raw := f.Request.Raw(); raw != nil {
-			if process, ok := raw.Context().Value(clientProcessKey{}).(procinfo.Process); ok {
+			if process, ok := raw.Context().Value(clientProcessKey{}).(procinfo.Process); ok && process.Name != "" {
 				return process
 			}
 		}
@@ -2416,6 +2430,30 @@ func (s *Server) clientProcess(f *proxy.Flow) procinfo.Process {
 	}
 	client := f.ConnContext.ClientConn
 	return s.socketProcess(socketOf(client.Conn), client)
+}
+
+// clientProcessReady returns an owner that is already known, without waiting.
+// The request-header path caches this answer so a later socket close cannot
+// lose it; publication calls clientProcess and waits for a late answer instead.
+func (s *Server) clientProcessReady(f *proxy.Flow) procinfo.Process {
+	if f.Request != nil {
+		if raw := f.Request.Raw(); raw != nil {
+			if process, ok := raw.Context().Value(clientProcessKey{}).(procinfo.Process); ok {
+				return process
+			}
+		}
+	}
+	if f.ConnContext == nil || f.ConnContext.ClientConn == nil || f.ConnContext.ClientConn.Conn == nil {
+		return procinfo.Process{}
+	}
+	client := f.ConnContext.ClientConn
+	s.mu.Lock()
+	identity := s.clients[socketOf(client.Conn)]
+	s.mu.Unlock()
+	if identity.client != client {
+		return procinfo.Process{}
+	}
+	return identity.process
 }
 
 // publishConnect shows a CONNECT the proxy tunnels without decrypting it.
@@ -2432,7 +2470,54 @@ func (s *Server) publishConnect(f *proxy.Flow) {
 }
 
 func (s *Server) publish(f *proxy.Flow) {
+	// The response hook runs before the client gets the buffered response.
+	// Waiting for a late owner there would delay forwarding, so publish that
+	// wait on its own goroutine; only the UI publication is deferred.
+	if f.Response != nil && !f.Stream && !isSSE(f.Response) && s.needsClientIdentity() && s.clientIdentityPending(f) {
+		go s.publishFlow(snapshotFlow(f), "http", nil, 0)
+		return
+	}
 	s.publishFlow(f, "http", nil, 0)
+}
+
+// snapshotFlow copies the fields publication reads, so an asynchronous
+// publication cannot race with the proxy writing the response.
+func snapshotFlow(f *proxy.Flow) *proxy.Flow {
+	out := *f
+	if f.Request != nil {
+		req := *f.Request
+		req.Header = f.Request.Header.Clone()
+		req.Trailer = f.Request.Trailer.Clone()
+		req.Body = slices.Clone(f.Request.Body)
+		if f.Request.URL != nil {
+			u := *f.Request.URL
+			req.URL = &u
+		}
+		out.Request = &req
+	}
+	if f.Response != nil {
+		res := *f.Response
+		res.Header = f.Response.Header.Clone()
+		res.Trailer = f.Response.Trailer.Clone()
+		res.Body = slices.Clone(f.Response.Body)
+		out.Response = &res
+	}
+	return &out
+}
+
+func (s *Server) needsClientIdentity() bool {
+	return len(s.IgnoreApps()) > 0 || s.Allow().On
+}
+
+func (s *Server) clientIdentityPending(f *proxy.Flow) bool {
+	if f.ConnContext == nil || f.ConnContext.ClientConn == nil || f.ConnContext.ClientConn.Conn == nil {
+		return false
+	}
+	client := f.ConnContext.ClientConn
+	s.mu.Lock()
+	identity := s.clients[socketOf(client.Conn)]
+	s.mu.Unlock()
+	return identity.client == client && identity.ready != nil && identity.process.Name == ""
 }
 
 // answer publishes a response a rule gave in place of the server's, and

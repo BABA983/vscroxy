@@ -33,6 +33,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/hosts"
+	"github.com/baba983/vscroxy/internal/procinfo"
 	"github.com/baba983/vscroxy/internal/rules"
 	upstreamcfg "github.com/baba983/vscroxy/internal/upstream"
 )
@@ -826,6 +827,60 @@ func TestDropConnectionsMakesClientsConnectAgain(t *testing.T) {
 	}
 	if f := get(); f.Conn.Reused {
 		t.Fatalf("after dropping, Conn = %+v; want a new connection", f.Conn)
+	}
+}
+
+func TestIgnoredAppWaitsForLateIdentityWithoutSlowingForwarding(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "noise")
+	}))
+	defer upstream.Close()
+
+	dir := t.TempDir()
+	s, err := New("127.0.0.1:0", dir)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("executable path: %v", err)
+	}
+	s.SetIgnoreApps([]string{filepath.Base(exe)})
+	lookupStarted := make(chan struct{}, 1)
+	s.lookupBatch = func(endpoints []procinfo.Endpoint) []procinfo.Process {
+		select {
+		case lookupStarted <- struct{}{}:
+		default:
+		}
+		time.Sleep(300 * time.Millisecond)
+		return []procinfo.Process{{Name: filepath.Base(exe)}}
+	}
+	if err := s.Start(); err != nil {
+		t.Fatalf("start server: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	client := clientFor(t, s, nil)
+	start := time.Now()
+	resp, err := client.Get(upstream.URL + "/noise")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	client.CloseIdleConnections()
+	if elapsed := time.Since(start); elapsed > 200*time.Millisecond {
+		t.Fatalf("forwarding took %v; the identity wait must not delay the response", elapsed)
+	}
+	select {
+	case <-lookupStarted:
+	case <-time.After(time.Second):
+		t.Fatal("client lookup never started")
+	}
+	select {
+	case f := <-s.Flows():
+		t.Fatalf("ignored app's flow was published before its late identity: %+v", f)
+	case <-time.After(1500 * time.Millisecond):
 	}
 }
 

@@ -27,8 +27,8 @@ func output(name string, args ...string) ([]byte, error) {
 // lookupSocket asks lsof for one exact connection, for a single retry after
 // the batch missed it.
 func lookupSocket(client, server netip.AddrPort) Process {
-	out, err := output("lsof", "-nP", "-a", "-iTCP:"+strconv.Itoa(int(client.Port())), "-Fpn")
-	if err != nil {
+	out, _ := output("lsof", "-nP", "-a", "-iTCP:"+strconv.Itoa(int(client.Port())), "-Fpn")
+	if len(out) == 0 {
 		return Process{}
 	}
 	pid, owner := "", ""
@@ -64,8 +64,8 @@ func lookupBatch(endpoints []Endpoint) []Process {
 	if len(endpoints) == 0 {
 		return out
 	}
-	data, err := output("lsof", "-nP", "-iTCP", "-sTCP:ESTABLISHED,CLOSE_WAIT", "-a", "-i@127.0.0.1", "-Fpn")
-	if err != nil {
+	data, _ := output("lsof", "-nP", "-iTCP", "-sTCP:ESTABLISHED,CLOSE_WAIT", "-a", "-i@127.0.0.1", "-Fpn")
+	if len(data) == 0 {
 		return out
 	}
 	owners := map[string]string{}
@@ -129,6 +129,9 @@ func processForPID(pid string) Process {
 	processCache.Unlock()
 
 	process := lookupProcess(pid)
+	if process.Name == "" {
+		return process
+	}
 
 	processCache.Lock()
 	if processCache.entries == nil {
