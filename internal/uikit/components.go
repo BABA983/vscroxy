@@ -671,7 +671,7 @@ func Toasts(c *ui.Context) {
 			}
 			parts := ui.ToastBase(c, toast)
 			PopoverPanel(c, parts.Root).Row().Width(min(360, width-32)).Gap(t.Space(3)).Padding(t.Space(3)).
-				AlignItems(ui.Start).
+				AlignItems(ui.Center).
 				Transition(ui.ElementTransition{Duration: DurationHover, Enter: &ui.Motion{Y: 8}, Exit: &ui.Motion{Y: 4}}).
 				Children(func() {
 					ui.Icon(c, icon).Size(IconLarge, IconLarge).TextColor(color)
@@ -680,17 +680,18 @@ func Toasts(c *ui.Context) {
 						if toast.Description != "" {
 							ui.Text(c, toast.Description).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted)
 						}
-						if toast.Action != "" {
-							b := parts.ActionButton().Label(toast.Action).Height(ControlHeightSmall).Padding(0, Scaled(ControlPaddingXSmall)).
-								Radius(RadiusControl).Background(p.Fill).TextColor(t.Text).AlignItems(ui.Center)
-							if b.Pressed() {
-								b.Background(p.FillPressed)
-							} else if b.Hovered() {
-								b.Background(p.FillHover)
-							}
-							b.Children(func() { ui.Text(c, toast.Action).FontSize(Scaled(TextBody)) })
-						}
 					})
+					if toast.Action != "" {
+						// The action sits on the toast's one line, as a link beside
+						// the message rather than a second full-width button.
+						b := parts.ActionButton().Label(toast.Action).Height(ControlHeightSmall).
+							Padding(0, Scaled(ControlPaddingXSmall)).Radius(RadiusInner).AlignItems(ui.Center).
+							FontSize(Scaled(TextMeta)).TextColor(t.TextMuted)
+						b.Children(func() { ui.Text(c, toast.Action).FontSize(Scaled(TextMeta)) })
+						if b.Hovered() {
+							b.Background(p.FillHover).TextColor(t.Text)
+						}
+					}
 					close := Tip(c, parts.CloseButton().Label(locales.DismissNotification()), locales.DismissNotification()).
 						Size(ControlHeightSmall, ControlHeightSmall).Radius(RadiusControl).Center().TextColor(t.TextMuted)
 					if close.Pressed() {
