@@ -129,15 +129,26 @@ func choosePaneView(t *testing.T, tt *ui.Tester, pane, label string) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if err := chooseMenu(tt, menuLabel(tt, label)); err != nil {
+	// The pointer stays where the More button was, and a submenu item can
+	// open under it. Move onto a top-level item before choosing by label, so
+	// the submenu closes and the top-level menu is current.
+	for _, anchor := range []string{"Scripts", "Decode…", "Open request History", "Cookies"} {
+		if r, ok := tt.Find(anchor); ok {
+			tt.Move(r.X+r.W/2, r.Y+r.H/2)
+			break
+		}
+	}
+	tt.Frame()
+	if err := tt.ChooseMenuItem(menuLabel(tt, label)); err != nil {
 		t.Fatal(err)
 	}
 }
 
 // menuLabel is the label as the menu shows it: a view with a count of its
-// own says "Examples 2".
+// own says "Examples 2". Look only at the menu, not at page text that happens
+// to start with the same word, such as a request named "Console request".
 func menuLabel(tt *ui.Tester, label string) string {
-	for _, s := range tt.Texts() {
+	for _, s := range tt.Menu() {
 		if s == label || strings.HasPrefix(s, label+" ") {
 			return s
 		}
@@ -3534,6 +3545,9 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 		deadline := time.Now().Add(5 * time.Second)
 		for time.Now().Before(deadline) {
 			if d := a.requestDocument; d != nil && len(d.composeTests) > 0 {
+				// Build the frame that carries the checks into the response
+				// pane's menu; the last frame predates them.
+				tt.Frame()
 				return
 			}
 			time.Sleep(10 * time.Millisecond)
