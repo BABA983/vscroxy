@@ -45,6 +45,9 @@ func (a *app) openSocket() {
 			}
 		}
 	}
+	if s.url == "" {
+		s.url = "ws://127.0.0.1:8080/socket"
+	}
 	s.open = true
 }
 
@@ -65,46 +68,75 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 	active := state == "Connected" || state == "Connecting" || state == "Disconnecting"
 	_, h := c.Size()
 	if uikit.Modal(c, &s.open, func() {
+		connect := func() {
+			header := request.ParseHeaderBlock(s.headers)
+			if s.subprotocols != "" && header.Get("Sec-WebSocket-Protocol") != "" {
+				s.problem = "Enter subprotocols in the dedicated field or headers, not both"
+				return
+			}
+			if s.subprotocols != "" {
+				header.Set("Sec-WebSocket-Protocol", s.subprotocols)
+			}
+			s.session = openWSSession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: header}, a.srv.CACertificate(), a.certificates, a.requestCookies(), a.invalidate)
+			s.problem = ""
+			s.picked = 0
+			s.reader = nil
+		}
+		canConnect := a.srv != nil && a.srv.Running() && request.IsWebSocket(s.url)
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(h - 100).Children(func() {
 			uikit.DialogTitle(c, locales.WebsocketSessionState(stateLabel(state)))
-			ui.Scroll(c).MaxHeight(260).MinHeight(0).Shrink(1).Gap(t.Space(2)).Padding(0, t.Space(1)).Children(func() {
-				uikit.Hint(c, locales.ConnectStartsAFreshTimeline())
-				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					uikit.Input(c, &s.url).Label(locales.WebsocketUrl()).Placeholder("ws://127.0.0.1:8080/socket").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(active)
-					if uikit.SecondaryButton(c, locales.Connect()).Disabled(active || a.srv == nil || !a.srv.Running() || !request.IsWebSocket(s.url)).Clicked() {
-						header := request.ParseHeaderBlock(s.headers)
-						if s.subprotocols != "" && header.Get("Sec-WebSocket-Protocol") != "" {
-							s.problem = "Enter subprotocols in the dedicated field or headers, not both"
-						} else {
-							if s.subprotocols != "" {
-								header.Set("Sec-WebSocket-Protocol", s.subprotocols)
-							}
-							s.session = openWSSession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: header}, a.srv.CACertificate(), a.certificates, a.requestCookies(), a.invalidate)
-							s.problem = ""
-							s.picked = 0
-							s.reader = nil
-						}
-					}
-					if uikit.SecondaryButton(c, locales.Disconnect()).Disabled(!active).Clicked() {
+			uikit.SettingsGroup(c, locales.Connection(), func() {
+				uikit.SettingsRow(c, locales.Url(), func() ui.Element {
+					in := uikit.Input(c, &s.url).Label(locales.WebsocketUrl()).Placeholder("ws://127.0.0.1:8080/socket").
+						Font(uikit.FontMono).Disabled(active)
+					uikit.Tip(c, in, locales.WebsocketUrlHelp())
+					return in
+				}, "")
+				uikit.SettingsRow(c, locales.Subprotocols(), func() ui.Element {
+					in := uikit.Input(c, &s.subprotocols).Label(locales.WebsocketSubprotocols()).
+						Placeholder(locales.SubprotocolsInPreferenceOrderE()).Disabled(active)
+					uikit.Tip(c, in, locales.WebsocketSubprotocolsHelp())
+					return in
+				}, "")
+				uikit.SettingsRowMultiline(c, locales.Headers(), func() ui.Element {
+					return ui.TextArea(c, &s.headers).Label(locales.WebsocketHandshakeHeaders()).Placeholder("Authorization: Bearer …").
+						Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(active)
+				}, locales.WebsocketHeadersHelp())
+			})
+			if s.problem != "" {
+				ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
+			}
+			ui.Row(c).Gap(t.Space(2)).Children(func() {
+				ui.Spacer(c)
+				if active {
+					if uikit.SecondaryButton(c, locales.Disconnect()).Clicked() {
 						s.session.disconnect()
 					}
-				})
-				uikit.Input(c, &s.subprotocols).Label(locales.WebsocketSubprotocols()).Placeholder(locales.SubprotocolsInPreferenceOrderE()).Disabled(active)
-				ui.TextArea(c, &s.headers).Label(locales.WebsocketHandshakeHeaders()).Placeholder("Authorization: Bearer …").Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(active)
-				if s.problem != "" {
-					ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
+				} else {
+					b := uikit.Tip(c, uikit.PrimaryButton(c, locales.Connect()).Disabled(!canConnect), locales.SocketConnectTip())
+					if b.Clicked() {
+						connect()
+					}
 				}
+			})
+			if active || len(events) > 0 {
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					if s.encoding == "" {
 						s.encoding = "Text"
 					}
-					uikit.SelectLabels(c, &s.encoding, []string{"Text", "Hex", "Base64"}, optionLabel).Label(locales.WebsocketMessageEncoding()).Width(110)
+					uikit.SelectLabels(c, &s.encoding, []string{"Text", "Hex", "Base64"}, optionLabel).Label(locales.WebsocketMessageEncoding()).Width(110).Height(uikit.ControlHeight)
 					uikit.Input(c, &s.message).Label(locales.WebsocketMessage()).Placeholder(locales.TextHexBytesOrPadded()).Grow(1).MinWidth(0).Font(uikit.FontMono)
 					label := locales.SendText()
 					if s.encoding != "Text" {
 						label = locales.SendBinary()
 					}
-					if uikit.PrimaryButton(c, label).Disabled(state != "Connected" || s.sending).Clicked() {
+					var send ui.Element
+					if state == "Connected" {
+						send = uikit.PrimaryButton(c, label).Disabled(s.sending)
+					} else {
+						send = uikit.SecondaryButton(c, label).Disabled(true)
+					}
+					if send.Clicked() {
 						kind, data, err := websocket.TextMessage, []byte(s.message), error(nil)
 						switch s.encoding {
 						case "Hex":
@@ -130,85 +162,95 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					if s.direction == "" {
 						s.direction = "All"
 					}
-					uikit.SelectLabels(c, &s.direction, directions, optionLabel).Width(100).Label(locales.SessionDirection())
-					ui.Text(c, locales.RetainedEvicted(len(events), evicted)).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum")
+					uikit.SelectLabels(c, &s.direction, directions, optionLabel).Width(100).Height(uikit.ControlHeight).Label(locales.SessionDirection())
+					retained := uikit.Meta(c, locales.RetainedEvicted(len(events), evicted))
+					uikit.Tip(c, retained, locales.Latest200Events64Kib2())
 					if uikit.SecondaryButton(c, locales.LatestMessage()).Clicked() {
 						s.scroll.Y = math.MaxFloat32
 					}
 				})
-			})
-			ui.Row(c).Grow(1).MinHeight(84).Gap(t.Space(4)).AlignItems(ui.Stretch).Children(func() {
-				if s.scroll.Y >= s.scroll.MaxY {
-					s.scroll.Y = math.MaxFloat32
+				if len(events) == 0 {
+					uikit.EmptyState(c, locales.Connected(), locales.WaitingForMessages(), nil)
+				} else {
+					ui.Row(c).Grow(1).MinHeight(84).Gap(t.Space(4)).AlignItems(ui.Stretch).Children(func() {
+						if s.scroll.Y >= s.scroll.MaxY {
+							s.scroll.Y = math.MaxFloat32
+						}
+						ui.Scroll(c).TrackScroll(&s.scroll).Width(280).MinWidth(0).Shrink(1).Gap(t.Space(1)).Children(func() {
+							for _, e := range events {
+								if s.direction != "All" && !(s.direction == e.Direction || s.direction == "Events" && e.Direction == "") {
+									continue
+								}
+								if !strings.Contains(strings.ToLower(string(e.Data)+e.Detail), strings.ToLower(s.query)) {
+									continue
+								}
+								kind := "Text"
+								if e.Kind == websocket.BinaryMessage {
+									kind = "Binary"
+								}
+								label := fmt.Sprintf("#%d %s · %s %s · %d B", e.Sequence, e.At.Format("15:04:05.000"), e.Direction, kind, e.Size)
+								if e.Direction == "" {
+									label = fmt.Sprintf("#%d %s", e.Sequence, e.Detail)
+								}
+								b := uikit.Tip(c, uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.Sequence)).Label(locales.SessionMessageLabel(e.Sequence)).FillWidth(), label)
+								if e.Sequence == s.picked {
+									uikit.Selected(c, b, !a.windowBehind)
+								}
+								if b.Clicked() {
+									s.picked = e.Sequence
+									s.viewMode = 0
+									if e.Kind == websocket.BinaryMessage {
+										s.viewMode = 1
+									}
+									if !utf8.Valid(e.Data) {
+										s.viewMode = 1
+									}
+									s.reader = &editor.State{Buffer: editor.NewBuffer(e.Detail), ReadOnly: true, NoScrollPastEnd: true, Label: locales.SessionPayload()}
+								}
+							}
+						})
+						ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
+							if s.reader == nil {
+								uikit.Hint(c, locales.SelectAMessage())
+							} else {
+								for _, e := range events {
+									if e.Sequence != s.picked || e.Direction == "" {
+										continue
+									}
+									uikit.Segmented(c, &s.viewMode, locales.Text(), locales.Hex(), locales.Protobuf()).Label(locales.SessionPayloadFormat())
+									if s.viewMode == 2 {
+										s.protobuf.message(c, a, fmt.Sprintf("socket:%p:%d", s.session, e.Sequence), messageView{data: string(e.Data), size: e.Size})
+										return
+									}
+									text := string(e.Data)
+									if s.viewMode == 1 {
+										text = hex.Dump(e.Data)
+									}
+									if len(e.Data) < e.Size {
+										text += fmt.Sprintf("\nRetained %d of %d bytes", len(e.Data), e.Size)
+									}
+									if s.reader.Buffer.String() != text {
+										s.reader.Buffer = editor.NewBuffer(text)
+									}
+									break
+								}
+								requestCodeEditor(c, s.reader)
+							}
+						})
+					})
 				}
-				ui.Scroll(c).TrackScroll(&s.scroll).Width(280).MinWidth(0).Shrink(1).Gap(t.Space(1)).Children(func() {
-					for _, e := range events {
-						if s.direction != "All" && !(s.direction == e.Direction || s.direction == "Events" && e.Direction == "") {
-							continue
-						}
-						if !strings.Contains(strings.ToLower(string(e.Data)+e.Detail), strings.ToLower(s.query)) {
-							continue
-						}
-						kind := "Text"
-						if e.Kind == websocket.BinaryMessage {
-							kind = "Binary"
-						}
-						label := fmt.Sprintf("#%d %s · %s %s · %d B", e.Sequence, e.At.Format("15:04:05.000"), e.Direction, kind, e.Size)
-						if e.Direction == "" {
-							label = fmt.Sprintf("#%d %s", e.Sequence, e.Detail)
-						}
-						b := uikit.Tip(c, uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.Sequence)).Label(locales.SessionMessageLabel(e.Sequence)).FillWidth(), label)
-						if e.Sequence == s.picked {
-							uikit.Selected(c, b, !a.windowBehind)
-						}
-						if b.Clicked() {
-							s.picked = e.Sequence
-							s.viewMode = 0
-							if e.Kind == websocket.BinaryMessage {
-								s.viewMode = 1
-							}
-							if !utf8.Valid(e.Data) {
-								s.viewMode = 1
-							}
-							s.reader = &editor.State{Buffer: editor.NewBuffer(e.Detail), ReadOnly: true, NoScrollPastEnd: true, Label: locales.SessionPayload()}
-						}
-					}
-				})
-				ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
-					if s.reader == nil {
-						uikit.Hint(c, locales.SelectAMessageOrConnection())
-					} else {
-						for _, e := range events {
-							if e.Sequence != s.picked || e.Direction == "" {
-								continue
-							}
-							uikit.Segmented(c, &s.viewMode, locales.Text(), locales.Hex(), locales.Protobuf()).Label(locales.SessionPayloadFormat())
-							if s.viewMode == 2 {
-								s.protobuf.message(c, a, fmt.Sprintf("socket:%p:%d", s.session, e.Sequence), messageView{data: string(e.Data), size: e.Size})
-								return
-							}
-							text := string(e.Data)
-							if s.viewMode == 1 {
-								text = hex.Dump(e.Data)
-							}
-							if len(e.Data) < e.Size {
-								text += fmt.Sprintf("\nRetained %d of %d bytes", len(e.Data), e.Size)
-							}
-							if s.reader.Buffer.String() != text {
-								s.reader.Buffer = editor.NewBuffer(text)
-							}
-							break
-						}
-						requestCodeEditor(c, s.reader)
-					}
-				})
-			})
-			uikit.Meta(c, locales.Latest200Events64Kib2())
+			} else {
+				uikit.EmptyState(c, locales.NotConnected(), locales.ConnectToStartAFreshTimeline(), nil)
+			}
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.Tip(c, uikit.SecondaryButton(c, locales.CopyShownPayload()).Disabled(s.reader == nil || s.viewMode == 2), locales.CopiesDisplayedTextHexUse()).Clicked() {
 					c.Services().WriteClipboard(s.reader.Buffer.String())
 				}
-				if uikit.SecondaryButton(c, locales.DisconnectClose()).Clicked() {
+				closeLabel := locales.DisconnectClose()
+				if !active {
+					closeLabel = locales.Close()
+				}
+				if uikit.SecondaryButton(c, closeLabel).Clicked() {
 					s.session.disconnect()
 					s.open = false
 				}

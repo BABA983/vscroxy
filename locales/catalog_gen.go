@@ -3870,6 +3870,16 @@ func (msgs Messages) ConnectToPublishAndSubscribe() string {
 	return Catalog.Format(msgs.locale, "connectToPublishAndSubscribe", nil)
 }
 
+// ConnectToStartAFreshTimeline says "Connect to start a fresh timeline."
+// in the language the app shows.
+func ConnectToStartAFreshTimeline() string { return In(i18n.Locale()).ConnectToStartAFreshTimeline() }
+
+// ConnectToStartAFreshTimeline says "Connect to start a fresh timeline."
+// in the language of msgs.
+func (msgs Messages) ConnectToStartAFreshTimeline() string {
+	return Catalog.Format(msgs.locale, "connectToStartAFreshTimeline", nil)
+}
+
 // Connected says "Connected"
 // in the language the app shows.
 func Connected() string { return In(i18n.Locale()).Connected() }
@@ -8308,6 +8318,16 @@ func HeaderValue(index int) string { return In(i18n.Locale()).HeaderValue(index)
 // in the language of msgs.
 func (msgs Messages) HeaderValue(index int) string {
 	return Catalog.Format(msgs.locale, "headerValue", map[string]any{"index": index})
+}
+
+// Headers says "Headers"
+// in the language the app shows.
+func Headers() string { return In(i18n.Locale()).Headers() }
+
+// Headers says "Headers"
+// in the language of msgs.
+func (msgs Messages) Headers() string {
+	return Catalog.Format(msgs.locale, "headers", nil)
 }
 
 // HeadersCookiesAndBodiesOf says "Headers, cookies and bodies of these become readable. More rules in HTTPS rules."
@@ -18926,6 +18946,16 @@ func (msgs Messages) SelectALoginResponseAnd() string {
 	return Catalog.Format(msgs.locale, "selectALoginResponseAnd", nil)
 }
 
+// SelectAMessage says "Select a message."
+// in the language the app shows.
+func SelectAMessage() string { return In(i18n.Locale()).SelectAMessage() }
+
+// SelectAMessage says "Select a message."
+// in the language of msgs.
+func (msgs Messages) SelectAMessage() string {
+	return Catalog.Format(msgs.locale, "selectAMessage", nil)
+}
+
 // SelectAMessageOrConnection says "Select a message or connection event. Binary payloads display as hex."
 // in the language the app shows.
 func SelectAMessageOrConnection() string { return In(i18n.Locale()).SelectAMessageOrConnection() }
@@ -20074,6 +20104,16 @@ func (msgs Messages) SnippetValidateAjv() string {
 	return Catalog.Format(msgs.locale, "snippetValidateAjv", nil)
 }
 
+// SocketConnectTip says "Connect starts a fresh timeline; closing disconnects."
+// in the language the app shows.
+func SocketConnectTip() string { return In(i18n.Locale()).SocketConnectTip() }
+
+// SocketConnectTip says "Connect starts a fresh timeline; closing disconnects."
+// in the language of msgs.
+func (msgs Messages) SocketConnectTip() string {
+	return Catalog.Format(msgs.locale, "socketConnectTip", nil)
+}
+
 // SocketIOEditorTabPrefix says "Socket.IO editor"
 // in the language the app shows.
 func SocketIOEditorTabPrefix() string { return In(i18n.Locale()).SocketIOEditorTabPrefix() }
@@ -20742,6 +20782,16 @@ func StripPathPrefix() string { return In(i18n.Locale()).StripPathPrefix() }
 // in the language of msgs.
 func (msgs Messages) StripPathPrefix() string {
 	return Catalog.Format(msgs.locale, "stripPathPrefix", nil)
+}
+
+// Subprotocols says "Subprotocols"
+// in the language the app shows.
+func Subprotocols() string { return In(i18n.Locale()).Subprotocols() }
+
+// Subprotocols says "Subprotocols"
+// in the language of msgs.
+func (msgs Messages) Subprotocols() string {
+	return Catalog.Format(msgs.locale, "subprotocols", nil)
 }
 
 // SubprotocolsInPreferenceOrderE says "Subprotocols in preference order, e.g. chat.v2, chat.v1"
@@ -22922,6 +22972,16 @@ func (msgs Messages) WebsocketHandshakeHeaders() string {
 	return Catalog.Format(msgs.locale, "websocketHandshakeHeaders", nil)
 }
 
+// WebsocketHeadersHelp says "One Name: value per line."
+// in the language the app shows.
+func WebsocketHeadersHelp() string { return In(i18n.Locale()).WebsocketHeadersHelp() }
+
+// WebsocketHeadersHelp says "One Name: value per line."
+// in the language of msgs.
+func (msgs Messages) WebsocketHeadersHelp() string {
+	return Catalog.Format(msgs.locale, "websocketHeadersHelp", nil)
+}
+
 // WebsocketMessage says "WebSocket message"
 // in the language the app shows.
 func WebsocketMessage() string { return In(i18n.Locale()).WebsocketMessage() }
@@ -22984,6 +23044,16 @@ func (msgs Messages) WebsocketSubprotocols() string {
 	return Catalog.Format(msgs.locale, "websocketSubprotocols", nil)
 }
 
+// WebsocketSubprotocolsHelp says "Comma-separated, in preference order."
+// in the language the app shows.
+func WebsocketSubprotocolsHelp() string { return In(i18n.Locale()).WebsocketSubprotocolsHelp() }
+
+// WebsocketSubprotocolsHelp says "Comma-separated, in preference order."
+// in the language of msgs.
+func (msgs Messages) WebsocketSubprotocolsHelp() string {
+	return Catalog.Format(msgs.locale, "websocketSubprotocolsHelp", nil)
+}
+
 // WebsocketUrl says "WebSocket URL"
 // in the language the app shows.
 func WebsocketUrl() string { return In(i18n.Locale()).WebsocketUrl() }
@@ -22992,6 +23062,16 @@ func WebsocketUrl() string { return In(i18n.Locale()).WebsocketUrl() }
 // in the language of msgs.
 func (msgs Messages) WebsocketUrl() string {
 	return Catalog.Format(msgs.locale, "websocketUrl", nil)
+}
+
+// WebsocketUrlHelp says "ws:// or wss://. wss:// goes through the capture proxy."
+// in the language the app shows.
+func WebsocketUrlHelp() string { return In(i18n.Locale()).WebsocketUrlHelp() }
+
+// WebsocketUrlHelp says "ws:// or wss://. wss:// goes through the capture proxy."
+// in the language of msgs.
+func (msgs Messages) WebsocketUrlHelp() string {
+	return Catalog.Format(msgs.locale, "websocketUrlHelp", nil)
 }
 
 // WhatCaptureChangesOnThe says "What capture changes on the way, and what the table shows."
