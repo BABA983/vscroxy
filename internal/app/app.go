@@ -2308,6 +2308,18 @@ func (a *app) hostRow(c *ui.Context, d domain) {
 	})
 }
 
+// firstAppPath is the executable the icon comes from: the first app the
+// capture named that still has a path, so a helper with no path of its own
+// does not hide the host app behind it.
+func firstAppPath(apps []capture.SSLApp) string {
+	for _, app := range apps {
+		if app.Path != "" {
+			return app.Path
+		}
+	}
+	return ""
+}
+
 // clientRow is one app of the capture, with the marks that say whether the
 // traffic is narrowed to it and whether its executables are inspected.
 func (a *app) clientRow(c *ui.Context, d domain) {
@@ -2317,14 +2329,7 @@ func (a *app) clientRow(c *ui.Context, d domain) {
 	// An app has its own icon: the row shows it where a host has its dot.
 	row := ui.Element{}
 	if len(apps) > 0 {
-		path := ""
-		for _, app := range apps {
-			if app.Path != "" {
-				path = app.Path
-				break
-			}
-		}
-		if src, ok := a.clientIcon(d.name, path); ok {
+		if src, ok := a.clientIcon(d.name, firstAppPath(apps)); ok {
 			row = uikit.SidebarItemImage(c, id, src, d.name, active, !a.windowBehind)
 		}
 	}
