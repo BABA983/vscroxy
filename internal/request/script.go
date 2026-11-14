@@ -165,6 +165,10 @@ type Prepared struct {
 	// reference a file read it instead of inlining the bytes.
 	BodyFile string
 	Header   http.Header
+	// Auth is the effective auth a pre-request script edits in place: it points
+	// at the request Execute sends, never at the saved document. Nil where no
+	// auth is edited.
+	Auth *Auth
 	// Only pre-script templates record explicit overrides of generated fields.
 	editedHeaders map[string]bool
 	editedBody    bool
@@ -949,6 +953,7 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 			"add":     req.Add,
 			"upsert":  req.Set,
 			"remove":  req.Remove,
+			"auth":    authAccess(req.Auth),
 		})
 	}
 	if res, ok := objects["res"].(*jsResponse); ok {
@@ -958,6 +963,70 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 		set("message", messageObject(vm, message))
 	}
 	return h, nil
+}
+
+// authTypeNames are the Postman names of the auth types, as the import and
+// export write them; pm.request.auth reads the type by its name.
+var authTypeNames = map[string]string{"None": "noauth", "Bearer": "bearer", "Basic": "basic",
+	"API key": "apikey", AuthDigest: "digest", AuthOAuth2: "oauth2", AuthOAuth1: "oauth1", AuthJWT: "jwt",
+	AuthAWS: "awsv4", AuthHawk: "hawk", AuthEdgeGrid: "edgegrid", AuthNTLM: "ntlm"}
+
+// authSettable maps the Postman names a script may set to the stored types.
+var authSettable = map[string]string{"noauth": "None", "bearer": "Bearer", "basic": "Basic",
+	"apikey": "API key", "digest": AuthDigest}
+
+// authAccess is pm.request.auth: the type, and the fields of the simple auth
+// types by name. Nil when there is no auth to edit.
+func authAccess(a *Auth) any {
+	if a == nil {
+		return nil
+	}
+	return map[string]any{
+		"type": func() string { return cmp.Or(authTypeNames[a.Type], a.Type) },
+		"setType": func(name string) error {
+			t, ok := authSettable[name]
+			if !ok {
+				return fmt.Errorf("pm.request.auth.type cannot be set to %q", name)
+			}
+			a.Type = t
+			return nil
+		},
+		"get": func(name string) (string, error) {
+			field, err := authField(a, name)
+			if err != nil {
+				return "", err
+			}
+			return *field, nil
+		},
+		"set": func(name, value string) error {
+			field, err := authField(a, name)
+			if err != nil {
+				return err
+			}
+			*field = value
+			return nil
+		},
+	}
+}
+
+// authField is the field of the simple auth types pm.request.auth reads and
+// writes. Other types keep their fields elsewhere, so they have none here.
+func authField(a *Auth, name string) (*string, error) {
+	switch {
+	case a.Type == "Bearer" && name == "token":
+		return &a.Token, nil
+	case (a.Type == "Basic" || a.Type == AuthDigest) && name == "username":
+		return &a.Username, nil
+	case (a.Type == "Basic" || a.Type == AuthDigest) && name == "password":
+		return &a.Password, nil
+	case a.Type == "API key" && name == "key":
+		return &a.Key, nil
+	case a.Type == "API key" && name == "value":
+		return &a.Value, nil
+	case a.Type == "API key" && name == "location":
+		return &a.Location, nil
+	}
+	return nil, fmt.Errorf("pm.request.auth has no field %q for this auth type", name)
 }
 
 func responseObject(vm *goja.Runtime, res *jsResponse, pairs func(http.Header) goja.Value) *goja.Object {

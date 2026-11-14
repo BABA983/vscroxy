@@ -2345,6 +2345,15 @@ at the top level, with two seconds of run time (time spent waiting on
 - **Request**: `pm.request.method`, `pm.request.url` (`toString()`, `getHost()`,
   `getPath()`, `query.add/upsert/remove/get`), `pm.request.headers`
   (`add`, `upsert`, `remove`, `get`, `has`, `toObject`) and `pm.request.body.raw`.
+  In a pre-request script, `pm.request.auth` is the auth the request sends,
+  inherited auth included. `type` reads any Postman auth name (`bearer`,
+  `basic`, `apikey`, `digest`, `noauth`, `oauth2`, `oauth1`, `jwt`, `awsv4`,
+  `hawk`, `edgegrid`, `ntlm`) but sets only `bearer`, `basic`, `apikey`,
+  `digest` or `noauth`. `get(field)` and `set(field, value)` cover the fields
+  of the current type: `token` for bearer; `username` and `password` for basic
+  and digest; `key`, `value` and `location` for apikey. Other types have no
+  field access, and setting one of them fails the script. Edits change only the
+  request that is sent; the saved request keeps its auth.
 - **Response**: `pm.response.code`, `status`, `responseTime`, `responseSize`,
   `headers`, `text()`, `json()` and the Postman assertions under
   `pm.response.to` (`have.status`, `have.header`, `have.body`, `have.jsonBody`,

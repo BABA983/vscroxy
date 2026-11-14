@@ -221,7 +221,19 @@
 			removeQueryParams: url.removeQueryParams,
 			toJSON: function () { return { method: r.get("method"), url: r.get("url"), header: headers.all(), body: { mode: "raw", raw: r.get("body") } }; },
 		};
+		if (r.auth) request.auth = makeAuth(r.auth);
 		return request;
+	}
+
+	// makeAuth is pm.request.auth: type is a Postman name (bearer, basic, apikey,
+	// digest, noauth), and get/set read and write a field such as token.
+	function makeAuth(a) {
+		return {
+			get type() { return a.type(); },
+			set type(v) { a.setType(text(v)); },
+			get: function (name) { return a.get(text(name)); },
+			set: function (name, value) { a.set(text(name), text(value)); },
+		};
 	}
 
 	function parseJSON(body) {

@@ -116,8 +116,9 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	r.Auth, _ = in.InheritAuth(r.Auth)
 	// Pre-scripts edit authored templates, not an already encoded request.
 	// Generate variables first; expand and encode exactly once afterwards.
+	// Auth is r's own copy, so a script's edits reach the send, not the document.
 	template := &Prepared{Method: r.Method, URL: FillPath(r.URL, r.PathVariables), Body: r.Body,
-		Header: ParseHeaderBlock(r.Headers), editedHeaders: map[string]bool{}}
+		Header: ParseHeaderBlock(r.Headers), Auth: &r.Auth, editedHeaders: map[string]bool{}}
 	run.target = func() string { return ExpandVars(template.URL, run.effective()) }
 	out.Stage = "Pre-request script failed"
 	if err := run.scripts(ctx, "pre-request", in.Folders, func(f Folder) string { return f.Pre }, r.Pre, map[string]any{"req": template}); err != nil {

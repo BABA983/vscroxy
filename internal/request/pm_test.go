@@ -376,3 +376,51 @@ func TestResponseCookiesReadSetCookie(t *testing.T) {
 		t.Fatalf("tests = %+v", out.Tests)
 	}
 }
+
+// pm.request.auth shows the auth the request sends, including inherited auth,
+// and a pre-request script's edits change what is sent.
+func TestRequestAuthEditsReachTheSend(t *testing.T) {
+	var sent string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sent = r.Header.Get("Authorization")
+	}))
+	defer upstream.Close()
+	srv := testProxy(t)
+	folder := Context{Folders: []Folder{{Auth: Auth{Type: "Bearer", Token: "folder"}}}}
+
+	inherited := Request{Method: "GET", URL: upstream.URL, Auth: Auth{Type: AuthInherit}, Pre: `
+		pm.expect(pm.request.auth.type).to.equal("bearer");
+		pm.expect(pm.request.auth.get("token")).to.equal("folder");
+		pm.request.auth.set("token", "script");`}
+	sent = "unset"
+	if out := inherited.Execute(t.Context(), srv, folder, nil, nil); out.Err != nil || sent != "Bearer script" {
+		t.Fatalf("inherited: err %v, sent %q", out.Err, sent)
+	}
+
+	basic := Request{Method: "GET", URL: upstream.URL, Auth: Auth{Type: "Bearer", Token: "own"}, Pre: `
+		pm.request.auth.type = "basic";
+		pm.request.auth.set("username", "ada");
+		pm.request.auth.set("password", "pw");`}
+	sent = "unset"
+	if out := basic.Execute(t.Context(), srv, Context{}, nil, nil); out.Err != nil || sent != "Basic YWRhOnB3" {
+		t.Fatalf("switch to basic: err %v, sent %q", out.Err, sent)
+	}
+
+	none := Request{Method: "GET", URL: upstream.URL, Auth: Auth{Type: "Bearer", Token: "own"}, Pre: `pm.request.auth.type = "noauth"`}
+	sent = "unset"
+	if out := none.Execute(t.Context(), srv, Context{}, nil, nil); out.Err != nil || sent != "" {
+		t.Fatalf("noauth: err %v, sent %q", out.Err, sent)
+	}
+
+	unknown := Request{Method: "GET", URL: upstream.URL, Auth: Auth{Type: "Bearer"}, Pre: `pm.request.auth.get("nope")`}
+	if out := unknown.Execute(t.Context(), srv, Context{}, nil, nil); out.Err == nil {
+		t.Fatal("an unknown auth field must fail the script")
+	}
+	// A type without a token field must not accept a write that would be dropped.
+	aws := Request{Method: "GET", URL: upstream.URL, Auth: Auth{Type: AuthAWS}, Pre: `
+		pm.expect(pm.request.auth.type).to.equal("awsv4");
+		pm.request.auth.set("token", "x");`}
+	if out := aws.Execute(t.Context(), srv, Context{}, nil, nil); out.Stage != "Pre-request script failed" || out.Err == nil {
+		t.Fatalf("aws field write: stage %q, err %v", out.Stage, out.Err)
+	}
+}
