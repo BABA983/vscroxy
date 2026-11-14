@@ -150,7 +150,14 @@ type app struct {
 	// picked bridges the table's row-index API; pickedID survives row rebuilds.
 	picked   int
 	pickedID int
-	tab      int
+	// deletions is the in-memory undo stack for removed capture rows; it is
+	// deliberately not persisted and clears when the app exits.
+	deletions []flowDeletion
+	// pendingFlowDelete waits for the next view pass: the row menu is built
+	// while the table is building, so removing rows in its action would leave
+	// the table drawing rows that no longer exist.
+	pendingFlowDelete []flow
+	tab               int
 
 	// sort is the column the table is sorted by, and sortApplied what the
 	// rows were sorted with, so a header click sorts on the next frame.
@@ -1599,6 +1606,11 @@ func (a *app) syncDetail() {
 }
 
 func (a *app) view(c *ui.Context) {
+	if len(a.pendingFlowDelete) > 0 {
+		pending := a.pendingFlowDelete
+		a.pendingFlowDelete = nil
+		a.deleteFlows(pending)
+	}
 	a.builds++
 	// The pass starts from MyGo's theme, which follows the system.
 	a.dark = a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
@@ -3501,6 +3513,8 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 		pick(requests, "collection.from-capture").in("save"),
 		submenu(locales.Copy(), copyItems...).in("copy"),
 		submenu(locales.Tools(), tools...).in("copy"),
+		do("flow.delete", locales.Delete(), func() { a.queueDeleteFlows(a.deleteTargets(f)) }).
+			in("danger").keys(ui.Cmd, flowDeleteKey()),
 	)
 }
 

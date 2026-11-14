@@ -401,6 +401,7 @@ func (a *app) captureActions() []action {
 	return append(actions,
 		do("capture.add-column", locales.AddColumn(), a.openColumn).in("columns"),
 		do("capture.clear", locales.ClearUnpinnedRequests2(), func() { a.clearOpen = true }).in("clear"),
+		do("flow.undo-delete", locales.Undo(), a.undoDelete).when(len(a.deletions) > 0, "Nothing to undo").keys(ui.Cmd, ui.KeyZ),
 	)
 }
 
@@ -443,6 +444,8 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 	for _, item := range a.captureCopyActions(c, selected) {
 		actions = append(actions, item.when(current && a.page.capture(), "Inspect captured requests first"))
 	}
+	actions = append(actions, do("flow.delete", locales.Delete(), func() { a.queueDeleteFlows(selected) }).
+		when(current && len(selected) > 0, "Select captured requests first").in("danger").keys(ui.Cmd, flowDeleteKey()))
 	return actions
 }
 
@@ -550,6 +553,7 @@ func (a *app) actions(c *ui.Context) []action {
 		do("view.layout-bottom", locales.LayoutStacked(), func() { w.layout, w.focused = "bottom", false }).
 			checked(checkbox(w.layout == "bottom")),
 		do("view.sidebar", locales.ToggleSidebar(), func() { w.sidebarHidden = !w.sidebarHidden }).keys(ui.Cmd, ui.KeyB),
+		do("flow.undo-delete", locales.Undo(), a.undoDelete).when(len(a.deletions) > 0, "Nothing to undo").keys(ui.Cmd, ui.KeyZ),
 		do("view.layout-reset", locales.ResetDesktopLayout(), func() {
 			w.layout, w.sidebarHidden, w.focused, w.sidePercent = "right", false, false, 64
 			a.sidebarWidth, a.tablePercent = 220, 44

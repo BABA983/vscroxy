@@ -23389,3 +23389,13 @@ func UnknownClient() string { return In(i18n.Locale()).UnknownClient() }
 func (msgs Messages) UnknownClient() string {
 	return Catalog.Format(msgs.locale, "unknownClient", nil)
 }
+
+// DeletedRequests says "Deleted {count, plural, one {# request} other {# requests}}"
+// in the language the app shows.
+func DeletedRequests(count int) string { return In(i18n.Locale()).DeletedRequests(count) }
+
+// DeletedRequests says "Deleted {count, plural, one {# request} other {# requests}}"
+// in the language of msgs.
+func (msgs Messages) DeletedRequests(count int) string {
+	return Catalog.Format(msgs.locale, "deletedRequests", map[string]any{"count": count})
+}

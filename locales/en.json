@@ -3628,5 +3628,13 @@
     }
   },
   "setUpAClient": "Set up a client…",
-  "unknownClient": "Unknown client"
+  "unknownClient": "Unknown client",
+  "deletedRequests": "Deleted {count, plural, one {# request} other {# requests}}",
+  "@deletedRequests": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -2315,5 +2315,13 @@
     }
   },
   "setUpAClient": "设置客户端…",
-  "unknownClient": "未知客户端"
+  "unknownClient": "未知客户端",
+  "deletedRequests": "已删除 {count} 条请求",
+  "@deletedRequests": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }
