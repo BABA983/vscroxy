@@ -87,3 +87,31 @@ func TestTipBreaksALongURL(t *testing.T) {
 		t.Fatalf("short text changed to %q", got)
 	}
 }
+
+// A label wider than the old fixed column takes the width it needs on the
+// next frame, up to the cap; a short label keeps the old column.
+func TestSettingsGroupWidensForALongLabel(t *testing.T) {
+	tt := ui.NewTester(func(c *ui.Context) {
+		SettingsGroup(c, "Response", func() {
+			SettingsRow(c, "Response information", func() ui.Element {
+				return ui.Text(c, "Value")
+			}, "")
+			SettingsRow(c, "Port", func() ui.Element {
+				return ui.Text(c, "80")
+			}, "")
+		})
+	}, 640, 200)
+	tt.Frame()
+	tt.Frame()
+	long, ok := tt.Find("Response information")
+	if !ok {
+		t.Fatal("the long label is missing")
+	}
+	if long.W <= Scaled(112) || long.W > Scaled(180)+1 {
+		t.Fatalf("long label width = %.0f, want above 112 and at most 180", long.W)
+	}
+	short, ok := tt.Find("Port")
+	if !ok || short.X != long.X {
+		t.Fatalf("labels do not share the group column: long %v short %v", long, short)
+	}
+}

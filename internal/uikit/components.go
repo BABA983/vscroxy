@@ -3,7 +3,9 @@ package uikit
 import (
 	"cmp"
 	"fmt"
+	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
@@ -118,10 +120,40 @@ func LinkButton(c *ui.Context, label string) ui.Element {
 	b := Tip(c, ui.ButtonBase(c).Label(label), label).Height(ControlHeightSmall).
 		Padding(0, Scaled(ControlPaddingXSmall)).Radius(RadiusInner).AlignItems(ui.Center).
 		FontSize(Scaled(TextMeta)).TextColor(t.TextMuted)
+	b.Children(func() { ui.Text(c, label).FontSize(Scaled(TextMeta)) })
 	if b.Hovered() {
 		b.Background(p.FillHover).TextColor(t.Text)
 	}
 	return b
+}
+
+// NumberField edits a whole number with its unit beside it, as [60] s. The
+// text holds the value across builds so a half-typed number is not replaced
+// under the caret. It is the protocol editors' number control.
+func NumberField(c *ui.Context, text *string, value *float64, lo, hi float64, unit, label, tip string, changed func()) ui.Element {
+	t := c.Theme()
+	row := ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center)
+	row.Children(func() {
+		in := Input(c, text).Label(label).Width(88).Font(FontMono)
+		if tip != "" {
+			in = Tip(c, in, tip)
+		}
+		if in.Changed() {
+			if v, err := strconv.ParseFloat(strings.TrimSpace(*text), 64); err == nil && v >= lo && v <= hi {
+				*value = v
+				if changed != nil {
+					changed()
+				}
+			}
+		}
+		if !in.Focused() {
+			*text = strconv.Itoa(int(*value))
+		}
+		if unit != "" {
+			Meta(c, unit)
+		}
+	})
+	return row
 }
 
 // DangerButton confirms a destructive action; it is never the only way out.
@@ -252,7 +284,7 @@ func fieldFace(p *Palette, field ui.Element, onChrome, focused bool) ui.Element 
 // Select picks one of a few options at control height, with a button's face.
 func Select(c *ui.Context, selected *string, options []string) ui.Element {
 	return faced(c, func() ui.Element { return ui.Select(c, selected, options) }).
-		Height(HeightControl).Padding(0, c.Theme().Space(2)).FontSize(Scaled(TextBody)).Radius(RadiusControl)
+		Height(ControlHeight).Padding(0, Scaled(ControlPaddingX)).FontSize(Scaled(TextBody)).Radius(RadiusControl)
 }
 
 // TimingPhase is one part of a response's time, as the Timing tab colors it.
@@ -950,11 +982,55 @@ func SettingsPage(c *ui.Context, title, about string, groups func()) ui.Element 
 	})
 }
 
+// settingsGroups and settingsWidths remember the current group and the widest
+// label seen in it. The first frame uses the old 112-point column; measuring a
+// wider label asks for one more frame, and the next frame uses the new width.
+var settingsGroups sync.Map // *ui.Context -> string
+var settingsWidths sync.Map // *ui.Context -> map[string]float32
+
+func settingsGroupName(c *ui.Context) string {
+	name, _ := settingsGroups.Load(c)
+	group, _ := name.(string)
+	return group
+}
+
+func settingsLabelWidth(c *ui.Context, label string) float32 {
+	group := settingsGroupName(c)
+	if group == "" {
+		return Scaled(112)
+	}
+	width := float32(0)
+	if stored, ok := settingsWidths.Load(c); ok {
+		if widths, ok := stored.(map[string]float32); ok {
+			width = widths[group]
+		}
+	}
+	if width == 0 {
+		width = Scaled(112)
+	}
+	measured, _ := c.MeasureText(0, ui.Span{Text: label, Size: Scaled(TextBody)})
+	want := min(max(measured+Scaled(4), Scaled(112)), Scaled(180))
+	if want > width {
+		settingsWidths.Store(c, map[string]float32{group: want})
+		c.Invalidate()
+	}
+	return width
+}
+
 // SettingsGroup is a group of related fields under its legend: a heading and
 // a rule, not a card, so the page reads as one canvas rather than a stack of
 // boxes.
 func SettingsGroup(c *ui.Context, legend string, fields func()) ui.Element {
 	t := c.Theme()
+	previous := settingsGroupName(c)
+	settingsGroups.Store(c, legend)
+	defer func() {
+		if previous == "" {
+			settingsGroups.Delete(c)
+		} else {
+			settingsGroups.Store(c, previous)
+		}
+	}()
 	return ui.Fieldset(c, legend, fields).Margin(0).Padding(0, 0, t.Space(4), 0).
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
 }
@@ -1003,13 +1079,13 @@ func settingsRow(c *ui.Context, label string, control func() ui.Element, hint, t
 
 func settingsRowBody(c *ui.Context, label string, control func() ui.Element, align ui.Align) ui.Element {
 	t := c.Theme()
-	labelWidth := Scaled(112)
+	labelWidth := settingsLabelWidth(c, label)
 	row := ui.Row(c).FillWidth().Gap(t.Space(4)).AlignItems(align)
 	row.Children(func() {
 		if label == "" {
 			ui.Box(c).Width(labelWidth).Shrink(0)
 		} else {
-			ui.Text(c, label).FontSize(Scaled(TextBody)).TextColor(t.Text).Width(labelWidth).Shrink(0).SingleLine()
+			ui.Text(c, label).FontSize(Scaled(TextBody)).TextColor(t.Text).Width(labelWidth).Shrink(0).MaxLines(2)
 		}
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() { control() })
 	})
@@ -1041,7 +1117,7 @@ func SelectLabels(c *ui.Context, selected *string, options []string, label func(
 		}
 	})
 	return faced(c, func() ui.Element { return sel.Trigger }).
-		Height(HeightControl).Padding(0, t.Space(2)).FontSize(Scaled(TextBody)).Radius(RadiusControl)
+		Height(ControlHeight).Padding(0, Scaled(ControlPaddingX)).FontSize(Scaled(TextBody)).Radius(RadiusControl)
 }
 
 // chevron draws the arrow of a control that opens something below it.

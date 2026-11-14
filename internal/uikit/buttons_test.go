@@ -6,6 +6,16 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// LinkButton paints its own label: the accessibility name alone left the
+// inline action blank.
+func TestLinkButtonShowsItsText(t *testing.T) {
+	tt := ui.NewTester(func(c *ui.Context) { LinkButton(c, "Add property") }, 320, 80)
+	tt.Frame()
+	if !tt.HasText("Add property") {
+		t.Fatalf("LinkButton did not draw its label: %q", tt.Texts())
+	}
+}
+
 // The kit has two control heights: the default for forms, toolbars and
 // primary actions, and the small one for inline actions and chips.
 func TestControlHeights(t *testing.T) {
@@ -42,5 +52,17 @@ func TestControlHeights(t *testing.T) {
 		if r.H != tc.want {
 			t.Errorf("%s height = %.0f, want %.0f", tc.label, r.H, tc.want)
 		}
+	}
+}
+
+func TestNumberFieldShowsItsUnit(t *testing.T) {
+	text := "60"
+	value := 60.0
+	tt := ui.NewTester(func(c *ui.Context) {
+		NumberField(c, &text, &value, 0, 65535, "s", "Keep alive", "", nil)
+	}, 320, 80)
+	tt.Frame()
+	if !tt.HasText("s") || !tt.HasText("Keep alive") {
+		t.Fatalf("NumberField did not show its value and unit: %q", tt.Texts())
 	}
 }
