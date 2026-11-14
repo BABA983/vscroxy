@@ -97,13 +97,9 @@ func stateRow(c *ui.Context, state string, sample func()) {
 	})
 }
 
-// link is a LinkButton with the text it shows: the button carries the
-// accessible name, and the caller builds what is inside it, as it does for
-// ToolbarButton.
+// link is the kit's LinkButton, which paints its own label.
 func link(c *ui.Context, label string) ui.Element {
-	return uikit.LinkButton(c, label).Children(func() {
-		ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextMeta))
-	})
+	return uikit.LinkButton(c, label)
 }
 
 // labelled names a sample for the export's pointer and keyboard.
