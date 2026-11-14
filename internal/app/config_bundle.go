@@ -88,6 +88,7 @@ func (a *app) currentSettings() settings {
 		HiddenColumns:        a.hiddenColumns,
 		ShownColumns:         a.shownColumns,
 		KeyLogPath:           a.keyLogPath,
+		ProjectDir:           a.projectDir,
 		ProxyPort:            a.proxyPort,
 		SOCKSOn:              a.socksOn,
 		SOCKSPort:            a.socksPort,
@@ -122,9 +123,10 @@ func (a *app) configLists() map[string]*string {
 // or too large stay paths on this computer.
 func (a *app) exportConfig() (b configBundle, notes []string) {
 	s := a.currentSettings()
-	// The key log, setup guide and cookie retention are this computer's:
-	// a configuration file never turns cookie persistence on elsewhere.
-	s.KeyLogPath, s.Guide, s.CookiePersistence = "", false, false
+	// The key log, project folder, setup guide and cookie retention are this
+	// computer's: a configuration file never turns cookie persistence on
+	// elsewhere.
+	s.KeyLogPath, s.ProjectDir, s.Guide, s.CookiePersistence = "", "", false, false
 	s.Language = ""      // the reader's language, not the bundle's
 	s.SOCKSPassword = "" // a credential, never in a shared bundle
 	ssl := a.inspectionConfig()

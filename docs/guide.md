@@ -2911,8 +2911,12 @@ records leave them out.
 
 #### The request library on disk
 
-The library is a directory tree in `~/.vscroxy/collections/`, so a collection
-can be kept in Git or edited by hand:
+The library is a directory tree in `~/.vscroxy/collections/`, or, when
+**Settings → General → Collections → Project folder** names a folder, in that
+folder's `.vscroxy/collections/`. The project location lets a repository commit
+its collections. It must already exist; **Use default folder** switches back.
+Import and export of a configuration file never carry this folder, since it is
+this computer's. The tree can be kept in Git or edited by hand:
 
 ```text
 collections/

@@ -293,6 +293,34 @@ func (l *libraryState) apply(files map[string][]byte) error {
 	return nil
 }
 
+// setProjectDir keeps the request library in dir/.vscroxy/collections, or in
+// the app's own collections when dir is empty. A missing folder is refused, so
+// a typo cannot start a library somewhere unintended.
+func (a *app) setProjectDir(dir string) {
+	dir = strings.TrimSpace(dir)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		a.fail(locales.ProjectFolder(), err)
+		return
+	}
+	if rest, ok := strings.CutPrefix(dir, "~/"); ok {
+		dir = filepath.Join(home, rest)
+	}
+	root := filepath.Join(home, ".vscroxy", "collections")
+	if dir != "" {
+		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+			a.fail(locales.ProjectFolder(), fmt.Errorf("%s is not a folder", dir))
+			return
+		}
+		root = filepath.Join(dir, ".vscroxy", "collections")
+	}
+	a.projectDir, a.projectInput = dir, dir
+	a.library.root = root
+	a.loadRequestAssets()
+	a.persistSettings()
+	a.done(locales.ReloadedRequests(len(a.requests), root))
+}
+
 // loadRequestLibrary reads the library into the app.
 func (a *app) loadRequestLibrary() {
 	l := &a.library

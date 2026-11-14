@@ -48,6 +48,10 @@ type settings struct {
 	// KeyLogPath is where the TLS secrets go for Wireshark, empty when the
 	// key log is off.
 	KeyLogPath string `json:"keyLogPath,omitempty"`
+	// ProjectDir is this computer's project folder. Its .vscroxy/collections
+	// holds the request library instead of ~/.vscroxy/collections; empty keeps
+	// the default.
+	ProjectDir string `json:"projectDir,omitempty"`
 	// ProxyPort is the fixed loopback port, or zero for automatic selection.
 	ProxyPort int `json:"proxyPort,omitzero"`
 	// SOCKSOn opens the SOCKS5 entry on the next launch; SOCKSPort is its
@@ -199,6 +203,7 @@ func sameSettings(x, y settings) bool {
 		slices.Equal(x.CustomColumns, y.CustomColumns) &&
 		slices.Equal(x.HiddenColumns, y.HiddenColumns) &&
 		x.KeyLogPath == y.KeyLogPath &&
+		x.ProjectDir == y.ProjectDir &&
 		x.ProxyPort == y.ProxyPort &&
 		x.SOCKSOn == y.SOCKSOn && x.SOCKSPort == y.SOCKSPort &&
 		x.SOCKSAuth == y.SOCKSAuth && x.SOCKSUsername == y.SOCKSUsername &&

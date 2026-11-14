@@ -406,3 +406,40 @@ func TestLibraryRoundTripsMCPDocument(t *testing.T) {
 		t.Fatalf("MCP document changed: got %+v, want %+v", got, want)
 	}
 }
+
+func TestProjectFolderKeepsTheLibraryInsideTheProject(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	a := libraryApp(t)
+	a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
+	project := t.TempDir()
+
+	a.setProjectDir(project)
+	if a.library.root != filepath.Join(project, ".vscroxy", "collections") || a.projectDir != project {
+		t.Fatalf("project folder not used: root %q, projectDir %q", a.library.root, a.projectDir)
+	}
+	if err := a.writeLibrary([]savedRequest{{Request: request.Request{ID: "one", Name: "One", Method: "GET", URL: "https://api.example.com/one"}}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(project, ".vscroxy", "collections", "One.request.json")); err != nil {
+		t.Fatalf("request not written into the project: %v", err)
+	}
+	saved, err := loadSettings(a.settingsPath)
+	if err != nil || saved.ProjectDir != project {
+		t.Fatalf("project folder not saved: %q, %v", saved.ProjectDir, err)
+	}
+
+	missing := filepath.Join(project, "missing")
+	a.setProjectDir(missing)
+	if a.projectDir != project || len(a.requests) != 1 {
+		t.Fatalf("a missing folder changed the library: projectDir %q, %d requests", a.projectDir, len(a.requests))
+	}
+
+	a.setProjectDir("")
+	if a.projectDir != "" || a.library.root != filepath.Join(home, ".vscroxy", "collections") {
+		t.Fatalf("default not restored: root %q, projectDir %q", a.library.root, a.projectDir)
+	}
+	if len(a.requests) != 0 {
+		t.Fatalf("default library should be empty here, got %d requests", len(a.requests))
+	}
+}

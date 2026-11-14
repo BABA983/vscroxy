@@ -31,6 +31,21 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 		uikit.SettingsGroup(c, locales.Language(), func() {
 			a.languageSettings(c)
 		})
+		uikit.SettingsGroup(c, locales.Collections(), func() {
+			uikit.SettingsRow(c, locales.ProjectFolder(), func() ui.Element {
+				return ui.Column(c).Gap(t.Space(1)).Children(func() {
+					ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+						uikit.Input(c, &a.projectInput).Label(locales.ProjectFolder()).Placeholder(locales.Automatic()).Width(260)
+						if uikit.SecondaryButton(c, locales.Save()).Clicked() {
+							a.setProjectDir(a.projectInput)
+						}
+						if a.projectDir != "" && uikit.SecondaryButton(c, locales.UseDefaultFolder()).Clicked() {
+							a.setProjectDir("")
+						}
+					})
+				})
+			}, locales.ProjectFolderHint())
+		})
 		uikit.SettingsGroup(c, locales.RulesAndConfiguration(), func() {
 			uikit.SettingsRow(c, locales.DebuggingRules(), func() ui.Element {
 				return ui.Row(c).Children(func() {

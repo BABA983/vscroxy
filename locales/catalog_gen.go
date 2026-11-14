@@ -14706,6 +14706,26 @@ func (msgs Messages) ProxyObservedOnlyPreRequest() string {
 	return Catalog.Format(msgs.locale, "proxyObservedOnlyPreRequest", nil)
 }
 
+// ProjectFolder says "Project folder"
+// in the language the app shows.
+func ProjectFolder() string { return In(i18n.Locale()).ProjectFolder() }
+
+// ProjectFolder says "Project folder"
+// in the language of msgs.
+func (msgs Messages) ProjectFolder() string {
+	return Catalog.Format(msgs.locale, "projectFolder", nil)
+}
+
+// ProjectFolderHint says "Keeps collections in .vscroxy/collections inside this folder, so they travel with the project and can be committed to…"
+// in the language the app shows.
+func ProjectFolderHint() string { return In(i18n.Locale()).ProjectFolderHint() }
+
+// ProjectFolderHint says "Keeps collections in .vscroxy/collections inside this folder, so they travel with the project and can be committed to…"
+// in the language of msgs.
+func (msgs Messages) ProjectFolderHint() string {
+	return Catalog.Format(msgs.locale, "projectFolderHint", nil)
+}
+
 // ProxyPort says "Proxy port"
 // in the language the app shows.
 func ProxyPort() string { return In(i18n.Locale()).ProxyPort() }
@@ -17858,6 +17878,16 @@ func SaveForNextLaunch() string { return In(i18n.Locale()).SaveForNextLaunch() }
 // in the language of msgs.
 func (msgs Messages) SaveForNextLaunch() string {
 	return Catalog.Format(msgs.locale, "saveForNextLaunch", nil)
+}
+
+// UseDefaultFolder says "Use default folder"
+// in the language the app shows.
+func UseDefaultFolder() string { return In(i18n.Locale()).UseDefaultFolder() }
+
+// UseDefaultFolder says "Use default folder"
+// in the language of msgs.
+func (msgs Messages) UseDefaultFolder() string {
+	return Catalog.Format(msgs.locale, "useDefaultFolder", nil)
 }
 
 // SaveMessagesJson says "Save messages JSON…"

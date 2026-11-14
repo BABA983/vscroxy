@@ -428,6 +428,11 @@ type app struct {
 	keyLogOpen  bool
 	keyLogInput string
 
+	// projectDir is the project folder whose .vscroxy/collections is the
+	// request library, and projectInput is its Settings field.
+	projectDir   string
+	projectInput string
+
 	// Connection overlays belong to the inspected request, not the list.
 	connOpen bool
 
@@ -648,6 +653,10 @@ func newApp() *app {
 			a.allowOn = saved.AllowList
 			a.flowLimit, a.memoryLimit, a.diskLimit = saved.FlowLimit, saved.MemoryLimit, saved.DiskLimit
 			a.guide = a.guide || saved.Guide
+			if saved.ProjectDir != "" {
+				a.projectDir, a.projectInput = saved.ProjectDir, saved.ProjectDir
+				a.library.root = filepath.Join(saved.ProjectDir, ".vscroxy", "collections")
+			}
 			if saved.ProxyPort != 0 {
 				a.proxyPortInput = strconv.Itoa(saved.ProxyPort)
 			}
