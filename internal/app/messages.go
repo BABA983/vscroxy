@@ -580,15 +580,9 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		p.list.Selected = &p.selected
 		p.list.FollowEnd = p.follow
 		p.list.Label = func(i int) string { return visible[i].label() + ": " + visible[i].preview() }
-		focused := p.list.Handle.Focused(c)
-		c.SetTheme(uikit.ListTheme(t, focused))
-		rows := ui.List(c, &p.list, len(visible), func(i int) {
-			if i == p.selected {
-				uikit.RowMarker(c, focused)
-			}
+		rows := uikit.DataListIndexed(c, &p.list, len(visible), func(i int) {
 			visible[i].row(c)
 		}).Grow(1)
-		c.SetTheme(t)
 		if rows.Changed() {
 			// A row was chosen: the list stays where the person put it.
 			p.follow = false
@@ -681,7 +675,7 @@ func (e messageExport) write(path string, list []messageView) error {
 }
 
 func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible []messageView) {
-	uikit.Modal(c, &p.exportOpen, func() {
+	uikit.Modal(c, &p.exportOpen, locales.ExportRetainedMessages(), func() {
 		ui.Column(c).Width(470).Gap(c.Theme().Space(3)).Children(func() {
 			uikit.DialogTitle(c, locales.ExportRetainedMessages())
 			uikit.Body(c, locales.ExportMessagesNote(len(visible), len(list)))

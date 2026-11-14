@@ -210,19 +210,13 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			u.list.Selected = &u.selected
 			u.list.Key = func(i int) any { return events[i].seq }
 			u.list.Label = func(i int) string { return fmt.Sprintf("Socket.IO message %d %s", events[i].seq, events[i].name) }
-			focused := u.list.Handle.Focused(c)
-			c.SetTheme(uikit.ListTheme(t, focused))
-			ui.List(c, &u.list, len(events), func(i int) {
+			uikit.DataListIndexed(c, &u.list, len(events), func(i int) {
 				e := events[i]
-				if i == u.selected {
-					uikit.RowMarker(c, focused)
-				}
 				ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
 					ui.Text(c, e.direction+" · "+e.name).FontSize(uikit.Scaled(uikit.TextBody)).SingleLine()
 					uikit.Meta(c, locales.EventLineSize(e.seq, e.at.Format("15:04:05.000"), e.size)).SingleLine()
 				})
 			}).Grow(1)
-			c.SetTheme(t)
 		}, func() {
 			// A selected key the list no longer has comes back as -1: the event
 			// went away, and the detail says nothing is selected rather than

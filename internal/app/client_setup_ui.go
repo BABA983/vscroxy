@@ -17,7 +17,7 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 	if !s.open {
 		return
 	}
-	uikit.Modal(c, &s.open, func() {
+	uikit.Modal(c, &s.open, locales.SetUpALocalClient2(), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 				uikit.DialogTitle(c, locales.SetUpALocalClient2())

@@ -76,7 +76,7 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	_, height := c.Size()
-	uikit.Modal(c, &a.settingsOpen, func() {
+	uikit.Modal(c, &a.settingsOpen, locales.Settings(), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(640, height-80)).Children(func() {
 			uikit.DialogTitle(c, locales.Settings())
 			a.settingsContent(c, t, !a.windowBehind)

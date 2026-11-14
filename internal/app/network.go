@@ -376,7 +376,7 @@ func (a *app) networkModal(c *ui.Context, t *ui.Theme) {
 	if !n.open {
 		return
 	}
-	uikit.Modal(c.Key("network-presets"), &n.open, func() {
+	uikit.Modal(c.Key("network-presets"), &n.open, locales.CustomNetworkPresets(), func() {
 		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, locales.CustomNetworkPresets())
 			uikit.Meta(c, locales.HttpInspectedHttpsAndSse())
@@ -390,14 +390,11 @@ func (a *app) networkModal(c *ui.Context, t *ui.Theme) {
 				uikit.Select(c, &n.selection, names).Label(locales.CustomPreset()).Placeholder(locales.ChooseACustomPreset()).Grow(1).
 					Disabled(len(names) == 0).OnChange(func() { n.selectPreset(n.selection) })
 			})
-			ui.Field(c, locales.PresetName(), func() {
-				uikit.Input(c, &n.name).Label(locales.PresetName()).Placeholder("e.g. Unreliable mobile")
+			uikit.FormRow(c, locales.PresetName(), "", n.problem, func() {
+				uikit.InputState(c, &n.name, n.problem != "").Label(locales.PresetName()).Placeholder("e.g. Unreliable mobile")
 			})
 			n.draft.fields(c)
 			uikit.Meta(c, locales.WholeNumbersRates01073741824())
-			if n.problem != "" {
-				ui.Text(c, n.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
-			}
 			if n.deleting {
 				uikit.Meta(c, "Delete “"+n.editing+"”? This cannot be undone. If active, global conditions will turn Off.")
 				ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {

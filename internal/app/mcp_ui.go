@@ -375,7 +375,7 @@ func mcpToolNames(tools []request.MCPTool) []string {
 func (a *app) mcpToolsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpDocument, s mcpSnapshot) {
 	tool := mcpToolByName(s.tools, d.mcpConfig.Tool)
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		field := ui.Combobox(c, &d.mcpConfig.Tool, mcpToolNames(s.tools)).Label(locales.McpTool()).Placeholder(locales.ChooseATool()).
+		field := uikit.Combobox(c, &d.mcpConfig.Tool, mcpToolNames(s.tools)).Label(locales.McpTool()).Placeholder(locales.ChooseATool()).
 			Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextBody)).Disabled(d.composeWaiting)
 		uikit.FieldFace(c, field, field.Focused())
 		a.actionButton(c, "request.mcp-call", "Call tool")
@@ -449,7 +449,7 @@ func mcpTemplateByURI(templates []request.MCPResourceTemplate, uri string) *requ
 
 func (a *app) mcpResourcesEditor(c *ui.Context, t *ui.Theme, d *requestDocument, s mcpSnapshot) {
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		field := ui.Combobox(c, &d.mcpConfig.ResourceURI, mcpResourceOptions(s.resources, s.templates)).Label(locales.McpResourceUri()).
+		field := uikit.Combobox(c, &d.mcpConfig.ResourceURI, mcpResourceOptions(s.resources, s.templates)).Label(locales.McpResourceUri()).
 			Placeholder("memo://welcome").Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).Disabled(d.composeWaiting)
 		uikit.FieldFace(c, field, field.Focused())
 		a.actionButton(c, "request.mcp-read", "Read resource")
@@ -490,7 +490,7 @@ func mcpPromptByName(prompts []request.MCPPrompt, name string) *request.MCPPromp
 func (a *app) mcpPromptsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpDocument, s mcpSnapshot) {
 	prompt := mcpPromptByName(s.prompts, d.mcpConfig.Prompt)
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		field := ui.Combobox(c, &d.mcpConfig.Prompt, mcpPromptNames(s.prompts)).Label(locales.McpPrompt()).Placeholder(locales.ChooseAPrompt()).
+		field := uikit.Combobox(c, &d.mcpConfig.Prompt, mcpPromptNames(s.prompts)).Label(locales.McpPrompt()).Placeholder(locales.ChooseAPrompt()).
 			Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextBody)).Disabled(d.composeWaiting)
 		uikit.FieldFace(c, field, field.Focused())
 		a.actionButton(c, "request.mcp-prompt", "Get prompt")
@@ -584,19 +584,13 @@ func (a *app) mcpTimeline(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnaps
 		u.list.Label = func(i int) string {
 			return fmt.Sprintf("MCP event %d %s %s", events[i].seq, events[i].kind, events[i].name)
 		}
-		focused := u.list.Handle.Focused(c)
-		c.SetTheme(uikit.ListTheme(t, focused))
-		ui.List(c, &u.list, len(events), func(i int) {
+		uikit.DataListIndexed(c, &u.list, len(events), func(i int) {
 			event := events[i]
-			if i == u.selected {
-				uikit.RowMarker(c, focused)
-			}
 			ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
 				ui.Text(c, event.kind+" · "+event.name).FontSize(uikit.Scaled(uikit.TextBody)).SingleLine()
 				uikit.Meta(c, locales.EventLineSize(event.seq, event.at.Format("15:04:05.000"), event.size)).SingleLine()
 			})
 		}).Grow(1)
-		c.SetTheme(t)
 	}, func() {
 		// A selected key the list no longer has comes back as -1: the event
 		// went away, and the detail says nothing is selected rather than
@@ -781,10 +775,8 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 		// A list, not a column of rows: it builds the rows on screen, and the
 		// pointer, the keyboard and a screen reader all reach them.
 		u.catalog.Selected = &u.catalogRow
-		catalog := ui.List(c, &u.catalog, len(s.tools)).Label(locales.Tools()).Grow(1).MinHeight(0).Padding(0, t.Space(2))
-		catalog.Rows(func(row ui.ListRow) {
+		catalog := uikit.DataList(c, &u.catalog, len(s.tools), func(row ui.ListRow) {
 			c := row.Context
-			c.SetTheme(t)
 			tool := s.tools[row.Index]
 			r := ui.Row(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 			if row.Hovered() {
@@ -799,7 +791,7 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 				})
 				uikit.Meta(c, tool.Name).SingleLine()
 			})
-		})
+		}).Label(locales.Tools()).Grow(1).MinHeight(0).Padding(0, t.Space(2))
 		if catalog.RowClicked() {
 			tool := s.tools[max(0, min(u.catalogRow, len(s.tools)-1))]
 			d.mcpConfig.Tool = tool.Name
@@ -811,10 +803,8 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 			return
 		}
 		u.catalog.Selected = &u.catalogRow
-		catalog := ui.List(c, &u.catalog, len(s.resources)+len(s.templates)).Label(locales.Resources()).Grow(1).MinHeight(0).Padding(0, t.Space(2))
-		catalog.Rows(func(row ui.ListRow) {
+		catalog := uikit.DataList(c, &u.catalog, len(s.resources)+len(s.templates), func(row ui.ListRow) {
 			c := row.Context
-			c.SetTheme(t)
 			title, note, kind := "", "", ""
 			if row.Index < len(s.resources) {
 				resource := s.resources[row.Index]
@@ -834,7 +824,7 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 				})
 				uikit.Meta(c, kind).SingleLine()
 			})
-		})
+		}).Label(locales.Resources()).Grow(1).MinHeight(0).Padding(0, t.Space(2))
 		if catalog.RowClicked() {
 			if u.catalogRow < len(s.resources) {
 				d.mcpConfig.ResourceURI = s.resources[u.catalogRow].URI
@@ -849,10 +839,8 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 			return
 		}
 		u.catalog.Selected = &u.catalogRow
-		catalog := ui.List(c, &u.catalog, len(s.prompts)).Label(locales.Prompts()).Grow(1).MinHeight(0).Padding(0, t.Space(2))
-		catalog.Rows(func(row ui.ListRow) {
+		catalog := uikit.DataList(c, &u.catalog, len(s.prompts), func(row ui.ListRow) {
 			c := row.Context
-			c.SetTheme(t)
 			prompt := s.prompts[row.Index]
 			r := ui.Row(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 			if row.Hovered() {
@@ -867,7 +855,7 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 				})
 				uikit.Meta(c, prompt.Name).SingleLine()
 			})
-		})
+		}).Label(locales.Prompts()).Grow(1).MinHeight(0).Padding(0, t.Space(2))
 		if catalog.RowClicked() {
 			d.mcpConfig.Prompt = s.prompts[max(0, min(u.catalogRow, len(s.prompts)-1))].Name
 			u.tab, u.problem = mcpTabPrompts, ""

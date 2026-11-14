@@ -46,7 +46,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 	}
 	state, finished, events, evicted := s.session.snapshot()
 	_, h := c.Size()
-	if uikit.Modal(c, &s.open, func() {
+	if uikit.Modal(c, &s.open, locales.SseSessionState(stateLabel(state)), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(h - 100).Children(func() {
 			uikit.DialogTitle(c, locales.SseSessionState(stateLabel(state)))
 			ui.Scroll(c).MaxHeight(240).MinHeight(0).Shrink(1).Gap(t.Space(2)).Padding(0, t.Space(1)).Children(func() {
@@ -67,7 +67,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 						s.session.stop()
 					}
 				})
-				ui.TextArea(c, &s.headers).Label(locales.SseRequestHeaders()).Placeholder("Authorization: Bearer …\nLast-Event-ID: …").Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(!finished)
+				uikit.TextArea(c, &s.headers).Label(locales.SseRequestHeaders()).Placeholder("Authorization: Bearer …\nLast-Event-ID: …").Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(!finished)
 				ui.Checkbox(c, &s.reconnect, "Reconnect on EOF / network failure").Disabled(!finished)
 				if s.problem != "" {
 					ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)

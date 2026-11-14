@@ -139,7 +139,7 @@ func (p *protoInspector) controls(c *ui.Context, registry *protoInspector) {
 			if p.name == "" {
 				p.name = "Auto"
 			}
-			field := ui.Combobox(c, &p.name, options).Label(locales.ProtobufMessageType()).
+			field := uikit.Combobox(c, &p.name, options).Label(locales.ProtobufMessageType()).
 				Tooltip(locales.AutoResolvesHttpGrpcMethods()).
 				Grow(1).MinWidth(0).Height(uikit.HeightControl).Padding(0, t.Space(2)).
 				FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FocusRing(false)
@@ -150,7 +150,7 @@ func (p *protoInspector) controls(c *ui.Context, registry *protoInspector) {
 		})
 		search := ui.SearchField(c, &p.query).Label(locales.SearchProtobufMessages()).Placeholder(locales.SearchMessages2()).
 			Grow(1).Basis(180).MinWidth(0).Height(uikit.HeightControl).Padding(0, t.Space(2)).
-			FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FocusRing(false)
+			FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FocusRing(false).Border(0, ui.Color{})
 		uikit.FieldFace(c, search, search.Focused())
 	})
 }
@@ -197,12 +197,7 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 		p.list.Selected = &p.selected
 		p.list.Key = func(i int) any { return visible[i] }
 		p.list.Label = func(i int) string { return fmt.Sprintf("Message %d", visible[i]+1) }
-		focused := p.list.Handle.Focused(c)
-		c.SetTheme(uikit.ListTheme(t, focused))
-		ui.List(c, &p.list, len(visible), func(i int) {
-			if i == p.selected {
-				uikit.RowMarker(c, focused)
-			}
+		uikit.DataListIndexed(c, &p.list, len(visible), func(i int) {
 			message := p.result.messages[visible[i]]
 			note := fmt.Sprintf("#%d · %s", visible[i]+1, humanBytes(message.size))
 			if message.compressed {
@@ -210,7 +205,6 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 			}
 			ui.Text(c, note).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text).Padding(t.Space(2), t.Space(3)).SingleLine()
 		}).Grow(1)
-		c.SetTheme(t)
 	}, func() {
 		// List maps a selected key it no longer has to -1: the message went
 		// away, and the detail says so rather than showing the oldest one.
@@ -295,7 +289,7 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 		return
 	}
 	t := c.Theme()
-	uikit.Modal(c, &p.open, func() {
+	uikit.Modal(c, &p.open, locales.ProtobufSchema2(), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, locales.ProtobufSchema2())
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
@@ -315,7 +309,7 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 					}
 				})
 				uikit.Hint(c, locales.IncludeRootsOptionalOnePer())
-				ui.TextArea(c, &p.roots).Height(70).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.ProtobufIncludeRoots())
+				uikit.TextArea(c, &p.roots).Height(70).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.ProtobufIncludeRoots())
 				if p.problem != "" {
 					ui.Text(c, p.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 				}

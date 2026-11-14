@@ -355,7 +355,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	width, height := c.Size()
-	uikit.Modal(c, &r.open, func() {
+	uikit.Modal(c, &r.open, locales.CollectionRunner(), func() {
 		ui.Column(c).Width(min(840, width-80)).Height(min(560, height-100)).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, locales.CollectionRunner())
 			uikit.Meta(c, locales.RunsSavedRequestsInOrder())
@@ -436,12 +436,8 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						}
 					}
 					r.results.Selected = &r.picked
-					c.SetTheme(uikit.ListTheme(t, r.results.Handle.Focused(c)))
-					ui.List(c, &r.results, len(r.rows)).Grow(1).Rows(func(item ui.ListRow) {
+					uikit.DataList(c, &r.results, len(r.rows), func(item ui.ListRow) {
 						c := item.Context
-						if item.Selected() {
-							uikit.RowMarker(c, item.ListFocused())
-						}
 						row := r.rows[item.Index]
 						color := t.Success
 						if row.failed {
@@ -453,7 +449,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 							summary := ui.Text(c, row.summary).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").SingleLine().MaxWidth(240)
 							summary.TextColor(color)
 						})
-					}).Children(func() {
+					}).Grow(1).Children(func() {
 						if len(r.rows) == 0 {
 							if r.running {
 								uikit.EmptyState(c, locales.RunningCollection(), locales.CompletedRequestsWillAppearHere(), nil)
@@ -462,7 +458,6 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 							}
 						}
 					})
-					c.SetTheme(t)
 					ui.Divider(c)
 					ui.Scroll(c).Height(125).Padding(t.Space(2)).Gap(t.Space(1)).Children(func() {
 						ui.Row(c).Gap(t.Space(2)).Children(func() {

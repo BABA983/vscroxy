@@ -254,7 +254,13 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 	if !s.open {
 		return
 	}
-	uikit.Modal(c, &s.open, func() { a.experimentsView(c, t, false) })
+	title := "History"
+	if s.scope != nil {
+		title += " · Source"
+	} else if s.draftKey != "" {
+		title += " · Draft"
+	}
+	uikit.Modal(c, &s.open, title, func() { a.experimentsView(c, t, false) })
 }
 
 // The retained-run reader is shared by the resource page and scoped history.
@@ -446,7 +452,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 			})
 		})
 	})
-	uikit.Modal(c, &s.clearing, func() {
+	uikit.Modal(c, &s.clearing, locales.ClearHistory2(), func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, locales.ClearHistory2())
 			uikit.Hint(c, locales.ThisRemovesTheRetainedRuns())
@@ -454,7 +460,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					s.clearing = false
 				}
-				if uikit.PrimaryButton(c, locales.ClearRecords()).Clicked() {
+				if uikit.DestructiveButton(c, locales.ClearRecords()).Clicked() {
 					s.log.Records = nil
 					s.log.Baseline = 0
 					s.picked = 0

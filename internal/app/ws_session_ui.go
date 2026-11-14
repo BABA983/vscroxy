@@ -67,7 +67,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 	state, events, evicted := s.session.snapshot()
 	active := state == "Connected" || state == "Connecting" || state == "Disconnecting"
 	_, h := c.Size()
-	if uikit.Modal(c, &s.open, func() {
+	if uikit.Modal(c, &s.open, locales.WebsocketSessionState(stateLabel(state)), func() {
 		connect := func() {
 			header := request.ParseHeaderBlock(s.headers)
 			if s.subprotocols != "" && header.Get("Sec-WebSocket-Protocol") != "" {
@@ -99,7 +99,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					return in
 				}, "")
 				uikit.SettingsRowMultiline(c, locales.Headers(), func() ui.Element {
-					return ui.TextArea(c, &s.headers).Label(locales.WebsocketHandshakeHeaders()).Placeholder("Authorization: Bearer …").
+					return uikit.TextArea(c, &s.headers).Label(locales.WebsocketHandshakeHeaders()).Placeholder("Authorization: Bearer …").
 						Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(active)
 				}, locales.WebsocketHeadersHelp())
 			})

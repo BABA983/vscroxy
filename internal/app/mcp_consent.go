@@ -304,7 +304,7 @@ func (a *app) mcpConsentModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	plan := s.plan
-	uikit.Modal(c, &s.open, func() {
+	uikit.Modal(c, &s.open, locales.RunLocalMcpServer(), func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, locales.RunLocalMcpServer())
 			uikit.Hint(c, locales.ThisStartsALocalCommand())

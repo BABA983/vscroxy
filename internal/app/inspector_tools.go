@@ -44,7 +44,7 @@ func (a *app) decoderModal(c *ui.Context) {
 	}
 	t := c.Theme()
 	_, height := c.Size()
-	uikit.Modal(c, &u.open, func() {
+	uikit.Modal(c, &u.open, locales.DecodeText2(), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Height(min(530, height-70)).Children(func() {
 			uikit.DialogTitle(c, locales.DecodeText2())
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {

@@ -311,7 +311,7 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 	}) {
 		problem = "The table already has this column."
 	}
-	uikit.Modal(c, &a.columnOpen, func() {
+	uikit.Modal(c, &a.columnOpen, locales.AddColumn2(), func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, locales.AddColumn2())
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
