@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/library"
@@ -163,15 +162,9 @@ func (a *app) addonsChangedOnDisk() bool {
 	if s.dir == "" {
 		return false
 	}
-	files, err := scriptFiles(s.dir)
+	names, err := listedScripts(s.dir, true)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return true
-	}
-	var names []string
-	for _, rel := range files {
-		if name, ok := strings.CutSuffix(rel, ".js"); ok && checkAddonName(name) == nil {
-			names = append(names, name)
-		}
 	}
 	listed := slices.Clone(s.names)
 	slices.Sort(names)

@@ -444,7 +444,7 @@ func TestAddonsLoadInRuleAndRequestScripts(t *testing.T) {
 	}
 	// Folder names follow the script rules part by part.
 	for _, name := range []string{"@team/", "/pkg", "a/../b", "a//b"} {
-		if checkAddonName(name) == nil {
+		if request.CheckAddonName(name) == nil {
 			t.Errorf("addon name %q was accepted", name)
 		}
 	}

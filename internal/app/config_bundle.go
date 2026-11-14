@@ -20,6 +20,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/hosts"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/internal/upstream"
@@ -236,7 +237,7 @@ func parseConfig(data []byte) (configBundle, error) {
 		}
 	}
 	for name := range b.Addons {
-		if err := checkAddonName(name); err != nil {
+		if err := request.CheckAddonName(name); err != nil {
 			return b, fmt.Errorf("addon %q: %w", name, err)
 		}
 	}
