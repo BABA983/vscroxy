@@ -2356,7 +2356,7 @@ func (s *Server) socketProcess(addr clientSocket, client *proxy.ClientConn) proc
 	if client == nil {
 		return procinfo.Process{}
 	}
-	identity, ok := s.waitLookup(addr, client, 150*time.Millisecond)
+	identity, ok := s.waitLookup(addr, client, 500*time.Millisecond)
 	if !ok {
 		return procinfo.Process{}
 	}
@@ -2376,7 +2376,7 @@ func (s *Server) socketProcess(addr clientSocket, client *proxy.ClientConn) proc
 	s.clients[addr] = current
 	s.mu.Unlock()
 	s.queueLookup(clientLookup{addr: addr, client: client, ready: ready})
-	identity, _ = s.waitLookup(addr, client, 150*time.Millisecond)
+	identity, _ = s.waitLookup(addr, client, 500*time.Millisecond)
 	return identity.process
 }
 
