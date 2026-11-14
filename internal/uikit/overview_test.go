@@ -134,7 +134,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 				row(func() {
 					PrimaryButton(c, "Send")
 					SecondaryButton(c, "Copy as cURL")
-					DangerButton(c, "Delete")
+					DestructiveButton(c, "Delete")
 					CompactButton(c, "Copy")
 					ChipButton(c, "Commands", "Search every action · Ctrl/Cmd+K").Children(func() {
 						ui.Icon(c, lucide.Search()).Size(IconInline, IconInline).TextColor(t.TextMuted)

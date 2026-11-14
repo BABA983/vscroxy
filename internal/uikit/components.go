@@ -173,15 +173,20 @@ func NumberField(c *ui.Context, text *string, value *float64, lo, hi float64, un
 		if tip != "" {
 			in = Tip(c, in, tip)
 		}
+		valid := true
 		if in.Changed() {
-			if v, err := strconv.ParseFloat(strings.TrimSpace(*text), 64); err == nil && v >= lo && v <= hi {
+			v, err := strconv.ParseFloat(strings.TrimSpace(*text), 64)
+			valid = err == nil && v >= lo && v <= hi
+			if valid {
 				*value = v
 				if changed != nil {
 					changed()
 				}
 			}
 		}
-		if !in.Focused() {
+		// A half-typed or out-of-range number stays as typed, so the person
+		// can fix it; only a valid value is normalized back into the field.
+		if !in.Focused() && valid {
 			*text = strconv.Itoa(int(*value))
 		}
 		if unit != "" {
@@ -191,9 +196,21 @@ func NumberField(c *ui.Context, text *string, value *float64, lo, hi float64, un
 	return row
 }
 
-// DangerButton confirms a destructive action; it is never the only way out.
-func DangerButton(c *ui.Context, label string) ui.Element {
-	return SecondaryButton(c, label).TextColor(c.Theme().Danger)
+// DestructiveButton is the one action a destructive confirmation is for. It
+// fills with Danger and prints in the palette's canvas text; it belongs in a
+// dialog's footer, not in a row or a menu. A destructive action outside a
+// dialog asks first, or is a menu item.
+func DestructiveButton(c *ui.Context, label string) ui.Element {
+	t, p := c.Theme(), Colors(c.Theme())
+	face := *t
+	face.Accent, face.AccentText = p.Danger, p.AccentText
+	face.AccentHover = p.Danger.Mix(p.Text, 0.12)
+	face.AccentPressed = p.Danger.Mix(p.Text, 0.22)
+	c.SetTheme(&face)
+	b := ui.PrimaryButton(c, label).Height(ControlHeight).Padding(0, Scaled(ControlPaddingX)).
+		FontSize(Scaled(TextBody)).FontWeight(500).Radius(RadiusControl)
+	c.SetTheme(t)
+	return b
 }
 
 // faced builds a MyGo control with the neutral face and no border. MyGo
@@ -243,17 +260,54 @@ func SwatchButton(c *ui.Context, label string, color ui.Color, chosen bool) ui.E
 }
 
 // Input is a single-line text field at control height: a well set into the
-// canvas, with an accent edge and a soft tint halo while it has the focus.
+// canvas, with the focus ring's edge and a soft tint halo while it has the
+// focus.
 func Input(c *ui.Context, value *string) ui.Element {
+	return InputState(c, value, false)
+}
+
+// InputState is Input with an invalid face: a Danger edge, and a Danger halo
+// while the field has the focus. FormRow sets the accessible error; this is
+// the visual half, so a caller passes err != "" here.
+func InputState(c *ui.Context, value *string, invalid bool) ui.Element {
 	in := InputControl(c, value)
-	return FieldFace(c, in, in.Focused())
+	if invalid {
+		in.Invalid(true)
+	}
+	return fieldFace(Colors(c.Theme()), in, false, in.Focused(), invalid)
 }
 
 // InputControl is Input's text input without the field face, for a field that
 // styles runs of its text before wrapping it with FieldFace. It keeps the
 // control's height, padding and font, so the field looks like Input.
 func InputControl(c *ui.Context, value *string) ui.Element {
-	return ui.TextInput(c, value).Height(ControlHeight).Padding(0, Scaled(ControlPaddingX)).FontSize(Scaled(TextBody)).Radius(RadiusControl).FocusRing(false)
+	return ui.TextInput(c, value).Height(ControlHeight).Padding(0, Scaled(ControlPaddingX)).FontSize(Scaled(TextBody)).Radius(RadiusControl).FocusRing(false).Border(0, ui.Color{})
+}
+
+// Combobox is MyGo's text field with a suggestion popup, with the kit's
+// focus edge: Ring while focused, and no second border of its own, so a
+// FieldFace around it draws the one edge.
+func Combobox(c *ui.Context, value *string, options []string) ui.Element {
+	t, p := c.Theme(), Colors(c.Theme())
+	face := *t
+	face.Accent = p.Ring
+	c.SetTheme(&face)
+	e := ui.Combobox(c, value, options).Border(0, ui.Color{})
+	c.SetTheme(t)
+	return e
+}
+
+// TextArea is MyGo's multiline text field with the kit's focus edge: its
+// border takes Ring while it has the focus, not the ink accent a primary
+// action uses. The rest of its face stays MyGo's.
+func TextArea(c *ui.Context, value *string) ui.Element {
+	t, p := c.Theme(), Colors(c.Theme())
+	face := *t
+	face.Accent = p.Ring
+	c.SetTheme(&face)
+	e := ui.TextArea(c, value)
+	c.SetTheme(t)
+	return e
 }
 
 // FieldFace gives a text field, or a row holding one with its own controls
@@ -264,13 +318,13 @@ func InputControl(c *ui.Context, value *string) ui.Element {
 // staying well above 3:1 against both the field and the surface around it.
 // A scroll container around a field leaves Space(1) at each side for the halo.
 func FieldFace(c *ui.Context, field ui.Element, focused bool) ui.Element {
-	return fieldFace(Colors(c.Theme()), field, false, focused)
+	return fieldFace(Colors(c.Theme()), field, false, focused, false)
 }
 
 // ChromeFieldFace is FieldFace for a field on chrome: the canvas face with
 // a hairline, so it stays lighter than the bar it sits in.
 func ChromeFieldFace(c *ui.Context, field ui.Element, focused bool) ui.Element {
-	return fieldFace(Colors(c.Theme()), field, true, focused)
+	return fieldFace(Colors(c.Theme()), field, true, focused, false)
 }
 
 // SearchField is a one-line field that finds something in a list, with the
@@ -298,7 +352,7 @@ func SearchField(c *ui.Context, value *string, label, placeholder string, onChro
 
 // fieldFace draws a field's face inside its own edges, so its box stays the
 // control height whether or not it has the focus.
-func fieldFace(p *Palette, field ui.Element, onChrome, focused bool) ui.Element {
+func fieldFace(p *Palette, field ui.Element, onChrome, focused, invalid bool) ui.Element {
 	face := p.Well
 	if onChrome {
 		face = p.Canvas
@@ -308,8 +362,12 @@ func fieldFace(p *Palette, field ui.Element, onChrome, focused bool) ui.Element 
 	// them off.
 	field.Radius(RadiusControl).Background(face).Clip()
 	switch {
+	case invalid && focused:
+		field.InsetShadow(0, 0, 0, 1, p.Danger).Shadow(0, 0, 0, 3, p.Danger.Alpha(0.14))
+	case invalid:
+		field.InsetShadow(0, 0, 0, 1, p.Danger)
 	case focused:
-		field.InsetShadow(0, 0, 0, 1, p.TextMuted).Shadow(0, 0, 0, 3, p.AccentTint)
+		field.InsetShadow(0, 0, 0, 1, p.Ring).Shadow(0, 0, 0, 3, p.Ring.Alpha(0.16))
 	case onChrome:
 		field.InsetShadow(0, 0, 0, 1, p.Hairline)
 	}
@@ -653,7 +711,7 @@ func KVRow(c *ui.Context, content func()) ui.Element {
 // Only the look is ours: MyGo owns announcements, timeouts, pause-on-hover,
 // the three-toast limit, action dispatch and keyboard dismissal.
 func Toasts(c *ui.Context) {
-	t, p := c.Theme(), Colors(c.Theme())
+	t := c.Theme()
 	width, _ := c.Size()
 	ui.ToastViewportBase(c, func(viewport ui.Element, toasts []ui.Toast) {
 		// Toasts keep clear of the footer: its buttons and tool chips are
@@ -686,18 +744,20 @@ func Toasts(c *ui.Context) {
 						// the message rather than a second full-width button.
 						b := parts.ActionButton().Label(toast.Action).Height(ControlHeightSmall).
 							Padding(0, Scaled(ControlPaddingXSmall)).Radius(RadiusInner).AlignItems(ui.Center).
-							FontSize(Scaled(TextMeta)).TextColor(t.TextMuted)
-						b.Children(func() { ui.Text(c, toast.Action).FontSize(Scaled(TextMeta)) })
+							FontSize(Scaled(TextBody)).FontWeight(500).TextColor(t.InverseText)
+						b.Children(func() {
+							ui.Text(c, toast.Action).FontSize(Scaled(TextBody)).FontWeight(500).TextColor(t.InverseText).Underline()
+						})
 						if b.Hovered() {
-							b.Background(p.FillHover).TextColor(t.Text)
+							b.Background(t.InverseText.Alpha(0.12)).TextColor(t.InverseText)
 						}
 					}
 					close := Tip(c, parts.CloseButton().Label(locales.DismissNotification()), locales.DismissNotification()).
-						Size(ControlHeightSmall, ControlHeightSmall).Radius(RadiusControl).Center().TextColor(t.TextMuted)
+						Size(ControlHeightSmall, ControlHeightSmall).Radius(RadiusControl).Center().TextColor(t.InverseText.Alpha(0.55))
 					if close.Pressed() {
-						close.Background(p.FillPressed)
+						close.Background(t.InverseText.Alpha(0.16))
 					} else if close.Hovered() {
-						close.Background(p.FillHover)
+						close.Background(t.InverseText.Alpha(0.12))
 					}
 					close.Children(func() { ui.Icon(c, closeIcon).Size(IconInline, IconInline) })
 				})
@@ -707,12 +767,12 @@ func Toasts(c *ui.Context) {
 
 // DialogBase retains the library's modal focus and dismissal rules; only
 // the shared desktop chrome is ours.
-func Modal(c *ui.Context, open *bool, content func()) ui.Element {
+func Modal(c *ui.Context, open *bool, title string, content func()) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	width, height := c.Size()
 	dialog := ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.45))
-		panel.Padding(t.Space(5)).Gap(t.Space(3)).Radius(RadiusPanel).Background(p.Canvas).
+		panel.Label(title).Padding(t.Space(5)).Gap(t.Space(3)).Radius(RadiusPanel).Background(p.Canvas).
 			InsetShadow(0, 0, 0, 1, p.Hairline).
 			MaxWidth(width-40).MaxHeight(height-40).Shadow(0, 20, 56, 0, p.Shadow)
 		// A dialog is built the frame it opens, so a transition's entrance
@@ -971,6 +1031,40 @@ func ListTheme(t *ui.Theme, focused bool) *ui.Theme {
 	return &list
 }
 
+// DataList is a list of data: the selection is the app's tint plus a marker,
+// never the solid accent a menu uses. It applies ListTheme and draws RowMarker
+// for the selected row, so a caller cannot forget either. Build rows with
+// Rows, and do not reset the row context's theme inside the callback.
+func DataList(c *ui.Context, state *ui.ListState, count int, rows func(ui.ListRow)) ui.Element {
+	t := c.Theme()
+	focused := state != nil && state.Handle.Focused(c)
+	c.SetTheme(ListTheme(t, focused))
+	list := ui.List(c, state, count).Rows(func(row ui.ListRow) {
+		if row.Selected() {
+			RowMarker(row.Context, focused)
+		}
+		rows(row)
+	})
+	c.SetTheme(t)
+	return list
+}
+
+// DataListIndexed is DataList for the original index callback. It draws the
+// marker from the state's selected index, which the list keeps current.
+func DataListIndexed(c *ui.Context, state *ui.ListState, count int, row func(int)) ui.Element {
+	t := c.Theme()
+	focused := state != nil && state.Handle.Focused(c)
+	c.SetTheme(ListTheme(t, focused))
+	list := ui.List(c, state, count, func(i int) {
+		if state != nil && state.Selected != nil && *state.Selected == i {
+			RowMarker(c, focused)
+		}
+		row(i)
+	})
+	c.SetTheme(t)
+	return list
+}
+
 // marker paints the selection marker on the leading edge of r.
 func marker(t *ui.Theme, focused bool) func(p *ui.Painter, r ui.Rect) {
 	// The palette's accent, not t.Accent: inside ListTheme that is the fill.
@@ -999,6 +1093,51 @@ func Selected(c *ui.Context, e ui.Element, focused bool) ui.Element {
 		fill = p.Fill
 	}
 	return e.Background(fill).TextColor(t.Text)
+}
+
+// FormRow is one field: its label, the control, an optional description and an
+// optional error. It uses MyGo's Field, so the label names the control and the
+// description and error are read with it; the error also marks the control
+// invalid. A text field should use InputState(c, &value, err != "") for the
+// visible danger edge, since the face is drawn by this kit rather than MyGo.
+func FormRow(c *ui.Context, label, description, errText string, control func()) ui.Element {
+	field := ui.Field(c, label, control)
+	if description != "" {
+		field.Description(description)
+	}
+	if errText != "" {
+		field.Error(errText)
+	}
+	return field
+}
+
+// FormRowTall is FormRow for a control taller than one line, such as a code
+// editor: its label sits on the control's top line instead of being centered
+// on the whole box. It names the control, and binds the description and error
+// directly, since MyGo's Field aligns a form row's first text line and a tall
+// editor has none. Use it inside a ui.Form, beside FormRow fields.
+func FormRowTall(c *ui.Context, label, description, errText string, control func() ui.Element) ui.Element {
+	t := c.Theme()
+	row := ui.Row(c).FillWidth().Gap(t.Space(3)).AlignItems(ui.Start)
+	row.Children(func() {
+		lab := ui.Text(c, label).Width(Scaled(96)).TextAlign(ui.End).TextColor(t.Text)
+		col := ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1))
+		col.Children(func() {
+			ctrl := control()
+			ctrl.LabelledBy(lab).Invalid(errText != "")
+			if description != "" {
+				ctrl.Description(description)
+			}
+			if errText != "" {
+				errEl := ui.Text(c, errText).FontSize(Scaled(TextMeta)).TextColor(t.Danger)
+				ctrl.ErrorMessage(errEl)
+				ui.Text(c, errText).FontSize(Scaled(TextMeta)).TextColor(t.Danger)
+			} else if description != "" {
+				Meta(c, description)
+			}
+		})
+	})
+	return row
 }
 
 // SettingsPage is one category of a settings window, as in macOS's System

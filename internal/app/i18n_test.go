@@ -109,7 +109,7 @@ func screenStrings(t *testing.T, path string) []string {
 	args := map[string]int{
 		"Text": 1, "Button": 1, "Field": 1, "Alert": 1,
 		"Heading": 1, "Body": 1, "Prose": 1, "Hint": 1, "Meta": 1, "Mono": 1,
-		"PrimaryButton": 1, "SecondaryButton": 1, "CompactButton": 1, "DangerButton": 1,
+		"PrimaryButton": 1, "SecondaryButton": 1, "CompactButton": 1, "DestructiveButton": 1,
 		"RowButton": 1, "ToolbarButton": 1, "IconButton": 1, "StatusPill": 1,
 		"DialogTitle": 1, "SettingsPage": 1, "SettingsGroup": 1, "MoreMenu": 1,
 		"SidebarItem": 3, "SidebarSection": 1,
