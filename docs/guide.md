@@ -77,7 +77,10 @@ profile, an emulator setting or the app's own Java truststore changes.
 
 - **Terminal** opens a new window with `HTTP_PROXY`, `HTTPS_PROXY`, their
   lowercase forms, `NO_PROXY`/`no_proxy` and `NODE_EXTRA_CA_CERTS`. Only that
-  window changes. The app also writes
+  window changes. `NO_PROXY` holds only the listener's own address, so
+  `localhost` and `127.0.0.1` traffic goes through the proxy like any other
+  host. `NODE_USE_ENV_PROXY=1` makes Node 24 and later use the proxy for its
+  built-in `fetch`; older Node releases ignore it. The app also writes
   `~/.vscroxy/client-ca-bundle.pem` (0600) containing the system roots plus the
   vscroxy CA, and points `REQUESTS_CA_BUNDLE`, `SSL_CERT_FILE`,
   `CURL_CA_BUNDLE`, `GIT_SSL_CAINFO`, `PIP_CERT` and `DENO_CERT` at it. Most
@@ -95,8 +98,10 @@ profile, an emulator setting or the app's own Java truststore changes.
   not a batch file, so non-ASCII paths are safe.
 - **Chrome** starts with a temporary `--user-data-dir` and `--proxy-server`.
   **Firefox** starts with a temporary profile whose `user.js` sets both HTTP and
-  HTTPS proxies. The main browser profiles are untouched. Neither action passes
-  a certificate-verification bypass. Chrome uses the system trust store on
+  HTTPS proxies and no localhost exception. The main browser profiles are
+  untouched. Neither action passes a certificate-verification bypass. Chrome
+  passes `--proxy-bypass-list=<-loopback>`, so `localhost` dev servers are
+  captured. Chrome uses the system trust store on
   macOS/Windows and NSS on Linux; on Linux, trust the CA system-wide or add it
   with `certutil`. Firefox's temporary profile gets the CA through `certutil`
   when NSS tools are installed; on Windows the app skips NSS (System32's
@@ -135,7 +140,8 @@ profile, an emulator setting or the app's own Java truststore changes.
   `-Djavax.net.ssl.trustStore=...` and `-Dhttp.proxyHost`/`-Dhttps.proxyHost`
   (plus ports and `-Dhttp.nonProxyHosts`). The truststore starts with the JDK's
   public roots, so direct public TLS keeps working.
-- **Electron app** launches the chosen executable with `--proxy-server`. It
+- **Electron app** launches the chosen executable with `--proxy-server` and
+  `--proxy-bypass-list=<-loopback>`, so `localhost` is captured. It
   never passes `--ignore-certificate-errors`; certificate trust comes from the
   OS store on macOS/Windows and NSS on Linux. Apps that set their own proxy or
   pin certificates can ignore the flag.

@@ -43,7 +43,7 @@ func TestOneClickTerminalShowsTheEnvironmentAndOnlyThatWindow(t *testing.T) {
 		"NODE_EXTRA_CA_CERTS=" + a.caPath,
 		"SSL_CERT_FILE=" + a.clientBundlePath(),
 		"REQUESTS_CA_BUNDLE=" + a.clientBundlePath(),
-		"NO_PROXY=localhost,127.0.0.1,::1",
+		"NO_PROXY=" + a.srv.Addr(),
 		"Only that window changes",
 		"system roots",
 	} {

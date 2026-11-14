@@ -43,11 +43,6 @@ func (p Proxy) HostPort() (string, int, error) {
 	return host, n, nil
 }
 
-// NoProxy keeps loopback traffic away from the proxy. A client that connected
-// to the proxy through the proxy would loop; the capture app's own listener is
-// always loopback.
-const NoProxy = "localhost,127.0.0.1,::1"
-
 // Environment is the process environment that points common HTTP clients at
 // the proxy and the public CA. Both cases are set because curl, Python, Node
 // and Go disagree about which one wins.
@@ -64,8 +59,14 @@ func Environment(p Proxy) ([]string, error) {
 		"HTTPS_PROXY=" + proxy,
 		"http_proxy=" + proxy,
 		"https_proxy=" + proxy,
-		"NO_PROXY=" + NoProxy,
-		"no_proxy=" + NoProxy,
+		// Only the listener stays direct, so a client that asks the proxy for
+		// its own address does not loop. localhost and 127.0.0.1 are captured
+		// like any other host.
+		"NO_PROXY=" + p.Addr,
+		"no_proxy=" + p.Addr,
+		// Node's built-in fetch (undici) ignores the proxy variables unless
+		// this is set; Node releases before 24 ignore it.
+		"NODE_USE_ENV_PROXY=1",
 		// NODE_EXTRA_CA_CERTS adds a CA to Node's default roots.
 		"NODE_EXTRA_CA_CERTS=" + p.CAPath,
 	}
@@ -154,7 +155,8 @@ func WindowsCommandLine(name string, args []string) string {
 
 // ChromeArgs starts Chrome or Chromium with a separate profile and the capture
 // proxy. Certificate trust is not bypassed: the browser uses the system trust
-// store on macOS and Windows, and NSS on Linux.
+// store on macOS and Windows, and NSS on Linux. `<-loopback>` turns off
+// Chromium's implicit localhost bypass, so local dev servers are captured.
 func ChromeArgs(p Proxy, profile string) ([]string, error) {
 	if _, _, err := p.HostPort(); err != nil {
 		return nil, err
@@ -165,7 +167,7 @@ func ChromeArgs(p Proxy, profile string) ([]string, error) {
 	return []string{
 		"--user-data-dir=" + profile,
 		"--proxy-server=" + p.URL(),
-		"--proxy-bypass-list=localhost;127.0.0.1;::1",
+		"--proxy-bypass-list=<-loopback>",
 		"--no-first-run",
 		"--no-default-browser-check",
 		"--new-window",
@@ -187,14 +189,14 @@ user_pref("network.proxy.http_port", %d);
 user_pref("network.proxy.ssl", %q);
 user_pref("network.proxy.ssl_port", %d);
 user_pref("network.proxy.share_proxy_settings", false);
-user_pref("network.proxy.no_proxies_on", %q);
+user_pref("network.proxy.no_proxies_on", "");
 user_pref("network.proxy.allow_hijacking_localhost", true);
 user_pref("security.enterprise_roots.enabled", true);
 user_pref("browser.shell.checkDefaultBrowser", false);
 user_pref("browser.startup.page", 0);
 user_pref("browser.startup.homepage", "about:blank");
 user_pref("toolkit.telemetry.reportingpolicy.firstRun", false);
-`, host, port, host, port, NoProxy), nil
+`, host, port, host, port), nil
 }
 
 // FirefoxArgs starts a separate Firefox instance on the temporary profile.
@@ -213,7 +215,7 @@ func ElectronArgs(p Proxy) ([]string, error) {
 	}
 	return []string{
 		"--proxy-server=" + p.URL(),
-		"--proxy-bypass-list=localhost;127.0.0.1;::1",
+		"--proxy-bypass-list=<-loopback>",
 	}, nil
 }
 

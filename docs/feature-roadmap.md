@@ -156,12 +156,12 @@
 | CA 安装和信任检查 | 已有 | | |
 | 局域网设备接入（iOS/Android 引导） | 已有 | | |
 | 本地客户端配置示例 | 已有 | | |
-| 一键打开已配好代理的终端（设置 `HTTP_PROXY`／`HTTPS_PROXY` 及小写、`NO_PROXY`、`NODE_EXTRA_CA_CERTS`、`REQUESTS_CA_BUNDLE`、`SSL_CERT_FILE`、`CURL_CA_BUNDLE` 等） | 已有 | 独立窗口；替换型信任变量（`DENO_CERT` 为追加）指向系统根证书 + app CA 的 0600 bundle；只影响该窗口 | M7 |
-| 一键打开已配好代理的 Chrome/Firefox（独立配置） | 已有 | 临时 profile；Chrome `--proxy-server`／`--user-data-dir`，Firefox `user.js`；不关闭 TLS 校验 | M7 |
+| 一键打开已配好代理的终端（设置 `HTTP_PROXY`／`HTTPS_PROXY` 及小写、`NO_PROXY`（只含监听地址，localhost 也走代理）、`NODE_USE_ENV_PROXY=1`、`NODE_EXTRA_CA_CERTS`、`REQUESTS_CA_BUNDLE`、`SSL_CERT_FILE`、`CURL_CA_BUNDLE` 等） | 已有 | 独立窗口；替换型信任变量（`DENO_CERT` 为追加）指向系统根证书 + app CA 的 0600 bundle；只影响该窗口；Node 24+ 的内置 `fetch` 走代理，更早的 Node 忽略 `NODE_USE_ENV_PROXY` | M7 |
+| 一键打开已配好代理的 Chrome/Firefox（独立配置） | 已有 | 临时 profile；Chrome `--proxy-server`／`--user-data-dir`／`--proxy-bypass-list=<-loopback>`，Firefox `user.js`（不设 no_proxies_on）；localhost 也走代理；不关闭 TLS 校验 | M7 |
 | Android 模拟器自动配置（adb 设代理、装证书） | 已有 | `adb reverse` + 可撤销的 global proxy；Undo 恢复原值并移除对应 reverse，reverse 已消失时警告并清除记录；Forget saved proxy 清除过期记录；CA 只复制到 Downloads，系统信任需手动或 root 镜像 | M7 |
 | iOS 模拟器自动装证书（macOS，simctl） | 已有 | 仅已启动的模拟器，不配置真机 | M7 |
 | Java keystore 导入证书 | 已有 | app 自有 PKCS#12 truststore；先从 JDK cacerts 复制系统根证书，再加 app CA；JVM 选项含代理 host／port；先审阅命令再确认 | M7 |
-| Electron App 带代理参数启动 | 已有 | `--proxy-server`；不传 `--ignore-certificate-errors`；信任取决于系统／NSS 或应用自身 | M7 |
+| Electron App 带代理参数启动 | 已有 | `--proxy-server`、`--proxy-bypass-list=<-loopback>`（localhost 也走代理）；不传 `--ignore-certificate-errors`；信任取决于系统／NSS 或应用自身 | M7 |
 
 ### 4.6 请求（Postman 相关）
 

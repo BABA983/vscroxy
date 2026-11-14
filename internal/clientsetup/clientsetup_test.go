@@ -36,8 +36,9 @@ func TestEnvironmentUsesTheSystemBundleForReplacementVariables(t *testing.T) {
 		"HTTPS_PROXY=http://127.0.0.1:7890",
 		"http_proxy=http://127.0.0.1:7890",
 		"https_proxy=http://127.0.0.1:7890",
-		"NO_PROXY=localhost,127.0.0.1,::1",
-		"no_proxy=localhost,127.0.0.1,::1",
+		"NO_PROXY=127.0.0.1:7890",
+		"no_proxy=127.0.0.1:7890",
+		"NODE_USE_ENV_PROXY=1",
 		"NODE_EXTRA_CA_CERTS=/Users/Jane Doe/.mitmproxy/mitmproxy-ca-cert.pem",
 		"REQUESTS_CA_BUNDLE=/Users/Jane Doe/.vscroxy/client-ca-bundle.pem",
 		"SSL_CERT_FILE=/Users/Jane Doe/.vscroxy/client-ca-bundle.pem",
@@ -71,8 +72,9 @@ func TestEnvironmentWithoutBundleOnlyAddsTheAppCA(t *testing.T) {
 		"HTTPS_PROXY=http://127.0.0.1:7890",
 		"http_proxy=http://127.0.0.1:7890",
 		"https_proxy=http://127.0.0.1:7890",
-		"NO_PROXY=localhost,127.0.0.1,::1",
-		"no_proxy=localhost,127.0.0.1,::1",
+		"NO_PROXY=127.0.0.1:7890",
+		"no_proxy=127.0.0.1:7890",
+		"NODE_USE_ENV_PROXY=1",
 		"NODE_EXTRA_CA_CERTS=/Users/Jane Doe/.mitmproxy/mitmproxy-ca-cert.pem",
 	}
 	if !slices.Equal(env, want) {
@@ -149,7 +151,7 @@ func TestChromeArgsUseAnIsolatedProfileAndNeverDisableTLS(t *testing.T) {
 	want := []string{
 		"--user-data-dir=" + profile,
 		"--proxy-server=http://127.0.0.1:7890",
-		"--proxy-bypass-list=localhost;127.0.0.1;::1",
+		"--proxy-bypass-list=<-loopback>",
 		"--no-first-run",
 		"--no-default-browser-check",
 		"--new-window",
@@ -176,7 +178,7 @@ func TestFirefoxProfilePointsBothSchemesAtTheProxy(t *testing.T) {
 		`user_pref("network.proxy.http_port", 7890);`,
 		`user_pref("network.proxy.ssl", "127.0.0.1");`,
 		`user_pref("network.proxy.ssl_port", 7890);`,
-		`user_pref("network.proxy.no_proxies_on", "localhost,127.0.0.1,::1");`,
+		`user_pref("network.proxy.no_proxies_on", "");`,
 		`user_pref("security.enterprise_roots.enabled", true);`,
 	} {
 		if !strings.Contains(userJS, want) {
@@ -202,7 +204,7 @@ func TestElectronArgsUseTheProxyAndNeverDisableTLS(t *testing.T) {
 	}
 	want := []string{
 		"--proxy-server=http://127.0.0.1:7890",
-		"--proxy-bypass-list=localhost;127.0.0.1;::1",
+		"--proxy-bypass-list=<-loopback>",
 	}
 	if !slices.Equal(args, want) {
 		t.Fatalf("args:\n got %q\nwant %q", args, want)

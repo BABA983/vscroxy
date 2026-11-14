@@ -109,7 +109,7 @@ func (a *app) clientTerminalPanel(c *ui.Context, t *ui.Theme, p clientsetup.Prox
 	for _, entry := range env {
 		name, _, _ := strings.Cut(entry, "=")
 		switch name {
-		case "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE":
+		case "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "NODE_USE_ENV_PROXY", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE":
 			preview = append(preview, entry)
 		}
 	}

@@ -62,8 +62,7 @@ func TestTerminalLaunchReachesHTTPSThroughTheProxy(t *testing.T) {
 	status := filepath.Join(t.TempDir(), "terminal status.txt")
 	decryptedBody := filepath.Join(t.TempDir(), "decrypted body.txt")
 	publicBody := filepath.Join(t.TempDir(), "public body.txt")
-	profile := fmt.Sprintf(`unset NO_PROXY no_proxy
-curl -sS --max-time 20 %s > %s 2>&1
+	profile := fmt.Sprintf(`curl -sS --max-time 20 %s > %s 2>&1
 decrypted=$?
 curl -sS --max-time 20 https://example.com/ > %s 2>&1
 public=$?
