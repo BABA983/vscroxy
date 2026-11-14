@@ -43,11 +43,16 @@ func chromeBinary() (string, error) {
 }
 
 func firefoxBinary() (string, error) {
+	// An explicit firefox on PATH wins over the installed app, so a caller
+	// (and the launcher test) can choose the binary it starts.
+	if path, ok := findExecutable(nil, []string{"firefox"}); ok {
+		return path, nil
+	}
 	home, _ := os.UserHomeDir()
 	path, ok := findExecutable([]string{
 		"/Applications/Firefox.app/Contents/MacOS/firefox",
 		filepath.Join(home, "Applications/Firefox.app/Contents/MacOS/firefox"),
-	}, []string{"firefox"})
+	}, nil)
 	if !ok {
 		return "", &MissingToolError{Tool: "Firefox", Hint: "install Firefox"}
 	}
