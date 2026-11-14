@@ -47,19 +47,55 @@ func newExample(sent savedRequest, res *capture.Flow, names []request.Example) (
 	header.Del("Content-Encoding")
 	header.Del("Content-Length")
 	capture.StripHopHeaders(header)
-	name := strconv.Itoa(res.Status) + " " + http.StatusText(res.Status)
-	for n, base := 2, name; slices.ContainsFunc(names, func(e request.Example) bool { return e.Name == name }); n++ {
+	name := uniqueExampleName(names, strconv.Itoa(res.Status)+" "+http.StatusText(res.Status))
+	return request.Example{
+		ID: uuid.New().String(), Name: name, Status: res.Status,
+		Headers: request.HeaderBlock(header), Body: body,
+		Request: exampleRequest(sent),
+	}, nil
+}
+
+// uniqueExampleName is base, or base with the first free number after it.
+func uniqueExampleName(examples []request.Example, base string) string {
+	name := base
+	for n := 2; slices.ContainsFunc(examples, func(e request.Example) bool { return e.Name == name }); n++ {
 		name = fmt.Sprintf("%s %d", base, n)
 	}
+	return name
+}
+
+// exampleRequest is the request an example keeps: as authored, and with its
+// body only when the body is raw text.
+func exampleRequest(sent savedRequest) request.ExampleRequest {
 	sentBody := ""
 	if sent.BodyMode == "" || sent.BodyMode == "Raw" {
 		sentBody = sent.Body
 	}
+	return request.ExampleRequest{Method: cmp.Or(sent.Method, "GET"), URL: sent.URL, Headers: sent.Headers, Body: sentBody}
+}
+
+// blankExample is a new example with no response: status 200 and an empty
+// body, under the request's Content-Type.
+func (d *requestDocument) blankExample() request.Example {
+	sent := d.value()
+	header := http.Header{}
+	if ct := request.ParseHeaderBlock(sent.Headers).Get("Content-Type"); ct != "" {
+		header.Set("Content-Type", ct)
+	}
 	return request.Example{
-		ID: uuid.New().String(), Name: name, Status: res.Status,
-		Headers: request.HeaderBlock(header), Body: body,
-		Request: request.ExampleRequest{Method: cmp.Or(sent.Method, "GET"), URL: sent.URL, Headers: sent.Headers, Body: sentBody},
-	}, nil
+		ID: uuid.New().String(), Name: uniqueExampleName(d.examples, "200 OK"), Status: 200,
+		Headers: request.HeaderBlock(header), Request: exampleRequest(sent),
+	}
+}
+
+// addExample puts e after the chosen example, or last, and chooses it.
+func (d *requestDocument) addExample(e request.Example) {
+	at := len(d.examples)
+	if len(d.examples) > 0 {
+		at = d.example + 1
+	}
+	d.examples = slices.Insert(d.examples, at, e)
+	d.example, d.exampleEditor = at, nil
 }
 
 // saveExample adds the response on screen to the draft's examples. A saved
@@ -87,24 +123,35 @@ func (a *app) saveExample(d *requestDocument) {
 // examplesEditor lists the request's examples and shows the chosen one.
 func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	if len(d.examples) == 0 {
-		uikit.EmptyState(c, locales.NoExamplesYet(), locales.SendTheRequestThenChoose(), nil)
+		uikit.EmptyState(c, locales.NoExamplesYet(), locales.SendTheRequestThenChoose(), func() {
+			if uikit.SecondaryButton(c, locales.NewExample()).Clicked() {
+				d.addExample(d.blankExample())
+			}
+		})
 		return
 	}
 	d.example = min(max(d.example, 0), len(d.examples)-1)
 	ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(3)).AlignItems(ui.Stretch).Children(func() {
-		ui.Scroll(c).Width(168).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Padding(0, t.Space(2), 0, 0).Children(func() {
-			for i, e := range d.examples {
-				item := uikit.ToolbarButton(c.Key(e.ID), "Example: "+e.Name, e.Name, false).FillWidth()
-				if i == d.example {
-					item.Background(t.SurfaceHover)
+		ui.Column(c).Width(168).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, t.Space(2), 0, 0).Children(func() {
+				for i, e := range d.examples {
+					item := uikit.ToolbarButton(c.Key(e.ID), "Example: "+e.Name, e.Name, false).FillWidth()
+					if i == d.example {
+						item.Background(t.SurfaceHover)
+					}
+					if item.Children(func() {
+						ui.Text(c, strconv.Itoa(e.Status)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).TextColor(uikit.StatusColor(e.Status, t)).Width(28)
+						ui.Text(c, e.Name).FontSize(uikit.Scaled(uikit.TextBody)).SingleLine().Grow(1).MinWidth(0).TextColor(t.Text)
+					}).Clicked() {
+						d.example, d.exampleEditor = i, nil
+					}
 				}
-				if item.Children(func() {
-					ui.Text(c, strconv.Itoa(e.Status)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).TextColor(uikit.StatusColor(e.Status, t)).Width(28)
-					ui.Text(c, e.Name).FontSize(uikit.Scaled(uikit.TextBody)).SingleLine().Grow(1).MinWidth(0).TextColor(t.Text)
-				}).Clicked() {
-					d.example, d.exampleEditor = i, nil
+			})
+			ui.Column(c).Padding(t.Space(2)).Children(func() {
+				if uikit.SecondaryButton(c, locales.NewExample()).FillWidth().Clicked() {
+					d.addExample(d.blankExample())
 				}
-			}
+			})
 		})
 		e := &d.examples[d.example]
 		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(2)).Children(func() {
@@ -114,7 +161,11 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			// Beside the response the editor has half the width: the actions
 			// take their own line rather than run off the pane.
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(func() {
-				ui.Text(c, fmt.Sprintf("%d %s", e.Status, http.StatusText(e.Status))).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(uikit.StatusColor(e.Status, t))
+				// The status is typed; NumberField keeps values outside 100 to 599 out.
+				status := float64(e.Status)
+				uikit.NumberField(c, &d.exampleStatusText, &status, 100, 599, "", locales.Status(), "", nil)
+				e.Status = int(status)
+				uikit.Meta(c, http.StatusText(e.Status))
 				uikit.Meta(c, humanBytes(len(e.Body))).FontFeatures("tnum")
 				ui.Spacer(c)
 				if uikit.Segmented(c, &d.exampleView, locales.Body(), locales.RequestHeadersLabel(), locales.Request()).Changed() {
@@ -123,12 +174,19 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				if uikit.Tip(c, uikit.SecondaryButton(c, locales.Mock()).Label(locales.MockThisExample()), locales.AnswerMatchingRequestsWithThis()).Clicked() {
 					a.mockExample(d.value().Request, *e)
 				}
+				if uikit.SecondaryButton(c, locales.Duplicate()).Label(locales.DuplicateExample()).Clicked() {
+					dup := *e
+					dup.ID, dup.Name = uuid.New().String(), uniqueExampleName(d.examples, e.Name)
+					d.addExample(dup)
+				}
 				if uikit.SecondaryButton(c, locales.Delete()).Label(locales.DeleteExample()).Clicked() {
 					d.examples = slices.Delete(d.examples, d.example, d.example+1)
 					d.exampleEditor = nil
 				}
 			})
-			if d.example >= len(d.examples) {
+			// An action above may have chosen another example; the next frame
+			// shows it, and this one must not edit the old pointer.
+			if d.example >= len(d.examples) || d.examples[d.example].ID != e.ID {
 				return
 			}
 			uikit.Meta(c, e.Request.Method+" "+e.Request.URL).Font(uikit.FontMono).SingleLine().Selectable()

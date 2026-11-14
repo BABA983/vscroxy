@@ -143,3 +143,83 @@ func TestExampleBodyAndHeadersEditInPlace(t *testing.T) {
 		t.Fatal("the request view of an example is editable")
 	}
 }
+
+// An example's status is typed in the Examples tab; New example adds one with
+// no response, under the request's Content-Type; Duplicate copies the chosen
+// example, so an error case needs no real response.
+func TestExampleStatusNewAndDuplicateByHand(t *testing.T) {
+	a := workspaceApp()
+	a.library.root = filepath.Join(t.TempDir(), "collections")
+	a.page = pageRequest
+	tt := ui.NewTester(a.view, 1280, 760)
+	if err := tt.Click("List projects"); err != nil {
+		t.Fatal(err)
+	}
+	d := a.requestDocument
+	d.composeHeaders = "Content-Type: application/json\nAccept: */*"
+	d.examples = []request.Example{{ID: "e1", Name: "201 Created", Status: 201,
+		Headers: "Content-Type: text/plain", Body: "kept",
+		Request: request.ExampleRequest{Method: "GET", URL: "{{base}}/projects"}}}
+	choosePaneView(t, tt, "Request pane", "Examples")
+	tt.Frame()
+
+	typeInto := func(name, text string) {
+		t.Helper()
+		info, ok := tt.AccessByRole(ui.RoleTextField, name)
+		if !ok {
+			t.Fatalf("no %s field: %q", name, tt.Texts())
+		}
+		tt.ClickAt(info.Bounds.X+info.Bounds.W/2, info.Bounds.Y+info.Bounds.H/2)
+		tt.Frame()
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Type(text)
+		tt.Frame()
+	}
+
+	// 42 is outside 100 to 599, so the status keeps 201 until a valid one.
+	typeInto("Status", "42")
+	if d.examples[0].Status != 201 {
+		t.Fatalf("status 42 was accepted: %d", d.examples[0].Status)
+	}
+	typeInto("Status", "500")
+	if d.examples[0].Status != 500 {
+		t.Fatalf("status edit: %d, want 500", d.examples[0].Status)
+	}
+
+	if err := tt.Click("New example"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if len(d.examples) != 2 || d.example != 1 {
+		t.Fatalf("New example: %d examples, chosen %d", len(d.examples), d.example)
+	}
+	blank := d.examples[1]
+	if blank.Status != 200 || blank.Body != "" || blank.Name != "200 OK" || blank.Headers != "Content-Type: application/json" {
+		t.Fatalf("blank example = %+v", blank)
+	}
+	if d.exampleEditor == nil || d.exampleEditor.Label != "Example 200 OK" {
+		t.Fatal("the editor still shows the example chosen before New example")
+	}
+
+	if err := tt.Click("Example: 201 Created"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("Duplicate example"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if len(d.examples) != 3 || d.example != 1 {
+		t.Fatalf("Duplicate: %d examples, chosen %d", len(d.examples), d.example)
+	}
+	dup := d.examples[1]
+	if dup.ID == "e1" || dup.Name != "201 Created 2" || dup.Status != 500 || dup.Body != "kept" || dup.Headers != "Content-Type: text/plain" {
+		t.Fatalf("duplicate = %+v", dup)
+	}
+	if d.examples[0].Name != "201 Created" || d.examples[2].Name != "200 OK" {
+		t.Fatalf("duplicate moved the other examples: %q, %q", d.examples[0].Name, d.examples[2].Name)
+	}
+	if d.exampleEditor == nil || d.exampleEditor.Label != "Example 201 Created 2" {
+		t.Fatal("the editor does not show the duplicate")
+	}
+}

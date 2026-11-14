@@ -110,18 +110,20 @@ type requestDocument struct {
 	exampleEditor *editor.State
 	// exampleShown is the text exampleEditor was built from, so an edit is
 	// the difference from it, not the display's formatting.
-	exampleShown    string
-	composeTab      int
-	scriptTab       int
-	composeResult   string
-	composeWaiting  bool
-	sendCancel      context.CancelFunc
-	sendCancelling  bool
-	sendOutcome     string
-	sendDetails     bool
-	sentRun         string
-	variablesOpen   bool
-	variablesReveal bool
+	exampleShown string
+	// exampleStatusText is the Examples tab's status field as typed.
+	exampleStatusText string
+	composeTab        int
+	scriptTab         int
+	composeResult     string
+	composeWaiting    bool
+	sendCancel        context.CancelFunc
+	sendCancelling    bool
+	sendOutcome       string
+	sendDetails       bool
+	sentRun           string
+	variablesOpen     bool
+	variablesReveal   bool
 	// bodyEditor is the raw request body's editor. bodyFor is the text it
 	// last held, so an import or a restored draft resets it while typing
 	// never does. The scripts use the same reader, each with its own state.

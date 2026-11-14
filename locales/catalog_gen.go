@@ -6150,6 +6150,16 @@ func (msgs Messages) DuplicateAsNewRequest() string {
 	return Catalog.Format(msgs.locale, "duplicateAsNewRequest", nil)
 }
 
+// DuplicateExample says "Duplicate example"
+// in the language the app shows.
+func DuplicateExample() string { return In(i18n.Locale()).DuplicateExample() }
+
+// DuplicateExample says "Duplicate example"
+// in the language of msgs.
+func (msgs Messages) DuplicateExample() string {
+	return Catalog.Format(msgs.locale, "duplicateExample", nil)
+}
+
 // Duration says "Duration"
 // in the language the app shows.
 func Duration() string { return In(i18n.Locale()).Duration() }
@@ -12252,6 +12262,16 @@ func NewEnvironmentName() string { return In(i18n.Locale()).NewEnvironmentName()
 // in the language of msgs.
 func (msgs Messages) NewEnvironmentName() string {
 	return Catalog.Format(msgs.locale, "newEnvironmentName", nil)
+}
+
+// NewExample says "New example"
+// in the language the app shows.
+func NewExample() string { return In(i18n.Locale()).NewExample() }
+
+// NewExample says "New example"
+// in the language of msgs.
+func (msgs Messages) NewExample() string {
+	return Catalog.Format(msgs.locale, "newExample", nil)
 }
 
 // NewLocalCurrentVariable says "New local Current variable"
