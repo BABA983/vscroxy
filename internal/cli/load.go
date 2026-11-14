@@ -129,26 +129,24 @@ func readEnvironment(path, selected string) (name string, vars, globals map[stri
 	return "", vars, globals, nil
 }
 
-// readAddons reads the addons in dir, name.js each, as the desktop app
-// keeps them; no dir is no addons.
+// readAddons reads the addons in dir as the desktop app keeps them: name.js at
+// any depth, named by its path without .js, such as @team/pkg.js. No dir is no
+// addons.
 func readAddons(dir string) (map[string]string, error) {
 	if dir == "" {
 		return nil, nil
 	}
-	files, err := filepath.Glob(filepath.Join(dir, "*.js"))
+	names, err := request.AddonNames(dir)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := os.Stat(dir); err != nil {
-		return nil, err
-	}
 	addons := map[string]string{}
-	for _, file := range files {
-		data, err := os.ReadFile(file)
+	for _, name := range names {
+		data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)+".js"))
 		if err != nil {
 			return nil, err
 		}
-		addons[strings.TrimSuffix(filepath.Base(file), ".js")] = string(data)
+		addons[name] = string(data)
 	}
 	return addons, nil
 }

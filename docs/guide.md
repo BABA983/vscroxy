@@ -984,11 +984,9 @@ script run, so state does not carry between exchanges. The list says how many
 scripts import or require each. Names cannot be a built-in library name. A name
 may have folders, as a team package does: `@team/pkg` is
 `tools/addons/@team/pkg.js`, and `pm.require("@team/pkg")` loads it. Each part
-of the name follows the script name rules. `vscroxy-cli --addons` reads only the
-addons at the top of its folder, so it does not load folder addons yet.
-Configuration export includes them.
-`vscroxy-cli run --addons DIR`
-loads them for headless runs.
+of the name follows the script name rules. Configuration export includes them.
+`vscroxy-cli run --addons DIR` loads the same addons for headless runs, folders
+included, so `pm.require("@team/pkg")` works there too.
 
 ```js
 // addons/sign.js
