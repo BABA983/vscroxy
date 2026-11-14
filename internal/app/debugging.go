@@ -305,26 +305,30 @@ drained:
 	if r.total > 0 {
 		total = r.total
 	}
-	uikit.Modal(c, &r.open, func() {
+	uikit.Modal(c, &r.open, locales.ReplayRequests(len(r.flows)), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, locales.ReplayRequests(len(r.flows)))
 			// Leave room for the input's focus halo: a scroll clips what
 			// reaches past its content edge.
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Hint(c, locales.SendsInCaptureOrderThrough())
-				ui.Field(c, locales.TimeoutPerRequestSeconds0(), func() {
-					uikit.Input(c, &r.timeout).Label(locales.ReplayTimeout()).Disabled(r.updates != nil)
-				}).Error(timeoutProblem)
-				ui.Field(c, locales.RepeatEachRequest(), func() {
+				uikit.FormRow(c, locales.TimeoutPerRequestSeconds0(), "", timeoutProblem, func() {
+					uikit.InputState(c, &r.timeout, timeoutProblem != "").Label(locales.ReplayTimeout()).Disabled(r.updates != nil)
+				})
+				uikit.FormRow(c, locales.RepeatEachRequest(), locales.RepeatDescription(replayMaxRepeat), "", func() {
 					uikit.Input(c, &r.repeat).Label(locales.ReplayRepeats()).Disabled(r.updates != nil)
-				}).Description(locales.RepeatDescription(replayMaxRepeat))
+				})
 				ui.Row(c).Gap(t.Space(3)).Children(func() {
-					ui.Field(c, locales.Concurrency(), func() {
-						uikit.Input(c, &r.concurrency).Label(locales.ReplayConcurrency()).Disabled(r.updates != nil)
-					}).Description(locales.ConcurrencyDescription(replayMaxConcurrency)).Grow(1)
-					ui.Field(c, locales.IntervalBetweenStartsMs(), func() {
-						uikit.Input(c, &r.interval).Label(locales.ReplayInterval()).Disabled(r.updates != nil)
-					}).Description(locales.IntervalDescription(replayMaxIntervalMS)).Grow(1)
+					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+						uikit.FormRow(c, locales.Concurrency(), locales.ConcurrencyDescription(replayMaxConcurrency), "", func() {
+							uikit.Input(c, &r.concurrency).Label(locales.ReplayConcurrency()).Disabled(r.updates != nil)
+						})
+					})
+					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+						uikit.FormRow(c, locales.IntervalBetweenStartsMs(), locales.IntervalDescription(replayMaxIntervalMS), "", func() {
+							uikit.Input(c, &r.interval).Label(locales.ReplayInterval()).Disabled(r.updates != nil)
+						})
+					})
 				})
 				if inputProblem != "" {
 					ui.Text(c, inputProblem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)

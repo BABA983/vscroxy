@@ -467,7 +467,7 @@ func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	open := true
-	uikit.Modal(c, &open, func() {
+	uikit.Modal(c, &open, locales.SaveChanges(), func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, locales.SaveChanges())
 			uikit.Hint(c, d.title()+" has unsaved changes. Closing it without saving will discard this draft.")
@@ -654,7 +654,7 @@ func (a *app) headerWarnModal(c *ui.Context, t *ui.Theme) {
 	if d == nil || !d.headerWarn {
 		return
 	}
-	uikit.Modal(c, &d.headerWarn, func() {
+	uikit.Modal(c, &d.headerWarn, locales.BulkEditShowsCredentials(), func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, locales.BulkEditShowsCredentials())
 			uikit.Hint(c, locales.TheKeyValueBlockWrites())
@@ -679,12 +679,12 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 	if !a.renameOpen || d == nil {
 		return
 	}
-	uikit.Modal(c, &a.renameOpen, func() {
+	title := "Rename request"
+	if a.saveAfterRename {
+		title = "Save to collection"
+	}
+	uikit.Modal(c, &a.renameOpen, title, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			title := "Rename request"
-			if a.saveAfterRename {
-				title = "Save to collection"
-			}
 			uikit.DialogTitle(c, title)
 			uikit.Input(c, &d.composeName).Label(locales.Name()).Placeholder(locales.UntitledRequest()).FillWidth().
 				Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.Scaled(uikit.TextBody))

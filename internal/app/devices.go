@@ -128,7 +128,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 		c.After(time.Second)
 	}
 	_, height := c.Size()
-	uikit.Modal(c, &d.open, func() {
+	uikit.Modal(c, &d.open, locales.ConnectADevice2(), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(510, height-80)).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Children(func() {
 				uikit.DialogTitle(c, locales.ConnectADevice2())
@@ -160,7 +160,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 						}
 						uikit.Meta(c, locales.ProxyPortAboveTheCertificate())
 						ui.Text(c, locales.N2AllowYourDeviceS()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
-						ui.TextArea(c, &d.allowed).Height(74).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.AllowedDeviceAddresses()).Placeholder("192.168.1.42\nOne IP or CIDR per line")
+						uikit.TextArea(c, &d.allowed).Height(74).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.AllowedDeviceAddresses()).Placeholder("192.168.1.42\nOne IP or CIDR per line")
 						uikit.Meta(c, locales.FindItInTheDevice())
 						ui.Checkbox(c, &d.consent, "I trust this network and the allowed devices").FontSize(uikit.Scaled(uikit.TextBody))
 					} else {
@@ -236,7 +236,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 					if uikit.PrimaryButton(c, locales.EnableDeviceAccess()).Disabled(a.srv == nil || !d.consent || d.ip == "" || strings.TrimSpace(d.allowed) == "").Clicked() {
 						a.enableDevices()
 					}
-				} else if uikit.SecondaryButton(c, locales.DisableDeviceAccess()).TextColor(t.Danger).Clicked() {
+				} else if uikit.SecondaryButton(c, locales.DisableDeviceAccess()).Clicked() {
 					a.disableDevices()
 				}
 			})

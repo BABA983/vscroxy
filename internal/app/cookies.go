@@ -617,7 +617,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 		e.reveal = make(map[string]bool)
 	}
 	_, height := c.Size()
-	uikit.Modal(c, &e.open, func() {
+	uikit.Modal(c, &e.open, locales.Cookies2(), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(640, height-80)).Children(func() {
 			uikit.DialogTitle(c, locales.Cookies2())
 			uikit.Meta(c, locales.SharedByRequestsRunnerScripts())
@@ -688,8 +688,8 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 				ui.Divider(c)
 				uikit.Meta(c, locales.AddReplacesTheSameDomain())
 				ui.Form(c, func() {
-					ui.Field(c, locales.CookieUrl(), func() {
-						uikit.Input(c, &e.url).Label(locales.CookieUrl()).Placeholder("https://api.example.com/")
+					uikit.FormRow(c, locales.CookieUrl(), "", e.problem, func() {
+						uikit.InputState(c, &e.url, e.problem != "").Label(locales.CookieUrl()).Placeholder("https://api.example.com/")
 					})
 					ui.Field(c, locales.CookieName(), func() {
 						uikit.Input(c, &e.name).Label(locales.CookieName()).Placeholder(locales.Name())
@@ -709,9 +709,6 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 					})
 				})
 			})
-			if e.problem != "" {
-				ui.Text(c, e.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
-			}
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.ClearAllCookies()).Clicked() {
 					a.requestCookies().clear()

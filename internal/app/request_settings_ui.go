@@ -23,7 +23,7 @@ func (a *app) transferSettings(d *requestDocument) request.Settings {
 func (a *app) requestDocsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	ui.Column(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 		uikit.Meta(c, locales.MarkdownShownInTheCollection())
-		ui.TextArea(c, &d.description).Label(locales.RequestDescription()).
+		uikit.TextArea(c, &d.description).Label(locales.RequestDescription()).
 			Placeholder(locales.WhatThisRequestDoesIts()).
 			Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).
 			Grow(1).MinHeight(0)

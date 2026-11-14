@@ -202,7 +202,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			cb := ui.ComboboxBase(c.Key("capture-search"), &a.query)
 			search := cb.Input.Bind(&a.search).Label(locales.SearchHostOrPath()).Placeholder(placeholder).
 				Tooltip(cmp.Or(a.queryProblem, a.searchProblem, "Search host and path (including query) · key:value chips narrow it · /regex/ and * wildcards match the whole field · Ctrl/Cmd+F")).
-				Height(uikit.HeightControl).Padding(0, t.Space(1)).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(min(200, width/5)).FocusRing(false).
+				Height(uikit.HeightControl).Padding(0, t.Space(1)).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(min(200, width/5)).FocusRing(false).Border(0, ui.Color{}).
 				OnShortcut(0, ui.KeyEscape, func() { a.clearQuery(c) })
 			if a.queryProblem != "" || a.searchProblem != "" {
 				search.TextColor(t.Danger)
@@ -662,7 +662,7 @@ func (a *app) commandPalette(c *ui.Context) {
 	if !w.paletteOpen {
 		return
 	}
-	uikit.Modal(c, &w.paletteOpen, func() {
+	uikit.Modal(c, &w.paletteOpen, locales.Commands2(), func() {
 		width, _ := c.Size()
 		t := c.Theme()
 		ui.Column(c).Width(min(560, width-48)).Gap(t.Space(3)).Children(func() {

@@ -256,7 +256,7 @@ func (a *app) importReportModal(c *ui.Context, t *ui.Theme) {
 	if !r.open {
 		return
 	}
-	uikit.Modal(c, &r.open, func() {
+	uikit.Modal(c, &r.open, r.title, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, r.title)
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {

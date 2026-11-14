@@ -1754,7 +1754,7 @@ func (a *app) view(c *ui.Context) {
 	// Dialogs keep their input and actions above background notifications.
 	uikit.Toasts(c)
 	a.commandPalette(c)
-	uikit.Modal(c, &a.clearOpen, func() {
+	uikit.Modal(c, &a.clearOpen, locales.ClearCapturedRequests(), func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, locales.ClearCapturedRequests())
 			ui.Scroll(c).MinHeight(0).Children(func() {
@@ -1764,7 +1764,7 @@ func (a *app) view(c *ui.Context) {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.clearOpen = false
 				}
-				if uikit.PrimaryButton(c, locales.ClearUnpinnedRequests()).Background(t.Danger).Clicked() {
+				if uikit.DestructiveButton(c, locales.ClearUnpinnedRequests()).Clicked() {
 					a.clearCaptured()
 					a.clearOpen = false
 				}
@@ -1972,15 +1972,15 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 	// especially when queued breakpoints open in a small window.
 	c.CloseToast("")
 	_, height := c.Size()
-	if uikit.Modal(c, &a.bpOpen, func() {
+	title := "Breakpoint · request paused"
+	if a.bp.Phase == capture.PhaseResponse {
+		title = "Breakpoint · response paused"
+	}
+	if message {
+		title = "Breakpoint · WebSocket message paused"
+	}
+	if uikit.Modal(c, &a.bpOpen, title, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(640, height-80)).Children(func() {
-			title := "Breakpoint · request paused"
-			if a.bp.Phase == capture.PhaseResponse {
-				title = "Breakpoint · response paused"
-			}
-			if message {
-				title = "Breakpoint · WebSocket message paused"
-			}
 			uikit.DialogTitle(c, title)
 			a.mu.Lock()
 			waiting := len(a.bps) + 1
@@ -2009,7 +2009,7 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 						uikit.Hint(c, locales.MessageExceedsTheEditorLimit())
 					} else {
 						uikit.Meta(c, locales.Utf8TextOrCanonical())
-						ui.TextArea(c, &a.bpBody).Height(240).Label(locales.MessagePayload()).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+						uikit.TextArea(c, &a.bpBody).Height(240).Label(locales.MessagePayload()).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 					}
 					return
 				}
@@ -2025,11 +2025,11 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 					})
 				}
 				uikit.Meta(c, locales.HeadersOneNameValuePer())
-				ui.TextArea(c, &a.bpHeaders).Height(130).Label(locales.BreakpointHeaders()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+				uikit.TextArea(c, &a.bpHeaders).Height(130).Label(locales.BreakpointHeaders()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 				if a.bp.BodyReadOnly {
 					uikit.Hint(c, locales.BinaryUndecodableOrLargeBody())
 				} else {
-					ui.TextArea(c, &a.bpBody).Height(160).Label(locales.Body()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+					uikit.TextArea(c, &a.bpBody).Height(160).Label(locales.Body()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 					uikit.Meta(c, locales.BodyEditsUseDecodedBytes())
 				}
 			})
@@ -2993,7 +2993,7 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 	if !a.markOpen {
 		return
 	}
-	uikit.Modal(c, &a.markOpen, func() {
+	uikit.Modal(c, &a.markOpen, locales.MarkTheRequest(), func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, locales.MarkTheRequest())
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
@@ -3008,7 +3008,7 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 						a.markColor = ""
 					}
 				})
-				ui.TextArea(c, &a.markNote).Height(90).Label(locales.Note()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+				uikit.TextArea(c, &a.markNote).Height(90).Label(locales.Note()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
@@ -3089,7 +3089,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		})
 	}
 	text := cmp.Or(f.conn.log, "No connection history was recorded for this exchange (for example, an older or imported session).")
-	ui.TextArea(c, &text).ReadOnly(true).Label(locales.ConnectionLog()).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).FillWidth()
+	uikit.TextArea(c, &text).ReadOnly(true).Label(locales.ConnectionLog()).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).FillWidth()
 }
 
 // connPanel is the connection behind a flow: who talked to the proxy, where it
@@ -3631,7 +3631,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	_, height := c.Size()
-	uikit.Modal(c, &a.varsOpen, func() {
+	uikit.Modal(c, &a.varsOpen, locales.Variables(), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(600, height-80)).Children(func() {
 			uikit.DialogTitle(c, locales.Variables())
 			if a.envsProblem != "" {
@@ -3865,7 +3865,7 @@ func (a *app) keyLogModal(c *ui.Context, t *ui.Theme) {
 	if !a.keyLogOpen {
 		return
 	}
-	uikit.Modal(c, &a.keyLogOpen, func() {
+	uikit.Modal(c, &a.keyLogOpen, locales.TlsKeyLog(), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, locales.TlsKeyLog())
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
@@ -4099,12 +4099,12 @@ func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint,
 	if !*open {
 		return
 	}
-	uikit.Modal(c, open, func() {
+	uikit.Modal(c, open, title, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, title)
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Meta(c, hint)
-				ui.TextArea(c, text).Height(140).Label(title).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+				uikit.TextArea(c, text).Height(140).Label(title).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
@@ -4268,7 +4268,7 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 	}
 	draft := a.sslDraft
 	_, height := c.Size()
-	uikit.Modal(c, &a.sslOpen, func() {
+	uikit.Modal(c, &a.sslOpen, locales.SslProxying(), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Height(min(510, height-80)).Children(func() {
 			uikit.DialogTitle(c, locales.SslProxying())
 			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
@@ -4278,7 +4278,7 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 					ui.Text(c, locales.DecryptEveryDomain()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
 				})
 				ui.Text(c, locales.DomainsAndSubdomains()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
-				ui.TextArea(c, &a.sslDraftHosts).Height(100).Label(locales.DecryptionDomains()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+				uikit.TextArea(c, &a.sslDraftHosts).Height(100).Label(locales.DecryptionDomains()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 				ui.Divider(c)
 				ui.Text(c, locales.LocalApps()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
 				uikit.Meta(c, locales.ExactExecutablePathsNotApp())
@@ -4483,7 +4483,7 @@ func (a *app) dnsRuleModal(c *ui.Context, t *ui.Theme) {
 	if !a.dnsRuleOpen {
 		return
 	}
-	uikit.Modal(c, &a.dnsRuleOpen, func() {
+	uikit.Modal(c, &a.dnsRuleOpen, locales.MapAHost(), func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, locales.MapAHost())
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {

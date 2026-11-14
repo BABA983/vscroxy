@@ -1102,7 +1102,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 	if !v.filterOpen {
 		return
 	}
-	uikit.Modal(c, &v.filterOpen, func() {
+	uikit.Modal(c, &v.filterOpen, locales.FilterNamed(v.label(v.active)), func() {
 		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, locales.FilterNamed(v.label(v.active)))
 			ui.Field(c, locales.MatchPopulatedFields(), func() {
@@ -1166,12 +1166,16 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 				}
 			}
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
-				ui.Field(c, locales.Status(), func() {
-					uikit.Input(c, &v.editStatus).Label(locales.FilterStatus()).Placeholder(locales.N4xx5xx())
-				}).Grow(1)
-				ui.Field(c, locales.Header(), func() {
-					uikit.Input(c, &v.editHeader).Placeholder("content-type: json")
-				}).Grow(1)
+				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+					uikit.FormRow(c, locales.Status(), "", problem, func() {
+						uikit.InputState(c, &v.editStatus, problem != "").Label(locales.FilterStatus()).Placeholder(locales.N4xx5xx())
+					})
+				})
+				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+					uikit.FormRow(c, locales.Header(), "", "", func() {
+						uikit.Input(c, &v.editHeader).Placeholder("content-type: json")
+					})
+				})
 			})
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, locales.NoteContains(), func() {
@@ -1181,9 +1185,6 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 					uikit.Input(c, &v.editBody).Label(locales.BodyContains()).Placeholder("\"error\":")
 				}).Grow(1)
 			})
-			if problem != "" {
-				ui.Text(c, problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
-			}
 			if note, failure := v.status(); note != "" {
 				color := t.TextMuted
 				if failure {
@@ -1240,7 +1241,7 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 	if !v.savedOpen {
 		return
 	}
-	uikit.Modal(c, &v.savedOpen, func() {
+	uikit.Modal(c, &v.savedOpen, locales.SavedCaptureFilters(), func() {
 		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, locales.SavedCaptureFilters())
 			uikit.Meta(c, locales.AFilterKeepsThisView())
@@ -1303,7 +1304,7 @@ func (v *captureViews) renameViewModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	open := true
-	uikit.Modal(c, &open, func() {
+	uikit.Modal(c, &open, locales.RenameView(), func() {
 		ui.Column(c).Width(420).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, locales.RenameView())
 			ui.Field(c, locales.FilterName(), func() {

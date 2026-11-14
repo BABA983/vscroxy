@@ -475,7 +475,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 		uikit.SettingsRowMultiline(c, locales.BypassList(), func() ui.Element {
 			return ui.Column(c).Gap(t.Space(2)).Children(func() {
 				ui.Checkbox(c, &a.systemProxyBypassSet, "Replace the system bypass list")
-				ui.TextArea(c, &a.systemProxyBypassText).Label(locales.SystemProxyBypassList()).Placeholder("localhost, *.internal.test, 10.0.0.0/8").Height(64).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(!a.systemProxyBypassSet)
+				uikit.TextArea(c, &a.systemProxyBypassText).Label(locales.SystemProxyBypassList()).Placeholder("localhost, *.internal.test, 10.0.0.0/8").Height(64).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(!a.systemProxyBypassSet)
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.SaveBypassList()).Clicked() {
 						a.saveSystemProxyBypass()

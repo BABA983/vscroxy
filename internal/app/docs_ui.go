@@ -43,7 +43,7 @@ func (a *app) docsModal(c *ui.Context, t *ui.Theme) {
 		return strings.Compare(x.Name, y.Name)
 	})
 	_, height := c.Size()
-	uikit.Modal(c, &a.docsOpen, func() {
+	uikit.Modal(c, &a.docsOpen, locales.DocumentationPath(path), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(680, height-80)).Children(func() {
 			uikit.DialogTitle(c, locales.DocumentationPath(path))
 			uikit.Meta(c, locales.ReadOnlyMarkdownFromThe())

@@ -22,7 +22,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	_, height := c.Size()
-	dialog := uikit.Modal(c, &w.open, func() {
+	dialog := uikit.Modal(c, &w.open, locales.CreateCollection2(), func() {
 		c.OnShortcut(0, ui.KeyEscape, func() { w.open = false })
 		uikit.DialogColumn(c, 1080).Height(min(620, height-100)).Gap(t.Space(3)).Children(func() {
 			uikit.DialogTitle(c, locales.CreateCollection2())

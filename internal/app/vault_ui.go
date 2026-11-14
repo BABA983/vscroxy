@@ -219,7 +219,7 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	_, height := c.Size()
-	uikit.Modal(c, &v.open, func() {
+	uikit.Modal(c, &v.open, locales.Vault2(), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(520, height-80)).Children(func() {
 			uikit.DialogTitle(c, locales.Vault2())
 			uikit.Meta(c, locales.UseVaultNameInA())
@@ -235,7 +235,7 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 						if uikit.SecondaryButton(c, locales.ResetVault()).Clicked() {
 							v.resetting = true
 						}
-					} else if uikit.PrimaryButton(c, locales.DeleteAllSecretsAndStart()).Clicked() {
+					} else if uikit.DestructiveButton(c, locales.DeleteAllSecretsAndStart()).Clicked() {
 						a.resetVault()
 					}
 				})

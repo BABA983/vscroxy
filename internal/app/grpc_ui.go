@@ -262,7 +262,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					if g.schema != nil {
 						methods = g.schema.methods
 					}
-					field := ui.Combobox(c, &d.grpcConfig.Method, methods).Label(locales.GrpcMethod()).Placeholder(locales.SelectServiceMethod()).
+					field := uikit.Combobox(c, &d.grpcConfig.Method, methods).Label(locales.GrpcMethod()).Placeholder(locales.SelectServiceMethod()).
 						Grow(1).MinWidth(0).Height(uikit.ControlHeight).FontSize(uikit.Scaled(uikit.TextBody)).Disabled(d.composeWaiting || g.loading != nil)
 					uikit.FieldFace(c, field, field.Focused())
 					uikit.Tip(c, field, locales.GrpcTransportHelp())
@@ -317,7 +317,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 							return uikit.Input(c, &g.source).Label(locales.GrpcSchemaFile()).Placeholder("/path/to/service.proto").Disabled(g.loading != nil)
 						}, "")
 						uikit.SettingsRowMultiline(c, locales.IncludeRoots(), func() ui.Element {
-							return ui.TextArea(c, &g.roots).Label(locales.GrpcIncludeRoots()).Placeholder(locales.IncludeRootsOnePerLine()).Height(50).Disabled(g.loading != nil)
+							return uikit.TextArea(c, &g.roots).Label(locales.GrpcIncludeRoots()).Placeholder(locales.IncludeRootsOnePerLine()).Height(50).Disabled(g.loading != nil)
 						}, "")
 					})
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
@@ -390,17 +390,11 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			g.list.Selected = &g.selected
 			g.list.Key = func(i int) any { return s.events[i].seq }
 			g.list.Label = func(i int) string { return fmt.Sprintf("gRPC message %d", s.events[i].seq) }
-			focused := g.list.Handle.Focused(c)
-			c.SetTheme(uikit.ListTheme(t, focused))
-			ui.List(c, &g.list, len(s.events), func(i int) {
+			uikit.DataListIndexed(c, &g.list, len(s.events), func(i int) {
 				e := s.events[i]
-				if i == g.selected {
-					uikit.RowMarker(c, focused)
-				}
 				ui.Text(c, locales.GrpcEventLine(e.seq, e.at.Format("15:04:05.000"), e.direction, e.size)).
 					FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text).Padding(t.Space(2)).SingleLine()
 			}).Grow(1)
-			c.SetTheme(t)
 		}, func() {
 			if len(s.events) == 0 {
 				uikit.Hint(c, locales.WaitingForMessages()).Padding(t.Space(3))

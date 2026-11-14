@@ -96,7 +96,7 @@ func (a *app) deleteModal(c *ui.Context, t *ui.Theme) {
 	if !del.open {
 		return
 	}
-	uikit.Modal(c, &del.open, func() {
+	uikit.Modal(c, &del.open, locales.DeleteConfirm(del.name), func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, locales.DeleteConfirm(del.name))
 			uikit.Hint(c, locales.DeleteCannotBeUndone(del.detail))
@@ -104,7 +104,7 @@ func (a *app) deleteModal(c *ui.Context, t *ui.Theme) {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					del.open = false
 				}
-				if uikit.PrimaryButton(c, locales.DeleteKind(del.kind)).Clicked() {
+				if uikit.DestructiveButton(c, locales.DeleteKind(del.kind)).Clicked() {
 					deleteAll := a.deleteAssets
 					if del.session != "" {
 						deleteAll = func(del deletion) error { return a.sessions.remove(del.session) }

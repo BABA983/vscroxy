@@ -40,7 +40,7 @@ func (a *app) variablePasswordInput(c *ui.Context, key string, value *string, la
 
 // variableTextArea is ui.TextArea with the same variable help.
 func (a *app) variableTextArea(c *ui.Context, key string, value *string, label, collection string) ui.Element {
-	in := ui.TextArea(c, value).Label(label)
+	in := uikit.TextArea(c, value).Label(label)
 	a.attachVariables(c, in, key, value, label, collection, false)
 	return in
 }
@@ -48,7 +48,7 @@ func (a *app) variableTextArea(c *ui.Context, key string, value *string, label, 
 // variableSensitiveTextArea is variableTextArea whose hover masks values, for
 // private keys and similar credentials.
 func (a *app) variableSensitiveTextArea(c *ui.Context, key string, value *string, label, collection string) ui.Element {
-	in := ui.TextArea(c, value).Label(label)
+	in := uikit.TextArea(c, value).Label(label)
 	a.attachVariables(c, in, key, value, label, collection, true)
 	return in
 }

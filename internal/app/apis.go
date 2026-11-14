@@ -287,7 +287,7 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 	if !a.apiGenerateOpen {
 		return
 	}
-	uikit.Modal(c, &a.apiGenerateOpen, func() {
+	uikit.Modal(c, &a.apiGenerateOpen, locales.GenerateOpenapiDraft(), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, locales.GenerateOpenapiDraft())
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {

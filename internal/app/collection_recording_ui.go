@@ -45,7 +45,7 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 		w.collection, w.environment = s.Collection, s.Environment
 		w.hosts, w.apps = strings.Join(s.Hosts, "\n"), strings.Join(s.Apps, "\n")
 	}
-	uikit.Modal(c, &w.open, func() {
+	uikit.Modal(c, &w.open, locales.RecordIntoCollection2(), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, locales.RecordIntoCollection2())
 			s := a.collectionRecording
@@ -92,10 +92,10 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 					}
 					uikit.SecondaryButton(c, locales.ManageEnvironments()).OnClick(func() { w.open = false; a.openVars() })
 					ui.Field(c, locales.HostsOnePerLine(), func() {
-						ui.TextArea(c, &w.hosts).Label(locales.RecordingHosts()).Height(60).FontSize(uikit.Scaled(uikit.TextBody)).Placeholder("api.example.com\nlocalhost:3000")
+						uikit.TextArea(c, &w.hosts).Label(locales.RecordingHosts()).Height(60).FontSize(uikit.Scaled(uikit.TextBody)).Placeholder("api.example.com\nlocalhost:3000")
 					}).Description(locales.ExactHostnameAnyPortOr())
 					ui.Field(c, locales.AppsOnePerLine(), func() {
-						ui.TextArea(c, &w.apps).Label(locales.RecordingApps()).Height(60).FontSize(uikit.Scaled(uikit.TextBody)).Placeholder(locales.Browser())
+						uikit.TextArea(c, &w.apps).Label(locales.RecordingApps()).Height(60).FontSize(uikit.Scaled(uikit.TextBody)).Placeholder(locales.Browser())
 					}).Description(locales.ExactSidebarAppLabelsEmpty())
 				})
 				uikit.Hint(c, locales.NewAmbientHttpTrafficOnly())

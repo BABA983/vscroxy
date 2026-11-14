@@ -573,7 +573,7 @@ func (a *app) configImportDialog(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	b := in.bundle
-	uikit.Modal(c, &in.open, func() {
+	uikit.Modal(c, &in.open, locales.ImportConfiguration(), func() {
 		uikit.DialogColumn(c, 520).Children(func() {
 			uikit.DialogTitle(c, locales.ImportConfiguration())
 			uikit.Meta(c, locales.ExportedFile(filepath.Base(in.path), b.Exported.Local().Format("2006-01-02 15:04")))

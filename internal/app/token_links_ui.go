@@ -109,7 +109,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	_, height := c.Size()
-	uikit.Modal(c, &w.open, func() {
+	uikit.Modal(c, &w.open, locales.TokenLinks(), func() {
 		uikit.DialogColumn(c, 820).Height(min(560, height-80)).Children(func() {
 			uikit.DialogTitle(c, locales.TokenLinks())
 			uikit.Hint(c, locales.TokenLinksSelected(len(w.flows)))

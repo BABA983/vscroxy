@@ -332,13 +332,13 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 	if strings.Contains(f.draft.Path, "/") {
 		kind = "Folder"
 	}
-	uikit.Modal(c, &f.open, func() {
+	uikit.Modal(c, &f.open, kind+" · "+f.draft.Path, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(560, height-80)).Children(func() {
 			uikit.DialogTitle(c, kind+" · "+f.draft.Path)
 			uikit.Meta(c, locales.EveryRequestSavedUnderIt())
 			ui.Form(c, func() {
-				ui.Field(c, locales.Name(), func() {
-					uikit.Input(c, &f.name).Label(kind + " name")
+				uikit.FormRow(c, locales.Name(), "", f.problem, func() {
+					uikit.InputState(c, &f.name, f.problem != "").Label(kind + " name")
 				})
 			})
 			uikit.Meta(c, locales.RenamingMovesItsRequestsFolders())
@@ -363,14 +363,11 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 					uikit.Hint(c, locales.InitialValuesAreSharedAnd2())
 					a.variableTable(c, &f.variables, variableTableOptions{enable: true})
 				case 3:
-					ui.TextArea(c, &f.draft.Description).Label(locales.Description()).Placeholder(locales.WhatTheseRequestsAreFor()).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)
+					uikit.TextArea(c, &f.draft.Description).Label(locales.Description()).Placeholder(locales.WhatTheseRequestsAreFor()).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)
 				case 4:
 					a.folderSettingsEditor(c, f, t)
 				}
 			})
-			if f.problem != "" {
-				ui.Text(c, f.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
-			}
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					f.open = false

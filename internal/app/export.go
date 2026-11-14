@@ -62,7 +62,7 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	c.CloseToast("")
-	uikit.Modal(c, &s.open, func() {
+	uikit.Modal(c, &s.open, s.title, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, s.title)
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {

@@ -37,6 +37,7 @@ type ruleEditor struct {
 	draft          capture.Rule
 	kind           string
 	status         string
+	statusValue    float64
 	headers        string
 	problem        string
 	unsavedMock    string
@@ -83,6 +84,7 @@ func (a *app) editRule(index int, r capture.Rule) {
 	e := &a.ruleUI
 	e.open, e.deleting, e.index, e.draft, e.kind = true, false, index, r, ruleLabel(r.Type)
 	e.status, e.headers, e.problem = strconv.Itoa(cmp.Or(r.Status, 200)), request.HeaderBlock(r.Headers), ""
+	e.statusValue, _ = strconv.ParseFloat(e.status, 64)
 	// The draft must not edit the saved rule's slices in place.
 	e.draft.Apps, e.draft.When = nil, slices.Clone(r.When)
 	e.apps = strings.Join(r.Apps, ", ")
@@ -483,7 +485,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 		})
 		uikit.Tip(c, uikit.Input(c, &e.test).Label(locales.TestARequest()).Placeholder(locales.TestGetHttpsApiExample()), locales.MethodUrlAppHeaderValue()).Font(uikit.FontMono).FillWidth()
 		if e.draft.Operation != "" || slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Operation != "" }) {
-			ui.TextArea(c, &e.testBody).Label(locales.TestGraphqlBody()).Placeholder(`{"query":"query Search { items { id } }"}`).Height(80).FillWidth().Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).
+			uikit.TextArea(c, &e.testBody).Label(locales.TestGraphqlBody()).Placeholder(`{"query":"query Search { items { id } }"}`).Height(80).FillWidth().Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).
 				Tooltip(locales.PostUsesJsonByDefault())
 			if testing && e.testProblem != "" {
 				uikit.Hint(c, locales.GraphqlNotVerified(e.testProblem))
@@ -603,7 +605,7 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture
 		c.SetTheme(t)
 		i := rows[row.Index]
 		r := a.rules[i]
-		line := ui.Row(c).Height(uikit.HeightLarge+12).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+		line := ui.Row(c).MinHeight(uikit.HeightLarge+12).Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 		if row.Selected() {
 			uikit.Selected(c, line, active)
 		}
@@ -633,6 +635,9 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Grow(1).SingleLine()
+					if r.Scenario != "" {
+						uikit.Tip(c, uikit.Meta(c, r.Scenario).MaxWidth(96).SingleLine(), "In scenario "+r.Scenario)
+					}
 					switch {
 					case p.Step > 0:
 						pal := uikit.Colors(t)
@@ -648,10 +653,8 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture
 					}
 				})
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					uikit.Meta(c, ruleSummary(r)).Font(uikit.FontMono).Grow(1).SingleLine()
-					if r.Scenario != "" {
-						uikit.Tip(c, uikit.Meta(c, r.Scenario).MaxWidth(96).SingleLine(), "In scenario "+r.Scenario)
-					}
+					summary := ruleSummary(r)
+					uikit.Tip(c, uikit.Meta(c, summary).Font(uikit.FontMono).Grow(1).MaxLines(2), summary)
 				})
 			})
 		})
@@ -697,17 +700,17 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 	// Each rule's form starts at its top, not where the last one was scrolled.
 	ui.Scroll(c.Key(fmt.Sprint("rule-form", e.index))).Grow(1).MinHeight(0).Children(func() {
 		ui.Form(c, func() {
-			ui.Field(c, locales.TypeText(), func() {
+			uikit.FormRow(c, locales.TypeText(), "", "", func() {
 				labels := ruleLabels
 				if a.toolsPage == "mocks" {
 					labels = []string{"Map Local", "Code Mock"}
 				}
 				uikit.Select(c, &e.kind, labels).Label(locales.RuleType()).Width(200)
 			})
-			ui.Field(c, locales.Method(), func() {
+			uikit.FormRow(c, locales.Method(), "", "", func() {
 				uikit.Input(c, &e.draft.Method).Width(95).Label(locales.MatchMethod()).Placeholder(locales.Any()).Font(uikit.FontMono)
 			})
-			ui.Field(c, locales.Url(), func() {
+			uikit.FormRow(c, locales.Url(), urlHelp()[max(slices.Index([]string{rules.URLContains, rules.URLWildcard, rules.URLRegex}, e.draft.MatchMode), 0)], "", func() {
 				ui.Row(c).Gap(t.Space(2)).FillWidth().Children(func() {
 					modes := []string{rules.URLContains, rules.URLWildcard, rules.URLRegex}
 					mode := max(slices.Index(modes, e.draft.MatchMode), 0)
@@ -715,14 +718,14 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 					e.draft.MatchMode = modes[mode]
 					uikit.Input(c, &e.draft.Match).Label(locales.MatchUrl()).Placeholder(urlPlaceholders[mode]).Font(uikit.FontMono).Grow(1).MinWidth(0)
 				})
-			}).Description(urlHelp()[max(slices.Index([]string{rules.URLContains, rules.URLWildcard, rules.URLRegex}, e.draft.MatchMode), 0)])
-			ui.Field(c, locales.Apps(), func() {
+			})
+			uikit.FormRow(c, locales.Apps(), locales.CommaSeparatedAppNamesMatches(), "", func() {
 				uikit.Input(c, &e.apps).Label(locales.MatchApps()).Placeholder(locales.Any()).FillWidth()
-			}).Description(locales.CommaSeparatedAppNamesMatches())
-			ui.Field(c, locales.RequestHeadersLabel(), func() { a.ruleHeaderConditions(c, t) })
+			})
+			uikit.FormRow(c, locales.RequestHeadersLabel(), "", "", func() { a.ruleHeaderConditions(c, t) })
 			switch e.kind {
 			case "Network conditions":
-				ui.Field(c, locales.CopyPreset(), func() {
+				uikit.FormRow(c, locales.CopyPreset(), locales.CopiesValuesLaterPresetEdits(), "", func() {
 					presets := a.networkPresets()
 					names := make([]string, 0, len(presets))
 					for _, p := range presets {
@@ -736,99 +739,97 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 							}
 						}
 					})
-				}).Description(locales.CopiesValuesLaterPresetEdits())
-				ui.Field(c, locales.Conditions(), func() { e.network.fields(c) }).Description(locales.FirstMatchingNetworkRuleReplaces())
-				ui.Field(c, locales.Scope(), func() {
+				})
+				uikit.FormRow(c, locales.Conditions(), locales.FirstMatchingNetworkRuleReplaces(), "", func() { e.network.fields(c) })
+				uikit.FormRow(c, locales.Scope(), "", "", func() {
 					uikit.Meta(c, locales.HttpInspectedHttpsAndSse2())
 				})
 			case "Map Local":
 				a.loadRuleBody()
-				ui.Field(c, locales.ResponseFrom(), func() {
-					ui.Row(c).Gap(t.Space(2)).FillWidth().Children(func() {
-						uikit.Input(c, &e.draft.Target).Label(locales.ResponseFile()).Placeholder(locales.AFileOrAFolder()).Font(uikit.FontMono).Grow(1)
-						if uikit.SecondaryButton(c, locales.File2()).Clicked() {
-							a.browseRuleFile(false)
-						}
-						if uikit.SecondaryButton(c, locales.Folder()).Clicked() {
-							a.browseRuleFile(true)
+				uikit.FormRow(c, locales.ResponseFrom(), locales.AFileUpTo8(), "", func() {
+					ui.Column(c).Gap(t.Space(1)).FillWidth().Children(func() {
+						ui.Row(c).Gap(t.Space(2)).FillWidth().Children(func() {
+							uikit.Input(c, &e.draft.Target).Label(locales.ResponseFile()).Placeholder(locales.AFileOrAFolder()).Font(uikit.FontMono).Grow(1)
+							if uikit.SecondaryButton(c, locales.File2()).Clicked() {
+								a.browseRuleFile(false)
+							}
+							if uikit.SecondaryButton(c, locales.Folder()).Clicked() {
+								a.browseRuleFile(true)
+							}
+						})
+						if e.draft.Target != "" {
+							uikit.Tip(c, uikit.Meta(c, e.draft.Target).Font(uikit.FontMono).SingleLine().TruncateMiddle().MinWidth(0), e.draft.Target)
 						}
 					})
-				}).Description(locales.AFileUpTo8())
+				})
 				if !e.bodyDir {
-					body := ui.Field(c, locales.Body(), func() {
+					uikit.FormRowTall(c, locales.Body(), cmp.Or(e.bodyNote, "Save rule writes it to the file."), "", func() ui.Element {
 						if e.body == nil {
-							uikit.Hint(c, e.bodyNote)
-							return
+							return uikit.Hint(c, e.bodyNote)
 						}
 						e.body.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
 						e.body.Theme = uikit.EditorTheme(t)
-						ui.Box(c).Height(180).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
+						return ui.Box(c).Height(180).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
 							editor.View(c, e.body).Grow(1).FillWidth().FocusRing(true)
 						})
 					})
-					if e.body != nil {
-						body.Description(cmp.Or(e.bodyNote, "Save rule writes it to the file."))
-					}
 				}
 				if e.bodyDir {
-					ui.Field(c, locales.StripPath(), func() {
+					uikit.FormRow(c, locales.StripPath(), locales.ApiUsers42JsonReads(), "", func() {
 						uikit.Input(c, &e.draft.PathFrom).Label(locales.StripPathPrefix()).Placeholder("/api").Font(uikit.FontMono).Width(200)
-					}).Description(locales.ApiUsers42JsonReads())
+					})
 				}
-				ui.Field(c, locales.Status(), func() {
-					uikit.Input(c, &e.status).Label(locales.ResponseStatus()).Width(95).Font(uikit.FontMono)
+				uikit.FormRow(c, locales.Status(), "", "", func() {
+					uikit.NumberField(c, &e.status, &e.statusValue, 200, 599, "", locales.ResponseStatus(), "", nil)
 				})
-				ui.Field(c, locales.RequestHeadersLabel(), func() {
-					ui.TextArea(c, &e.headers).Height(76).FillWidth().Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.ResponseHeaders()).Placeholder("Content-Type: application/json")
-				}).Description(locales.ConnectionHeadersAreRemovedThe())
+				uikit.FormRow(c, locales.RequestHeadersLabel(), locales.ConnectionHeadersAreRemovedThe(), "", func() {
+					uikit.TextArea(c, &e.headers).Height(76).FillWidth().Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.ResponseHeaders()).Placeholder("Content-Type: application/json")
+				})
 			case "Map Remote":
-				ui.Field(c, locales.SendTo(), func() {
+				uikit.FormRow(c, locales.SendTo(), locales.SchemeHostAndPortA(), "", func() {
 					uikit.Input(c, &e.draft.Target).Label(locales.TargetBaseUrl()).Placeholder("http://127.0.0.1:8080").Font(uikit.FontMono).FillWidth()
-				}).Description(locales.SchemeHostAndPortA())
-				ui.Field(c, locales.RewritePath(), func() {
+				})
+				uikit.FormRow(c, locales.RewritePath(), locales.APathStartingWithThe(), "", func() {
 					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).FillWidth().Children(func() {
 						uikit.Input(c, &e.draft.PathFrom).Label(locales.RewritePathFrom()).Placeholder("/v1/").Font(uikit.FontMono).Grow(1)
 						uikit.Meta(c, "→")
 						uikit.Input(c, &e.draft.PathTo).Label(locales.RewritePathTo()).Placeholder("/api/v1/").Font(uikit.FontMono).Grow(1)
 					})
-				}).Description(locales.APathStartingWithThe())
-				ui.Field(c, locales.HostHeader(), func() {
+				})
+				uikit.FormRow(c, locales.HostHeader(), locales.ForAServerThatServes(), "", func() {
 					ui.Checkbox(c, &e.draft.KeepHost, "Keep the original Host header")
-				}).Description(locales.ForAServerThatServes())
+				})
 			case "Block":
-				ui.Field(c, locales.Action(), func() {
+				uikit.FormRow(c, locales.Action(), blockHelp[max(slices.Index(capture.BlockActions, e.draft.Block), 0)], "", func() {
 					ui.Row(c).Children(func() {
 						choice := max(slices.Index(capture.BlockActions, e.draft.Block), 0)
 						uikit.Segmented(c, &choice, locales.Refuse(), locales.DropConnection(), locales.Hide()).Label(locales.BlockAction())
 						e.draft.Block = capture.BlockActions[choice]
 					})
-				}).Description(blockHelp[max(slices.Index(capture.BlockActions, e.draft.Block), 0)])
+				})
 			case "Script":
-				ui.Field(c, locales.Script(), func() { a.ruleScriptField(c, t) }).
-					Description(locales.OnrequestOnresponseEditHttpOnmessage())
+				uikit.FormRow(c, locales.Script(), locales.OnrequestOnresponseEditHttpOnmessage(), "", func() { a.ruleScriptField(c, t) })
 			case "Code Mock":
-				ui.Field(c, locales.Script(), func() { a.ruleScriptField(c, t) }).
-					Description(locales.OnmockReadsPmRequestAnd())
+				uikit.FormRow(c, locales.Script(), locales.OnmockReadsPmRequestAnd(), "", func() { a.ruleScriptField(c, t) })
 			case "WebSocket message breakpoint":
-				ui.Field(c, locales.Direction(), func() {
+				uikit.FormRow(c, locales.Direction(), locales.WhileBreakpointsIsOnEdit(), "", func() {
 					labels := []string{"Both", "Server → client", "Client → server"}
 					values := []string{"", "in", "out"}
 					choice := max(0, slices.Index(values, e.draft.Direction))
 					uikit.Segmented(c, &choice, labels...).Label(locales.WebsocketBreakpointDirection())
 					e.draft.Direction = values[choice]
-				}).Description(locales.WhileBreakpointsIsOnEdit())
+				})
 			default:
-				ui.Field(c, locales.Pauses(), func() { uikit.Body(c, locales.WhileBreakpointsIsOn()) }).
-					Description(locales.ContinueOrAbortInThe())
+				uikit.FormRow(c, locales.Pauses(), locales.ContinueOrAbortInThe(), "", func() { uikit.Body(c, locales.WhileBreakpointsIsOn()) })
 			}
 			if !breakpoint {
-				ui.Field(c, locales.Scenario(), func() {
+				uikit.FormRow(c, locales.Scenario(), locales.ARuleInAScenario(), "", func() {
 					uikit.Input(c, &e.draft.Scenario).Label(locales.RuleScenario()).Placeholder(locales.None()).Width(200)
-				}).Description(locales.ARuleInAScenario())
+				})
 			}
-			ui.Field(c, locales.GraphqlOperation(), func() {
+			uikit.FormRow(c, locales.GraphqlOperation(), locales.ExactSelectedOperationNameCase(), "", func() {
 				uikit.Input(c, &e.draft.Operation).Label(locales.MatchGraphqlOperation()).Placeholder(locales.Any()).Font(uikit.FontMono).FillWidth()
-			}).Description(locales.ExactSelectedOperationNameCase())
+			})
 		})
 	})
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {

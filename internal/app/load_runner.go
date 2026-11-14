@@ -241,7 +241,7 @@ func (a *app) loadRunnerModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	width, height := c.Size()
-	uikit.Modal(c, &r.open, func() {
+	uikit.Modal(c, &r.open, locales.CollectionLoadTest(), func() {
 		ui.Column(c).Width(min(820, width-100)).Height(min(570, height-100)).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, locales.CollectionLoadTest())
 			uikit.Meta(c, locales.FixedConcurrentUsersClosedModel())

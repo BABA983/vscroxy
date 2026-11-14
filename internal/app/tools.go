@@ -113,7 +113,7 @@ func (a *app) toolsModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	width, height := c.Size()
-	if uikit.Modal(c, &a.toolsOpen, func() {
+	if uikit.Modal(c, &a.toolsOpen, locales.Tools(), func() {
 		ui.Column(c).Width(min(1040, width-80)).Height(min(640, height-80)).Gap(t.Space(3)).Children(func() {
 			uikit.DialogTitle(c, locales.Tools())
 			a.toolsContent(c, t, true, false)

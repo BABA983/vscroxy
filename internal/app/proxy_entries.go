@@ -383,9 +383,9 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 						if uikit.SecondaryButton(c, locales.Edit()).Clicked() {
 							a.openReverseProxy(r.ID)
 						}
-						if uikit.SecondaryButton(c, locales.Remove()).TextColor(t.Danger).Clicked() {
-							a.removeReverseProxy(r.ID)
-						}
+						uikit.MoreMenu(c, locales.ReverseProxy()+" actions", func(m *ui.Menu) {
+							actionMenu(m, []action{do("proxy.reverse.remove", locales.Remove(), func() { a.removeReverseProxy(r.ID) }).in("danger")})
+						})
 					})
 					if st.Error != "" && r.Enabled {
 						ui.Text(c, st.Error).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
@@ -434,13 +434,13 @@ func (a *app) reverseProxyModal(c *ui.Context, t *ui.Theme) {
 	if d.editing != "" {
 		title = "Edit reverse proxy"
 	}
-	uikit.Modal(c, &d.open, func() {
+	uikit.Modal(c, &d.open, title, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, title)
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
-				ui.Field(c, locales.LocalPort(), func() {
-					uikit.Input(c, &d.port).Label(locales.LocalPort()).Placeholder("9000").Width(120)
-				}).Description(locales.TheLoopbackPortClientsConnect())
+				uikit.FormRow(c, locales.LocalPort(), locales.TheLoopbackPortClientsConnect(), d.problem, func() {
+					uikit.InputState(c, &d.port, d.problem != "").Label(locales.LocalPort()).Placeholder("9000").Width(120)
+				})
 				ui.Field(c, locales.RemoteUrl(), func() {
 					uikit.Input(c, &d.target).Label(locales.RemoteUrl()).Placeholder("https://api.example.com")
 				}).Description(locales.TheBaseUrlRequestsAre())
@@ -456,9 +456,6 @@ func (a *app) reverseProxyModal(c *ui.Context, t *ui.Theme) {
 				ui.Field(c, locales.RemoteCertificate(), func() {
 					ui.Switch(c, &d.insecure).Label(locales.AllowSelfSignedCertificates())
 				}).Description(locales.OffByDefaultTheApp())
-				if d.problem != "" {
-					ui.Text(c, d.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
-				}
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {

@@ -140,7 +140,7 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 	u.job.poll(c)
 	t := c.Theme()
 	_, height := c.Size()
-	uikit.Modal(c, &u.open, func() {
+	uikit.Modal(c, &u.open, locales.QueryJson2(), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(570, height-70)).Children(func() {
 			uikit.DialogTitle(c, locales.QueryJson2())
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {

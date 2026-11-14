@@ -643,6 +643,9 @@ func (a *app) scriptList(c *ui.Context, t *ui.Theme, s *scriptStore, active bool
 	s.list.Label = func(i int) string { return s.names[i] }
 	pick := *t
 	pick.Accent, pick.AccentText = ui.Color{}, t.Text
+	// Only the chosen row may look selected: the pointer's hover is a
+	// transient hint, not a second selection.
+	pick.SurfaceHover = ui.Color{}
 	c.SetTheme(&pick)
 	ui.List(c, &s.list, len(s.names)).Label(map[bool]string{false: "Scripts", true: "Addons"}[s.addon]).Grow(1).MinHeight(0).Gap(t.Space(0.5)).Rows(func(row ui.ListRow) {
 		c := row.Context
@@ -706,7 +709,7 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 	if st == nil {
 		buf := editor.NewBuffer(s.texts[name])
 		buf.SetLanguage(editor.LanguageNamed("JavaScript"))
-		st = &editor.State{Buffer: buf, NoScrollPastEnd: true, Label: map[bool]string{false: "Script ", true: "Addon "}[s.addon] + name}
+		st = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: map[bool]string{false: "Script ", true: "Addon "}[s.addon] + name}
 		if s.editors == nil {
 			s.editors = map[string]*editor.State{}
 		}
@@ -747,7 +750,7 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 	}
 	st.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
 	st.Theme = uikit.EditorTheme(t)
-	ui.Box(c).Grow(1).MinHeight(120).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
+	ui.Box(c).Grow(1).MinHeight(120).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Clip().Children(func() {
 		editor.View(c, st).Grow(1).FillWidth().FocusRing(true)
 	})
 	if !s.addon {
