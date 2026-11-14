@@ -5094,7 +5094,7 @@ func TestSplitDoubleClickRestoresInspectorSplitters(t *testing.T) {
 }
 
 func TestCaptureSelectionMarkerFollowsListAndWindowFocus(t *testing.T) {
-	// Expected colors are the design's Paper/Ink values, not read from
+	// Expected colors are the design's Light/Dark values, not read from
 	// uikit: accent tint fill and accent marker while the list has the
 	// focus, the neutral control fill and a faint marker otherwise. Text
 	// never turns white.

@@ -38,7 +38,7 @@ func TestThemesKeepTextReadable(t *testing.T) {
 			// all three of them. The faces laid over a surface are transient
 			// (hover, pressed) or a tint behind a selected row; the design
 			// pins the signal inks, which fall to 3.6:1 on a pressed face in
-			// Ink, so they are held to the non-text 3:1 there.
+			// Dark, so they are held to the non-text 3:1 there.
 			type swatch struct {
 				name string
 				fill ui.Color

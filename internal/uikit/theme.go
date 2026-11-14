@@ -6,7 +6,7 @@ import (
 )
 
 // Palette is one theme as semantic roles. Screens name a role, never a color,
-// so a palette can be swapped (Paper, Ink, later imported themes) without
+// so a palette can be swapped (Light, Dark, later imported themes) without
 // touching them. Sizes, density and shapes are not part of a palette.
 type Palette struct {
 	// Surfaces carry structure. Chrome frames the window: sidebars, bars and
@@ -40,10 +40,10 @@ func fills(p Palette, rest, hover, pressed float32) Palette {
 	return p
 }
 
-// Paper is the light theme: warm neutral gray-white, with ink for anything
+// Light is the light theme: warm neutral gray-white, with ink for anything
 // selected, primary or on, and green only for what passed or is recording.
 // TextFaint is only for icons and placeholders; it carries no information.
-var Paper = fills(Palette{
+var Light = fills(Palette{
 	Chrome: ui.Hex("#edf3ea"), Canvas: ui.Hex("#f9fdf6"), Well: ui.Hex("#ebebeb"),
 	Hairline: ui.Hex("#ebefe8"),
 	Text:     ui.Hex("#0b0d0b"), TextMuted: ui.Hex("#595959"), TextFaint: ui.Hex("#8a8f88"),
@@ -57,13 +57,13 @@ var Paper = fills(Palette{
 	Shadow: ui.RGBA(11, 13, 11, 0.16),
 }, 0.07, 0.11, 0.15)
 
-// Ink is the dark theme: the same warm neutral structure on a black board,
+// Dark is the dark theme: the same warm neutral structure on a black board,
 // with the accent lightened to carry on it and green kept for pass and
 // recording only. Chrome is the window behind the panel and Canvas the panel
-// itself, so the content sits a step above the shell as it does in Paper.
-var Ink = fills(Palette{
-	// The shell is the darker of the two in Ink: the cards are raised, so
-	// they are the lighter surfaces, as they are in Paper.
+// itself, so the content sits a step above the shell as it does in Light.
+var Dark = fills(Palette{
+	// The shell is the darker of the two in Dark: the cards are raised, so
+	// they are the lighter surfaces, as they are in Light.
 	Chrome: ui.Hex("#070807"), Canvas: ui.Hex("#0c1516"), Well: ui.Hex("#192121"),
 	Hairline: ui.Hex("#1b2324"),
 	Text:     ui.Hex("#f6fff5"), TextMuted: ui.Hex("#9ca49c"), TextFaint: ui.Hex("#6d766e"),
@@ -83,9 +83,9 @@ var Ink = fills(Palette{
 // hairline on chrome) instead of sharing the window's color.
 func Theme(dark bool) *ui.Theme {
 	registerFonts()
-	p, t := Paper, ui.LightTheme()
+	p, t := Light, ui.LightTheme()
 	if dark {
-		p, t = Ink, ui.DarkTheme()
+		p, t = Dark, ui.DarkTheme()
 	}
 	// MyGo has one Surface: it paints the table heads, drag previews and
 	// panels it draws itself. The content panel is Canvas, so Surface is
@@ -108,9 +108,9 @@ func Theme(dark bool) *ui.Theme {
 // (SetTheme with a tweaked copy) keep their palette.
 func Colors(t *ui.Theme) *Palette {
 	if t.Dark {
-		return &Ink
+		return &Dark
 	}
-	return &Paper
+	return &Light
 }
 
 // MethodColor is the ink an HTTP method is printed in.

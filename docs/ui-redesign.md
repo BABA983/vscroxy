@@ -1,8 +1,8 @@
 # vscroxy UI 设计规范与改版计划
 
-状态：**方向 v3，2026-11-11 定稿；v3 的四个阶段（uikit 基础层、检查器的标签页和面板头、侧栏、标题栏与列表）、第五阶段（细节打磨）、第六阶段（强调色从绿色改成墨黑，Success 拆成独立信号色）、第七阶段（面板头的裁切、编辑器语法色、Ink 的 Socket）和第八到十二阶段（外壳一张卡片、底栏、动效 token、菜单面和工具提示、应用图标）全部完成；第十三阶段按 UI/UX 审计（宏观与微观）删解释性文字、合并入口、修选中和键盘。仍与设计稿不一致的地方列在第 13 节。** 本文是界面的视觉规范和改版进度；交互和文案见 [UX 规范](ux-guidelines.md)，功能范围见 [功能路线图](feature-roadmap.md)，代码基础设施见 [基础设施方向](architecture.md)。
+状态：**方向 v3，2026-11-11 定稿；v3 的四个阶段（uikit 基础层、检查器的标签页和面板头、侧栏、标题栏与列表）、第五阶段（细节打磨）、第六阶段（强调色从绿色改成墨黑，Success 拆成独立信号色）、第七阶段（面板头的裁切、编辑器语法色、Dark 的 Socket）和第八到十二阶段（外壳一张卡片、底栏、动效 token、菜单面和工具提示、应用图标）全部完成；第十三阶段按 UI/UX 审计（宏观与微观）删解释性文字、合并入口、修选中和键盘。仍与设计稿不一致的地方列在第 13 节。** 本文是界面的视觉规范和改版进度；交互和文案见 [UX 规范](ux-guidelines.md)，功能范围见 [功能路线图](feature-roadmap.md)，代码基础设施见 [基础设施方向](architecture.md)。
 
-v1 改版（靛蓝强调色、Capture／Requests 两个工作区，阶段 0–8）和 v2（暖纸色 Paper／Ink、油墨绿强调色）都已经完成并被 v3 取代：v3 保留 v2 的信息架构和密度，把暖纸色换成中性灰白，并把界面收成三种表面、一套控件规则。第六阶段再把强调色从绿色换成墨黑（Ink 下是白），中性色去掉绿调、带一点暖，绿色只剩 Success。它们的规范和各阶段实施记录见 git 历史里的本文件。
+v1 改版（靛蓝强调色、Capture／Requests 两个工作区，阶段 0–8）和 v2（暖纸色 Light／Dark、油墨绿强调色）都已经完成并被 v3 取代：v3 保留 v2 的信息架构和密度，把暖纸色换成中性灰白，并把界面收成三种表面、一套控件规则。第六阶段再把强调色从绿色换成墨黑（Dark 下是白），中性色去掉绿调、带一点暖，绿色只剩 Success。它们的规范和各阶段实施记录见 git 历史里的本文件。
 
 ## 1. 方向
 
@@ -40,11 +40,11 @@ v3 的设计稿是一份可切换的 artifact，含 Capture／Request editor／S
 | 编辑和发送已保存的请求 | https://ampcode.com/user-content/attachments/13614a07a5f933ecb3ac7289311016152f8ca48c12d6438f3389b9d25230a032-file.png | https://ampcode.com/user-content/attachments/689468df6df55143d9c8a0c83e34275032f682d0b13c49f73978490c6c9c57a1-file.png |
 | 首次启动引导 | https://ampcode.com/user-content/attachments/42ae2e5117ad05431780016bd82a1133a0febc0724eb49dd06333b2538365247-file.png | https://ampcode.com/user-content/attachments/d2fbbaa9ccc1ed92f220a83081300df3399ad0ad3f10f7f0cdab6be50eb102d1-file.png |
 | Settings 独立窗口 | https://ampcode.com/user-content/attachments/fd2d1cee395051fa3a32edf1d4fa38022e5ee3c45f14cd7bb3b44e1c5377f979-file.png | https://ampcode.com/user-content/attachments/d91616c93f71c3d587bd9ab6e1890a6a91d950ce20a8bbebd35a89c308399b0a-file.png |
-| 主工作区 · Paper／Ink 配色 | https://ampcode.com/user-content/attachments/4264e67bf143883b93aeb4f42f8c4a95410859a42a81bceda68f6293e9fd335d-file.png | https://ampcode.com/user-content/attachments/60501cbdcdd682610c79458646ac794c4b17389f1a5881d836585b8888110756-file.png |
+| 主工作区 · Light／Dark 配色 | https://ampcode.com/user-content/attachments/4264e67bf143883b93aeb4f42f8c4a95410859a42a81bceda68f6293e9fd335d-file.png | https://ampcode.com/user-content/attachments/60501cbdcdd682610c79458646ac794c4b17389f1a5881d836585b8888110756-file.png |
 
 uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 
-| 总览 | Ink（深色） | Paper（浅色） |
+| 总览 | Dark（深色） | Light（浅色） |
 | --- | --- | --- |
 | 控件 | https://ampcode.com/user-content/attachments/900406bfa1a1edc21aed8a1797a9b2b4ee67b47a31c6bf6571efade3b54b909e-file.png | https://ampcode.com/user-content/attachments/8d629c20f8e012b5227369f81b842995009326d280089a1a57d8bb80a4083fd6-file.png |
 | 结构和反馈 | https://ampcode.com/user-content/attachments/7994da9f07c86a3f3c3866e1d99c73af2a197a848381afbc90d05d89c3703c9e-file.png | https://ampcode.com/user-content/attachments/f007c7d55451f9a1c97f9f7d7bc0401172770a7b6cda3c841cf004ced536cc15-file.png |
@@ -54,19 +54,19 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 
 | 设计稿 | 链接 |
 | --- | --- |
-| 主工作区 · Paper | https://ampcode.com/user-content/attachments/1f7855404ee0e721a439d66473c9d87476cc8fab892dedeb6fd4e77de80d422e-file.png |
-| 主工作区 · Ink | https://ampcode.com/user-content/attachments/e21b22a0870927c6301a6794325b063d5c51fe16bba20dfa96de911a0c92272f-file.png |
+| 主工作区 · Light | https://ampcode.com/user-content/attachments/1f7855404ee0e721a439d66473c9d87476cc8fab892dedeb6fd4e77de80d422e-file.png |
+| 主工作区 · Dark | https://ampcode.com/user-content/attachments/e21b22a0870927c6301a6794325b063d5c51fe16bba20dfa96de911a0c92272f-file.png |
 | tab 三种方案（选 B） | https://ampcode.com/user-content/attachments/aaf96d6a6a15e2fbd9c5ef07aec1ff425162053eafd461bf79c41a4db454f2ea-file.png |
-| 组件总览 · Paper | https://ampcode.com/user-content/attachments/b61d8c6facc74d8de884ad0d85334bee3f1bdeb9fab6ce280d292b1e19a0c47a-file.png |
-| 组件总览 · Ink | https://ampcode.com/user-content/attachments/6d731fdff658c99fbc162178fce775f625d94dfa1a381c4f7c61127218a27511-file.png |
+| 组件总览 · Light | https://ampcode.com/user-content/attachments/b61d8c6facc74d8de884ad0d85334bee3f1bdeb9fab6ce280d292b1e19a0c47a-file.png |
+| 组件总览 · Dark | https://ampcode.com/user-content/attachments/6d731fdff658c99fbc162178fce775f625d94dfa1a381c4f7c61127218a27511-file.png |
 
-3.5 的两张组件总览早于 tab 方案 B 和 24 档高度：里面的 tab 和 28 高的控件以第 6 节为准；Ink 组件总览里对话框的 Delete 应该是危险色；Ink 主工作区响应区的 Body 多了下划线。
+3.5 的两张组件总览早于 tab 方案 B 和 24 档高度：里面的 tab 和 28 高的控件以第 6 节为准；Dark 组件总览里对话框的 Delete 应该是危险色；Dark 主工作区响应区的 Body 多了下划线。
 
 设计稿里和规范不一致、实现时以规范为准的地方：
 
-- Ink 主工作区里的耗时分段全是灰色；五段要可区分。
+- Dark 主工作区里的耗时分段全是灰色；五段要可区分。
 - 浅色"已保存请求"的录制 pill 被画成了 `Staging`，响应区多了一个重复的 Save to collection；浅色引导页的说明文字误用了等宽字体；表格里有 `/v1/prders` 之类的拼写错误。
-- Paper「结构和反馈」的面板头把标题和 tab 分成了两行；规范是一行。
+- Light「结构和反馈」的面板头把标题和 tab 分成了两行；规范是一行。
 - 空状态图标偏大；规范是 16px、不加框。
 - 「标志性组件」里的校验结果画成了带底色的卡片；规范是行内的一行结果加一行原因。
 - 按钮 hover／pressed 以第 5 节的颜色为准，焦点环一律画在控件外侧。
@@ -87,11 +87,11 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 
 ## 4. 视觉语言：三种表面，一个强调色
 
-v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）。表面负责结构；强调色是墨（Ink 下是白），负责"选中、主操作、已开启"；绿色只表示"通过"和"正在录制"。
+v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）。表面负责结构；强调色是墨（Dark 下是白），负责"选中、主操作、已开启"；绿色只表示"通过"和"正在录制"。
 
 - **三种表面：** **chrome** 框住窗口（侧栏、各种栏、表头），**canvas** 放数据（表格、编辑器、面板），**well** 是 canvas 上的输入框（比 canvas 深一档）。chrome 上的输入框反过来，是 canvas 底加 1px 细线。Hairline 只分隔同一表面的两个区域，不靠色块分区。
 - **外壳一整块，内容抬起来（第八阶段）：** 标题栏、侧栏、底栏是同一块 chrome，三者之间不画线。流量列表、过滤栏、活动行、检查器（以及请求编辑器页的全部内容）合成一张 canvas 面板：圆角 `RadiusPanel`（8）、1px hairline 加一层很浅的阴影，右边留 8 的 chrome，上下紧贴标题栏和底栏；侧栏收起时左边也留 8。面板内部的区域线（列表｜检查器、请求｜响应）保留，过滤栏在面板里、下沿一条 hairline。
-- **强调色是墨，绿色只表示通过和录制。** 主按钮、焦点、选中标记、开关和复选框的开启态、活动行选区的把手、表头拖动线用 `Accent`（Paper `#1a1a18`，Ink `#e9e8e4`）；检查通过、录制点、信任状态、向导里已完成的步骤用 `Success`（Paper `#26734a`，Ink `#7cc492`）。标签页、过滤器和命令面板的高亮一律中性底，一屏不再有好几块彩色。
+- **强调色是墨，绿色只表示通过和录制。** 主按钮、焦点、选中标记、开关和复选框的开启态、活动行选区的把手、表头拖动线用 `Accent`（Light `#1a1a18`，Dark `#e9e8e4`）；检查通过、录制点、信任状态、向导里已完成的步骤用 `Success`（Light `#26734a`，Dark `#7cc492`）。标签页、过滤器和命令面板的高亮一律中性底，一屏不再有好几块彩色。
 - **控件不描边。** 按钮、tab、chip 的面是文字色的 6%（静止）／10%（悬停）／14%（按下），叠在什么表面上都对，所以同一个按钮放在窗口、chrome 或选中行里都一样。只有输入框在 chrome 上有 1px 细线，浮层和对话框有细线边框加阴影。
 - **状态色和方法色不填充背景。** 2xx 和 304 是普通的次要文字，前面没有圆点；4xx（赭黄）和 5xx（朱红）只染状态文字本身，3xx 也按次要文字读。慢请求（≥ 1 秒）的耗时用朱红文字，没有底色块。method 是纯色文字，不做 chip（表格里是界面字体，侧栏和树里是等宽）。
 - **选中保留形状。** 列表失焦时，选中底从强调浅底换成中性面（6%），表格行同时把标记线换成 faint 色，位置和形状都不变。
@@ -104,25 +104,25 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **常驻的状态信息：** 列表上方一条 24 高的活动柱状图：摘要（`Last 5 min · 138 requests`）在左、柱在右、最右是结束时间（等宽）；最近 5 分钟，按状态码上色（正常中性面，3xx／4xx／5xx 和慢请求用信号色），可拖选时间范围。筛选是查询语法 chip（`status:>=400`、`host:`、`app:`、`slow`），带自动补全；每行带一根耗时条，慢请求是朱红。
 - **选中分两种形状，都是选中浅底（`AccentTint`）、正常文字颜色：**
   - 选位置或选东西的行（侧栏、集合树、各种挑选列表）是离边缘内缩的圆角块，不画标记线，和 macOS 的 source list 一样。侧栏的选中表示"现在在哪"，不是键盘光标，焦点在别处时仍是强调浅底。
-  - 表格和数据列表（流量表、消息、Protobuf、Runner 结果）的行占满宽度，左侧加 2px 强调色标记线。列表失焦时浅底变成中性面、标记线变成 faint 色，靠标记线和中性底区分开。选中浅底 `AccentTint` 比悬停面明显深一档（Paper `#d8d4cb`，Ink `#45443f`），所以一眼能看出选中的是哪一行，标记线则说明列表有没有焦点。
+  - 表格和数据列表（流量表、消息、Protobuf、Runner 结果）的行占满宽度，左侧加 2px 强调色标记线。列表失焦时浅底变成中性面、标记线变成 faint 色，靠标记线和中性底区分开。选中浅底 `AccentTint` 比悬停面明显深一档（Light `#d8d4cb`，Dark `#45443f`），所以一眼能看出选中的是哪一行，标记线则说明列表有没有焦点。
   - 菜单和命令面板的高亮只有浅底。
 - **形状靠近 macOS：** 圆角 4／6／10（第 6.3 节），嵌套的圆角同心（内层 = 外层 − 内边距），浮层是细边框加柔和的大阴影。不做胶囊按钮：控件高 24 时胶囊显得像玩具。
 - **macOS 上的原生感（3.5，保留）：** 参考了 onegit／onevra、kero、mygo-cloudmusic 三个 MyGo 应用、Telegram 和 Apple HIG，共同点是窗口外壳原生、控件用中性色叠加、少画线。
   - 只在 macOS 上：界面字体用系统字体（SF Pro）。侧栏仍挂着 `VibrancySidebar`，但外壳的每一块（标题栏、底栏、侧栏、内容）都画自己的实色，桌面不透出来：标题栏曾经因为没有自己的底色而让壁纸透上来，标题栏和其余外壳不是一个色（2026-11-13 修）。Windows、Linux 用内嵌的 Geist 和平涂。
   - 标题栏不画色带和底边框，红绿灯对齐标题栏中线（40 高，Y 13）。
-  - 强调色不跟随系统，是墨黑（Ink 下是白）。
+  - 强调色不跟随系统，是墨黑（Dark 下是白）。
 - **每个面板只有一排标签页：** 面板头 32 高，标题在左、标签页紧跟、元信息在右。请求面板是 Headers／Params／Body／Auth，响应面板是 Body／Headers／Cookies／Timing；Scripts、Checks、Examples、Docs、Settings、Raw、Original、Bulk edit 收进请求面板的 More，响应的 Raw／Checks／Console 收进它右侧的 `⋯`。选中的 tab 是中性面，不再有强调色文字。
 - **面板头按量出来的宽度取舍，不按猜的阈值：** 面板记下自己上一帧的宽度，标题和标签页的量好的宽度从中扣掉，剩下的才是元信息和控件的位置。放不下的按顺序进 `⋯`——先是耗时和大小，然后是面板自己的控件（编辑器里是格式菜单、动作按钮，Decode 最先让），标签页和状态永远不动。所以窄面板里不会出现半个词，只会少一个按钮。
 - **同一种东西只有一种样子：** tab、按钮、面板头、表格各一种写法，都来自 uikit。
 - **密而不挤：** 表格和编辑器保持桌面工具的密度，最小字号 11，正文 13，行高 24。
 
-## 5. 主题：Paper／Ink
+## 5. 主题：Light／Dark
 
-两套主题取 Amp 默认主题（Daydream）的原色：浅色 **Paper**（近白的绿调灰），深色 **Ink**（近黑）。强调色是墨，绿色只留给 Success。只用平涂色，不做渐变、纹理和做旧。外观跟随系统，也可以手动选浅色或深色。主题名保留 Paper／Ink。
+两套主题取 Amp 默认主题（Daydream）的原色：浅色 **Light**（近白的绿调灰），深色 **Dark**（近黑）。强调色是墨，绿色只留给 Success。只用平涂色，不做渐变、纹理和做旧。外观跟随系统，也可以手动选浅色或深色。主题名保留 Light／Dark。
 
 下表是 `internal/uikit/theme.go` 里的实际值：
 
-| Token | Paper | Ink | 说明 |
+| Token | Light | Dark | 说明 |
 | --- | --- | --- | --- |
 | `Chrome` | `#edf3ea` | `#070807` | 外壳：标题栏、侧栏、底栏，以及内容卡片四周 2px 的缝；标题栏和侧栏是一块底，左上角没有接缝 |
 | `Canvas` | `#f9fdf6` | `#0c1516` | 内容卡片，也是 MyGo 的 Background 和 Surface |
@@ -150,14 +150,14 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 **Success 与 Accent 是两回事。** 第六阶段之前 `Success` 直接等于 `Accent`，强调色一变黑，"通过"就没有颜色了。现在 `Success` 是独立的一支绿，只出现在"这件事通过了"和"正在录制"：检查通过、录制 pill 的点、`https` 的信任状态、向导和引导里已完成的步骤、toast 的成功图标。其余全部走 `Accent`（墨）或中性面。耗时分段和消息方向原先借 `Success` 当第四种色相，改成 `Socket` 的青色——它们是数据，不是结论。
 
-对比度由 `internal/uikit/theme_test.go` 检查（线性 sRGB 相对亮度，合成半透明底后计算）：正文、信号色（Info／Warning／Danger／Accent／Success）、method 色、主按钮文字在 canvas／chrome／well 三个表面上 ≥ 4.5:1，次要文字 ≥ 3:1，TextFaint 不参与；叠在表面上的 6%／10%／14% 面和选中浅底上，正文仍 ≥ 4.5:1，信号色和 method 色按 UI 组件的 3:1 计。第六阶段的实测最低值是 Paper 的 Info 在 well 上 4.52:1，信号色在按下态最低 3.39:1（Paper 的 Info 在 well 的 14% 面上）；`Success` 在三个表面上分别是 Paper 5.78／5.21／4.84、Ink 8.69／7.99／9.21，`AccentText` 在 `Success` 面上 5.78（Paper）／9.1（Ink）。Paper 的 warning 从设计稿的 `#a15c07` 深到 `#9c5906`，其余信号色与设计稿一致。第七阶段把 Ink 的 `Socket` 改成 `#6fc3d6`，它作为 method 色在三种表面上仍是 9.0:1 以上。
+对比度由 `internal/uikit/theme_test.go` 检查（线性 sRGB 相对亮度，合成半透明底后计算）：正文、信号色（Info／Warning／Danger／Accent／Success）、method 色、主按钮文字在 canvas／chrome／well 三个表面上 ≥ 4.5:1，次要文字 ≥ 3:1，TextFaint 不参与；叠在表面上的 6%／10%／14% 面和选中浅底上，正文仍 ≥ 4.5:1，信号色和 method 色按 UI 组件的 3:1 计。第六阶段的实测最低值是 Light 的 Info 在 well 上 4.52:1，信号色在按下态最低 3.39:1（Light 的 Info 在 well 的 14% 面上）；`Success` 在三个表面上分别是 Light 5.78／5.21／4.84、Dark 8.69／7.99／9.21，`AccentText` 在 `Success` 面上 5.78（Light）／9.1（Dark）。Light 的 warning 从设计稿的 `#a15c07` 深到 `#9c5906`，其余信号色与设计稿一致。第七阶段把 Dark 的 `Socket` 改成 `#6fc3d6`，它作为 method 色在三种表面上仍是 9.0:1 以上。
 
 ## 6. 设计系统：`internal/uikit`
 
 ### 6.1 规则
 
 - **独立的包，** 只依赖 MyGo（`ui`、`ui/editor`、`ui/chart`），不碰 app 状态和业务包。
-- **主题 = 语义 token 表。** `Palette` 是一张表，Paper、Ink 是内置的两张，`Theme(dark)` 由它生成 `ui.Theme`，`Colors(t)` 取回当前表。界面代码只引用语义 token，不能假设强调色是哪种颜色。字号、高度、圆角、间距由 uikit 导出，主题不能改。
+- **主题 = 语义 token 表。** `Palette` 是一张表，Light、Dark 是内置的两张，`Theme(dark)` 由它生成 `ui.Theme`，`Colors(t)` 取回当前表。界面代码只引用语义 token，不能假设强调色是哪种颜色。字号、高度、圆角、间距由 uikit 导出，主题不能改。
 - **界面只用 uikit。** `internal/app` 不直接调用 `ui.Button`、`ui.PrimaryButton`、`ui.ButtonBase`、`ui.TextInput`、`ui.Select`，不写 `ui.Hex`、数字字号和手写 hover／pressed。uikit 的组件建在 MyGo 的 Base 上，键盘、焦点和无障碍由 MyGo 负责；每个可交互组件都要传无障碍标签。
 - **组件按变体设计，** 调用方选角色和变体，不调样式。布局（Grow、Width、SingleLine、Tooltip）照常在返回值上链式设置。
 - **禁用放在外层：** uikit 按钮在构建时就决定 hover 外观，MyGo 的 `Hovered()` 也只看那一刻是否禁用。可能被禁用的按钮，用外层元素禁用（`ui.Row(c).Disabled(x).Children(...)`），不要在返回值上再调 `Disabled`。
@@ -199,7 +199,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | 24 | 区块之间 |
 
 - 表格行高 24。MyGo 的 `ui.Table` 最小行高是 `t.Space(8)`，所以流量表格在局部主题里设 `Spacing = 3`。
-- 分隔统一 1px `Hairline`，不靠色块分区。只有菜单、弹层、对话框有阴影：1px 边框画边缘，阴影只做柔和的浮起（弹层 `0 8 28`、对话框 `0 20 56`，颜色是 palette 的 `Shadow`：Paper `rgba(25,32,28,.16)`、Ink `rgba(0,0,0,.5)`）。
+- 分隔统一 1px `Hairline`，不靠色块分区。只有菜单、弹层、对话框有阴影：1px 边框画边缘，阴影只做柔和的浮起（弹层 `0 8 28`、对话框 `0 20 56`，颜色是 palette 的 `Shadow`：Light `rgba(25,32,28,.16)`、Dark `rgba(0,0,0,.5)`）。
 - 菜单的面由 uikit 接管：v0.9 的 `PopoverMenuButtonOptions.Panel` 让 `MenuSelect` 用和弹层同一张面（canvas、hairline、`RadiusPanel`、同样的阴影），并挂上 `popoverMotion`。菜单项本身仍是库画的（高亮是强调色实底，和 macOS 一致），圆角写死为 `t.Radius`。
 
 ### 6.4 文字角色（`text.go`）
@@ -292,9 +292,9 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
 
 ## 9. 实施顺序和进度
 
-每一步都能单独合并，附 Paper／Ink 前后截图；涉及交互的另外录屏。
+每一步都能单独合并，附 Light／Dark 前后截图；涉及交互的另外录屏。
 
-1. **uikit 和主题（完成）：** 建 `internal/uikit`（token、Paper／Ink、字体、共用组件、对比度检查、组件总览截图），删掉 `internal/app/style.go`。不改布局。
+1. **uikit 和主题（完成）：** 建 `internal/uikit`（token、Light／Dark、字体、共用组件、对比度检查、组件总览截图），删掉 `internal/app/style.go`。不改布局。
 2. **迁移现有界面到 uikit（完成）：**
    - 选中改成标记线（第 4 节），接入流量表、消息列表、Protobuf、Runner、各侧栏和 Settings 分类、集合树、环境树、Requests rail、Rules、WebSocket 会话和调查板。
    - `internal/app` 不再直接用 `ui.Button`、`ui.PrimaryButton`、`ui.ButtonBase`、`ui.TextInput`、`ui.Select`，也没有手写 hover／pressed。
@@ -310,7 +310,7 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
      - `workspace`／`captureSection`／`requestsSection` 合成一个 `page`（Live、Session、Request、API、Runs）。
      - 去掉文档 tab 栏，一次只显示一个请求：顶部是面包屑（集合 / 名字，点它改名或移动）、环境、Save、`⋯` 和 ×；新建的请求放在 COLLECTIONS 顶部的 Unsaved 里，改过没保存的已保存请求在集合里带圆点；没改过也没发过的已保存请求离开屏幕就关掉。Ctrl+Tab 仍在打开的请求之间切换。
      - muted 文字收进 uikit：新增 `CountedTabs`（带计数的 tab，请求编辑器和响应 tab 共用）、`MoreMenu`（`⋯` 菜单按钮）、`Glyph`（标记用的小图标）；说明文字改用 Hint／Meta，流量表的次要列用 Hint，调查板的 Request／Response 切换改用 `uikit.Segmented`。剩下 4 处是控件自己的状态色（格式下拉、遮住的密钥、协议分段），保留。
-     - 截图矩阵：LIVE 的状态（`capture-*`）同时渲染左右和上下两种布局（上下的文件名带 `-stacked`），× Paper／Ink；单独的 `capture-stacked` 去掉。
+     - 截图矩阵：LIVE 的状态（`capture-*`）同时渲染左右和上下两种布局（上下的文件名带 `-stacked`），× Light／Dark；单独的 `capture-stacked` 去掉。
    - 3.5 macOS 质感：
      - 3.5a uikit（完成）：高度 20／24／28，tab 行和面板头 28，表格行 24；macOS 上界面用系统字体；`Tabs` 改成强调浅底圆角块，新增 `SubTabs`，检查器的 Request／Response 面板和调查板的预览用它；`Segmented` 改成无边框凹槽加浮起滑块；`SecondaryButton`、`DangerButton`、`CompactButton`、`Select` 去掉边框、用中性面；`Input` 中性填充加聚焦光晕；`RowButton` 和流量表的行去掉 hover（流量表的客户端图标随行高改成 14）；侧栏分组标题不再全大写。
      - 3.5b 窗口和界面（完成）：
@@ -438,7 +438,7 @@ CGO_ENABLED=0 go test ./... -count=1
 截图（输出目录必须不存在或为空）：
 
 ```bash
-# 组件总览：Paper／Ink 各一张总览，加按钮的 hover／pressed
+# 组件总览：Light／Dark 各一张总览，加按钮的 hover／pressed
 VSCROXY_UIKIT_SNAPSHOTS="$PWD/.amp/in/artifacts/uikit" \
   go test ./internal/uikit -run '^TestOverviewSnapshots$' -count=1
 
@@ -455,13 +455,13 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 ## 12. 决策记录
 
 1. Windows、Linux 内嵌 Geist 和 Geist Mono；macOS 用系统的 SF Pro 和 SF Mono；中文用系统字体（3.5，原来三个平台都内嵌 Inter 和 JetBrains Mono）。
-2. 强调色是墨：Paper `#1a1a18`、Ink `#e9e8e4`（v1 的靛蓝、v3 前五阶段的油墨绿都已取代）。
+2. 强调色是墨：Light `#1a1a18`、Dark `#e9e8e4`（v1 的靛蓝、v3 前五阶段的油墨绿都已取代）。
 3. 外观默认跟随系统，可选浅色或深色（3.5b）。
 4. 行高 24，控件 24，URL 栏和 Send 28（3.5；原来是 28／28／32）。
 5. 一个工作区（取代 Capture／Requests 两个工作区）；不做全局图标栏；规则、Host 方案、脚本、Mock 集中到 Tools 窗口。
 6. 网络相关的设置对话框并进 Settings。
 7. 组件放在独立的 `internal/uikit`，只依赖 MyGo；界面只用 uikit 的组件和 token。
-8. 默认主题是 Paper／Ink，平涂、不做纸纹。
+8. 默认主题是 Light／Dark，平涂、不做纸纹。
 9. 正常的不上色：2xx 用次要文字，只有 3xx／4xx／5xx 上色；method 用纯色等宽文字，不做 chip。
 10. 选中是浅底，不用实心整行；侧栏和挑选列表是内缩圆角块，表格和数据列表加标记线；侧栏只有一个选中项。
 11. 详情区有左右和上下两种布局，标题栏切换，各自记住比例。
@@ -483,7 +483,7 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 27. 控件不描边，面是文字色的 7%／11%／15%（两个主题一样，Amp 配色时定下）；选中失焦时保留形状、换成中性面（2026-11-11）。
 28. 尺寸只有三档栏高（40／32／24）、两档控件（24，URL 和 Send 28）、四档字号（15／13／12 等宽／11）、两个字重（400／500）、三档圆角（4／6／10）。`HeightCompact`、`RadiusDialog`、`TextHeadline` 删掉（2026-11-11）。
 29. 等宽只用于线上数据：路径、header 值、URL、数字、body；host、client 和标签用界面字体（2026-11-11）。
-30. Paper 的 warning 从设计稿的 `#a15c07` 深到 `#9c5906`：前者在 well 上只有 4.44:1，其余信号色和设计稿一致；设计稿的信号色在按下态是 3.6–4.5:1，测试对叠在表面上的面按 UI 组件的 3:1 计（2026-11-11）。
+30. Light 的 warning 从设计稿的 `#a15c07` 深到 `#9c5906`：前者在 well 上只有 4.44:1，其余信号色和设计稿一致；设计稿的信号色在按下态是 3.6–4.5:1，测试对叠在表面上的面按 UI 组件的 3:1 计（2026-11-11）。
 31. 每个面板只有一排标签页，面板头 32 高：标题、标签页、右侧元信息。请求的 Headers／Params／Body／Auth 是 tab，其余视图进 More；响应的 Body／Headers／Cookies／Timing 是 tab，Raw／Checks／Console 进 `⋯`。从 More 选中的视图作为最后一个 chip 回到同一行，不再开第二排（2026-11-11）。
 32. 去掉 Original tab：抓到的请求直接是它的文档，改过之后 More 里才有 Original（原始报文）。请求侧原来的结构化／Protobuf／表单读取回到 Body 视图的读取开关（Read as），读草稿的字节；每侧独立的 body 格式只属于只读抓包的读取器（2026-11-11）。
 33. 响应面板的标题就是状态，正文色、500，只有错误状态上色，前面 6px 状态点；耗时和大小是右侧 11px 元信息。18px／48 高的响应结论行删掉（2026-11-11）。
@@ -504,21 +504,21 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 48. 侧栏的 Traffic／Sources／Collections 可以折叠，状态存进 settings；侧栏可以隐藏（标题栏按钮、`⌘B`、命令面板），窗口窄于 860 时自动让开、变宽后回到原来的选择（7.5，2026-11-11）。
 49. 空流量表的主要操作是启动代理和 Client setup；Diagnostics 留在侧栏页脚（7.5，2026-11-11）。
 50. `DurationHover`（120ms）是全 kit 唯一的过渡时长；MyGo 的控件面按构建状态画，悬停和按下立即变色，没有逐属性的过渡（7.5，2026-11-11）。
-51. 强调色改成墨：Paper `#1a1a18`、Ink `#e9e8e4`，悬停 `#33332f`／`#ffffff`，按下 `#474743`／`#cfcdc8`；中性色去掉绿调、带一点暖（Chrome `#f4f3f0`／`#1f1f1d`，Canvas `#ffffff`／`#171716`，Well `#ecebe7`／`#101010`，Hairline `#e3e1dc`／`#2e2e2b`）。应用图标是黑猫，强调色跟着走（第六阶段，2026-11-12）。
-52. `Success` 从强调色里拆出来，是独立的绿（Paper `#26734a`、Ink `#7cc492`）：绿色只表示"通过"和"正在录制"。原来借 `Success` 当色相的耗时分段（Download／Receive）和消息方向改用 `Socket` 的青色；"Applied actions"这类说明文字改成次要色。测试把 `Success` 按信号色断言，并加了一条"Success 不等于 Accent"的回归（第六阶段，2026-11-12）。
-53. 选中浅底 `AccentTint` 比设计稿给的值再深一档（Paper `#d8d4cb`、Ink `#45443f`）：强调色变墨以后，`#e0ded8`／`#3b3a37` 和悬停面只差 1.10／1.16 倍亮度，一眼分不出"选中"和"悬停"。聚焦时是浅底加 2px 墨色标记线，失焦时是中性 `Fill` 加 faint 标记线，两种状态都保留形状（第六阶段，2026-11-12）。
-54. 文字选区的透明度从 30% 降到 24%：墨色 30% 在浅色下是一整块很重的灰。24% 时选中文字在 Paper 上 11.8:1、Ink 上 7.0:1，都还清楚（第六阶段，2026-11-12）。
+51. 强调色改成墨：Light `#1a1a18`、Dark `#e9e8e4`，悬停 `#33332f`／`#ffffff`，按下 `#474743`／`#cfcdc8`；中性色去掉绿调、带一点暖（Chrome `#f4f3f0`／`#1f1f1d`，Canvas `#ffffff`／`#171716`，Well `#ecebe7`／`#101010`，Hairline `#e3e1dc`／`#2e2e2b`）。应用图标是黑猫，强调色跟着走（第六阶段，2026-11-12）。
+52. `Success` 从强调色里拆出来，是独立的绿（Light `#26734a`、Dark `#7cc492`）：绿色只表示"通过"和"正在录制"。原来借 `Success` 当色相的耗时分段（Download／Receive）和消息方向改用 `Socket` 的青色；"Applied actions"这类说明文字改成次要色。测试把 `Success` 按信号色断言，并加了一条"Success 不等于 Accent"的回归（第六阶段，2026-11-12）。
+53. 选中浅底 `AccentTint` 比设计稿给的值再深一档（Light `#d8d4cb`、Dark `#45443f`）：强调色变墨以后，`#e0ded8`／`#3b3a37` 和悬停面只差 1.10／1.16 倍亮度，一眼分不出"选中"和"悬停"。聚焦时是浅底加 2px 墨色标记线，失焦时是中性 `Fill` 加 faint 标记线，两种状态都保留形状（第六阶段，2026-11-12）。
+54. 文字选区的透明度从 30% 降到 24%：墨色 30% 在浅色下是一整块很重的灰。24% 时选中文字在 Light 上 11.8:1、Dark 上 7.0:1，都还清楚（第六阶段，2026-11-12）。
 55. 面板头的取舍按实测宽度而不是固定阈值：面板用 `ui.Handle` 记住上一帧的宽，标题、标签页、`⋯` 的量好的宽度扣掉，剩下的分给耗时／大小和面板自己的控件；标签页和状态不参与取舍。原来是「面板窄于 430 就把耗时藏起来」的阈值，遇到编辑器那种还带 Pretty、Decode 和动作按钮的面板就不准了，1280 宽下 Cookies 和 Timing 会被切掉（第七阶段，2026-11-12）。
-56. 编辑器里的语法着色不再用绿色或青色：键名用 `Text`，字符串用 `MethodPatch` 的梅紫，数字和布尔值用 `Info` 蓝；库默认主题画成绿色的正则、标签、插入文本也换成这三种（正则随字符串、标签和插入文本用 `Info`）。Ink 的 `Socket` 从 `#7cc4c0` 挪到 `#6fc3d6`，12 号字下和 `Success` 的绿分得开（第七阶段，2026-11-12）。
+56. 编辑器里的语法着色不再用绿色或青色：键名用 `Text`，字符串用 `MethodPatch` 的梅紫，数字和布尔值用 `Info` 蓝；库默认主题画成绿色的正则、标签、插入文本也换成这三种（正则随字符串、标签和插入文本用 `Info`）。Dark 的 `Socket` 从 `#7cc4c0` 挪到 `#6fc3d6`，12 号字下和 `Success` 的绿分得开（第七阶段，2026-11-12）。
 57. 请求头的 Key／Value 两列都给最小宽度（108／120）：常见 header 名和 `application/json` 这样的值读得完整，超过 20 个字符的值在悬停时给全文。列表在窄于 860 时先去掉 Remote IP 列、窄于 740 时再去掉 Client 列，耗时列不再被列表的边切掉（第七阶段，2026-11-12）。
 58. 过滤栏的搜索框放不下整句占位文字时只显示「Search host or path」，不再截半句（第七阶段，2026-11-12）。
-61. 试验：卡片外壳 + Amp 原色（2026-11-13）。外壳一种底色，侧栏和内容各是一张卡片，卡片之间和四周只隔 2px；卡片不描边、不加阴影，圆角 8，只圆朝外的角。**后改为只有内容是卡片**：侧栏直接画外壳色，和标题栏、底栏连成一块底，左上角没有分界（`Palette.Sidebar` 已删）；内容卡片仍只圆朝外的角，侧栏收起时四角都圆。配色取 Amp 默认主题（Daydream）的变量，半透明色按叠在卡片上的效果换成实色：外壳 `#edf3ea`／`#070807`、侧栏卡片 `#f3f8f0`／`#0c1313`、内容卡片 `#f9fdf6`／`#0c1516`、`Well` `#ebebeb`／`#192121`、`Hairline` `#ebefe8`／`#1b2324`、`Text` `#0b0d0b`／`#f6fff5`、`TextMuted` `#595959`／`#9ca49c`、`Accent` `#141614`／`#eaf3e9`、`AccentTint` `#d6dcd6`／`#2f372f`、`Success` `#2c784d`／`#54b879`、`Warning` `#86600f`／`#d6a038`、`Danger` `#b9423c`／`#d67670`。对比度契约不变；Amp 的 Paper Danger `#c44f4a` 和 Success `#2f8052` 在 canvas、外壳和 well 上都不到 4.5，按原色相和饱和度压明度到刚好过线（`#b9423c`、`#2c784d`），Ink 保持原值。`TextFaint`、`AccentHover`／`AccentPressed`、`AccentText`、`Fill` 的百分比按同一套明度关系推出来。
+61. 试验：卡片外壳 + Amp 原色（2026-11-13）。外壳一种底色，侧栏和内容各是一张卡片，卡片之间和四周只隔 2px；卡片不描边、不加阴影，圆角 8，只圆朝外的角。**后改为只有内容是卡片**：侧栏直接画外壳色，和标题栏、底栏连成一块底，左上角没有分界（`Palette.Sidebar` 已删）；内容卡片仍只圆朝外的角，侧栏收起时四角都圆。配色取 Amp 默认主题（Daydream）的变量，半透明色按叠在卡片上的效果换成实色：外壳 `#edf3ea`／`#070807`、侧栏卡片 `#f3f8f0`／`#0c1313`、内容卡片 `#f9fdf6`／`#0c1516`、`Well` `#ebebeb`／`#192121`、`Hairline` `#ebefe8`／`#1b2324`、`Text` `#0b0d0b`／`#f6fff5`、`TextMuted` `#595959`／`#9ca49c`、`Accent` `#141614`／`#eaf3e9`、`AccentTint` `#d6dcd6`／`#2f372f`、`Success` `#2c784d`／`#54b879`、`Warning` `#86600f`／`#d6a038`、`Danger` `#b9423c`／`#d67670`。对比度契约不变；Amp 的 Light Danger `#c44f4a` 和 Success `#2f8052` 在 canvas、外壳和 well 上都不到 4.5，按原色相和饱和度压明度到刚好过线（`#b9423c`、`#2c784d`），Dark 保持原值。`TextFaint`、`AccentHover`／`AccentPressed`、`AccentText`、`Fill` 的百分比按同一套明度关系推出来。
 59. 外壳只有一块底色：标题栏、侧栏、底栏都是 `Chrome`，之间不画线；内容是一张抬起的 `Canvas` 面板（`RadiusPanel`、1px `Hairline`、`Shadow(0,1,3)`），右边 8，侧栏收起时左边也 8（第八阶段，2026-11-12）。
-60. Ink 的 `Chrome` 和 `Canvas` 对调：外壳 `#171716`、面板 `#1f1f1d`，`Well` 仍是 `#101010`。对调前面板比外壳暗，看起来是凹下去的；Paper 不动。对调后对比度断言全过，最低仍是 Paper 的 Info 在 well 上 4.52:1（第八阶段，2026-11-12）。
+60. Dark 的 `Chrome` 和 `Canvas` 对调：外壳 `#171716`、面板 `#1f1f1d`，`Well` 仍是 `#101010`。对调前面板比外壳暗，看起来是凹下去的；Light 不动。对调后对比度断言全过，最低仍是 Light 的 Info 在 well 上 4.52:1（第八阶段，2026-11-12）。
 61. 标题栏：左边是开始／暂停录制的按钮和品牌，中间是监听 pill（`Success` 圆点 + `Listening on` + 等宽的地址，未运行时是停止状态、没有绿点），右边是 `⌘K`、侧栏开关、布局切换、Tools、Settings、`⋯`。Host 方案和已启用的工具 chip 从标题栏移到底栏；pill 不再画请求速率曲线（第八阶段，2026-11-12）。
 62. 底栏 28 高（`HeightFooter`），取代 24 的状态栏：左边 Clear／Filter／Auto-follow（Auto-follow 跟随最新时是选中态，有新请求时按钮上写「N new」），中间计数（有选中时是「1 of 6 selected」），右边是已启用的工具和 Host 方案的 chip。chip 按量出来的宽度排，放不下的折成 `+N`，点开是同一批 chip 的列表，不横向滚动、不用渐隐。toast 抬高一个底栏的高度，不盖住它（第八阶段，2026-11-12）。
 63. MyGo 只有一个 `Surface`：它画表格头、拖影和 source list。第八阶段起 `Surface` 跟面板走（canvas），外壳的 chrome 由应用自己画；侧栏里临时把 `Surface` 换成 chrome，免得 source list 在框上挖出一块 canvas（第八阶段，2026-11-12）。
-64. 输入框聚焦时那 1px 边从 `Accent` 换成 `TextMuted`：强调色变墨以后，黑边和旁边的 Send 主按钮抢视线。3px 的 `AccentTint` 光晕保留，聚焦和未聚焦仍然一眼分得开；`TextMuted` 在 well／canvas／chrome 上分别是 5.51／6.58／5.93（Paper），都过 3:1。按钮和列表行的键盘焦点框不动（第八阶段，2026-11-12）。
+64. 输入框聚焦时那 1px 边从 `Accent` 换成 `TextMuted`：强调色变墨以后，黑边和旁边的 Send 主按钮抢视线。3px 的 `AccentTint` 光晕保留，聚焦和未聚焦仍然一眼分得开；`TextMuted` 在 well／canvas／chrome 上分别是 5.51／6.58／5.93（Light），都过 3:1。按钮和列表行的键盘焦点框不动（第八阶段，2026-11-12）。
 65. 编辑器里标点（`TokenOperator`）从库默认的红改成 `TextMuted`：黑白界面里红标点像报错，红色只留给真正的错误（第八阶段，2026-11-12）。
 66. 动效的时长进 uikit，成了四个 token（`DurationFast` 80／`DurationHover` 120／`DurationStandard` 160／`DurationSlow` 200）加一个无回弹弹簧（`MotionSpring`，200ms）：界面代码只写 token。MyGo v0.8.1 有 `AnimateColor`、`AnimateTo`／`Spring`、`AnimatePose`、`Transition` 和 `ContentTransition`，第五阶段"没有逐属性过渡"的结论作废（第九阶段，2026-11-12）。
 67. 悬停和按下的面用 120ms 的颜色过渡，但只在**离开**时：进入即时，指针扫过一排按钮时面不会落后于指针。过渡每一帧都挂着，悬停帧的时长是 `-1`（没有时间）：MyGo 只在上一帧也有过渡时才混色，按"只在没悬停的帧加过渡"写，离开的那一帧就成了新元素，颜色直接跳回。`ToolbarButton`、`FooterButton`、tab、分段控件和底栏按钮都走这条（第九阶段，2026-11-12；离开的淡出在第十阶段修正）。
