@@ -3,6 +3,7 @@ package mockserver
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/request"
@@ -66,5 +67,51 @@ func TestMockDefaultsStatusAndMethod(t *testing.T) {
 	s.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ping", nil))
 	if rec.Code != http.StatusOK || rec.Body.String() != "pong" {
 		t.Fatalf("GET /ping = %d %q, want 200 pong", rec.Code, rec.Body.String())
+	}
+}
+
+// Within a route, X-Mock-Response-Name wins over X-Mock-Response-Code, the code
+// picks the first example with that status, and x-mock-match-request-body
+// answers only from examples whose request body equals the request's body.
+func TestMockChoosesByCodeAndRequestBody(t *testing.T) {
+	examples := []request.Example{
+		{Name: "Apple", Status: 201, Body: "created-apple",
+			Request: request.ExampleRequest{Method: "POST", URL: "{{base}}/orders", Body: `{"item":"apple"}`}},
+		{Name: "Missing", Status: 404, Body: "missing-pear",
+			Request: request.ExampleRequest{Method: "POST", URL: "{{base}}/orders", Body: `{"item":"{{fruit}}"}`}},
+		{Name: "Kiwi", Status: 201, Body: "created-kiwi",
+			Request: request.ExampleRequest{Method: "POST", URL: "{{base}}/orders", Body: `{"item":"kiwi"}`}},
+	}
+	s := New(examples, map[string]string{"base": "https://api.test", "fruit": "pear"})
+
+	cases := []struct {
+		name   string
+		header map[string]string
+		body   string
+		status int
+		answer string
+	}{
+		{name: "code 404 picks the example with that status", header: map[string]string{CodeHeader: "404"}, status: 404, answer: "missing-pear"},
+		{name: "code 201 picks the first with that status", header: map[string]string{CodeHeader: "201"}, status: 201, answer: "created-apple"},
+		{name: "name beats code", header: map[string]string{SelectHeader: "Missing", CodeHeader: "201"}, status: 404, answer: "missing-pear"},
+		{name: "a code no example has falls back to the first", header: map[string]string{CodeHeader: "500"}, status: 201, answer: "created-apple"},
+		{name: "a match flag other than true is ignored", header: map[string]string{MatchBodyHeader: "false"}, body: `{"item":"kiwi"}`, status: 201, answer: "created-apple"},
+		{name: "body match picks the example with that body", header: map[string]string{MatchBodyHeader: "true"}, body: `{"item":"kiwi"}`, status: 201, answer: "created-kiwi"},
+		{name: "body match expands variables in the example body", header: map[string]string{MatchBodyHeader: "true"}, body: `{"item":"pear"}`, status: 404, answer: "missing-pear"},
+		{name: "body match and code together", header: map[string]string{MatchBodyHeader: "true", CodeHeader: "201"}, body: `{"item":"kiwi"}`, status: 201, answer: "created-kiwi"},
+		{name: "no body matches is a 404", header: map[string]string{MatchBodyHeader: "true"}, body: `{"item":"fig"}`, status: 404, answer: "no example has this request body"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/orders", strings.NewReader(c.body))
+			for k, v := range c.header {
+				req.Header.Set(k, v)
+			}
+			rec := httptest.NewRecorder()
+			s.ServeHTTP(rec, req)
+			if rec.Code != c.status || !strings.Contains(rec.Body.String(), c.answer) {
+				t.Fatalf("got %d %q, want %d containing %q", rec.Code, rec.Body.String(), c.status, c.answer)
+			}
+		})
 	}
 }

@@ -10,18 +10,30 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/request"
 )
 
-// SelectHeader names the example a request wants when it is not the route's
-// first one, as the proxy's Map Local mocks read it.
-const SelectHeader = "X-Mock-Response-Name"
+// Headers that pick an example of a route, as Postman's mock servers read them.
+const (
+	// SelectHeader names the example to answer with.
+	SelectHeader = "X-Mock-Response-Name"
+	// CodeHeader picks the first example with this status code.
+	CodeHeader = "X-Mock-Response-Code"
+	// MatchBodyHeader, set to true, answers only from examples whose request
+	// body equals the request's body.
+	MatchBodyHeader = "x-mock-match-request-body"
+)
+
+// maxMatchBody bounds how much of a request body is read to match examples.
+const maxMatchBody = 1 << 20
 
 // Server answers from examples. Examples are grouped by method and path, in
-// the order given, and the first example of a route answers unless the request
-// names another with SelectHeader.
+// the order given. Within a route the example is chosen by its name, then by
+// its status code, then the first one; MatchBodyHeader limits the choice to
+// the examples whose request body matches first.
 type Server struct {
 	vars   map[string]string
 	routes []route
@@ -34,9 +46,9 @@ type route struct {
 }
 
 // New serves each example at the method and URL it was saved from, with
-// {{variables}} in the URL and body filled from vars. A path segment written
-// :name or {{name}} matches any one segment; the query is ignored. An example
-// with no method is a GET.
+// {{variables}} in the URL, the request body and the response filled from
+// vars. A path segment written :name or {{name}} matches any one segment; the
+// query is ignored. An example with no method is a GET.
 func New(examples []request.Example, vars map[string]string) *Server {
 	s := &Server{vars: vars}
 	index := map[string]int{}
@@ -68,12 +80,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) answer(w http.ResponseWriter, r *http.Request, examples []request.Example) {
-	e := examples[0]
-	if want := r.Header.Get(SelectHeader); want != "" {
-		if i := slices.IndexFunc(examples, func(x request.Example) bool { return x.Name == want }); i >= 0 {
-			e = examples[i]
+	candidates := examples
+	if strings.EqualFold(r.Header.Get(MatchBodyHeader), "true") {
+		body, _ := io.ReadAll(io.LimitReader(r.Body, maxMatchBody))
+		candidates = slices.DeleteFunc(slices.Clone(examples), func(e request.Example) bool {
+			return strings.TrimSpace(request.ExpandVars(e.Request.Body, s.vars)) != strings.TrimSpace(string(body))
+		})
+		if len(candidates) == 0 {
+			http.Error(w, "no example has this request body", http.StatusNotFound)
+			return
 		}
 	}
+	e := pick(r, candidates)
 	for name, values := range request.ParseHeaderBlock(e.Headers) {
 		for _, v := range values {
 			w.Header().Add(name, request.ExpandVars(v, s.vars))
@@ -81,6 +99,21 @@ func (s *Server) answer(w http.ResponseWriter, r *http.Request, examples []reque
 	}
 	w.WriteHeader(cmp.Or(e.Status, http.StatusOK))
 	io.WriteString(w, request.ExpandVars(e.Body, s.vars))
+}
+
+// pick is the example a request asks for among candidates, which are not empty.
+func pick(r *http.Request, candidates []request.Example) request.Example {
+	if want := r.Header.Get(SelectHeader); want != "" {
+		if i := slices.IndexFunc(candidates, func(x request.Example) bool { return x.Name == want }); i >= 0 {
+			return candidates[i]
+		}
+	}
+	if code, err := strconv.Atoi(r.Header.Get(CodeHeader)); err == nil {
+		if i := slices.IndexFunc(candidates, func(x request.Example) bool { return x.Status == code }); i >= 0 {
+			return candidates[i]
+		}
+	}
+	return candidates[0]
 }
 
 // routePath is the path of an example's URL with its variables filled in. The
