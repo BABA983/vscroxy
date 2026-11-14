@@ -142,14 +142,20 @@ func CompactButton(c *ui.Context, label string) ui.Element {
 		Padding(0, Scaled(ControlPaddingXSmall)).FontSize(Scaled(TextMeta)).Radius(RadiusControl)
 }
 
-// LinkButton is an inline action, such as "+ Add property": text at the
-// small control height with no face until the pointer arrives.
-func LinkButton(c *ui.Context, label string) ui.Element {
+// LinkButton is an inline action, such as "Add property": text at the small
+// control height with no face until the pointer arrives. An optional icon
+// leads the label, so an add action uses the same plus as a table's add row.
+func LinkButton(c *ui.Context, label string, icon ...*ui.SVG) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	b := Tip(c, ui.ButtonBase(c).Label(label), label).Height(ControlHeightSmall).
-		Padding(0, Scaled(ControlPaddingXSmall)).Radius(RadiusInner).AlignItems(ui.Center).
+		Padding(0, Scaled(ControlPaddingXSmall)).Gap(t.Space(1)).Radius(RadiusInner).AlignItems(ui.Center).
 		FontSize(Scaled(TextMeta)).TextColor(t.TextMuted)
-	b.Children(func() { ui.Text(c, label).FontSize(Scaled(TextMeta)) })
+	b.Children(func() {
+		if len(icon) > 0 && icon[0] != nil {
+			ui.Icon(c, icon[0]).Size(IconInline, IconInline)
+		}
+		ui.Text(c, label).FontSize(Scaled(TextMeta))
+	})
 	if b.Hovered() {
 		b.Background(p.FillHover).TextColor(t.Text)
 	}

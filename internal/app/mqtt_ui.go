@@ -655,7 +655,7 @@ func mqttPropertyEditor(c *ui.Context, t *ui.Theme, props *[]request.MQTTPropert
 	}
 	if len(*props) < 64 {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			if uikit.LinkButton(c, "+ "+locales.AddProperty()).Clicked() {
+			if uikit.LinkButton(c, locales.AddProperty(), plusIcon).Clicked() {
 				*props = append(*props, request.MQTTProperty{})
 			}
 		})

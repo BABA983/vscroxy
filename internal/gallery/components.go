@@ -102,6 +102,11 @@ func link(c *ui.Context, label string) ui.Element {
 	return uikit.LinkButton(c, label)
 }
 
+// addLink is the LinkButton with the same plus a table's add row uses.
+func addLink(c *ui.Context, label string) ui.Element {
+	return uikit.LinkButton(c, label, lucide.Plus())
+}
+
 // labelled names a sample for the export's pointer and keyboard.
 func labelled(e ui.Element, label string) ui.Element { return e.Label(label) }
 
@@ -146,7 +151,7 @@ func (k *components) buttonPlate(c *ui.Context) {
 		uikit.SecondaryButton(c, "Copy as cURL")
 		uikit.DangerButton(c, "Delete")
 		uikit.CompactButton(c, "Copy")
-		link(c, "+ Add property")
+		addLink(c, "Add property")
 	})
 	// The plate draws the pointer faces itself, so they are visible before the
 	// pointer arrives; the export still puts the pointer on Hover.
@@ -154,7 +159,7 @@ func (k *components) buttonPlate(c *ui.Context) {
 	stateRow(c, "Pressed", func() { uikit.PrimaryButtonState(c, "Send", uikit.ButtonPressed) })
 	stateRow(c, "Focus", func() { labelled(uikit.PrimaryButton(c, "Send"), focusButtons) })
 	stateRow(c, "Link", func() {
-		link(c, "+ Add property")
+		addLink(c, "Add property")
 		link(c, "Reset to the saved value")
 	})
 	stateRow(c, "Disabled", func() {
@@ -162,7 +167,7 @@ func (k *components) buttonPlate(c *ui.Context) {
 		uikit.SecondaryButton(c, "Copy as cURL").Disabled(true)
 		uikit.DangerButton(c, "Delete").Disabled(true)
 		uikit.CompactButton(c, "Copy").Disabled(true)
-		link(c, "+ Add property").Disabled(true)
+		addLink(c, "Add property").Disabled(true)
 	})
 	caption(c, "Two heights: 28 for forms, toolbars and the one primary action, 22 for inline actions, chips and the footer. A link is text at 22 with no face until the pointer arrives. Hover and pressed show under the pointer; focus needs the keyboard (Tab). No loading state: the kit has none, so a screen disables the button and shows progress beside it.")
 }
