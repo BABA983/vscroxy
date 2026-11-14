@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/capture"
@@ -24,7 +25,7 @@ func (a *app) importCaptureSession() {
 			Title: locales.ImportCaptureSession2(),
 			Filters: []mygo.FileFilter{{
 				Name:       "Charles or Proxyman capture",
-				Extensions: []string{"chlsj", "chlsx", "chls", "proxymanlogv2", "proxymanlog"},
+				Extensions: []string{"chlsj", "chlsx", "chlz", "chls", "proxymanlogv2", "proxymanlog"},
 			}},
 		})
 		if err != nil || len(paths) == 0 {
@@ -48,6 +49,75 @@ func (a *app) importCaptureFolder() {
 		}
 		a.importCaptureDir(paths[0])
 	}()
+}
+
+// importCharlesSettings reads a Charles settings export (Tools → Import/Export
+// Settings) and maps its rules, SSL proxying and No Caching onto this app.
+func (a *app) importCharlesSettings() {
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+			Title: locales.ImportCharlesSettings2(),
+			Filters: []mygo.FileFilter{{
+				Name:       "Charles settings export",
+				Extensions: []string{"xml"},
+			}},
+		})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		a.importCharlesSettingsFile(paths[0])
+	}()
+}
+
+func (a *app) importCharlesSettingsFile(path string) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		a.fail(locales.ImportCharlesSettings2(), err)
+		return
+	}
+	if !info.Mode().IsRegular() {
+		a.warn(locales.ImportChooseARealFile())
+		return
+	}
+	if info.Size() > imports.MaxCaptureFileSize {
+		a.fail(locales.ImportCharlesSettings2(), fmt.Errorf("%s: the file is larger than %d MiB", filepath.Base(path), imports.MaxCaptureFileSize>>20))
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		a.fail(locales.ImportCharlesSettings2(), err)
+		return
+	}
+	result, err := imports.ReadCharlesSettings(data, filepath.Base(path))
+	if err != nil {
+		a.fail(locales.ImportCharlesSettings2(), err)
+		return
+	}
+	a.win.Update(func() { a.applyCharlesSettings(result, path) })
+}
+
+// applyCharlesSettings adds the mapped rules, turns on the SSL proxying hosts
+// and No Caching, then reports what was left out. It is a UI-thread action.
+func (a *app) applyCharlesSettings(result imports.CharlesSettings, source string) {
+	if len(result.Rules) > 0 && !a.applyRuleChanges(append(slices.Clone(a.rules), result.Rules...)) {
+		return
+	}
+	if result.SSLAll || len(result.SSLHosts) > 0 {
+		cfg := a.inspectionConfig()
+		cfg.All = cfg.All || result.SSLAll
+		for _, host := range result.SSLHosts {
+			if !slices.Contains(cfg.Hosts, host) {
+				cfg.Hosts = append(cfg.Hosts, host)
+			}
+		}
+		if !a.saveSSL(cfg) {
+			return
+		}
+	}
+	if result.NoCaching && a.srv != nil {
+		a.srv.SetNoCaching(true)
+	}
+	a.reportImport(locales.ImportedCharlesSettings(filepath.Base(source), len(result.Rules)), result.Warnings)
 }
 
 // importDropped routes a file or folder dropped on the window. Only the first
@@ -109,7 +179,7 @@ func droppedImportKind(path string, isDir bool) droppedKind {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".har", ".json":
 		return droppedHAR
-	case ".chlsj", ".chlsx", ".chls", ".proxymanlogv2", ".proxymanlog":
+	case ".chlsj", ".chlsx", ".chlz", ".chls", ".proxymanlogv2", ".proxymanlog":
 		return droppedCapture
 	default:
 		return droppedUnknown

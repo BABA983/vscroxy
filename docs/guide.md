@@ -2710,6 +2710,28 @@ Native `.chls` is a Java-serialized object stream, which this app does not
 deserialize; the import stops with a message to export `.chlsj` or HAR from
 Charles instead.
 
+A Charles `.chlz` archive (the same dialog and drop target) is read when it holds
+Charles' numbered entries: `N-meta.json` for each exchange, with `N-req.*` and
+`N-res.*` for its bodies, ordered by N. Bodies are imported as stored, not
+decoded. An archive that contains a native `.chls` is refused with the same
+`.chlsj` or HAR hint.
+
+**Session → Import Charles settings…** reads a Charles settings export (Charles'
+Tools → Import/Export Settings, an `.xml` file). It maps Map Local, Map Remote,
+Block List (action 0 drops the connection, action 1 answers 403), SSL proxying
+locations and No Caching onto this app. Imported rules are added after the rules
+you already have; SSL hosts are added to the existing list. Breakpoints, Rewrite,
+DNS Spoofing and every other Charles tool are not imported and are listed in the
+import report. A breakpoint is not imported because only one public source
+describes its fields, and a misread field would match every request.
+
+The `.chlz` layout and the settings layouts come from public Charles exports and
+tools that read them, not from a checked real Charles export, so the importer
+has not been tested against one. The import report repeats this, and it also
+says that Map Remote replaces the path only when the source path is literal, and
+that No Caching with no listed locations becomes this app's global switch. Check
+the imported rules on first use.
+
 Capture imports are bounded: at most 128 MiB per file or Proxyman entry, 2000
 exchanges, 1000 headers per side, 100,000 WebSocket messages per flow and
 200,000 per import, 32 MiB per body, 512 MiB of retained bodies plus message

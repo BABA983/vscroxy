@@ -65,6 +65,7 @@ type CaptureFormat string
 const (
 	CaptureCharlesJSON CaptureFormat = "Charles JSON session"
 	CaptureCharlesXML  CaptureFormat = "Charles XML session"
+	CaptureCharlesChlz CaptureFormat = "Charles .chlz session"
 	CaptureProxymanLog CaptureFormat = "Proxyman log"
 )
 
@@ -169,6 +170,9 @@ func ReadCapture(data []byte, name string) (Capture, error) {
 	case len(trimmed) > 0 && trimmed[0] == '<':
 		return readCharlesXML(data, name)
 	case len(trimmed) >= 4 && bytes.Equal(trimmed[:2], []byte("PK")):
+		if isCharlesChlz(data) || strings.EqualFold(filepath.Ext(name), ".chlz") {
+			return readCharlesChlz(data, name)
+		}
 		return readProxymanZip(data, name)
 	default:
 		if strings.EqualFold(filepath.Ext(name), ".chls") {

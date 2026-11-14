@@ -598,6 +598,7 @@ func (a *app) actions(c *ui.Context) []action {
 		}),
 		do("capture.import-session", locales.ImportCaptureSession(), a.importCaptureSession),
 		do("capture.import-proxyman-folder", locales.ImportProxymanLogFolder(), a.importCaptureFolder),
+		do("rules.import-charles", locales.ImportCharlesSettings(), a.importCharlesSettings),
 		do("collection.import", locales.ImportText(), a.importRequests),
 		do("collection.import-folder", locales.ImportCollectionFolder(), a.importCollectionFolder),
 		do("collection.export-postman", locales.ExportCollectionAsPostman(), func() { a.exportPostman(collectionRoot(d.composeCollection)) }).

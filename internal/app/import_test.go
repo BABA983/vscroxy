@@ -576,6 +576,7 @@ func TestDroppedImportKindRoutesByFormat(t *testing.T) {
 		{"traffic.json", false, droppedHAR},
 		{"session.chlsj", false, droppedCapture},
 		{"session.chlsx", false, droppedCapture},
+		{"session.chlz", false, droppedCapture},
 		{"session.chls", false, droppedCapture},
 		{"log.proxymanlogv2", false, droppedCapture},
 		{"log.proxymanlog", false, droppedCapture},
@@ -586,6 +587,40 @@ func TestDroppedImportKindRoutesByFormat(t *testing.T) {
 		if got := droppedImportKind(test.path, test.dir); got != test.want {
 			t.Errorf("droppedImportKind(%q, %v) = %v, want %v", test.path, test.dir, got, test.want)
 		}
+	}
+}
+
+func TestImportCharlesSettingsAddsRulesSSLAndNoCaching(t *testing.T) {
+	a, srv := captureIDApp(t)
+	a.rulesPath = filepath.Join(t.TempDir(), "rules.json")
+	a.sslPath = filepath.Join(t.TempDir(), "ssl.json")
+	a.rules = []capture.Rule{{Name: "Keep", Type: capture.RuleBlock, Match: "keep.example"}}
+	a.sslHosts = "keep.example"
+	data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", "charles-settings.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := imports.ReadCharlesSettings(data, "charles-settings.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.applyCharlesSettings(result, "charles-settings.xml")
+
+	// The existing rule stays first; the three mapped rules follow in order.
+	if len(a.rules) != 4 || a.rules[0].Name != "Keep" || a.rules[1].Type != capture.RuleMapLocal || a.rules[2].Type != capture.RuleMapRemote || a.rules[3].Type != capture.RuleBlock {
+		t.Fatalf("rules = %+v", a.rules)
+	}
+	if !strings.Contains(a.sslHosts, "keep.example") || !strings.Contains(a.sslHosts, "api.example.test") || a.sslAll {
+		t.Errorf("SSL hosts = %q, all = %v", a.sslHosts, a.sslAll)
+	}
+	if !srv.NoCaching() {
+		t.Error("No Caching was not turned on")
+	}
+	if !a.importReport.open || !strings.Contains(strings.Join(a.importReport.lines, "\n"), "Breakpoints: not imported") {
+		t.Errorf("report = %+v", a.importReport)
+	}
+	if !strings.Contains(a.importReport.title, "3 rules") {
+		t.Errorf("report title = %q", a.importReport.title)
 	}
 }
 

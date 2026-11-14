@@ -9118,6 +9118,26 @@ func (msgs Messages) ImportCaptureSession2() string {
 	return Catalog.Format(msgs.locale, "importCaptureSession2", nil)
 }
 
+// ImportCharlesSettings says "Import Charles settings…"
+// in the language the app shows.
+func ImportCharlesSettings() string { return In(i18n.Locale()).ImportCharlesSettings() }
+
+// ImportCharlesSettings says "Import Charles settings…"
+// in the language of msgs.
+func (msgs Messages) ImportCharlesSettings() string {
+	return Catalog.Format(msgs.locale, "importCharlesSettings", nil)
+}
+
+// ImportCharlesSettings2 says "Import Charles settings"
+// in the language the app shows.
+func ImportCharlesSettings2() string { return In(i18n.Locale()).ImportCharlesSettings2() }
+
+// ImportCharlesSettings2 says "Import Charles settings"
+// in the language of msgs.
+func (msgs Messages) ImportCharlesSettings2() string {
+	return Catalog.Format(msgs.locale, "importCharlesSettings2", nil)
+}
+
 // ImportChooseARealFile says "Import: choose a real file or folder, not a symbolic link"
 // in the language the app shows.
 func ImportChooseARealFile() string { return In(i18n.Locale()).ImportChooseARealFile() }
@@ -9400,14 +9420,26 @@ func (msgs Messages) ImportText2() string {
 	return Catalog.Format(msgs.locale, "importText2", nil)
 }
 
-// ImportUnsupportedFileTypeDrop says "Import: unsupported file type. Drop a HAR (.har), Charles (.chlsj, .chlsx), or Proxyman (.proxymanlogv2, .proxymanlog…"
+// ImportUnsupportedFileTypeDrop says "Import: unsupported file type. Drop a HAR (.har), Charles (.chlsj, .chlsx, .chlz), or Proxyman (.proxymanlogv2, .prox…"
 // in the language the app shows.
 func ImportUnsupportedFileTypeDrop() string { return In(i18n.Locale()).ImportUnsupportedFileTypeDrop() }
 
-// ImportUnsupportedFileTypeDrop says "Import: unsupported file type. Drop a HAR (.har), Charles (.chlsj, .chlsx), or Proxyman (.proxymanlogv2, .proxymanlog…"
+// ImportUnsupportedFileTypeDrop says "Import: unsupported file type. Drop a HAR (.har), Charles (.chlsj, .chlsx, .chlz), or Proxyman (.proxymanlogv2, .prox…"
 // in the language of msgs.
 func (msgs Messages) ImportUnsupportedFileTypeDrop() string {
 	return Catalog.Format(msgs.locale, "importUnsupportedFileTypeDrop", nil)
+}
+
+// ImportedCharlesSettings says "Imported Charles settings “{file}” · {count, plural, one {# rule} other {# rules}}"
+// in the language the app shows.
+func ImportedCharlesSettings(file string, count int) string {
+	return In(i18n.Locale()).ImportedCharlesSettings(file, count)
+}
+
+// ImportedCharlesSettings says "Imported Charles settings “{file}” · {count, plural, one {# rule} other {# rules}}"
+// in the language of msgs.
+func (msgs Messages) ImportedCharlesSettings(file string, count int) string {
+	return Catalog.Format(msgs.locale, "importedCharlesSettings", map[string]any{"file": file, "count": count})
 }
 
 // ImportedCollectionCurrentNotUpdated says "Imported collection saved, but local Current values were not updated: {error}"
