@@ -133,6 +133,28 @@ auxiliary calls. A per-request timeout counts as failure; normal duration
 completion cancels in-flight attempts into `interrupted`, not failed latency
 samples. No coordinated-omission correction or open-model latency claim is made.
 
+## Mock server
+
+`vscroxy-cli mock` serves a collection's saved examples over HTTP, as Postman's
+mock servers do, so a front end or CI job can point at it instead of the real API:
+
+```sh copy Copy Mock server
+bin/vscroxy-cli mock --folder Shop --env ./env.json --environment Local \
+  --port 8080 ./collections
+```
+
+It prints the address it listens on. `--addr` defaults to `127.0.0.1:0`, a
+free loopback port; `--port` replaces the port in `--addr`. Each example answers
+at the method and URL it was saved with. A `:name` or `{{name}}` path segment
+matches any one segment, the scheme, host and query are ignored, and
+`{{variables}}` are filled from globals, the environment and `--var`, in that
+order. The route's first example answers; send `X-Mock-Response-Name: <example
+name>` to choose another. A route that matches nothing returns 404. Ctrl-C stops
+the server with exit code 130. An address other than loopback prints a warning,
+because anyone who can reach it gets the examples without authentication. A
+collection with no saved examples is refused. There is no MCP tool for mock
+servers yet; the desktop start control is separate.
+
 ## Control a running desktop
 
 Desktop control is **off by default**. Turn on **Settings → General → Local

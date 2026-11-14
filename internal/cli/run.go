@@ -27,7 +27,7 @@ import (
 // 124 whole-run deadline, 130 cancellation. Flags precede the input path.
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
-		fmt.Fprintln(stdout, "Usage: vscroxy-cli run [options] <collections-root | postman.json>\n       vscroxy-cli load [options] <collections-root | postman.json>\n       vscroxy-cli control --file <discovery> [options] <action>\nUse 'run --help', 'load --help' or 'control --help' for options.")
+		fmt.Fprintln(stdout, "Usage: vscroxy-cli run [options] <collections-root | postman.json>\n       vscroxy-cli load [options] <collections-root | postman.json>\n       vscroxy-cli mock [options] <collections-root | postman.json>\n       vscroxy-cli control --file <discovery> [options] <action>\nUse 'run --help', 'load --help', 'mock --help' or 'control --help' for options.")
 		return 0
 	}
 	if args[0] == "control" {
@@ -35,6 +35,9 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	if args[0] == "load" {
 		return loadCommand(ctx, args[1:], stdout, stderr)
+	}
+	if args[0] == "mock" {
+		return mockCommand(ctx, args[1:], stdout, stderr)
 	}
 	if args[0] != "run" {
 		fmt.Fprintln(stderr, "Unknown command; use 'vscroxy-cli --help'.")
