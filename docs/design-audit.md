@@ -1,6 +1,8 @@
 # 设计审计：uikit 与画廊页面
 
 状态：**审计完成，2026-11-14；本轮只写审计，不改任何现有页面的布局。**
+
+> 2026-11-15：uikit 的前五条（FormRow／InputState、DataList、Modal 标题、Ring、DestructiveButton）已在 `uikit-q` 实现；下面的“现状”保留审计时的样子，作为改动依据。
 基线：`gallery-plates`，已变基到 `origin/feat/mygo-app`（`ecfced7`）。图版见 `docs/design/`，由 `internal/gallery` 从 `internal/app/gallery.go` 的假数据导出；浅色、深色各一张。
 
 参考：
@@ -89,7 +91,7 @@
 
 - 现状：`Toasts` 的面板宽 360，图标 + 标题/描述一列，动作是同行的 22pt ghost link，关闭按钮在后（`internal/uikit/components.go:672-703`）。变基后的图版 `components-toasts-light.png` 和 `-dark.png` 里，“Request deleted / Undo” 在同一行，符合新提交 `a27cdb7` 的意图。
 - 问题：动作在静止时用 `TextMuted`（`internal/uikit/components.go:689`），和关闭按钮同色；在深色 toast 上它读起来像禁用链接，而不是“撤销”。shadcn 的 toast action 用前景色/主色，关闭才是 muted。
-- 建议：动作静止用 `t.InverseText`（toast 是反色面），hover 再用 `t.Text`；关闭保持 `TextMuted`。成本一行。P2。
+- 建议：动作静止用 `t.InverseText`（toast 是反色面），hover 再用 `t.InverseText` 加 12% 反色面；关闭保持 `InverseText` 的 70% 不透明度。成本一行。P2。**已实施。**
 - 值不值得做：值得，极低。
 
 #### 列表选中：`ListTheme` 必须由调用方记得
@@ -367,3 +369,19 @@
 - **Postman 的文件选择器是原生对话框**，无法在画廊里画；图版画的是导入后的 review 对话框（`internal/app/postman_ui.go:254-274`）。
 - **证书编辑器**已经有 `settings-certificates` 图版；本轮新增的 `certificates-editor` 是同一个页面的“已保存口令 + 额外根证书 + 未保存修改”状态，不是另一个页面。
 - **MCP catalog** 画的是响应面板的 Catalog 标签页；MCP 的工具调用、时间线和 Result 在已有的 `editor-*`／`requests-mcp-*` 快照矩阵里，不在本轮画廊条目里。
+
+---
+
+## (c) uikit-q 实施记录（2026-11-15）
+
+uikit 前五条已经实现，页面层只重排了 Rules／Scripts／Mocks 三页。
+
+- **表单错误**：新增 `FormRow`（`ui.Field` + `Description`／`Error`，错误会标 `Invalid`）和 `FormRowTall`（高控件标签顶部对齐）；`InputState` 画 `Danger` 边。规则表单 23 个字段、Replay 4 个、筛选 2 个、代理／集合／Cookie／网络预设 4 个，共 33 个 `FormRow`、1 个 `FormRowTall`、6 个 `InputState`。8 处字段级红字迁到控件错误；其余 76 处 `TextColor(t.Danger)` 是页面级状态、连接日志、列表行错误或信号色，不是字段错误，保留并在下节说明。
+- **数据列表**：新增 `DataList`／`DataListIndexed`，固定 `ListTheme` 和 `RowMarker`；gRPC、MCP 事件、MCP 三个目录、Protobuf、Runs、Socket.IO、MQTT、Messages 共 10 处换用。Scripts／Scenarios／Rules／Host profiles 是“选择列表”，仍用圆角 `Selected`，不是数据列表。
+- **对话框名字**：`Modal` 现在接收 `title` 并设 `panel.Label(title)`；50 个调用点全部传入标题；新增无障碍树测试 `TestModalNamesItsPanel`。
+- **Ring**：`Palette.Ring` Light `#636e61`、Dark `#9aa89a`；`Theme.Focus`、`InputState`／`TextArea` 聚焦边都用它。Light 对 canvas／chrome／well 为 5.19／4.73／4.48:1，Dark 为 7.44／8.06／6.59:1；与 Accent 不同色。
+- **危险操作**：新增 `DestructiveButton`（`Danger` 实底、`AccentText`，对比 5.22:1／5.89:1）；清空抓包、删除资源、清空实验记录、重置 Vault 四个确认对话框使用。删除 `DangerButton` 和 `PrimaryButton.Background(Danger)`；设备“停用访问”改为普通次级按钮（可逆），反向代理“移除”改为菜单里的红色危险项。
+- **Toast**：动作静止改用 `InverseText`、13 号 500 字重，hover 用 12% 反色面；关闭按钮保持 70% 反色，不再和动作同色。
+- **页面**：Rules 列表第二行移到整行宽度、可换行并有 Tip；Scripts 代码编辑器 `SoftWrap`、只保留一个选中行；Mocks 增加中间省略的完整路径行和 Tip，Body 标签用 `FormRowTall` 顶部对齐。三页表单都改用 `FormRow`／`NumberField`。
+
+仍未迁的红字类别：连接／协议页的 `problem`（WS、SSE、MQTT、gRPC、Socket.IO、MCP、Protobuf 等），页面级保存或校验错误（Rules、Vault、Certificates、Client setup、API、Sessions、Experiments、Collection wizard 等），列表行错误（Sessions、Scripts 解析错误），以及诊断／日志文本。它们不是某个控件的值错误，硬塞进 `Field.Error` 会把页面错误误读成字段错误。

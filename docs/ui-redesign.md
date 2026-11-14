@@ -117,7 +117,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **选中保留形状。** 列表失焦时，选中底从强调浅底换成中性面（6%），表格行同时把标记线换成 faint 色，位置和形状都不变。
 - **等宽只用于线上数据：** 路径、header 值、URL、数字、body。host、client、标签用界面字体。会变的数字开 `tnum`。
 - **四个字号，两个字重：** 15（标题）／13（正文和控件）／12（等宽数据）／11（次要信息），只有 400 和 500，没有 600。
-- **三档栏高，两档控件：** 栏 40／32／24，控件 24（URL 和 Send 28），行 24；圆角 4／6／10；间距 4／8／12／16／24，左右边距统一 12。
+- **三档栏高，两档控件：** 栏 40／32／24，控件 `ControlHeight` 28／`ControlHeightSmall` 22，行 `HeightControl` 24；圆角 4／6／10；间距 4／8／12／16／24，左右边距统一 12。
 - **线只画在区域之间。** 侧栏与内容、列表与检查器、请求面板与响应面板、状态栏上沿；区域内部靠间距和表面区分，面板头、抓包信息行、URL 行都没有底线。流量表表头没有列分隔线，拖动列宽的命中区还在，指针停在那一列边缘时才画出强调色细线。
 - **输入框只有两种：** 在 chrome 上的是 canvas 底加 1px 细线（`ChromeFieldFace`），在 canvas 上的是 well 填充（`FieldFace`）。标题栏的命令入口不是输入框，是一个 24 高的按钮（放大镜加 `⌘K`／`Ctrl K`）。
 - **侧栏退后。** 未选中行的文字用次要色、图标再低一档（faint），悬停和选中时回到正文色；计数为 0 不显示。侧栏的三个分区标题可以点击折叠，折叠状态记在 settings 里。
@@ -201,7 +201,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `TextMeta`／`TextData`／`TextBody`／`TextTitle` | 11／12／13／15 | 计数和次要信息／等宽数据／正文、控件／标题。18 已删掉：结论也用 15 |
 | `LineMeta`／`LineProse`／`LineTitle` | 1.45／1.5／1.3 | 次要信息／说明文字／标题的行高倍数；`Body` 和 `Mono` 保持字体自带的行高，避免撑高控件和表格行 |
 | `HeightBar`／`HeightTabs`／`HeightStatus` | 40／32／24 | 标题栏／面板头和过滤栏／状态栏。只有这三档栏高 |
-| `HeightControl`／`HeightLarge` | 24／28 | 按钮、输入框、tab、侧栏条目、表格行／URL 栏和 Send。`HeightCompact`（20）已删掉：设计稿没有第四档 |
+| `ControlHeight`／`ControlHeightSmall`／`HeightControl` | 28／22／24 | 按钮、输入框、tab／chip、行内动作／表格行、侧栏条目和栏内的一行。`HeightLarge` 仍是 28，只在个别历史布局里用；`HeightCompact`（20）已删掉 |
 | `RadiusInner`／`RadiusControl`／`RadiusPanel` | 4／6／8 | 嵌在控件里的面（分段控件的滑块、chip 里的按钮）／控件和 tab／弹层、卡片、对话框。`RadiusDialog`（14）已删掉 |
 | `IconInline`／`IconLarge` | 14／16 | 行内和按钮／rail 和空状态 |
 | `DurationFast`／`DurationHover`／`DurationStandard`／`DurationSlow` | 80／120／160／200ms | 离开和收起／悬停面和弹层进出／选中面和数字变化／面板和区域的开合。界面只写 token，不写毫秒 |
@@ -242,15 +242,15 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 | 类别 | 组件 |
 | --- | --- |
-| 按钮 | `PrimaryButton`（24，强调色底、500 字重）、`ChipButton`（24，中性面，内容由调用方画：图标加快捷键）、`SecondaryButton`／`DangerButton`（24，无边框，面是文字色 6%／10%／14%）、`CompactButton`（24，同样的面，11 号字）、`ToolbarButton`（透明底，hover／按下是中性面，active 是强调浅底）、`IconButton`（24 正方形，必带 tooltip）、`RowButton`（列表里的整行，没有 hover）、`SwatchButton`（标记色） |
-| 输入 | `Input`（well，无边框；聚焦时 1px 强调色内边和 3px 浅底光晕）、`FieldFace`（同样的面给自带控件的输入行，如搜索框和 URL 栏）、`ChromeFieldFace`（chrome 上的输入框：canvas 底加 1px 细线）、`Select`／`MenuSelect`（按钮的面；后者给用菜单做的选择，如 body 格式）、`Segmented`（中性凹槽加浮起的滑块，选中是 canvas 底加细线，只用于互斥的模式）、`Tabs`／`CountedTabs`（选中是中性面圆角块加正文色文字，可带计数；放在 `TabStrip` 里横向滚动，有藏起来的 tab 的一侧渐隐）、`SubTabs`（嵌在另一行 tab 选中内容里的第二层，选中只有正文色文字） |
-| 列表和侧栏 | `ListTheme`（MyGo 表格／列表／树的选中色）、`Marker`／`RowMarker`、`Selected`（失焦换成中性面）、`SidebarHeading`（11 号、次要色、500，右端可带开关或加号）、`SidebarItem`（24 高、内缩 6 的圆角行，图标／圆点／箭头占同一个槽，右侧可带计数）、`SidebarButton`（同样的行，做动作而不是选中，`on` 时图标用强调色）、`SidebarDot`（没有图标时占住槽的圆点）、`SearchField`（带放大镜的单行搜索框，canvas 上是 well、chrome 上是 canvas 加细线） |
+| 按钮 | `PrimaryButton`（`ControlHeight` 28，强调色底、500 字重）、`ChipButton`（22，中性面，内容由调用方画：图标加快捷键）、`SecondaryButton`（28，无边框，面是文字色 7%／11%／15%）、`DestructiveButton`（28，危险色实底，只用于破坏性确认对话框）、`CompactButton`（22，同样的面，11 号字）、`ToolbarButton`（透明底，hover／按下是中性面，active 是强调浅底）、`IconButton`（28 正方形，必带 tooltip）、`RowButton`（列表里的整行，没有 hover）、`SwatchButton`（标记色） |
+| 输入 | `Input`／`InputState`（well，无边框；聚焦时 1px `Ring` 内边和 3px `Ring` 光晕；invalid 时用 `Danger` 内边）、`FormRow`／`FormRowTall`（标签、说明和错误绑定到控件）、`TextArea`（多行输入，聚焦边用 `Ring`）、`FieldFace`（同样的面给自带控件的输入行，如搜索框和 URL 栏）、`ChromeFieldFace`（chrome 上的输入框：canvas 底加 1px 细线）、`Select`／`MenuSelect`（按钮的面；后者给用菜单做的选择，如 body 格式）、`Segmented`（中性凹槽加浮起的滑块，选中是 canvas 底加细线，只用于互斥的模式）、`Tabs`／`CountedTabs`（选中是中性面圆角块加正文色文字，可带计数；放在 `TabStrip` 里横向滚动，有藏起来的 tab 的一侧渐隐）、`SubTabs`（嵌在另一行 tab 选中内容里的第二层，选中只有正文色文字） |
+| 列表和侧栏 | `DataList`／`DataListIndexed`（数据列表的选中色和行首标记，组件内固定 `ListTheme` 和 `RowMarker`）、`ListTheme`（MyGo 表格／列表／树的选中色）、`Marker`／`RowMarker`、`Selected`（失焦换成中性面；选择列表用）、`SidebarHeading`（11 号、次要色、500，右端可带开关或加号）、`SidebarItem`（24 高、内缩 6 的圆角行，图标／圆点／箭头占同一个槽，右侧可带计数）、`SidebarButton`（同样的行，做动作而不是选中，`on` 时图标用强调色）、`SidebarDot`（没有图标时占住槽的圆点）、`SearchField`（带放大镜的单行搜索框，canvas 上是 well、chrome 上是 canvas 加细线） |
 | 信号 | `Sparkline`（录制 pill 的速率曲线）、`ResponseMeta`（面板头右侧的耗时和大小，耗时悬停显示分段）、`StatusPill`（只有文字色，不填底；2xx／304 是次要色）、`MethodLabel`（12 等宽 500）、`MethodColor`、`StatusColor`、`MarkColors`、`BadgeColors` |
 | 结构和反馈 | `EdgeFade`（滚动条被裁掉的一侧渐隐到表面色，`TabStrip` 和标题栏的 chip 用它）、`PaneHeader`（面板头的 32 高一行：内容 + 右侧）、`PaneTitle`（面板名，带状态点，点它把共享读取器交给这一侧）、`TabMenu`（长得像 tab 的菜单，放 More）、`KVRow`（只读）、`EmptyState`、`Toasts`、`Modal`、`DialogColumn`、`DialogTitle`、`DialogFooter`、`PopoverPanel`、`EditorTheme` |
 
 待做（随用到它们的步骤加入）：
 
-- 控件：Input 的错误态（设计稿是 1px 危险色内边）、32 档按钮、Checkbox／Switch 包装、LayoutToggle。
+- 控件：Checkbox／Switch 包装、LayoutToggle。Input 的错误态、`FormRow`／`FormRowTall` 和两档控件高度已完成。
 - 结构：可编辑 KVGrid（现在是 Key／Value 表头加行、没有外框）、FormRow（标签左、控件右、说明在控件下一行）、Splitter。
 - 反馈：Callout（信息／警告／错误，一行文字加文字操作）、StatusText、CountBadge、CheckResult。
 - 标志性组件：QueryBar（v3 的 chip 已改成中性面）、TimingBar、SourceBadge、EnvironmentSelect。`ActivityStrip` 在 v3 里是 24 高的一行：摘要、堆叠柱（14 高）和结束时间，没有单独的时间刻度行。
@@ -264,7 +264,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **Hover：** 按钮、工具栏按钮、tab 的背景变 Hover（第二层 tab 和分段控件只把文字变成正文色），立即变化，不做过渡。和 macOS 一样，列表、表格、侧栏的行没有 hover；不可点的也没有。
 - **窗口失焦：** 窗口在别的窗口后面时，侧栏和挑选列表的选中浅底变成中性灰，表格的标记线变次要色。
 - **按下：** 背景变 Pressed。
-- **焦点环：** 键盘焦点显示 2px 强调色外框，鼠标点击不显示，所有可交互元素都要有。输入框例外：聚焦时是强调色细边加 3px 柔和光晕，不再画外框。对话框关闭后焦点回到打开它的控件，`Modal` 会请求一帧重绘让焦点环显示出来。
+- **焦点环：** 键盘焦点显示 2px `Ring` 外框，鼠标点击不显示，所有可交互元素都要有。输入框例外：聚焦时是 `Ring` 细边加 3px 柔和光晕，不再画外框；输入框的聚焦边和主操作不再同色。对话框关闭后焦点回到打开它的控件，`Modal` 会请求一帧重绘让焦点环显示出来。
 - **禁用：** 文字用 TextFaint，不响应 hover；tooltip 说明为什么不可用。
 - **动效：** 只用于说明变化，时长一律用 token（`DurationFast` 80／`DurationHover` 120／`DurationStandard` 160／`DurationSlow` 200），面板和区域改变尺寸用 `MotionSpring`（200ms，无回弹）。
   - 悬停和按下的面：进入即时，离开用 120ms 淡回，指针扫过一排按钮时不落后。过渡每一帧都挂着（悬停帧时长 `-1`）：MyGo 只在上一帧也有过渡时才混色，撤掉过渡等于让离开的那一帧当成新元素。
@@ -332,7 +332,7 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
      - muted 文字收进 uikit：新增 `CountedTabs`（带计数的 tab，请求编辑器和响应 tab 共用）、`MoreMenu`（`⋯` 菜单按钮）、`Glyph`（标记用的小图标）；说明文字改用 Hint／Meta，流量表的次要列用 Hint，调查板的 Request／Response 切换改用 `uikit.Segmented`。剩下 4 处是控件自己的状态色（格式下拉、遮住的密钥、协议分段），保留。
      - 截图矩阵：LIVE 的状态（`capture-*`）同时渲染左右和上下两种布局（上下的文件名带 `-stacked`），× Light／Dark；单独的 `capture-stacked` 去掉。
    - 3.5 macOS 质感：
-     - 3.5a uikit（完成）：高度 20／24／28，tab 行和面板头 28，表格行 24；macOS 上界面用系统字体；`Tabs` 改成强调浅底圆角块，新增 `SubTabs`，检查器的 Request／Response 面板和调查板的预览用它；`Segmented` 改成无边框凹槽加浮起滑块；`SecondaryButton`、`DangerButton`、`CompactButton`、`Select` 去掉边框、用中性面；`Input` 中性填充加聚焦光晕；`RowButton` 和流量表的行去掉 hover（流量表的客户端图标随行高改成 14）；侧栏分组标题不再全大写。
+     - 3.5a uikit（完成；当时高度 20／24／28，现在是 `ControlHeight` 28／`ControlHeightSmall` 22 和 `HeightControl` 24）：tab 行和面板头 28，表格行 24；macOS 上界面用系统字体；`Tabs` 改成强调浅底圆角块，新增 `SubTabs`，检查器的 Request／Response 面板和调查板的预览用它；`Segmented` 改成无边框凹槽加浮起滑块；`SecondaryButton`、`DangerButton`、`CompactButton`、`Select` 去掉边框、用中性面；`Input` 中性填充加聚焦光晕；`RowButton` 和流量表的行去掉 hover（流量表的客户端图标随行高改成 14）；侧栏分组标题不再全大写。
      - 3.5b 窗口和界面（完成）：
        - 侧栏占满窗口高度，红绿灯和品牌在它顶部；标题栏、内容和状态栏移到右边一栏，标题栏没有色带和底边框，录制 pill 居中在这一栏。红绿灯按标题栏中线对齐（v3 起标题栏 40，`TrafficLightPosition` Y 13）。
        - macOS 上窗口用 `VibrancySidebar`，根节点透明（在 `view` 最后设，因为每次 `SetTheme` 都会重画根节点），侧栏盖 90% 的 chrome 色，内容区不透明；其他平台没有材质，侧栏是平涂的 chrome 色。
@@ -477,7 +477,7 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 1. Windows、Linux 内嵌 Geist 和 Geist Mono；macOS 用系统的 SF Pro 和 SF Mono；中文用系统字体（3.5，原来三个平台都内嵌 Inter 和 JetBrains Mono）。
 2. 强调色是墨：Light `#1a1a18`、Dark `#e9e8e4`（v1 的靛蓝、v3 前五阶段的油墨绿都已取代）。
 3. 外观默认跟随系统，可选浅色或深色（3.5b）。
-4. 行高 24，控件 24，URL 栏和 Send 28（3.5；原来是 28／28／32）。
+4. 行高 24（`HeightControl`），控件 28／22（`ControlHeight`／`ControlHeightSmall`）；URL 栏和 Send 与其它控件同为 28（3.5；原来是 28／28／32）。
 5. 一个工作区（取代 Capture／Requests 两个工作区）；不做全局图标栏；规则、Host 方案、脚本、Mock 集中到 Tools 窗口。
 6. 网络相关的设置对话框并进 Settings。
 7. 组件放在独立的 `internal/uikit`，只依赖 MyGo；界面只用 uikit 的组件和 token。
@@ -501,7 +501,7 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 25. v3 用三种表面：chrome（侧栏、栏、表头）、canvas（数据）、well（canvas 上的输入框）；chrome 上的输入框是 canvas 加 1px 细线。MyGo 的 Background 是 canvas、Surface 是 chrome，输入框的面由 uikit 自己画，不再和窗口同色（2026-11-11）。
 26. 选中、主操作和已开启用强调色：标签页、过滤器、命令面板的选中是中性面；`StatusPill` 不填底，状态色和方法色只染文字，例外是慢请求的耗时标签（2026-11-11；"绿色"的角色在第六阶段由墨色接管）。
 27. 控件不描边，面是文字色的 7%／11%／15%（两个主题一样，Amp 配色时定下）；选中失焦时保留形状、换成中性面（2026-11-11）。
-28. 尺寸只有三档栏高（40／32／24）、两档控件（24，URL 和 Send 28）、四档字号（15／13／12 等宽／11）、两个字重（400／500）、三档圆角（4／6／10）。`HeightCompact`、`RadiusDialog`、`TextHeadline` 删掉（2026-11-11）。
+28. 尺寸只有三档栏高（40／32／24）、两档控件（`ControlHeight` 28／`ControlHeightSmall` 22）和 24 高的行（`HeightControl`）、四档字号（15／13／12 等宽／11）、两个字重（400／500）、三档圆角（4／6／10）。`HeightCompact`、`RadiusDialog`、`TextHeadline` 删掉（2026-11-11）。
 29. 等宽只用于线上数据：路径、header 值、URL、数字、body；host、client 和标签用界面字体（2026-11-11）。
 30. Light 的 warning 从设计稿的 `#a15c07` 深到 `#9c5906`：前者在 well 上只有 4.44:1，其余信号色和设计稿一致；设计稿的信号色在按下态是 3.6–4.5:1，测试对叠在表面上的面按 UI 组件的 3:1 计（2026-11-11）。
 31. 每个面板只有一排标签页，面板头 32 高：标题、标签页、右侧元信息。请求的 Headers／Params／Body／Auth 是 tab，其余视图进 More；响应的 Body／Headers／Cookies／Timing 是 tab，Raw／Checks／Console 进 `⋯`。从 More 选中的视图作为最后一个 chip 回到同一行，不再开第二排（2026-11-11）。
