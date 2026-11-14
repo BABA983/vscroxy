@@ -562,7 +562,7 @@ func (k *components) settingsPlate(c *ui.Context) {
 func (k *components) toastPlate(c *ui.Context) {
 	if !k.toasts {
 		k.toasts = true
-		c.AddToast(ui.Toast{Title: "Copied as cURL", Type: "success"})
+		c.AddToast(ui.Toast{Title: "Request deleted", Action: "Undo", Type: "success", Timeout: -1})
 		c.AddToast(ui.Toast{Title: "Certificate is not trusted", Description: "Install it to read HTTPS.", Type: "warning"})
 		c.AddToast(ui.Toast{Title: "The proxy stopped", Description: "Port 7890 is in use.", Type: "error", Timeout: -1})
 	}
@@ -574,7 +574,7 @@ func (k *components) toastPlate(c *ui.Context) {
 			c.AddToast(ui.Toast{Title: "The request failed", Description: "dial tcp: connection refused", Type: "error"})
 		})
 	})
-	caption(c, "A toast is a popover panel above the footer, with an icon in its kind's signal color. Three show at once; the pointer or the keyboard holds them.")
+	caption(c, "A toast is a popover panel above the footer, with an icon in its kind's signal color. An action is a quiet link on the message's row; three show at once, and the pointer or the keyboard holds them.")
 }
 
 func (k *components) listPlate(c *ui.Context) {
