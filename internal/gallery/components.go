@@ -48,6 +48,7 @@ const (
 // values its fields and choices bind to.
 type components struct {
 	host, empty, search, searchChrome string
+	invalid                           string
 	bypass                            string
 	format, pick, labels              string
 	tab, counted, sub, segment        int
@@ -67,9 +68,9 @@ func (g *Gallery) components() *Group {
 	k.icon = iconBitmap()
 	return &Group{ID: "components", Title: "Components", Entries: []*Entry{
 		{ID: "text", Title: "Text", Note: "Seven roles; a text has no states", Height: 420, build: k.textPlate},
-		{ID: "buttons", Title: "Buttons", Note: "Primary, secondary, danger and compact, with their faces", Height: 440, Hover: hoverButtons, Focus: focusButtons, build: k.buttonPlate},
+		{ID: "buttons", Title: "Buttons", Note: "Primary, secondary, destructive and compact, with their faces", Height: 440, Hover: hoverButtons, Focus: focusButtons, build: k.buttonPlate},
 		{ID: "buttons-quiet", Title: "Quiet buttons", Note: "Toolbar, footer, icon, chip, row and swatch", Height: 560, Hover: hoverQuiet, Focus: focusQuiet, build: k.quietPlate},
-		{ID: "inputs", Title: "Inputs", Note: "Fields, their two faces, search and the two selects", Height: 620, Hover: hoverInputs, Focus: focusInputs, build: k.inputPlate},
+		{ID: "inputs", Title: "Inputs", Note: "Fields, focus, invalid, search and the two selects", Height: 680, Hover: hoverInputs, Focus: focusInputs, build: k.inputPlate},
 		{ID: "tabs", Title: "Tabs", Note: "Tabs, counted tabs, sub-tabs and a scrolling strip", Height: 440, Hover: hoverTabs, Focus: focusTabs, build: k.tabPlate},
 		{ID: "segmented", Title: "Segmented", Note: "A recessed groove and a raised thumb", Height: 280, Hover: hoverSegmented, Focus: focusSegmented, build: k.segmentedPlate},
 		{ID: "menus", Title: "Menus", Note: "Menu select, the ⋯ buttons and a tooltip", Height: 400, Hover: hoverMenus, Focus: focusMenus, Tip: true, build: k.menuPlate},
@@ -148,7 +149,6 @@ func (k *components) buttonPlate(c *ui.Context) {
 	stateRow(c, "Rest", func() {
 		uikit.PrimaryButton(c, "Send")
 		uikit.SecondaryButton(c, "Copy as cURL")
-		uikit.DangerButton(c, "Delete")
 		uikit.CompactButton(c, "Copy")
 		addLink(c, "Add property")
 	})
@@ -164,7 +164,6 @@ func (k *components) buttonPlate(c *ui.Context) {
 	stateRow(c, "Disabled", func() {
 		uikit.PrimaryButton(c, "Send").Disabled(true)
 		uikit.SecondaryButton(c, "Copy as cURL").Disabled(true)
-		uikit.DangerButton(c, "Delete").Disabled(true)
 		uikit.CompactButton(c, "Copy").Disabled(true)
 		addLink(c, "Add property").Disabled(true)
 	})
@@ -240,6 +239,13 @@ func (k *components) inputPlate(c *ui.Context) {
 	stateRow(c, "Empty", func() {
 		uikit.Input(c, &k.empty).Label("Empty").Placeholder("Search host or path").Width(240)
 	})
+	stateRow(c, "Invalid", func() {
+		ui.Form(c, func() {
+			uikit.FormRow(c, "Port", "Blank is automatic; 1024–65535.", "Port must be 1024–65535.", func() {
+				uikit.InputState(c, &k.invalid, true).Width(240)
+			})
+		})
+	})
 	stateRow(c, "Disabled", func() {
 		uikit.Input(c, &k.host).Label("Disabled").Width(240).Disabled(true)
 	})
@@ -249,7 +255,7 @@ func (k *components) inputPlate(c *ui.Context) {
 			uikit.SearchField(c, &k.searchChrome, "Search collections", "Search…", true)
 		})
 	})
-	caption(c, "A field on the canvas is a well; on chrome it is the canvas with a hairline. Focus draws a neutral edge and an accent tint halo. No hover or error state: a field has no hover face, and the kit reports errors in text under it.")
+	caption(c, "A field on the canvas is a well; on chrome it is the canvas with a hairline. Focus draws the ring edge and a ring halo; an invalid field draws the danger edge, and FormRow binds its description and error to the control. A field has no hover face.")
 }
 
 func (k *components) tabPlate(c *ui.Context) {
@@ -506,23 +512,22 @@ func (k *components) panelPlate(c *ui.Context) {
 		ui.Column(c).Width(420).Padding(c.Theme().Space(4)).Gap(c.Theme().Space(3)).Radius(uikit.RadiusPanel).
 			Background(uikit.Colors(c.Theme()).Canvas).InsetShadow(0, 0, 0, 1, uikit.Colors(c.Theme()).Hairline).
 			Shadow(0, 20, 56, 0, uikit.Colors(c.Theme()).Shadow).Children(func() {
-			uikit.DialogTitle(c, "Rename request")
-			uikit.Input(c, &k.host).Label("Name")
+			uikit.DialogTitle(c, "Delete 3 requests?")
+			uikit.Hint(c, "They leave this collection; captured traffic is not touched.")
 			uikit.DialogFooter(c).Children(func() {
 				uikit.SecondaryButton(c, "Cancel")
-				uikit.PrimaryButton(c, "Rename")
+				uikit.DestructiveButton(c, "Delete")
 			})
 		})
 	})
 	stateRow(c, "Modal", func() {
 		labelled(uikit.SecondaryButton(c, "Open dialog"), hoverPanels).OnClick(func() { k.open = true })
-		uikit.Modal(c, &k.open, func() {
+		uikit.Modal(c, &k.open, "Delete 3 requests?", func() {
 			uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 				uikit.DialogTitle(c, "Delete 3 requests?")
 				uikit.Hint(c, "They leave this collection; captured traffic is not touched.")
 				uikit.DialogFooter(c).Children(func() {
 					uikit.SecondaryButton(c, "Cancel")
-					uikit.DangerButton(c, "Delete")
 				})
 			})
 		})
@@ -550,7 +555,7 @@ func (k *components) settingsPlate(c *ui.Context) {
 			uikit.SettingsRowMultiline(c, "Bypass list", func() ui.Element {
 				return ui.Column(c).Gap(c.Theme().Space(2)).Children(func() {
 					labelled(ui.Checkbox(c, &k.check, "Pause on start"), focusSettings)
-					ui.TextArea(c, &k.bypass).Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(true)
+					uikit.TextArea(c, &k.bypass).Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(true)
 				})
 			}, "One host per line; these connect directly.")
 		})

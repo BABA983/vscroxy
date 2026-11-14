@@ -78,13 +78,16 @@ func TestThemesKeepTextReadable(t *testing.T) {
 			// A passed step fills its mark with Success and prints in
 			// AccentText, as the guide and the collection wizard do.
 			check("success mark", theme.AccentText, p.Success, 4.5)
-			// A focused field draws a neutral edge inside its own face; it
-			// must read against that face and against the surface around
-			// it, without being the ink accent a primary action is.
-			check("field focus edge on its well", p.TextMuted, p.Well, 3)
-			check("field focus edge on a chrome field", p.TextMuted, p.Canvas, 3)
-			check("field focus edge beside the canvas", p.TextMuted, p.Canvas, 3)
-			check("field focus edge beside chrome", p.TextMuted, p.Chrome, 3)
+			// A focused field and a keyboard focus ring draw Ring inside their
+			// face; it must read against that face and the surface around it,
+			// without being the ink accent a primary action is.
+			check("field focus edge on its well", p.Ring, p.Well, 3)
+			check("field focus edge on a chrome field", p.Ring, p.Canvas, 3)
+			check("field focus edge beside the canvas", p.Ring, p.Canvas, 3)
+			check("field focus edge beside chrome", p.Ring, p.Chrome, 3)
+			if p.Ring == p.Accent || p.Ring == p.TextMuted {
+				t.Fatal("Ring must be its own focus color, not the accent or muted text")
+			}
 			check("tooltip", theme.InverseText, theme.Inverse, 4.5)
 			// The duration bar is a normal quantity behind its number; a slow
 			// one is the danger tint. Both carry body text.
