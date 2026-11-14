@@ -3527,6 +3527,20 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 			t.Fatalf("did not show %q: %v", label, tt.Texts())
 		}
 	}
+	// The response header can appear before its post-response script has
+	// produced the Checks view; wait for that result, not for a fixed delay.
+	waitForChecks := func() {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			if d := a.requestDocument; d != nil && len(d.composeTests) > 0 {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+			tt.Frame()
+		}
+		t.Fatal("response checks never arrived")
+	}
 	tt.Key(ui.Cmd, ui.Key2)
 	click("Slow request")
 	click("Send")
@@ -3544,6 +3558,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	click("Fast request")
 	click("Send")
 	waitFor("201 Created")
+	waitForChecks()
 	choosePaneView(t, tt, "Response pane", "Checks")
 	if !tt.HasText("✓ fast owns response") {
 		t.Fatal("fast request ran another tab's script or saw its response")
@@ -3553,6 +3568,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	releaseSlow <- struct{}{}
 	click("Slow request")
 	waitFor("200 OK")
+	waitForChecks()
 	choosePaneView(t, tt, "Response pane", "Checks")
 	if !tt.HasText("✓ slow owns response") || tt.HasText("wrong script") {
 		t.Fatal("slow result used the active tab or a script edited after sending")
