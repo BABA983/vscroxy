@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -422,5 +423,56 @@ func TestRequestAuthEditsReachTheSend(t *testing.T) {
 		pm.request.auth.set("token", "x");`}
 	if out := aws.Execute(t.Context(), srv, Context{}, nil, nil); out.Stage != "Pre-request script failed" || out.Err == nil {
 		t.Fatalf("aws field write: stage %q, err %v", out.Stage, out.Err)
+	}
+}
+
+// removableJar is a cookie jar that also removes cookies, as the app's store
+// does, keyed by host.
+type removableJar struct{ hosts map[string][]*http.Cookie }
+
+func (j *removableJar) Cookies(u *url.URL) []*http.Cookie { return j.hosts[u.Hostname()] }
+
+func (j *removableJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
+	j.hosts[u.Hostname()] = append(j.hosts[u.Hostname()], cookies...)
+}
+
+func (j *removableJar) RemoveCookie(u *url.URL, name string) {
+	var kept []*http.Cookie
+	for _, c := range j.hosts[u.Hostname()] {
+		if c.Name != name {
+			kept = append(kept, c)
+		}
+	}
+	j.hosts[u.Hostname()] = kept
+}
+
+func (j *removableJar) ClearDomain(u *url.URL) { delete(j.hosts, u.Hostname()) }
+
+// pm.cookies.jar() reads and changes the send's jar for the URL a script names;
+// another host's cookie of the same name is not touched.
+func TestCookieJarScriptsReadAndChangeTheJar(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer upstream.Close()
+	jar := &removableJar{hosts: map[string][]*http.Cookie{
+		"api.test":   {{Name: "stale", Value: "1"}, {Name: "keep", Value: "2"}},
+		"other.test": {{Name: "stale", Value: "3"}},
+	}}
+	req := Request{Method: "GET", URL: upstream.URL, Post: `pm.test("jar", () => {
+	const jar = pm.cookies.jar();
+	const pairs = (url) => { let got; jar.getAll(url, (e, all) => { got = all.map(c => c.name + "=" + c.value).sort(); }); return got; };
+	jar.set("https://api.test/", "token", "xyz");
+	pm.expect(pairs("https://api.test/")).to.eql(["keep=2", "stale=1", "token=xyz"]);
+	jar.get("https://api.test/", "token", (e, v) => pm.expect(v).to.equal("xyz"));
+	jar.get("https://api.test/", "missing", (e, v) => pm.expect(v).to.equal(null));
+	jar.unset("https://api.test/", "stale");
+	pm.expect(pairs("https://api.test/")).to.eql(["keep=2", "token=xyz"]);
+	jar.clear("https://other.test/");
+	pm.expect(pairs("https://other.test/")).to.eql([]);
+	pm.expect(pairs("https://api.test/")).to.eql(["keep=2", "token=xyz"]);
+	jar.clear("https://api.test/");
+	pm.expect(pairs("https://api.test/")).to.eql([]);
+})`}
+	if out := req.Execute(t.Context(), testProxy(t), Context{}, nil, jar); out.Err != nil || out.Failed() {
+		t.Fatalf("%s: err %v, tests %+v", out.Stage, out.Err, out.Tests)
 	}
 }

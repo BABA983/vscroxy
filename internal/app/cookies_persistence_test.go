@@ -153,6 +153,20 @@ func TestCookiePersistenceClearDomainAndClearAll(t *testing.T) {
 	if names := cookieNames(a.requestCookies().Cookies(api)); len(names) != 0 {
 		t.Fatalf("host-only clear left cookies: %v", names)
 	}
+	// Script removals: unset takes one name on one host; the same name elsewhere stays.
+	a.requestCookies().SetCookies(api, []*http.Cookie{{Name: "session", Value: "one", Path: "/", Expires: expires}})
+	a.requestCookies().SetCookies(other, []*http.Cookie{{Name: "session", Value: "two", Path: "/", Expires: expires}})
+	a.requestCookies().RemoveCookie(api, "session")
+	if names := cookieNames(a.requestCookies().Cookies(api)); len(names) != 0 {
+		t.Fatalf("RemoveCookie left the named cookie: %v", names)
+	}
+	if names := cookieNames(a.requestCookies().Cookies(other)); !slices.Contains(names, "session") {
+		t.Fatalf("RemoveCookie removed the same name on another host: %v", names)
+	}
+	a.requestCookies().ClearDomain(other)
+	if names := cookieNames(a.requestCookies().Cookies(other)); len(names) != 0 {
+		t.Fatalf("ClearDomain left cookies: %v", names)
+	}
 	a.requestCookies().clear()
 	if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("clear all left the cookie file: %v", err)

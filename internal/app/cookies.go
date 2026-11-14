@@ -199,10 +199,25 @@ func (s *cookieStore) remove(key string) {
 // and case-insensitive. Subdomains are separate domains.
 func (s *cookieStore) clearDomain(domain string) {
 	domain = strings.TrimPrefix(strings.ToLower(domain), ".")
+	s.removeMatching(func(item storedCookie) bool { return cookieDomain(item) == domain })
+}
+
+// ClearDomain removes the cookies of the host of u, for pm.cookies.jar().clear.
+func (s *cookieStore) ClearDomain(u *url.URL) { s.clearDomain(u.Hostname()) }
+
+// RemoveCookie removes the cookie name of the host of u, for
+// pm.cookies.jar().unset. The same name on another domain stays.
+func (s *cookieStore) RemoveCookie(u *url.URL, name string) {
+	domain := strings.ToLower(u.Hostname())
+	s.removeMatching(func(item storedCookie) bool { return item.cookie.Name == name && cookieDomain(item) == domain })
+}
+
+// removeMatching deletes the cookies match selects and saves the jar.
+func (s *cookieStore) removeMatching(match func(storedCookie) bool) {
 	s.mu.Lock()
 	s.init()
 	for key, item := range s.items {
-		if cookieDomain(item) == domain {
+		if match(item) {
 			delete(s.items, key)
 		}
 	}

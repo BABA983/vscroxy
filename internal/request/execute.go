@@ -76,15 +76,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	run.send = func(req *Prepared) (capture.Flow, error) {
 		return srv.ReplayWithCookies(ctx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body}, jar, true)
 	}
-	if jar != nil {
-		run.cookies = func(target string) []*http.Cookie {
-			u, err := url.Parse(target)
-			if err != nil || u.Host == "" {
-				return nil
-			}
-			return jar.Cookies(u)
-		}
-	}
+	run.jar = jar
 	out = Execution{Vars: run.vars, Stage: "Request setup failed"}
 	defer func() {
 		out.Locals, out.Writes, out.Next = run.locals, run.writes, run.next

@@ -2366,6 +2366,9 @@ at the top level, with two seconds of run time (time spent waiting on
   is captured too), `pm.execution.skipRequest()` in a pre-request script, and
   `pm.execution.setNextRequest(name)` or `(null)` in the Runner. `pm.info`,
   `pm.cookies` (the cookie jar's cookies for the request URL),
+  `pm.cookies.jar()` (`get(url, name)`, `getAll(url)`, `set(url, name, value)`,
+  `unset(url, name)` and `clear(url)` on the send's jar, each with an optional
+  callback or `await`; `unset` and `clear` remove only that URL's host),
   `pm.response.cookies` in a post-response script (the response's Set-Cookie
   names and values, read with `get`, `has`, `toObject` and the other helpers
   of `pm.cookies`),

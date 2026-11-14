@@ -467,7 +467,8 @@
 		},
 		cookies: (function () {
 			var list = pairList(host.cookies);
-			return { has: function (n) { return list.has(n); }, get: function (n) { return list.get(n); }, toObject: list.toObject };
+			return { has: function (n) { return list.has(n); }, get: function (n) { return list.get(n); }, toObject: list.toObject,
+				jar: function () { return cookieJar; } };
 		})(),
 		vault: {
 			get: function (name) { try { return Promise.resolve(host.vault("get", text(name), "")); } catch (e) { return Promise.reject(e); } },
@@ -477,6 +478,21 @@
 		visualizer: { set: function () { host.log("warning", "pm.visualizer is not supported; the template was ignored"); }, clear: function () {} },
 		require: function (name) { return global.require(name); },
 	};
+	// cookieJar is pm.cookies.jar(): each method takes an optional callback
+	// (error, value), runs at once and returns a Promise, as pm.sendRequest does.
+	var cookieJar = {
+		get: function (url, name, callback) { return jarCall("get", url, name, "", callback); },
+		getAll: function (url, callback) { return jarCall("getAll", url, "", "", callback); },
+		set: function (url, name, value, callback) { return jarCall("set", url, name, value, callback); },
+		unset: function (url, name, callback) { return jarCall("unset", url, name, "", callback); },
+		clear: function (url, callback) { return jarCall("clear", url, "", "", callback); },
+	};
+	function jarCall(op, url, name, value, callback) {
+		var result, failure = null;
+		try { result = host.jar(op, text(url), text(name), text(value)); } catch (e) { failure = e; }
+		if (typeof callback === "function") callback(failure, result);
+		return failure ? Promise.reject(failure) : Promise.resolve(result);
+	}
 	pm.environment.name = host.info.environment;
 	pm.test.skip = function (name) { results.push({ name: text(name), pass: true, skipped: true, error: "", pending: false }); return pm; };
 	pm.test.index = function () { return results.length; };

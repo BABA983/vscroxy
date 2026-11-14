@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -287,13 +288,21 @@ type scriptRun struct {
 	// file names the script in errors, by its phase when empty; sourceMap
 	// maps a converted module's lines back to the file as written.
 	file, sourceMap string
-	// target is the URL the scripts' request goes to, for cookies and the
-	// vault. send, vault and cookies are nil where a run cannot offer them.
+	// target is the URL the scripts' request goes to, for the vault. send and
+	// vault are nil where a run cannot offer them. jar is the send's cookie
+	// jar, nil where a run has none.
 	target  func() string
 	send    func(*Prepared) (capture.Flow, error)
 	vault   func(name, host string) (string, error)
 	secrets map[string]*string
-	cookies func(target string) []*http.Cookie
+	jar     http.CookieJar
+}
+
+// cookieRemover is a cookie jar that removes cookies by name or host. The
+// app's store is one; pm.cookies.jar().unset and clear need it.
+type cookieRemover interface {
+	RemoveCookie(u *url.URL, name string)
+	ClearDomain(u *url.URL)
 }
 
 type scriptInfo struct {
@@ -869,12 +878,51 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	})
 	set("cookies", func() goja.Value {
 		h := http.Header{}
-		if run.cookies != nil {
-			for _, c := range run.cookies(run.target()) {
+		if u, err := url.Parse(run.target()); run.jar != nil && err == nil && u.Host != "" {
+			for _, c := range run.jar.Cookies(u) {
 				h.Add(c.Name, c.Value)
 			}
 		}
 		return pairs(h)
+	})
+	// jar is pm.cookies.jar(): get, getAll and set on the send's cookie jar for
+	// the URL the script names, and unset and clear through a cookieRemover.
+	set("jar", func(op, target, name, value string) (any, error) {
+		u, err := url.Parse(target)
+		if err != nil || u.Host == "" {
+			return nil, fmt.Errorf("pm.cookies.jar(): %q is not an absolute URL", target)
+		}
+		if run.jar == nil {
+			return nil, errors.New("pm.cookies.jar() has no cookie jar in this run")
+		}
+		switch op {
+		case "get":
+			for _, c := range run.jar.Cookies(u) {
+				if c.Name == name {
+					return c.Value, nil
+				}
+			}
+			return nil, nil
+		case "getAll":
+			all := []map[string]string{}
+			for _, c := range run.jar.Cookies(u) {
+				all = append(all, map[string]string{"name": c.Name, "value": c.Value})
+			}
+			return all, nil
+		case "set":
+			run.jar.SetCookies(u, []*http.Cookie{{Name: name, Value: value}})
+			return nil, nil
+		}
+		remover, ok := run.jar.(cookieRemover)
+		if !ok {
+			return nil, errors.New("this cookie jar cannot remove cookies")
+		}
+		if op == "unset" {
+			remover.RemoveCookie(u, name)
+		} else {
+			remover.ClearDomain(u)
+		}
+		return nil, nil
 	})
 	set("vault", func(op, name, value string) (goja.Value, error) {
 		v, secret, err := run.secret(op, name, value)
