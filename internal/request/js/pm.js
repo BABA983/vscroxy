@@ -325,6 +325,18 @@
 
 	// makeResponse is pm.response. A rule script's response is editable: code
 	// can be assigned, headers changed and setBody replaces the body.
+	// responseCookies is pm.response.cookies: each Set-Cookie header's name and
+	// value, split at the first "=", without its attributes.
+	function responseCookies(read) {
+		var list = [], pairs = read();
+		for (var i = 0; i < pairs.length; i++) {
+			if (String(pairs[i][0]).toLowerCase() !== "set-cookie") continue;
+			var pair = String(pairs[i][1]).split(";")[0], eq = pair.indexOf("=");
+			if (eq > 0) list.push([pair.slice(0, eq).trim(), pair.slice(eq + 1).trim()]);
+		}
+		return pairList(function () { return list; });
+	}
+
 	function makeResponse(r) {
 		var res = {
 			code: r.code,
@@ -336,6 +348,7 @@
 			json: function () { return parseJSON(r.body); },
 			reason: function () { return r.status; },
 			size: function () { return { body: r.body.length, total: r.size }; },
+			cookies: responseCookies(r.headers),
 		};
 		res.stream = r.body;
 		if (r.setCode) {

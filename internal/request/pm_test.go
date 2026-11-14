@@ -352,3 +352,27 @@ pm.test("own write", async () => pm.expect(await pm.vault.get("new")).to.equal("
 		}
 	}
 }
+
+// pm.response.cookies reads each Set-Cookie header's name and value, split at
+// the first "=", and ignores the attributes.
+func TestResponseCookiesReadSetCookie(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Set-Cookie", "session=abc; Path=/; HttpOnly")
+		w.Header().Add("Set-Cookie", "token=a=b; Max-Age=60")
+	}))
+	defer upstream.Close()
+	out := Request{Method: "GET", URL: upstream.URL, Post: `pm.test("cookies", () => {
+	pm.expect(pm.response.cookies.get("session")).to.equal("abc");
+	pm.expect(pm.response.cookies.get("token")).to.equal("a=b");
+	pm.expect(pm.response.cookies.has("session", "abc")).to.equal(true);
+	pm.expect(pm.response.cookies.has("session", "Path")).to.equal(false);
+	pm.expect(pm.response.cookies.has("missing")).to.equal(false);
+	pm.expect(pm.response.cookies.toObject()).to.eql({session: "abc", token: "a=b"});
+})`}.Execute(t.Context(), testProxy(t), Context{}, nil, nil)
+	if out.Err != nil {
+		t.Fatalf("%s: %v", out.Stage, out.Err)
+	}
+	if len(out.Tests) != 1 || !out.Tests[0].Pass {
+		t.Fatalf("tests = %+v", out.Tests)
+	}
+}
