@@ -1782,6 +1782,26 @@ func (msgs Messages) Breakpoints() string {
 	return Catalog.Format(msgs.locale, "breakpoints", nil)
 }
 
+// Broker says "Broker"
+// in the language the app shows.
+func Broker() string { return In(i18n.Locale()).Broker() }
+
+// Broker says "Broker"
+// in the language of msgs.
+func (msgs Messages) Broker() string {
+	return Catalog.Format(msgs.locale, "broker", nil)
+}
+
+// BrokerAssignsOne says "Broker assigns one"
+// in the language the app shows.
+func BrokerAssignsOne() string { return In(i18n.Locale()).BrokerAssignsOne() }
+
+// BrokerAssignsOne says "Broker assigns one"
+// in the language of msgs.
+func (msgs Messages) BrokerAssignsOne() string {
+	return Catalog.Format(msgs.locale, "brokerAssignsOne", nil)
+}
+
 // Browse says "Browse…"
 // in the language the app shows.
 func Browse() string { return In(i18n.Locale()).Browse() }
@@ -1874,11 +1894,11 @@ func (msgs Messages) BypassList() string {
 	return Catalog.Format(msgs.locale, "bypassList", nil)
 }
 
-// Bytes0Advertises1Mib says "bytes · 0 advertises 1 MiB so one broker packet cannot grow without limit"
+// Bytes0Advertises1Mib says "0 advertises 1 MiB"
 // in the language the app shows.
 func Bytes0Advertises1Mib() string { return In(i18n.Locale()).Bytes0Advertises1Mib() }
 
-// Bytes0Advertises1Mib says "bytes · 0 advertises 1 MiB so one broker packet cannot grow without limit"
+// Bytes0Advertises1Mib says "0 advertises 1 MiB"
 // in the language of msgs.
 func (msgs Messages) Bytes0Advertises1Mib() string {
 	return Catalog.Format(msgs.locale, "bytes0Advertises1Mib", nil)
@@ -3810,6 +3830,16 @@ func (msgs Messages) ConnectStartsAFreshTimeline() string {
 	return Catalog.Format(msgs.locale, "connectStartsAFreshTimeline", nil)
 }
 
+// ConnectTimeout says "Connect timeout"
+// in the language the app shows.
+func ConnectTimeout() string { return In(i18n.Locale()).ConnectTimeout() }
+
+// ConnectTimeout says "Connect timeout"
+// in the language of msgs.
+func (msgs Messages) ConnectTimeout() string {
+	return Catalog.Format(msgs.locale, "connectTimeout", nil)
+}
+
 // ConnectTimeoutInMilliseconds says "Connect timeout in milliseconds"
 // in the language the app shows.
 func ConnectTimeoutInMilliseconds() string { return In(i18n.Locale()).ConnectTimeoutInMilliseconds() }
@@ -3818,6 +3848,16 @@ func ConnectTimeoutInMilliseconds() string { return In(i18n.Locale()).ConnectTim
 // in the language of msgs.
 func (msgs Messages) ConnectTimeoutInMilliseconds() string {
 	return Catalog.Format(msgs.locale, "connectTimeoutInMilliseconds", nil)
+}
+
+// ConnectToPublishAndSubscribe says "Connect to publish and subscribe on the live broker."
+// in the language the app shows.
+func ConnectToPublishAndSubscribe() string { return In(i18n.Locale()).ConnectToPublishAndSubscribe() }
+
+// ConnectToPublishAndSubscribe says "Connect to publish and subscribe on the live broker."
+// in the language of msgs.
+func (msgs Messages) ConnectToPublishAndSubscribe() string {
+	return Catalog.Format(msgs.locale, "connectToPublishAndSubscribe", nil)
 }
 
 // Connected says "Connected"
@@ -6936,16 +6976,6 @@ func (msgs Messages) Expiry() string {
 	return Catalog.Format(msgs.locale, "expiry", nil)
 }
 
-// ExpiryAndAlias says "Expiry and alias"
-// in the language the app shows.
-func ExpiryAndAlias() string { return In(i18n.Locale()).ExpiryAndAlias() }
-
-// ExpiryAndAlias says "Expiry and alias"
-// in the language of msgs.
-func (msgs Messages) ExpiryAndAlias() string {
-	return Catalog.Format(msgs.locale, "expiryAndAlias", nil)
-}
-
 // Explain says "Explain"
 // in the language the app shows.
 func Explain() string { return In(i18n.Locale()).Explain() }
@@ -9876,6 +9906,16 @@ func (msgs Messages) Keep() string {
 	return Catalog.Format(msgs.locale, "keep", nil)
 }
 
+// KeepAlive says "Keep-alive"
+// in the language the app shows.
+func KeepAlive() string { return In(i18n.Locale()).KeepAlive() }
+
+// KeepAlive says "Keep-alive"
+// in the language of msgs.
+func (msgs Messages) KeepAlive() string {
+	return Catalog.Format(msgs.locale, "keepAlive", nil)
+}
+
 // KeepAliveInSeconds says "Keep-alive in seconds"
 // in the language the app shows.
 func KeepAliveInSeconds() string { return In(i18n.Locale()).KeepAliveInSeconds() }
@@ -11330,21 +11370,11 @@ func (msgs Messages) MoveUp() string {
 	return Catalog.Format(msgs.locale, "moveUp", nil)
 }
 
-// Mqtt311Or says "MQTT 3.1.1 or 5.0 over TCP, TLS or WebSocket. mqtt:// and mqtts:// connect directly; ws:// and wss:// use the running…"
-// in the language the app shows.
-func Mqtt311Or() string { return In(i18n.Locale()).Mqtt311Or() }
-
-// Mqtt311Or says "MQTT 3.1.1 or 5.0 over TCP, TLS or WebSocket. mqtt:// and mqtts:// connect directly; ws:// and wss:// use the running…"
-// in the language of msgs.
-func (msgs Messages) Mqtt311Or() string {
-	return Catalog.Format(msgs.locale, "mqtt311Or", nil)
-}
-
-// Mqtt50ConnectProperties says "MQTT 5.0 CONNECT PROPERTIES · not sent on 3.1.1; clear them before connecting with 3.1.1"
+// Mqtt50ConnectProperties says "MQTT 5.0 connect properties"
 // in the language the app shows.
 func Mqtt50ConnectProperties() string { return In(i18n.Locale()).Mqtt50ConnectProperties() }
 
-// Mqtt50ConnectProperties says "MQTT 5.0 CONNECT PROPERTIES · not sent on 3.1.1; clear them before connecting with 3.1.1"
+// Mqtt50ConnectProperties says "MQTT 5.0 connect properties"
 // in the language of msgs.
 func (msgs Messages) Mqtt50ConnectProperties() string {
 	return Catalog.Format(msgs.locale, "mqtt50ConnectProperties", nil)
@@ -11360,21 +11390,21 @@ func (msgs Messages) Mqtt50MayLeave() string {
 	return Catalog.Format(msgs.locale, "mqtt50MayLeave", nil)
 }
 
-// Mqtt50PublishProperties says "MQTT 5.0 PUBLISH PROPERTIES · not sent on 3.1.1"
+// Mqtt50PublishProperties says "MQTT 5.0 publish properties"
 // in the language the app shows.
 func Mqtt50PublishProperties() string { return In(i18n.Locale()).Mqtt50PublishProperties() }
 
-// Mqtt50PublishProperties says "MQTT 5.0 PUBLISH PROPERTIES · not sent on 3.1.1"
+// Mqtt50PublishProperties says "MQTT 5.0 publish properties"
 // in the language of msgs.
 func (msgs Messages) Mqtt50PublishProperties() string {
 	return Catalog.Format(msgs.locale, "mqtt50PublishProperties", nil)
 }
 
-// Mqtt50WillProperties says "MQTT 5.0 WILL PROPERTIES · not sent on 3.1.1"
+// Mqtt50WillProperties says "MQTT 5.0 will properties"
 // in the language the app shows.
 func Mqtt50WillProperties() string { return In(i18n.Locale()).Mqtt50WillProperties() }
 
-// Mqtt50WillProperties says "MQTT 5.0 WILL PROPERTIES · not sent on 3.1.1"
+// Mqtt50WillProperties says "MQTT 5.0 will properties"
 // in the language of msgs.
 func (msgs Messages) Mqtt50WillProperties() string {
 	return Catalog.Format(msgs.locale, "mqtt50WillProperties", nil)
@@ -11458,6 +11488,16 @@ func MqttSessionExpiryInSeconds() string { return In(i18n.Locale()).MqttSessionE
 // in the language of msgs.
 func (msgs Messages) MqttSessionExpiryInSeconds() string {
 	return Catalog.Format(msgs.locale, "mqttSessionExpiryInSeconds", nil)
+}
+
+// MqttTopicExample says "sensors/+/temperature"
+// in the language the app shows.
+func MqttTopicExample() string { return In(i18n.Locale()).MqttTopicExample() }
+
+// MqttTopicExample says "sensors/+/temperature"
+// in the language of msgs.
+func (msgs Messages) MqttTopicExample() string {
+	return Catalog.Format(msgs.locale, "mqttTopicExample", nil)
 }
 
 // MqttsAndWssVerifyThe says "mqtts:// and wss:// verify the system and custom roots. Client certificates are chosen by host in Settings → Certif…"
@@ -12268,6 +12308,16 @@ func NoMqttConnectionYet() string { return In(i18n.Locale()).NoMqttConnectionYet
 // in the language of msgs.
 func (msgs Messages) NoMqttConnectionYet() string {
 	return Catalog.Format(msgs.locale, "noMqttConnectionYet", nil)
+}
+
+// NoMqttMessagesYet says "No messages yet"
+// in the language the app shows.
+func NoMqttMessagesYet() string { return In(i18n.Locale()).NoMqttMessagesYet() }
+
+// NoMqttMessagesYet says "No messages yet"
+// in the language of msgs.
+func (msgs Messages) NoMqttMessagesYet() string {
+	return Catalog.Format(msgs.locale, "noMqttMessagesYet", nil)
 }
 
 // NoOpenDraftsForThis says "No open drafts for this source"
@@ -14658,6 +14708,16 @@ func (msgs Messages) PublishMqttMessage() string {
 	return Catalog.Format(msgs.locale, "publishMqttMessage", nil)
 }
 
+// PublishOrWaitForThe says "Publish a message or wait for the broker."
+// in the language the app shows.
+func PublishOrWaitForThe() string { return In(i18n.Locale()).PublishOrWaitForThe() }
+
+// PublishOrWaitForThe says "Publish a message or wait for the broker."
+// in the language of msgs.
+func (msgs Messages) PublishOrWaitForThe() string {
+	return Catalog.Format(msgs.locale, "publishOrWaitForThe", nil)
+}
+
 // PublishQos says "Publish QoS"
 // in the language the app shows.
 func PublishQos() string { return In(i18n.Locale()).PublishQos() }
@@ -16592,11 +16652,11 @@ func (msgs Messages) ResponseHeadersLabel() string {
 	return Catalog.Format(msgs.locale, "responseHeadersLabel", nil)
 }
 
-// ResponseInformation says "Response information"
+// ResponseInformation says "Response info"
 // in the language the app shows.
 func ResponseInformation() string { return In(i18n.Locale()).ResponseInformation() }
 
-// ResponseInformation says "Response information"
+// ResponseInformation says "Response info"
 // in the language of msgs.
 func (msgs Messages) ResponseInformation() string {
 	return Catalog.Format(msgs.locale, "responseInformation", nil)
@@ -16780,16 +16840,6 @@ func RetainHandling() string { return In(i18n.Locale()).RetainHandling() }
 // in the language of msgs.
 func (msgs Messages) RetainHandling() string {
 	return Catalog.Format(msgs.locale, "retainHandling", nil)
-}
-
-// RetainHandlingMqtt5Only says "retain handling · MQTT 5 only"
-// in the language the app shows.
-func RetainHandlingMqtt5Only() string { return In(i18n.Locale()).RetainHandlingMqtt5Only() }
-
-// RetainHandlingMqtt5Only says "retain handling · MQTT 5 only"
-// in the language of msgs.
-func (msgs Messages) RetainHandlingMqtt5Only() string {
-	return Catalog.Format(msgs.locale, "retainHandlingMqtt5Only", nil)
 }
 
 // RetainedEvicted says "{retained} retained · {evicted} evicted"
@@ -18746,31 +18796,21 @@ func (msgs Messages) SearchingBodiesTitle() string {
 	return Catalog.Format(msgs.locale, "searchingBodiesTitle", nil)
 }
 
-// Seconds says "seconds"
-// in the language the app shows.
-func Seconds() string { return In(i18n.Locale()).Seconds() }
-
-// Seconds says "seconds"
-// in the language of msgs.
-func (msgs Messages) Seconds() string {
-	return Catalog.Format(msgs.locale, "seconds", nil)
-}
-
-// Seconds0DisablesKeepAlive says "seconds · 0 disables keep-alive"
+// Seconds0DisablesKeepAlive says "0 disables keep-alive"
 // in the language the app shows.
 func Seconds0DisablesKeepAlive() string { return In(i18n.Locale()).Seconds0DisablesKeepAlive() }
 
-// Seconds0DisablesKeepAlive says "seconds · 0 disables keep-alive"
+// Seconds0DisablesKeepAlive says "0 disables keep-alive"
 // in the language of msgs.
 func (msgs Messages) Seconds0DisablesKeepAlive() string {
 	return Catalog.Format(msgs.locale, "seconds0DisablesKeepAlive", nil)
 }
 
-// Seconds0EndsTheSession says "seconds · 0 ends the session when the connection closes"
+// Seconds0EndsTheSession says "0 ends the session when the connection closes"
 // in the language the app shows.
 func Seconds0EndsTheSession() string { return In(i18n.Locale()).Seconds0EndsTheSession() }
 
-// Seconds0EndsTheSession says "seconds · 0 ends the session when the connection closes"
+// Seconds0EndsTheSession says "0 ends the session when the connection closes"
 // in the language of msgs.
 func (msgs Messages) Seconds0EndsTheSession() string {
 	return Catalog.Format(msgs.locale, "seconds0EndsTheSession", nil)
@@ -18784,16 +18824,6 @@ func Seconds0WaitsWithNo() string { return In(i18n.Locale()).Seconds0WaitsWithNo
 // in the language of msgs.
 func (msgs Messages) Seconds0WaitsWithNo() string {
 	return Catalog.Format(msgs.locale, "seconds0WaitsWithNo", nil)
-}
-
-// SecondsAfterTheConnectionEnds says "seconds after the connection ends"
-// in the language the app shows.
-func SecondsAfterTheConnectionEnds() string { return In(i18n.Locale()).SecondsAfterTheConnectionEnds() }
-
-// SecondsAfterTheConnectionEnds says "seconds after the connection ends"
-// in the language of msgs.
-func (msgs Messages) SecondsAfterTheConnectionEnds() string {
-	return Catalog.Format(msgs.locale, "secondsAfterTheConnectionEnds", nil)
 }
 
 // Secret says "Secret"
@@ -19308,16 +19338,6 @@ func SetProxy() string { return In(i18n.Locale()).SetProxy() }
 // in the language of msgs.
 func (msgs Messages) SetProxy() string {
 	return Catalog.Format(msgs.locale, "setProxy", nil)
-}
-
-// SetTheBrokerUrlAnd says "Set the broker URL and connection options, then Connect. Publish and subscriptions use only the live connection."
-// in the language the app shows.
-func SetTheBrokerUrlAnd() string { return In(i18n.Locale()).SetTheBrokerUrlAnd() }
-
-// SetTheBrokerUrlAnd says "Set the broker URL and connection options, then Connect. Publish and subscriptions use only the live connection."
-// in the language of msgs.
-func (msgs Messages) SetTheBrokerUrlAnd() string {
-	return Catalog.Format(msgs.locale, "setTheBrokerUrlAnd", nil)
 }
 
 // SetTheEndpointNamespaceAnd says "Set the endpoint, namespace and auth, then Connect. Emit sends only on the live connection."
@@ -21070,16 +21090,6 @@ func (msgs Messages) TheBaseUrlRequestsAre() string {
 	return Catalog.Format(msgs.locale, "theBaseUrlRequestsAre", nil)
 }
 
-// TheBrokerPublishesThisMessage says "The broker publishes this message when the connection ends without a clean DISCONNECT. Will delay and the other will …"
-// in the language the app shows.
-func TheBrokerPublishesThisMessage() string { return In(i18n.Locale()).TheBrokerPublishesThisMessage() }
-
-// TheBrokerPublishesThisMessage says "The broker publishes this message when the connection ends without a clean DISCONNECT. Will delay and the other will …"
-// in the language of msgs.
-func (msgs Messages) TheBrokerPublishesThisMessage() string {
-	return Catalog.Format(msgs.locale, "theBrokerPublishesThisMessage", nil)
-}
-
 // TheCaIsCopiedTo says "The CA is copied to Downloads only. Android 7+ apps do not trust user-installed CAs; installing it and enabling trust…"
 // in the language the app shows.
 func TheCaIsCopiedTo() string { return In(i18n.Locale()).TheCaIsCopiedTo() }
@@ -21796,16 +21806,6 @@ func TopicAlias() string { return In(i18n.Locale()).TopicAlias() }
 // in the language of msgs.
 func (msgs Messages) TopicAlias() string {
 	return Catalog.Format(msgs.locale, "topicAlias", nil)
-}
-
-// TopicAlias2 says "topic alias"
-// in the language the app shows.
-func TopicAlias2() string { return In(i18n.Locale()).TopicAlias2() }
-
-// TopicAlias2 says "topic alias"
-// in the language of msgs.
-func (msgs Messages) TopicAlias2() string {
-	return Catalog.Format(msgs.locale, "topicAlias2", nil)
 }
 
 // TopicFilter says "Topic filter"
@@ -22604,16 +22604,6 @@ func Variables() string { return In(i18n.Locale()).Variables() }
 // in the language of msgs.
 func (msgs Messages) Variables() string {
 	return Catalog.Format(msgs.locale, "variables", nil)
-}
-
-// VariablesAndVaultNameExpand says "'{{variables}}' and '{{vault:name}}' expand on publish; text and json keep the text, hex ignores whitespace, base64 n…"
-// in the language the app shows.
-func VariablesAndVaultNameExpand() string { return In(i18n.Locale()).VariablesAndVaultNameExpand() }
-
-// VariablesAndVaultNameExpand says "'{{variables}}' and '{{vault:name}}' expand on publish; text and json keep the text, hex ignores whitespace, base64 n…"
-// in the language of msgs.
-func (msgs Messages) VariablesAndVaultNameExpand() string {
-	return Catalog.Format(msgs.locale, "variablesAndVaultNameExpand", nil)
 }
 
 // VariablesAreReadOnlyClose says "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets."

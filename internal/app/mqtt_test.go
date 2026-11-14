@@ -270,6 +270,31 @@ func TestMQTTEmptyClientIDStaysClean(t *testing.T) {
 	}
 }
 
+func TestMQTTConnectionFormUsesTypedNumbers(t *testing.T) {
+	a := libraryApp(t)
+	a.addDocument(savedRequest{Request: request.Request{
+		Protocol: "MQTT", Name: "Numbers", URL: "https://",
+	}}, "")
+	d := a.requestDocument
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	if d.composeURL != "mqtts://" {
+		t.Fatalf("new MQTT document kept URL %q", d.composeURL)
+	}
+	if err := tt.Click("Keep-alive in seconds"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("90")
+	tt.Frame()
+	if d.mqttConfig.KeepAlive != 90 {
+		t.Fatalf("typed keep-alive saved %d", d.mqttConfig.KeepAlive)
+	}
+	if _, ok := tt.Find("Decrease"); ok {
+		t.Fatal("the number field still carries a step button")
+	}
+}
+
 func TestMQTT311ConnectGeneratesClientIDWithoutSavingIt(t *testing.T) {
 	address := startAppMQTTBroker(t)
 	a := libraryApp(t)

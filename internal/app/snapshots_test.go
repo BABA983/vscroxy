@@ -315,22 +315,22 @@ func TestUISnapshots(t *testing.T) {
 		{name: "requests-mqtt-connection", setup: func(a *app) {
 			mqttSnapshotDraft(a)
 			a.requestDocument.requestPercent = 72
-		}, want: "MQTT 5.0 CONNECT PROPERTIES"},
+		}, want: "MQTT 5.0 connect properties"},
 		{name: "requests-mqtt-subscriptions", setup: func(a *app) {
 			mqttSnapshotDraft(a)
 			a.mqttState().tab = 1
-		}, want: "Topic filters accept + for one level"},
+		}, want: "Add topic"},
 		{name: "requests-mqtt-publish", setup: func(a *app) {
 			mqttSnapshotDraft(a)
 			a.mqttState().tab = 2
-		}, want: "MQTT 5.0 PUBLISH PROPERTIES"},
+		}, want: "MQTT 5.0 publish properties"},
 		{name: "requests-mqtt-will", setup: func(a *app) {
 			mqttSnapshotDraft(a)
 			a.requestDocument.mqttConfig.Will = request.MQTTWill{Enabled: true, Topic: "clients/gone", Payload: `{"state":"offline"}`, Type: "json", QoS: 1, Retain: true,
 				Properties: request.MQTTWillProperties{WillDelay: 30, MessageExpiry: 60, ContentType: "application/json", ResponseTopic: "replies/gone",
 					UserProperties: []request.MQTTProperty{{Key: "source", Value: "vscroxy"}}}}
 			a.mqttState().tab = 3
-		}, want: "MQTT 5.0 WILL PROPERTIES"},
+		}, want: "MQTT 5.0 will properties"},
 		{name: "requests-mqtt-stream", setup: mqttSnapshotStream, want: "In · sensors/kitchen/temperature"},
 		{name: "requests-mcp-empty", setup: func(a *app) {
 			mcpDraft(a, request.MCPConfig{Transport: request.MCPTransportStreamableHTTP})
