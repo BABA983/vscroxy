@@ -329,7 +329,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 					ui.Column(c).FillWidth().Padding(0, t.Space(3)).Gap(t.Space(1)).BorderWidth(0, 0, 0, 2).BorderColor(t.Danger).Children(func() {
 						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 							uikit.Label(c, "Recorded failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).Grow(1)
-							if uikit.ToolbarButton(c, locales.CopyError(), locales.CopyTheRecordedError(), false).Height(uikit.HeightControl).Gap(t.Space(1)).Children(func() {
+							if uikit.ToolbarButton(c, locales.CopyError(), locales.CopyTheRecordedError(), false).Gap(t.Space(1)).Children(func() {
 								ui.Icon(c, copyIcon).Size(uikit.IconInline, uikit.IconInline)
 								ui.Text(c, locales.Copy()).FontSize(uikit.Scaled(uikit.TextMeta))
 							}).Clicked() {

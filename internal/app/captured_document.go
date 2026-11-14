@@ -178,7 +178,7 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 				a.openDiagnostics(&f, diagnoseMac)
 			}
 		}
-		copy := uikit.ToolbarButton(c, locales.CopyAs(), locales.CopyTheOriginalCapturedRequest(), false).Padding(0, t.Space(1)).PopoverMenuButton(func(m *ui.Menu) {
+		copy := uikit.ToolbarButton(c, locales.CopyAs(), locales.CopyTheOriginalCapturedRequest(), false).PopoverMenuButton(func(m *ui.Menu) {
 			actionMenu(m, copyAsMenu(append(a.requestCopyActions(c, f, nil), a.captureCopyActions(c, []flow{f})...)).items)
 		})
 		copy.Children(func() {
@@ -204,7 +204,7 @@ func (a *app) capturedDocument(c *ui.Context, t *ui.Theme, f flow, d *requestDoc
 		if a.inspectorWidth(c) < 600 {
 			save = uikit.IconButton(c, locales.SaveToCollection(), locales.SaveThisRequestToA(), saveIcon)
 		} else {
-			save = uikit.SecondaryButton(c, locales.SaveToCollection()).Height(uikit.HeightLarge).
+			save = uikit.SecondaryButton(c, locales.SaveToCollection()).
 				Tooltip(locales.SaveThisRequestToA())
 		}
 		if save.Clicked() {

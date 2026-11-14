@@ -504,7 +504,7 @@ func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 	// bar is: chrome only frames the window, never a line inside the panel.
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).Background(t.Background).Children(func() {
 		if d != nil {
-			crumb := uikit.ToolbarButton(c, locales.RenameRequest(), locales.RenameOrMoveToAnother(), false).Height(uikit.HeightControl).
+			crumb := uikit.ToolbarButton(c, locales.RenameRequest(), locales.RenameOrMoveToAnother(), false).
 				Padding(0, t.Space(1)).Gap(t.Space(1)).MinWidth(0)
 			crumb.Children(func() {
 				if d.composeCollection != "" {
@@ -713,14 +713,14 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Row(c.Key(d.id)).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
 		if d.sourceAPI != "" {
-			if uikit.ToolbarButton(c, locales.SourceApi(), locales.OpenTheApiThisRequest(), false).Height(uikit.HeightControl).Children(func() {
+			if uikit.ToolbarButton(c, locales.SourceApi(), locales.OpenTheApiThisRequest(), false).Children(func() {
 				ui.Text(c, locales.SourceApi()).TextColor(t.Accent)
 			}).Clicked() {
 				a.apiChoice, a.page = d.sourceAPI, pageAPI
 			}
 		}
 		a.actionButton(c, "request.save", locales.Save())
-		uikit.MoreMenu(c, locales.RequestOptions(), func(m *ui.Menu) { actionMenu(m, a.documentActions(c, d)) }).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextTitle))
+		uikit.MoreMenu(c, locales.RequestOptions(), func(m *ui.Menu) { actionMenu(m, a.documentActions(c, d)) })
 	})
 }
 
@@ -1018,7 +1018,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			sendWidth, cancelWidth = 64, 76
 		}
 		if !narrow || !d.composeWaiting {
-			a.actionButton(c, "request.send", sendLabel).Label(sendLabel).Width(sendWidth).Height(uikit.HeightLarge).Radius(uikit.RadiusControl).FontSize(uikit.Scaled(uikit.TextBody)).Background(t.Accent).TextColor(t.AccentText)
+			a.primaryActionButton(c, "request.send", sendLabel).Width(sendWidth)
 		}
 		if d.composeWaiting {
 			label := "Cancel"
@@ -1028,7 +1028,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			if d.sendCancelling && !narrow {
 				label = "Cancelling…"
 			}
-			a.actionButton(c, "request.cancel-send", label).Label(locales.CancelSend()).Width(cancelWidth).Height(uikit.HeightLarge).
+			a.actionButton(c, "request.cancel-send", label).Label(locales.CancelSend()).Width(cancelWidth).
 				Tooltip(locales.StopWaitingCancellingDoesNot())
 		}
 		if more != nil {
@@ -1317,7 +1317,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
 				for _, action := range actions {
 					ui.Row(c).Disabled(action.disabled).Children(func() {
-						if uikit.IconButton(c, action.label, action.tip, action.icon).Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
+						if uikit.IconButton(c, action.label, action.tip, action.icon).Clicked() {
 							action.run()
 						}
 					})
@@ -1581,7 +1581,7 @@ func runConsole(c *ui.Context, entries []request.ConsoleMessage) {
 // capture it came from, and puts the response tabs back when it closes.
 func (a *app) responseCompare(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if uikit.ToolbarButton(c, locales.BackToResponse(), locales.BackToTheResponse(), false).Height(uikit.HeightControl).Gap(t.Space(1)).Children(func() {
+		if uikit.ToolbarButton(c, locales.BackToResponse(), locales.BackToTheResponse(), false).Gap(t.Space(1)).Children(func() {
 			ui.Icon(c, backIcon).Size(uikit.IconInline, uikit.IconInline)
 			ui.Text(c, locales.BackToResponse()).FontSize(uikit.Scaled(uikit.TextMeta))
 		}).Clicked() {

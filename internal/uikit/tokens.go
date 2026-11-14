@@ -34,13 +34,21 @@ const (
 	// HeightFooter is the bar under everything: the window's own actions,
 	// its counts and the tools that are on.
 	HeightFooter = 28
-	// Two control heights: everything is 24, the URL bar and Send 28. Rows
-	// are 24, the control height.
-	HeightControl = 24
-	HeightLarge   = 28
-	// HeightFooterControl is a button inside the 28-point footer, where a
-	// control keeps a few points of air above and below it.
-	HeightFooterControl = 20
+	// Two control heights. ControlHeight is the default for forms, toolbars
+	// and primary actions; ControlHeightSmall is for inline actions, pane
+	// headers and chips. Both follow the desktop text scale.
+	ControlHeight      = 28
+	ControlHeightSmall = 22
+	// Horizontal control padding: Space(3) for a default control, Space(2)
+	// for a small one. The kit multiplies them by the text scale where used.
+	ControlPaddingX      = 12
+	ControlPaddingXSmall = 8
+	// HeightControl is a table or sidebar row; HeightLarge is a bar or a
+	// field that needs the default control height. HeightFooterControl is
+	// the small control inside the footer.
+	HeightControl       = 24
+	HeightLarge         = 28
+	HeightFooterControl = ControlHeightSmall
 	// Corners stay concentric: something nested in a padded container takes
 	// the container's radius less the padding, which is RadiusInner.
 	RadiusInner   = 4

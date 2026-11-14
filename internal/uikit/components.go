@@ -29,8 +29,8 @@ var (
 // to stop the hover face.
 func ToolbarButton(c *ui.Context, label, tip string, active bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	b := Tip(c, ui.ButtonBase(c).Label(label), tip).Height(HeightControl).
-		Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(RadiusControl).
+	b := Tip(c, ui.ButtonBase(c).Label(label), tip).Height(ControlHeight).
+		Padding(0, Scaled(ControlPaddingX)).Gap(t.Space(2)).Radius(RadiusControl).
 		AlignItems(ui.Center).FontSize(Scaled(TextBody)).TextColor(t.TextMuted)
 	if !b.IsDisabled() {
 		if active {
@@ -57,8 +57,8 @@ func ToolbarButton(c *ui.Context, label, tip string, active bool) ui.Element {
 // never read alike.
 func FooterButton(c *ui.Context, label, tip string, on bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	b := Tip(c, ui.ButtonBase(c).Label(label), tip).Height(HeightFooterControl).
-		Padding(0, t.Space(2)).Radius(RadiusInner).AlignItems(ui.Center).FontSize(Scaled(TextMeta)).
+	b := Tip(c, ui.ButtonBase(c).Label(label), tip).Height(ControlHeightSmall).
+		Padding(0, Scaled(ControlPaddingXSmall)).Radius(RadiusInner).AlignItems(ui.Center).FontSize(Scaled(TextMeta)).
 		TextColor(t.Text)
 	b.Children(func() { ui.Text(c, label).FontSize(Scaled(TextMeta)) })
 	switch {
@@ -74,7 +74,7 @@ func FooterButton(c *ui.Context, label, tip string, on bool) ui.Element {
 }
 
 func IconButton(c *ui.Context, label, tip string, icon *ui.SVG) ui.Element {
-	return ToolbarButton(c, label, tip, false).Size(HeightControl, HeightControl).
+	return ToolbarButton(c, label, tip, false).Size(ControlHeight, ControlHeight).
 		Padding(0).Justify(ui.Center).Children(func() {
 		ui.Icon(c, icon).Size(IconInline, IconInline)
 	})
@@ -83,7 +83,7 @@ func IconButton(c *ui.Context, label, tip string, icon *ui.SVG) ui.Element {
 // PrimaryButton is the one action a screen or dialog is for. Green is the
 // accent and nothing else is filled with it.
 func PrimaryButton(c *ui.Context, label string) ui.Element {
-	return ui.PrimaryButton(c, label).Height(HeightControl).Padding(0, c.Theme().Space(3)).
+	return ui.PrimaryButton(c, label).Height(ControlHeight).Padding(0, Scaled(ControlPaddingX)).
 		FontSize(Scaled(TextBody)).FontWeight(500).Radius(RadiusControl)
 }
 
@@ -91,8 +91,8 @@ func PrimaryButton(c *ui.Context, label string) ui.Element {
 // over whatever is beneath, so it reads the same on the window, a panel or
 // a selected row.
 func SecondaryButton(c *ui.Context, label string) ui.Element {
-	return faced(c, func() ui.Element { return ui.Button(c, label) }).Height(HeightControl).
-		Padding(0, c.Theme().Space(2)).FontSize(Scaled(TextBody)).Radius(RadiusControl)
+	return faced(c, func() ui.Element { return ui.Button(c, label) }).Height(ControlHeight).
+		Padding(0, Scaled(ControlPaddingX)).FontSize(Scaled(TextBody)).Radius(RadiusControl)
 }
 
 // ChipButton is a control with the neutral face and no text of its own: the
@@ -101,14 +101,27 @@ func SecondaryButton(c *ui.Context, label string) ui.Element {
 func ChipButton(c *ui.Context, label, tip string) ui.Element {
 	t := c.Theme()
 	return faced(c, func() ui.Element { return Tip(c, ui.ButtonBase(c).Label(label), tip) }).
-		Height(HeightControl).Padding(0, t.Space(2)).Gap(t.Space(1.5)).Radius(RadiusControl).AlignItems(ui.Center)
+		Height(ControlHeightSmall).Padding(0, Scaled(ControlPaddingXSmall)).Gap(t.Space(1.5)).Radius(RadiusControl).AlignItems(ui.Center)
 }
 
 // CompactButton is a secondary button for dense rows and bars: the same
 // face at meta size.
 func CompactButton(c *ui.Context, label string) ui.Element {
-	return faced(c, func() ui.Element { return ui.Button(c, label) }).Height(HeightControl).
-		Padding(0, c.Theme().Space(2)).FontSize(Scaled(TextMeta)).Radius(RadiusControl)
+	return faced(c, func() ui.Element { return ui.Button(c, label) }).Height(ControlHeightSmall).
+		Padding(0, Scaled(ControlPaddingXSmall)).FontSize(Scaled(TextMeta)).Radius(RadiusControl)
+}
+
+// LinkButton is an inline action, such as "+ Add property": text at the
+// small control height with no face until the pointer arrives.
+func LinkButton(c *ui.Context, label string) ui.Element {
+	t, p := c.Theme(), Colors(c.Theme())
+	b := Tip(c, ui.ButtonBase(c).Label(label), label).Height(ControlHeightSmall).
+		Padding(0, Scaled(ControlPaddingXSmall)).Radius(RadiusInner).AlignItems(ui.Center).
+		FontSize(Scaled(TextMeta)).TextColor(t.TextMuted)
+	if b.Hovered() {
+		b.Background(p.FillHover).TextColor(t.Text)
+	}
+	return b
 }
 
 // DangerButton confirms a destructive action; it is never the only way out.
@@ -136,8 +149,8 @@ func faced(c *ui.Context, build func() ui.Element) ui.Element {
 // pointer. Pair it with Selected for the picked row.
 func RowButton(c *ui.Context, label string) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	b := ui.ButtonBase(c).Label(label).FillWidth().MinHeight(HeightControl).
-		Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).Radius(RadiusControl).AlignItems(ui.Center).
+	b := ui.ButtonBase(c).Label(label).FillWidth().MinHeight(ControlHeight).
+		Padding(Scaled(4), Scaled(ControlPaddingXSmall)).Gap(t.Space(2)).Radius(RadiusControl).AlignItems(ui.Center).
 		FontSize(Scaled(TextBody)).TextColor(t.Text)
 	switch {
 	case b.IsDisabled():
@@ -150,7 +163,7 @@ func RowButton(c *ui.Context, label string) ui.Element {
 // SwatchButton picks a color; the chosen one carries a check mark, and a hovered
 // one an outline, so the color itself stays unaltered.
 func SwatchButton(c *ui.Context, label string, color ui.Color, chosen bool) ui.Element {
-	b := Tip(c, ui.ButtonBase(c).Label(label), label).Checked(chosen).Size(HeightControl, HeightControl).
+	b := Tip(c, ui.ButtonBase(c).Label(label), label).Checked(chosen).Size(ControlHeight, ControlHeight).
 		Radius(RadiusControl).Background(color).Center()
 	if b.Hovered() {
 		b.Border(1, c.Theme().Text)
@@ -173,8 +186,7 @@ func Input(c *ui.Context, value *string) ui.Element {
 // styles runs of its text before wrapping it with FieldFace. It keeps the
 // control's height, padding and font, so the field looks like Input.
 func InputControl(c *ui.Context, value *string) ui.Element {
-	t := c.Theme()
-	return ui.TextInput(c, value).Height(HeightControl).Padding(0, t.Space(2)).FontSize(Scaled(TextBody)).Radius(RadiusControl).FocusRing(false)
+	return ui.TextInput(c, value).Height(ControlHeight).Padding(0, Scaled(ControlPaddingX)).FontSize(Scaled(TextBody)).Radius(RadiusControl).FocusRing(false)
 }
 
 // FieldFace gives a text field, or a row holding one with its own controls
@@ -199,13 +211,13 @@ func ChromeFieldFace(c *ui.Context, field ui.Element, focused bool) ui.Element {
 // with a hairline rather than the well it is on the canvas.
 func SearchField(c *ui.Context, value *string, label, placeholder string, onChrome bool) ui.Element {
 	t := c.Theme()
-	field := ui.Row(c).Height(HeightControl).AlignItems(ui.Center).Gap(t.Space(1)).Padding(0, t.Space(2))
+	field := ui.Row(c).Height(ControlHeight).AlignItems(ui.Center).Gap(t.Space(1)).Padding(0, t.Space(2))
 	var in ui.Element
 	field.Children(func() {
 		ui.Icon(c, searchIcon).Size(IconInline, IconInline).TextColor(t.TextMuted)
 		// The face is the row's: the input inside carries no border or fill
 		// of its own, so a hairline is drawn once.
-		in = ui.TextInput(c, value).Height(HeightControl).Padding(0).FontSize(Scaled(TextBody)).Grow(1).MinWidth(0).
+		in = ui.TextInput(c, value).Height(ControlHeight).Padding(0).FontSize(Scaled(TextBody)).Grow(1).MinWidth(0).
 			FocusRing(false).Background(ui.Color{}).Border(0, ui.Color{}).
 			Label(label).Placeholder(placeholder)
 	})
@@ -461,7 +473,7 @@ func StatusPill(c *ui.Context, label string, foreground ui.Color) ui.Element {
 // remove. Both run after the chip is built.
 func QueryChip(c *ui.Context, text string, edit, remove func()) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	return ui.Row(c.Key("query-chip:"+text)).Height(HeightControl).Shrink(0).Padding(0, 2).Gap(0).
+	return ui.Row(c.Key("query-chip:"+text)).Height(ControlHeightSmall).Shrink(0).Padding(0, 2).Gap(0).
 		AlignItems(ui.Center).Radius(RadiusControl).Background(p.Fill).Children(func() {
 		label := func() {
 			ui.Text(c, text).Font(FontMono).FontSize(Scaled(TextData)).TextColor(t.Text).SingleLine()
@@ -470,7 +482,7 @@ func QueryChip(c *ui.Context, text string, edit, remove func()) ui.Element {
 			ui.Row(c).Padding(0, t.Space(1)).Children(label)
 		} else {
 			b := Tip(c, ui.ButtonBase(c).Label("Edit condition: "+text), "Edit "+text).
-				Height(HeightControl-4).Padding(0, t.Space(1)).Radius(RadiusInner).AlignItems(ui.Center)
+				Height(ControlHeightSmall-4).Padding(0, t.Space(1)).Radius(RadiusInner).AlignItems(ui.Center)
 			if b.Hovered() {
 				b.Background(p.FillHover)
 			}
@@ -480,7 +492,7 @@ func QueryChip(c *ui.Context, text string, edit, remove func()) ui.Element {
 			}
 		}
 		x := Tip(c, ui.ButtonBase(c).Label("Remove condition: "+text), "Remove "+text).
-			Size(HeightControl-4, HeightControl-4).Radius(RadiusInner).Justify(ui.Center).AlignItems(ui.Center).TextColor(t.TextMuted)
+			Size(ControlHeightSmall-4, ControlHeightSmall-4).Radius(RadiusInner).Justify(ui.Center).AlignItems(ui.Center).TextColor(t.TextMuted)
 		if x.Hovered() {
 			x.Background(p.FillHover)
 		}
@@ -602,7 +614,7 @@ func Toasts(c *ui.Context) {
 							ui.Text(c, toast.Description).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted)
 						}
 						if toast.Action != "" {
-							b := parts.ActionButton().Label(toast.Action).Height(HeightControl).Padding(0, t.Space(2)).
+							b := parts.ActionButton().Label(toast.Action).Height(ControlHeightSmall).Padding(0, Scaled(ControlPaddingXSmall)).
 								Radius(RadiusControl).Background(p.Fill).TextColor(t.Text).AlignItems(ui.Center)
 							if b.Pressed() {
 								b.Background(p.FillPressed)
@@ -613,7 +625,7 @@ func Toasts(c *ui.Context) {
 						}
 					})
 					close := Tip(c, parts.CloseButton().Label(locales.DismissNotification()), locales.DismissNotification()).
-						Size(HeightControl, HeightControl).Radius(RadiusControl).Center().TextColor(t.TextMuted)
+						Size(ControlHeightSmall, ControlHeightSmall).Radius(RadiusControl).Center().TextColor(t.TextMuted)
 					if close.Pressed() {
 						close.Background(p.FillPressed)
 					} else if close.Hovered() {
@@ -695,7 +707,7 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 				name = prefix + ": " + label
 			}
 			chosen := i == *selected
-			tab := group.Tab(i).Label(name).Height(HeightControl).Padding(0, t.Space(1.5)).Gap(t.Space(1)).
+			tab := group.Tab(i).Label(name).Height(ControlHeightSmall).Padding(0, Scaled(ControlPaddingXSmall)).Gap(t.Space(1)).
 				Radius(RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
 			switch {
 			case chosen && sub:
@@ -777,8 +789,8 @@ func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
 	// A pane header's row is already full of names and tabs: the menu must
 	// keep its width and let them shrink, or it is laid out at nothing and
 	// the pane has no way into its own commands.
-	return Tip(c, b.Label(label), label).Height(HeightControl).Shrink(0).
-		Padding(0, t.Space(2)).FontSize(Scaled(TextBody)).TextColor(t.TextMuted)
+	return Tip(c, b.Label(label), label).Height(ControlHeightSmall).Shrink(0).
+		Padding(0, Scaled(ControlPaddingXSmall)).FontSize(Scaled(TextBody)).TextColor(t.TextMuted)
 }
 
 // TabMenu is a tab that opens a menu instead of choosing a view: where a pane
@@ -794,7 +806,7 @@ func TabMenu(c *ui.Context, label, name string, menu func(*ui.Menu)) ui.Element 
 	// ButtonBase paints nothing of its own: the tab's words are its child.
 	b.Children(func() { ui.Text(c, label).FontSize(Scaled(TextBody)).SingleLine() })
 	c.SetTheme(t)
-	return Tip(c, b.Label(name), name).Height(HeightControl).Padding(0, t.Space(1.5)).
+	return Tip(c, b.Label(name), name).Height(ControlHeightSmall).Padding(0, Scaled(ControlPaddingXSmall)).
 		Radius(RadiusControl).AlignItems(ui.Center).Gap(t.Space(1)).FontSize(Scaled(TextBody)).TextColor(t.TextMuted)
 }
 
@@ -822,7 +834,7 @@ func PaneTitle(c *ui.Context, title, name string, dot, ink ui.Color, onClick fun
 	if ink.A == 0 {
 		ink = t.Text
 	}
-	b := Tip(c, ui.ButtonBase(c).Label(name), name).Height(HeightControl).Padding(0).
+	b := Tip(c, ui.ButtonBase(c).Label(name), name).Height(ControlHeightSmall).Padding(0).
 		Gap(t.Space(1.5)).Radius(RadiusControl).AlignItems(ui.Center).TextColor(ink)
 	b.Children(func() {
 		if dot.A > 0 {

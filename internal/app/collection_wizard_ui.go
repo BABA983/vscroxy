@@ -358,7 +358,7 @@ func (a *app) collectionWizardTree(c *ui.Context, t *ui.Theme) {
 				if !g.include || g.folder != name {
 					continue
 				}
-				row := uikit.ToolbarButton(c.Key(g.id), "Organize "+g.name, g.method+" "+g.template, i == w.active).Height(32).FillWidth().Drag(g.id)
+				row := uikit.ToolbarButton(c.Key(g.id), "Organize "+g.name, g.method+" "+g.template, i == w.active).FillWidth().Drag(g.id)
 				if _, over := ui.DragOver[string](row); over {
 					row.BorderWidth(2, 0, 0, 0).BorderColor(t.Accent)
 				}

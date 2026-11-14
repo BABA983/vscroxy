@@ -174,6 +174,20 @@ func actionMenu(m *ui.Menu, actions []action) {
 }
 
 // actionButton is a button for the global action id, labelled for its place.
+// primaryActionButton is the one filled action a screen is for, such as
+// Send. It keeps the same enabled state and hint as actionButton.
+func (a *app) primaryActionButton(c *ui.Context, id, label string) ui.Element {
+	x := pick(a.actions(c), id)
+	if x.id == "" {
+		return ui.Element{}
+	}
+	b := uikit.Tip(c, uikit.PrimaryButton(c, label).Disabled(!x.enabled), x.hint())
+	if b.Clicked() {
+		x.run()
+	}
+	return b
+}
+
 func (a *app) actionButton(c *ui.Context, id, label string) ui.Element {
 	x := pick(a.actions(c), id)
 	if x.id == "" {

@@ -1021,8 +1021,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				if a.inspect.reveal[side] {
 					label = "Hide"
 				}
-				if uikit.ToolbarButton(c, locales.RevealCredentials(), locales.CredentialsAreMaskedSoA(), false).Height(uikit.HeightControl).
-					Children(func() { ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextMeta)) }).Clicked() {
+				if uikit.Tip(c, uikit.CompactButton(c, label).Label(locales.RevealCredentials()), locales.CredentialsAreMaskedSoA()).Clicked() {
 					a.inspect.reveal[side] = !a.inspect.reveal[side]
 				}
 			}
@@ -1095,7 +1094,7 @@ func (a *app) rawSide(c *ui.Context, f flow, side int) {
 	}
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		uikit.Meta(c, locales.AsSentAndReceivedCapture()).Grow(1)
-		if uikit.SecondaryButton(c, locales.CopyRaw()).Height(uikit.HeightControl).Disabled(a.rawText[side] == "").Clicked() {
+		if uikit.SecondaryButton(c, locales.CopyRaw()).Disabled(a.rawText[side] == "").Clicked() {
 			c.Services().WriteClipboard(a.rawText[side])
 			a.done(locales.CopiedRawMessageReviewCredentials())
 		}
