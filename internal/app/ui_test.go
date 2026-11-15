@@ -2564,6 +2564,74 @@ func TestShellIsOneSurfaceAroundTheRaisedPanel(t *testing.T) {
 	}
 }
 
+// The title bar's layout button pins a request's two panes either way,
+// instead of only following the width.
+func TestRequestLayoutTogglePinsTheSplit(t *testing.T) {
+	a := workspaceApp()
+	a.addDocument(a.requests[0], "")
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if err := tt.Click("Stacked layout"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if d := a.requestDocument; d.split == nil || *d.split {
+		t.Fatal("the request did not stack")
+	}
+	if err := tt.Click("Side by side layout"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if d := a.requestDocument; d.split == nil || !*d.split {
+		t.Fatal("the request did not go side by side")
+	}
+}
+
+// The inspector's own shortcut detaches and docks it, without opening the
+// command palette.
+func TestInspectorShortcutDetaches(t *testing.T) {
+	a := workspaceApp()
+	a.picked = 0
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyI)
+	tt.Frame()
+	if !a.inspectorDetached {
+		t.Fatal("Cmd+Shift+I did not detach the inspector")
+	}
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyI)
+	tt.Frame()
+	if a.inspectorDetached {
+		t.Fatal("Cmd+Shift+I did not dock the inspector")
+	}
+}
+
+// Detaching the inspector leaves the table with the whole window, and docking
+// it puts the same panes back without losing the selection.
+func TestDetachedInspectorLeavesTheTableTheWholeWindow(t *testing.T) {
+	a := workspaceApp()
+	a.picked = 0
+	tt := ui.NewTester(a.view, 1280, 800)
+	if !tt.HasText("Request inspector") {
+		t.Fatal("the docked inspector is missing")
+	}
+	a.openInspectorWindow()
+	tt.Frame()
+	if !a.inspectorDetached {
+		t.Fatal("the inspector did not detach")
+	}
+	if tt.HasText("Request inspector") {
+		t.Fatal("the main window still draws the detached inspector")
+	}
+	a.closeInspectorWindow()
+	tt.Frame()
+	if a.inspectorDetached {
+		t.Fatal("the inspector did not dock")
+	}
+	if !tt.HasText("Request inspector") {
+		t.Fatal("the docked inspector did not come back")
+	}
+}
+
 // The footer carries the list's own actions: Clear asks before it removes
 // anything, Filter opens the filters, and Auto-follow puts the list back on
 // the newest request.

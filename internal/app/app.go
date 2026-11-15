@@ -116,6 +116,14 @@ type app struct {
 	// settingsFocused whether it is in front; both only on the main thread.
 	settingsWin     *mygo.Window
 	settingsFocused bool
+	// inspectorWin is the detached inspector window while it is open;
+	// inspectorDetached keeps the main window from drawing the same panes.
+	// inspectorInWindow is true only while that window draws them, so the
+	// inspector measures its own width rather than the main window's.
+	inspectorWin      *mygo.Window
+	inspectorDetached bool
+	inspectorFocused  bool
+	inspectorInWindow bool
 	// toolsWin is the Tools window while it is open, toolsOpen whether Tools
 	// shows (as a dialog without a main window), and toolsFocused whether
 	// its window is in front.
@@ -978,6 +986,9 @@ func (a *app) reloadConfig() {
 func (a *app) invalidate() {
 	if a.win != nil {
 		a.win.Invalidate()
+	}
+	if a.inspectorWin != nil {
+		a.inspectorWin.Invalidate()
 	}
 }
 

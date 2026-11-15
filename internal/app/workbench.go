@@ -43,6 +43,9 @@ func (w *desktopWorkbench) openPalette() {
 // contentWidth is the room the main pane has beside the sidebar.
 func (a *app) contentWidth(c *ui.Context) float32 {
 	width, _ := c.Size()
+	if a.inspectorInWindow {
+		return width
+	}
 	if a.sidebarShown() {
 		width -= a.sidebarWidth + 6
 	}
@@ -107,7 +110,7 @@ func (a *app) desktopContent(c *ui.Context) {
 			a.overviewView(c, c.Theme())
 		default:
 			ui.Column(c).Fill().Children(func() {
-				if w.focused {
+				if w.focused && !a.inspectorDetached {
 					ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
 						a.actionButton(c, "view.focus-inspector", "Back to list")
 						uikit.Meta(c, locales.InspectorFocusCtrlCmdShift())
@@ -144,6 +147,10 @@ func (a *app) desktopContent(c *ui.Context) {
 					a.syncDetail()
 					// The table's own empty state says why; an inspector
 					// with nothing to show would only repeat it.
+					table()
+				} else if a.inspectorDetached {
+					// The inspector has its own window; the table takes the
+					// room the split would have given it.
 					table()
 				} else if w.sideBySide {
 					// The room under the toolbar, not the column's whole
@@ -547,7 +554,11 @@ func (a *app) actions(c *ui.Context) []action {
 			} else {
 				a.focusTraffic(c)
 			}
-		}).when(capturing && current, "").keys(ui.Cmd|ui.Shift, ui.KeyEnter),
+		}).when(capturing && current && !a.inspectorDetached, "").keys(ui.Cmd|ui.Shift, ui.KeyEnter),
+		do("inspector.detach", locales.DetachInspector(), a.openInspectorWindow).
+			when(capturing && current && !a.inspectorDetached, "").keys(ui.Cmd|ui.Shift, ui.KeyI),
+		do("inspector.dock", locales.DockInspector(), a.closeInspectorWindow).
+			when(a.inspectorDetached, "").keys(ui.Cmd|ui.Shift, ui.KeyI),
 		do("view.follow-end", locales.FollowListEnd(), func() {
 			w.focused = false
 			a.views.activeView().list.ScrollToEnd()

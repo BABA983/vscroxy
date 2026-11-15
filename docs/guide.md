@@ -4029,9 +4029,19 @@ Layout**. Each keeps its own divider position. In the side layout, the table pri
 method, status and duration, and header blocks stack rather than squeezing values
 into two narrow columns. Client and size remain visible in the inspector.
 
-**Focus** (Cmd/Ctrl+Shift+Enter) temporarily gives the inspector the full content
-area. **Back to list** restores the layout and inspected request. Cmd/Ctrl+B
-toggles the sidebar. **View → Reset desktop layout** restores the defaults.
+The same title-bar button follows a request tab: it pins the request and its
+response side by side or stacked, per tab, instead of only following the
+window's width. **Focus** (Cmd/Ctrl+Shift+Enter) temporarily gives the inspector
+the full content area. **Back to list** restores the layout and inspected
+request. Cmd/Ctrl+B toggles the sidebar. **View → Reset desktop layout**
+restores the defaults.
+
+**Detach inspector** (the panel button in the inspector's header, Cmd/Ctrl+Shift+I,
+or the command palette) moves the capture inspector into its own window. The
+traffic table then takes the whole content area, and the inspector keeps the
+same selection and tabs. **Dock inspector** in that window, Escape, or the same
+shortcut returns it; the window remembers its bounds.
+
 Selecting multiple requests reveals **Replay**, **Export HAR** and **Clear
 selection** directly above the table; replay settings snapshot the entire choice.
 
