@@ -30,6 +30,10 @@ func gitRepo(t *testing.T) string {
 		return strings.TrimSpace(string(out))
 	}
 	git("init", "-b", "main")
+	// gitCommit runs through the app's command, which inherits the process
+	// environment, so the identity must live in the repository itself.
+	git("config", "user.name", "Test")
+	git("config", "user.email", "test@example.com")
 	return dir
 }
 
