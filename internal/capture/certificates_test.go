@@ -2,6 +2,7 @@ package capture
 
 import (
 	"crypto/tls"
+	"encoding/pem"
 	"io"
 	"net"
 	"net/http"
@@ -465,6 +466,112 @@ func TestReplayRedirectUsesEachHostsClientCertificate(t *testing.T) {
 		}
 		if got.ResponseBody != "B" {
 			t.Fatalf("HTTP to HTTPS body = %q", got.ResponseBody)
+		}
+	})
+}
+
+// Decrypted upstreams verify by default. A self-signed server fails with a
+// 502 whose connection detail names the certificate; the per-domain allow
+// list and custom roots are the two explicit ways to trust it.
+func TestDecryptedUpstreamVerificationDefault(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "verified upstream")
+	}))
+	defer upstream.Close()
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ipURL := "https://127.0.0.1:" + u.Port() + "/other"
+	nameURL := "https://localhost:" + u.Port() + "/other"
+
+	// A Code Mock rule for a different path makes the CONNECT use the lazy
+	// path, so the request reaches the upstream and a verification failure is
+	// an HTTP 502 instead of a failed client TLS handshake.
+	start := func(t *testing.T, cfg SSLConfig, roots []string) *Server {
+		t.Helper()
+		s, _ := startServerWithRules(t,
+			Rule{Type: RuleCodeMock, Match: "127.0.0.1/only-this", Target: "unused.js"},
+			Rule{Type: RuleCodeMock, Match: "localhost/only-this", Target: "unused.js"},
+		)
+		s.SetSSL(cfg)
+		if len(roots) > 0 {
+			s.SetCertificates(certs.Settings{RootCAs: roots})
+		}
+		return s
+	}
+	get := func(t *testing.T, s *Server, target string) (*http.Response, string) {
+		t.Helper()
+		client := clientFor(t, s, s.caPool)
+		defer client.CloseIdleConnections()
+		resp, err := client.Get(target)
+		if err != nil {
+			t.Fatalf("GET %s: %v", target, err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp, string(body)
+	}
+	reject := func(t *testing.T, s *Server, target string) {
+		t.Helper()
+		resp, body := get(t, s, target)
+		if resp.StatusCode != http.StatusBadGateway || !strings.Contains(body, "vscroxy:") {
+			t.Fatalf("untrusted upstream = %d %q, want a 502", resp.StatusCode, body)
+		}
+		f := waitFlow(t, s)
+		if f.Status != http.StatusBadGateway || !strings.Contains(strings.ToLower(f.Conn.Error), "certificate") {
+			t.Fatalf("connection detail = %+v, want the certificate error", f.Conn)
+		}
+	}
+
+	t.Run("default rejects", func(t *testing.T) {
+		reject(t, start(t, SSLConfig{All: true}, nil), ipURL)
+	})
+	t.Run("allow list accepts", func(t *testing.T) {
+		s := start(t, SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}}, nil)
+		if resp, body := get(t, s, ipURL); resp.StatusCode != 200 || body != "verified upstream" {
+			t.Fatalf("allowed upstream = %d %q", resp.StatusCode, body)
+		}
+	})
+	t.Run("another host does not apply", func(t *testing.T) {
+		reject(t, start(t, SSLConfig{All: true, AllowUntrusted: []string{"other.test"}}, nil), ipURL)
+	})
+	t.Run("question wildcard", func(t *testing.T) {
+		s := start(t, SSLConfig{All: true, AllowUntrusted: []string{"local?ost"}}, nil)
+		if resp, body := get(t, s, nameURL); resp.StatusCode != 200 || body != "verified upstream" {
+			t.Fatalf("wildcard upstream = %d %q", resp.StatusCode, body)
+		}
+		reject(t, start(t, SSLConfig{All: true, AllowUntrusted: []string{"local?osx"}}, nil), nameURL)
+	})
+	t.Run("wildcards match only their shape", func(t *testing.T) {
+		for _, tc := range []struct {
+			pattern, host string
+			want          bool
+		}{
+			{"*.example.test", "api.example.test", true},
+			{"*.example.test", "example.test", false},
+			{"*.example.test", "a.b.example.test", true},
+			{"api?.example.test", "api1.example.test", true},
+			{"api?.example.test", "api12.example.test", false},
+			{"*.example.test:8443", "api.example.test:8443", true},
+			{"*.example.test:8443", "api.example.test:443", false},
+			{"localhost:3000", "localhost:3000", true},
+			{"localhost:3000", "localhost:8080", false},
+		} {
+			if got := (SSLConfig{AllowUntrusted: []string{tc.pattern}}).AllowsUntrusted(tc.host); got != tc.want {
+				t.Errorf("%q against %q = %v, want %v", tc.pattern, tc.host, got, tc.want)
+			}
+		}
+	})
+	t.Run("custom roots accept", func(t *testing.T) {
+		rootPath := testcert.WriteFile(t, t.TempDir(), "upstream.pem",
+			pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: upstream.Certificate().Raw}))
+		s := start(t, SSLConfig{All: true}, []string{rootPath})
+		if resp, body := get(t, s, ipURL); resp.StatusCode != 200 || body != "verified upstream" {
+			t.Fatalf("custom-root upstream = %d %q", resp.StatusCode, body)
 		}
 	})
 }

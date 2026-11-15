@@ -668,17 +668,40 @@ func (c SSLConfig) Decrypts(host string) bool {
 	return false
 }
 
-// AllowsUntrusted reports whether an upstream certificate for host may be
-// accepted without verification. Patterns match like decryption domains, and
-// an empty list trusts nothing beyond the system and custom roots.
-func (c SSLConfig) AllowsUntrusted(host string) bool {
-	host = sslHostname(host)
+// AllowsUntrusted reports whether an upstream certificate for address may be
+// accepted without verification. A pattern may be a host, a path.Match glob
+// ("*" and "?"), or "*.parent"; a pattern without a port matches every port.
+// An empty list trusts nothing beyond the system and custom roots.
+func (c SSLConfig) AllowsUntrusted(address string) bool {
+	host, port := splitHostPortPattern(address)
 	for _, pattern := range c.AllowUntrusted {
-		if rules.Host(host, []string{sslHostname(pattern)}) {
+		patternHost, patternPort := splitHostPortPattern(pattern)
+		if patternHost == "" || patternPort != "" && patternPort != port {
+			continue
+		}
+		if rules.Host(host, []string{patternHost}) {
 			return true
 		}
 	}
 	return false
+}
+
+// splitHostPortPattern separates a host pattern from an optional port without
+// treating a bare IPv6 address as a host with a port. Brackets are removed.
+func splitHostPortPattern(raw string) (host, port string) {
+	raw = strings.TrimSpace(raw)
+	if h, p, err := net.SplitHostPort(raw); err == nil {
+		return strings.Trim(h, "[]"), p
+	}
+	if strings.HasPrefix(raw, "[") && strings.HasSuffix(raw, "]") {
+		return strings.Trim(raw, "[]"), ""
+	}
+	if strings.Count(raw, ":") == 1 {
+		if h, p, ok := strings.Cut(raw, ":"); ok && p != "" {
+			return h, p
+		}
+	}
+	return raw, ""
 }
 
 // DecryptsProcess adds opt-in executable rules to the host/global rules.
