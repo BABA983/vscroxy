@@ -1393,6 +1393,19 @@ containing a port are also understood as hostname rules. IP clients without TLS
 SNI receive a certificate for their CONNECT target, not an empty name. Nothing
 is decrypted out of the box.
 
+Decrypted HTTPS verifies the upstream certificate by default, against the
+system roots and the custom roots under **Settings → Certificates**. A server
+whose certificate does not verify never receives a forged certificate from the
+proxy: an HTTP request that reaches it fails with 502, and a decrypted CONNECT
+fails its TLS handshake; either way the connection detail names the TLS error.
+For a local development server with a self-signed certificate, list its host
+under **Settings → HTTPS → Allow untrusted upstream certificates** (one host
+per line; `*` and `?` wildcards work, and a host without a port matches every
+port). That exception applies only to decrypted connections for those hosts.
+A request's own certificate-verification setting can make the proxy stricter
+but never weaker: turning it off does not bypass the proxy's check. Tunnelled
+HTTPS is not affected, because the proxy never sees its certificates.
+
 For a locally attributed connection, **Enable HTTPS for <app>** inspects all
 hosts contacted by that exact executable on new connections. The **Apps**
 sidebar context menu offers the same action; same-name executables at different

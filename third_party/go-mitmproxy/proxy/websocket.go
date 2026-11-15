@@ -149,7 +149,7 @@ func (h *webSocketHandler) handle(serverConn, clientConn net.Conn, f *Flow) erro
 		HandshakeTimeout: 0,
 	}
 	if target.Scheme == "wss" {
-		verify := !h.proxy.Opts.SslInsecure || f.ConnContext.VerifyUpstream
+		verify := h.proxy.verifiesUpstream(helper.CanonicalAddr(target), f.ConnContext.VerifyUpstream)
 		tlsConfig, configErr := h.proxy.upstreamTLSConfig(helper.CanonicalAddr(target), verify)
 		if configErr != nil {
 			return configErr
@@ -398,7 +398,7 @@ func (h *webSocketHandler) handleWSS(res http.ResponseWriter, req *http.Request,
 	}
 
 	// 步骤 4: 创建 Dialer，使用自定义 NetDial
-	verify := !h.proxy.Opts.SslInsecure || connCtx.VerifyUpstream
+	verify := h.proxy.verifiesUpstream(helper.CanonicalAddr(target), connCtx.VerifyUpstream)
 	tlsConfig, err := h.proxy.upstreamTLSConfig(helper.CanonicalAddr(target), verify)
 	if err != nil {
 		return err

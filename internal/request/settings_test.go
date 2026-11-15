@@ -197,9 +197,13 @@ func TestRequestCertificateVerification(t *testing.T) {
 				srv := testProxy(t)
 				srv.SetSSL(capture.SSLConfig{All: intercept})
 				value := verify
-				got := (Request{Method: "GET", URL: upstream.URL, Settings: Settings{VerifyTLS: &value}}).
-					Execute(t.Context(), srv, Context{}, nil, nil)
-				if verify {
+				execute := func() Execution {
+					return (Request{Method: "GET", URL: upstream.URL, Settings: Settings{VerifyTLS: &value}}).
+						Execute(t.Context(), srv, Context{}, nil, nil)
+				}
+				got := execute()
+				switch {
+				case verify:
 					if got.Err == nil || got.Response != nil {
 						t.Fatalf("self-signed server was accepted with verification on: %+v", got)
 					}
@@ -213,10 +217,25 @@ func TestRequestCertificateVerification(t *testing.T) {
 					if !strings.Contains(strings.ToLower(reason), "unknown authority") {
 						t.Fatalf("verification failed for the wrong reason: %v", reason)
 					}
-					return
-				}
-				if got.Err != nil || got.Response == nil || got.Response.Status != 200 || got.Response.ResponseBody != "secure" {
-					t.Fatalf("verification off = %+v, want 200", got)
+				case intercept:
+					// A request's verification-off setting does not weaken
+					// the decrypted proxy: it still verifies the upstream.
+					if got.Err == nil {
+						t.Fatalf("verification off bypassed the proxy's default verification: %+v", got)
+					}
+					// The explicit per-domain exception accepts it.
+					srv.SetSSL(capture.SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})
+					got = execute()
+					if got.Err != nil || got.Response == nil || got.Response.Status != 200 || got.Response.ResponseBody != "secure" {
+						t.Fatalf("verification off with an allow rule = %+v, want 200", got)
+					}
+				default:
+					// A tunneled connection belongs to the client, so the
+					// proxy cannot verify it and turning verification off
+					// keeps working.
+					if got.Err != nil || got.Response == nil || got.Response.Status != 200 || got.Response.ResponseBody != "secure" {
+						t.Fatalf("verification off = %+v, want 200", got)
+					}
 				}
 			})
 		}
@@ -231,7 +250,7 @@ func TestRequestCertificateVerificationUsesTheIPAddress(t *testing.T) {
 	}))
 	defer upstream.Close()
 	srv := testProxy(t)
-	srv.SetSSL(capture.SSLConfig{All: true})
+	srv.SetSSL(capture.SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})
 	verify := true
 	got := (Request{Method: "GET", URL: upstream.URL, Settings: Settings{VerifyTLS: &verify}}).
 		Execute(t.Context(), srv, Context{}, nil, nil)
@@ -266,11 +285,20 @@ func TestRequestCertificateVerificationAfterMapRemote(t *testing.T) {
 		t.Fatalf("verification failed for the wrong reason: %q", reason)
 	}
 
+	// A request's verification-off setting does not weaken the proxy's
+	// separate transport for the rewritten host either.
 	verify = false
 	got = (Request{Method: "GET", URL: "https://localhost:1/x", Settings: Settings{VerifyTLS: &verify}}).
 		Execute(t.Context(), srv, Context{}, nil, nil)
+	if got.Err != nil || got.Response == nil || got.Response.Status != 502 {
+		t.Fatalf("verification off after Map Remote = %+v, want a 502", got)
+	}
+	// The explicit per-domain exception accepts the rewritten target.
+	srv.SetSSL(capture.SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})
+	got = (Request{Method: "GET", URL: "https://localhost:1/x", Settings: Settings{VerifyTLS: &verify}}).
+		Execute(t.Context(), srv, Context{}, nil, nil)
 	if got.Err != nil || got.Response == nil || got.Response.Status != 200 || got.Response.ResponseBody != "mapped" {
-		t.Fatalf("verification off after Map Remote = %+v, want 200", got)
+		t.Fatalf("verification off with an allow rule after Map Remote = %+v, want 200", got)
 	}
 }
 

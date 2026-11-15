@@ -311,7 +311,7 @@ func TestReplayTrustsTheProxyCA(t *testing.T) {
 	defer upstream.Close()
 
 	s, caPath := startServer(t)
-	s.SetSSL(SSLConfig{All: true})
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"localhost"}})
 	pem, err := os.ReadFile(caPath)
 	if err != nil {
 		t.Fatalf("read proxy CA: %v", err)
@@ -591,7 +591,7 @@ func TestConnectionLogDistinguishesTLSFailuresAndReuse(t *testing.T) {
 	}))
 	defer upstream.Close()
 	s, caPath := startServer(t)
-	s.SetSSL(SSLConfig{All: true})
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})
 	// The client deliberately does NOT trust the proxy's CA.
 	if resp, err := clientFor(t, s, nil).Get(upstream.URL); err == nil {
 		resp.Body.Close()
@@ -1024,6 +1024,7 @@ func TestTimingIsRequestLocalAcrossReuseMappingAndFailure(t *testing.T) {
 	tlsUpstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "tls") }))
 	defer tlsUpstream.Close()
 	s, _ := startServer(t)
+	s.SetSSL(SSLConfig{AllowUntrusted: []string{"127.0.0.1"}})
 	client := clientFor(t, s, nil)
 	t.Cleanup(client.CloseIdleConnections)
 	get := func(target string) Flow {
@@ -1112,7 +1113,7 @@ func TestTunnelsUntilADomainIsDecrypted(t *testing.T) {
 
 	// Decrypted now: the proxy's CA is what the client sees.
 	// Older UI versions stored the CONNECT authority, including its port.
-	s.SetSSL(SSLConfig{Hosts: []string{u.Host}})
+	s.SetSSL(SSLConfig{Hosts: []string{u.Host}, AllowUntrusted: []string{"localhost"}})
 	resp, err := clientFor(t, s, roots).Get(u.String() + "/after")
 	if err != nil {
 		t.Fatalf("request after decryption: %v", err)
@@ -1134,7 +1135,7 @@ func TestTunnelsUntilADomainIsDecrypted(t *testing.T) {
 	// IP clients send no SNI. Trust must still verify the certificate against
 	// the CONNECT target, without disabling TLS verification in the client.
 	u, _ = url.Parse(upstream.URL)
-	s.SetSSL(SSLConfig{Hosts: []string{u.Host}})
+	s.SetSSL(SSLConfig{Hosts: []string{u.Host}, AllowUntrusted: []string{"127.0.0.1"}})
 	resp, err = clientFor(t, s, roots).Get(u.String() + "/ip-without-sni")
 	if err != nil {
 		t.Fatalf("verified IP request without SNI: %v", err)
@@ -1341,7 +1342,7 @@ func TestCapturesHTTPS(t *testing.T) {
 	defer upstream.Close()
 
 	s, caPath := startServer(t)
-	s.SetSSL(SSLConfig{All: true})
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"localhost"}})
 	pem, err := os.ReadFile(caPath)
 	if err != nil {
 		t.Fatalf("read proxy CA: %v", err)
@@ -1526,7 +1527,7 @@ func TestConcurrentReplayLineageSurvivesHTTPSRedirects(t *testing.T) {
 	}))
 	defer upstream.Close()
 	s, _ := startServer(t)
-	s.SetSSL(SSLConfig{All: true})
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})
 	var wg sync.WaitGroup
 	for _, source := range []int{17, 41, 0} {
 		wg.Go(func() {
@@ -2201,7 +2202,7 @@ func TestWebSocketMessageBreakpoints(t *testing.T) {
 			}
 			defer upstream.Close()
 			s, ca := startServer(t)
-			s.SetSSL(SSLConfig{All: true})
+			s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"localhost"}})
 			if err := s.SetRules([]Rule{{Type: RuleBreakMessage, Match: "/socket"}}); err != nil {
 				t.Fatal(err)
 			}
@@ -2749,7 +2750,7 @@ func TestWSSKeepsThePathAndQuery(t *testing.T) {
 	defer upstream.Close()
 
 	s, caPath := startServer(t)
-	s.SetSSL(SSLConfig{All: true})
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"localhost"}})
 	u, err := url.Parse(upstream.URL)
 	if err != nil {
 		t.Fatalf("parse upstream: %v", err)
@@ -2846,7 +2847,7 @@ func TestUpstreamProxy(t *testing.T) {
 
 	inner, _ := startServer(t)
 	outer, caPath := startServer(t)
-	outer.SetSSL(SSLConfig{All: true})
+	outer.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"localhost"}})
 	if err := outer.SetUpstreamConfig(upstreamcfg.Settings{Default: "http://" + inner.Addr()}, nil); err != nil {
 		t.Fatalf("set upstream: %v", err)
 	}
@@ -3056,7 +3057,7 @@ func TestMapRemoteRewritesPathHostAndWebSockets(t *testing.T) {
 		Rule{Type: RuleBlock, Match: "/v1/users"}, // matches the plain GET, not the WebSocket
 		Rule{Type: RuleMapRemote, MatchMode: "wildcard", Match: "*/v1/*", Target: ws.URL, PathFrom: "/v1/", PathTo: "/v2/"},
 	)
-	s.SetSSL(SSLConfig{All: true})
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"localhost"}})
 	proxyURL, _ := url.Parse("http://" + s.Addr())
 	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}}
 	get := func(target string) {
@@ -3296,7 +3297,7 @@ func TestDecryptedTunnelTakesNoID(t *testing.T) {
 	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "ok") }))
 	defer upstream.Close()
 	s, caPath := startServerWithRules(t)
-	s.SetSSL(SSLConfig{All: true})
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})
 	client := clientFor(t, s, sslTestRoots(t, caPath))
 	resp, err := client.Get(upstream.URL)
 	if err != nil {

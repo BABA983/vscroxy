@@ -379,7 +379,7 @@ func TestSOCKS5IPv6AndDomainReachTheUpstream(t *testing.T) {
 	host, port := hostPort(t, upstream.URL)
 
 	s := startSOCKSServer(t, SOCKSConfig{})
-	s.SetSSL(SSLConfig{All: true})
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"localhost"}})
 	for _, tc := range []struct {
 		name string
 		atyp byte
@@ -420,7 +420,7 @@ func TestSOCKS5HTTPSDecryptAndPassthrough(t *testing.T) {
 
 	t.Run("decrypt", func(t *testing.T) {
 		s := startSOCKSServer(t, SOCKSConfig{})
-		s.SetSSL(SSLConfig{All: true})
+		s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"localhost"}})
 		roots := x509.NewCertPool()
 		cert, err := x509.ParseCertificate(s.CACertificate())
 		if err != nil {
@@ -533,7 +533,7 @@ func TestSOCKS5UsesAppDecryptionRule(t *testing.T) {
 	_, port := hostPort(t, upstream.URL)
 
 	s := startSOCKSServer(t, SOCKSConfig{})
-	s.SetSSL(SSLConfig{Apps: []SSLApp{{Name: "display only", Path: exe}}})
+	s.SetSSL(SSLConfig{Apps: []SSLApp{{Name: "display only", Path: exe}}, AllowUntrusted: []string{"localhost"}})
 	roots := x509.NewCertPool()
 	cert, err := x509.ParseCertificate(s.CACertificate())
 	if err != nil {

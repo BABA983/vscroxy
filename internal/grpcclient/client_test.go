@@ -3,18 +3,21 @@ package grpcclient
 import (
 	"context"
 	"crypto/tls"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/certs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -286,6 +289,13 @@ func TestTLSCallsVerifyCertificatesAndTraverseCapture(t *testing.T) {
 	}
 	defer proxy.Close()
 	proxy.SetSSL(capture.SSLConfig{All: true})
+	// The test service is signed by its own throwaway certificate; the
+	// proxy must verify the decrypted upstream against it.
+	rootPath := filepath.Join(t.TempDir(), "grpc-root.pem")
+	if err := os.WriteFile(rootPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	proxy.SetCertificates(certs.Settings{RootCAs: []string{rootPath}})
 	method, _ := files.FindDescriptorByName("clienttest.Calls.Unary")
 	for _, tc := range []struct {
 		name, proxy string

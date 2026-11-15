@@ -354,6 +354,34 @@ func TestHandEditedConfigIsNotOverwritten(t *testing.T) {
 	}
 }
 
+// The allow-untrusted list is saved with the other SSL settings, applied to
+// the running proxy, and read back on reload.
+func TestSSLAllowUntrustedPersists(t *testing.T) {
+	a := workspaceApp()
+	a.sslPath = filepath.Join(t.TempDir(), "ssl.json")
+	var err error
+	a.srv, err = capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = a.srv.Close() })
+	a.reloadConfig()
+	if !a.saveSSL(capture.SSLConfig{All: true, AllowUntrusted: []string{"api.local", "*.dev.test"}}) {
+		t.Fatal("save failed")
+	}
+	if a.sslUntrusted != "api.local\n*.dev.test" {
+		t.Fatalf("draft = %q", a.sslUntrusted)
+	}
+	if !a.srv.SSL().AllowsUntrusted("api.local:8443") || !a.srv.SSL().AllowsUntrusted("x.dev.test") || a.srv.SSL().AllowsUntrusted("other.test") {
+		t.Fatalf("active rules = %+v", a.srv.SSL().AllowUntrusted)
+	}
+	a.sslUntrusted = ""
+	a.reloadConfig()
+	if a.sslUntrusted != "api.local\n*.dev.test" {
+		t.Fatalf("reload = %q", a.sslUntrusted)
+	}
+}
+
 // The Appearance segments change the app, not only the control: the native
 // chrome follows the chosen Light, Dark or System appearance.
 func TestAppearanceSegmentChangesTheApp(t *testing.T) {

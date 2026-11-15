@@ -525,13 +525,15 @@ func New(addr, caRootPath string) (*Server, error) {
 	p, err := proxy.NewProxy(&proxy.Options{
 		Addr:              addr,
 		CaRootPath:        caRootPath,
-		SslInsecure:       true, // a debugging proxy inspects self-signed upstreams too
 		StreamLargeBodies: 8 << 20,
 		ClientCertificate: func(address string) (*tls.Certificate, error) {
 			return s.certificates().ClientCertificate(address)
 		},
 		RootCAs: func() (*x509.CertPool, error) {
 			return s.certificates().RootPool(nil)
+		},
+		AllowUntrustedUpstream: func(address string) bool {
+			return s.SSL().AllowsUntrusted(address) || s.reverseAllowsUntrusted(address)
 		},
 	})
 	if err != nil {
@@ -642,10 +644,13 @@ type SSLApp struct {
 
 // SSLConfig says which domains or local executables the proxy decrypts.
 // Nothing is decrypted until a domain/app is listed, or All is set.
+// AllowUntrusted names hosts whose upstream certificate may be accepted
+// without verification; verification is on by default.
 type SSLConfig struct {
-	All   bool     `json:"all"`
-	Hosts []string `json:"hosts,omitempty"`
-	Apps  []SSLApp `json:"apps,omitempty"`
+	All            bool     `json:"all"`
+	Hosts          []string `json:"hosts,omitempty"`
+	AllowUntrusted []string `json:"allowUntrusted,omitempty"`
+	Apps           []SSLApp `json:"apps,omitempty"`
 }
 
 // Decrypts reports whether the current rules enable HTTPS inspection for host.
@@ -656,6 +661,19 @@ func (c SSLConfig) Decrypts(host string) bool {
 	}
 	host = sslHostname(host)
 	for _, pattern := range c.Hosts {
+		if rules.Host(host, []string{sslHostname(pattern)}) {
+			return true
+		}
+	}
+	return false
+}
+
+// AllowsUntrusted reports whether an upstream certificate for host may be
+// accepted without verification. Patterns match like decryption domains, and
+// an empty list trusts nothing beyond the system and custom roots.
+func (c SSLConfig) AllowsUntrusted(host string) bool {
+	host = sslHostname(host)
+	for _, pattern := range c.AllowUntrusted {
 		if rules.Host(host, []string{sslHostname(pattern)}) {
 			return true
 		}
@@ -763,6 +781,7 @@ func (s *Server) noteDNS(f *proxy.Flow) {
 // SetSSL sets what the proxy decrypts.
 func (s *Server) SetSSL(c SSLConfig) {
 	c.Hosts = slices.Clone(c.Hosts)
+	c.AllowUntrusted = slices.Clone(c.AllowUntrusted)
 	c.Apps = slices.Clone(c.Apps)
 	s.ssl.Store(c)
 }
@@ -771,6 +790,7 @@ func (s *Server) SetSSL(c SSLConfig) {
 func (s *Server) SSL() SSLConfig {
 	c, _ := s.ssl.Load().(SSLConfig)
 	c.Hosts = slices.Clone(c.Hosts)
+	c.AllowUntrusted = slices.Clone(c.AllowUntrusted)
 	c.Apps = slices.Clone(c.Apps)
 	return c
 }

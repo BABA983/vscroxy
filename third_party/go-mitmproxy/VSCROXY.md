@@ -412,15 +412,21 @@ as a config and never served, and passes that instead.
   proxy, which a gRPC server will not answer. The replayed result does keep the
   response's trailers and protocol.
 
-## Per-send upstream certificate verification
+## Upstream certificate verification
 
-`proxy/proxy.go`, `proxy/connection.go`, `proxy/entry.go` and
-`proxy/attacker.go` honor `HeaderVerifyUpstream` (`X-Vscroxy-Verify-TLS: 1`) on a
-CONNECT. `entry.handleConnect` records it on the `ConnContext` and removes the
-header before the flow is created, so it is neither captured nor forwarded;
-`attacker.serverTlsHandshake` then stops skipping verification for that
-connection. The header can only make the inspection proxy stricter, never
-weaker: capture traffic keeps `SslInsecure`.
+Intercepted upstream certificates are verified by default. `Options.SslInsecure`
+still skips verification for every address when a caller asks for it, but the
+desktop capture leaves it off. `Options.AllowUntrustedUpstream(address)` is the
+per-host exception: it is consulted only when verification would otherwise
+happen and the CONNECT did not ask for it, so it can never weaken an explicit
+`HeaderVerifyUpstream` request. The verification result is recorded on the
+connection log as `certificate verified`, `certificate verification allowed for
+this host`, or `certificate verification skipped by proxy`.
+
+`HeaderVerifyUpstream` (`X-Vscroxy-Verify-TLS: 1`) on a CONNECT makes an
+insecure proxy verify for that connection. `entry.handleConnect` records it on
+the `ConnContext` and removes the header before the flow is created, so it is
+neither captured nor forwarded.
 
 An IP target sends no SNI. `attacker.serverTlsHandshake` verifies against the
 CONNECT host when `ClientHelloInfo.ServerName` is empty, so a certificate's IP
@@ -430,9 +436,10 @@ InsecureSkipVerify must be specified".
 A Map Remote rule or script can rewrite an intercepted request to another host.
 That path has no pre-dialed socket, so `attacker.attack` builds a separate
 transport with `attacker.upstreamClient` for the rewritten host. It always
-disables keep-alives because it is built per request, and it verifies when
-`!SslInsecure || VerifyUpstream`, never the inspection client's insecure pool.
-It passes `helper.CanonicalAddr` so a certificate or rule for
+disables keep-alives because it is built per request, and it verifies unless
+`SslInsecure` or an allow-untrusted rule names the rewritten host; an explicit
+`VerifyUpstream` always verifies. It never uses the inspection client's insecure
+pool. It passes `helper.CanonicalAddr` so a certificate or rule for
 `api.example.com:443` matches a URL whose host omits the port. A failed check
 reaches the client as a 502 and is recorded on the flow. If the configured
 upstream is itself an `https://` proxy, this path also verifies that proxy's own
@@ -444,11 +451,13 @@ target check.
 whose TLS setting verifies the certificate, and sets `InsecureSkipVerify` on the
 replay client for the tunneled leg when verification is off. A reverse proxy
 entry sends the same header for its HTTPS targets unless that entry explicitly
-allows a self-signed certificate.
+allows a self-signed certificate; `internal/capture` adds such an entry's target
+to the allow-untrusted hook for its own requests, so the exception stays in the
+app's reverse configuration and is never a client-supplied header.
 `internal/request.TestRequestCertificateVerification` covers a self-signed
-server with TLS tunneled and intercepted, verification on and off;
-`TestRequestCertificateVerificationUsesTheIPAddress` covers the IP-SAN success
-case.
+server with TLS tunneled and intercepted, verification on and off, and the
+allow-untrusted exception; `TestRequestCertificateVerificationUsesTheIPAddress`
+covers the IP-SAN success case.
 
 WebSocket upstream dials now use `Proxy.upstreamTLSConfig`, so a captured WSS
 handshake presents a configured client certificate and uses the configured

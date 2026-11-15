@@ -103,7 +103,7 @@ func TestSSLAppDecryptsMultipleHostsAndPorts(t *testing.T) {
 		t.Fatal(err)
 	}
 	s, ca := startServer(t)
-	s.SetSSL(SSLConfig{Apps: []SSLApp{{Name: "display only", Path: exe}}})
+	s.SetSSL(SSLConfig{Apps: []SSLApp{{Name: "display only", Path: exe}}, AllowUntrusted: []string{"localhost", "127.0.0.1"}})
 	for _, host := range []string{"localhost", "127.0.0.1"} {
 		upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if len(r.Header) != 2 || r.Header.Get("User-Agent") == "" || r.Header.Get("Accept-Encoding") == "" {
@@ -140,7 +140,7 @@ func TestSSLAppDoesNotAttributeNonLoopbackClient(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Close() })
-	s.SetSSL(SSLConfig{Apps: []SSLApp{{Name: filepath.Base(exe), Path: exe}}})
+	s.SetSSL(SSLConfig{Apps: []SSLApp{{Name: filepath.Base(exe), Path: exe}}, AllowUntrusted: []string{"127.0.0.1"}})
 	if err := s.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +210,7 @@ func TestSSLAppConcurrentClientsDoNotShareIdentity(t *testing.T) {
 	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "ok") }))
 	defer upstream.Close()
 	s, ca := startServer(t)
-	s.SetSSL(SSLConfig{Apps: []SSLApp{{Name: filepath.Base(exe), Path: exe}}})
+	s.SetSSL(SSLConfig{Apps: []SSLApp{{Name: filepath.Base(exe), Path: exe}}, AllowUntrusted: []string{"127.0.0.1"}})
 	roots := sslTestRoots(t, ca)
 	type helper struct {
 		cmd    *exec.Cmd
@@ -309,8 +309,8 @@ func TestSSLConfigSwitchPreservesConnectionDecision(t *testing.T) {
 			}
 			t.Cleanup(func() { s.Close() })
 			ca := filepath.Join(dir, "vscroxy-ca-cert.pem")
-			s.SetSSL(SSLConfig{All: intercept})
-			s.proxy.Addons = append([]proxy.Addon{&switchSSLOnConnect{server: s, next: SSLConfig{All: !intercept}}}, s.proxy.Addons...)
+			s.SetSSL(SSLConfig{All: intercept, AllowUntrusted: []string{"127.0.0.1"}})
+			s.proxy.Addons = append([]proxy.Addon{&switchSSLOnConnect{server: s, next: SSLConfig{All: !intercept, AllowUntrusted: []string{"127.0.0.1"}}}}, s.proxy.Addons...)
 			if err := s.Start(); err != nil {
 				t.Fatal(err)
 			}

@@ -33,7 +33,7 @@ func TestCodeMockAnswersWithoutUpstreamConnection(t *testing.T) {
 			}
 			defer upstream.Close()
 			s, ca := startServer(t)
-			s.SetSSL(SSLConfig{All: true})
+			s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})
 			s.SetScriptRunner(fakeScripts{"mock.js": {func(x *ScriptExchange) error {
 				if x.Phase != "mock" || string(x.Body) != "input" {
 					return errors.New("wrong hook or incomplete input")

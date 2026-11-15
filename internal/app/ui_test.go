@@ -4469,7 +4469,7 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv.SetSSL(capture.SSLConfig{All: true})
+	srv.SetSSL(capture.SSLConfig{All: true, AllowUntrusted: []string{"localhost"}})
 	if err := srv.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -4919,7 +4919,7 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer srv.Close()
-	srv.SetSSL(capture.SSLConfig{All: true})
+	srv.SetSSL(capture.SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})
 	if err := srv.Start(); err != nil {
 		t.Fatal(err)
 	}

@@ -133,12 +133,20 @@ func TestCapturedUpstreamCustomRootsVerify(t *testing.T) {
 		t.Fatalf("verified custom root: %d %q", got.Status, got.ResponseBody)
 	}
 
-	// Turning verification off accepts the private certificate without the
-	// custom root, while still presenting the client certificate.
+	// A request that turns verification off does not weaken the proxy: the
+	// decrypted upstream is verified by default, so the private certificate
+	// still fails without its root.
 	settings.RootCAs = nil
 	s.SetCertificates(settings)
+	if _, err := s.ReplayWithPolicy(t.Context(), flow, nil, TransferPolicy{TLS: TLSInsecure}); err == nil {
+		t.Fatal("a request's verification-off setting bypassed the proxy's default verification")
+	}
+
+	// The explicit per-domain exception accepts it, while still presenting
+	// the client certificate.
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})
 	if _, err := s.ReplayWithPolicy(t.Context(), flow, nil, TransferPolicy{TLS: TLSInsecure}); err != nil {
-		t.Fatalf("verification off: %v", err)
+		t.Fatalf("allow-untrusted upstream: %v", err)
 	}
 }
 
@@ -196,7 +204,10 @@ func TestCapturedWebSocketPresentsClientCertificate(t *testing.T) {
 
 	s, _ := startServer(t)
 	s.SetSSL(SSLConfig{All: true})
-	s.SetCertificates(certs.Settings{Clients: []certs.Client{{ID: "one", Host: "127.0.0.1", Format: certs.FormatPEM, CertFile: certPath, KeyFile: keyPath}}})
+	s.SetCertificates(certs.Settings{
+		Clients: []certs.Client{{ID: "one", Host: "127.0.0.1", Format: certs.FormatPEM, CertFile: certPath, KeyFile: keyPath}},
+		RootCAs: []string{ca.WritePEM(t, dir)},
+	})
 	proxyURL, _ := url.Parse("http://" + s.Addr())
 	dial := func() (*websocket.Conn, error) {
 		dialer := websocket.Dialer{Proxy: http.ProxyURL(proxyURL), TLSClientConfig: &tls.Config{RootCAs: s.caPool}, HandshakeTimeout: 5 * time.Second}
@@ -292,9 +303,12 @@ func TestMapRemoteUsesDefaultPortForClientCertificate(t *testing.T) {
 	if err := s.SetUpstreamConfig(upstreamcfg.Settings{Default: "http://" + proxy.Listener.Addr().String()}, nil); err != nil {
 		t.Fatal(err)
 	}
-	s.SetCertificates(certs.Settings{Clients: []certs.Client{{
-		ID: "mapped", Host: "localhost:443", Format: certs.FormatPEM, CertFile: certPath, KeyFile: keyPath,
-	}}})
+	s.SetCertificates(certs.Settings{
+		Clients: []certs.Client{{
+			ID: "mapped", Host: "localhost:443", Format: certs.FormatPEM, CertFile: certPath, KeyFile: keyPath,
+		}},
+		RootCAs: []string{ca.WritePEM(t, dir)},
+	})
 	if err := s.SetRules([]Rule{{Type: RuleMapRemote, Match: "mapped.test", Target: "https://localhost"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -347,13 +361,20 @@ func TestWSSUsesDefaultPortForClientCertificate(t *testing.T) {
 	})
 
 	s, caPath := startServer(t)
-	s.SetSSL(SSLConfig{All: true})
+	// The decoy is only the original name a Map Remote rule replaces, but
+	// the eager lookup still handshakes it before rules run. Accept its
+	// self-signed certificate for that one port; the mapped target below is
+	// verified against the test CA.
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"localhost:" + decoyURL.Port()}})
 	if err := s.SetUpstreamConfig(upstreamcfg.Settings{Default: "http://" + proxy.Listener.Addr().String()}, nil); err != nil {
 		t.Fatal(err)
 	}
-	s.SetCertificates(certs.Settings{Clients: []certs.Client{{
-		ID: "wss", Host: "localhost:443", Format: certs.FormatPEM, CertFile: certPath, KeyFile: keyPath,
-	}}})
+	s.SetCertificates(certs.Settings{
+		Clients: []certs.Client{{
+			ID: "wss", Host: "localhost:443", Format: certs.FormatPEM, CertFile: certPath, KeyFile: keyPath,
+		}},
+		RootCAs: []string{ca.WritePEM(t, dir)},
+	})
 	if err := s.SetRules([]Rule{{Type: RuleMapRemote, Match: "localhost:" + decoyURL.Port(), Target: "https://localhost"}}); err != nil {
 		t.Fatal(err)
 	}

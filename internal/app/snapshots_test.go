@@ -1317,7 +1317,10 @@ func snapshotStates(t *testing.T) []snapshot {
 			}
 			tt.Advance(250 * time.Millisecond)
 		}, want: "Add reverse proxy…", short: true},
-		{name: "dialog-settings-https", setup: func(a *app) { snapshotSettings(a, 2) }, want: "TLS key log…", short: true},
+		{name: "dialog-settings-https", setup: func(a *app) {
+			snapshotSettings(a, 2)
+			a.sslUntrusted = "api.local\n*.dev.test"
+		}, want: "Allow untrusted upstream certificates", short: true},
 		{name: "dialog-settings-appearance", setup: func(a *app) { snapshotSettings(a, 3) }, want: "Settings"},
 		{name: "dialog-settings-capture", setup: func(a *app) { snapshotSettings(a, 4) }, want: "Settings"},
 		{name: "dialog-settings-allow-list", setup: func(a *app) {
@@ -1325,7 +1328,9 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.allowOn, a.allowText = true, "api.example.com\n.internal.test"
 		}, want: "Only show allowed traffic"},
 		{name: "dialog-settings-devices", setup: func(a *app) { snapshotSettings(a, 5) }, want: "Settings"},
-		{name: "dialog-ssl", setup: func(a *app) { a.sslOpen, a.sslHosts = true, "api.example.com\n*.example.org" }, want: "SSL proxying", short: true},
+		{name: "dialog-ssl", setup: func(a *app) {
+			a.sslOpen, a.sslHosts, a.sslUntrusted = true, "api.example.com\n*.example.org", "api.local"
+		}, want: "SSL proxying", short: true},
 		{name: "dialog-ignore-hosts", setup: func(a *app) { a.ignoreOpen, a.ignoreText = true, "telemetry.example.com\n*.analytics.example.org" }, want: "Ignored hosts"},
 		{name: "dialog-ignore-apps", setup: func(a *app) { a.ignoreAppsOpen, a.ignoreAppsText = true, "Updater\nBackground Sync" }, want: "Ignored apps"},
 		{name: "dialog-dns-rule", setup: func(a *app) {

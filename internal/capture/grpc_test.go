@@ -279,7 +279,7 @@ func startGRPCThroughProxy(t *testing.T) (*Server, *grpc.ClientConn) {
 	t.Helper()
 	target := startGRPCUpstream(t)
 	s, caPath := startServer(t)
-	s.SetSSL(SSLConfig{All: true})
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"localhost"}})
 	pem, err := os.ReadFile(caPath)
 	if err != nil {
 		t.Fatalf("read proxy CA: %v", err)

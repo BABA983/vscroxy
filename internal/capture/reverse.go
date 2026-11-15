@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
+
+	"github.com/baba983/vscroxy/internal/certs"
 )
 
 const (
@@ -123,6 +125,23 @@ func (s *Server) SetReverseProxies(list []ReverseProxy) error {
 		}
 	}
 	return errors.Join(failures...)
+}
+
+// reverseAllowsUntrusted reports whether an enabled reverse proxy entry that
+// allows a self-signed remote names address. The exception belongs to this
+// app's own reverse configuration, never to a client-supplied header.
+func (s *Server) reverseAllowsUntrusted(address string) bool {
+	s.reverseMu.Lock()
+	defer s.reverseMu.Unlock()
+	for _, r := range s.reverseCfg {
+		if !r.Enabled || !r.Insecure {
+			continue
+		}
+		if target := s.reverseTargets[r.ID]; target != nil && certs.Address(target) == address {
+			return true
+		}
+	}
+	return false
 }
 
 // ReverseProxyStatus is the runtime state of each configured entry.

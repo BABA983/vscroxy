@@ -413,9 +413,10 @@ func (a *attacker) serverTlsHandshake(ctx context.Context, connCtx *ConnContext)
 	clientHello := connCtx.ClientConn.clientHello
 	serverConn := connCtx.ServerConn
 
-	// The capture engine accepts any certificate so it can inspect self-signed
-	// servers. A replay may ask for verification on its CONNECT instead.
-	verify := !proxy.Opts.SslInsecure || connCtx.VerifyUpstream
+	// Verification is on by default. A replay may ask for it on its CONNECT;
+	// a per-domain allow rule is the explicit exception for a local server
+	// whose certificate no root signs.
+	verify := proxy.verifiesUpstream(serverConn.Address, connCtx.VerifyUpstream)
 	// A client connecting to an IP sends no SNI. When verifying, use the
 	// CONNECT host, which carries the IP the certificate's IP SAN must match;
 	// inspection traffic keeps its previous empty ServerName behavior.
@@ -460,8 +461,12 @@ func (a *attacker) serverTlsHandshake(ctx context.Context, connCtx *ConnContext)
 	serverTlsState := serverTlsConn.ConnectionState()
 	serverConn.tlsState = &serverTlsState
 	verification := "certificate verified"
-	if !verify {
+	switch {
+	case verify:
+	case proxy.Opts.SslInsecure:
 		verification = "certificate verification skipped by proxy"
+	default:
+		verification = "certificate verification allowed for this host"
 	}
 	connCtx.RecordEvent("TLS upstream", tls.VersionName(serverTlsState.Version)+" · ALPN "+cmp.Or(serverTlsState.NegotiatedProtocol, "none")+" · "+verification, nil)
 	for _, addon := range proxy.Addons {
@@ -897,7 +902,7 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		f.UseSeparateClient = true
 		f.ConnContext.RecordEvent("HTTP", "Using a separate upstream transport for "+f.Request.URL.Host, nil)
 		proxyReq = proxyReq.WithContext(httptrace.WithClientTrace(proxyReq.Context(), f.ConnContext.trace()))
-		verify := !a.proxy.Opts.SslInsecure || f.ConnContext.VerifyUpstream
+		verify := a.proxy.verifiesUpstream(helper.CanonicalAddr(f.Request.URL), f.ConnContext.VerifyUpstream)
 		client, clientErr := a.upstreamClient(proxyReq, helper.CanonicalAddr(f.Request.URL), verify)
 		if clientErr != nil {
 			for _, addon := range proxy.Addons {

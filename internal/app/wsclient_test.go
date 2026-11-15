@@ -44,7 +44,7 @@ func TestStructuredWebSocketSendsAuthHeadersAndCookiesWithVerifiedTLS(t *testing
 			}
 			defer upstream.Close()
 			srv := requestProxy(t)
-			srv.SetSSL(capture.SSLConfig{All: true})
+			srv.SetSSL(capture.SSLConfig{All: true, AllowUntrusted: []string{"localhost"}})
 			target := strings.Replace(upstream.URL, "127.0.0.1", "localhost", 1) + "/deep/path%2Fseg?tag=one&tag=two"
 			u, _ := url.Parse(target)
 			jar := &cookieStore{}

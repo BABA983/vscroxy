@@ -666,6 +666,26 @@ func (msgs Messages) AllowSelfSignedCertificates() string {
 	return Catalog.Format(msgs.locale, "allowSelfSignedCertificates", nil)
 }
 
+// AllowUntrustedUpstream says "Allow untrusted upstream certificates"
+// in the language the app shows.
+func AllowUntrustedUpstream() string { return In(i18n.Locale()).AllowUntrustedUpstream() }
+
+// AllowUntrustedUpstream says "Allow untrusted upstream certificates"
+// in the language of msgs.
+func (msgs Messages) AllowUntrustedUpstream() string {
+	return Catalog.Format(msgs.locale, "allowUntrustedUpstream", nil)
+}
+
+// AllowUntrustedUpstreamHint says "Decrypted hosts listed here are accepted even when their certificate does not verify. Use it for local development se…"
+// in the language the app shows.
+func AllowUntrustedUpstreamHint() string { return In(i18n.Locale()).AllowUntrustedUpstreamHint() }
+
+// AllowUntrustedUpstreamHint says "Decrypted hosts listed here are accepted even when their certificate does not verify. Use it for local development se…"
+// in the language of msgs.
+func (msgs Messages) AllowUntrustedUpstreamHint() string {
+	return Catalog.Format(msgs.locale, "allowUntrustedUpstreamHint", nil)
+}
+
 // AllowedDeviceAddresses says "Allowed device addresses"
 // in the language the app shows.
 func AllowedDeviceAddresses() string { return In(i18n.Locale()).AllowedDeviceAddresses() }
@@ -11194,6 +11214,16 @@ func ManageEnvironments2() string { return In(i18n.Locale()).ManageEnvironments2
 // in the language of msgs.
 func (msgs Messages) ManageEnvironments2() string {
 	return Catalog.Format(msgs.locale, "manageEnvironments2", nil)
+}
+
+// ManageExceptions says "Manage exceptions…"
+// in the language the app shows.
+func ManageExceptions() string { return In(i18n.Locale()).ManageExceptions() }
+
+// ManageExceptions says "Manage exceptions…"
+// in the language of msgs.
+func (msgs Messages) ManageExceptions() string {
+	return Catalog.Format(msgs.locale, "manageExceptions", nil)
 }
 
 // ManageHostProfiles says "Manage Host profiles…"
@@ -23128,6 +23158,16 @@ func UpstreamConnectionReusedPreviousSetup() string {
 // in the language of msgs.
 func (msgs Messages) UpstreamConnectionReusedPreviousSetup() string {
 	return Catalog.Format(msgs.locale, "upstreamConnectionReusedPreviousSetup", nil)
+}
+
+// UpstreamExceptions says "Upstream exceptions"
+// in the language the app shows.
+func UpstreamExceptions() string { return In(i18n.Locale()).UpstreamExceptions() }
+
+// UpstreamExceptions says "Upstream exceptions"
+// in the language of msgs.
+func (msgs Messages) UpstreamExceptions() string {
+	return Catalog.Format(msgs.locale, "upstreamExceptions", nil)
 }
 
 // UpstreamOff says "Upstream off"

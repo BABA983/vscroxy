@@ -39,6 +39,11 @@ type Options struct {
 	// RootCAs returns the roots to verify an upstream certificate. A nil
 	// function keeps the system pool; an error aborts the handshake.
 	RootCAs func() (*x509.CertPool, error)
+	// AllowUntrustedUpstream reports whether the certificate of an
+	// intercepted upstream may be accepted without verification. It is
+	// consulted only when verification would otherwise happen and the
+	// connection did not explicitly ask for it; nil allows no exception.
+	AllowUntrustedUpstream func(address string) bool
 }
 
 // HeaderVerifyUpstream on a CONNECT asks the proxy to verify the upstream
@@ -188,6 +193,20 @@ func (proxy *Proxy) getUpstreamProxies(req *http.Request, address string) ([]Ups
 		return nil, err
 	}
 	return []UpstreamProxy{{URL: u}}, nil
+}
+
+// verifiesUpstream decides whether an intercepted upstream certificate is
+// verified. A connection that explicitly asked always verifies; otherwise an
+// allow-untrusted rule may skip verification for this address, and
+// SslInsecure skips it for every address.
+func (proxy *Proxy) verifiesUpstream(address string, explicit bool) bool {
+	if explicit {
+		return true
+	}
+	if proxy.Opts.SslInsecure {
+		return false
+	}
+	return proxy.Opts.AllowUntrustedUpstream == nil || !proxy.Opts.AllowUntrustedUpstream(address)
 }
 
 // upstreamTLSConfig builds the client side of an intercepted upstream TLS

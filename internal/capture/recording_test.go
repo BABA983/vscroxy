@@ -162,7 +162,7 @@ func TestWithoutRecordingHTTPSRedirectsAndCookies(t *testing.T) {
 	}))
 	defer plain.Close()
 	s, _ := startServer(t)
-	s.SetSSL(SSLConfig{All: true})
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})
 	jar, _ := cookiejar.New(nil)
 	ctx := WithoutRecording(t.Context())
 	f := Flow{ID: 17, DebugRun: "suppressed-run", Method: "GET", URL: plain.URL}
@@ -272,7 +272,7 @@ func TestWithoutRecordingCancellation(t *testing.T) {
 			defer upstream.Close()
 			defer unblock()
 			s, _ := startServer(t)
-			s.SetSSL(SSLConfig{All: true})
+			s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})
 			ctx, cancel := context.WithCancel(WithoutRecording(t.Context()))
 			defer cancel()
 			result := make(chan error, 1)

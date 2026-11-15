@@ -222,6 +222,20 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 					uikit.Tip(c, uikit.Hint(c, summary).SingleLine().Shrink(1).MinWidth(0), summary)
 				})
 			}, hint)
+			allowed := splitHosts(a.sslUntrusted)
+			allowedSummary := locales.None()
+			if len(allowed) > 0 {
+				allowedSummary = strings.Join(allowed, ", ")
+			}
+			uikit.SettingsRow(c, locales.AllowUntrustedUpstream(), func() ui.Element {
+				return ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+					if uikit.SecondaryButton(c, locales.ManageExceptions()).Clicked() {
+						a.leaveSettings()
+						a.sslOpen = true
+					}
+					uikit.Tip(c, uikit.Hint(c, allowedSummary).SingleLine().Shrink(1).MinWidth(0), allowedSummary)
+				})
+			}, locales.AllowUntrustedUpstreamHint())
 		})
 		uikit.SettingsGroup(c, locales.Wireshark(), func() {
 			uikit.SettingsRow(c, locales.TlsKeyLog(), func() ui.Element {
@@ -248,7 +262,12 @@ func certificateScope() string {
 }
 
 func (a *app) inspectionConfig() capture.SSLConfig {
-	return capture.SSLConfig{All: a.sslAll, Hosts: splitHosts(a.sslHosts), Apps: slices.Clone(a.sslApps)}
+	return capture.SSLConfig{
+		All:            a.sslAll,
+		Hosts:          splitHosts(a.sslHosts),
+		AllowUntrusted: splitHosts(a.sslUntrusted),
+		Apps:           slices.Clone(a.sslApps),
+	}
 }
 
 func (a *app) appInspectionEnabled(path string) bool {

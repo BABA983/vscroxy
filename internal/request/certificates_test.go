@@ -61,30 +61,35 @@ func TestRequestClientCertificatesAndRoots(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { proxy.Close() })
-			if decrypt {
-				proxy.SetSSL(capture.SSLConfig{All: true})
-			}
 
 			for _, tc := range []struct {
 				name     string
 				settings certs.Settings
 				verify   bool
+				allow    bool
 				want     bool
 				wantErr  string
 			}{
-				{"PEM with custom root", certs.Settings{Clients: []certs.Client{pemClient}, RootCAs: []string{caPath}}, true, true, ""},
-				{"PKCS#12 with custom root", certs.Settings{Clients: []certs.Client{pfxClient}, RootCAs: []string{caPath}, Secrets: map[string]string{"one": "pfx-secret"}}, true, true, ""},
-				{"no client certificate", certs.Settings{RootCAs: []string{caPath}}, true, false, ""},
-				{"certificate for another host", certs.Settings{Clients: []certs.Client{{ID: "one", Host: "api.example.com", Format: certs.FormatPEM, CertFile: certPath, KeyFile: keyPath}}, RootCAs: []string{caPath}}, true, false, ""},
-				{"wrong passphrase", certs.Settings{Clients: []certs.Client{pfxClient}, RootCAs: []string{caPath}, Secrets: map[string]string{"one": "wrong-secret"}}, true, false, "client certificate"},
-				{"no custom root", certs.Settings{Clients: []certs.Client{pemClient}}, true, false, ""},
-				{"verification off", certs.Settings{Clients: []certs.Client{pemClient}}, false, true, ""},
-				{"verification off ignores a broken root", certs.Settings{Clients: []certs.Client{pemClient}, RootCAs: []string{filepath.Join(dir, "missing.pem")}}, false, true, ""},
-				{"system roots off with custom root", certs.Settings{Clients: []certs.Client{pemClient}, RootCAs: []string{caPath}, TrustSystemRoots: &off}, true, true, ""},
-				{"system roots off without custom root", certs.Settings{Clients: []certs.Client{pemClient}, TrustSystemRoots: &off}, true, false, ""},
-				{"verification off still needs the certificate", certs.Settings{RootCAs: []string{caPath}}, false, false, ""},
+				{"PEM with custom root", certs.Settings{Clients: []certs.Client{pemClient}, RootCAs: []string{caPath}}, true, false, true, ""},
+				{"PKCS#12 with custom root", certs.Settings{Clients: []certs.Client{pfxClient}, RootCAs: []string{caPath}, Secrets: map[string]string{"one": "pfx-secret"}}, true, false, true, ""},
+				{"no client certificate", certs.Settings{RootCAs: []string{caPath}}, true, false, false, ""},
+				{"certificate for another host", certs.Settings{Clients: []certs.Client{{ID: "one", Host: "api.example.com", Format: certs.FormatPEM, CertFile: certPath, KeyFile: keyPath}}, RootCAs: []string{caPath}}, true, false, false, ""},
+				{"wrong passphrase", certs.Settings{Clients: []certs.Client{pfxClient}, RootCAs: []string{caPath}, Secrets: map[string]string{"one": "wrong-secret"}}, true, false, false, "client certificate"},
+				{"no custom root", certs.Settings{Clients: []certs.Client{pemClient}}, true, false, false, ""},
+				{"verification off with an allow rule", certs.Settings{Clients: []certs.Client{pemClient}}, false, true, true, ""},
+				{"verification off ignores a broken root", certs.Settings{Clients: []certs.Client{pemClient}, RootCAs: []string{filepath.Join(dir, "missing.pem")}}, false, true, true, ""},
+				{"system roots off with custom root", certs.Settings{Clients: []certs.Client{pemClient}, RootCAs: []string{caPath}, TrustSystemRoots: &off}, true, false, true, ""},
+				{"system roots off without custom root", certs.Settings{Clients: []certs.Client{pemClient}, TrustSystemRoots: &off}, true, false, false, ""},
+				{"verification off still needs the certificate", certs.Settings{RootCAs: []string{caPath}}, false, true, false, ""},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
+					cfg := capture.SSLConfig{All: true}
+					if tc.allow {
+						cfg.AllowUntrusted = []string{"127.0.0.1"}
+					}
+					if decrypt {
+						proxy.SetSSL(cfg)
+					}
 					proxy.SetCertificates(tc.settings)
 					verify := tc.verify
 					got := Request{Method: "GET", URL: upstream.URL, Settings: Settings{VerifyTLS: &verify}}.
@@ -102,6 +107,18 @@ func TestRequestClientCertificatesAndRoots(t *testing.T) {
 						t.Fatalf("error leaked the passphrase: %v", got.Err)
 					}
 				})
+			}
+			if decrypt {
+				// A request's verification-off setting does not weaken the
+				// proxy: without an allow rule the private upstream fails.
+				proxy.SetSSL(capture.SSLConfig{All: true})
+				proxy.SetCertificates(certs.Settings{Clients: []certs.Client{pemClient}})
+				verify := false
+				got := Request{Method: "GET", URL: upstream.URL, Settings: Settings{VerifyTLS: &verify}}.
+					Execute(t.Context(), proxy, Context{Certificates: certs.Settings{Clients: []certs.Client{pemClient}}}, nil, nil)
+				if got.Err == nil {
+					t.Fatal("a request's verification-off setting bypassed the proxy's default verification")
+				}
 			}
 		})
 	}

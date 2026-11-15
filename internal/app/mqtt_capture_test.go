@@ -132,11 +132,23 @@ func TestMQTTWSSThroughCaptureHonorsBrokerVerification(t *testing.T) {
 		t.Fatalf("untrusted broker received %d MQTT CONNECTs", len(got))
 	}
 
-	// Verification off keeps the capture proxy's inspection behavior.
+	// A client's verification-off setting does not weaken the decrypted
+	// upstream: the proxy still verifies it.
+	cfg.ClientID = "capture-insecure-no-exception"
+	if _, err := request.DialMQTT(ctx, "wss://"+target, cfg, tlsConfig, proxy.Addr(), false); err == nil {
+		t.Fatal("verification off bypassed the capture proxy's default verification")
+	}
+	if got := hook.connectsFor(cfg.ClientID); len(got) != 0 {
+		t.Fatalf("untrusted broker received %d MQTT CONNECTs", len(got))
+	}
+
+	// The explicit per-domain exception keeps the capture proxy's inspection
+	// behavior for a local broker.
+	proxy.SetSSL(capture.SSLConfig{All: true, AllowUntrusted: []string{"localhost"}})
 	cfg.ClientID = "capture-insecure"
 	client, err := request.DialMQTT(ctx, "wss://"+target, cfg, tlsConfig, proxy.Addr(), false)
 	if err != nil {
-		t.Fatalf("verification off: %v", err)
+		t.Fatalf("verification off with an allow rule: %v", err)
 	}
 	client.Close()
 	if got := hook.connectsFor(cfg.ClientID); len(got) != 1 || string(got[0].Connect.Username) != "alice" {
@@ -144,6 +156,7 @@ func TestMQTTWSSThroughCaptureHonorsBrokerVerification(t *testing.T) {
 	}
 
 	// Verification on succeeds once the capture proxy trusts the broker CA.
+	proxy.SetSSL(capture.SSLConfig{All: true})
 	proxy.SetCertificates(certs.Settings{RootCAs: []string{brokerCA.WritePEM(t, t.TempDir())}})
 	cfg.ClientID = "capture-trusted"
 	client, err = request.DialMQTT(ctx, "wss://"+target, cfg, tlsConfig, proxy.Addr(), true)
