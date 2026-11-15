@@ -569,3 +569,18 @@ func TestNTLMRefreshesJarCookie(t *testing.T) {
 		}
 	}
 }
+
+// NTLM needs one connection for the challenge and its answer, so an HTTP/2
+// request setting still runs the handshake over HTTP/1.1 instead of failing.
+func TestNTLMStaysHTTP11WhenRequestAsksForHTTP2(t *testing.T) {
+	_, upstream := ntlmTestServer(t, false)
+	r := ntlmRequest(upstream.URL)
+	r.Settings.HTTPVersion = "2"
+	out := r.Execute(t.Context(), testProxy(t), ntlmContext(t), map[string]string{"user": "ann"}, nil)
+	if out.Err != nil || out.Response == nil || out.Response.Status != http.StatusOK || out.Response.ResponseBody != "authenticated" {
+		t.Fatalf("%s: %v; response %+v", out.Stage, out.Err, out.Response)
+	}
+	if out.Response.ResponseProto != "HTTP/1.1" {
+		t.Fatalf("NTLM protocol = %q, want HTTP/1.1", out.Response.ResponseProto)
+	}
+}

@@ -2156,7 +2156,8 @@ Select a flow and press **Replay**: the request goes out again through the
 proxy, so the new exchange is captured like any other and can be diffed
 against the original. A replay trusts the
 system's CAs and the proxy's own, so an HTTPS flow replays without the CA
-being trusted machine wide.
+being trusted machine wide. A captured replay keeps HTTP/1.1; authored
+requests choose their own version on the **Settings** tab.
 
 Ctrl/Cmd+R opens replay options for the inspected request; Ctrl/Cmd+Alt+C copies it as cURL.
 **Session → Replay chosen…** snapshots the selected HTTP requests and sends them
@@ -2326,7 +2327,8 @@ see [Collections, variables and the vault](#collections-variables-and-the-vault)
 documentation view renders. **Settings** sets its transport choices: a timeout
 in seconds (0–3600; 0 waits without a request limit), the HTTP version
 (**Auto** negotiates HTTP/1.1 or HTTP/2 with the server; **HTTP/1.1** and
-**HTTP/2** force one through the capture proxy), whether query rows are
+**HTTP/2** force one through the capture proxy, and **HTTP/2** fails with a
+clear error when the origin does not negotiate it), whether query rows are
 encoded automatically, whether to use the cookie jar, whether to follow
 redirects and how many, and whether to verify the TLS certificate. Turning
 **Encode URL automatically** off sends Params rows as typed. Turning **Send

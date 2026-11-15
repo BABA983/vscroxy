@@ -89,6 +89,9 @@ func ntlmSend(ctx context.Context, srv *capture.Server, flow capture.Flow, req *
 	if srv == nil {
 		return capture.Flow{}, ntlmError(NTLMProxyRequired, "start the local proxy first")
 	}
+	// The challenge and its answer must share one HTTP/1.1 connection; NTLM
+	// cannot run over HTTP/2 multiplexing.
+	policy.HTTPVersion = "1.1"
 	req.Remove("Authorization")
 	first, _, err := capture.NewReplayRequest(ctx, flow)
 	if err != nil {

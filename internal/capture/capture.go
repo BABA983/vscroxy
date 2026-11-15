@@ -1537,7 +1537,10 @@ func (s *Server) Close() error {
 // sends of the same URL cannot pick up each other's responses. The preview
 // keeps at most 8 MiB; the capture still keeps the complete exchange.
 func (s *Server) Replay(ctx context.Context, f Flow) (Flow, error) {
-	return s.ReplayWithCookies(ctx, f, nil, true)
+	// A capture replay repeats the exchange over HTTP/1.1, as it always has;
+	// a captured flow does not record the client's protocol, so there is
+	// nothing better to preserve. Authored requests choose their own version.
+	return s.ReplayWithPolicy(ctx, f, nil, TransferPolicy{HTTPVersion: "1.1"})
 }
 
 type replaySourceKey struct{}
@@ -1831,6 +1834,10 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 	resp, err := client.Do(req)
 	if err != nil {
 		return Flow{}, err
+	}
+	if policy.HTTPVersion == "2" && resp.ProtoMajor != 2 {
+		resp.Body.Close()
+		return Flow{}, fmt.Errorf("HTTP/2 was required, but the server answered %s", resp.Proto)
 	}
 	defer resp.Body.Close()
 	preview, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))

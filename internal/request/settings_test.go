@@ -417,3 +417,29 @@ func TestHTTPVersionReachesTheOrigin(t *testing.T) {
 		}
 	}
 }
+
+// "2" requires HTTP/2 rather than merely offering it. An origin that only
+// speaks HTTP/1.1 fails clearly under "2"; Auto falls back to HTTP/1.1.
+func TestHTTP2RequiresTheOriginToNegotiateIt(t *testing.T) {
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, r.Proto)
+	}))
+	upstream.StartTLS() // no EnableHTTP2: TLS ALPN offers http/1.1 only.
+	defer upstream.Close()
+	insecure := false
+	for _, tc := range []struct {
+		version string
+		want    string
+	}{{"", "HTTP/1.1"}, {"1.1", "HTTP/1.1"}} {
+		r := Request{Method: "GET", URL: upstream.URL, Settings: Settings{HTTPVersion: tc.version, VerifyTLS: &insecure}}
+		out := r.Execute(t.Context(), testProxy(t), Context{}, nil, nil)
+		if out.Err != nil || out.Response.ResponseProto != tc.want {
+			t.Errorf("HTTP %q: %s: %v, response %+v; want %s", tc.version, out.Stage, out.Err, out.Response, tc.want)
+		}
+	}
+	r := Request{Method: "GET", URL: upstream.URL, Settings: Settings{HTTPVersion: "2", VerifyTLS: &insecure}}
+	out := r.Execute(t.Context(), testProxy(t), Context{}, nil, nil)
+	if out.Err == nil || !strings.Contains(out.Err.Error(), "HTTP/2 was required") {
+		t.Fatalf("HTTP 2 against an HTTP/1.1 origin = %s: %v; want a required-HTTP/2 error", out.Stage, out.Err)
+	}
+}
