@@ -162,6 +162,17 @@ func LinkButton(c *ui.Context, label string, icon ...*ui.SVG) ui.Element {
 	return b
 }
 
+// Kbd draws a shortcut as a keycap: a small canvas face on a 1-point
+// hairline, four-point corners and an 11-point label. It is for a shortcut
+// beside a menu item or a command, never for a key the person should press
+// inside a sentence.
+func Kbd(c *ui.Context, key string) ui.Element {
+	t, p := c.Theme(), Colors(c.Theme())
+	return ui.Text(c, key).FontSize(Scaled(TextMeta)).FontWeight(500).TextColor(t.TextMuted).
+		Height(18).MinWidth(18).Padding(0, 4).Radius(RadiusInner).Background(p.Canvas).
+		InsetShadow(0, 0, 0, 1, p.Hairline).Center().SingleLine()
+}
+
 // NumberField edits a whole number with its unit beside it, as [60] s. The
 // text holds the value across builds so a half-typed number is not replaced
 // under the caret. It is the protocol editors' number control.
@@ -425,7 +436,7 @@ func timingCard(c *ui.Context, card ui.Element, total string, timing Timing) {
 	for _, p := range timing.Phases {
 		sum += max(p.Millis, 0)
 	}
-	PopoverPanel(c, card).Width(240).Padding(t.Space(2.5)).Gap(t.Space(1.5)).Children(func() {
+	PopoverPanel(c, card).Width(240).Padding(PopoverPadding).Gap(t.Space(1.5)).Children(func() {
 		ui.Row(c).FillWidth().Height(6).Radius(3).Background(pal.Fill).Children(func() {
 			for _, p := range timing.Phases {
 				if p.Millis > 0 {
@@ -504,13 +515,11 @@ func MenuSelect(c *ui.Context, current string, menu func(*ui.Menu)) ui.Element {
 	}).Height(HeightControl).Padding(0, c.Theme().Space(2)).FontSize(Scaled(TextBody)).Radius(RadiusControl)
 }
 
-// popoverFace gives a floating panel the kit's chrome: the canvas on the
-// shadow, edged by a hairline. PopoverPanel builds it for the panels the app
-// draws; a menu's panel comes from MyGo and takes the same face here.
+// popoverFace gives a menu's floating panel the kit's chrome: the canvas on
+// the menu shadow, edged by a hairline. A menu's panel comes from MyGo, so
+// the face is applied here instead of in PopoverPanel.
 func popoverFace(c *ui.Context, panel ui.Element) {
-	p := Colors(c.Theme())
-	panel.Background(p.Canvas).Border(1, p.Hairline).Radius(RadiusPanel).
-		NoShadow().Shadow(0, 8, 28, 0, p.Shadow)
+	MenuPanel(c, panel.NoShadow())
 }
 
 // Tip gives e a tip of the kit's look, as a popover has: the canvas on the
@@ -565,7 +574,10 @@ func breakLong(s string) string {
 // Callers choose the height; long content scrolls without moving the footer.
 func DialogColumn(c *ui.Context, width float32) ui.Element {
 	w, h := c.Size()
-	return ui.Column(c).Width(min(width, w-80)).MaxHeight(h - 80).MinHeight(0).Gap(c.Theme().Space(4))
+	// The panel keeps 16 points at each edge, then its own 24-point inset.
+	innerW := max(0, w-2*DialogPadding-32)
+	innerH := max(0, h-2*DialogPadding-32)
+	return ui.Column(c).Width(min(width, innerW)).MaxHeight(innerH).MinHeight(0).Gap(DialogGap)
 }
 
 func DialogFooter(c *ui.Context) ui.Element {
@@ -575,12 +587,29 @@ func DialogFooter(c *ui.Context) ui.Element {
 }
 
 // PopoverPanel is the chrome of anything floating above the window short of
-// a dialog: popovers and toasts. It is a canvas panel on the shadow, so it
-// lifts off whatever it covers. Modal has the deeper of the two shadows.
+// a menu or a dialog: popovers and timing cards. It is a 12-point canvas
+// panel on the popover shadow. A menu takes MenuPanel; a dialog Modal's own.
 func PopoverPanel(c *ui.Context, panel ui.Element) ui.Element {
 	p := Colors(c.Theme())
-	return panel.Radius(RadiusPanel).Background(p.Canvas).InsetShadow(0, 0, 0, 1, p.Hairline).
-		Shadow(0, 8, 28, 0, p.Shadow).Transition(popoverMotion())
+	return ShadowPopover.Apply(panel.Radius(RadiusCard).Background(p.Canvas).InsetShadow(0, 0, 0, 1, p.Hairline), c.Theme().Dark).
+		Transition(popoverMotion())
+}
+
+// ToastPanel is the chrome of a toast: the dialog's 16-point corner and the
+// popover's shadow, so a toast reads as a lighter, temporary dialog rather
+// than a second dialog.
+func ToastPanel(c *ui.Context, panel ui.Element) ui.Element {
+	p := Colors(c.Theme())
+	return ShadowPopover.Apply(panel.Radius(RadiusDialog).Background(p.Canvas).InsetShadow(0, 0, 0, 1, p.Hairline), c.Theme().Dark).
+		Transition(popoverMotion())
+}
+
+// MenuPanel is the chrome of a drawn menu: a 10-point canvas panel on the
+// menu shadow. MyGo builds the items; this is the face they sit on.
+func MenuPanel(c *ui.Context, panel ui.Element) ui.Element {
+	p := Colors(c.Theme())
+	return ShadowMenu.Apply(panel.Border(0, ui.Color{}).Radius(RadiusMenu).Background(p.Canvas).
+		InsetShadow(0, 0, 0, 1, p.Hairline), c.Theme().Dark)
 }
 
 // StatusPill prints a status in its signal color. Status and method colors
@@ -711,7 +740,7 @@ func KVRow(c *ui.Context, content func()) ui.Element {
 // Only the look is ours: MyGo owns announcements, timeouts, pause-on-hover,
 // the three-toast limit, action dispatch and keyboard dismissal.
 func Toasts(c *ui.Context) {
-	t := c.Theme()
+	t, p := c.Theme(), Colors(c.Theme())
 	width, _ := c.Size()
 	ui.ToastViewportBase(c, func(viewport ui.Element, toasts []ui.Toast) {
 		// Toasts keep clear of the footer: its buttons and tool chips are
@@ -728,9 +757,9 @@ func Toasts(c *ui.Context) {
 				icon, color = errorIcon, t.Danger
 			}
 			parts := ui.ToastBase(c, toast)
-			PopoverPanel(c, parts.Root).Row().Width(min(360, width-32)).Gap(t.Space(3)).Padding(t.Space(3)).
+			ToastPanel(c, parts.Root).Row().Width(min(360, width-32)).Gap(t.Space(2)).Padding(t.Space(2), t.Space(4)).
 				AlignItems(ui.Center).
-				Transition(ui.ElementTransition{Duration: DurationHover, Enter: &ui.Motion{Y: 8}, Exit: &ui.Motion{Y: 4}}).
+				Transition(ui.ElementTransition{Duration: MotionSlow, Ease: MotionEase, Enter: &ui.Motion{Y: 8}, Exit: &ui.Motion{Y: 4}}).
 				Children(func() {
 					ui.Icon(c, icon).Size(IconLarge, IconLarge).TextColor(color)
 					ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(2)).Children(func() {
@@ -741,23 +770,26 @@ func Toasts(c *ui.Context) {
 					})
 					if toast.Action != "" {
 						// The action sits on the toast's one line, as a link beside
-						// the message rather than a second full-width button.
+						// the message rather than a second full-width button. On the
+						// canvas panel it is body ink, not the inverse text a
+						// tooltip uses; at rest it must read as an action, not as a
+						// disabled control.
 						b := parts.ActionButton().Label(toast.Action).Height(ControlHeightSmall).
 							Padding(0, Scaled(ControlPaddingXSmall)).Radius(RadiusInner).AlignItems(ui.Center).
-							FontSize(Scaled(TextBody)).FontWeight(500).TextColor(t.InverseText)
+							FontSize(Scaled(TextBody)).FontWeight(500).TextColor(t.Text)
 						b.Children(func() {
-							ui.Text(c, toast.Action).FontSize(Scaled(TextBody)).FontWeight(500).TextColor(t.InverseText).Underline()
+							ui.Text(c, toast.Action).FontSize(Scaled(TextBody)).FontWeight(500).TextColor(t.Text).Underline()
 						})
 						if b.Hovered() {
-							b.Background(t.InverseText.Alpha(0.12)).TextColor(t.InverseText)
+							b.Background(p.FillHover).TextColor(t.Text)
 						}
 					}
 					close := Tip(c, parts.CloseButton().Label(locales.DismissNotification()), locales.DismissNotification()).
-						Size(ControlHeightSmall, ControlHeightSmall).Radius(RadiusControl).Center().TextColor(t.InverseText.Alpha(0.55))
+						Size(ControlHeightSmall, ControlHeightSmall).Radius(RadiusControl).Center().TextColor(t.TextMuted)
 					if close.Pressed() {
-						close.Background(t.InverseText.Alpha(0.16))
+						close.Background(p.FillPressed)
 					} else if close.Hovered() {
-						close.Background(t.InverseText.Alpha(0.12))
+						close.Background(p.FillHover)
 					}
 					close.Children(func() { ui.Icon(c, closeIcon).Size(IconInline, IconInline) })
 				})
@@ -771,10 +803,11 @@ func Modal(c *ui.Context, open *bool, title string, content func()) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	width, height := c.Size()
 	dialog := ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
-		backdrop.Background(ui.RGBA(0, 0, 0, 0.45))
-		panel.Label(title).Padding(t.Space(5)).Gap(t.Space(3)).Radius(RadiusPanel).Background(p.Canvas).
+		backdrop.Background(p.Scrim)
+		panel.Label(title).Padding(DialogPadding).Gap(DialogGap).Radius(RadiusDialog).Background(p.Canvas).
 			InsetShadow(0, 0, 0, 1, p.Hairline).
-			MaxWidth(width-40).MaxHeight(height-40).Shadow(0, 20, 56, 0, p.Shadow)
+			MaxWidth(max(0, width-32)).MaxHeight(max(0, height-32))
+		ShadowDialog.Apply(panel, t.Dark)
 		// A dialog is built the frame it opens, so a transition's entrance
 		// has no earlier frame to come from: the panel grows from 97% as a
 		// value that starts at zero the first time this dialog is built.
@@ -786,7 +819,7 @@ func Modal(c *ui.Context, open *bool, title string, content func()) ui.Element {
 		// Only the fade: a scale moves the panel's painted pixels away from
 		// where the layout puts its controls, and a press in the first
 		// frames would land beside them.
-		panel.Opacity(panel.AnimateTo("dialog-in", 1, ui.Animation{Duration: DurationStandard, Ease: ui.EaseOut, NonMotion: true}))
+		panel.Opacity(panel.AnimateTo("dialog-in", 1, ui.Animation{Duration: MotionBase, Ease: MotionEase, NonMotion: true}))
 		content()
 	})
 	if dialog.Dismissed() {
@@ -893,7 +926,7 @@ func EdgeFade(c *ui.Context, from bool, fill ui.Color) ui.Element {
 // MoreButton is the "⋯" that opens a menu: an icon button with the menu on it
 // and no chevron, since the three dots already say one opens.
 func MoreButton(c *ui.Context, label, tip string, menu func(*ui.Menu)) ui.Element {
-	b := IconButton(c, label, tip, lucide.Ellipsis()).PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { PopoverPanel(c, panel) }})
+	b := IconButton(c, label, tip, lucide.Ellipsis()).PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { popoverFace(c, panel) }})
 	return b
 }
 
@@ -909,7 +942,7 @@ func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
 	// A button of our own with a menu on it, not the library's menu button:
 	// that one draws a chevron after its label, and a ⋯ already says a menu
 	// opens. The menu itself is the library's, panel and motion included.
-	b := ui.ButtonBase(c).Label("⋯").PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { PopoverPanel(c, panel) }})
+	b := ui.ButtonBase(c).Label("⋯").PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { popoverFace(c, panel) }})
 	// ButtonBase is a row with no look: the glyph has to be a child, or the
 	// pane's menu is an empty strip with nothing to click.
 	b.Children(func() { ui.Text(c, "⋯").FontSize(Scaled(TextBody)).SingleLine() })
@@ -930,7 +963,7 @@ func TabMenu(c *ui.Context, label, name string, menu func(*ui.Menu)) ui.Element 
 	ghost.Surface, ghost.SurfaceHover, ghost.SurfacePressed = ui.Color{}, p.FillHover, p.FillPressed
 	ghost.Border = ui.Color{}
 	c.SetTheme(&ghost)
-	b := ui.ButtonBase(c).Label(label).PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { PopoverPanel(c, panel) }})
+	b := ui.ButtonBase(c).Label(label).PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { popoverFace(c, panel) }})
 	// ButtonBase paints nothing of its own: the tab's words are its child.
 	b.Children(func() { ui.Text(c, label).FontSize(Scaled(TextBody)).SingleLine() })
 	c.SetTheme(t)
@@ -1148,13 +1181,70 @@ func SettingsPage(c *ui.Context, title, about string, groups func()) ui.Element 
 	t := c.Theme()
 	return ui.Column(c).FillWidth().MaxWidth(640).Gap(t.Space(5)).Children(func() {
 		ui.Column(c).Gap(t.Space(1)).Children(func() {
-			ui.Text(c, title).FontSize(Scaled(TextTitle)).FontWeight(500)
+			Heading(c, title)
 			if about != "" {
 				Hint(c, about)
 			}
 		})
 		ui.Form(c, groups).Gap(t.Space(4))
 	})
+}
+
+// SettingsCardPage is the looser Settings skeleton: a page 620 points wide,
+// a title and one sentence, then groups of SettingsCards. It is for the
+// settings, first-run and wizard surfaces; the workspace keeps its own
+// density.
+func SettingsCardPage(c *ui.Context, title, about string, groups func()) ui.Element {
+	t := c.Theme()
+	return ui.Column(c).FillWidth().MaxWidth(SettingsWidth).Gap(t.Space(4)).Children(func() {
+		ui.Column(c).Gap(t.Space(1)).Children(func() {
+			Display(c, title)
+			if about != "" {
+				Hint(c, about)
+			}
+		})
+		ui.Form(c, groups).Gap(t.Space(4))
+	})
+}
+
+// SettingsCard groups related rows in one canvas card, its legend above it.
+// A row is at least 44 points high, with its title and one line of
+// description on the left and its control on the right.
+func SettingsCard(c *ui.Context, legend string, rows func()) ui.Element {
+	t, p := c.Theme(), Colors(c.Theme())
+	return ui.Column(c).FillWidth().Gap(t.Space(2)).Children(func() {
+		if legend != "" {
+			Label(c, legend)
+		}
+		ui.Column(c).FillWidth().Clip().Radius(RadiusCard).Background(p.Canvas).
+			Border(1, p.Hairline).Children(rows)
+	})
+}
+
+// SettingsSwitch is the 36-by-20 switch of the looser Settings skeleton.
+func SettingsSwitch(c *ui.Context, on *bool, label string) ui.Element {
+	return ui.Switch(c, on).Label(label).Size(SettingsControlHeight, 20).Radius(10)
+}
+
+// SettingsCardRow is one row of a SettingsCard. The title is body text, the
+// description one small muted line, and the control stays at the trailing
+// edge, vertically centered.
+func SettingsCardRow(c *ui.Context, title, description string, control func()) ui.Element {
+	t := c.Theme()
+	row := ui.Row(c).FillWidth().MinHeight(SettingsRowHeight).Padding(t.Space(2), t.Space(4)).
+		Gap(t.Space(4)).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+	row.Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
+			Body(c, title)
+			if description != "" {
+				Small(c, description).TextColor(t.TextMuted)
+			}
+		})
+		if control != nil {
+			control()
+		}
+	})
+	return row
 }
 
 // settingsGroups and settingsWidths remember the current group and the widest
@@ -1279,7 +1369,7 @@ func SelectLabels(c *ui.Context, selected *string, options []string, label func(
 		chevron(c)
 	})
 	sel.Popup(func(panel ui.Element) {
-		PopoverPanel(c, panel.Padding(t.Space(1)).Gap(t.Space(0.5)))
+		popoverFace(c, panel.Padding(t.Space(1)).Gap(t.Space(0.5)))
 		for _, option := range options {
 			item := sel.Item(option).Padding(t.Space(1.5), t.Space(2.5)).Radius(RadiusControl)
 			switch {

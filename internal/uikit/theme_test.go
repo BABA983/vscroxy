@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -117,6 +118,35 @@ func TestSuccessIsNotTheAccent(t *testing.T) {
 	}
 }
 
+// The floating scale is one set of values, and a shadow doubles its
+// opacity in Dark without changing its geometry.
+func TestFloatingScaleTokens(t *testing.T) {
+	if RadiusMenu != 10 || RadiusCard != 12 || RadiusDialog != 16 {
+		t.Fatalf("radii = %v/%v/%v, want 10/12/16", RadiusMenu, RadiusCard, RadiusDialog)
+	}
+	if ShadowMenu.Y != 8 || ShadowMenu.Blur != 24 || ShadowMenu.Opacity != 0.14 {
+		t.Fatalf("menu shadow = %+v", ShadowMenu)
+	}
+	if ShadowPopover.Y != 12 || ShadowPopover.Blur != 32 || ShadowPopover.Opacity != 0.16 {
+		t.Fatalf("popover shadow = %+v", ShadowPopover)
+	}
+	if ShadowDialog.Y != 16 || ShadowDialog.Blur != 48 || ShadowDialog.Opacity != 0.18 {
+		t.Fatalf("dialog shadow = %+v", ShadowDialog)
+	}
+	if got := ShadowMenu.Color(false).A; got != 36 {
+		t.Fatalf("light menu alpha = %d, want 36", got)
+	}
+	if got := ShadowMenu.Color(true).A; got != 71 {
+		t.Fatalf("dark menu alpha = %d, want 71", got)
+	}
+	if Light.Chrome != ui.Hex("#f2f6ee") || Light.Scrim != ui.RGBA(0, 0, 0, 0.35) {
+		t.Fatalf("Light chrome/scrim = %v/%v", Light.Chrome, Light.Scrim)
+	}
+	if MotionFast != 120*time.Millisecond || MotionBase != 150*time.Millisecond || MotionSlow != 200*time.Millisecond {
+		t.Fatalf("motion = %v/%v/%v", MotionFast, MotionBase, MotionSlow)
+	}
+}
+
 func TestNormalResponsesAreQuiet(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		theme := Theme(dark)
@@ -177,6 +207,15 @@ func TestTextSizesFollowTheDesktopsTextSize(t *testing.T) {
 	}
 	if got := Scaled(TextMeta); got != 17 {
 		t.Fatalf("meta size at 1.5 = %v, want 17", got)
+	}
+	if got := Scaled(TextSmall); got != 18 {
+		t.Fatalf("small size at 1.5 = %v, want 18", got)
+	}
+	if got := Scaled(TextTitle); got != 24 {
+		t.Fatalf("title size at 1.5 = %v, want 24", got)
+	}
+	if got := Scaled(TextDisplay); got != 30 {
+		t.Fatalf("display size at 1.5 = %v, want 30", got)
 	}
 	SetTextScale(0)
 	if got := Scaled(TextBody); got != 13 {
