@@ -25463,3 +25463,53 @@ func AsapExpiryHint() string { return In(i18n.Locale()).AsapExpiryHint() }
 func (msgs Messages) AsapExpiryHint() string {
 	return Catalog.Format(msgs.locale, "asapExpiryHint", nil)
 }
+
+// FormattedBody says "Formatted body"
+// in the language the app shows.
+func FormattedBody() string { return In(i18n.Locale()).FormattedBody() }
+
+// FormattedBody says "Formatted body"
+// in the language of msgs.
+func (msgs Messages) FormattedBody() string {
+	return Catalog.Format(msgs.locale, "formattedBody", nil)
+}
+
+// MergedStream says "Merged stream"
+// in the language the app shows.
+func MergedStream() string { return In(i18n.Locale()).MergedStream() }
+
+// MergedStream says "Merged stream"
+// in the language of msgs.
+func (msgs Messages) MergedStream() string {
+	return Catalog.Format(msgs.locale, "mergedStream", nil)
+}
+
+// NoMergeableStream says "This body is not an SSE or OpenAI-style chunk stream."
+// in the language the app shows.
+func NoMergeableStream() string { return In(i18n.Locale()).NoMergeableStream() }
+
+// NoMergeableStream says "This body is not an SSE or OpenAI-style chunk stream."
+// in the language of msgs.
+func (msgs Messages) NoMergeableStream() string {
+	return Catalog.Format(msgs.locale, "noMergeableStream", nil)
+}
+
+// SavePart says "Save part…"
+// in the language the app shows.
+func SavePart() string { return In(i18n.Locale()).SavePart() }
+
+// SavePart says "Save part…"
+// in the language of msgs.
+func (msgs Messages) SavePart() string {
+	return Catalog.Format(msgs.locale, "savePart", nil)
+}
+
+// SavedPart says "Saved the part"
+// in the language the app shows.
+func SavedPart() string { return In(i18n.Locale()).SavedPart() }
+
+// SavedPart says "Saved the part"
+// in the language of msgs.
+func (msgs Messages) SavedPart() string {
+	return Catalog.Format(msgs.locale, "savedPart", nil)
+}

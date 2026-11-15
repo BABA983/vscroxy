@@ -93,8 +93,8 @@
 | 筛选：多条件 AND/OR 组合 | 已有首版 | 文本字段（host、app、IP、query、note）可多条件，支持精确、开头、包含、取反和正则，每个条件一个 chip；内容字段可选全部／任一匹配，含完整正文；外层范围仍 AND，暂不支持嵌套组；⋯ 菜单新增 Form／XML／JS／CSS／Media／h1／h2 | M5 |
 | 搜索支持通配符和正则 | 已有 | 显式 Text／Wildcard／Regex 模式，匹配 host＋路径（含查询串）；错误模式不回退，随视图／保存筛选保留 | M5 |
 | Body 全文搜索 | 已有 | | |
-| Body 查看：Pretty、JSON 树、Hex、图片、HTML、Protobuf | 已有 | | |
-| Body 查看：multipart 分段、表单字段表、MessagePack、XML 格式化 | 已有 | 后台只读解析，保留重名/整数/二进制证据；见使用指南限制。延迟按交换一次性加，不是真正的 TCP/IP 丢包 | M5 |
+| Body 查看：Pretty、JSON 树、Hex、图片、HTML、Protobuf、JavaScript/CSS 美化、Markdown、合并流 | 已有 | 手动格式按 Content-Type 记住；JS/CSS 只重排不改 token，Markdown 渲染为富文本，SSE／OpenAI 分块合并并注明结束原因 | |
+| Body 查看：multipart 分段、表单字段表、MessagePack、XML 格式化 | 已有 | 后台只读解析，保留重名/整数/二进制证据；multipart 分段可另存为文件；见使用指南限制 | M5 |
 | JSON 筛选：JSONPath、jq | 已有 | 后台只读有界子集，支持取消；详见使用指南 | M5 |
 | 快速解码：选中文字解 Base64、JWT、URL 编码、时间戳 | 已有 | 本地只读预览；JWT 不验证签名或 claims | M5 |
 | Cookies 标签（解析 Cookie 和 Set-Cookie） | 已有 | 抓包两侧和已发送响应；保留重名，默认遮罩 | M5 |

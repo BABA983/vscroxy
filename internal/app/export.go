@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/inspect"
 	"github.com/baba983/vscroxy/internal/postman"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
@@ -563,4 +565,38 @@ func redactExportHeaderBlock(block string, o exportOptions) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// saveMultipartPart writes one part of a multipart body to a file the reader
+// chooses. The body is read and parsed off the UI thread from its immutable
+// snapshot; a partial part is never written.
+func (a *app) saveMultipartPart(source inspectionBody, contentType string, index int) {
+	win := a.win
+	if win == nil {
+		return
+	}
+	go func() {
+		text, err := source.read(context.Background())
+		if err != nil {
+			a.fail(locales.SavePart(), err)
+			return
+		}
+		data, name, err := inspect.MultipartPartBytes(contentType, []byte(text), index)
+		if err != nil {
+			a.fail(locales.SavePart(), err)
+			return
+		}
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: locales.SavePart(), DefaultPath: name})
+		if err == nil && path == "" {
+			return
+		}
+		if err == nil {
+			err = store.WriteFile(path, data)
+		}
+		if err != nil {
+			a.fail(locales.SavePart(), err)
+			return
+		}
+		a.done(locales.SavedPart())
+	}()
 }

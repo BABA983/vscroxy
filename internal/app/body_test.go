@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -98,5 +99,33 @@ func TestBodyPreviewLimitAndWarnings(t *testing.T) {
 	body, notice := f.bodyPreview(true)
 	if body != `{"ok":true}` || !strings.Contains(notice, "transfer stopped") || f.body(true) != body+notice {
 		t.Fatal("capture warning was lost or mixed into the payload")
+	}
+}
+
+func TestBodyFormatIsRememberedPerContentType(t *testing.T) {
+	a := workspaceApp()
+	a.body = "body{color:red}"
+	f := flow{id: 1, resBody: "body{color:red}", respHeader: http.Header{"Content-Type": {"text/css"}}}
+	a.bodyFormatByType = map[string]string{"text/css": "CSS"}
+	modes := a.bodyModes(f, 0)
+	if a.bodyMode[0] >= len(modes) || modes[a.bodyMode[0]] != "CSS" {
+		t.Fatalf("remembered CSS mode = %v, %v", a.bodyMode[0], modes)
+	}
+	for _, tc := range []struct {
+		contentType, mode string
+	}{
+		{"text/javascript", "JavaScript"},
+		{"text/markdown", "Markdown"},
+		{"text/event-stream", "Merged stream"},
+	} {
+		f.respHeader = http.Header{"Content-Type": {tc.contentType}}
+		modes := a.bodyModes(f, 0)
+		if !slices.Contains(modes, tc.mode) {
+			t.Fatalf("%s modes = %v, want %s", tc.contentType, modes, tc.mode)
+		}
+	}
+	f.respHeader = http.Header{"Content-Type": {"text/event-stream"}}
+	if mode := a.autoBodyMode(f, 0, "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n"); mode >= len(a.bodyModes(f, 0)) || a.bodyModes(f, 0)[mode] != "Merged stream" {
+		t.Fatalf("SSE auto mode = %v", mode)
 	}
 }

@@ -1515,7 +1515,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 		}
 		if r := d.response; r != nil && (d.responseView == 0 || d.responseView == 4) && inspect.BodyFormat(r.ResponseHeader.Get("Content-Type")) != "" {
-			d.structured.view(c, inspectionBody{r.ResponseBody, r.ResponseBodyFile, r.ResponseBodyError, r.ResponseBodySize}, r.ResponseHeader.Get("Content-Type"))
+			d.structured.view(c, a, inspectionBody{r.ResponseBody, r.ResponseBodyFile, r.ResponseBodyError, r.ResponseBodySize}, r.ResponseHeader.Get("Content-Type"))
 			return
 		}
 		switch d.responseView {

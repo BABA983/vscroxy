@@ -815,7 +815,7 @@ func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
 		}
 		a.protobufReader(c, draftFlow(d), 1)
 	case formats[view] == inspect.BodyFormat(ct):
-		a.structured[1].view(c, inspectionBody{text: body}, ct)
+		a.structured[1].view(c, a, inspectionBody{text: body}, ct)
 	case formats[view] == locales.Preview():
 		a.previewBody(c, draftFlow(d), body, 1)
 	case formats[view] == locales.Hex():

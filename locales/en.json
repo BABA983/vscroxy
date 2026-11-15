@@ -3919,4 +3919,10 @@
   "subject": "Subject",
   "additionalClaims": "Additional claims",
   "optionalDefaultsToTheIssuer": "Optional; defaults to the issuer",
-  "asapExpiryHint": "Token lifetime in seconds; a claim named exp overrides it."}
+  "asapExpiryHint": "Token lifetime in seconds; a claim named exp overrides it.",
+  "formattedBody": "Formatted body",
+  "mergedStream": "Merged stream",
+  "noMergeableStream": "This body is not an SSE or OpenAI-style chunk stream.",
+  "savePart": "Save part…",
+  "savedPart": "Saved the part"
+}

@@ -2606,4 +2606,10 @@
   "subject": "主题",
   "additionalClaims": "附加声明",
   "optionalDefaultsToTheIssuer": "可选；默认使用签发者",
-  "asapExpiryHint": "令牌有效期（秒）；名为 exp 的声明会覆盖它。"}
+  "asapExpiryHint": "令牌有效期（秒）；名为 exp 的声明会覆盖它。",
+  "formattedBody": "格式化正文",
+  "mergedStream": "合并后的流",
+  "noMergeableStream": "此正文不是 SSE 或 OpenAI 风格的流式分块。",
+  "savePart": "保存分段…",
+  "savedPart": "已保存分段"
+}

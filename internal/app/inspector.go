@@ -937,6 +937,12 @@ func (a *app) bodyFormatActions(side int) []action {
 		items = append(items, do("body.format", name, func() {
 			a.bodyMode[side] = i
 			a.bodyQuery[side] = ""
+			if name != "Auto" {
+				if a.bodyFormatByType == nil {
+					a.bodyFormatByType = map[string]string{}
+				}
+				a.bodyFormatByType[f.contentType(side == 0)] = name
+			}
 		}).checked(checkbox(i == mode)))
 	}
 	return items

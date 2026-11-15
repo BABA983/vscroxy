@@ -247,10 +247,13 @@ type app struct {
 	// The body panes are indexed the way the rest of the inspector is: 0 is
 	// the response, 1 the request. Readers survive leaving Capture to edit or
 	// compare a request.
-	bodyMode     [2]int
-	bodyQuery    [2]string
-	headerScroll [2]ui.ScrollState
-	bodyText     [2]*editor.State
+	bodyMode [2]int
+	// bodyFormatByType remembers an explicit format per media type, so the
+	// next body of the same type opens the way this one was read.
+	bodyFormatByType map[string]string
+	bodyQuery        [2]string
+	headerScroll     [2]ui.ScrollState
+	bodyText         [2]*editor.State
 	// bodyPrettyFor is the body the pretty reader holds, so a draft's changed
 	// bytes never show in an older reader.
 	bodyPrettyFor [2]string
@@ -264,17 +267,24 @@ type app struct {
 
 	// The parsed and decoded previews are cached per side, so two visible
 	// panes do not rebuild each other's tree on every frame.
-	htmlDoc      [2]*richtext.Document
-	htmlFor      [2]string
-	imageBmp     [2]*ui.Bitmap
-	imageFor     [2]string
-	imageErr     [2]string
-	jsonRoots    [2][]*jsonNode
-	jsonExpanded [2]map[string]bool
-	jsonFor      [2]string
-	jsonOK       [2]bool
-	protoFor     [2]string
-	protoOK      [2]bool
+	htmlDoc [2]*richtext.Document
+	htmlFor [2]string
+	// Formatted code, Markdown and merged streams are built once per body.
+	formattedCode [2]*editor.State
+	codeFor       [2]string
+	markdownDoc   [2]*richtext.Document
+	markdownFor   [2]string
+	mergedText    [2]*editor.State
+	mergedFor     [2]string
+	imageBmp      [2]*ui.Bitmap
+	imageFor      [2]string
+	imageErr      [2]string
+	jsonRoots     [2][]*jsonNode
+	jsonExpanded  [2]map[string]bool
+	jsonFor       [2]string
+	jsonOK        [2]bool
+	protoFor      [2]string
+	protoOK       [2]bool
 	// protoOwner is the side whose shared protobuf reader is live this frame.
 	protoOwner                        int
 	protobuf                          protoInspector

@@ -200,7 +200,56 @@ func (a *app) bodyModes(f flow, side int) []string {
 	if format := inspect.BodyFormat(f.bodyContentType(side == 0)); format != "" {
 		modes = append(modes, format)
 	}
+	ct := f.contentType(side == 0)
+	switch {
+	case isJavaScriptType(ct):
+		modes = append(modes, "JavaScript")
+	case ct == "text/css":
+		modes = append(modes, "CSS")
+	case isMarkdownType(ct):
+		modes = append(modes, "Markdown")
+	}
+	if looksLikeStream(ct, body) {
+		modes = append(modes, "Merged stream")
+	}
+	if name := a.bodyFormatByType[ct]; name != "" {
+		if i := slices.Index(modes, name); i >= 0 {
+			a.bodyMode[side] = i
+		}
+	}
 	return modes
+}
+
+func isJavaScriptType(ct string) bool {
+	return ct == "text/javascript" || ct == "application/javascript" || ct == "application/x-javascript" ||
+		ct == "text/ecmascript" || ct == "application/ecmascript"
+}
+
+func isMarkdownType(ct string) bool {
+	return ct == "text/markdown" || ct == "text/x-markdown"
+}
+
+// looksLikeStream reports whether a body may be an SSE or OpenAI-style chunk
+// stream, so the merged view is offered without parsing every body.
+func looksLikeStream(ct, body string) bool {
+	if strings.Contains(ct, "event-stream") {
+		return true
+	}
+	if !strings.Contains(body, "choices") {
+		return false
+	}
+	lines := 0
+	for line := range strings.SplitSeq(body, "\n") {
+		line = strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if line == "" || line == "[DONE]" {
+			continue
+		}
+		if !strings.HasPrefix(line, "{") {
+			return false
+		}
+		lines++
+	}
+	return lines >= 2
 }
 
 // protobufOwner is the side whose protobuf inspector is live: the pane the
@@ -291,6 +340,11 @@ func (a *app) autoBodyMode(f flow, side int, body string) int {
 	switch {
 	case grpcContentType(ct) || strings.Contains(ct, "protobuf"):
 		return 5
+	case strings.Contains(ct, "event-stream"):
+		if i := slices.Index(a.bodyModes(f, side), "Merged stream"); i >= 0 {
+			return i
+		}
+		return 1
 	case strings.HasPrefix(ct, "image/"), strings.Contains(ct, "html"):
 		return 4
 	case inspect.BodyFormat(f.bodyContentType(side == 0)) != "":
@@ -346,7 +400,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			Padding(t.Space(1), t.Space(3)).FillWidth(), notice)
 	}
 	if modes[mode] == inspect.BodyFormat(f.bodyContentType(side == 0)) {
-		a.structured[side].view(c, capturedInspectionBody(f, side), f.bodyContentType(side == 0))
+		a.structured[side].view(c, a, capturedInspectionBody(f, side), f.bodyContentType(side == 0))
 		return
 	}
 	if mode == 5 {
@@ -399,7 +453,16 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 	case 4:
 		a.previewBody(c, f, body, side)
 	default:
-		a.prettyBody(c, body, side)
+		switch modes[mode] {
+		case "JavaScript", "CSS":
+			a.codeBody(c, f, body, side, modes[mode])
+		case "Markdown":
+			a.markdownBody(c, f, body, side)
+		case "Merged stream":
+			a.mergedBody(c, f, body, side)
+		default:
+			a.prettyBody(c, body, side)
+		}
 	}
 }
 
@@ -508,6 +571,59 @@ func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 			find.Close()
 		}
 	})
+}
+
+// codeBody shows JavaScript or CSS re-indented, keeping the captured bytes
+// for the other formats and exports.
+func (a *app) codeBody(c *ui.Context, f flow, body string, side int, kind string) {
+	key := fmt.Sprintf("%d:%d:%s", f.id, side, kind)
+	if a.codeFor[side] != key {
+		a.codeFor[side] = key
+		text, language := inspect.BeautifyJS(body), "javascript"
+		if kind == "CSS" {
+			text, language = inspect.BeautifyCSS(body), "css"
+		}
+		buf := editor.NewBuffer(text)
+		buf.SetLanguage(editor.LanguageNamed(language))
+		a.formattedCode[side] = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.FormattedBody()}
+	}
+	a.formattedCode[side].Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
+	a.formattedCode[side].Theme = uikit.EditorTheme(c.Theme())
+	editor.View(c, a.formattedCode[side]).Grow(1)
+}
+
+// markdownBody renders a Markdown body as rich text.
+func (a *app) markdownBody(c *ui.Context, f flow, body string, side int) {
+	key := fmt.Sprintf("%d:%d", f.id, side)
+	if a.markdownFor[side] != key {
+		a.markdownFor[side] = key
+		a.markdownDoc[side] = richtext.NewDocument(richtext.ParseMarkdown(body))
+	}
+	t := c.Theme()
+	ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(2), t.Space(3)).Children(func() {
+		richtext.EditorBase(c, a.markdownDoc[side], richtext.EditorOptions{ReadOnly: true}).Grow(1)
+	})
+}
+
+// mergedBody joins an SSE or OpenAI-style chunk stream into one message.
+func (a *app) mergedBody(c *ui.Context, f flow, body string, side int) {
+	key := fmt.Sprintf("%d:%d", f.id, side)
+	if a.mergedFor[side] != key {
+		a.mergedFor[side] = key
+		text, ok := inspect.MergeStream(f.bodyContentType(side == 0), body)
+		if !ok {
+			a.mergedText[side] = nil
+		} else {
+			a.mergedText[side] = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.MergedStream()}
+		}
+	}
+	if a.mergedText[side] == nil {
+		uikit.Hint(c, locales.NoMergeableStream()).Padding(c.Theme().Space(4))
+		return
+	}
+	a.mergedText[side].Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
+	a.mergedText[side].Theme = uikit.EditorTheme(c.Theme())
+	editor.View(c, a.mergedText[side]).Grow(1)
 }
 
 func (a *app) jsonBody(c *ui.Context, side int) {

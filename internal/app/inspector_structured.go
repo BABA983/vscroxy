@@ -27,7 +27,7 @@ func (s *structuredInspector) stop() {
 	s.ready = false
 }
 
-func (s *structuredInspector) view(c *ui.Context, source inspectionBody, contentType string) {
+func (s *structuredInspector) view(c *ui.Context, a *app, source inspectionBody, contentType string) {
 	if !s.ready || s.source != source || s.contentType != contentType {
 		s.source, s.contentType, s.ready, s.list = source, contentType, true, ui.ListState{}
 		s.job.start(c.Services(), func(ctx context.Context) inspectionResult {
@@ -110,6 +110,9 @@ func (s *structuredInspector) view(c *ui.Context, source inspectionBody, content
 					}
 				} else if !part.File {
 					uikit.Hint(c, locales.BinaryEncodedOrNonUtf()).FillWidth()
+				}
+				if uikit.SecondaryButton(c, locales.SavePart()).Clicked() {
+					a.saveMultipartPart(source, contentType, i)
 				}
 			})
 			ui.Divider(c)
