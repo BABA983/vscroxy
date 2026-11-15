@@ -275,9 +275,11 @@ type app struct {
 	protoFor     [2]string
 	protoOK      [2]bool
 	// protoOwner is the side whose shared protobuf reader is live this frame.
-	protoOwner int
-	protobuf   protoInspector
-	structured [2]structuredInspector
+	protoOwner                        int
+	protobuf                          protoInspector
+	protoTypes                        []protoTypeRule
+	protoTypesPath, protoTypesProblem string
+	structured                        [2]structuredInspector
 
 	// newRows counts traffic that arrived while the list was paused, so the
 	// footer can offer to resume following without moving the reader.
@@ -824,6 +826,8 @@ func newApp() *app {
 	if home, err := os.UserHomeDir(); err == nil {
 		a.views.init(a, filepath.Join(home, ".vscroxy", "views.json"))
 		a.protobuf.init(filepath.Join(home, ".vscroxy", "protobuf.pb"))
+		a.protoTypesPath = filepath.Join(home, ".vscroxy", "protobuf-types.json")
+		a.loadProtoTypeRules()
 		a.loadExperiments(filepath.Join(home, ".vscroxy", "experiments.json"))
 		if err := a.sessions.load(filepath.Join(home, ".vscroxy", "sessions")); err != nil {
 			a.sessions.problem = err.Error()

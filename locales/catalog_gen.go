@@ -25213,3 +25213,33 @@ func FolderPlaceholder() string { return In(i18n.Locale()).FolderPlaceholder() }
 func (msgs Messages) FolderPlaceholder() string {
 	return Catalog.Format(msgs.locale, "folderPlaceholder", nil)
 }
+
+// SaveForThisUrl says "Save for this URL"
+// in the language the app shows.
+func SaveForThisUrl() string { return In(i18n.Locale()).SaveForThisUrl() }
+
+// SaveForThisUrl says "Save for this URL"
+// in the language of msgs.
+func (msgs Messages) SaveForThisUrl() string {
+	return Catalog.Format(msgs.locale, "saveForThisUrl", nil)
+}
+
+// SavedProtobufTypeForUrl says "Saved the message type for this URL"
+// in the language the app shows.
+func SavedProtobufTypeForUrl() string { return In(i18n.Locale()).SavedProtobufTypeForUrl() }
+
+// SavedProtobufTypeForUrl says "Saved the message type for this URL"
+// in the language of msgs.
+func (msgs Messages) SavedProtobufTypeForUrl() string {
+	return Catalog.Format(msgs.locale, "savedProtobufTypeForUrl", nil)
+}
+
+// ForgetUrlRule says "Forget URL rule"
+// in the language the app shows.
+func ForgetUrlRule() string { return In(i18n.Locale()).ForgetUrlRule() }
+
+// ForgetUrlRule says "Forget URL rule"
+// in the language of msgs.
+func (msgs Messages) ForgetUrlRule() string {
+	return Catalog.Format(msgs.locale, "forgetUrlRule", nil)
+}

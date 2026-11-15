@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"mime"
 	"net/url"
 	"strconv"
 	"strings"
@@ -209,15 +210,25 @@ func inspectProtoMessage(ctx context.Context, m messageView, schema *protoSchema
 		result.problem = err.Error()
 		return result
 	}
+	if name == "" || name == "Auto" {
+		name = messageTypeParam(m.contentType)
+	}
 	desc, err := schema.message(name, "", false)
 	if err == nil {
 		if desc != nil {
 			result.typeName = string(desc.FullName())
 		}
-		var text string
-		text, err = protoMessageText(data, schema, desc)
-		if err == nil {
-			result.messages = []protoMessage{{text: text, size: len(data)}}
+		payloads := [][]byte{data}
+		if list, ok := splitDelimited(data); ok {
+			payloads = list
+		}
+		for _, payload := range payloads {
+			var text string
+			text, err = protoMessageText(payload, schema, desc)
+			if err != nil {
+				break
+			}
+			result.messages = append(result.messages, protoMessage{text: text, size: len(payload)})
 		}
 	}
 	if err != nil {
@@ -255,6 +266,9 @@ func inspectProto(ctx context.Context, f flow, response bool, schema *protoSchem
 		result.problem = fmt.Sprintf("Protobuf inspection is limited to %s per body", humanBytes(maxProtoBytes))
 		return result
 	}
+	if name == "" || name == "Auto" {
+		name = messageTypeParam(f.bodyContentType(response))
+	}
 	desc, err := schema.message(name, f.path, response)
 	if err != nil {
 		result.problem = err.Error()
@@ -269,6 +283,23 @@ func inspectProto(ctx context.Context, f flow, response bool, schema *protoSchem
 		return result
 	}
 	data := []byte(head)
+	if !grpcContentType(ct) {
+		if list, ok := splitDelimited(data); ok {
+			for i, payload := range list {
+				if len(payload) > 16<<20 {
+					result.problem = fmt.Sprintf("Message %d exceeds the 16 MiB message limit", i+1)
+					return result
+				}
+				text, err := protoMessageText(payload, schema, desc)
+				if err != nil {
+					result.problem = fmt.Sprintf("Message %d: %v", i+1, err)
+					return result
+				}
+				result.messages = append(result.messages, protoMessage{text: text, size: len(payload)})
+			}
+			return result
+		}
+	}
 	remaining := maxProtoBytes
 	for index := 1; ; index++ {
 		if err := ctx.Err(); err != nil {
@@ -327,6 +358,41 @@ func inspectProto(ctx context.Context, f flow, response bool, schema *protoSchem
 			return result
 		}
 	}
+}
+
+// splitDelimited reads a stream of varint-length-prefixed messages, as a
+// protobuf body that concatenates messages carries. It reports true only for
+// at least two complete messages that consume the whole body.
+func splitDelimited(data []byte) ([][]byte, bool) {
+	var out [][]byte
+	for len(data) > 0 {
+		n, size := binary.Uvarint(data)
+		if size <= 0 || n == 0 || n > uint64(len(data)-size) || n > 16<<20 {
+			return nil, false
+		}
+		data = data[size:]
+		out = append(out, data[:n])
+		data = data[n:]
+		if len(out) > 1000 {
+			return nil, false
+		}
+	}
+	return out, len(out) >= 2
+}
+
+// messageTypeParam is the messageType parameter a protobuf Content-Type may
+// carry, such as application/x-protobuf; messageType=shop.Item.
+func messageTypeParam(contentType string) string {
+	_, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return ""
+	}
+	for key, value := range params {
+		if strings.EqualFold(key, "messageType") {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func protoMessageText(data []byte, schema *protoSchema, desc protoreflect.MessageDescriptor) (string, error) {

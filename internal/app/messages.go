@@ -50,16 +50,17 @@ const (
 type messageView struct {
 	// seq is the message's place in the flow, from 1. A gap in the sequence
 	// numbers is a message the capture's queue or the window here dropped.
-	seq       int
-	direction string // "out" for client to server, "in" for server to client
-	kind      string // "text", "binary", a WebSocket control type, or "event"
-	data      string // the message, or its head when file holds the rest
-	file      string // the spill file the capture wrote for a long message
-	size      int    // the message's length in bytes
-	kept      int    // how many bytes of it are here, inline or in file
-	at        time.Time
-	eventID   string // SSE "id"
-	eventName string // SSE "event", "message" when it had none
+	seq         int
+	direction   string // "out" for client to server, "in" for server to client
+	kind        string // "text", "binary", a WebSocket control type, or "event"
+	data        string // the message, or its head when file holds the rest
+	file        string // the spill file the capture wrote for a long message
+	size        int    // the message's length in bytes
+	kept        int    // how many bytes of it are here, inline or in file
+	contentType string // the flow's response Content-Type, for messageType
+	at          time.Time
+	eventID     string // SSE "id"
+	eventName   string // SSE "event", "message" when it had none
 }
 
 // frame is a message as the app keeps it: the table's state holds
@@ -349,6 +350,8 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 				TextColor(t.Danger).Background(t.Danger.Alpha(0.12)).Padding(t.Space(1), t.Space(3)).FillWidth()
 		}
 		if p.mode == 2 {
+			a.protobuf.url = f.url
+			m.contentType = f.bodyContentType(true)
 			a.protobuf.message(c, a, fmt.Sprintf("capture:%d:%d", f.id, m.seq), m)
 			return
 		}

@@ -1799,7 +1799,13 @@ load replaces the local registry in `~/.vscroxy/protobuf.pb`; a failed load leav
 the previous registry intact.
 
 **Auto** resolves `/package.Service/Method` to the request's input or response's
-output message type. For raw protobuf, select its fully qualified message type.
+output message type, and a `messageType` parameter in the Content-Type (such as
+`application/x-protobuf; messageType=shop.Item`) names the type for a raw body.
+For raw protobuf, select its fully qualified message type; **Save for this URL**
+remembers that choice in `~/.vscroxy/protobuf-types.json` and applies the
+longest matching URL the next time it is opened, and **Forget URL rule** removes
+it. A body that concatenates varint-length-prefixed messages is read as a list,
+one message per entry.
 The decoder displays names, signed values, enums, nested messages, maps, repeated
 fields and unknown wire fields. gRPC bodies show every framed message, including
 empty messages and per-message gzip compression. Search filters decoded messages;
@@ -4007,8 +4013,8 @@ Tools and the menu bar. The choice is kept for the next launch.
 
 What this version leaves for later, in rough order:
 
-- Breakpoints without the 1 MiB read limit, and Protobuf message types saved per URL.
-- Network conditions with real packet loss and more presets.
+- Breakpoints without the 1 MiB read limit.
+- Network conditions with real packet loss.
 - WebSocket streams with more than 200 messages, search and independent
   inspector windows.
 - Replacing the MITM signing CA, per-host server certificates, GraphQL

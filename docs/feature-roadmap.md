@@ -64,7 +64,7 @@
 | HTTP / HTTPS 抓包，按域名、按 App 解密 | 已有 | 解密名单支持 host、`*`／`?` 通配和 App；排除名单优先于所有规则，命中的主机始终保持加密隧道；解密上游默认校验证书，失败返回 502 并在连接详情记录证书错误，按域名的「允许不受信任的上游证书」与 Certificates 的自定义根可显式信任 | |
 | HTTP/2（TLS） | 已有 | 底层引擎协商 h2；h2c 不支持 | |
 | WebSocket、SSE | 已有 | | |
-| gRPC / Protobuf 检查 | 已有 | HTTP body 和 WebSocket 消息都能用 Protobuf 查看；消息类型按视图选，不能保存成按 URL 的规则 | |
+| gRPC / Protobuf 检查 | 已有 | HTTP body 和 WebSocket 消息都能用 Protobuf 查看；消息类型可按 URL 保存（`protobuf-types.json`，最长匹配），Content-Type 的 `messageType` 参数生效，varint 长度前缀的消息列表逐条显示 | |
 | **录制开关（Record / Pause）** | 已有 | 标题栏录制 pill 的暂停按钮，命令面板 Pause／Resume recording | M1 |
 | 清空会话 | 已有 | | |
 | **只抓指定 host / App（Allow list）** | 已有 | Settings → Capture，按 host 和 App；忽略名单优先 | M1 |
@@ -113,7 +113,7 @@
 | --- | --- | --- | --- |
 | 规则匹配：通配符、正则、method、App、header | 已有 | URL 可选包含／通配符／正则；App 用和忽略名单相同的模式；header 支持存在、等于、包含、正则 | M4 |
 | 规则测试（输入 URL 看命中哪条） | 已有 | | |
-| Breakpoint：请求、响应 | 部分 | 原始报文（Raw）视图；query 与 form 按行编辑；断开连接（真正关闭客户端连接，不回应）；超时后继续的时间可选 30 秒至 10 分钟，默认 2 分钟；对话框正文 1 MiB 只读上限（脚本可读 8 MiB）；Protobuf 消息类型不能按 URL 保存 | |
+| Breakpoint：请求、响应 | 部分 | 原始报文（Raw）视图；query 与 form 按行编辑；断开连接（真正关闭客户端连接，不回应）；超时后继续的时间可选 30 秒至 10 分钟，默认 2 分钟；对话框正文 1 MiB 只读上限（脚本可读 8 MiB）；Protobuf 消息类型可按 URL 保存 | |
 | Breakpoint 模板（保存常用报文一键套用） | 已有 | 断点对话框里 Save as template… 和模板菜单；按请求／响应分开，不改暂停时的 URL | M4 |
 | Map Local：文件 | 已有 | 可设 `delayMS` 延迟；超过 8 MiB 从磁盘流式发送（表格保留 64 KiB 预览），响应断点也能暂停本地应答 | |
 | Map Local：在 app 内直接编辑响应 | 已有 | Tools 规则编辑器里的 Body，保存写回文件；没有文件时建在 mocks 里；二进制和超过 8 MiB 的除外 | M4 |

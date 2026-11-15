@@ -3894,4 +3894,8 @@
   "sendCookiesFromTheJar": "Send cookies from the jar",
   "sendCookiesFromTheJarHint": "When off, the request neither sends jar cookies nor stores the response's. An explicit Cookie header still goes out.",
   "folderHelp": "Use / to nest folders. Folders organize the list; a rule's step number, not its folder, is its place in the order.",
-  "folderPlaceholder": "API / Auth"}
+  "folderPlaceholder": "API / Auth",
+  "saveForThisUrl": "Save for this URL",
+  "savedProtobufTypeForUrl": "Saved the message type for this URL",
+  "forgetUrlRule": "Forget URL rule"
+}

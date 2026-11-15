@@ -28,6 +28,8 @@ type protoInspector struct {
 	cancel   context.CancelFunc
 	selected int
 	query    string
+	url      string // the flow the type is being chosen for
+	ruleFor  string // the URL whose saved rule was applied
 	list     ui.ListState
 	split    float32
 
@@ -101,7 +103,9 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 	// working out from the inspector's state whether this pane is showing.
 	defer ui.Column(c).OnUnmount(p.stop)
 	response := side == 0
-	p.controls(c, p)
+	p.applyURLRule(a, f.url)
+	p.url = f.url
+	p.controls(c, a, p)
 	schema, name := p.schema, p.name
 	p.inspect(c, a, fmt.Sprintf("%d:%t:%s:%p", f.id, response, name, schema), func(ctx context.Context) protoResult {
 		return inspectProto(ctx, f, response, schema, name)
@@ -116,7 +120,8 @@ func (p *protoInspector) message(c *ui.Context, a *app, key string, m messageVie
 	p.schema = a.protobuf.schema
 	ui.Scroll(c).Label(locales.MessageProtobufReader()).Grow(1).MinHeight(0).FillWidth().Children(func() {
 		ui.Column(c).Fill().MinHeight(320).Children(func() {
-			p.controls(c, &a.protobuf)
+			p.applyURLRule(a, p.url)
+			p.controls(c, a, &a.protobuf)
 			schema, name := p.schema, p.name
 			p.inspect(c, a, fmt.Sprintf("message:%s:%s:%p", key, name, schema), func(ctx context.Context) protoResult {
 				return inspectProtoMessage(ctx, m, schema, name)
@@ -126,7 +131,7 @@ func (p *protoInspector) message(c *ui.Context, a *app, key string, m messageVie
 	})
 }
 
-func (p *protoInspector) controls(c *ui.Context, registry *protoInspector) {
+func (p *protoInspector) controls(c *ui.Context, a *app, registry *protoInspector) {
 	t := c.Theme()
 	// Keep the type and its schema together; only search wraps in a narrow
 	// inspector. Both fields share the surrounding controls' density.
@@ -153,6 +158,19 @@ func (p *protoInspector) controls(c *ui.Context, registry *protoInspector) {
 			FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FocusRing(false).Border(0, ui.Color{})
 		uikit.FieldFace(c, search, search.Focused())
 	})
+	if p.url != "" && p.name != "" && p.name != "Auto" {
+		ui.Row(c).Padding(0, t.Space(3), t.Space(1), t.Space(3)).Gap(t.Space(2)).Wrap().Children(func() {
+			if uikit.SecondaryButton(c, locales.SaveForThisUrl()).Clicked() && a.saveProtoTypeRule(p.url, p.name) {
+				a.done(locales.SavedProtobufTypeForUrl())
+			}
+			if a.protoTypeRuleFor(p.url) != "" {
+				if uikit.SecondaryButton(c, locales.ForgetUrlRule()).Clicked() {
+					a.forgetProtoTypeRule(p.url)
+				}
+			}
+			uikit.Meta(c, p.url).Font(uikit.FontMono).SingleLine().MaxWidth(320)
+		})
+	}
 }
 
 func (p *protoInspector) resultView(c *ui.Context, a *app) {
