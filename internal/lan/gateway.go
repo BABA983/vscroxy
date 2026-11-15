@@ -472,6 +472,15 @@ const (
 	VerdictDeny
 )
 
+const (
+	// maxPendingPerAddress and maxPendingTotal bound the connections waiting
+	// for a prompt. A host outside the allow list cannot hold thousands of
+	// tracked connections and goroutines for a minute; over a cap the
+	// connection is closed at once and no verdict is cached.
+	maxPendingPerAddress = 32
+	maxPendingTotal      = 256
+)
+
 // askCall is one prompt for one address, shared by every connection waiting
 // on it.
 type askCall struct {
@@ -488,12 +497,14 @@ type gate struct {
 	approved map[netip.Addr]struct{}
 	denied   map[netip.Addr]struct{}
 	asking   map[netip.Addr]*askCall
+	pending  map[netip.Addr]int
+	waiting  int
 }
 
 // newGate parses the allowed addresses. An empty list is refused rather than
 // read as "everyone": the gateway exists to be narrow.
 func newGate(allowed []string, ask func(netip.Addr) Verdict) (*gate, error) {
-	g := &gate{ask: ask, approved: map[netip.Addr]struct{}{}, denied: map[netip.Addr]struct{}{}, asking: map[netip.Addr]*askCall{}}
+	g := &gate{ask: ask, approved: map[netip.Addr]struct{}{}, denied: map[netip.Addr]struct{}{}, asking: map[netip.Addr]*askCall{}, pending: map[netip.Addr]int{}}
 	for i, entry := range allowed {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
@@ -543,6 +554,37 @@ func allowedPrefix(entry string) (netip.Prefix, error) {
 func (g *gate) known(addr netip.Addr) bool {
 	addr = addr.Unmap()
 	return slices.ContainsFunc(g.prefixes, func(p netip.Prefix) bool { return p.Contains(addr) })
+}
+
+// reserve counts one connection waiting for a prompt. It reports false when
+// the address or the gateway already has as many as it may hold; the caller
+// closes that connection without asking.
+func (g *gate) reserve(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.pending[addr] >= maxPendingPerAddress || g.waiting >= maxPendingTotal {
+		return false
+	}
+	g.pending[addr]++
+	g.waiting++
+	return true
+}
+
+// release forgets a waiting connection.
+func (g *gate) release(addr netip.Addr) {
+	addr = addr.Unmap()
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.pending[addr] > 0 {
+		g.pending[addr]--
+		if g.pending[addr] == 0 {
+			delete(g.pending, addr)
+		}
+	}
+	if g.waiting > 0 {
+		g.waiting--
+	}
 }
 
 // decide reports whether an address outside the allow list may connect. It
@@ -647,13 +689,21 @@ func (l *gatedListener) accept() (*trackedConn, error) {
 		// An unknown address is decided off the accept loop: the connection
 		// is handed over now and its first read waits for the answer, so an
 		// open prompt never blocks an allowed device or another listener.
+		// A host that opens more connections than a prompt may hold is
+		// closed here, without caching a verdict.
+		if !l.gate.reserve(addr) {
+			_ = conn.Close()
+			continue
+		}
 		pending := &pendingConn{Conn: conn, ready: make(chan struct{})}
 		tracked, ok := l.gateway.conns.add(pending)
 		if !ok {
+			l.gate.release(addr)
 			_ = conn.Close()
 			return nil, net.ErrClosed
 		}
 		go func() {
+			defer l.gate.release(addr)
 			if l.gate.decide(addr) {
 				l.gateway.note(l.kind, tracked.RemoteAddr().String())
 				pending.approve()

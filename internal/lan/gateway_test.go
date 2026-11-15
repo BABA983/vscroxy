@@ -888,9 +888,9 @@ func TestAllowedClientConnectsWhileAPromptIsOpen(t *testing.T) {
 			accepted <- conn
 		}
 	}()
-	listener.conns <- fakeConn{remote: fakeAddr("192.168.1.11:5000")}
+	listener.conns <- &fakeConn{remote: fakeAddr("192.168.1.11:5000")}
 	<-askStarted
-	listener.conns <- fakeConn{remote: fakeAddr("192.168.1.10:5001")}
+	listener.conns <- &fakeConn{remote: fakeAddr("192.168.1.10:5001")}
 	for i := range 2 {
 		select {
 		case conn := <-accepted:
@@ -927,12 +927,83 @@ func (l *fakeListener) Addr() net.Addr { return fakeAddr("127.0.0.1:0") }
 type fakeConn struct {
 	net.Conn
 	remote net.Addr
+	closed atomic.Bool
 }
 
-func (c fakeConn) RemoteAddr() net.Addr { return c.remote }
-func (c fakeConn) Close() error         { return nil }
+func (c *fakeConn) RemoteAddr() net.Addr { return c.remote }
+func (c *fakeConn) Close() error {
+	c.closed.Store(true)
+	return nil
+}
 
 type fakeAddr string
 
 func (a fakeAddr) Network() string { return "tcp" }
 func (a fakeAddr) String() string  { return string(a) }
+
+func TestPendingConnectionsAreCappedPerAddress(t *testing.T) {
+	release := make(chan struct{})
+	askStarted := make(chan struct{})
+	var once sync.Once
+	var asks atomic.Int32
+	gate, err := newGate([]string{"192.168.1.10"}, func(netip.Addr) Verdict {
+		asks.Add(1)
+		once.Do(func() { close(askStarted) })
+		<-release
+		return VerdictAllow
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener := &fakeListener{conns: make(chan net.Conn, maxPendingPerAddress+2)}
+	gateway := &Gateway{conns: newConnSet()}
+	gated := &gatedListener{Listener: listener, gate: gate, gateway: gateway, kind: proxyListener}
+	unknown := make([]*fakeConn, maxPendingPerAddress+1)
+	for i := range unknown {
+		unknown[i] = &fakeConn{remote: fakeAddr(fmt.Sprintf("192.168.1.11:%d", 5000+i))}
+		listener.conns <- unknown[i]
+	}
+	allowed := &fakeConn{remote: fakeAddr("192.168.1.10:6000")}
+	listener.conns <- allowed
+	accepted := make(chan net.Conn, maxPendingPerAddress+1)
+	go func() {
+		for range maxPendingPerAddress + 1 {
+			conn, err := gated.Accept()
+			if err != nil {
+				return
+			}
+			accepted <- conn
+		}
+	}()
+	<-askStarted
+	deadline := time.Now().Add(time.Second)
+	for !unknown[len(unknown)-1].closed.Load() && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if !unknown[len(unknown)-1].closed.Load() {
+		t.Fatal("the connection over the per-address cap stayed open")
+	}
+	for i := 0; i < maxPendingPerAddress; i++ {
+		if unknown[i].closed.Load() {
+			t.Fatalf("connection %d within the cap closed early", i)
+		}
+	}
+	gate.mu.Lock()
+	waiting := gate.waiting
+	gate.mu.Unlock()
+	if waiting != maxPendingPerAddress {
+		t.Fatalf("waiting connections = %d, want %d", waiting, maxPendingPerAddress)
+	}
+	if got := asks.Load(); got != 1 {
+		t.Fatalf("asked %d times, want one shared prompt", got)
+	}
+	close(release)
+	deadline = time.Now().Add(time.Second)
+	for len(accepted) < maxPendingPerAddress+1 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if len(accepted) != maxPendingPerAddress+1 {
+		t.Fatalf("accepted %d connections, want %d", len(accepted), maxPendingPerAddress+1)
+	}
+	gateway.conns.closeAll()
+}
