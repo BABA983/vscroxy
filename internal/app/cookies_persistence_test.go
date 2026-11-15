@@ -388,6 +388,16 @@ func TestSaveFlowCookiesCopiesBothSides(t *testing.T) {
 			t.Errorf("cookie %s = %q, want %q (all %v)", name, got[name], want, got)
 		}
 	}
+	// A request cookie captured on /app/start is host-wide, so a sibling path
+	// still receives it. The response cookie scoped to /app is sent too.
+	sibling, _ := url.Parse("https://api.example.com/app/profile")
+	var siblingNames []string
+	for _, c := range a.requestCookies().Cookies(sibling) {
+		siblingNames = append(siblingNames, c.Name)
+	}
+	if !slices.Contains(siblingNames, "session") || !slices.Contains(siblingNames, "token") {
+		t.Fatalf("sibling path cookies = %v, want request cookies and the /app response cookie", siblingNames)
+	}
 	if a.message == "" {
 		t.Fatal("no confirmation message")
 	}

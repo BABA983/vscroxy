@@ -2549,6 +2549,17 @@ already be valid JSON for code export).
 A script's explicit raw-body assignment or `pm.request.body.update(...)`
 replaces GraphQL encoding, as it does forms.
 
+A document whose selected operation is a **subscription** also offers
+**Subscription transport**: `HTTP POST` (the default), `graphql-ws` or
+`graphql-transport-ws`, with a wait in milliseconds (100–60000, default 5000).
+The two WebSocket transports perform the protocol's connection handshake,
+send the subscription with the expanded query, variables and operation name,
+and collect `next`/`data` payloads until the server completes it or the wait
+ends. The result appears as a 101 session whose body is the payload array, so
+Checks and post-response scripts can inspect it like a WebSocket exchange.
+Postman has no subscription transport field, so an exported request keeps its
+document but falls back to HTTP POST when imported.
+
 **Schema and operations.** **Fetch schema** sends the standard introspection
 query as a POST to the same URL through the proxy. Variables, request and
 inherited auth, request settings, cookies and the proxy apply; scripts and

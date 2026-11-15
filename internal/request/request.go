@@ -99,6 +99,11 @@ type GraphQLBody struct {
 	OperationName string `json:"operationName,omitempty"`
 	Schema        string `json:"schema,omitempty"`
 	SchemaSource  string `json:"schemaSource,omitempty"`
+	// Transport is graphql-ws or graphql-transport-ws for a subscription;
+	// empty sends the document as an HTTP POST.
+	Transport string `json:"transport,omitempty"`
+	// WaitMS is how long a subscription collects messages, empty for 5 s.
+	WaitMS int `json:"waitMs,omitzero"`
 }
 
 // Example is a response kept with a request, with the request that got it.

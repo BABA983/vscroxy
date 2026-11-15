@@ -268,6 +268,26 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			return out
 		}
 	}
+	if r.BodyMode == "GraphQL" && strings.TrimSpace(r.GraphQL.Transport) != "" {
+		if in.HTTPOnly {
+			out.Stage, out.Err = "Request setup failed", errors.New("load runs support HTTP(S) requests only")
+			return out
+		}
+		start := time.Now()
+		out.WebSocket, out.Replies, out.Err = graphqlSubscribe(ctx, srv.Addr(), req, r.GraphQL, effective, r.GraphQL.Wait(), srv.CACertificate(), in.Certificates, jar)
+		if out.Err == nil {
+			flow := sessionFlow(req, repliesJSON(out.Replies), len(out.WebSocket), len(out.Replies), int(time.Since(start).Milliseconds()))
+			out.Response = &flow
+			run.tests = append(run.tests, r.Checks.Evaluate(flow)...)
+			run.target = func() string { return req.URL }
+			res := &jsResponse{Status: flow.Status, Body: flow.ResponseBody, Header: flow.ResponseHeader, Millis: flow.Millis, Bytes: flow.Bytes}
+			out.Stage = "Post-response script failed"
+			if err := run.scripts(ctx, "post-response", in.Folders, func(f Folder) string { return f.Post }, r.Post, map[string]any{"res": res, "req": req}); err != nil {
+				out.Err = err
+			}
+		}
+		return out
+	}
 	if IsWebSocket(req.URL) {
 		start := time.Now()
 		messages := r.webSocketMessages(req.Body, effective)

@@ -645,6 +645,37 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 			uikit.Segmented(c, &d.graphqlTab, locales.Query(), locales.Variables())
 		})
 		a.graphqlSchemaRow(c, d)
+		ops, _ := d.graphqlOperations()
+		subscription := false
+		for _, op := range ops {
+			subscription = subscription || op.Type == "subscription"
+		}
+		if subscription {
+			transport := d.graphql.Transport
+			label := "HTTP POST"
+			if transport != "" {
+				label = transport
+			}
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				uikit.Meta(c, locales.GraphqlTransport()).Grow(1)
+				if uikit.Select(c, &label, []string{"HTTP POST", "graphql-ws", "graphql-transport-ws"}).Width(190).Changed() {
+					if label == "HTTP POST" {
+						d.graphql.Transport = ""
+					} else {
+						d.graphql.Transport = label
+					}
+				}
+				if d.graphql.Transport != "" {
+					wait := float64(cmp.Or(d.graphql.WaitMS, 5000))
+					if ui.NumberInput(c, &wait, 100, 60000, 100).Label(locales.WaitMilliseconds()).Width(140).Changed() {
+						d.graphql.WaitMS = int(wait)
+					}
+				}
+			})
+			if d.graphql.Transport != "" {
+				uikit.Hint(c, locales.GraphqlSubscriptionHint())
+			}
+		}
 		if d.graphqlTab == 1 {
 			uikit.Hint(c, locales.JsonObjectVariablesSupportedBlank())
 			authoredText(c.Key("graphql-variables"), &d.graphql.Variables, &d.varsEditor, &d.varsFor, "GraphQL variables", "json")

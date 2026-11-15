@@ -190,5 +190,6 @@ var optionIdentifiers = map[string]bool{
 	"Cookie": true,
 	"XML":    true, "JS": true, "CSS": true, "h1": true, "h2": true,
 	"Streamable HTTP": true, "stdio": true,
+	"HTTP POST": true, "graphql-ws": true, "graphql-transport-ws": true,
 	"502 Bad Gateway": true, "429 Too Many Requests": true, "503 Service Unavailable": true,
 }

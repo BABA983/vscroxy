@@ -26341,3 +26341,33 @@ func IncompleteBodiesLabel() string { return In(i18n.Locale()).IncompleteBodiesL
 func (msgs Messages) IncompleteBodiesLabel() string {
 	return Catalog.Format(msgs.locale, "incompleteBodiesLabel", nil)
 }
+
+// GraphqlTransport says "Subscription transport"
+// in the language the app shows.
+func GraphqlTransport() string { return In(i18n.Locale()).GraphqlTransport() }
+
+// GraphqlTransport says "Subscription transport"
+// in the language of msgs.
+func (msgs Messages) GraphqlTransport() string {
+	return Catalog.Format(msgs.locale, "graphqlTransport", nil)
+}
+
+// WaitMilliseconds says "Wait (ms)"
+// in the language the app shows.
+func WaitMilliseconds() string { return In(i18n.Locale()).WaitMilliseconds() }
+
+// WaitMilliseconds says "Wait (ms)"
+// in the language of msgs.
+func (msgs Messages) WaitMilliseconds() string {
+	return Catalog.Format(msgs.locale, "waitMilliseconds", nil)
+}
+
+// GraphqlSubscriptionHint says "graphql-ws and graphql-transport-ws open a WebSocket and collect messages until the server completes or the wait ends."
+// in the language the app shows.
+func GraphqlSubscriptionHint() string { return In(i18n.Locale()).GraphqlSubscriptionHint() }
+
+// GraphqlSubscriptionHint says "graphql-ws and graphql-transport-ws open a WebSocket and collect messages until the server completes or the wait ends."
+// in the language of msgs.
+func (msgs Messages) GraphqlSubscriptionHint() string {
+	return Catalog.Format(msgs.locale, "graphqlSubscriptionHint", nil)
+}

@@ -1042,6 +1042,12 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.graphql = request.GraphQLBody{Query: "query Search($q: String!, $limit: Int) {\n  search(query: $q, limit: $limit) { id name }\n}", Variables: "{\n  \"q\": \"{{search_term}}\",\n  \"limit\": 10\n}"}
 		}, want: "GraphQL variables"},
 		{name: "requests-graphql-schema", setup: func(a *app) { graphqlDraft(a) }, want: "Schema · 9 types"},
+		{name: "requests-graphql-subscription", setup: func(a *app) {
+			draft(a)
+			a.composeURL = "https://api.example.com/graphql"
+			a.composeTab, a.requestDocument.bodyMode = composeTabBody, "GraphQL"
+			a.graphql = request.GraphQLBody{Query: "subscription { tick }", Transport: "graphql-transport-ws", WaitMS: 5000}
+		}, want: "Subscription transport"},
 		{name: "requests-graphql-schema-error", setup: func(a *app) {
 			d := graphqlDraft(a)
 			d.graphql.Schema, d.graphql.SchemaSource = "", ""

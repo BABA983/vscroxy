@@ -4110,5 +4110,8 @@
   "directionTotal": "Total",
   "captures": "Captures",
   "responseBytesLabel": "Response bytes",
-  "incompleteBodiesLabel": "Incomplete bodies"
+  "incompleteBodiesLabel": "Incomplete bodies",
+  "graphqlTransport": "Subscription transport",
+  "waitMilliseconds": "Wait (ms)",
+  "graphqlSubscriptionHint": "graphql-ws and graphql-transport-ws open a WebSocket and collect messages until the server completes or the wait ends."
 }

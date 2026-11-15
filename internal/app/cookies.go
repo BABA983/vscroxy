@@ -754,7 +754,13 @@ func (a *app) saveFlowCookies(f flow) {
 		if err != nil {
 			continue
 		}
-		cookies = append(cookies, parsed...)
+		for _, c := range parsed {
+			// The request header has no scope. A browser that sent it had at
+			// least the request's directory, usually the whole host; Path "/"
+			// is the useful host-only default and keeps sibling paths working.
+			c.Path = "/"
+			cookies = append(cookies, c)
+		}
 	}
 	for _, line := range f.respHeader.Values("Set-Cookie") {
 		parsed, err := http.ParseSetCookie(line)
