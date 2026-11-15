@@ -9,5 +9,6 @@
   },
   "macos": {
     "icon": "assets/AppIcon.icon"
-  }
+  },
+  "resources": ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 }

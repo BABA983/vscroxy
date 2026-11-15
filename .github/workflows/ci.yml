@@ -32,7 +32,10 @@ jobs:
       - name: Check the message catalogs
         run: go tool mygo i18n check .
       - name: Check formatting
-        run: test -z "$(gofmt -l cmd internal)" || { gofmt -l cmd internal; exit 1; }
+        run: test -z "$(gofmt -l cmd internal scripts)" || { gofmt -l cmd internal scripts; exit 1; }
+      # Fails when a linked module or its license is missing from the notices.
+      - name: Check third-party notices
+        run: go run ./scripts/third-party-notices -check
       - run: go test ./...
       - name: Headless collection smoke test
         run: |
