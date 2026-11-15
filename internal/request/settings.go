@@ -27,6 +27,13 @@ type Settings struct {
 	DropContentType bool `json:"dropContentType,omitempty"`
 	// VerifyTLS nil verifies; false accepts any certificate.
 	VerifyTLS *bool `json:"verifyTLS,omitempty"`
+	// HTTPVersion is "1.1" or "2"; empty negotiates. It applies to HTTP(S)
+	// sends through the capture proxy; protocol clients keep their own version.
+	HTTPVersion string `json:"httpVersion,omitempty"`
+	// DisableURLEncoding sends query rows as typed instead of escaping them.
+	DisableURLEncoding *bool `json:"disableUrlEncoding,omitempty"`
+	// DisableCookies keeps the send from reading or writing the cookie jar.
+	DisableCookies *bool `json:"disableCookies,omitempty"`
 }
 
 // Clone returns settings that can be edited without changing s.
@@ -47,6 +54,14 @@ func (s Settings) Clone() Settings {
 	if s.VerifyTLS != nil {
 		value := *s.VerifyTLS
 		out.VerifyTLS = &value
+	}
+	if s.DisableURLEncoding != nil {
+		value := *s.DisableURLEncoding
+		out.DisableURLEncoding = &value
+	}
+	if s.DisableCookies != nil {
+		value := *s.DisableCookies
+		out.DisableCookies = &value
 	}
 	return out
 }
@@ -76,6 +91,17 @@ func (s Settings) Verifies() bool {
 	return s.VerifyTLS == nil || *s.VerifyTLS
 }
 
+// EncodesURL reports whether query rows are escaped when they are written to
+// the URL. Off sends them as typed.
+func (s Settings) EncodesURL() bool {
+	return s.DisableURLEncoding == nil || !*s.DisableURLEncoding
+}
+
+// UsesCookies reports whether the send reads and writes the cookie jar.
+func (s Settings) UsesCookies() bool {
+	return s.DisableCookies == nil || !*s.DisableCookies
+}
+
 // Timeout is the request's limit, or 0 when it has none.
 func (s Settings) Timeout() time.Duration {
 	if s.TimeoutSeconds == nil || *s.TimeoutSeconds <= 0 {
@@ -94,7 +120,7 @@ func (s Settings) Unlimited() bool {
 // Authored requests verify certificates unless they turn verification off;
 // capture replay asks for neither and keeps the engine's inspection behavior.
 func (s Settings) Transfer() capture.TransferPolicy {
-	p := capture.TransferPolicy{Redirects: capture.RedirectPolicy{}, TLS: capture.TLSVerify}
+	p := capture.TransferPolicy{Redirects: capture.RedirectPolicy{}, TLS: capture.TLSVerify, HTTPVersion: s.HTTPVersion}
 	switch {
 	case !s.Follows():
 		p.Redirects.Mode = capture.RedirectManual
@@ -137,6 +163,17 @@ func (c Context) InheritSettings(s Settings) Settings {
 		if v.VerifyTLS != nil {
 			value := *v.VerifyTLS
 			out.VerifyTLS = &value
+		}
+		if v.HTTPVersion != "" {
+			out.HTTPVersion = v.HTTPVersion
+		}
+		if v.DisableURLEncoding != nil {
+			value := *v.DisableURLEncoding
+			out.DisableURLEncoding = &value
+		}
+		if v.DisableCookies != nil {
+			value := *v.DisableCookies
+			out.DisableCookies = &value
 		}
 	}
 	for _, f := range c.Folders {

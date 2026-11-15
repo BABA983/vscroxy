@@ -25023,3 +25023,73 @@ func MarkColor() string { return In(i18n.Locale()).MarkColor() }
 func (msgs Messages) MarkColor() string {
 	return Catalog.Format(msgs.locale, "markColor", nil)
 }
+
+// HttpVersion says "HTTP version"
+// in the language the app shows.
+func HttpVersion() string { return In(i18n.Locale()).HttpVersion() }
+
+// HttpVersion says "HTTP version"
+// in the language of msgs.
+func (msgs Messages) HttpVersion() string {
+	return Catalog.Format(msgs.locale, "httpVersion", nil)
+}
+
+// HttpVersionAuto says "Auto"
+// in the language the app shows.
+func HttpVersionAuto() string { return In(i18n.Locale()).HttpVersionAuto() }
+
+// HttpVersionAuto says "Auto"
+// in the language of msgs.
+func (msgs Messages) HttpVersionAuto() string {
+	return Catalog.Format(msgs.locale, "httpVersionAuto", nil)
+}
+
+// HttpVersionAutoHint says "Auto negotiates HTTP/1.1 or HTTP/2 with the server."
+// in the language the app shows.
+func HttpVersionAutoHint() string { return In(i18n.Locale()).HttpVersionAutoHint() }
+
+// HttpVersionAutoHint says "Auto negotiates HTTP/1.1 or HTTP/2 with the server."
+// in the language of msgs.
+func (msgs Messages) HttpVersionAutoHint() string {
+	return Catalog.Format(msgs.locale, "httpVersionAutoHint", nil)
+}
+
+// EncodeUrlAutomatically says "Encode URL automatically"
+// in the language the app shows.
+func EncodeUrlAutomatically() string { return In(i18n.Locale()).EncodeUrlAutomatically() }
+
+// EncodeUrlAutomatically says "Encode URL automatically"
+// in the language of msgs.
+func (msgs Messages) EncodeUrlAutomatically() string {
+	return Catalog.Format(msgs.locale, "encodeUrlAutomatically", nil)
+}
+
+// EncodeUrlAutomaticallyHint says "When off, query rows are sent as typed, without escaping."
+// in the language the app shows.
+func EncodeUrlAutomaticallyHint() string { return In(i18n.Locale()).EncodeUrlAutomaticallyHint() }
+
+// EncodeUrlAutomaticallyHint says "When off, query rows are sent as typed, without escaping."
+// in the language of msgs.
+func (msgs Messages) EncodeUrlAutomaticallyHint() string {
+	return Catalog.Format(msgs.locale, "encodeUrlAutomaticallyHint", nil)
+}
+
+// SendCookiesFromTheJar says "Send cookies from the jar"
+// in the language the app shows.
+func SendCookiesFromTheJar() string { return In(i18n.Locale()).SendCookiesFromTheJar() }
+
+// SendCookiesFromTheJar says "Send cookies from the jar"
+// in the language of msgs.
+func (msgs Messages) SendCookiesFromTheJar() string {
+	return Catalog.Format(msgs.locale, "sendCookiesFromTheJar", nil)
+}
+
+// SendCookiesFromTheJarHint says "When off, the request neither sends jar cookies nor stores the response's. An explicit Cookie header still goes out."
+// in the language the app shows.
+func SendCookiesFromTheJarHint() string { return In(i18n.Locale()).SendCookiesFromTheJarHint() }
+
+// SendCookiesFromTheJarHint says "When off, the request neither sends jar cookies nor stores the response's. An explicit Cookie header still goes out."
+// in the language of msgs.
+func (msgs Messages) SendCookiesFromTheJarHint() string {
+	return Catalog.Format(msgs.locale, "sendCookiesFromTheJarHint", nil)
+}

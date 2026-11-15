@@ -2562,5 +2562,12 @@
   "@updateAvailable": {"version": {"type": "String"}},
   "updateAvailableHint": "请从 github.com/BABA983/vscroxy/releases 下载。",
   "strikethrough": "删除线",
-  "markColor": "标记颜色"
+  "markColor": "标记颜色",
+  "httpVersion": "HTTP 版本",
+  "httpVersionAuto": "自动",
+  "httpVersionAutoHint": "自动与服务器协商使用 HTTP/1.1 或 HTTP/2。",
+  "encodeUrlAutomatically": "自动编码 URL",
+  "encodeUrlAutomaticallyHint": "关闭后，查询参数按输入内容发送，不再转义。",
+  "sendCookiesFromTheJar": "发送 Cookie jar 中的 Cookie",
+  "sendCookiesFromTheJarHint": "关闭后，请求不发送 Cookie jar 中的 Cookie，也不保存响应中的 Cookie；显式的 Cookie 头仍会发送。"
 }

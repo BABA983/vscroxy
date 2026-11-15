@@ -93,12 +93,17 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	if a.requestFieldsEditor(c, &d.queryRows, fieldsOptions{collection: d.composeCollection}, locales.Parameter()) {
 		u, err := url.Parse(d.composeURL)
 		if err == nil {
+			encode := a.inheritance(d.composeCollection).InheritSettings(d.settings).EncodesURL()
 			var parts []string
 			for _, row := range d.queryRows {
 				if row.Disabled || row.Name == "" && row.Value == "" {
 					continue
 				}
-				parts = append(parts, url.QueryEscape(row.Name)+"="+url.QueryEscape(row.Value))
+				if encode {
+					parts = append(parts, url.QueryEscape(row.Name)+"="+url.QueryEscape(row.Value))
+				} else {
+					parts = append(parts, row.Name+"="+row.Value)
+				}
 			}
 			u.RawQuery, u.ForceQuery = strings.Join(parts, "&"), false
 			d.composeURL = u.String()

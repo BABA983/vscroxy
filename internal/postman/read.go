@@ -214,9 +214,11 @@ func (r *reader) items(items []pmItem, parent string) error {
 
 // pmProfile is Postman's protocolProfileBehavior as the app holds it.
 type pmProfile struct {
-	FollowRedirects *bool    `json:"followRedirects"`
-	MaxRedirects    *float64 `json:"maxRedirects"`
-	StrictSSL       *bool    `json:"strictSSL"`
+	FollowRedirects    *bool    `json:"followRedirects"`
+	MaxRedirects       *float64 `json:"maxRedirects"`
+	StrictSSL          *bool    `json:"strictSSL"`
+	DisableCookies     *bool    `json:"disableCookies"`
+	DisableURLEncoding *bool    `json:"disableUrlEncoding"`
 }
 
 // settings reads a protocolProfileBehavior into transport settings. Anything
@@ -253,6 +255,8 @@ func (r *reader) settings(profile jsontext.Value, extra ...jsontext.Value) reque
 				}
 			}
 			out.VerifyTLS = p.StrictSSL
+			out.DisableCookies = p.DisableCookies
+			out.DisableURLEncoding = p.DisableURLEncoding
 		}
 	} else if k := profile.Kind(); k != 0 && k != 'n' {
 		dropped = true

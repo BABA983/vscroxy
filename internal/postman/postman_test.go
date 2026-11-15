@@ -1336,3 +1336,30 @@ func TestPathVariablesRoundTrip(t *testing.T) {
 		t.Errorf("round trip: URL %q, path variables %+v", r.URL, r.PathVariables)
 	}
 }
+
+// disableCookies and disableUrlEncoding are Postman protocolProfileBehavior
+// switches; the app keeps them per request and writes them back.
+func TestPostmanCookieAndURLEncodingProfileRoundTrip(t *testing.T) {
+	disable := true
+	requests := []request.Request{{ID: "list", Name: "List", Collection: "Shop", Method: "GET",
+		URL: "https://example.com/items?q=a b", Settings: request.Settings{DisableCookies: &disable, DisableURLEncoding: &disable}}}
+	data, warnings, err := postman.WriteCollection("Shop", requests, nil)
+	if err != nil || len(warnings) != 0 {
+		t.Fatalf("%v, warnings %q", err, warnings)
+	}
+	compact := strings.Join(strings.Fields(string(data)), "")
+	if !strings.Contains(compact, `"protocolProfileBehavior":{"disableCookies":true,"disableUrlEncoding":true}`) {
+		t.Fatalf("export lacks the profile switches:\n%s", data)
+	}
+	got, err := postman.ReadCollection(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Requests) != 1 {
+		t.Fatalf("requests: %+v", got.Requests)
+	}
+	s := got.Requests[0].Settings
+	if s.DisableCookies == nil || !*s.DisableCookies || s.DisableURLEncoding == nil || !*s.DisableURLEncoding {
+		t.Fatalf("round trip settings = %+v, want both switches on", s)
+	}
+}

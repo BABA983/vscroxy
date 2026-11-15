@@ -75,6 +75,27 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 				}
 				uikit.Meta(c, locales.UsesTheSystemRootsAnd())
 			})
+			ui.Field(c, locales.HttpVersion(), func() {
+				choice := httpVersionChoice(effective.HTTPVersion)
+				if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).Width(160).Changed() {
+					d.settings.HTTPVersion = httpVersionFromChoice(choice)
+				}
+				uikit.Meta(c, locales.HttpVersionAutoHint())
+			})
+			ui.Field(c, locales.EncodeUrlAutomatically(), func() {
+				encode := effective.EncodesURL()
+				if ui.Switch(c, &encode).Label(locales.EncodeUrlAutomatically()).Changed() {
+					d.setURLEncoding(encode)
+				}
+				uikit.Meta(c, locales.EncodeUrlAutomaticallyHint())
+			})
+			ui.Field(c, locales.SendCookiesFromTheJar(), func() {
+				use := effective.UsesCookies()
+				if ui.Switch(c, &use).Label(locales.SendCookiesFromTheJar()).Changed() {
+					d.setCookies(use)
+				}
+				uikit.Meta(c, locales.SendCookiesFromTheJarHint())
+			})
 		})
 		if !effective.Verifies() {
 			ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Radius(uikit.RadiusControl).
@@ -107,6 +128,45 @@ func (d *requestDocument) setFollow(follow bool) {
 func (d *requestDocument) setVerify(verify bool) {
 	value := verify
 	d.settings.VerifyTLS = &value
+}
+
+// setURLEncoding pins whether the request escapes its query rows.
+func (d *requestDocument) setURLEncoding(encode bool) {
+	disable := !encode
+	d.settings.DisableURLEncoding = &disable
+}
+
+// setCookies pins whether the request reads and writes the cookie jar.
+func (d *requestDocument) setCookies(use bool) {
+	disable := !use
+	d.settings.DisableCookies = &disable
+}
+
+// httpVersionChoices are the HTTP version choices, in display order.
+func httpVersionChoices() []string {
+	return []string{locales.HttpVersionAuto(), "HTTP/1.1", "HTTP/2"}
+}
+
+// httpVersionChoice names the stored version.
+func httpVersionChoice(version string) string {
+	switch version {
+	case "1.1":
+		return "HTTP/1.1"
+	case "2":
+		return "HTTP/2"
+	}
+	return locales.HttpVersionAuto()
+}
+
+// httpVersionFromChoice maps a choice back to the stored version.
+func httpVersionFromChoice(choice string) string {
+	switch choice {
+	case "HTTP/1.1":
+		return "1.1"
+	case "HTTP/2":
+		return "2"
+	}
+	return ""
 }
 
 // resetSettings returns the request to its inherited defaults.
@@ -155,6 +215,29 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 					value := verify
 					f.settings.VerifyTLS = &value
 				}
+			})
+			ui.Field(c, locales.HttpVersion(), func() {
+				choice := httpVersionChoice(effective.HTTPVersion)
+				if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).Width(160).Changed() {
+					f.settings.HTTPVersion = httpVersionFromChoice(choice)
+				}
+				uikit.Meta(c, locales.HttpVersionAutoHint())
+			})
+			ui.Field(c, locales.EncodeUrlAutomatically(), func() {
+				encode := effective.EncodesURL()
+				if ui.Switch(c, &encode).Label(locales.EncodeUrlAutomatically()).Changed() {
+					value := !encode
+					f.settings.DisableURLEncoding = &value
+				}
+				uikit.Meta(c, locales.EncodeUrlAutomaticallyHint())
+			})
+			ui.Field(c, locales.SendCookiesFromTheJar(), func() {
+				use := effective.UsesCookies()
+				if ui.Switch(c, &use).Label(locales.SendCookiesFromTheJar()).Changed() {
+					value := !use
+					f.settings.DisableCookies = &value
+				}
+				uikit.Meta(c, locales.SendCookiesFromTheJarHint())
 			})
 		})
 		if !effective.Verifies() {

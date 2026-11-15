@@ -983,3 +983,24 @@ func TestPathVariablesEditTheSendAndKeepTheURLTemplate(t *testing.T) {
 		t.Fatalf("sent URL %q, %v", prepared.URL, err)
 	}
 }
+
+// The request's "Encode URL automatically" switch controls whether the Params
+// table escapes what it writes into the URL.
+func TestParamsEditorHonorsDisabledURLEncoding(t *testing.T) {
+	a := workspaceApp()
+	a.addDocument(savedRequest{URL: "https://example.com/items?q=one"}, "")
+	disable := true
+	a.requestDocument.settings.DisableURLEncoding = &disable
+	tt := ui.NewTester(a.view, 1100, 700)
+	if err := tt.Click("Params"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("parameter value 1"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("a & b")
+	if !strings.Contains(a.composeURL, "q=a & b") {
+		t.Fatalf("URL = %q, want the query sent as typed", a.composeURL)
+	}
+}

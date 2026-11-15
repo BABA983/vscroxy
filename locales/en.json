@@ -3875,5 +3875,12 @@
   "@updateAvailable": {"version": {"type": "String"}},
   "updateAvailableHint": "Download it from github.com/BABA983/vscroxy/releases.",
   "strikethrough": "Strikethrough",
-  "markColor": "Mark color"
+  "markColor": "Mark color",
+  "httpVersion": "HTTP version",
+  "httpVersionAuto": "Auto",
+  "httpVersionAutoHint": "Auto negotiates HTTP/1.1 or HTTP/2 with the server.",
+  "encodeUrlAutomatically": "Encode URL automatically",
+  "encodeUrlAutomaticallyHint": "When off, query rows are sent as typed, without escaping.",
+  "sendCookiesFromTheJar": "Send cookies from the jar",
+  "sendCookiesFromTheJarHint": "When off, the request neither sends jar cookies nor stores the response's. An explicit Cookie header still goes out."
 }

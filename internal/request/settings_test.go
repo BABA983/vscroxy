@@ -14,7 +14,9 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -337,3 +339,81 @@ func TestFolderSettingsInheritance(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// HTTP version, URL encoding and the cookie jar inherit like the other
+// request settings; an explicit request value wins over the folder's.
+func TestHTTPVersionAndRequestSwitchesInherit(t *testing.T) {
+	disable, enable := true, false
+	in := Context{Folders: []Folder{{Path: "Shop", Settings: Settings{
+		HTTPVersion: "2", DisableCookies: &disable, DisableURLEncoding: &disable,
+	}}}}
+	got := in.InheritSettings(Settings{})
+	if got.HTTPVersion != "2" || got.UsesCookies() || got.EncodesURL() {
+		t.Fatalf("inherited = %+v, want HTTP/2, no cookies and no URL encoding", got)
+	}
+	if p := got.Transfer(); p.HTTPVersion != "2" {
+		t.Fatalf("transfer HTTP version = %q, want 2", p.HTTPVersion)
+	}
+	got = in.InheritSettings(Settings{HTTPVersion: "1.1", DisableCookies: &enable, DisableURLEncoding: &enable})
+	if got.HTTPVersion != "1.1" || !got.UsesCookies() || !got.EncodesURL() {
+		t.Fatalf("request overrides = %+v, want HTTP/1.1, cookies and URL encoding", got)
+	}
+	if p := got.Transfer(); p.HTTPVersion != "1.1" {
+		t.Fatalf("transfer HTTP version = %q, want 1.1", p.HTTPVersion)
+	}
+}
+
+// A request that turns the cookie jar off sends no jar cookies and stores
+// none from the response. An explicit Cookie header still goes out.
+func TestDisableCookiesLeavesTheJarAlone(t *testing.T) {
+	var got []string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.Header.Get("Cookie"))
+		http.SetCookie(w, &http.Cookie{Name: "server", Value: "1", Path: "/"})
+	}))
+	defer upstream.Close()
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jar, _ := cookiejar.New(nil)
+	jar.SetCookies(u, []*http.Cookie{{Name: "seed", Value: "1", Path: "/"}})
+	disable := true
+	r := Request{Method: "GET", URL: upstream.URL, Headers: "Cookie: explicit=1", Settings: Settings{DisableCookies: &disable}}
+	if out := r.Execute(t.Context(), testProxy(t), Context{}, nil, jar); out.Err != nil {
+		t.Fatalf("%s: %v", out.Stage, out.Err)
+	}
+	if len(got) != 1 || got[0] != "explicit=1" {
+		t.Fatalf("Cookie header = %q, want only the explicit header", got)
+	}
+	var names []string
+	for _, c := range jar.Cookies(u) {
+		names = append(names, c.Name)
+	}
+	if len(names) != 1 || names[0] != "seed" {
+		t.Fatalf("jar cookies = %v, want only the seeded cookie", names)
+	}
+}
+
+// An explicit HTTP version reaches the origin through the proxy. The proxy
+// copies the client leg's ALPN offer to its upstream handshake, so forcing
+// HTTP/1.1 or HTTP/2 here decides both legs.
+func TestHTTPVersionReachesTheOrigin(t *testing.T) {
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, r.Proto)
+	}))
+	upstream.EnableHTTP2 = true
+	upstream.StartTLS()
+	defer upstream.Close()
+	insecure := false
+	for _, tc := range []struct{ version, want string }{{"", "HTTP/2.0"}, {"1.1", "HTTP/1.1"}, {"2", "HTTP/2.0"}} {
+		r := Request{Method: "GET", URL: upstream.URL, Settings: Settings{HTTPVersion: tc.version, VerifyTLS: &insecure}}
+		out := r.Execute(t.Context(), testProxy(t), Context{}, nil, nil)
+		if out.Err != nil {
+			t.Fatalf("HTTP %s: %s: %v", tc.version, out.Stage, out.Err)
+		}
+		if out.Response.ResponseProto != tc.want || out.Response.ResponseBody != tc.want {
+			t.Errorf("HTTP %s: response %q with body %q, want %q", tc.version, out.Response.ResponseProto, out.Response.ResponseBody, tc.want)
+		}
+	}
+}

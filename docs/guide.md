@@ -2313,15 +2313,23 @@ see [Collections, variables and the vault](#collections-variables-and-the-vault)
 
 **Docs** edits the request's Markdown description, which the collection's
 documentation view renders. **Settings** sets its transport choices: a timeout
-in seconds (0–3600; 0 waits without a request limit), whether to follow
-redirects and how many, and whether to verify the TLS certificate. Unset values
-inherit the collection's and folder's **Request defaults**; the panel says when
-it is using them and offers **Use collection defaults** to go back. Turning
+in seconds (0–3600; 0 waits without a request limit), the HTTP version
+(**Auto** negotiates HTTP/1.1 or HTTP/2 with the server; **HTTP/1.1** and
+**HTTP/2** force one through the capture proxy), whether query rows are
+encoded automatically, whether to use the cookie jar, whether to follow
+redirects and how many, and whether to verify the TLS certificate. Turning
+**Encode URL automatically** off sends Params rows as typed. Turning **Send
+cookies from the jar** off sends no jar cookies and stores none from the
+response; an explicit `Cookie` header still goes out. Unset values inherit the
+collection's and folder's **Request defaults**; the panel says when it is
+using them and offers **Use collection defaults** to go back. Turning
 certificate verification off accepts any certificate, including an impostor's:
 the panel warns, and the setting applies to Send and Runner. An explicit 0
 removes the editor's and Runner's per-request budget as well; **Stop** still
 cancels the send. Checks keep inspecting the original response, so a request
-with Checks stops at the first 3xx even when it would otherwise follow.
+with Checks stops at the first 3xx even when it would otherwise follow. NTLM
+stays on HTTP/1.1 because its challenge and answer share one connection;
+WebSocket, SSE, Socket.IO and gRPC keep their own protocol versions.
 Client certificates and extra roots are configured once in **Settings →
 Certificates**; a matching client certificate is still presented when
 verification is off, while custom roots are used only when it is on.
@@ -3084,8 +3092,9 @@ Saved examples become the requests' examples, both ways. Postman binary file
 bodies retain `file.src` as a local file reference, without reading the file
 during import or export. Descriptions at collection, folder and request level
 are kept, and so is `protocolProfileBehavior`: `followRedirects`,
-`maxRedirects` and `strictSSL` become the request's redirect and TLS settings at
-whichever level they appear. `followRedirects` and `maxRedirects` inherit
+`maxRedirects`, `strictSSL`, `disableCookies` and `disableUrlEncoding` become
+the request's redirect, TLS, cookie-jar and URL-encoding settings at whichever
+level they appear. `followRedirects` and `maxRedirects` inherit
 independently, so a request that turns following on keeps a folder's hop limit;
 `maxRedirects: 0` stops at the first response. Postman's request timeout is an app setting, not
 part of a collection, so it is neither imported nor exported; vscroxy keeps its

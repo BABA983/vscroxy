@@ -1689,6 +1689,10 @@ type TransferPolicy struct {
 	// TLS is TLSDefault (the capture engine's inspection behavior), TLSVerify,
 	// or TLSInsecure. Authored requests default to TLSVerify.
 	TLS string
+	// HTTPVersion forces the upstream HTTP version for a replay: "1.1" or "2".
+	// Empty lets the proxy negotiate. NTLM sessions keep HTTP/1.1 because the
+	// challenge and its answer must share one connection.
+	HTTPVersion string
 }
 
 const (
@@ -1708,6 +1712,11 @@ func (p TransferPolicy) validate() error {
 	case TLSDefault, TLSVerify, TLSInsecure:
 	default:
 		return errors.New("unsupported request TLS policy")
+	}
+	switch p.HTTPVersion {
+	case "", "1.1", "2":
+	default:
+		return errors.New("unsupported request HTTP version")
 	}
 	return nil
 }
@@ -1748,6 +1757,10 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 		// must not reuse that socket for a different HTTP origin.
 		DisableKeepAlives: true,
 		Proxy:             http.ProxyURL(proxyURL),
+		// The TLS handshake with the proxy copies its ALPN protocols to the
+		// upstream handshake. HTTP/2 therefore needs the client leg to offer
+		// h2; HTTP/1.1 keeps it out. Auto leaves the transport's default.
+		ForceAttemptHTTP2: policy.HTTPVersion != "1.1",
 		// An intercepted upstream is verified by the proxy, not by this
 		// client, which only sees the proxy's own certificate.
 		GetProxyConnectHeader: func(context.Context, *url.URL, string) (http.Header, error) {

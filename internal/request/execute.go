@@ -76,6 +76,12 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	if r.Protocol != "" && r.Protocol != "gRPC" && r.Protocol != "Socket.IO" {
 		return Execution{Stage: "Request setup failed", Vars: vars, Err: fmt.Errorf("%s documents must be opened in their interactive protocol client; Runner supports HTTP, WebSocket, Socket.IO and gRPC sends", r.Protocol)}
 	}
+	settings := in.InheritSettings(r.Settings)
+	if !settings.UsesCookies() {
+		// The request neither sends jar cookies nor stores the response's.
+		// An explicit Cookie header still goes out; only the jar is off.
+		jar = nil
+	}
 	run := in.scriptRun(r, vars)
 	runKey, _ := ctx.Value(debugRunKey{}).(string)
 	run.send = func(req *Prepared) (capture.Flow, error) {
@@ -245,7 +251,6 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 		return out
 	}
 	out.Stage, run.phase = "Network error", "network"
-	settings := in.InheritSettings(r.Settings)
 	// Load the configured client certificate and roots before the request
 	// reaches the proxy, so a missing file or bad passphrase is reported here
 	// instead of as an opaque CONNECT failure. The HTTP send itself uses the

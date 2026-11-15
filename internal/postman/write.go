@@ -50,9 +50,11 @@ type outItem struct {
 // holds. Postman's request timeout is an app setting, not part of a
 // collection, so it has no field here.
 type outProfile struct {
-	FollowRedirects *bool `json:"followRedirects,omitempty"`
-	MaxRedirects    *int  `json:"maxRedirects,omitempty"`
-	StrictSSL       *bool `json:"strictSSL,omitempty"`
+	FollowRedirects    *bool `json:"followRedirects,omitempty"`
+	MaxRedirects       *int  `json:"maxRedirects,omitempty"`
+	StrictSSL          *bool `json:"strictSSL,omitempty"`
+	DisableCookies     *bool `json:"disableCookies,omitempty"`
+	DisableURLEncoding *bool `json:"disableUrlEncoding,omitempty"`
 }
 
 // outResponse is a saved example.
@@ -285,12 +287,14 @@ func (n *node) items() []outItem {
 // writeProfile writes the transport settings Postman can hold; nil when the
 // level sets none.
 func writeProfile(s request.Settings) *outProfile {
-	out := &outProfile{FollowRedirects: s.FollowRedirects, MaxRedirects: s.MaxRedirects, StrictSSL: s.VerifyTLS}
+	out := &outProfile{FollowRedirects: s.FollowRedirects, MaxRedirects: s.MaxRedirects, StrictSSL: s.VerifyTLS,
+		DisableCookies: s.DisableCookies, DisableURLEncoding: s.DisableURLEncoding}
 	if s.RedirectMode == capture.RedirectCurl && out.FollowRedirects == nil {
 		follow := true
 		out.FollowRedirects = &follow
 	}
-	if out.FollowRedirects == nil && out.MaxRedirects == nil && out.StrictSSL == nil {
+	if out.FollowRedirects == nil && out.MaxRedirects == nil && out.StrictSSL == nil &&
+		out.DisableCookies == nil && out.DisableURLEncoding == nil {
 		return nil
 	}
 	return out
