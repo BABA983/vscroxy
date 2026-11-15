@@ -24165,3 +24165,355 @@ func DeletedRequests(count int) string { return In(i18n.Locale()).DeletedRequest
 func (msgs Messages) DeletedRequests(count int) string {
 	return Catalog.Format(msgs.locale, "deletedRequests", map[string]any{"count": count})
 }
+
+// Git says "Git"
+// in the language the app shows.
+func Git() string { return In(i18n.Locale()).Git() }
+
+// Git says "Git"
+// in the language of msgs.
+func (msgs Messages) Git() string {
+	return Catalog.Format(msgs.locale, "git", nil)
+}
+
+// GitNoProjectFolder says "No project folder"
+// in the language the app shows.
+func GitNoProjectFolder() string { return In(i18n.Locale()).GitNoProjectFolder() }
+
+// GitNoProjectFolder says "No project folder"
+// in the language of msgs.
+func (msgs Messages) GitNoProjectFolder() string {
+	return Catalog.Format(msgs.locale, "gitNoProjectFolder", nil)
+}
+
+// GitNoProjectFolderHint says "Set a project folder in Settings → General → Collections to review and commit its files here."
+// in the language the app shows.
+func GitNoProjectFolderHint() string { return In(i18n.Locale()).GitNoProjectFolderHint() }
+
+// GitNoProjectFolderHint says "Set a project folder in Settings → General → Collections to review and commit its files here."
+// in the language of msgs.
+func (msgs Messages) GitNoProjectFolderHint() string {
+	return Catalog.Format(msgs.locale, "gitNoProjectFolderHint", nil)
+}
+
+// GitNotInstalled says "Git is not installed"
+// in the language the app shows.
+func GitNotInstalled() string { return In(i18n.Locale()).GitNotInstalled() }
+
+// GitNotInstalled says "Git is not installed"
+// in the language of msgs.
+func (msgs Messages) GitNotInstalled() string {
+	return Catalog.Format(msgs.locale, "gitNotInstalled", nil)
+}
+
+// GitInstallGitAndRefresh says "Install Git and refresh; this panel uses the git command."
+// in the language the app shows.
+func GitInstallGitAndRefresh() string { return In(i18n.Locale()).GitInstallGitAndRefresh() }
+
+// GitInstallGitAndRefresh says "Install Git and refresh; this panel uses the git command."
+// in the language of msgs.
+func (msgs Messages) GitInstallGitAndRefresh() string {
+	return Catalog.Format(msgs.locale, "gitInstallGitAndRefresh", nil)
+}
+
+// GitThisFolderIsNotARepository says "Not a Git repository"
+// in the language the app shows.
+func GitThisFolderIsNotARepository() string { return In(i18n.Locale()).GitThisFolderIsNotARepository() }
+
+// GitThisFolderIsNotARepository says "Not a Git repository"
+// in the language of msgs.
+func (msgs Messages) GitThisFolderIsNotARepository() string {
+	return Catalog.Format(msgs.locale, "gitThisFolderIsNotARepository", nil)
+}
+
+// GitInitializeOneHereOrChoose says "Initialize one here, or choose a project folder inside a repository."
+// in the language the app shows.
+func GitInitializeOneHereOrChoose() string { return In(i18n.Locale()).GitInitializeOneHereOrChoose() }
+
+// GitInitializeOneHereOrChoose says "Initialize one here, or choose a project folder inside a repository."
+// in the language of msgs.
+func (msgs Messages) GitInitializeOneHereOrChoose() string {
+	return Catalog.Format(msgs.locale, "gitInitializeOneHereOrChoose", nil)
+}
+
+// GitInitializeRepository says "Initialize repository"
+// in the language the app shows.
+func GitInitializeRepository() string { return In(i18n.Locale()).GitInitializeRepository() }
+
+// GitInitializeRepository says "Initialize repository"
+// in the language of msgs.
+func (msgs Messages) GitInitializeRepository() string {
+	return Catalog.Format(msgs.locale, "gitInitializeRepository", nil)
+}
+
+// GitLoadingChanges says "Loading changes…"
+// in the language the app shows.
+func GitLoadingChanges() string { return In(i18n.Locale()).GitLoadingChanges() }
+
+// GitLoadingChanges says "Loading changes…"
+// in the language of msgs.
+func (msgs Messages) GitLoadingChanges() string {
+	return Catalog.Format(msgs.locale, "gitLoadingChanges", nil)
+}
+
+// GitOnBranch says "On branch {branch}"
+// in the language the app shows.
+func GitOnBranch(branch string) string { return In(i18n.Locale()).GitOnBranch(branch) }
+
+// GitOnBranch says "On branch {branch}"
+// in the language of msgs.
+func (msgs Messages) GitOnBranch(branch string) string {
+	return Catalog.Format(msgs.locale, "gitOnBranch", map[string]any{"branch": branch})
+}
+
+// GitDetachedAt says "Detached at {commit}"
+// in the language the app shows.
+func GitDetachedAt(commit string) string { return In(i18n.Locale()).GitDetachedAt(commit) }
+
+// GitDetachedAt says "Detached at {commit}"
+// in the language of msgs.
+func (msgs Messages) GitDetachedAt(commit string) string {
+	return Catalog.Format(msgs.locale, "gitDetachedAt", map[string]any{"commit": commit})
+}
+
+// GitOnlyTheFirstChangesAreShown says "Only the first {count} changes are shown."
+// in the language the app shows.
+func GitOnlyTheFirstChangesAreShown(count int) string {
+	return In(i18n.Locale()).GitOnlyTheFirstChangesAreShown(count)
+}
+
+// GitOnlyTheFirstChangesAreShown says "Only the first {count} changes are shown."
+// in the language of msgs.
+func (msgs Messages) GitOnlyTheFirstChangesAreShown(count int) string {
+	return Catalog.Format(msgs.locale, "gitOnlyTheFirstChangesAreShown", map[string]any{"count": count})
+}
+
+// GitChangedFiles says "Changed files"
+// in the language the app shows.
+func GitChangedFiles() string { return In(i18n.Locale()).GitChangedFiles() }
+
+// GitChangedFiles says "Changed files"
+// in the language of msgs.
+func (msgs Messages) GitChangedFiles() string {
+	return Catalog.Format(msgs.locale, "gitChangedFiles", nil)
+}
+
+// GitSelectFile says "Select {path} to commit"
+// in the language the app shows.
+func GitSelectFile(path string) string { return In(i18n.Locale()).GitSelectFile(path) }
+
+// GitSelectFile says "Select {path} to commit"
+// in the language of msgs.
+func (msgs Messages) GitSelectFile(path string) string {
+	return Catalog.Format(msgs.locale, "gitSelectFile", map[string]any{"path": path})
+}
+
+// GitCommitMessage says "Commit message"
+// in the language the app shows.
+func GitCommitMessage() string { return In(i18n.Locale()).GitCommitMessage() }
+
+// GitCommitMessage says "Commit message"
+// in the language of msgs.
+func (msgs Messages) GitCommitMessage() string {
+	return Catalog.Format(msgs.locale, "gitCommitMessage", nil)
+}
+
+// GitCommitMessageHint says "What this commit changes"
+// in the language the app shows.
+func GitCommitMessageHint() string { return In(i18n.Locale()).GitCommitMessageHint() }
+
+// GitCommitMessageHint says "What this commit changes"
+// in the language of msgs.
+func (msgs Messages) GitCommitMessageHint() string {
+	return Catalog.Format(msgs.locale, "gitCommitMessageHint", nil)
+}
+
+// GitCommitSelected says "Commit selected"
+// in the language the app shows.
+func GitCommitSelected() string { return In(i18n.Locale()).GitCommitSelected() }
+
+// GitCommitSelected says "Commit selected"
+// in the language of msgs.
+func (msgs Messages) GitCommitSelected() string {
+	return Catalog.Format(msgs.locale, "gitCommitSelected", nil)
+}
+
+// GitSelectAtLeastOneFile says "Select at least one file to commit."
+// in the language the app shows.
+func GitSelectAtLeastOneFile() string { return In(i18n.Locale()).GitSelectAtLeastOneFile() }
+
+// GitSelectAtLeastOneFile says "Select at least one file to commit."
+// in the language of msgs.
+func (msgs Messages) GitSelectAtLeastOneFile() string {
+	return Catalog.Format(msgs.locale, "gitSelectAtLeastOneFile", nil)
+}
+
+// GitEnterACommitMessage says "Enter a commit message."
+// in the language the app shows.
+func GitEnterACommitMessage() string { return In(i18n.Locale()).GitEnterACommitMessage() }
+
+// GitEnterACommitMessage says "Enter a commit message."
+// in the language of msgs.
+func (msgs Messages) GitEnterACommitMessage() string {
+	return Catalog.Format(msgs.locale, "gitEnterACommitMessage", nil)
+}
+
+// GitCommitted says "{count, plural, one {Committed # file.} other {Committed # files.}}"
+// in the language the app shows.
+func GitCommitted(count int) string { return In(i18n.Locale()).GitCommitted(count) }
+
+// GitCommitted says "{count, plural, one {Committed # file.} other {Committed # files.}}"
+// in the language of msgs.
+func (msgs Messages) GitCommitted(count int) string {
+	return Catalog.Format(msgs.locale, "gitCommitted", map[string]any{"count": count})
+}
+
+// GitSelectAChangedFile says "Select a changed file"
+// in the language the app shows.
+func GitSelectAChangedFile() string { return In(i18n.Locale()).GitSelectAChangedFile() }
+
+// GitSelectAChangedFile says "Select a changed file"
+// in the language of msgs.
+func (msgs Messages) GitSelectAChangedFile() string {
+	return Catalog.Format(msgs.locale, "gitSelectAChangedFile", nil)
+}
+
+// GitSelectAChangedFileHint says "Its diff appears here. Select files to commit them."
+// in the language the app shows.
+func GitSelectAChangedFileHint() string { return In(i18n.Locale()).GitSelectAChangedFileHint() }
+
+// GitSelectAChangedFileHint says "Its diff appears here. Select files to commit them."
+// in the language of msgs.
+func (msgs Messages) GitSelectAChangedFileHint() string {
+	return Catalog.Format(msgs.locale, "gitSelectAChangedFileHint", nil)
+}
+
+// GitLoadingDiff says "Loading diff…"
+// in the language the app shows.
+func GitLoadingDiff() string { return In(i18n.Locale()).GitLoadingDiff() }
+
+// GitLoadingDiff says "Loading diff…"
+// in the language of msgs.
+func (msgs Messages) GitLoadingDiff() string {
+	return Catalog.Format(msgs.locale, "gitLoadingDiff", nil)
+}
+
+// GitDiffIsCutAt1Mib says "The diff is cut at 1 MiB."
+// in the language the app shows.
+func GitDiffIsCutAt1Mib() string { return In(i18n.Locale()).GitDiffIsCutAt1Mib() }
+
+// GitDiffIsCutAt1Mib says "The diff is cut at 1 MiB."
+// in the language of msgs.
+func (msgs Messages) GitDiffIsCutAt1Mib() string {
+	return Catalog.Format(msgs.locale, "gitDiffIsCutAt1Mib", nil)
+}
+
+// GitDiff says "Diff"
+// in the language the app shows.
+func GitDiff() string { return In(i18n.Locale()).GitDiff() }
+
+// GitDiff says "Diff"
+// in the language of msgs.
+func (msgs Messages) GitDiff() string {
+	return Catalog.Format(msgs.locale, "gitDiff", nil)
+}
+
+// GitRenamedFrom says "Renamed from {path}"
+// in the language the app shows.
+func GitRenamedFrom(path string) string { return In(i18n.Locale()).GitRenamedFrom(path) }
+
+// GitRenamedFrom says "Renamed from {path}"
+// in the language of msgs.
+func (msgs Messages) GitRenamedFrom(path string) string {
+	return Catalog.Format(msgs.locale, "gitRenamedFrom", map[string]any{"path": path})
+}
+
+// GitNewFile says "New file"
+// in the language the app shows.
+func GitNewFile() string { return In(i18n.Locale()).GitNewFile() }
+
+// GitNewFile says "New file"
+// in the language of msgs.
+func (msgs Messages) GitNewFile() string {
+	return Catalog.Format(msgs.locale, "gitNewFile", nil)
+}
+
+// GitAdded says "Added"
+// in the language the app shows.
+func GitAdded() string { return In(i18n.Locale()).GitAdded() }
+
+// GitAdded says "Added"
+// in the language of msgs.
+func (msgs Messages) GitAdded() string {
+	return Catalog.Format(msgs.locale, "gitAdded", nil)
+}
+
+// GitCopied says "Copied"
+// in the language the app shows.
+func GitCopied() string { return In(i18n.Locale()).GitCopied() }
+
+// GitCopied says "Copied"
+// in the language of msgs.
+func (msgs Messages) GitCopied() string {
+	return Catalog.Format(msgs.locale, "gitCopied", nil)
+}
+
+// GitDeleted says "Deleted"
+// in the language the app shows.
+func GitDeleted() string { return In(i18n.Locale()).GitDeleted() }
+
+// GitDeleted says "Deleted"
+// in the language of msgs.
+func (msgs Messages) GitDeleted() string {
+	return Catalog.Format(msgs.locale, "gitDeleted", nil)
+}
+
+// GitModified says "Modified"
+// in the language the app shows.
+func GitModified() string { return In(i18n.Locale()).GitModified() }
+
+// GitModified says "Modified"
+// in the language of msgs.
+func (msgs Messages) GitModified() string {
+	return Catalog.Format(msgs.locale, "gitModified", nil)
+}
+
+// GitRenamed says "Renamed"
+// in the language the app shows.
+func GitRenamed() string { return In(i18n.Locale()).GitRenamed() }
+
+// GitRenamed says "Renamed"
+// in the language of msgs.
+func (msgs Messages) GitRenamed() string {
+	return Catalog.Format(msgs.locale, "gitRenamed", nil)
+}
+
+// GitTypeChanged says "Type changed"
+// in the language the app shows.
+func GitTypeChanged() string { return In(i18n.Locale()).GitTypeChanged() }
+
+// GitTypeChanged says "Type changed"
+// in the language of msgs.
+func (msgs Messages) GitTypeChanged() string {
+	return Catalog.Format(msgs.locale, "gitTypeChanged", nil)
+}
+
+// GitConflict says "Conflict"
+// in the language the app shows.
+func GitConflict() string { return In(i18n.Locale()).GitConflict() }
+
+// GitConflict says "Conflict"
+// in the language of msgs.
+func (msgs Messages) GitConflict() string {
+	return Catalog.Format(msgs.locale, "gitConflict", nil)
+}
+
+// GitCommit says "Commit"
+// in the language the app shows.
+func GitCommit() string { return In(i18n.Locale()).GitCommit() }
+
+// GitCommit says "Commit"
+// in the language of msgs.
+func (msgs Messages) GitCommit() string {
+	return Catalog.Format(msgs.locale, "gitCommit", nil)
+}

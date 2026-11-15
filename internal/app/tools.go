@@ -143,7 +143,7 @@ func (a *app) toolsContent(c *ui.Context, t *ui.Theme, active, window bool) {
 				icon  *ui.SVG
 				label string
 			}{{"rules", rulesIcon, locales.Rules()}, {"scenarios", layersIcon, locales.Scenarios()}, {"scripts", scriptsIcon, locales.Scripts()},
-				{"hosts", hostsIcon, locales.HostProfiles()}, {"mocks", mocksIcon, locales.Mocks()}} {
+				{"hosts", hostsIcon, locales.HostProfiles()}, {"mocks", mocksIcon, locales.Mocks()}, {"git", gitIcon, locales.Git()}} {
 				uikit.SidebarItem(c, page.id, page.icon, page.label, a.toolsPage == page.id, active).Label(locales.ToolsCategory(page.label))
 			}
 		}).Width(180).Padding(top, t.Space(2), t.Space(2), t.Space(2)).Gap(t.Space(0.5)).Background(pal.Chrome)
@@ -155,6 +155,8 @@ func (a *app) toolsContent(c *ui.Context, t *ui.Theme, active, window bool) {
 			a.scenariosPage(c, t, top, active)
 		case "scripts":
 			a.scriptsPage(c, t, top, active)
+		case "git":
+			a.gitPage(c, t, top, active)
 		default:
 			a.hostProfilesPage(c, t, window)
 		}

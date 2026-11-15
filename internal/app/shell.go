@@ -698,6 +698,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 	)
 	return []action{
 		do("tools.rules", locales.DebuggingRules2(), a.openRules),
+		do("tools.git", locales.Git(), func() { a.openTools("git") }),
 		submenu(locales.Network(), network...),
 		submenu(locales.Session(), session...),
 		submenu(locales.View(), view...),

@@ -3145,6 +3145,23 @@ Initial values from the last save, which **Use default folder** restores. A
 Current value whose environment the project no longer has is dropped on the
 next save.
 
+#### Git panel
+
+**Tools → Git** reviews the project folder's repository: the branch, every
+changed path with its status, one file's diff, and a commit of the files you
+check. It uses the `git` command from your `PATH`; it never pushes, pulls or
+switches branches, and it never asks for credentials. A folder that is not a
+repository offers **Initialize repository**, which runs `git init` there.
+
+The list shows the first 500 changes and a file's diff is cut at 1 MiB, with a
+note when either limit applies. An untracked file shows as a new-file diff;
+binary files are named rather than shown. **Commit selected** stages and
+commits only the checked paths, so changes staged elsewhere stay staged. A
+commit needs a message; Git's own error appears if it fails (for example, a
+missing `user.name` or a pre-commit hook). The panel resolves the repository
+root, so a project folder inside a larger repository shows that repository's
+changes.
+
 #### The request library on disk
 
 The library is a directory tree in `~/.vscroxy/collections/`, or, with a

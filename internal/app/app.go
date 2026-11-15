@@ -437,6 +437,9 @@ type app struct {
 	projectInput     string
 	projectWatchStop chan struct{}
 	projectPending   atomic.Bool
+	// git is Tools → Git: the project folder's working tree, the file whose
+	// diff shows and the commit draft.
+	git gitPanel
 
 	// Connection overlays belong to the inspected request, not the list.
 	connOpen bool

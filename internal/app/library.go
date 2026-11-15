@@ -314,6 +314,7 @@ func (a *app) setProjectDir(dir string) {
 		}
 	}
 	a.projectDir, a.projectInput = dir, dir
+	a.resetGit()
 	a.placeProjectFiles()
 	a.loadRequestAssets()
 	a.loadSavedAPIs()

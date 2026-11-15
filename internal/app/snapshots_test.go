@@ -1440,6 +1440,22 @@ func snapshotStates(t *testing.T) []snapshot {
 		{name: "tools-scenarios-empty", setup: func(a *app) { a.openTools("scenarios") }, want: "No scenarios"},
 		{name: "tools-mocks", setup: func(a *app) { snapshotRules(a); a.openTools("mocks") }, want: "Local files and code mocks, tried from the top."},
 		{name: "tools-mocks-empty", setup: func(a *app) { a.openTools("mocks") }, want: "No mocks"},
+		{name: "tools-git", setup: func(a *app) {
+			a.projectDir, a.projectInput = "/Users/me/project", "/Users/me/project"
+			a.git = gitPanel{dir: a.projectDir, root: a.projectDir, branch: "main", loaded: true,
+				chosen: "internal/app/git.go",
+				files: []gitFile{
+					{Path: "internal/app/git.go", Code: " M", Selected: true},
+					{Path: "docs/guide.md", Code: "M ", Selected: true},
+					{Path: "docs/git-panel.png", Code: "??"},
+					{Path: "docs/git.md", Orig: "docs/project-git.md", Code: "R "},
+				},
+				diff:    "diff --git a/internal/app/git.go b/internal/app/git.go\nindex 3f2a9c1..06b8d6c 100644\n--- a/internal/app/git.go\n+++ b/internal/app/git.go\n@@ -1,6 +1,8 @@\n package app\n \n+// The Git panel reads the project folder's working tree.\n+// Commits name only the files the reader selected.\n func (a *app) refreshGit() {\n-\tgo a.readGit()\n+\tgo a.readWorkingTree()\n }\n",
+				message: "Add the project Git panel",
+			}
+			a.openTools("git")
+		}, want: "On branch main"},
+		{name: "tools-git-no-project", setup: func(a *app) { a.openTools("git") }, want: "No project folder"},
 		{name: "dialog-config-import", setup: func(a *app) {
 			snapshotRules(a)
 			b, _ := a.exportConfig()
