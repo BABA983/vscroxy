@@ -1811,6 +1811,15 @@ func proxyResponseError(host string, resp *http.Response, body []byte) error {
 	return fmt.Errorf("upstream request for %s failed: %s", host, reason)
 }
 
+// proxyErrorToken is the exact marker this proxy puts on responses it
+// generated. An origin cannot know it.
+func (s *Server) proxyErrorToken() string {
+	if s.proxy == nil {
+		return ""
+	}
+	return s.proxy.ProxyErrorToken()
+}
+
 // ReplayWithPolicy applies an authored transfer policy. cURL modes follow at
 // most 50 HTTP(S) hops unless Max says otherwise; -X keeps the method, not a
 // body dropped by 301/302/303. TLSVerify asks the proxy to verify an
@@ -1896,7 +1905,7 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 	if err != nil {
 		return Flow{}, err
 	}
-	if resp.Header.Get(proxy.HeaderProxyError) != "" {
+	if token := s.proxyErrorToken(); token != "" && resp.Header.Get(proxy.HeaderProxyError) == token {
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 		resp.Body.Close()
 		if readErr != nil {

@@ -425,7 +425,11 @@ func writeGatewayStatus(res http.ResponseWriter, f *Flow, status int, err error)
 		}
 	}
 	res.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	res.Header().Set(HeaderProxyError, "1")
+	if f != nil && f.ConnContext != nil && f.ConnContext.proxy != nil {
+		if token := f.ConnContext.proxy.ProxyErrorToken(); token != "" {
+			res.Header().Set(HeaderProxyError, token)
+		}
+	}
 	res.WriteHeader(status)
 	fmt.Fprintf(res, "vscroxy: %v\n", err)
 }
@@ -1023,6 +1027,11 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		}
 		writeGatewayError(res, f, err)
 		return
+	}
+	if proxyRes.Header != nil {
+		// Never forward a stale marker from an origin; only this proxy's
+		// random token marks a generated response.
+		proxyRes.Header.Del(HeaderProxyError)
 	}
 
 	if proxyRes.Close {

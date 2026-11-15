@@ -2,8 +2,10 @@ package proxy
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"errors"
 	"io"
 	"net"
@@ -93,6 +95,10 @@ type Proxy struct {
 	// requests; TLS connections go straight to the interception path.
 	socksOnce sync.Once
 	socksHTTP *connListener
+
+	// proxyErrorToken is this proxy's secret marker for responses it generated.
+	// It is never logged or published.
+	proxyErrorToken string
 }
 
 // Version is the release version of the proxy library.
@@ -102,11 +108,16 @@ func NewProxy(opts *Options) (*Proxy, error) {
 	if opts.StreamLargeBodies <= 0 {
 		opts.StreamLargeBodies = 1024 * 1024 * 5 // default: 5mb
 	}
+	token := make([]byte, 32)
+	if _, err := rand.Read(token); err != nil {
+		return nil, err
+	}
 
 	proxy := &Proxy{
-		Opts:    opts,
-		Version: Version,
-		Addons:  make([]Addon, 0),
+		Opts:            opts,
+		Version:         Version,
+		Addons:          make([]Addon, 0),
+		proxyErrorToken: hex.EncodeToString(token),
 	}
 
 	proxy.entry = newEntry(proxy)
@@ -174,6 +185,12 @@ func (proxy *Proxy) SetCA(ca cert.CA) {
 // GetCA returns the active signing CA.
 func (proxy *Proxy) GetCA() cert.CA {
 	return proxy.attacker.getCA()
+}
+
+// ProxyErrorToken returns the value that marks a response this proxy generated.
+// Replay clients compare it exactly; it is never logged.
+func (proxy *Proxy) ProxyErrorToken() string {
+	return proxy.proxyErrorToken
 }
 
 func (proxy *Proxy) SetShouldInterceptRule(rule func(req *http.Request) bool) {

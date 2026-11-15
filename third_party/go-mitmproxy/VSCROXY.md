@@ -492,10 +492,13 @@ client handshake; that is expected. `TestPlainDecryptedConnectShowsUpstreamCerti
 covers the 502 and the allow-list success.
 
 `writeGatewayStatus` marks every gateway response with the internal
-`HeaderProxyError` header. `ReplayWithPolicy` and `ReplaySession.RoundTrip`
-read that marker and turn the response back into an error carrying the body's
-reason, so an authored send stays a network error instead of looking like an
-origin's 502. `publishFlow` removes the marker before publishing the capture.
+`HeaderProxyError` header, whose value is a random token generated once per
+proxy. `ReplayWithPolicy` and `ReplaySession.RoundTrip` accept only that exact
+token and turn the response back into an error carrying the body's reason, so
+an authored send stays a network error instead of looking like an origin's 502.
+Incoming `HeaderProxyError` values from origins are removed before forwarding,
+and `publishFlow` removes the marker before publishing the capture.
+`TestReplayIgnoresAnOriginProxyErrorHeader` covers a spoofed origin header, and
 `TestReplaySessionTurnsProxyGenerated502IntoError` covers the load-session
 transport.
 

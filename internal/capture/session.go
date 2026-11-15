@@ -64,7 +64,7 @@ func (rs *ReplaySession) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	if resp.Header.Get(proxy.HeaderProxyError) != "" {
+	if token := rs.server.proxyErrorToken(); token != "" && resp.Header.Get(proxy.HeaderProxyError) == token {
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 		resp.Body.Close()
 		if readErr != nil {

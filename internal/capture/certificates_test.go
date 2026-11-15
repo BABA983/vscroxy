@@ -476,6 +476,29 @@ func TestReplayRedirectUsesEachHostsClientCertificate(t *testing.T) {
 	})
 }
 
+// An origin cannot impersonate the proxy's marker: the value is a random
+// per-proxy token, and a stale incoming header is stripped before forwarding.
+func TestReplayIgnoresAnOriginProxyErrorHeader(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(proxy.HeaderProxyError, "1")
+		w.WriteHeader(http.StatusBadGateway)
+		io.WriteString(w, "origin 502")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	got, err := s.ReplayWithPolicy(t.Context(), Flow{Method: "GET", URL: upstream.URL}, nil, TransferPolicy{})
+	if err != nil {
+		t.Fatalf("origin 502 became a replay error: %v", err)
+	}
+	if got.Status != http.StatusBadGateway || got.ResponseBody != "origin 502" {
+		t.Fatalf("origin 502 = %d %q", got.Status, got.ResponseBody)
+	}
+	if got.ResponseHeader.Get(proxy.HeaderProxyError) != "" {
+		t.Fatal("the origin's proxy-error header reached the replay response")
+	}
+}
+
 // A plain decrypted CONNECT fails its upstream certificate check after the
 // CONNECT is established. The client handshake still completes with our leaf,
 // so curl and browsers receive a 502 that names the host, the verification
