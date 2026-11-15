@@ -283,7 +283,7 @@ func (e *entry) handleConnect(res http.ResponseWriter, req *http.Request) {
 	}
 
 	if !shouldIntercept {
-		log.Debugf("begin transpond %v", req.Host)
+		log.Debug("begin transpond")
 		e.directTransfer(res, req, f)
 		return
 	}
@@ -293,7 +293,7 @@ func (e *entry) handleConnect(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	log.Debugf("begin intercept %v", req.Host)
+	log.Debug("begin intercept")
 	e.httpsDialLazyAttack(res, req, f)
 }
 

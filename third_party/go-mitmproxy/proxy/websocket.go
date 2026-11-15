@@ -138,7 +138,7 @@ func (h *webSocketHandler) handle(serverConn, clientConn net.Conn, f *Flow) erro
 		}
 	}
 
-	log.Debugf("Client WebSocket handshake: %s %s", clientReq.Method, clientReq.URL.Path)
+	log.Debugf("Client WebSocket handshake: %s", clientReq.Method)
 
 	// 步骤 2: 使用 Dialer 连接到服务器
 	dialer := &websocket.Dialer{
@@ -158,7 +158,7 @@ func (h *webSocketHandler) handle(serverConn, clientConn net.Conn, f *Flow) erro
 	}
 
 	serverURL := target.String()
-	log.Debugf("Connecting to server: %s", serverURL)
+	log.Debug("Connecting to server")
 
 	// Regenerate protocol headers, preserving auth, cookies and custom headers.
 	serverWS, _, err := dialer.Dial(serverURL, cloneHeaderWithoutWSHandshake(f.Request.Header))
@@ -371,7 +371,7 @@ func (h *webSocketHandler) handleWSS(res http.ResponseWriter, req *http.Request,
 	defer f.finish()
 	target := f.Request.URL
 	serverURL := target.String()
-	log.Debugf("Connecting to WSS server: %s", serverURL)
+	log.Debug("Connecting to WSS server")
 
 	connCtx := req.Context().Value(connContextKey).(*ConnContext)
 

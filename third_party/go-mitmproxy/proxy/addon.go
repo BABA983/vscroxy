@@ -106,15 +106,15 @@ func (addon *LogAddon) ClientDisconnected(client *ClientConn) {
 }
 
 func (addon *LogAddon) ServerConnected(connCtx *ConnContext) {
-	log.Infof("%v server connect %v (%v->%v)\n", connCtx.ClientConn.Conn.RemoteAddr(), connCtx.ServerConn.Address, connCtx.ServerConn.Conn.LocalAddr(), connCtx.ServerConn.Conn.RemoteAddr())
+	log.Infof("%v server connect\n", connCtx.ClientConn.Conn.RemoteAddr())
 }
 
 func (addon *LogAddon) ServerDisconnected(connCtx *ConnContext) {
-	log.Infof("%v server disconnect %v (%v->%v) - %v\n", connCtx.ClientConn.Conn.RemoteAddr(), connCtx.ServerConn.Address, connCtx.ServerConn.Conn.LocalAddr(), connCtx.ServerConn.Conn.RemoteAddr(), connCtx.FlowCount.Load())
+	log.Infof("%v server disconnect - %v\n", connCtx.ClientConn.Conn.RemoteAddr(), connCtx.FlowCount.Load())
 }
 
 func (addon *LogAddon) Requestheaders(f *Flow) {
-	log.Debugf("%v Requestheaders %v %v\n", f.ConnContext.ClientConn.Conn.RemoteAddr(), f.Request.Method, f.Request.URL.String())
+	log.Debugf("%v Requestheaders %v\n", f.ConnContext.ClientConn.Conn.RemoteAddr(), f.Request.Method)
 }
 
 func (addon *LogAddon) Response(f *Flow) {
@@ -126,27 +126,24 @@ func (addon *LogAddon) Response(f *Flow) {
 	if f.Response != nil && f.Response.Body != nil {
 		contentLen = len(f.Response.Body)
 	}
-	log.Infof("%v %v %v %v %v - %v ms\n", f.ConnContext.ClientConn.Conn.RemoteAddr(), f.Request.Method, f.Request.URL.String(), StatusCode, contentLen, time.Since(f.StartTime).Milliseconds())
+	log.Infof("%v %v %v %v - %v ms\n", f.ConnContext.ClientConn.Conn.RemoteAddr(), f.Request.Method, StatusCode, contentLen, time.Since(f.StartTime).Milliseconds())
 }
 
-func (addon *LogAddon) RequestError(f *Flow, err error) {
+func (addon *LogAddon) RequestError(f *Flow, _ error) {
 	var StatusCode int
 	if f.Response != nil {
 		StatusCode = f.Response.StatusCode
 	}
-	log.Errorf("%v %v %v %v - ERROR: %v - %v ms\n", f.ConnContext.ClientConn.Conn.RemoteAddr(), f.Request.Method, f.Request.URL.String(), StatusCode, err, time.Since(f.StartTime).Milliseconds())
+	log.Errorf("%v %v %v - ERROR - %v ms\n", f.ConnContext.ClientConn.Conn.RemoteAddr(), f.Request.Method, StatusCode, time.Since(f.StartTime).Milliseconds())
 }
 
-func (addon *LogAddon) HTTPConnectError(f *Flow, err error) {
-	log.Errorf("%v CONNECT ERROR %v - %v\n", f.ConnContext.ClientConn.Conn.RemoteAddr(), f.Request.URL.Host, err)
+func (addon *LogAddon) HTTPConnectError(f *Flow, _ error) {
+	log.Errorf("%v CONNECT ERROR\n", f.ConnContext.ClientConn.Conn.RemoteAddr())
 }
 
 // WebSocketStart 记录 WebSocket 连接建立
 func (addon *LogAddon) WebSocketStart(f *Flow) {
-	log.Infof("%v WebSocket START %s - %s\n",
-		f.ConnContext.ClientConn.Conn.RemoteAddr(),
-		f.Request.URL.String(),
-		f.ConnContext.ServerConn.Address)
+	log.Infof("%v WebSocket START\n", f.ConnContext.ClientConn.Conn.RemoteAddr())
 }
 
 // WebSocketMessage 记录 WebSocket 消息
@@ -161,9 +158,8 @@ func (addon *LogAddon) WebSocketMessage(_ context.Context, f *Flow, lastMsg *Web
 	}
 
 	// 只记录消息长度，不记录内容
-	log.Infof("%v WebSocket MSG %s %s [%s] len=%d\n",
+	log.Infof("%v WebSocket MSG %s [%s] len=%d\n",
 		f.ConnContext.ClientConn.Conn.RemoteAddr(),
-		f.Request.URL.String(),
 		direction,
 		msgType,
 		len(lastMsg.Content))
@@ -171,18 +167,14 @@ func (addon *LogAddon) WebSocketMessage(_ context.Context, f *Flow, lastMsg *Web
 
 // WebSocketEnd 记录 WebSocket 连接结束
 func (addon *LogAddon) WebSocketEnd(f *Flow) {
-	log.Infof("%v WebSocket END %s - %d messages\n",
+	log.Infof("%v WebSocket END - %d messages\n",
 		f.ConnContext.ClientConn.Conn.RemoteAddr(),
-		f.Request.URL.String(),
 		len(f.WebSocket.Messages))
 }
 
 // SSEStart 记录 SSE 流开始
 func (addon *LogAddon) SSEStart(f *Flow) {
-	log.Infof("%v SSE START %s - %s\n",
-		f.ConnContext.ClientConn.Conn.RemoteAddr(),
-		f.Request.URL.String(),
-		f.ConnContext.ServerConn.Address)
+	log.Infof("%v SSE START\n", f.ConnContext.ClientConn.Conn.RemoteAddr())
 }
 
 // SSEMessage 记录 SSE 事件
@@ -195,11 +187,8 @@ func (addon *LogAddon) SSEMessage(f *Flow) {
 	event := events[len(events)-1]
 
 	// 只记录事件长度，不记录内容
-	log.Infof("%v SSE EVENT %s [%s] id=%s data_len=%d\n",
+	log.Infof("%v SSE EVENT data_len=%d\n",
 		f.ConnContext.ClientConn.Conn.RemoteAddr(),
-		f.Request.URL.String(),
-		event.Event,
-		event.ID,
 		len(event.Data))
 }
 
@@ -215,24 +204,10 @@ func (addon *LogAddon) SSEEnd(f *Flow) {
 	}
 
 	// 记录格式与 Response 保持一致，但标注为 SSE
-	log.Infof("%v %v %v %v %d [SSE] - %v ms\n",
+	log.Infof("%v %v %v %d [SSE] - %v ms\n",
 		f.ConnContext.ClientConn.Conn.RemoteAddr(),
 		f.Request.Method,
-		f.Request.URL.String(),
 		StatusCode,
 		eventCount,
 		time.Since(f.StartTime).Milliseconds())
-}
-
-type UpstreamCertAddon struct {
-	BaseAddon
-	UpstreamCert bool // Connect to upstream server to look up certificate details.
-}
-
-func NewUpstreamCertAddon(upstreamCert bool) *UpstreamCertAddon {
-	return &UpstreamCertAddon{UpstreamCert: upstreamCert}
-}
-
-func (addon *UpstreamCertAddon) ClientConnected(conn *ClientConn) {
-	conn.UpstreamCert = addon.UpstreamCert
 }

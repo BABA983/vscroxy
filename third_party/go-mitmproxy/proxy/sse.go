@@ -155,5 +155,5 @@ func (sr *sseReader) triggerEnd() {
 
 	// The request handler owns SSEEnd, including downstream disconnects
 	// that prevent this reader from observing EOF.
-	log.Debugf("SSE stream ended for %s", sr.flow.Request.URL.String())
+	log.Debug("SSE stream ended")
 }

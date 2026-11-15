@@ -1016,7 +1016,7 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 			}
 		}()
 
-		log.Debugf("SSE stream detected for %s", f.Request.URL.String())
+		log.Debug("SSE stream detected")
 	}
 
 	// Read response body

@@ -137,7 +137,7 @@ type action struct {
 
 ### 3.7 日志和诊断
 
-- 用 `log/slog` 写到 `~/.vscroxy/logs/vscroxy.log`，按大小轮转，保留 5 份。不记录请求内容和凭据。（已完成：`internal/applog`，5 MiB 轮转；go-mitmproxy 的 logrus 输出含完整 URL，仍只打到标准输出。）
+- 用 `log/slog` 写到 `~/.vscroxy/logs/vscroxy.log`，按大小轮转，保留 5 份。不记录请求内容和凭据。（已完成：`internal/applog`，5 MiB 轮转；go-mitmproxy 的 logrus 输出已在引擎入口丢弃，其可选日志 addon 只记录事件、方法、状态、长度和耗时，不含 URL、头、正文或上游地址。）
 - "导出诊断包"（已完成：Diagnostics → Export diagnostics…）：版本信息、平台、脱敏后的设置（显式白名单，不含路径、主机名、用户名和密钥）、最近的日志、连接诊断结果，打成一个 zip，用于提交问题。不包含请求内容和密钥，测试覆盖这一点。
 
 ### 3.8 国际化

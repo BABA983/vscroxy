@@ -39,9 +39,6 @@ func (addon *InstanceLogAddon) ClientDisconnected(client *ClientConn) {
 func (addon *InstanceLogAddon) ServerConnected(connCtx *ConnContext) {
 	addon.logger.WithFields(map[string]interface{}{
 		"client_addr": connCtx.ClientConn.Conn.RemoteAddr().String(),
-		"server_addr": connCtx.ServerConn.Address,
-		"local_addr":  connCtx.ServerConn.Conn.LocalAddr().String(),
-		"remote_addr": connCtx.ServerConn.Conn.RemoteAddr().String(),
 		"event":       "server_connected",
 	}).Info("Server connected")
 }
@@ -49,9 +46,6 @@ func (addon *InstanceLogAddon) ServerConnected(connCtx *ConnContext) {
 func (addon *InstanceLogAddon) ServerDisconnected(connCtx *ConnContext) {
 	addon.logger.WithFields(map[string]interface{}{
 		"client_addr": connCtx.ClientConn.Conn.RemoteAddr().String(),
-		"server_addr": connCtx.ServerConn.Address,
-		"local_addr":  connCtx.ServerConn.Conn.LocalAddr().String(),
-		"remote_addr": connCtx.ServerConn.Conn.RemoteAddr().String(),
 		"flow_count":  connCtx.FlowCount.Load(),
 		"event":       "server_disconnected",
 	}).Info("Server disconnected")
@@ -61,7 +55,6 @@ func (addon *InstanceLogAddon) Requestheaders(f *Flow) {
 	addon.logger.WithFields(map[string]interface{}{
 		"client_addr": f.ConnContext.ClientConn.Conn.RemoteAddr().String(),
 		"method":      f.Request.Method,
-		"url":         f.Request.URL.String(),
 		"event":       "request_headers",
 	}).Debug("Request headers received")
 }
@@ -69,7 +62,6 @@ func (addon *InstanceLogAddon) Requestheaders(f *Flow) {
 func (addon *InstanceLogAddon) TlsEstablishedServer(connCtx *ConnContext) {
 	addon.logger.WithFields(map[string]interface{}{
 		"client_addr": connCtx.ClientConn.Conn.RemoteAddr().String(),
-		"server_addr": connCtx.ServerConn.Address,
 		"event":       "tls_established",
 	}).Debug("TLS connection established with server")
 }
@@ -83,7 +75,6 @@ func (addon *InstanceLogAddon) Request(f *Flow) {
 	addon.logger.WithFields(map[string]interface{}{
 		"client_addr": f.ConnContext.ClientConn.Conn.RemoteAddr().String(),
 		"method":      f.Request.Method,
-		"url":         f.Request.URL.String(),
 		"body_len":    bodyLen,
 		"event":       "request_body",
 	}).Debug("Full request received")
@@ -98,7 +89,6 @@ func (addon *InstanceLogAddon) Response(f *Flow) {
 	addon.logger.WithFields(map[string]interface{}{
 		"client_addr": f.ConnContext.ClientConn.Conn.RemoteAddr().String(),
 		"method":      f.Request.Method,
-		"url":         f.Request.URL.String(),
 		"status_code": f.Response.StatusCode,
 		"body_len":    bodyLen,
 		"event":       "response_body",
@@ -108,7 +98,6 @@ func (addon *InstanceLogAddon) Response(f *Flow) {
 	addon.logger.WithFields(map[string]interface{}{
 		"client_addr": f.ConnContext.ClientConn.Conn.RemoteAddr().String(),
 		"method":      f.Request.Method,
-		"url":         f.Request.URL.String(),
 		"status_code": f.Response.StatusCode,
 		"content_len": bodyLen,
 		"duration_ms": time.Since(f.StartTime).Milliseconds(),
@@ -116,7 +105,7 @@ func (addon *InstanceLogAddon) Response(f *Flow) {
 	}).Info("Request completed")
 }
 
-func (addon *InstanceLogAddon) RequestError(f *Flow, err error) {
+func (addon *InstanceLogAddon) RequestError(f *Flow, _ error) {
 	var statusCode int
 	if f.Response != nil {
 		statusCode = f.Response.StatusCode
@@ -125,19 +114,15 @@ func (addon *InstanceLogAddon) RequestError(f *Flow, err error) {
 	addon.logger.WithFields(map[string]interface{}{
 		"client_addr": f.ConnContext.ClientConn.Conn.RemoteAddr().String(),
 		"method":      f.Request.Method,
-		"url":         f.Request.URL.String(),
 		"status_code": statusCode,
-		"error":       err.Error(),
 		"duration_ms": time.Since(f.StartTime).Milliseconds(),
 		"event":       "request_error",
 	}).Error("Request failed")
 }
 
-func (addon *InstanceLogAddon) HTTPConnectError(f *Flow, err error) {
+func (addon *InstanceLogAddon) HTTPConnectError(f *Flow, _ error) {
 	addon.logger.WithFields(map[string]interface{}{
 		"client_addr": f.ConnContext.ClientConn.Conn.RemoteAddr().String(),
-		"host":        f.Request.URL.Host,
-		"error":       err.Error(),
 		"event":       "connect_error",
 	}).Error("HTTP CONNECT failed")
 }

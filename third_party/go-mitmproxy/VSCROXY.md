@@ -28,6 +28,18 @@ brackets removed). The desktop app passes `~/.vscroxy/ca` explicitly and reads
 `vscroxy-ca-cert.pem` for system trust and client setup; an earlier prototype's
 `mitmproxy` root is not read or migrated.
 
+## Log privacy
+
+The engine's logrus output is discarded when the `proxy` package initializes:
+its lines can contain request targets and net/http error text, and request
+content must never reach stdout or a log file. `LogAddon` and
+`InstanceLogAddon` keep the event, method, status, body length and timing, but
+no URL, header, body or upstream address; the instance logger's file therefore
+contains no request content either. Capture records failures on the flow, where
+the UI decides what to show. `internal/capture` has a subprocess test for
+stdout and a file test for the instance logger, both with a secret path, query,
+header and body.
+
 ## Connection diagnostics
 
 `ConnContext` keeps a mutex-protected, bounded history of 64 observed connection

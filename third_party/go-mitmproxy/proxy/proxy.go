@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -16,6 +17,15 @@ import (
 	"github.com/lqqyt2423/go-mitmproxy/internal/helper"
 	log "github.com/sirupsen/logrus"
 )
+
+// The engine's log lines can contain request targets and net/http error text.
+// They must never reach stdout or a log file: capture owns diagnostics and
+// records failures on the flow, where the UI decides what to show. A caller
+// that wants engine diagnostics can still install its own logger, but the
+// default is silence.
+func init() {
+	log.SetOutput(io.Discard)
+}
 
 type Options struct {
 	Debug             int
