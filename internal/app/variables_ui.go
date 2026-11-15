@@ -79,6 +79,12 @@ type variableTableOptions struct {
 	enable bool
 }
 
+// secret reports whether both values in the row are credentials: a slot the
+// vault filled, or a name that conventionally holds one.
+func (r variableRow) secret() bool {
+	return r.Credential || sensitiveVariable(r.Name)
+}
+
 // variableTable edits one scope's rows: name, Initial value, Current value,
 // and the actions that persist a Current value as Initial or reset it. It
 // reports whether any row changed.
@@ -101,7 +107,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 			ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 				uikit.Label(c, locales.Current()).FillWidth().Padding(t.Space(1), t.Space(2))
 			})
-			ui.Box(c).Width(uikit.HeightControl * 4)
+			ui.Box(c).Width(uikit.HeightControl*4 + t.Space(1))
 		})
 		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 			for i := range *rows {
@@ -123,7 +129,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 							changed = true
 						}
 					})
-					secret := r.Credential || sensitiveVariable(r.Name)
+					secret := r.secret()
 					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 						field := requestGridInput(c, &r.Initial, "Shared value", fmt.Sprintf("Variable initial value %d", i+1))
 						if secret && !r.Revealed {
@@ -136,17 +142,23 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 					})
 					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 						field := requestGridInput(c, &r.Current, "Use initial", fmt.Sprintf("Variable current value %d", i+1))
-						if !r.Revealed {
+						if secret && !r.Revealed {
 							field.Password()
 						}
-						cellBorder(t, field, !r.Revealed, r.Revealed)
+						cellBorder(t, field, secret && !r.Revealed, secret && r.Revealed)
 						if field.Changed() {
 							r.HasCurrent, changed = true, true
 						}
 					})
-					ui.Row(c).Width(uikit.HeightControl * 4).Children(func() {
-						if uikit.IconButton(c, locales.RevealVariable(i+1), locales.RevealOrHideBothValues(), eyeIcon).Clicked() {
-							r.Revealed = !r.Revealed
+					ui.Row(c).Width(uikit.HeightControl*4 + t.Space(1)).Children(func() {
+						if secret {
+							if uikit.IconButton(c, locales.RevealVariable(i+1), locales.RevealOrHideBothValues(), eyeIcon).Clicked() {
+								r.Revealed = !r.Revealed
+							}
+						} else {
+							// Keep the action column's geometry steady when a
+							// row has no secret to reveal.
+							ui.Box(c).Size(uikit.HeightControl, uikit.HeightControl)
 						}
 						blocked := r.Credential || sensitiveVariable(r.Name)
 						persistTooltip := "Persist current as initial: writes it to the shared file and exports"
@@ -205,7 +217,7 @@ func persistAllCurrent(rows []variableRow) (persisted, skipped int) {
 		if !rows[i].HasCurrent || rows[i].Current == "" {
 			continue
 		}
-		if rows[i].Credential || sensitiveVariable(rows[i].Name) {
+		if rows[i].secret() {
 			skipped++
 			continue
 		}

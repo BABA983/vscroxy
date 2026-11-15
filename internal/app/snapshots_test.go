@@ -1222,7 +1222,7 @@ func snapshotStates(t *testing.T) []snapshot {
 			// Preview the empty reader without changing existing no-API routing.
 			a.apiChoice = "snapshot-no-selection"
 		}, want: "From traffic to an API contract"},
-		{name: "secondary-api-endpoints", setup: snapshotAPI, want: "Operation schema"},
+		{name: "secondary-api-endpoints", setup: snapshotAPI, want: "Responses"},
 		{name: "secondary-api-generated", setup: func(a *app) {
 			snapshotAPI(a)
 			d := a.activeAPI()

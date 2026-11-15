@@ -10,6 +10,8 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/baba983/vscroxy/internal/openapi"
 	"github.com/baba983/vscroxy/internal/store"
@@ -34,6 +36,7 @@ type apiDocument struct {
 	problem    string
 	tab        int
 	endpoint   string
+	detailTab  int
 	details    *editor.State
 	detailsFor string
 	sync       apiSyncState
@@ -183,7 +186,13 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			if uikit.SecondaryButton(c, locales.CreateCollection2()).Label(locales.CreateCollectionFromOpenapi()).Disabled(!valid).Clicked() {
 				a.importOpenAPICollection(d.parsed, d.title(), nil, "")
 			}
-			if uikit.PrimaryButton(c, locales.SaveApi()).Clicked() {
+			// On the endpoint reader the one primary action is opening the
+			// operation as a request. Saving belongs to the source tabs.
+			if d.tab == 0 {
+				if uikit.SecondaryButton(c, locales.SaveApi()).Clicked() {
+					a.saveAPI(d)
+				}
+			} else if uikit.PrimaryButton(c, locales.SaveApi()).Clicked() {
 				a.saveAPI(d)
 			}
 		})
@@ -290,30 +299,297 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 			ui.Row(c).Height(uikit.HeightTabs).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				uikit.MethodLabel(c, endpoint.method)
 				uikit.Heading(c, endpoint.path).Font(uikit.FontMono).SingleLine().Grow(1).MinWidth(0)
+				open := uikit.Tip(c, uikit.PrimaryButton(c, locales.OpenInRequests()).Width(160), locales.UsesTheFirstEffectiveServer())
+				if open.Clicked() {
+					a.openAPIRequest(d, endpoint)
+				}
 			})
 			if summary := cmp.Or(endpoint.op.Summary, endpoint.op.OperationID); summary != "" && summary != endpoint.method+" "+endpoint.path {
 				uikit.Body(c, summary)
 			}
-			if uikit.SecondaryButton(c, locales.OpenInRequests()).Width(160).Clicked() {
-				a.addDocument(requestFromOperation(d.parsed, endpoint), "")
-				a.sourceAPI = d.spec.ID
-				a.composeResult = "Draft from OpenAPI. Review server, variables, authentication and body before sending."
+			uikit.SubTabs(c, &d.detailTab, "API endpoint", locales.Overview(), locales.Raw())
+			if d.detailTab == 1 {
+				a.apiRawOperation(c, d, endpoint)
+				return
 			}
-			uikit.Meta(c, locales.UsesTheFirstEffectiveServer())
-			ui.Divider(c)
-			ui.Row(c).Height(uikit.HeightTabs).AlignItems(ui.Center).Children(func() {
-				uikit.Label(c, locales.OperationSchemasAndReferences())
+			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(4)).Children(func() {
+				ui.Column(c).Gap(t.Space(1.5)).Children(func() {
+					apiParameterSections(c, t, endpoint)
+				})
+				ui.Column(c).Gap(t.Space(1.5)).Children(func() {
+					apiRequestBodySection(c, t, endpoint.op.RequestBody)
+				})
+				ui.Column(c).Gap(t.Space(1.5)).Children(func() {
+					apiResponsesSection(c, t, endpoint.op.Responses)
+				})
 			})
-			if d.details == nil || d.detailsFor != d.endpoint {
-				data, _ := json.Marshal(endpoint.op, jsontext.WithIndent("  "))
-				buf := editor.NewBuffer(string(data))
-				buf.SetLanguage(editor.LanguageNamed("json"))
-				d.details = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, Label: locales.OperationSchema()}
-				d.detailsFor = d.endpoint
-			}
-			requestCodeEditor(c, d.details)
 		})
 	})
+}
+
+// openAPIRequest creates the editable draft for an operation. The draft is
+// deliberately unsent: the reader still reviews the server, variables,
+// authentication and body before sending.
+func (a *app) openAPIRequest(d *apiDocument, endpoint apiOperation) {
+	a.addDocument(requestFromOperation(d.parsed, endpoint), "")
+	a.sourceAPI = d.spec.ID
+	a.composeResult = "Draft from OpenAPI. Review server, variables, authentication and body before sending."
+}
+
+// apiRawOperation keeps the operation's JSON behind the reader's Raw tab.
+func (a *app) apiRawOperation(c *ui.Context, d *apiDocument, endpoint apiOperation) {
+	if d.details == nil || d.detailsFor != d.endpoint {
+		data, _ := json.Marshal(endpoint.op, jsontext.WithIndent("  "))
+		buf := editor.NewBuffer(string(data))
+		buf.SetLanguage(editor.LanguageNamed("json"))
+		d.details = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, Label: locales.OperationSchema()}
+		d.detailsFor = d.endpoint
+	}
+	requestCodeEditor(c, d.details)
+}
+
+// apiParameterSections groups an operation's parameters the way the OpenAPI
+// document does: path, query, header and cookie. Operation-level parameters
+// replace path-level parameters with the same name and location.
+func apiParameterSections(c *ui.Context, t *ui.Theme, endpoint apiOperation) {
+	params := map[string]*openapi3.Parameter{}
+	for _, refs := range []openapi3.Parameters{endpoint.item.Parameters, endpoint.op.Parameters} {
+		for _, ref := range refs {
+			if ref != nil && ref.Value != nil {
+				p := ref.Value
+				params[p.In+"\x00"+p.Name] = p
+			}
+		}
+	}
+	groups := map[string][]*openapi3.Parameter{}
+	for _, key := range slices.Sorted(maps.Keys(params)) {
+		p := params[key]
+		groups[p.In] = append(groups[p.In], p)
+	}
+	uikit.Heading(c, locales.Parameters())
+	if len(groups) == 0 {
+		uikit.Hint(c, locales.NoParameters())
+		return
+	}
+	apiFieldHeader(c, t)
+	for _, in := range []string{"path", "query", "header", "cookie"} {
+		group := groups[in]
+		if len(group) == 0 {
+			continue
+		}
+		uikit.Label(c, apiParameterGroup(in))
+		for _, p := range group {
+			apiDataRow(c, t, p.Name, apiTypeName(p.Schema), p.Description, p.Required, 0)
+		}
+	}
+}
+
+func apiParameterGroup(in string) string {
+	switch in {
+	case "path":
+		return locales.PathParameters()
+	case "query":
+		return locales.QueryParameters()
+	case "header":
+		return locales.HeaderParameters()
+	case "cookie":
+		return locales.CookieParameters()
+	default:
+		if in == "" {
+			return locales.Parameters()
+		}
+		return strings.ToUpper(in[:1]) + in[1:] + " parameters"
+	}
+}
+
+// apiRequestBodySection shows each media type and the fields its schema
+// declares. It does not synthesize a payload when the contract only names a
+// schema; Open in Requests is where a draft is made.
+func apiRequestBodySection(c *ui.Context, t *ui.Theme, body *openapi3.RequestBodyRef) {
+	uikit.Heading(c, locales.RequestBody())
+	if body == nil || body.Value == nil || len(body.Value.Content) == 0 {
+		uikit.Hint(c, locales.NoRequestBody())
+		return
+	}
+	if body.Value.Description != "" {
+		uikit.Hint(c, body.Value.Description)
+	}
+	if body.Value.Required {
+		uikit.Label(c, locales.Required())
+	}
+	for _, media := range slices.Sorted(maps.Keys(body.Value.Content)) {
+		uikit.Label(c, media)
+		if mt := body.Value.Content[media]; mt != nil {
+			apiSchemaLabel(c, mt.Schema)
+			apiSchemaTree(c, t, mt.Schema, 0, map[string]bool{})
+		}
+	}
+}
+
+// apiResponsesSection lists responses by status code, with each media type's
+// schema name below it. Response headers, links and full schemas stay in the
+// Raw tab; the reader is about what the operation accepts and returns.
+func apiResponsesSection(c *ui.Context, t *ui.Theme, responses *openapi3.Responses) {
+	uikit.Heading(c, locales.Responses())
+	if responses == nil || responses.Len() == 0 {
+		uikit.Hint(c, locales.NoResponses())
+		return
+	}
+	for _, code := range slices.Sorted(maps.Keys(responses.Map())) {
+		ref := responses.Value(code)
+		if ref == nil || ref.Value == nil {
+			continue
+		}
+		description := ""
+		if ref.Value.Description != nil {
+			description = *ref.Value.Description
+		}
+		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Start).Children(func() {
+			uikit.Mono(c, code).Width(72).TextColor(uikit.StatusColor(apiStatus(code), t))
+			uikit.Hint(c, description).Grow(1)
+		})
+		for _, media := range slices.Sorted(maps.Keys(ref.Value.Content)) {
+			uikit.Label(c, media)
+			if mt := ref.Value.Content[media]; mt != nil {
+				// The status code and its schema name answer the reader's
+				// question; the request body above already shows the shared
+				// Project fields, and Raw has every response schema.
+				uikit.Label(c, apiTypeName(mt.Schema))
+			}
+		}
+	}
+}
+
+// apiSchemaLabel names a referenced schema above its fields, so a reader can
+// tell a Project payload from an inline object with the same properties.
+func apiSchemaLabel(c *ui.Context, ref *openapi3.SchemaRef) {
+	if ref != nil && ref.Ref != "" {
+		uikit.Label(c, apiTypeName(ref))
+	}
+}
+
+func apiStatus(code string) int {
+	if n, err := strconv.Atoi(code); err == nil {
+		return n
+	}
+	return 0
+}
+
+func apiFieldHeader(c *ui.Context, t *ui.Theme) {
+	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		uikit.Label(c, locales.Name()).Width(160)
+		uikit.Label(c, locales.TypeText()).Width(120)
+		uikit.Label(c, locales.Required()).Width(80)
+		uikit.Label(c, locales.Description()).Grow(1)
+	})
+}
+
+// apiDataRow is one read-only field line. Descriptions wrap rather than
+// truncate, because a schema's prose is part of what the reader came for.
+func apiDataRow(c *ui.Context, t *ui.Theme, name, typ, description string, required bool, indent float32) {
+	ui.Row(c).MinHeight(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Start).Children(func() {
+		if indent > 0 {
+			ui.Box(c).Width(indent).Shrink(0)
+		}
+		uikit.Mono(c, name).Width(160).SingleLine()
+		uikit.Mono(c, typ).Width(120).SingleLine()
+		ui.Box(c).Width(80).Shrink(0).Children(func() {
+			if required {
+				uikit.Label(c, locales.Required())
+			} else {
+				uikit.Meta(c, locales.Optional())
+			}
+		})
+		if description != "" {
+			uikit.Hint(c, description).Grow(1)
+		} else {
+			ui.Box(c).Grow(1)
+		}
+	})
+}
+
+// apiSchemaTree walks object properties, array items and composed schemas.
+// seen stops a recursive $ref; depth stops a schema that is deep without
+// being recursive. Both keep a malformed contract from freezing the reader.
+func apiSchemaTree(c *ui.Context, t *ui.Theme, ref *openapi3.SchemaRef, depth int, seen map[string]bool) {
+	if ref == nil || ref.Value == nil || depth > 6 {
+		return
+	}
+	schema := ref.Value
+	if ref.Ref != "" {
+		if seen[ref.Ref] {
+			return
+		}
+		seen[ref.Ref] = true
+		defer delete(seen, ref.Ref)
+	}
+	indent := float32(depth) * t.Space(3)
+	if len(schema.Properties) > 0 {
+		required := map[string]bool{}
+		for _, name := range schema.Required {
+			required[name] = true
+		}
+		for _, name := range slices.Sorted(maps.Keys(schema.Properties)) {
+			property := schema.Properties[name]
+			if property == nil || property.Value == nil {
+				continue
+			}
+			apiDataRow(c, t, name, apiTypeName(property), property.Value.Description, required[name], indent)
+			apiSchemaTree(c, t, property, depth+1, seen)
+		}
+		return
+	}
+	if schema.Type != nil && schema.Type.Is("array") && schema.Items != nil && schema.Items.Value != nil {
+		apiDataRow(c, t, "items", apiTypeName(schema.Items), schema.Items.Value.Description, false, indent)
+		apiSchemaTree(c, t, schema.Items, depth+1, seen)
+		return
+	}
+	for _, part := range []struct {
+		label string
+		refs  openapi3.SchemaRefs
+	}{{"oneOf", schema.OneOf}, {"anyOf", schema.AnyOf}, {"allOf", schema.AllOf}} {
+		for i, branch := range part.refs {
+			if branch == nil || branch.Value == nil {
+				continue
+			}
+			apiDataRow(c, t, fmt.Sprintf("%s %d", part.label, i+1), apiTypeName(branch), branch.Value.Description, false, indent)
+			apiSchemaTree(c, t, branch, depth+1, seen)
+		}
+	}
+	if schema.AdditionalProperties.Schema != nil && schema.AdditionalProperties.Schema.Value != nil {
+		apiDataRow(c, t, "additionalProperties", apiTypeName(schema.AdditionalProperties.Schema), schema.AdditionalProperties.Schema.Value.Description, false, indent)
+		apiSchemaTree(c, t, schema.AdditionalProperties.Schema, depth+1, seen)
+	}
+}
+
+func apiTypeName(ref *openapi3.SchemaRef) string {
+	if ref == nil {
+		return "—"
+	}
+	if ref.Ref != "" {
+		return ref.Ref[strings.LastIndex(ref.Ref, "/")+1:]
+	}
+	schema := ref.Value
+	if schema == nil {
+		return "—"
+	}
+	if schema.Type != nil && schema.Type.Is("array") {
+		return "array<" + apiTypeName(schema.Items) + ">"
+	}
+	switch {
+	case len(schema.OneOf) > 0:
+		return "oneOf"
+	case len(schema.AnyOf) > 0:
+		return "anyOf"
+	case len(schema.AllOf) > 0:
+		return "allOf"
+	case schema.Type != nil && len(schema.Type.Slice()) > 0:
+		return strings.Join(schema.Type.Slice(), " | ")
+	case len(schema.Properties) > 0:
+		return "object"
+	default:
+		return "—"
+	}
 }
 
 func (a *app) openAPIGeneration() {

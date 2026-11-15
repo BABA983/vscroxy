@@ -394,9 +394,9 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				uikit.FormRow(c, locales.Iterations(), "", "", func() {
 					uikit.Input(c, &r.iterations).FillWidth().Disabled(r.running)
 				}).Width(120)
-				uikit.FormRow(c, locales.RunnerDelay(), "", "", func() {
+				uikit.FormRow(c, locales.DelayMs(), "", "", func() {
 					uikit.Tip(c, uikit.Input(c, &r.delay).FillWidth().Disabled(r.running), locales.RunnerDelay())
-				}).Width(170)
+				}).Width(120)
 			})
 			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 				ui.Checkbox(c, &r.stopOnFailure, "Stop on failure").FontSize(uikit.Scaled(uikit.TextBody)).Disabled(r.running)

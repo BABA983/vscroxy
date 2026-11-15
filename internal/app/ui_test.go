@@ -3682,7 +3682,6 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	if err := chooseMenu(tt, "Manage environments…"); err != nil {
 		t.Fatal(err)
 	}
-	click("Reveal variable 1")
 	click("Variable initial value 1")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(ui.Cmd, ui.KeyC)
@@ -3701,7 +3700,6 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 		if i != 1 {
 			column = "Variable current value %d"
 		}
-		click(fmt.Sprintf("Reveal variable %d", i+1))
 		click(fmt.Sprintf(column, i+1))
 		tt.Key(ui.Cmd, ui.KeyA)
 		tt.Key(ui.Cmd, ui.KeyC)
@@ -3821,6 +3819,7 @@ func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 	click("API: Referenced API")
 	click("Endpoints")
 	click("Endpoint: POST /widgets/{id}")
+	click("API endpoint: Raw")
 	if operation := read("Operation schema"); !strings.Contains(operation, `"requestBody"`) {
 		t.Fatal("POST operation did not show its request body")
 	}

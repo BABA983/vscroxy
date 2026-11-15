@@ -550,6 +550,20 @@ const galleryOpenAPI = `{
         "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {"200": {"description": "ok"}}
       },
+      "patch": {
+        "tags": ["projects"], "summary": "Update project",
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "description": "Project identifier.", "schema": {"type": "string"}},
+          {"name": "expand", "in": "query", "description": "Include related resources.", "schema": {"type": "string", "enum": ["owner", "members"]}},
+          {"name": "X-Request-Id", "in": "header", "required": true, "description": "Correlates retries.", "schema": {"type": "string"}},
+          {"name": "session", "in": "cookie", "description": "Optional session hint.", "schema": {"type": "string"}}
+        ],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Project"}}}},
+        "responses": {
+          "200": {"description": "updated", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Project"}}}},
+          "422": {"description": "validation failed", "content": {"application/json": {"schema": {"type": "object", "properties": {"error": {"type": "string"}, "field": {"type": "string"}}}}}}
+        }
+      },
       "delete": {
         "tags": ["projects"], "summary": "Delete project",
         "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
@@ -569,6 +583,7 @@ func galleryAPI(a *app) {
 	a.page, a.sidebarChoice = pageAPI, "api"
 	a.addAPI(apiSpec{ID: "gallery-api", Source: galleryOpenAPI,
 		Notes: []string{"Review authentication and response schemas before publishing."}}, true)
+	a.activeAPI().endpoint = "PATCH /projects/{id}"
 }
 
 // galleryRuns is the retained run records page: a baseline and two attempts,
@@ -603,7 +618,7 @@ func galleryRuns(a *app) {
 // failed check.
 func galleryRunner(a *app, running bool) {
 	r := &a.runner
-	*r = collectionRunner{open: true, collection: "Workspace", iterations: "3", cancel: func() {}}
+	*r = collectionRunner{open: true, collection: "Workspace", iterations: "3", delay: "250", cancel: func() {}}
 	r.load(a.requests)
 	r.picked = 1
 	if running {
