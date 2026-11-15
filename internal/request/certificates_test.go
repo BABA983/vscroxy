@@ -94,8 +94,9 @@ func TestRequestClientCertificatesAndRoots(t *testing.T) {
 					verify := tc.verify
 					got := Request{Method: "GET", URL: upstream.URL, Settings: Settings{VerifyTLS: &verify}}.
 						Execute(t.Context(), proxy, Context{Certificates: tc.settings}, nil, nil)
-					if (got.Err == nil) != tc.want {
-						t.Fatalf("success=%t err=%v, want success=%t", got.Err == nil, got.Err, tc.want)
+					success := got.Err == nil && got.Response != nil && got.Response.Status == http.StatusOK
+					if success != tc.want {
+						t.Fatalf("success=%t err=%v response=%+v, want success=%t", success, got.Err, got.Response, tc.want)
 					}
 					if tc.wantErr != "" && (got.Err == nil || !strings.Contains(got.Err.Error(), tc.wantErr)) {
 						t.Fatalf("error %v does not contain %q", got.Err, tc.wantErr)
@@ -116,7 +117,7 @@ func TestRequestClientCertificatesAndRoots(t *testing.T) {
 				verify := false
 				got := Request{Method: "GET", URL: upstream.URL, Settings: Settings{VerifyTLS: &verify}}.
 					Execute(t.Context(), proxy, Context{Certificates: certs.Settings{Clients: []certs.Client{pemClient}}}, nil, nil)
-				if got.Err == nil {
+				if got.Err == nil && got.Response != nil && got.Response.Status == http.StatusOK {
 					t.Fatal("a request's verification-off setting bypassed the proxy's default verification")
 				}
 			}

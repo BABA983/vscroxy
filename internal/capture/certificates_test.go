@@ -76,30 +76,33 @@ func TestCapturedUpstreamClientCertificate(t *testing.T) {
 		t.Fatalf("configured mTLS: %d %q", resp.StatusCode, body)
 	}
 
-	// No certificate fails the handshake; the proxy reports a failed CONNECT.
-	s.SetCertificates(certs.Settings{RootCAs: []string{caPath}})
-	if resp, err := get(); err == nil {
+	// No certificate fails the upstream handshake. The proxy still finishes
+	// the client handshake and answers 502 with the reason.
+	rejected := func(what string) {
+		t.Helper()
+		resp, err := get()
+		if err != nil {
+			return // the upstream closed the client-certificate handshake
+		}
 		resp.Body.Close()
-		t.Fatal("a missing client certificate was accepted")
+		if resp.StatusCode != http.StatusBadGateway {
+			t.Fatalf("%s = %d, want 502 or a failed handshake", what, resp.StatusCode)
+		}
 	}
+	s.SetCertificates(certs.Settings{RootCAs: []string{caPath}})
+	rejected("a missing client certificate")
 
 	// A certificate for another host is not presented.
 	wrong := settings.Clone()
 	wrong.Clients[0].Host = "api.example.com"
 	s.SetCertificates(wrong)
-	if resp, err := get(); err == nil {
-		resp.Body.Close()
-		t.Fatal("a certificate for another host was presented")
-	}
+	rejected("a certificate for another host")
 
 	// A missing file is a configuration error, never a silent send.
 	broken := settings.Clone()
 	broken.Clients[0].CertFile = filepath.Join(dir, "missing.pem")
 	s.SetCertificates(broken)
-	if resp, err := get(); err == nil {
-		resp.Body.Close()
-		t.Fatal("a missing certificate file was accepted")
-	}
+	rejected("a missing certificate file")
 }
 
 func TestCapturedUpstreamCustomRootsVerify(t *testing.T) {
@@ -121,8 +124,10 @@ func TestCapturedUpstreamCustomRootsVerify(t *testing.T) {
 
 	// Verify without the custom root fails: the server certificate is private.
 	flow := Flow{Method: "GET", URL: upstream.URL}
-	if _, err := s.ReplayWithPolicy(t.Context(), flow, nil, TransferPolicy{TLS: TLSVerify}); err == nil {
-		t.Fatal("a private upstream verified without its root")
+	if got, err := s.ReplayWithPolicy(t.Context(), flow, nil, TransferPolicy{TLS: TLSVerify}); err != nil {
+		t.Fatalf("replay reported a transport error instead of a 502: %v", err)
+	} else if got.Status != http.StatusBadGateway || !strings.Contains(strings.ToLower(got.ResponseBody), "certificate") {
+		t.Fatalf("private upstream = %d %q, want a certificate 502", got.Status, got.ResponseBody)
 	}
 
 	// Adding the root makes the same verified send succeed.
@@ -141,8 +146,10 @@ func TestCapturedUpstreamCustomRootsVerify(t *testing.T) {
 	// still fails without its root.
 	settings.RootCAs = nil
 	s.SetCertificates(settings)
-	if _, err := s.ReplayWithPolicy(t.Context(), flow, nil, TransferPolicy{TLS: TLSInsecure}); err == nil {
-		t.Fatal("a request's verification-off setting bypassed the proxy's default verification")
+	if got, err := s.ReplayWithPolicy(t.Context(), flow, nil, TransferPolicy{TLS: TLSInsecure}); err != nil {
+		t.Fatalf("verification-off replay: %v", err)
+	} else if got.Status != http.StatusBadGateway || !strings.Contains(strings.ToLower(got.ResponseBody), "certificate") {
+		t.Fatalf("verification-off private upstream = %d %q, want a certificate 502", got.Status, got.ResponseBody)
 	}
 
 	// The explicit per-domain exception accepts it, while still presenting
@@ -470,6 +477,63 @@ func TestReplayRedirectUsesEachHostsClientCertificate(t *testing.T) {
 			t.Fatalf("HTTP to HTTPS body = %q", got.ResponseBody)
 		}
 	})
+}
+
+// A plain decrypted CONNECT fails its upstream certificate check after the
+// CONNECT is established. The client handshake still completes with our leaf,
+// so curl and browsers receive a 502 that names the host, the verification
+// error and the setting that allows it. The per-domain allow list is the
+// explicit exception.
+func TestPlainDecryptedConnectShowsUpstreamCertificateError(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "verified upstream")
+	}))
+	defer upstream.Close()
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := "https://127.0.0.1:" + u.Port() + "/"
+
+	s, _ := startServer(t)
+	s.SetSSL(SSLConfig{All: true})
+	get := func() (*http.Response, string) {
+		t.Helper()
+		client := clientFor(t, s, s.caPool)
+		defer client.CloseIdleConnections()
+		resp, err := client.Get(target)
+		if err != nil {
+			t.Fatalf("GET %s: %v", target, err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp, string(body)
+	}
+
+	resp, body := get()
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("untrusted upstream = %d %q, want 502", resp.StatusCode, body)
+	}
+	for _, want := range []string{"127.0.0.1", "certificate", "Settings → HTTPS → Allow untrusted upstream certificates"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("502 body = %q, want %q", body, want)
+		}
+	}
+	f := waitFlow(t, s)
+	if f.Status != http.StatusBadGateway || !strings.Contains(strings.ToLower(f.Conn.Error), "certificate") {
+		t.Fatalf("connection detail = %+v, want the certificate error", f.Conn)
+	}
+	if !strings.Contains(strings.ToLower(f.Conn.Log), "certificate") {
+		t.Fatalf("connection log = %q, want the certificate error", f.Conn.Log)
+	}
+
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})
+	if resp, body := get(); resp.StatusCode != http.StatusOK || body != "verified upstream" {
+		t.Fatalf("allowed upstream = %d %q", resp.StatusCode, body)
+	}
 }
 
 // Decrypted upstreams verify by default. A self-signed server fails with a

@@ -105,6 +105,10 @@ type ConnContext struct {
 	// VerifyUpstream makes an intercepted TLS handshake verify the server's
 	// certificate, as a CONNECT's HeaderVerifyUpstream asks.
 	VerifyUpstream bool `json:"-"`
+	// upstreamTLSFailure is set when an intercepted upstream handshake fails
+	// before the client handshake. The client handshake still completes with
+	// our certificate so the request can be answered with the reason.
+	upstreamTLSFailure error `json:"-"`
 	// TransparentTarget is the destination agreed outside HTTP, as in a
 	// SOCKS5 CONNECT. An origin-form request on such a connection is sent to
 	// this target; an absolute-form one is still pinned to it. Empty for the

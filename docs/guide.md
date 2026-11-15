@@ -1437,9 +1437,14 @@ including `*` and `?` wildcards; a plain host also matches its subdomains.
 
 Decrypted HTTPS verifies the upstream certificate by default, against the
 system roots and the custom roots under **Settings → Certificates**. A server
-whose certificate does not verify never receives a forged certificate from the
-proxy: an HTTP request that reaches it fails with 502, and a decrypted CONNECT
-fails its TLS handshake; either way the connection detail names the TLS error.
+whose certificate does not verify never receives a forged upstream certificate
+from the proxy: a rewritten HTTP request fails with 502, and a plain decrypted
+CONNECT still finishes the client handshake with the proxy's certificate for the
+CONNECT host or SNI, then answers the request with 502. That 502 names the host
+and the TLS error in its body and points to **Settings → HTTPS → Allow untrusted
+upstream certificates**. A client that pins the upstream certificate, or rejects
+the proxy's certificate, still sees a handshake failure; either way the
+connection detail names the TLS error.
 For a local development server with a self-signed certificate, list its host
 under **Settings → HTTPS → Allow untrusted upstream certificates** (one host
 per line; `*` and `?` wildcards work, and a host without a port matches every

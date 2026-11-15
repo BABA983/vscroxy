@@ -382,6 +382,13 @@ func writeGatewayError(res http.ResponseWriter, f *Flow, err error) {
 	writeGatewayStatus(res, f, http.StatusBadGateway, err)
 }
 
+// upstreamTLSFailureError explains a failed intercepted upstream handshake in
+// terms a person can act on. The request is answered after the client
+// handshake, so the reason reaches a browser instead of a transport error.
+func upstreamTLSFailureError(addr string, err error) error {
+	return fmt.Errorf("TLS upstream failed for %s: %w\nIf this is a local server with a self-signed certificate, allow this host in Settings → HTTPS → Allow untrusted upstream certificates", addr, err)
+}
+
 // errPinnedUpstreamClosed is the failure of a request whose target socket died
 // while the client kept its forward-proxy connection open.
 var errPinnedUpstreamClosed = errors.New("the pinned upstream connection closed")
@@ -571,8 +578,24 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 
 			// wait server handshake finish
 			select {
-			case err := <-errChan2:
-				return nil, err
+			case <-errChan2:
+				// The upstream handshake failed, but the client still needs
+				// our certificate. Complete its handshake so the request can
+				// reach ServeHTTP and get a 502 with the reason. HTTP/1.1 is
+				// the safe protocol here: no upstream ALPN was established.
+				name := chi.ServerName
+				if name == "" && connCtx.ServerConn != nil {
+					name = hostOnly(connCtx.ServerConn.Address)
+				}
+				c, certErr := a.getCA().GetCert(name)
+				if certErr != nil {
+					return nil, certErr
+				}
+				return &tls.Config{
+					SessionTicketsDisabled: true,
+					Certificates:           []tls.Certificate{*c},
+					NextProtos:             []string{"http/1.1"},
+				}, nil
 			case serverTlsState := <-serverTlsStateChan:
 				if serverTlsState.NegotiatedProtocol != "" {
 					nextProtos = append([]string{serverTlsState.NegotiatedProtocol}, nextProtos...)
@@ -617,16 +640,23 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 	connCtx.ClientConn.clientHello = clientHello
 
 	if err := a.serverTlsHandshake(ctx, connCtx); err != nil {
-		for _, addon := range a.proxy.Addons {
-			addon.HTTPConnectError(f, err)
+		// Keep the client connection: its handshake still completes with our
+		// certificate, and ServeHTTP answers the request with the reason.
+		// Closing it here is what made a plain CONNECT look like a transport
+		// error instead of a 502.
+		connCtx.upstreamTLSFailure = upstreamTLSFailureError(connCtx.ServerConn.Address, err)
+		// Close only the upstream socket. wrapServerConn.Close also ends the
+		// client, which is exactly what must not happen here.
+		if sc, ok := conn.(*wrapServerConn); ok {
+			sc.retire()
+		} else {
+			conn.Close()
 		}
-		cconn.Close()
-		conn.Close()
 		errChan2 <- err
 		log.Error(err)
-		return
+	} else {
+		serverTlsStateChan <- connCtx.ServerConn.tlsState
 	}
-	serverTlsStateChan <- connCtx.ServerConn.tlsState
 
 	// wait client handshake finish
 	select {
@@ -815,6 +845,18 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 	defer f.finish()
 
 	f.ConnContext.FlowCount.Add(1)
+
+	// A plain CONNECT whose upstream handshake failed still reached an HTTP
+	// request because its client handshake completed with our certificate.
+	// Answer it here, before any transport that has no upstream TLS state.
+	if err := f.ConnContext.upstreamTLSFailure; err != nil {
+		f.ConnContext.RecordEvent("TLS upstream", "Upstream certificate check failed", err)
+		for _, addon := range proxy.Addons {
+			addon.RequestError(f, err)
+		}
+		writeGatewayError(res, f, err)
+		return
+	}
 
 	// A gRPC call is a stream, not a message: a client-streaming or
 	// bidirectional call sends no end of body until the server has answered,

@@ -479,6 +479,18 @@ certificate, which is stricter than the inspection client's usual acceptance.
 `TestRequestCertificateVerificationAfterMapRemote` reproduces the rewritten-
 target check.
 
+A plain decrypted CONNECT has already sent `200 Connection Established` and the
+client hello when `httpsDialFirstAttack` starts the upstream handshake. If that
+handshake fails verification, `httpsTlsDial` keeps the client connection open,
+returns a leaf for the client hello's SNI or the CONNECT host, and forces
+HTTP/1.1 for that failed connection because no upstream ALPN was established.
+`ServeHTTP` then answers the request with a 502 whose body names the host, the
+TLS error and the `Settings → HTTPS → Allow untrusted upstream certificates`
+exception. The flow records the same error on its connection detail and log. A
+client that pins the upstream certificate, or rejects our leaf, still fails the
+client handshake; that is expected. `TestPlainDecryptedConnectShowsUpstreamCertificateError`
+covers the 502 and the allow-list success.
+
 `internal/capture.ReplayWithPolicy` sends the header for an authored request
 whose TLS setting verifies the certificate, and sets `InsecureSkipVerify` on the
 replay client for the tunneled leg when verification is off. A reverse proxy

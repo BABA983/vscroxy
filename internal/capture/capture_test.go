@@ -635,11 +635,17 @@ func TestConnectionLogDistinguishesTLSFailuresAndReuse(t *testing.T) {
 		}
 	}
 	// A TLS URL aimed at a plaintext HTTP server fails on the OTHER TLS side.
+	// The proxy finishes the client handshake and returns a 502, so the
+	// reason reaches the client instead of appearing as a transport error.
 	plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer plain.Close()
-	if resp, err := client.Get(strings.Replace(plain.URL, "http:", "https:", 1)); err == nil {
-		resp.Body.Close()
-		t.Fatal("plaintext server accepted as TLS")
+	resp, err := client.Get(strings.Replace(plain.URL, "http:", "https:", 1))
+	if err != nil {
+		t.Fatalf("plaintext upstream: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("plaintext upstream = %d, want 502", resp.StatusCode)
 	}
 	f := waitFlow(t, s)
 	if f.Conn.ErrorStage != "TLS upstream" || f.Conn.Error == "" {

@@ -205,13 +205,25 @@ func TestRequestCertificateVerification(t *testing.T) {
 				}
 				got := execute()
 				switch {
+				case verify && intercept:
+					// The proxy finishes the client handshake and answers 502
+					// with the certificate reason, so a browser sees the body.
+					if got.Err != nil || got.Response == nil || got.Response.Status != http.StatusBadGateway {
+						t.Fatalf("self-signed intercepted server = %+v, want 502", got)
+					}
+					reason := got.Response.ResponseBody
+					for _, f := range drainFlows(srv) {
+						reason += " " + f.Conn.Error
+					}
+					if !strings.Contains(strings.ToLower(reason), "unknown authority") {
+						t.Fatalf("verification failed for the wrong reason: %v", reason)
+					}
 				case verify:
 					if got.Err == nil || got.Response != nil {
 						t.Fatalf("self-signed server was accepted with verification on: %+v", got)
 					}
-					// An intercepted handshake fails before an HTTP response
-					// exists, so the replay sees EOF. The capture still records
-					// the certificate error that caused it.
+					// A tunneled handshake fails in the client, before an HTTP
+					// response exists. The capture still records the reason.
 					reason := got.Err.Error()
 					for _, f := range drainFlows(srv) {
 						reason += " " + f.Conn.Error
@@ -221,8 +233,9 @@ func TestRequestCertificateVerification(t *testing.T) {
 					}
 				case intercept:
 					// A request's verification-off setting does not weaken
-					// the decrypted proxy: it still verifies the upstream.
-					if got.Err == nil {
+					// the decrypted proxy: it still verifies the upstream and
+					// returns the same 502.
+					if got.Err != nil || got.Response == nil || got.Response.Status != http.StatusBadGateway {
 						t.Fatalf("verification off bypassed the proxy's default verification: %+v", got)
 					}
 					// The explicit per-domain exception accepts it.
