@@ -1,0 +1,89 @@
+name: Release
+
+# A v* tag builds the desktop packages for macOS, Windows and Linux plus the
+# CLI and MCP binaries, and uploads them to a draft release. Publishing the
+# draft is a person's decision: this workflow never publishes it.
+#
+# Code signing and updater signing keys are left out until certificates are
+# chosen; see README.md for opening an unsigned build.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # the draft release and the uploads to it
+
+jobs:
+  draft-release:
+    name: Draft release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check the tag matches mygo.json
+        run: test "$GITHUB_REF_NAME" = "v$(jq -r .version mygo.json)"
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --draft --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
+          fi
+
+  build:
+    name: ${{ matrix.name }}
+    needs: draft-release
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS, os: macos-latest, platforms: "darwin/arm64,darwin/amd64" }
+          - { name: Windows, os: ubuntu-latest, platforms: "windows/amd64,windows/arm64" }
+          - { name: Linux, os: ubuntu-latest, platforms: "linux/amd64,linux/arm64" }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Install NSIS, for the Windows installers
+        if: matrix.name == 'Windows'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq nsis
+      - name: Build the app packages
+        run: go tool mygo build -platform "${{ matrix.platforms }}" -o dist
+      - name: Build the CLI and MCP binaries
+        env:
+          PLATFORMS: ${{ matrix.platforms }}
+        run: |
+          mkdir -p dist
+          for target in ${PLATFORMS//,/ }; do
+            os=${target%/*}
+            arch=${target#*/}
+            ext=""
+            if [ "$os" = windows ]; then ext=".exe"; fi
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath \
+              -o "dist/vscroxy-cli-$os-$arch$ext" ./cmd/vscroxy-cli
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath \
+              -o "dist/vscroxy-mcp-$os-$arch$ext" ./cmd/vscroxy-mcp
+          done
+      - name: Upload to the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Only the files a person downloads: the app bundle and its folders
+          # are not release assets.
+          files=()
+          while IFS= read -r -d '' file; do files+=("$file"); done < <(
+            find dist -maxdepth 2 -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.tar.gz' \
+              -o -name '*.deb' -o -name '*.rpm' -o -name 'vscroxy-cli-*' -o -name 'vscroxy-mcp-*' \) -print0
+          )
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-${{ matrix.name }}
+          path: dist/
+          if-no-files-found: ignore
