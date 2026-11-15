@@ -1138,6 +1138,10 @@ func snapshotStates(t *testing.T) []snapshot {
 		{name: "collection-docs", setup: func(a *app) {
 			a.folders = []request.Folder{{Path: "Workspace/API", Description: "## Workspace API\n\nEndpoints for **projects**."}}
 			a.requests[0].Description = "Lists projects.\n\n- `GET /projects`\n- Returns `[]` when empty."
+			a.requests[0].Headers = "Accept: application/json\nAuthorization: Bearer snapshot-token-secret"
+			a.requests[0].Body = `{"filter":"active"}`
+			a.requests[0].Auth = request.Auth{Type: "Bearer", Token: "snapshot-token-secret"}
+			a.requests[0].Examples = []request.Example{{Name: "Projects", Status: 200, Headers: "Content-Type: application/json", Body: `{"projects":[]}`}}
 			a.openDocs("Workspace/API")
 		}, want: "Documentation · Workspace/API"},
 		{name: "dialog-collection-defaults", setup: func(a *app) {

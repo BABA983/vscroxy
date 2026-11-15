@@ -2944,10 +2944,15 @@ opening a completion.
 
 A level's **Description** is Markdown. The collection or folder menu's **View
 documentation…** shows it read-only, followed by every request under it with its
-method, name, URL and description. Request descriptions are edited on the
-request's **Docs** tab. **Request defaults** in the same settings dialog set the
-timeout, redirect behavior and TLS verification requests under that level
-inherit; a request's **Settings** tab overrides them field by field.
+method, name, URL, description, headers, body, auth summary, saved examples and
+generated JavaScript, Python and Go code samples. Auth tokens, passwords,
+secrets and credential headers such as `Authorization` and `Cookie` are shown
+hidden, never expanded. **Export Markdown…** and **Export HTML…** write the same
+documentation to a file; the HTML page is self-contained, with inline styles and
+no scripts or external assets. Request descriptions are edited on the request's
+**Docs** tab. **Request defaults** in the same settings dialog set the timeout,
+redirect behavior and TLS verification requests under that level inherit; a
+request's **Settings** tab overrides them field by field.
 
 #### Import and export
 

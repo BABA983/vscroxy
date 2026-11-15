@@ -189,6 +189,16 @@ auxiliary calls. A per-request timeout counts as failure; normal duration
 completion cancels in-flight attempts into `interrupted`, not failed latency
 samples. No coordinated-omission correction or open-model latency claim is made.
 
+## Collection documentation
+
+The desktop app's collection or folder menu has **View documentation…**, which
+lists every request under it with headers, body, an auth summary, saved examples
+and JavaScript, Python and Go code samples. **Export Markdown…** writes a
+portable `.md` file and **Export HTML…** writes one self-contained `.html` page
+with inline styles and no scripts or external assets. Auth tokens, passwords,
+secrets and credential headers are hidden; values are otherwise as authored, so
+review an export before sharing it. There is no CLI documentation command.
+
 ## Mock server
 
 `vscroxy-cli mock` serves a collection's saved examples over HTTP, as Postman's

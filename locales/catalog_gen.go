@@ -3238,6 +3238,16 @@ func (msgs Messages) CodeLanguage() string {
 	return Catalog.Format(msgs.locale, "codeLanguage", nil)
 }
 
+// CodeSamples says "Code samples"
+// in the language the app shows.
+func CodeSamples() string { return In(i18n.Locale()).CodeSamples() }
+
+// CodeSamples says "Code samples"
+// in the language of msgs.
+func (msgs Messages) CodeSamples() string {
+	return Catalog.Format(msgs.locale, "codeSamples", nil)
+}
+
 // Collection says "Collection"
 // in the language the app shows.
 func Collection() string { return In(i18n.Locale()).Collection() }
@@ -6018,6 +6028,26 @@ func (msgs Messages) DocumentationPath(path string) string {
 	return Catalog.Format(msgs.locale, "documentationPath", map[string]any{"path": path})
 }
 
+// DocumentationSavedTo says "Documentation saved to {path}"
+// in the language the app shows.
+func DocumentationSavedTo(path string) string { return In(i18n.Locale()).DocumentationSavedTo(path) }
+
+// DocumentationSavedTo says "Documentation saved to {path}"
+// in the language of msgs.
+func (msgs Messages) DocumentationSavedTo(path string) string {
+	return Catalog.Format(msgs.locale, "documentationSavedTo", map[string]any{"path": path})
+}
+
+// DocumentationSecretsHidden says "Auth secrets and credential headers are hidden. Values are as authored and may still contain sensitive data."
+// in the language the app shows.
+func DocumentationSecretsHidden() string { return In(i18n.Locale()).DocumentationSecretsHidden() }
+
+// DocumentationSecretsHidden says "Auth secrets and credential headers are hidden. Values are as authored and may still contain sensitive data."
+// in the language of msgs.
+func (msgs Messages) DocumentationSecretsHidden() string {
+	return Catalog.Format(msgs.locale, "documentationSecretsHidden", nil)
+}
+
 // Domain says "Domain"
 // in the language the app shows.
 func Domain() string { return In(i18n.Locale()).Domain() }
@@ -7306,6 +7336,26 @@ func ExportHar() string { return In(i18n.Locale()).ExportHar() }
 // in the language of msgs.
 func (msgs Messages) ExportHar() string {
 	return Catalog.Format(msgs.locale, "exportHar", nil)
+}
+
+// ExportHtml says "Export HTML…"
+// in the language the app shows.
+func ExportHtml() string { return In(i18n.Locale()).ExportHtml() }
+
+// ExportHtml says "Export HTML…"
+// in the language of msgs.
+func (msgs Messages) ExportHtml() string {
+	return Catalog.Format(msgs.locale, "exportHtml", nil)
+}
+
+// ExportMarkdown says "Export Markdown…"
+// in the language the app shows.
+func ExportMarkdown() string { return In(i18n.Locale()).ExportMarkdown() }
+
+// ExportMarkdown says "Export Markdown…"
+// in the language of msgs.
+func (msgs Messages) ExportMarkdown() string {
+	return Catalog.Format(msgs.locale, "exportMarkdown", nil)
 }
 
 // ExportMessages says "Export messages…"

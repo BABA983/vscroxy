@@ -133,9 +133,10 @@ type app struct {
 	curlProblem  string
 	// docsOpen shows a collection's or folder's read-only documentation;
 	// docsPath is what it covers. docsMarkdown keeps the view's parse.
-	docsOpen     bool
-	docsPath     string
-	docsMarkdown markdown.Options
+	docsOpen       bool
+	docsPath       string
+	docsMarkdown   markdown.Options
+	docsSampleLang map[string]int
 	// aboutOpen shows the About window; aboutTab picks its licenses page.
 	// aboutLicense and aboutNotices are the texts the package ships.
 	aboutOpen     bool
