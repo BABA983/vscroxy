@@ -84,6 +84,9 @@ jobs:
       - name: Test MCP protocol and stdio
         if: runner.os == 'Windows'
         run: go test ./internal/mcpserver ./cmd/vscroxy-mcp
+      - name: Test Windows executable icons
+        if: runner.os == 'Windows'
+        run: go test ./internal/appicon
       - name: Test every package
         if: runner.os == 'macOS'
         run: go test ./...

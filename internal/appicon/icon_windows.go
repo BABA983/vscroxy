@@ -4,8 +4,11 @@ package appicon
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/png"
+	"runtime"
+	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -16,6 +19,19 @@ import (
 // pixels, and the mask supplies transparency for icons older than 32-bit
 // alpha. The result is a PNG the UI's bitmap decoder already accepts.
 func lookup(name, path string) (Icon, bool) {
+	// SHGetFileInfo needs COM on the calling thread, and Go may run this on
+	// any thread. S_FALSE means COM was already initialized on this thread;
+	// RPC_E_CHANGED_MODE means it is initialized in another apartment, which
+	// is enough for the shell query, so only our own initialization is undone.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if err := windows.CoInitializeEx(0, windows.COINIT_APARTMENTTHREADED); err == nil || errors.Is(err, syscall.Errno(1)) {
+		defer windows.CoUninitialize()
+	}
+	return lookupLocked(path)
+}
+
+func lookupLocked(path string) (Icon, bool) {
 	if path == "" {
 		return Icon{}, false
 	}
