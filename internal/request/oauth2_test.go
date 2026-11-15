@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -207,6 +208,75 @@ func TestOAuth2AuthorizationCodeSignsInThroughTheBrowser(t *testing.T) {
 	auth.OAuth2.RedirectURL = "https://oauth.pstmn.io/v1/callback"
 	if _, err := tokens.New(t.Context(), auth.OAuth2, ProxySender(t.Context(), srv), browser); err == nil || !strings.Contains(err.Error(), "127.0.0.1") {
 		t.Errorf("a non-loopback callback = %v", err)
+	}
+}
+
+func TestOAuth2ImplicitGrantPostsTheFragmentBack(t *testing.T) {
+	tokens := &Tokens{}
+	o := OAuth2{Grant: GrantImplicit, AuthURL: "https://login.example.com/authorize", ClientID: "app", Scope: "read"}
+	browser := func(raw string) error {
+		u, err := url.Parse(raw)
+		if err != nil {
+			return err
+		}
+		if u.Query().Get("response_type") != "token" || u.Query().Get("state") == "" || u.Query().Get("scope") != "read" {
+			t.Errorf("authorization URL %q", raw)
+		}
+		back, err := url.Parse(u.Query().Get("redirect_uri"))
+		if err != nil {
+			return err
+		}
+		page, err := http.Get(back.String())
+		if err != nil {
+			return err
+		}
+		body, _ := io.ReadAll(page.Body)
+		page.Body.Close()
+		if !strings.Contains(string(body), "location.hash") {
+			t.Errorf("callback page does not read the fragment: %q", body)
+		}
+		res, err := http.PostForm(back.String(), url.Values{
+			"state": {u.Query().Get("state")}, "access_token": {"implicit-token"}, "token_type": {"Bearer"},
+			"expires_in": {"3600"}, "scope": {"read"},
+		})
+		if err != nil {
+			return err
+		}
+		defer res.Body.Close()
+		done, _ := io.ReadAll(res.Body)
+		if !strings.Contains(string(done), "Signed in") {
+			t.Errorf("callback answer = %q", done)
+		}
+		return nil
+	}
+	tok, err := tokens.New(t.Context(), o, nil, browser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tok.Access != "implicit-token" || tok.Type != "Bearer" || tok.Scope != "read" || tok.Expiry.IsZero() {
+		t.Fatalf("token = %+v", tok)
+	}
+	kept, ok := tokens.Peek(o)
+	if !ok || kept.Access != "implicit-token" || kept.Key != o.Key() || kept.Label == "" || kept.Config.ClientID != "app" {
+		t.Fatalf("kept = %+v, %v", kept, ok)
+	}
+}
+
+func TestTokensRefreshUsesTheSavedConfiguration(t *testing.T) {
+	p := newProvider(t)
+	srv := testProxy(t)
+	tokens := &Tokens{}
+	o := OAuth2{Grant: GrantClientCredentials, TokenURL: p.URL + "/token", ClientID: "app"}
+	tokens.Load([]Token{{Access: "old", Refresh: "r-1", Key: o.Key(), Label: o.Label(), Config: o}})
+	tok, err := tokens.Refresh(t.Context(), o.Key(), ProxySender(t.Context(), srv), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tok.Access != "ac-2" || tok.Key != o.Key() || tok.Label == "" || tok.Config.ClientID != "app" {
+		t.Fatalf("refreshed = %+v", tok)
+	}
+	if kept, ok := tokens.Peek(o); !ok || kept.Access != "ac-2" {
+		t.Fatalf("kept = %+v, %v", kept, ok)
 	}
 }
 

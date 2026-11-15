@@ -3824,5 +3824,20 @@
   "exportAsHttp": "Export as .http…",
   "exportCollectionAsHttp": "Export “{name}” as .http…",
   "@exportCollectionAsHttp": {"placeholders": {"name": {"type": "String"}}},
-  "httpExportNoRequests": "Export .http: no HTTP requests to export"
+  "httpExportNoRequests": "Export .http: no HTTP requests to export",
+  "savedAccessTokens": "Saved access tokens",
+  "noSavedAccessTokens": "No saved access tokens. A token you get above is kept sealed on this machine.",
+  "tokenStoreProblem": "Saved tokens: {problem}",
+  "@tokenStoreProblem": {"placeholders": {"problem": {"type": "String"}}},
+  "tokenReady": "Ready",
+  "tokenExpiresAt": "Expires {time}",
+  "@tokenExpiresAt": {"placeholders": {"time": {"type": "String"}}},
+  "tokenExpired": "Expired",
+  "tokenExpiredRefreshAvailable": "Expired · refresh available",
+  "tokenRequestThroughProxy": "Start the proxy first: the token request is sent through it.",
+  "tokenRefreshed": "Refreshed the access token for {label}.",
+  "@tokenRefreshed": {"placeholders": {"label": {"type": "String"}}},
+  "tokenDeleted": "Deleted the saved access token.",
+  "tokenRefreshFailed": "Refresh failed: {problem}",
+  "@tokenRefreshFailed": {"placeholders": {"problem": {"type": "String"}}}
 }

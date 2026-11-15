@@ -24569,3 +24569,113 @@ func HttpExportNoRequests() string { return In(i18n.Locale()).HttpExportNoReques
 func (msgs Messages) HttpExportNoRequests() string {
 	return Catalog.Format(msgs.locale, "httpExportNoRequests", nil)
 }
+
+// SavedAccessTokens says "Saved access tokens"
+// in the language the app shows.
+func SavedAccessTokens() string { return In(i18n.Locale()).SavedAccessTokens() }
+
+// SavedAccessTokens says "Saved access tokens"
+// in the language of msgs.
+func (msgs Messages) SavedAccessTokens() string {
+	return Catalog.Format(msgs.locale, "savedAccessTokens", nil)
+}
+
+// NoSavedAccessTokens says "No saved access tokens. A token you get above is kept sealed on this machine."
+// in the language the app shows.
+func NoSavedAccessTokens() string { return In(i18n.Locale()).NoSavedAccessTokens() }
+
+// NoSavedAccessTokens says "No saved access tokens. A token you get above is kept sealed on this machine."
+// in the language of msgs.
+func (msgs Messages) NoSavedAccessTokens() string {
+	return Catalog.Format(msgs.locale, "noSavedAccessTokens", nil)
+}
+
+// TokenStoreProblem says "Saved tokens: {problem}"
+// in the language the app shows.
+func TokenStoreProblem(problem string) string { return In(i18n.Locale()).TokenStoreProblem(problem) }
+
+// TokenStoreProblem says "Saved tokens: {problem}"
+// in the language of msgs.
+func (msgs Messages) TokenStoreProblem(problem string) string {
+	return Catalog.Format(msgs.locale, "tokenStoreProblem", map[string]any{"problem": problem})
+}
+
+// TokenReady says "Ready"
+// in the language the app shows.
+func TokenReady() string { return In(i18n.Locale()).TokenReady() }
+
+// TokenReady says "Ready"
+// in the language of msgs.
+func (msgs Messages) TokenReady() string {
+	return Catalog.Format(msgs.locale, "tokenReady", nil)
+}
+
+// TokenExpiresAt says "Expires {time}"
+// in the language the app shows.
+func TokenExpiresAt(time_ string) string { return In(i18n.Locale()).TokenExpiresAt(time_) }
+
+// TokenExpiresAt says "Expires {time}"
+// in the language of msgs.
+func (msgs Messages) TokenExpiresAt(time_ string) string {
+	return Catalog.Format(msgs.locale, "tokenExpiresAt", map[string]any{"time": time_})
+}
+
+// TokenExpired says "Expired"
+// in the language the app shows.
+func TokenExpired() string { return In(i18n.Locale()).TokenExpired() }
+
+// TokenExpired says "Expired"
+// in the language of msgs.
+func (msgs Messages) TokenExpired() string {
+	return Catalog.Format(msgs.locale, "tokenExpired", nil)
+}
+
+// TokenExpiredRefreshAvailable says "Expired · refresh available"
+// in the language the app shows.
+func TokenExpiredRefreshAvailable() string { return In(i18n.Locale()).TokenExpiredRefreshAvailable() }
+
+// TokenExpiredRefreshAvailable says "Expired · refresh available"
+// in the language of msgs.
+func (msgs Messages) TokenExpiredRefreshAvailable() string {
+	return Catalog.Format(msgs.locale, "tokenExpiredRefreshAvailable", nil)
+}
+
+// TokenRequestThroughProxy says "Start the proxy first: the token request is sent through it."
+// in the language the app shows.
+func TokenRequestThroughProxy() string { return In(i18n.Locale()).TokenRequestThroughProxy() }
+
+// TokenRequestThroughProxy says "Start the proxy first: the token request is sent through it."
+// in the language of msgs.
+func (msgs Messages) TokenRequestThroughProxy() string {
+	return Catalog.Format(msgs.locale, "tokenRequestThroughProxy", nil)
+}
+
+// TokenRefreshed says "Refreshed the access token for {label}."
+// in the language the app shows.
+func TokenRefreshed(label string) string { return In(i18n.Locale()).TokenRefreshed(label) }
+
+// TokenRefreshed says "Refreshed the access token for {label}."
+// in the language of msgs.
+func (msgs Messages) TokenRefreshed(label string) string {
+	return Catalog.Format(msgs.locale, "tokenRefreshed", map[string]any{"label": label})
+}
+
+// TokenDeleted says "Deleted the saved access token."
+// in the language the app shows.
+func TokenDeleted() string { return In(i18n.Locale()).TokenDeleted() }
+
+// TokenDeleted says "Deleted the saved access token."
+// in the language of msgs.
+func (msgs Messages) TokenDeleted() string {
+	return Catalog.Format(msgs.locale, "tokenDeleted", nil)
+}
+
+// TokenRefreshFailed says "Refresh failed: {problem}"
+// in the language the app shows.
+func TokenRefreshFailed(problem string) string { return In(i18n.Locale()).TokenRefreshFailed(problem) }
+
+// TokenRefreshFailed says "Refresh failed: {problem}"
+// in the language of msgs.
+func (msgs Messages) TokenRefreshFailed(problem string) string {
+	return Catalog.Format(msgs.locale, "tokenRefreshFailed", map[string]any{"problem": problem})
+}

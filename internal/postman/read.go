@@ -603,6 +603,7 @@ func (r *reader) auth(v jsontext.Value, unsupported string) (auth request.Auth, 
 var oauth2Grants = map[string]string{
 	"authorization_code_with_pkce": request.GrantAuthorizationCodePKCE,
 	"authorization_code":           request.GrantAuthorizationCode,
+	"implicit":                     request.GrantImplicit,
 	"client_credentials":           request.GrantClientCredentials,
 	"password_credentials":         request.GrantPassword,
 }
@@ -624,7 +625,7 @@ func (r *reader) oauth2(params map[string]string) (o request.OAuth2, dropped str
 	}
 	if redirect := params["redirect_uri"]; loopback(redirect) {
 		o.RedirectURL = redirect
-	} else if redirect != "" && (o.Grant == request.GrantAuthorizationCodePKCE || o.Grant == request.GrantAuthorizationCode) {
+	} else if redirect != "" && (o.Grant == request.GrantAuthorizationCodePKCE || o.Grant == request.GrantAuthorizationCode || o.Grant == request.GrantImplicit) {
 		r.warn.add("oauth2 callback", "", 1)
 	}
 	if params["addTokenTo"] == "queryParams" {

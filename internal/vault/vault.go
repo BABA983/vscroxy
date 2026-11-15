@@ -54,11 +54,32 @@ var additional = []byte("vscroxy-vault/1")
 
 // Seal encrypts the secrets with key.
 func Seal(key []byte, secrets Secrets) ([]byte, error) {
-	aead, err := newAEAD(key)
+	plain, err := json.Marshal(secrets)
 	if err != nil {
 		return nil, err
 	}
-	plain, err := json.Marshal(secrets)
+	return SealData(key, plain)
+}
+
+// Open decrypts what Seal wrote. A wrong key and a damaged file fail alike,
+// never with partial secrets.
+func Open(key, data []byte) (Secrets, error) {
+	plain, err := OpenData(key, data)
+	if err != nil {
+		return nil, err
+	}
+	var secrets Secrets
+	if err := json.Unmarshal(plain, &secrets); err != nil {
+		return nil, fmt.Errorf("read vault: %w", err)
+	}
+	return secrets, nil
+}
+
+// SealData encrypts arbitrary bytes with the vault key, for a file that
+// belongs to the vault's owner but is not a list of named secrets, such as
+// OAuth 2.0 tokens. The sealed format is the vault's.
+func SealData(key, plain []byte) ([]byte, error) {
+	aead, err := newAEAD(key)
 	if err != nil {
 		return nil, err
 	}
@@ -67,9 +88,9 @@ func Seal(key []byte, secrets Secrets) ([]byte, error) {
 	return json.Marshal(sealed{Format: format, Version: 1, Nonce: nonce, Ciphertext: aead.Seal(nil, nonce, plain, additional)})
 }
 
-// Open decrypts what Seal wrote. A wrong key and a damaged file fail alike,
-// never with partial secrets.
-func Open(key, data []byte) (Secrets, error) {
+// OpenData decrypts what SealData wrote. A wrong key and a damaged file fail
+// alike, never with partial plaintext.
+func OpenData(key, data []byte) ([]byte, error) {
 	var file sealed
 	if err := json.Unmarshal(data, &file); err != nil {
 		return nil, fmt.Errorf("read vault: %w", err)
@@ -88,11 +109,7 @@ func Open(key, data []byte) (Secrets, error) {
 	if err != nil {
 		return nil, errors.New("the vault key does not open this vault, or the file is damaged")
 	}
-	var secrets Secrets
-	if err := json.Unmarshal(plain, &secrets); err != nil {
-		return nil, fmt.Errorf("read vault: %w", err)
-	}
-	return secrets, nil
+	return plain, nil
 }
 
 func newAEAD(key []byte) (cipher.AEAD, error) {

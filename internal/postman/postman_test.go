@@ -415,7 +415,7 @@ func TestReadCollectionOAuth2(t *testing.T) {
 			Grant: request.GrantClientCredentials, TokenURL: "https://id.example.com/token", ClientID: "partner",
 			ClientSecret: "{{partnerSecret}}", Scope: "orders:read", ClientAuth: "Body",
 		})},
-		{Path: "Identity/Legacy", Auth: request.Auth{Type: "None"}},
+		{Path: "Identity/Legacy", Auth: oauth2(request.OAuth2{Grant: request.GrantImplicit, AuthURL: "https://id.example.com/authorize"})},
 	}
 	if !reflect.DeepEqual(got.Folders, wantFolders) {
 		t.Errorf("Folders:\n got %+v\nwant %+v", got.Folders, wantFolders)
@@ -433,7 +433,7 @@ func TestReadCollectionOAuth2(t *testing.T) {
 			Grant: request.GrantPassword, TokenURL: "https://id.example.com/token", ClientID: "cli",
 			Username: "{{user}}", Password: "{{password}}", RedirectURL: "http://[::1]:9000/cb",
 		}),
-		"implicit": {},
+		"implicit": oauth2(request.OAuth2{Grant: request.GrantImplicit}),
 	}
 	if len(got.Requests) != len(wantAuth) {
 		t.Fatalf("got %d requests, want %d", len(got.Requests), len(wantAuth))
@@ -447,8 +447,6 @@ func TestReadCollectionOAuth2(t *testing.T) {
 	// addresses; the client credentials folder never opens a browser.
 	wantWarnings := []string{
 		"1 OAuth 2.0 configuration adds the token to the query; vscroxy sends it in the Authorization header",
-		"1 folder uses the OAuth 2.0 implicit grant; imported as no auth",
-		"1 request uses the OAuth 2.0 implicit grant; imported as no auth",
 		"2 OAuth 2.0 callback URLs are not loopback addresses; vscroxy signs in through http://127.0.0.1 instead",
 	}
 	if !slices.Equal(got.Warnings, wantWarnings) {
@@ -460,8 +458,8 @@ func TestReadCollectionOAuth2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"The collection uses the OAuth 2.0 implicit grant; imported as no auth"}; !slices.Equal(collection.Warnings, want) {
-		t.Errorf("collection Warnings = %q, want %q", collection.Warnings, want)
+	if len(collection.Warnings) != 0 {
+		t.Errorf("collection Warnings = %q, want none", collection.Warnings)
 	}
 }
 

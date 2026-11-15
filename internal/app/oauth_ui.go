@@ -36,7 +36,7 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 	if o.Grant == "" {
 		o.Grant = request.Grants[0]
 	}
-	interactive := o.Grant == request.GrantAuthorizationCodePKCE || o.Grant == request.GrantAuthorizationCode
+	interactive := o.Grant == request.GrantAuthorizationCodePKCE || o.Grant == request.GrantAuthorizationCode || o.Grant == request.GrantImplicit
 	clientAuth := "Basic header"
 	if o.ClientAuth == "Body" {
 		clientAuth = "In body"
@@ -53,9 +53,11 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 			input(&o.AuthURL, "Authorization URL").Placeholder("https://login.example.com/authorize")
 		})
 	}
-	ui.Field(c, locales.AccessTokenUrl(), func() {
-		input(&o.TokenURL, "Access token URL").Placeholder("https://login.example.com/token")
-	})
+	if o.Grant != request.GrantImplicit {
+		ui.Field(c, locales.AccessTokenUrl(), func() {
+			input(&o.TokenURL, "Access token URL").Placeholder("https://login.example.com/token")
+		})
+	}
 	ui.Field(c, locales.ClientId(), func() { input(&o.ClientID, "Client ID") })
 	ui.Field(c, locales.ClientSecret(), func() {
 		password(&o.ClientSecret, "Client secret").Placeholder("{{vault:client_secret}}, empty for a public client")
@@ -128,6 +130,123 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 			}
 		})
 	})
+}
+
+// savedOAuthTokens lists the tokens kept sealed on this machine. A refresh
+// uses the token's saved configuration; delete removes only the token.
+func (a *app) savedOAuthTokens(c *ui.Context) {
+	t := c.Theme()
+	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+		ui.Text(c, locales.SavedAccessTokens()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Text)
+		if err := a.ensureOAuthTokens(); err != nil {
+			ui.Text(c, locales.TokenStoreProblem(err.Error())).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(3)
+			return
+		}
+		tokens := a.tokens.All()
+		if len(tokens) == 0 {
+			uikit.Meta(c, locales.NoSavedAccessTokens())
+			return
+		}
+		for _, tok := range tokens {
+			c.Key("oauth-token-" + tok.Key)
+			ui.Column(c).FillWidth().Gap(t.Space(0.5)).Padding(t.Space(1), 0).Children(func() {
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, cmpOr(tok.Label, tok.Key)).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Grow(1).SingleLine()
+					uikit.Meta(c, maskToken(tok.Access)).Font(uikit.FontMono)
+				})
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					uikit.Meta(c, tokenStatus(tok)).Grow(1).SingleLine()
+					busy := a.oauth.key == tok.Key && a.oauth.busy
+					if uikit.SecondaryButton(c, locales.Refresh()).Disabled(busy).Clicked() {
+						a.refreshSavedToken(tok.Key)
+					}
+					if uikit.SecondaryButton(c, locales.Delete()).Disabled(busy).Clicked() {
+						a.deleteSavedToken(tok.Key)
+					}
+				})
+			})
+		}
+	})
+}
+
+func tokenStatus(tok request.Token) string {
+	now := time.Now()
+	switch {
+	case tok.Fresh(now) && tok.Expiry.IsZero():
+		return locales.TokenReady()
+	case tok.Fresh(now):
+		return locales.TokenExpiresAt(tok.Expiry.Format("15:04:05"))
+	case tok.Refresh != "":
+		return locales.TokenExpiredRefreshAvailable()
+	default:
+		return locales.TokenExpired()
+	}
+}
+
+func maskToken(access string) string {
+	if len(access) <= 8 {
+		return "…"
+	}
+	return access[:4] + "…" + access[len(access)-4:]
+}
+
+// refreshSavedToken renews one kept token. The token's saved configuration
+// supplies the client and URLs; an interactive token may open the browser.
+func (a *app) refreshSavedToken(key string) {
+	var found request.Token
+	ok := false
+	for _, t := range a.tokens.All() {
+		if t.Key == key {
+			found, ok = t, true
+			break
+		}
+	}
+	if !ok {
+		return
+	}
+	if a.srv == nil || !a.srv.Running() {
+		a.warn(locales.TokenRequestThroughProxy())
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	s := &a.oauth
+	*s = oauthState{key: key, busy: true, cancel: cancel}
+	srv := a.srv
+	refresh := func() {
+		_, err := a.tokens.Refresh(ctx, key, request.ProxySender(ctx, srv), mygo.Shell.OpenExternal)
+		apply := func() {
+			if s.key != key {
+				return
+			}
+			s.busy = false
+			if err != nil {
+				s.problem = locales.TokenRefreshFailed(err.Error())
+				return
+			}
+			a.done(locales.TokenRefreshed(found.Label))
+		}
+		if a.win == nil {
+			apply()
+			return
+		}
+		a.win.Update(apply)
+	}
+	if a.win == nil {
+		defer cancel()
+		refresh()
+		return
+	}
+	go func() { defer cancel(); refresh() }()
+}
+
+func (a *app) deleteSavedToken(key string) {
+	if !a.tokens.Delete(key) {
+		return
+	}
+	if a.oauth.key == key {
+		a.oauth = oauthState{}
+	}
+	a.done(locales.TokenDeleted())
 }
 
 // newAccessToken gets a token through the proxy, so the exchange is

@@ -518,8 +518,9 @@ type app struct {
 	closingDocument *requestDocument
 	requestResults  []requestResult
 	importReport    importReport
-	// tokens are the OAuth 2.0 access tokens of this session, never saved.
+	// tokens are the OAuth 2.0 access tokens, kept sealed by oauthTokens.
 	tokens            request.Tokens
+	oauthTokens       oauthTokenStore
 	oauth             oauthState
 	runner            collectionRunner
 	loadRunner        collectionLoadRunner
@@ -660,6 +661,8 @@ func newApp() *app {
 		a.vault.path = filepath.Join(home, ".vscroxy", "vault.json")
 		a.controlPath = filepath.Join(home, ".vscroxy", "control.json")
 		a.vault.keyPath = filepath.Join(home, ".vscroxy", "vault.key")
+		a.oauthTokens.path = filepath.Join(home, ".vscroxy", "oauth-tokens.json")
+		a.tokens.SetSave(a.saveOAuthTokens)
 		if saved, err := loadSettings(a.settingsPath); err != nil {
 			a.errText = err.Error()
 		} else {

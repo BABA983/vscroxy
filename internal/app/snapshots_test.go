@@ -1898,6 +1898,17 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.composeTab, a.auth.Type = composeTabAuth, auth
 		}, want: "Authorization type"})
 	}
+	states = append(states, snapshot{name: "requests-auth-oauth2-tokens", setup: func(a *app) {
+		draft(a)
+		a.composeTab, a.auth.Type = composeTabAuth, request.AuthOAuth2
+		a.auth.OAuth2 = request.OAuth2{Grant: request.GrantClientCredentials, TokenURL: "https://login.example.com/token", ClientID: "desktop-app"}
+		a.oauthTokens.loaded = true
+		a.tokens.Load([]request.Token{{
+			Access: "eyJhbGciOiJIUzI1NiJ9.snapshot-access-token", Refresh: "refresh-token", Scope: "read write",
+			Expiry: time.Now().Add(45 * time.Minute), Key: a.auth.OAuth2.Key(), Label: "Client credentials · desktop-app · login.example.com",
+			Config: a.auth.OAuth2,
+		}})
+	}, want: "Saved access tokens"})
 	states = append(states, snapshot{name: "requests-auth-oauth1-rsa", setup: func(a *app) {
 		draft(a)
 		a.composeTab, a.auth.Type = composeTabAuth, request.AuthOAuth1

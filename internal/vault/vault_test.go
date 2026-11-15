@@ -59,3 +59,18 @@ func TestSecretsReachOnlyTheirDomains(t *testing.T) {
 		t.Errorf("missing secret: %v", err)
 	}
 }
+
+func TestSealDataRoundTripsAndRejectsAnotherKey(t *testing.T) {
+	key := NewKey()
+	data, err := SealData(key, []byte("oauth token bytes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := OpenData(key, data)
+	if err != nil || string(got) != "oauth token bytes" {
+		t.Fatalf("open = %q, %v", got, err)
+	}
+	if _, err := OpenData(NewKey(), data); err == nil {
+		t.Fatal("another key opened the data")
+	}
+}

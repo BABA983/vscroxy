@@ -2511,5 +2511,20 @@
   "exportAsHttp": "导出为 .http…",
   "exportCollectionAsHttp": "将“{name}”导出为 .http…",
   "@exportCollectionAsHttp": {"placeholders": {"name": {"type": "String"}}},
-  "httpExportNoRequests": "导出 .http：没有可导出的 HTTP 请求"
+  "httpExportNoRequests": "导出 .http：没有可导出的 HTTP 请求",
+  "savedAccessTokens": "已保存的访问令牌",
+  "noSavedAccessTokens": "还没有已保存的访问令牌。在上方获取的令牌会密封保存在本机。",
+  "tokenStoreProblem": "已保存的令牌：{problem}",
+  "@tokenStoreProblem": {"placeholders": {"problem": {"type": "String"}}},
+  "tokenReady": "可用",
+  "tokenExpiresAt": "过期时间 {time}",
+  "@tokenExpiresAt": {"placeholders": {"time": {"type": "String"}}},
+  "tokenExpired": "已过期",
+  "tokenExpiredRefreshAvailable": "已过期 · 可刷新",
+  "tokenRequestThroughProxy": "请先启动代理：令牌请求会经过代理发送。",
+  "tokenRefreshed": "已刷新 {label} 的访问令牌。",
+  "@tokenRefreshed": {"placeholders": {"label": {"type": "String"}}},
+  "tokenDeleted": "已删除保存的访问令牌。",
+  "tokenRefreshFailed": "刷新失败：{problem}",
+  "@tokenRefreshFailed": {"placeholders": {"problem": {"type": "String"}}}
 }

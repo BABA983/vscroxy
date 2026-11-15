@@ -10,9 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,12 +30,13 @@ const AuthOAuth2 = "OAuth 2.0"
 const (
 	GrantAuthorizationCodePKCE = "Authorization code (PKCE)"
 	GrantAuthorizationCode     = "Authorization code"
+	GrantImplicit              = "Implicit"
 	GrantClientCredentials     = "Client credentials"
 	GrantPassword              = "Password"
 )
 
 // Grants lists the grants, the default first.
-var Grants = []string{GrantAuthorizationCodePKCE, GrantAuthorizationCode, GrantClientCredentials, GrantPassword}
+var Grants = []string{GrantAuthorizationCodePKCE, GrantAuthorizationCode, GrantImplicit, GrantClientCredentials, GrantPassword}
 
 // OAuth2 is how a request gets its access token. Every field may use
 // {{variables}}; a {{vault:name}} is unlocked for the token URL's host, the
@@ -60,7 +63,30 @@ func (o OAuth2) grant() string { return cmp.Or(o.Grant, GrantAuthorizationCodePK
 
 // interactive says the grant needs the user to sign in in a browser.
 func (o OAuth2) interactive() bool {
-	return o.grant() == GrantAuthorizationCodePKCE || o.grant() == GrantAuthorizationCode
+	switch o.grant() {
+	case GrantAuthorizationCodePKCE, GrantAuthorizationCode, GrantImplicit:
+		return true
+	}
+	return false
+}
+
+// Label names the configuration in the token list, without secrets.
+func (o OAuth2) Label() string {
+	raw := o.TokenURL
+	if o.grant() == GrantImplicit {
+		raw = o.AuthURL
+	}
+	host := ""
+	if u, err := url.Parse(raw); err == nil {
+		host = u.Host
+	}
+	var parts []string
+	for _, part := range []string{o.grant(), o.ClientID, host} {
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+	return strings.Join(parts, " · ")
 }
 
 // fields are the configuration's texts, for expansion and variable lists.
@@ -92,14 +118,17 @@ func (o OAuth2) Key() string {
 	return fmt.Sprintf("%x", sum[:12])
 }
 
-// Token is an access token and what came with it.
+// Token is an access token and what came with it. Key, Label and Config let
+// the token list show and refresh it; they are not part of a token response.
 type Token struct {
-	Access  string
-	Type    string
-	Refresh string
-	Scope   string
-	// Expiry is zero when the server did not say.
-	Expiry time.Time
+	Access  string    `json:"access"`
+	Type    string    `json:"type,omitempty"`
+	Refresh string    `json:"refresh,omitempty"`
+	Scope   string    `json:"scope,omitempty"`
+	Expiry  time.Time `json:"expiry,omitzero"`
+	Key     string    `json:"key,omitempty"`
+	Label   string    `json:"label,omitempty"`
+	Config  OAuth2    `json:"config,omitzero"`
 }
 
 // Fresh says the token can be sent: it does not expire within 30 seconds.
@@ -221,6 +250,9 @@ func randomToken() string {
 // loopback address, opens the authorization URL with open, and trades the
 // code the browser brings back for a token.
 func (o OAuth2) authorize(ctx context.Context, send Sender, open func(string) error) (Token, error) {
+	if o.grant() == GrantImplicit {
+		return o.authorizeImplicit(ctx, open)
+	}
 	auth, err := url.Parse(o.AuthURL)
 	if err != nil || auth.Host == "" || auth.Scheme != "http" && auth.Scheme != "https" {
 		return Token{}, fmt.Errorf("the authorization URL %q must be an absolute HTTP(S) URL", o.AuthURL)
@@ -309,11 +341,139 @@ func (o OAuth2) authorize(ctx context.Context, send Sender, open func(string) er
 	return o.tokenRequest(send, form)
 }
 
-// Tokens keeps the access tokens this run of the app got, in memory only,
-// by configuration. It is safe for concurrent sends.
+// authorizeImplicit signs in through the browser with the implicit grant.
+// The provider returns the token in the redirect fragment, which the browser
+// never sends to a server, so the callback page posts it back to the loopback
+// listener.
+func (o OAuth2) authorizeImplicit(ctx context.Context, open func(string) error) (Token, error) {
+	auth, err := url.Parse(o.AuthURL)
+	if err != nil || auth.Host == "" || auth.Scheme != "http" && auth.Scheme != "https" {
+		return Token{}, fmt.Errorf("the authorization URL %q must be an absolute HTTP(S) URL", o.AuthURL)
+	}
+	redirect, err := url.Parse(cmp.Or(o.RedirectURL, "http://127.0.0.1/callback"))
+	if err != nil || redirect.Scheme != "http" || (redirect.Hostname() != "127.0.0.1" && redirect.Hostname() != "localhost" && redirect.Hostname() != "[::1]" && redirect.Hostname() != "::1") {
+		return Token{}, fmt.Errorf("the callback URL %q must be http://127.0.0.1, localhost or [::1], with an optional port and path", o.RedirectURL)
+	}
+	listener, err := net.Listen("tcp", net.JoinHostPort(redirect.Hostname(), cmp.Or(redirect.Port(), "0")))
+	if err != nil {
+		return Token{}, fmt.Errorf("listen for the browser's return: %w", err)
+	}
+	defer listener.Close()
+	redirect.Host = net.JoinHostPort(redirect.Hostname(), strconv.Itoa(listener.Addr().(*net.TCPAddr).Port))
+	redirect.Path = cmp.Or(redirect.Path, "/")
+
+	state := randomToken()
+	q := auth.Query()
+	q.Set("response_type", "token")
+	q.Set("client_id", o.ClientID)
+	q.Set("redirect_uri", redirect.String())
+	q.Set("state", state)
+	if o.Scope != "" {
+		q.Set("scope", o.Scope)
+	}
+	auth.RawQuery = q.Encode()
+
+	type answer struct {
+		token Token
+		err   error
+	}
+	answers := make(chan answer, 1)
+	server := &http.Server{ReadHeaderTimeout: 10 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != redirect.Path {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			io.WriteString(w, implicitCallbackPage)
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", "GET, POST")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		form := r.PostForm
+		var got answer
+		switch {
+		case form.Get("state") != state:
+			got.err = errors.New("the browser returned a different state; sign in again")
+		case form.Get("error") != "":
+			got.err = fmt.Errorf("the authorization server refused: %s %s", form.Get("error"), form.Get("error_description"))
+		case form.Get("access_token") == "":
+			got.err = errors.New("the browser returned without an access token")
+		default:
+			got.token = Token{Access: form.Get("access_token"), Type: form.Get("token_type"), Scope: form.Get("scope")}
+			if seconds, err := strconv.ParseFloat(form.Get("expires_in"), 64); err == nil && seconds > 0 {
+				got.token.Expiry = time.Now().Add(time.Duration(seconds * float64(time.Second)))
+			}
+		}
+		message := "Signed in. You can close this tab and return to vscroxy."
+		if got.err != nil {
+			message = "Sign-in failed: " + got.err.Error()
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, "<!doctype html><title>vscroxy</title><p style=\"font:16px system-ui;margin:3em\">%s</p>", html.EscapeString(message))
+		select {
+		case answers <- got:
+		default:
+		}
+	})}
+	go server.Serve(listener)
+	defer server.Close()
+	if err := open(auth.String()); err != nil {
+		return Token{}, fmt.Errorf("open the browser: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	select {
+	case got := <-answers:
+		if got.err != nil {
+			return Token{}, got.err
+		}
+		return got.token, nil
+	case <-ctx.Done():
+		return Token{}, fmt.Errorf("waited for the browser sign-in: %w", ctx.Err())
+	}
+}
+
+// implicitCallbackPage posts the redirect fragment back to the listener. The
+// fragment never reaches a server on its own.
+const implicitCallbackPage = `<!doctype html><title>vscroxy</title>
+<p style="font:16px system-ui;margin:3em">Signing in…</p>
+<script>
+(async () => {
+  const params = new URLSearchParams(location.hash.slice(1) || location.search.slice(1));
+  if (![...params.keys()].length) return;
+  try {
+    const res = await fetch(location.pathname, { method: "POST", body: params });
+    document.open();
+    document.write(await res.text());
+    document.close();
+  } catch (err) {
+    document.body.textContent = "Sign-in failed: " + err;
+  }
+})();
+</script>`
+
+// Tokens keeps OAuth 2.0 access tokens by configuration. It is safe for
+// concurrent sends; save, when set, receives a snapshot after every change so
+// the app can persist the tokens sealed.
 type Tokens struct {
 	mu     sync.Mutex
 	tokens map[string]Token
+	save   func([]Token)
+}
+
+// SetSave installs the snapshot callback. It is called without the lock.
+func (s *Tokens) SetSave(save func([]Token)) {
+	s.mu.Lock()
+	s.save = save
+	s.mu.Unlock()
 }
 
 // Peek is the token kept for an expanded configuration.
@@ -324,20 +484,74 @@ func (s *Tokens) Peek(o OAuth2) (Token, bool) {
 	return t, ok
 }
 
-// Clear forgets the configuration's token.
-func (s *Tokens) Clear(o OAuth2) {
+// All is every kept token, sorted by label, for the token list.
+func (s *Tokens) All() []Token {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.tokens, o.Key())
+	return s.snapshotLocked()
+}
+
+// Load replaces the kept tokens, as when the sealed file is opened.
+func (s *Tokens) Load(list []Token) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tokens = map[string]Token{}
+	for _, t := range list {
+		if t.Key == "" {
+			t.Key = t.Config.Key()
+		}
+		if t.Label == "" {
+			t.Label = t.Config.Label()
+		}
+		s.tokens[t.Key] = t
+	}
+}
+
+// Delete forgets one token and returns whether it existed.
+func (s *Tokens) Delete(key string) bool {
+	s.mu.Lock()
+	_, ok := s.tokens[key]
+	delete(s.tokens, key)
+	list, save := s.snapshotLocked(), s.save
+	s.mu.Unlock()
+	if ok && save != nil {
+		save(list)
+	}
+	return ok
+}
+
+// Clear forgets the configuration's token.
+func (s *Tokens) Clear(o OAuth2) { s.Delete(o.Key()) }
+
+func (s *Tokens) snapshotLocked() []Token {
+	list := make([]Token, 0, len(s.tokens))
+	for key, t := range s.tokens {
+		if t.Key == "" {
+			t.Key = key
+		}
+		if t.Label == "" {
+			t.Label = t.Config.Label()
+		}
+		list = append(list, t)
+	}
+	slices.SortFunc(list, func(a, b Token) int {
+		return cmp.Or(cmp.Compare(a.Label, b.Label), cmp.Compare(a.Key, b.Key))
+	})
+	return list
 }
 
 func (s *Tokens) keep(o OAuth2, t Token) {
+	t.Key, t.Label, t.Config = o.Key(), o.Label(), o
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.tokens == nil {
 		s.tokens = map[string]Token{}
 	}
-	s.tokens[o.Key()] = t
+	s.tokens[t.Key] = t
+	list, save := s.snapshotLocked(), s.save
+	s.mu.Unlock()
+	if save != nil {
+		save(list)
+	}
 }
 
 // get is the token a send uses: the kept one while it is fresh, else a
@@ -345,28 +559,42 @@ func (s *Tokens) keep(o OAuth2, t Token) {
 // sends of one configuration wait for a single refresh or fetch.
 func (s *Tokens) get(o OAuth2, send Sender) (Token, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	key := o.Key()
 	t, ok := s.tokens[key]
 	if ok && t.Fresh(time.Now()) {
+		s.mu.Unlock()
 		return t, nil
 	}
 	if ok && t.Refresh != "" {
 		if fresh, err := o.refresh(send, t); err == nil {
+			fresh.Key, fresh.Label, fresh.Config = key, o.Label(), o
 			s.tokens[key] = fresh
+			list, save := s.snapshotLocked(), s.save
+			s.mu.Unlock()
+			if save != nil {
+				save(list)
+			}
 			return fresh, nil
 		} else if o.interactive() {
+			s.mu.Unlock()
 			return Token{}, fmt.Errorf("refreshing the access token failed (%w); get a new access token", err)
 		}
 	}
 	t, err := o.fetch(send)
 	if err != nil {
+		s.mu.Unlock()
 		return Token{}, err
 	}
+	t.Key, t.Label, t.Config = key, o.Label(), o
 	if s.tokens == nil {
 		s.tokens = map[string]Token{}
 	}
 	s.tokens[key] = t
+	list, save := s.snapshotLocked(), s.save
+	s.mu.Unlock()
+	if save != nil {
+		save(list)
+	}
 	return t, nil
 }
 
@@ -386,19 +614,44 @@ func (s *Tokens) New(ctx context.Context, o OAuth2, send Sender, open func(strin
 	return t, err
 }
 
+// Refresh renews one kept token. A refresh token is used first; otherwise an
+// interactive grant signs in again and a machine grant fetches a new token.
+func (s *Tokens) Refresh(ctx context.Context, key string, send Sender, open func(string) error) (Token, error) {
+	s.mu.Lock()
+	t, ok := s.tokens[key]
+	s.mu.Unlock()
+	if !ok {
+		return Token{}, errors.New("no saved access token")
+	}
+	if t.Refresh != "" {
+		if fresh, err := t.Config.refresh(send, t); err == nil {
+			fresh.Key, fresh.Label, fresh.Config = key, t.Config.Label(), t.Config
+			s.keep(t.Config, fresh)
+			return fresh, nil
+		} else if !t.Config.interactive() {
+			return Token{}, err
+		}
+	}
+	return s.New(ctx, t.Config, send, open)
+}
+
 // OAuth2Config is auth's OAuth 2.0 configuration as a request filed in c
 // uses it: variables expanded, and vault secrets unlocked for the token
 // URL's host, the only one they are sent to.
 // values are the request's effective variables.
 func (c Context) OAuth2Config(auth Auth, values map[string]string) (OAuth2, error) {
 	o := auth.OAuth2.Expand(values)
+	host := hostOf(o.TokenURL)
+	if o.grant() == GrantImplicit {
+		host = hostOf(o.AuthURL)
+	}
 	secrets := map[string]string{}
 	for _, name := range auth.OAuth2.Variables() {
 		if secret, ok := vaultName(name); ok {
 			if c.Vault == nil {
 				return OAuth2{}, fmt.Errorf("{{%s}}: the vault is not available", name)
 			}
-			value, err := c.Vault(secret, hostOf(o.TokenURL))
+			value, err := c.Vault(secret, host)
 			if err != nil {
 				return OAuth2{}, fmt.Errorf("{{%s}}: %w", name, err)
 			}

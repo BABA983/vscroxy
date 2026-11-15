@@ -130,6 +130,11 @@ func (a *app) sendContext(r request.Request) request.Context {
 	in.EnvironmentInitial = maps.Clone(a.activeEnvironment().Vars)
 	in.Resolve = a.runResolver()
 	r.Auth, _ = in.InheritAuth(r.Auth)
+	if r.Auth.Type == request.AuthOAuth2 {
+		// Tokens from a previous run are sealed; opening them needs the vault
+		// key, so it happens on the first OAuth send rather than at startup.
+		_ = a.ensureOAuthTokens()
+	}
 	names := r.Variables()
 	if r.Auth.Type == request.AuthOAuth2 {
 		names = append(names, r.Auth.OAuth2.Variables()...)

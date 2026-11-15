@@ -2285,23 +2285,32 @@ accept-any default unless verification is explicitly requested; the custom
 roots apply when it is.
 
 **OAuth 2.0** gets an access token with the authorization code grant with PKCE
-(the default), the authorization code grant, client credentials or the
-password grant, and sends it as `Authorization: Bearer …` (or the header
-prefix you set). The implicit grant is not offered. The two authorization code
-grants open the sign-in in your browser, which returns to a loopback address
-this app listens on: `http://127.0.0.1` on a free port unless **Callback URL**
-names a `127.0.0.1`, `localhost` or `[::1]` address; register it with the
-provider. **Get new access token** in the Auth settings starts that; client
-credentials and the password grant need no click, as the first send gets a
-token. A token is reused until 30 seconds before it expires, then refreshed
-with its refresh token, or fetched again for the grants without a sign-in.
-Tokens live only in memory: after a restart, the authorization code grants need
-a new sign-in. **Clear token** forgets one; do that after changing a secret or
-password, which are not part of what identifies a token. Every field takes
-`{{variables}}`; a `{{vault:name}}` there is unlocked for the access token URL's
-host, the one that receives it. Token requests go through the proxy, so they
-are in Capture like any other exchange (decrypted only when SSL proxying covers
-the host). **Copy as cURL** includes the token this session holds.
+(the default), the authorization code grant, the implicit grant, client
+credentials or the password grant, and sends it as `Authorization: Bearer …`
+(or the header prefix you set). The interactive grants open the sign-in in your
+browser, which returns to a loopback address this app listens on:
+`http://127.0.0.1` on a free port unless **Callback URL** names a `127.0.0.1`,
+`localhost` or `[::1]` address; register it with the provider. The implicit
+grant returns its token in the redirect fragment; the callback page posts that
+fragment back to the loopback listener, so it never reaches another server.
+**Get new access token** in the Auth settings starts that; client credentials
+and the password grant need no click, as the first send gets a token. A token is
+reused until 30 seconds before it expires, then refreshed with its refresh
+token, or fetched again for the grants without a sign-in.
+
+Tokens are kept in `~/.vscroxy/oauth-tokens.json`, sealed with the vault key;
+the file holds no plaintext token, and another key cannot open it. The
+**Saved access tokens** list in the Auth tab shows each token's label, expiry
+and masked value. **Refresh** renews it with its refresh token, or starts the
+browser sign-in again when the grant needs one; **Delete** removes it. Opening
+the list, or the first OAuth send after a restart, opens the vault (and may ask
+the system for the key). **Clear token** forgets the current configuration's
+token; do that after changing a secret or password, which are not part of what
+identifies a token. Every field takes `{{variables}}`; a `{{vault:name}}` there
+is unlocked for the access token URL's host, the one that receives it. Token
+requests go through the proxy, so they are in Capture like any other exchange
+(decrypted only when SSL proxying covers the host). **Copy as cURL** includes
+the token the app holds.
 
 Body supports a raw editor with line numbers, JSON highlighting, undo and
 **Format**, plus URL-encoded fields and multipart text/file parts with duplicate
@@ -2990,11 +2999,11 @@ the username and password: the rest comes from the server's challenge. NTLM
 keeps the username, password, domain, workstation and Postman's
 `disableRetryRequest`. AWS Signature always signs in headers, and
 a JWT algorithm vscroxy cannot sign with (such as EdDSA) becomes no auth. OAuth 2.0 keeps its grant, URLs, client, scope, client
-authentication and header prefix; the implicit grant becomes no auth, a
-callback that is not a loopback address (such as `oauth.pstmn.io`) is replaced
-by the loopback default, and a token Postman adds to the query is sent in the
+authentication and header prefix; the implicit grant is kept, a callback that
+is not a loopback address (such as `oauth.pstmn.io`) is replaced by the
+loopback default, and a token Postman adds to the query is sent in the
 `Authorization` header. Postman's saved access tokens are never imported or
-exported.
+exported; the app keeps its own sealed tokens instead.
 Raw bodies get the `Content-Type` Postman would send for their language.
 
 Right-click a request or collection and choose **Export “Shop” as Postman…**,

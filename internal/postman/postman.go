@@ -151,8 +151,7 @@ func (k warning) text(n int) string {
 		return count(n, "form file field lists", "form file fields list") + " several files; imported the first"
 	case "body":
 		return count(n, "request uses", "requests use") + " a " + k.detail + " body; imported without a body"
-	// An auth warning's detail is what was dropped: "hawk auth" or "the
-	// OAuth 2.0 implicit grant".
+	// An auth warning's detail is what was dropped, such as "hawk auth".
 	case "request auth":
 		return count(n, "request uses", "requests use") + " " + k.detail + "; imported as no auth"
 	case "folder auth":

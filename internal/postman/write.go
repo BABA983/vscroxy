@@ -469,6 +469,7 @@ var postmanGrants = map[string]string{
 	"":                                 "authorization_code_with_pkce",
 	request.GrantAuthorizationCodePKCE: "authorization_code_with_pkce",
 	request.GrantAuthorizationCode:     "authorization_code",
+	request.GrantImplicit:              "implicit",
 	request.GrantClientCredentials:     "client_credentials",
 	request.GrantPassword:              "password_credentials",
 }
@@ -484,7 +485,7 @@ func writeOAuth2(o request.OAuth2) []outKV {
 		}
 	}
 	add("authUrl", o.AuthURL, false)
-	add("accessTokenUrl", o.TokenURL, true)
+	add("accessTokenUrl", o.TokenURL, grant != "implicit")
 	add("clientId", o.ClientID, true)
 	add("clientSecret", o.ClientSecret, false)
 	add("scope", o.Scope, false)
