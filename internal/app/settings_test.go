@@ -41,7 +41,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 			TrustSystemRoots: new(false),
 		},
 	}
-	if err := writeSettings(path, want); err != nil {
+	if err := writeSettings(path, want, ""); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	got, err := loadSettings(path)
@@ -67,7 +67,7 @@ func TestCertificatePassphrasesNeverReachSettingsOrExports(t *testing.T) {
 		Secrets: map[string]string{"one": "never-export-me"},
 	}}
 	path := filepath.Join(t.TempDir(), "settings.json")
-	if err := writeSettings(path, settingsValue); err != nil {
+	if err := writeSettings(path, settingsValue, ""); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(path)
@@ -111,7 +111,7 @@ func TestStartupUsesSavedProxyPort(t *testing.T) {
 	addr := busy.Addr().String()
 	_, raw, _ := net.SplitHostPort(addr)
 	port, _ := strconv.Atoi(raw)
-	if err := writeSettings(path, settings{ProxyPort: port}); err != nil {
+	if err := writeSettings(path, settings{ProxyPort: port}, ""); err != nil {
 		t.Fatal(err)
 	}
 	a := newApp()
@@ -152,7 +152,7 @@ func TestStartupRejectsInvalidSavedProxyPorts(t *testing.T) {
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			if err := writeSettings(path, settings{ProxyPort: port}); err != nil {
+			if err := writeSettings(path, settings{ProxyPort: port}, ""); err != nil {
 				t.Fatal(err)
 			}
 			a := newApp()
@@ -179,7 +179,7 @@ func TestStartupFailureKeepsLocalAssetsUsable(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeSettings(filepath.Join(dir, "settings.json"), settings{ProxyPort: 80}); err != nil {
+	if err := writeSettings(filepath.Join(dir, "settings.json"), settings{ProxyPort: 80}, ""); err != nil {
 		t.Fatal(err)
 	}
 	library := &app{}

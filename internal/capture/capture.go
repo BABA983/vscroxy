@@ -41,6 +41,7 @@ import (
 	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/procinfo"
 	"github.com/baba983/vscroxy/internal/rules"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/upstream"
 )
 
@@ -1302,17 +1303,21 @@ func (s *Server) willBreakResponse(f *proxy.Flow) bool {
 
 // ParseRules reads and validates rules; no data is no rules.
 func ParseRules(data []byte) ([]Rule, error) {
-	var rules []Rule
 	if len(data) == 0 {
 		return nil, nil
 	}
-	if err := json.Unmarshal(data, &rules); err != nil {
+	data, err := store.Rules.Read(data)
+	if err != nil {
 		return nil, err
 	}
-	if err := ValidateRules(rules); err != nil {
+	var file rulesFile
+	if err := json.Unmarshal(data, &file); err != nil {
 		return nil, err
 	}
-	return rules, nil
+	if err := ValidateRules(file.Rules); err != nil {
+		return nil, err
+	}
+	return file.Rules, nil
 }
 
 // LoadRules reads a rules file. A missing file is no rules, not an error.

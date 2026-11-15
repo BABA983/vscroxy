@@ -4,9 +4,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io/fs"
 	"maps"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -166,12 +164,12 @@ func loadSettings(path string) (settings, error) {
 	if path == "" {
 		return settings{}, nil
 	}
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return settings{}, nil
-	}
+	data, err := store.ReadFile(path, store.Settings)
 	if err != nil {
 		return settings{}, err
+	}
+	if data == nil {
+		return settings{}, nil
 	}
 	var s settings
 	if err := json.Unmarshal(data, &s); err != nil {
@@ -180,13 +178,14 @@ func loadSettings(path string) (settings, error) {
 	return s, nil
 }
 
-// writeSettings keeps the settings for the next launch.
-func writeSettings(path string, s settings) error {
+// writeSettings keeps the settings for the next launch, keeping a copy of the
+// file it replaces in backupDir.
+func writeSettings(path string, s settings, backupDir string) error {
 	data, err := json.Marshal(s)
 	if err != nil {
 		return err
 	}
-	return store.WriteFile(path, append(data, '\n'))
+	return store.WriteFileVersioned(path, store.Settings, append(data, '\n'), backupDir)
 }
 
 // layout turns the saved columns into the table's.

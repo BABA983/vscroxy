@@ -353,6 +353,9 @@ type app struct {
 	// bounds, which MyGo saves with the window's StateKey.
 	settingsPath     string
 	androidProxyPath string
+	// backupDir keeps the last copies of the files the app replaces, so an
+	// upgrade or a mistaken save never loses what was there.
+	backupDir string
 	// mcpConsents are local approvals for stdio commands, keyed by a hash of
 	// the document and its expanded command shape. They never enter a
 	// collection file.
@@ -635,6 +638,7 @@ func newApp() *app {
 	if home, err := os.UserHomeDir(); err == nil {
 		a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
 		a.androidProxyPath = filepath.Join(home, ".vscroxy", "android-proxy.json")
+		a.backupDir = filepath.Join(home, ".vscroxy", "backups")
 		// A first launch, before anything below creates the directory.
 		if _, err := os.Stat(filepath.Dir(a.settingsPath)); errors.Is(err, fs.ErrNotExist) {
 			a.guide = true
@@ -645,6 +649,7 @@ func newApp() *app {
 		a.bpTemplatesPath = filepath.Join(home, ".vscroxy", "breakpoint-templates.json")
 		a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
 		a.library.root = filepath.Join(home, ".vscroxy", "collections")
+		a.library.backupDir = a.backupDir
 		a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
 		a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
 		a.allowPath = filepath.Join(home, ".vscroxy", "allow.txt")
@@ -4516,7 +4521,7 @@ func (a *app) persistSettings() error {
 	// layout snapshot cannot overwrite a port explicitly saved after it.
 	err := os.MkdirAll(filepath.Dir(a.settingsPath), 0o755)
 	if err == nil {
-		err = writeSettings(a.settingsPath, now)
+		err = writeSettings(a.settingsPath, now, a.backupDir)
 	}
 	if err != nil {
 		a.fail(locales.Settings(), err)

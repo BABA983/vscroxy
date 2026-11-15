@@ -373,7 +373,7 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 	if len(c.profiles.set.Profiles) != 1 || c.profiles.set.Profiles[0].Text != "10.0.0.1 api.test\n" {
 		t.Fatalf("profiles = %+v", c.profiles.set.Profiles)
 	}
-	if lines, _ := os.ReadFile(c.ignorePath); string(lines) != "telemetry.test\n" {
+	if lines, _ := os.ReadFile(c.ignorePath); string(lines) != "# vscroxy format 1\ntelemetry.test\n" {
 		t.Fatalf("ignore list = %q", lines)
 	}
 

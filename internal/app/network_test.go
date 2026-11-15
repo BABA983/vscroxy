@@ -191,7 +191,7 @@ func TestNetworkConflictsLeaveFilePresetsAndRuntimeAlone(t *testing.T) {
 
 func TestNetworkMalformedAndReadOnlyFilesAreNeverReplaced(t *testing.T) {
 	for _, data := range []string{
-		"", "{", "null", `[]`, `{"version":1,"presets":[]}`, `{"presets":null}`,
+		"", "{", "null", `[]`, `{"presets":null}`,
 		`{"presets":[],"active":"3G"}`,
 		`{"presets":[{"name":"Bad","latencyMS":9223372036854775807}]}`,
 		`{"presets":[{"name":"Bad","failurePercent":101}]}`,
@@ -365,9 +365,9 @@ func TestNetworkModalEditsAndConfirmsDeletionAt960(t *testing.T) {
 	if a.throttle.Name != "Reopened" {
 		t.Fatal("reopened dialog lost persistent bindings")
 	}
-	// The JSON has only custom presets, no format version or active-session field.
+	// The JSON has the format version and custom presets, and no active-session field.
 	var file map[string]any
-	if err := json.Unmarshal(networkFileBytes(t, a.network.path), &file); err != nil || len(file) != 1 || file["presets"] == nil {
+	if err := json.Unmarshal(networkFileBytes(t, a.network.path), &file); err != nil || len(file) != 2 || file["presets"] == nil || file["version"] != float64(1) {
 		t.Fatalf("unexpected preset format: %+v, %v", file, err)
 	}
 }

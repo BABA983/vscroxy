@@ -375,7 +375,7 @@ func writeCookieData(path string, data []byte) error {
 		}
 		return nil
 	}
-	return store.WriteFile(path, data)
+	return store.WriteFileVersioned(path, store.Cookies, data, "")
 }
 
 func (s *cookieStore) writeCount() int {
@@ -492,11 +492,8 @@ func readCookieFile(path string) ([]cookieRecord, error) {
 	if path == "" {
 		return nil, nil
 	}
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
+	data, err := store.ReadFile(path, store.Cookies)
+	if err != nil || data == nil {
 		return nil, err
 	}
 	var f cookieFile

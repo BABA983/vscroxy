@@ -40,18 +40,23 @@ func loadAPIs(file *store.File) ([]apiSpec, error) {
 	if err != nil || data == nil {
 		return nil, err
 	}
-	var specs []apiSpec
-	if err := json.Unmarshal(data, &specs); err != nil {
+	var doc struct {
+		APIs []apiSpec `json:"apis"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
 		file.Fail(err)
 		return nil, err
 	}
-	return specs, nil
+	return doc.APIs, nil
 }
 
 // saveAPIs replaces the saved specs unless the file changed on disk since it
 // was read.
 func saveAPIs(file *store.File, specs []apiSpec) error {
-	data, err := json.Marshal(specs)
+	data, err := json.Marshal(struct {
+		Version int       `json:"version"`
+		APIs    []apiSpec `json:"apis"`
+	}{store.Version, specs})
 	if err != nil {
 		return err
 	}

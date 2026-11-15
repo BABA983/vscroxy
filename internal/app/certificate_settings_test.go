@@ -17,7 +17,7 @@ func TestStartupReportsInvalidCertificateHost(t *testing.T) {
 	path := filepath.Join(home, ".vscroxy", "settings.json")
 	if err := writeSettings(path, settings{Certificates: certs.Settings{Clients: []certs.Client{{
 		ID: "one", Host: "api.example.com/v1", Format: certs.FormatPEM, CertFile: "/tmp/cert.pem", KeyFile: "/tmp/key.pem",
-	}}}}); err != nil {
+	}}}}, ""); err != nil {
 		t.Fatal(err)
 	}
 	a := newApp()

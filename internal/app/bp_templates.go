@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
@@ -40,17 +41,22 @@ func (a *app) readBreakTemplates() ([]bpTemplate, error) {
 	if err != nil || len(data) == 0 {
 		return nil, err
 	}
-	var list []bpTemplate
-	if err := json.Unmarshal(data, &list); err != nil {
+	var doc struct {
+		Templates []bpTemplate `json:"templates"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
 		f.Fail(err)
 		return nil, err
 	}
-	return list, nil
+	return doc.Templates, nil
 }
 
 // writeBreakTemplates saves list and, once it is on disk, keeps it.
 func (a *app) writeBreakTemplates(list []bpTemplate) error {
-	data, err := json.MarshalIndent(list, "", "  ")
+	data, err := json.MarshalIndent(struct {
+		Version   int          `json:"version"`
+		Templates []bpTemplate `json:"templates"`
+	}{store.Version, list}, "", "  ")
 	if err != nil {
 		return err
 	}

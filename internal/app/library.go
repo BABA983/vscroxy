@@ -47,8 +47,9 @@ const (
 // or wrote to each of its files. A file whose contents differ from that has
 // been changed by someone else, so the app never overwrites or deletes it.
 type libraryState struct {
-	root  string
-	known map[string][]byte
+	root      string
+	known     map[string][]byte
+	backupDir string
 }
 
 // folderFile is a directory's folder.json: the settings of the collection
@@ -114,7 +115,10 @@ func dirOf(collection string) string {
 
 func marshalFile(v any) ([]byte, error) {
 	data, err := json.Marshal(v, jsontext.WithIndent("  "))
-	return append(data, '\n'), err
+	if err != nil {
+		return nil, err
+	}
+	return store.Collection.Write(append(data, '\n'))
 }
 
 // libraryFiles lays requests and folders out as the files of the tree,
@@ -195,8 +199,12 @@ func pathPrefixes(collection string) []string {
 // are ignored. A missing root is an empty library.
 func loadLibrary(root string) (requests []savedRequest, folders []request.Folder, known map[string][]byte, err error) {
 	requests, folders, known, err = library.Read(root, func(data []byte, collection string) (savedRequest, error) {
+		data, err := store.Collection.Read(data)
+		if err != nil {
+			return savedRequest{}, err
+		}
 		var r savedRequest
-		err := json.Unmarshal(data, &r)
+		err = json.Unmarshal(data, &r)
 		r.Collection = collection
 		return r, err
 	})
@@ -272,7 +280,7 @@ func (l *libraryState) apply(files map[string][]byte) error {
 		if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 			return err
 		}
-		if err := store.WriteFile(target, files[name]); err != nil {
+		if err := store.WriteFileVersioned(target, store.Collection, files[name], l.backupDir); err != nil {
 			return err
 		}
 		l.known[name] = files[name]

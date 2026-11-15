@@ -465,12 +465,19 @@ func ValidateRules(rules []Rule) error {
 	return nil
 }
 
+// rulesFile is the rules file: a versioned object, since a JSON array cannot
+// carry the version that every file the app writes has.
+type rulesFile struct {
+	Version int    `json:"version"`
+	Rules   []Rule `json:"rules"`
+}
+
 // MarshalRules validates rules and encodes them as a rules file holds them.
 func MarshalRules(rules []Rule) ([]byte, error) {
 	if err := ValidateRules(rules); err != nil {
 		return nil, err
 	}
-	data, err := json.Marshal(rules, jsontext.WithIndent("  "))
+	data, err := json.Marshal(rulesFile{Version: store.Version, Rules: rules}, jsontext.WithIndent("  "))
 	if err != nil {
 		return nil, err
 	}
@@ -484,7 +491,7 @@ func SaveRules(path string, rules []Rule) error {
 	if err != nil {
 		return err
 	}
-	return store.WriteFile(path, data)
+	return store.WriteFileVersioned(path, store.Rules, data, "")
 }
 
 func readMockBody(path string) ([]byte, error) {

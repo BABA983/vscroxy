@@ -190,12 +190,14 @@ func loadCaptureFilters(file *store.File) ([]savedCaptureFilter, error) {
 	if err != nil || data == nil {
 		return nil, err
 	}
-	var list []savedCaptureFilter
-	if err := json.Unmarshal(data, &list); err != nil {
+	var doc struct {
+		Filters []savedCaptureFilter `json:"filters"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
 		file.Fail(err)
 		return nil, err
 	}
-	return list, nil
+	return doc.Filters, nil
 }
 
 // writeCaptureFilters writes the filters sorted by name.
@@ -204,7 +206,10 @@ func writeCaptureFilters(file *store.File, list []savedCaptureFilter) error {
 		return errors.New("no file to save the filters to")
 	}
 	slices.SortFunc(list, func(x, y savedCaptureFilter) int { return cmp.Compare(x.Name, y.Name) })
-	data, err := json.Marshal(list)
+	data, err := json.Marshal(struct {
+		Version int                  `json:"version"`
+		Filters []savedCaptureFilter `json:"filters"`
+	}{store.Version, list})
 	if err != nil {
 		return err
 	}

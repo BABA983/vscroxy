@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/store"
 )
 
 const (
@@ -55,7 +56,11 @@ func Read[T any](root string, decode func(data []byte, collection string) (T, er
 		}
 		var settings folderFile
 		if data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path.Join(dir, folderFileName)))); err == nil {
-			if err := json.Unmarshal(data, &settings); err != nil {
+			upgraded, err := store.Collection.Read(data)
+			if err == nil {
+				err = json.Unmarshal(upgraded, &settings)
+			}
+			if err != nil {
 				return fmt.Errorf("%s: %w", path.Join(dir, folderFileName), err)
 			}
 			known[path.Join(dir, folderFileName)] = data

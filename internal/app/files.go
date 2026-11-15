@@ -1,6 +1,7 @@
 package app
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/capture"
@@ -21,11 +22,39 @@ func (a *app) file(path string) *store.File {
 	if f == nil {
 		// What is on disk now is the baseline: a save from a screen that
 		// never read the file (the proxy failed to start) still works.
-		f = &store.File{Path: path}
+		f = &store.File{Path: path, Format: formatFor(path), BackupDir: a.backupDir}
 		f.Read()
 		a.files[path] = f
 	}
 	return f
+}
+
+// formatFor names the format of a guarded file by its name. The names are the
+// app's own; a file with a name not listed here has no format version.
+func formatFor(path string) store.Formatter {
+	switch filepath.Base(path) {
+	case "rules.json":
+		return store.Rules
+	case "ssl.json":
+		return store.SSL
+	case "env.json":
+		return store.Env
+	case "environments.json":
+		return store.ProjectEnv
+	case "views.json":
+		return store.Views
+	case "apis.json":
+		return store.APIs
+	case "breakpoint-templates.json":
+		return store.Breakpoints
+	case "network-presets.json":
+		return store.NetworkPresets
+	case "profiles.json":
+		return store.HostsProfiles
+	case "ignore.txt", "ignore-apps.txt", "allow.txt", "allow-apps.txt":
+		return store.Lists
+	}
+	return nil
 }
 
 // readList reads a list of hosts or apps, one per line.

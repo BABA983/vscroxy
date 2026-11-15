@@ -652,16 +652,20 @@ func (a *app) loadAndroidProxyRecords() {
 	if a.androidProxyPath == "" {
 		return
 	}
-	data, err := os.ReadFile(a.androidProxyPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return
-	}
-	if err != nil {
+	data, err := store.ReadFile(a.androidProxyPath, store.AndroidProxy)
+	if errors.Is(err, store.ErrNewer) {
+		// A newer app wrote these; moving or replacing them would lose its
+		// record of the proxy values it still has to restore.
 		a.fail(locales.AndroidProxyRecords(), err)
 		return
 	}
-	var records map[string]androidProxyState
-	if err := json.Unmarshal(data, &records); err != nil {
+	var doc struct {
+		Records map[string]androidProxyState `json:"records"`
+	}
+	if err == nil {
+		err = json.Unmarshal(data, &doc)
+	}
+	if err != nil {
 		backup := fmt.Sprintf("%s.corrupt-%d", a.androidProxyPath, time.Now().UnixNano())
 		if renameErr := os.Rename(a.androidProxyPath, backup); renameErr != nil {
 			a.androidProxyPath = "" // never overwrite a damaged file behind the user's back
@@ -671,7 +675,7 @@ func (a *app) loadAndroidProxyRecords() {
 		a.fail(locales.AndroidProxyRecords(), fmt.Errorf("%w; moved damaged file to %s", err, backup))
 		return
 	}
-	a.clientUI.androidApplied = records
+	a.clientUI.androidApplied = doc.Records
 }
 
 func androidProxyIsOurProxy(previous string, port int) bool {
@@ -686,7 +690,7 @@ func (a *app) saveAndroidProxyRecords() {
 	}
 	data, err := json.Marshal(a.clientUI.androidApplied)
 	if err == nil {
-		err = store.WriteFile(a.androidProxyPath, append(data, '\n'))
+		err = store.WriteFileVersioned(a.androidProxyPath, store.AndroidProxy, append(data, '\n'), "")
 	}
 	if err != nil {
 		a.fail(locales.SaveAndroidProxyRecords(), err)

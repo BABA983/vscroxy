@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
@@ -92,6 +93,7 @@ func (d *networkDraft) fields(c *ui.Context) {
 
 // Milliseconds keep the on-disk units identical to the editor's units.
 type networkPresetFile struct {
+	Version int                   `json:"version"`
 	Presets []networkPresetRecord `json:"presets"`
 }
 
@@ -222,7 +224,7 @@ func (a *app) writeNetworkPresets(presets []capture.Throttle) bool {
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return a.networkProblem("Could not save network presets", err)
 	}
-	file := networkPresetFile{Presets: make([]networkPresetRecord, 0, len(presets))}
+	file := networkPresetFile{Version: store.Version, Presets: make([]networkPresetRecord, 0, len(presets))}
 	for _, p := range presets {
 		file.Presets = append(file.Presets, networkPresetRecord{
 			Name: p.Name, DownPerSec: p.DownPerSec, UpPerSec: p.UpPerSec,
