@@ -33,13 +33,15 @@ type Entry struct {
 	// Width overrides the export width for a plate that needs more room, as
 	// a screen does.
 	Width int
-	// Hover names the sample the exporter puts the pointer on, and Focus the
-	// one it tabs to, so the plate shows those states as the window does.
-	// Tip lets the pointer rest long enough for a tooltip, for the plates
-	// whose point is the tip.
+	// Hover names the sample the exporter puts the pointer on, Focus the one
+	// it tabs to, and Click the one it presses before either, so the plate
+	// can show an open menu or dialog as the window does.
 	Hover string
 	Focus string
-	Tip   bool
+	Click string
+	// Tip lets the pointer rest long enough for a tooltip, for the plates
+	// whose point is the tip.
+	Tip bool
 
 	build func(*ui.Context)
 	close func()

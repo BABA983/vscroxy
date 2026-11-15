@@ -13,10 +13,11 @@ import (
 func (g *Gallery) foundations() *Group {
 	return &Group{ID: "foundations", Title: "Foundations", Entries: []*Entry{
 		{ID: "palette", Title: "Palette", Note: "Every Palette field, Light and Dark side by side", Height: 1120, build: palettePlate},
-		{ID: "type", Title: "Type", Note: "Four sizes, two weights; monospace is wire data only", Height: 520, build: typePlate},
-		{ID: "space", Title: "Space and corners", Note: "One spacing unit, three radii, the bar and control heights", Height: 560, build: spacePlate},
+		{ID: "type", Title: "Type", Note: "Five sizes, two weights; monospace is wire data only", Height: 620, build: typePlate},
+		{ID: "space", Title: "Space and corners", Note: "One spacing unit, six radii, the bar and control heights", Height: 700, build: spacePlate},
+		{ID: "elevation", Title: "Elevation", Note: "Three shadows and the dialog scrim, Light and Dark", Height: 520, build: elevationPlate},
 		{ID: "icons", Title: "Icons", Note: "16 inline with a label, 14 inline in text", Height: 420, build: iconPlate},
-		{ID: "motion", Title: "Motion", Note: "Four durations and the kit's one spring", Height: 380, build: motionPlate},
+		{ID: "motion", Title: "Motion", Note: "Three durations, one curve and the kit's one spring", Height: 400, build: motionPlate},
 	}}
 }
 
@@ -40,6 +41,7 @@ var paletteFields = []struct {
 	{"AccentPressed", func(p *uikit.Palette) ui.Color { return p.AccentPressed }},
 	{"AccentText", func(p *uikit.Palette) ui.Color { return p.AccentText }},
 	{"AccentTint", func(p *uikit.Palette) ui.Color { return p.AccentTint }},
+	{"Ring", func(p *uikit.Palette) ui.Color { return p.Ring }},
 	{"Success", func(p *uikit.Palette) ui.Color { return p.Success }},
 	{"Info", func(p *uikit.Palette) ui.Color { return p.Info }},
 	{"Warning", func(p *uikit.Palette) ui.Color { return p.Warning }},
@@ -50,6 +52,7 @@ var paletteFields = []struct {
 	{"Socket", func(p *uikit.Palette) ui.Color { return p.Socket }},
 	{"Inverse", func(p *uikit.Palette) ui.Color { return p.Inverse }},
 	{"InverseText", func(p *uikit.Palette) ui.Color { return p.InverseText }},
+	{"Scrim", func(p *uikit.Palette) ui.Color { return p.Scrim }},
 	{"Shadow", func(p *uikit.Palette) ui.Color { return p.Shadow }},
 }
 
@@ -106,8 +109,10 @@ func typePlate(c *ui.Context) {
 	}{
 		{"Meta", uikit.TextMeta, uikit.Meta, "12 ms · 4.2 KB · 15:04:05 · 1,159 requests"},
 		{"Data", uikit.TextData, uikit.Mono, "GET /v1/projects?page=2&limit=50"},
+		{"Small", uikit.TextSmall, uikit.Small, "The certificate is checked against the system roots."},
 		{"Body", uikit.TextBody, uikit.Body, "The request was replayed with the draft's headers."},
 		{"Title", uikit.TextTitle, uikit.Heading, "Request editor"},
+		{"Display", uikit.TextDisplay, uikit.Display, "Choose where to start"},
 	}
 	ui.Column(c).Gap(t.Space(1)).Children(func() {
 		for _, row := range rows {
@@ -146,7 +151,7 @@ func spacePlate(c *ui.Context) {
 			for _, r := range []struct {
 				name   string
 				radius float32
-			}{{"RadiusInner", uikit.RadiusInner}, {"RadiusControl", uikit.RadiusControl}, {"RadiusPanel", uikit.RadiusPanel}} {
+			}{{"RadiusInner", uikit.RadiusInner}, {"RadiusControl", uikit.RadiusControl}, {"RadiusPanel", uikit.RadiusPanel}, {"RadiusMenu", uikit.RadiusMenu}, {"RadiusCard", uikit.RadiusCard}, {"RadiusDialog", uikit.RadiusDialog}} {
 				ui.Column(c).Gap(t.Space(1)).Children(func() {
 					ui.Box(c).Size(96, 56).Radius(r.radius).Background(uikit.Colors(t).Fill).
 						Border(1, t.Border)
@@ -166,6 +171,42 @@ func spacePlate(c *ui.Context) {
 				uikit.Meta(c, h.name).Width(120)
 				ui.Box(c).Height(h.height).Width(160).Radius(2).Background(uikit.Colors(t).Fill)
 				uikit.Meta(c, fmt.Sprintf("%g px", h.height))
+			})
+		}
+	})
+}
+
+// elevationPlate shows the three floating shadows and the scrim in both
+// themes, each on the canvas it would cover.
+func elevationPlate(c *ui.Context) {
+	ui.Row(c).Gap(c.Theme().Space(6)).AlignItems(ui.Start).Children(func() {
+		for _, theme := range []struct {
+			name string
+			dark bool
+		}{{"Light", false}, {"Dark", true}} {
+			ui.Themed(c, uikit.Theme(theme.dark)).Width(480).Padding(c.Theme().Space(6)).
+				Gap(c.Theme().Space(4)).Radius(uikit.RadiusCard).Children(func() {
+				uikit.Label(c, theme.name)
+				for _, s := range []struct {
+					name   string
+					shadow uikit.Shadow
+					radius float32
+				}{
+					{"ShadowMenu · RadiusMenu", uikit.ShadowMenu, uikit.RadiusMenu},
+					{"ShadowPopover · RadiusCard", uikit.ShadowPopover, uikit.RadiusCard},
+					{"ShadowDialog · RadiusDialog", uikit.ShadowDialog, uikit.RadiusDialog},
+				} {
+					s.shadow.Apply(ui.Column(c).Height(58).Padding(c.Theme().Space(2), c.Theme().Space(3)).
+						Radius(s.radius).Background(uikit.Colors(c.Theme()).Canvas).
+						Border(1, uikit.Colors(c.Theme()).Hairline), theme.dark).Children(func() {
+						uikit.Meta(c, s.name).SingleLine()
+					})
+				}
+				ui.Row(c).Gap(c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
+					swatch(c, uikit.Colors(c.Theme()).Scrim, uikit.Colors(c.Theme()))
+					uikit.Mono(c, "Scrim · black 35%")
+					uikit.Hint(c, "dims the screen under a dialog")
+				})
 			})
 		}
 	})
@@ -216,10 +257,9 @@ func motionPlate(c *ui.Context) {
 			millis  float32
 			usedFor string
 		}{
-			{"DurationFast", 80, "something leaving"},
-			{"DurationHover", 120, "a face under the pointer"},
-			{"DurationStandard", 160, "a chosen face or a changing number"},
-			{"DurationSlow", 200, "a panel opening or closing"},
+			{"MotionFast", 120, "something leaving or a face under the pointer"},
+			{"MotionBase", 150, "a panel or dialog arriving"},
+			{"MotionSlow", 200, "a toast or a size settling"},
 		} {
 			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 				uikit.Mono(c, d.name).Width(180)
@@ -228,6 +268,12 @@ func motionPlate(c *ui.Context) {
 				uikit.Hint(c, d.usedFor)
 			})
 		}
+	})
+	ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+		uikit.Mono(c, "MotionEase").Width(180)
+		ui.Box(c).Height(10).Width(300).Radius(5).Background(uikit.Colors(t).AccentTint)
+		uikit.Meta(c, "cubic-bezier(.4, 0, .2, 1)")
+		uikit.Hint(c, "the one curve menus, dialogs and toasts share")
 	})
 	ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 		uikit.Mono(c, "MotionSpring").Width(180)
