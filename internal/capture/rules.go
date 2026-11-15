@@ -163,7 +163,7 @@ func (r Rule) key() string {
 		network = fmt.Appendf(nil, "%d,%d,%d,%d", profile.DownPerSec, profile.UpPerSec, profile.Latency, profile.FailurePercent)
 	}
 	return strings.Join([]string{string(r.Type), r.MatchMode, r.Match, r.Method, strings.Join(r.Apps, "\n"), string(when), r.Target,
-		r.PathFrom, r.PathTo, fmt.Sprint(r.KeepHost), r.Block, r.Direction, r.Operation, fmt.Sprint(r.DelayMS), string(network)}, "\x00")
+		r.PathFrom, r.PathTo, fmt.Sprint(r.KeepHost), r.Block, r.Direction, r.Operation, fmt.Sprint(r.DelayMS), r.Color, string(network)}, "\x00")
 }
 
 // RulePreview explains a saved rule's part in one exchange. Step is its place
@@ -407,6 +407,9 @@ func ValidateRules(rules []Rule) error {
 		}
 		if r.Type != RuleMapLocal && r.DelayMS != 0 {
 			return fail("only Map Local rules can carry a delay")
+		}
+		if r.Color != "" && !slices.Contains(MarkColorNames, r.Color) {
+			return fail("mark color must be one of " + strings.Join(MarkColorNames, ", "))
 		}
 		switch r.Type {
 		case RuleNetwork:

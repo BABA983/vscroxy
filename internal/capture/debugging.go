@@ -23,6 +23,9 @@ type exchangeDebug struct {
 	// hidden keeps the exchange out of the table; drop closes the client's
 	// connection once it is published. Block rules set them.
 	hidden, drop bool
+	// color and strike are a rule's or script's mark for the row.
+	color  string
+	strike bool
 	// scripts are the Script rules whose onResponse waits for the response;
 	// locals are the exchange's pm.variables.
 	scripts []Rule
@@ -58,6 +61,27 @@ func debugActions(f *proxy.Flow) []string {
 		return slices.Clone(d.actions)
 	}
 	return nil
+}
+
+// flowMark is the mark a rule or script set for an exchange.
+func flowMark(f *proxy.Flow) (color string, strike bool) {
+	if d := debugOf(f); d != nil {
+		return d.color, d.strike
+	}
+	return "", false
+}
+
+// markFlow records a rule's or a script's mark for an exchange. An unknown
+// color is ignored; a known one replaces an earlier rule's color.
+func markFlow(f *proxy.Flow, color string, strike bool) {
+	d := debugOf(f)
+	if d == nil {
+		return
+	}
+	if slices.Contains(MarkColorNames, color) {
+		d.color = color
+	}
+	d.strike = d.strike || strike
 }
 
 func noCacheRequest(f *proxy.Flow) {

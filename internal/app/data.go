@@ -59,6 +59,7 @@ type flow struct {
 	conn        conn
 	color       string
 	note        string
+	strike      bool
 	pinned      bool
 	wait        int
 	download    int

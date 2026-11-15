@@ -489,10 +489,11 @@ type app struct {
 	columnDraft    customColumn
 
 	// mark edits what a flow is marked with: a color and a note.
-	markOpen  bool
-	markID    int
-	markColor string
-	markNote  string
+	markOpen   bool
+	markID     int
+	markColor  string
+	markNote   string
+	markStrike bool
 
 	// ignoreApps does the same by app, for a browser's background traffic.
 	ignoreAppsPath string
@@ -1380,6 +1381,8 @@ func (a *app) drain() {
 			resProto:    f.ResponseProto,
 			at:          f.At,
 			kind:        kind,
+			color:       f.Color,
+			strike:      f.Strike,
 			process:     f.Process,
 			processPath: f.ProcessPath,
 			dns:         f.DNSMapped,
@@ -2902,7 +2905,11 @@ func (a *app) table(c *ui.Context) {
 						ui.Text(c, locales.Hosts()).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).TextColor(accent)
 					})
 				}
-				uikit.Tip(c, named(cmp.Or(f.path, "/")).Label(f.host+f.path).TextColor(rest), f.url).PopoverMenu(a.rowMenu(c, f))
+				label := named(cmp.Or(f.path, "/")).Label(f.host + f.path).TextColor(rest)
+				if f.strike {
+					label = label.Strikethrough()
+				}
+				uikit.Tip(c, label, f.url).PopoverMenu(a.rowMenu(c, f))
 			})
 		case "status":
 			if f.conn.error != "" {
@@ -3116,6 +3123,7 @@ func (a *app) openMark(f flow) {
 	a.markID = f.id
 	a.markColor = f.color
 	a.markNote = f.note
+	a.markStrike = f.strike
 	a.markOpen = true
 }
 
@@ -3140,6 +3148,7 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 						a.markColor = ""
 					}
 				})
+				ui.Checkbox(c, &a.markStrike, locales.Strikethrough())
 				uikit.TextArea(c, &a.markNote).Height(90).Label(locales.Note()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 			})
 			uikit.DialogFooter(c).Children(func() {
@@ -3161,6 +3170,7 @@ func (a *app) saveMark() {
 			a.count(&a.flows[i], -1) // the note counts toward memory
 			a.flows[i].color = a.markColor
 			a.flows[i].note = strings.TrimSpace(a.markNote)
+			a.flows[i].strike = a.markStrike
 			a.count(&a.flows[i], 1)
 			break
 		}

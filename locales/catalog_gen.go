@@ -25003,3 +25003,23 @@ func UpdateAvailableHint() string { return In(i18n.Locale()).UpdateAvailableHint
 func (msgs Messages) UpdateAvailableHint() string {
 	return Catalog.Format(msgs.locale, "updateAvailableHint", nil)
 }
+
+// Strikethrough says "Strikethrough"
+// in the language the app shows.
+func Strikethrough() string { return In(i18n.Locale()).Strikethrough() }
+
+// Strikethrough says "Strikethrough"
+// in the language of msgs.
+func (msgs Messages) Strikethrough() string {
+	return Catalog.Format(msgs.locale, "strikethrough", nil)
+}
+
+// MarkColor says "Mark color"
+// in the language the app shows.
+func MarkColor() string { return In(i18n.Locale()).MarkColor() }
+
+// MarkColor says "Mark color"
+// in the language of msgs.
+func (msgs Messages) MarkColor() string {
+	return Catalog.Format(msgs.locale, "markColor", nil)
+}

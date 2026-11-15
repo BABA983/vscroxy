@@ -178,6 +178,10 @@ type Flow struct {
 	Download int
 	// Timing contains request-local trace observations, not connection history.
 	Timing *Timing
+
+	// Color and Strike are a mark a rule or a script set for this row.
+	Color  string `json:"color,omitempty"`
+	Strike bool   `json:"strike,omitempty"`
 }
 
 // FrameEvent is a frame that arrived after its flow was published. A frame the
@@ -252,6 +256,10 @@ const (
 // BlockActions are the Block actions, in the order an editor offers them.
 var BlockActions = []string{BlockRefuse, BlockDrop, BlockHide, BlockRefuseHide}
 
+// MarkColorNames are the colors a rule or a script may mark a row with, in
+// the UI's order.
+var MarkColorNames = []string{"Red", "Orange", "Yellow", "Green", "Blue", "Purple"}
+
 // errDropped is the failure a Block rule that drops the connection records.
 var errDropped = errors.New("connection dropped by a Block rule")
 
@@ -289,6 +297,8 @@ type Rule struct {
 	Block string `json:"block,omitempty"`
 	// DelayMS waits before a Map Local answer, simulating a slow file.
 	DelayMS int64 `json:"delayMS,omitempty"`
+	// Color marks every row this rule acts on, from MarkColorNames.
+	Color string `json:"color,omitempty"`
 	// Scenario groups response-affecting rules; empty is always global.
 	// Every member of a group has the same ScenarioActive value, and at most
 	// one group is active. Disabled remains an independent per-rule choice.
@@ -1210,6 +1220,7 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 		return nil
 	}
 	s.hit(r)
+	markFlow(f, r.Color, false)
 
 	bp := Breakpoint{
 		Phase:  phase,
@@ -2198,6 +2209,7 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 		if r.Type != RuleMapRemote {
 			s.hit(r) // Map Remote counts once its target is known to work
 		}
+		markFlow(f, r.Color, false)
 		switch r.Type {
 		case RuleBlock:
 			switch r.Block {
@@ -2386,6 +2398,7 @@ func (s *Server) mapRemote(f *proxy.Flow, r Rule) {
 		return
 	}
 	s.hit(r)
+	markFlow(f, r.Color, false)
 	recordAction(f, "Map Remote · "+r.Match+" → "+u.String())
 	if r.KeepHost && f.Request.Header.Get("Host") == "" {
 		host := f.Request.URL.Host
@@ -2424,6 +2437,7 @@ func (s *Server) applyWebSocketRules(f *proxy.Flow) {
 		recordAction(f, "Scenario · "+r.Scenario)
 	}
 	s.hit(r)
+	markFlow(f, r.Color, false)
 	switch r.Block {
 	case BlockHide:
 		hideFlow(f)
@@ -3027,8 +3041,11 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		wait = int(first.Sub(start).Milliseconds())
 		download = millis - wait
 	}
+	markColor, markStrike := flowMark(f)
 	flow := Flow{
 		ID:                  id,
+		Color:               markColor,
+		Strike:              markStrike,
 		Actions:             debugActions(f),
 		Method:              method,
 		Scheme:              shown.Scheme,

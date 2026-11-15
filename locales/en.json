@@ -3873,5 +3873,7 @@
   "checkForUpdatesHint": "Asks GitHub for the latest release number once per launch. vscroxy never downloads or installs an update.",
   "updateAvailable": "vscroxy {version} is available",
   "@updateAvailable": {"version": {"type": "String"}},
-  "updateAvailableHint": "Download it from github.com/BABA983/vscroxy/releases."
+  "updateAvailableHint": "Download it from github.com/BABA983/vscroxy/releases.",
+  "strikethrough": "Strikethrough",
+  "markColor": "Mark color"
 }

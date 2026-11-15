@@ -586,7 +586,11 @@ unsent, under a new or existing collection, optionally one folder per host;
 tunnels, WebSocket connections and incomplete or non-UTF-8 bodies are skipped
 and listed. **Copy** holds
 the URL, cURL and response body; then come **Open in browser**, **Filter
-captures**, **Pin** and **Mark…**. **Tools** creates a rule from the request
+captures**, **Pin** and **Mark…**. **Mark…** colors the row, adds a note and
+can strike through its path, so a request can be crossed out while its row
+stays for the record. Colors are Red, Orange, Yellow, Green, Blue and Purple;
+a saved session keeps the color, note and strikethrough. **Tools** creates a
+rule from the request
 (breakpoints, Mock this response, Map Remote, Block), maps its host in DNS or
 changes its HTTPS inspection. Investigation and regression actions come last.
 
@@ -1010,6 +1014,11 @@ export async function onResponse() {
   `onResponse`, across every script that runs on it. `pm.globals` is shared by
   all rules and saved; `pm.environment` reads the active environment and is
   read-only here. `process.env` reads the system's environment variables.
+- `pm.vscroxy.mark(color, strike)` colors the capture row and optionally
+  strikes through its path. `color` is one of `Red`, `Orange`, `Yellow`,
+  `Green`, `Blue` or `Purple`; an unknown name fails the hook. A rule's
+  **Mark color** applies the same way to every row it acts on, and a later
+  rule or script replaces an earlier color.
 - `pm.sendRequest` goes straight to the server, not through the proxy, so a
   script's own rule never matches it; it waits up to 30 seconds.
 - `import CryptoJS from "crypto-js"`, `import _ from "lodash"`,

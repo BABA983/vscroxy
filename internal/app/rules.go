@@ -39,6 +39,7 @@ type ruleEditor struct {
 	status         string
 	statusValue    float64
 	delay          string
+	color          string
 	headers        string
 	problem        string
 	unsavedMock    string
@@ -86,6 +87,7 @@ func (a *app) editRule(index int, r capture.Rule) {
 	e.open, e.deleting, e.index, e.draft, e.kind = true, false, index, r, ruleLabel(r.Type)
 	e.status, e.headers, e.problem = strconv.Itoa(cmp.Or(r.Status, 200)), request.HeaderBlock(r.Headers), ""
 	e.delay = strconv.FormatInt(r.DelayMS, 10)
+	e.color = cmp.Or(r.Color, "None")
 	e.statusValue, _ = strconv.ParseFloat(e.status, 64)
 	// The draft must not edit the saved rule's slices in place.
 	e.draft.Apps, e.draft.When = nil, slices.Clone(r.When)
@@ -238,7 +240,10 @@ func (a *app) saveRule() {
 	}
 	// Joining an active group inherits its group state, never its Disabled flags.
 	r.ScenarioActive = r.Scenario != "" && r.Scenario == capture.ActiveScenario(a.rules)
-	r.Status, r.Headers, r.DelayMS = 0, nil, 0
+	r.Status, r.Headers, r.DelayMS, r.Color = 0, nil, 0, ""
+	if e.color != "" && e.color != "None" {
+		r.Color = e.color
+	}
 	if r.Type == capture.RuleMapLocal {
 		if delay := strings.TrimSpace(e.delay); delay != "" {
 			ms, err := strconv.ParseInt(delay, 10, 64)
@@ -838,6 +843,9 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 				uikit.FormRow(c, locales.Pauses(), locales.ContinueOrAbortInThe(), "", func() { uikit.Body(c, locales.WhileBreakpointsIsOn()) })
 			}
 			if !breakpoint {
+				uikit.FormRow(c, locales.MarkColor(), "", "", func() {
+					uikit.Select(c, &e.color, append([]string{"None"}, capture.MarkColorNames...)).Label(locales.MarkColor()).Width(200)
+				})
 				uikit.FormRow(c, locales.Scenario(), locales.ARuleInAScenario(), "", func() {
 					uikit.Input(c, &e.draft.Scenario).Label(locales.RuleScenario()).Placeholder(locales.None()).Width(200)
 				})

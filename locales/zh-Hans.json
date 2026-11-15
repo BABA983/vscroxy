@@ -2560,5 +2560,7 @@
   "checkForUpdatesHint": "每次启动向 GitHub 询问最新版本号。vscroxy 不会下载或安装更新。",
   "updateAvailable": "vscroxy {version} 已发布",
   "@updateAvailable": {"version": {"type": "String"}},
-  "updateAvailableHint": "请从 github.com/BABA983/vscroxy/releases 下载。"
+  "updateAvailableHint": "请从 github.com/BABA983/vscroxy/releases 下载。",
+  "strikethrough": "删除线",
+  "markColor": "标记颜色"
 }

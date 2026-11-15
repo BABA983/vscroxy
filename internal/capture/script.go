@@ -53,6 +53,10 @@ type ScriptExchange struct {
 	// State is a Code Mock's values that persist across requests, exposed as
 	// pm.mock.state. Only the mock phase has one.
 	State map[string]string
+	// Color and Strike are the mark pm.vscroxy.mark set; Color is one of
+	// MarkColorNames.
+	Color  string
+	Strike bool
 }
 
 // ScriptClose is a message script's request to end the WebSocket connection.
@@ -133,6 +137,7 @@ func (s *Server) runRequestScripts(f *proxy.Flow) {
 			continue
 		}
 		s.hit(r)
+		markFlow(f, r.Color, false)
 		if r.Scenario != "" {
 			recordAction(f, "Scenario · "+r.Scenario)
 		}
@@ -153,6 +158,7 @@ func (s *Server) runRequestScripts(f *proxy.Flow) {
 			recordAction(f, "Request script "+r.Target+" failed")
 			continue
 		}
+		markFlow(f, x.Color, x.Strike)
 		if x.Method != "" {
 			f.Request.Method = x.Method
 		}
@@ -203,6 +209,7 @@ func (s *Server) runResponseScripts(f *proxy.Flow, body []byte) (ran, bodyEdited
 			continue
 		}
 		ran = true
+		markFlow(f, x.Color, x.Strike)
 		if x.Status > 0 {
 			f.Response.StatusCode = x.Status
 		}

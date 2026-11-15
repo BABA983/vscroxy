@@ -504,6 +504,10 @@
 			unset: function (name) { try { host.vault("unset", text(name), ""); return Promise.resolve(); } catch (e) { return Promise.reject(e); } },
 		},
 		visualizer: { set: function () { host.log("warning", "pm.visualizer is not supported; the template was ignored"); }, clear: function () {} },
+		// Rule scripts may mark the capture row they act on.
+		vscroxy: host.mark ? {
+			mark: function (color, strike) { host.mark(color ? text(color) : "", !!strike); },
+		} : undefined,
 		require: function (name) { return global.require(name); },
 	};
 	// cookieJar is pm.cookies.jar(): each method takes an optional callback

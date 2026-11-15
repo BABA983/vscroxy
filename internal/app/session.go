@@ -384,9 +384,10 @@ type sessionFlow struct {
 	At              time.Time         `json:"at"`
 	Kind            string            `json:"kind,omitempty"`
 	StreamEnd       capture.StreamEnd `json:"streamEnd,omitzero"`
-	// Color and Note are what a person marked the flow with.
-	Color string `json:"color,omitempty"`
-	Note  string `json:"note,omitempty"`
+	// Color, Note and Strike are what a person marked the flow with.
+	Color  string `json:"color,omitempty"`
+	Note   string `json:"note,omitempty"`
+	Strike bool   `json:"strike,omitempty"`
 }
 
 // sessionFrameData is one message of a saved session: the whole of what the
@@ -440,7 +441,7 @@ func sessionFrom(flows []flow, frames map[int][]frame) sessionFile {
 			ReqProto: f.conn.proto, ResProto: f.resProto,
 			ConnectionLog: f.conn.log, ConnectionError: f.conn.error, ConnectionStage: f.conn.errorStage,
 			Remote: f.conn.remote, HostsMapped: f.dns, HostProfile: f.hostProfile,
-			At: f.at, Kind: f.kind, Color: f.color, Note: f.note,
+			At: f.at, Kind: f.kind, Color: f.color, Note: f.note, Strike: f.strike,
 			StreamEnd: f.streamEnd,
 		}
 		// JSON strings require UTF-8; byte fields use JSON's base64 encoding.

@@ -442,3 +442,29 @@ func TestSessionsAnnotateCompareAndReopenWithoutChangingLiveTraffic(t *testing.T
 		t.Fatal("delete left the session file", err)
 	}
 }
+
+func TestMarksRoundTripThroughASession(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "marks.json")
+	flows := []flow{{id: 1, method: "GET", url: "http://example.test", color: "Blue", note: "watch this", strike: true}}
+	if err := writeSession(path, flows, nil); err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := readSession(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].color != "Blue" || got[0].note != "watch this" || !got[0].strike {
+		t.Fatalf("marks: %+v", got)
+	}
+}
+
+func TestMarkDialogSavesStrikethrough(t *testing.T) {
+	a := workspaceApp()
+	a.flows = []flow{{id: 7, url: "http://example.test/"}}
+	a.openMark(a.flows[0])
+	a.markColor, a.markStrike, a.markNote = "Red", true, "  broken "
+	a.saveMark()
+	if f := a.flows[0]; f.color != "Red" || !f.strike || f.note != "broken" {
+		t.Fatalf("saved mark: color %q strike %t note %q", f.color, f.strike, f.note)
+	}
+}

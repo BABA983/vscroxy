@@ -128,6 +128,7 @@ func (s *Server) selectWebSocketNetwork(f *proxy.Flow) Throttle {
 		r := list[i]
 		t = *r.Network
 		s.hit(r)
+		markFlow(f, r.Color, false)
 		if r.Scenario != "" {
 			recordAction(f, "Scenario · "+r.Scenario)
 		}
@@ -194,6 +195,7 @@ func (s *Server) applyNetwork(f *proxy.Flow) bool {
 		r := list[i]
 		t = *r.Network // including explicit Off; never merge with the global profile
 		s.hit(r)
+		markFlow(f, r.Color, false)
 		if r.Scenario != "" {
 			recordAction(f, "Scenario · "+r.Scenario)
 		}

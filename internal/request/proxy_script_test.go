@@ -62,6 +62,31 @@ func TestProxyScriptErrorsPointAtTheSource(t *testing.T) {
 	}
 }
 
+func TestProxyScriptMarksTheRow(t *testing.T) {
+	s, err := ParseProxyScript("Mark", `export function onRequest() {
+	pm.vscroxy.mark("Blue", true);
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x := &capture.ScriptExchange{Phase: "request", URL: "https://api.test/", Header: http.Header{}}
+	if _, err := s.Run(t.Context(), x, ProxyEnv{}); err != nil {
+		t.Fatal(err)
+	}
+	if x.Color != "Blue" || !x.Strike {
+		t.Fatalf("mark = %q, strike %t", x.Color, x.Strike)
+	}
+	s, err = ParseProxyScript("Mark", `export function onRequest() {
+	pm.vscroxy.mark("Chartreuse", false);
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Run(t.Context(), x, ProxyEnv{}); err == nil || !strings.Contains(err.Error(), "mark color") {
+		t.Fatalf("unknown color error = %v", err)
+	}
+}
+
 func TestProxyScriptEditsTheRequest(t *testing.T) {
 	s, err := ParseProxyScript("Auth", `
 export function onRequest() {

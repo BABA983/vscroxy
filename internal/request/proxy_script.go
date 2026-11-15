@@ -130,6 +130,7 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 		mockState: x.State,
 	}
 	run.target = func() string { return x.URL }
+	run.mark = func(color string, strike bool) { x.Color, x.Strike = color, strike }
 	if x.Phase != "mock" {
 		run.send = func(req *Prepared) (capture.Flow, error) { return sendDirect(ctx, req) }
 	}

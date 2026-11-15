@@ -302,6 +302,8 @@ type scriptRun struct {
 	vault   func(name, host string) (string, error)
 	secrets map[string]*string
 	jar     http.CookieJar
+	// mark is pm.vscroxy.mark, nil where a run cannot mark a capture row.
+	mark func(color string, strike bool)
 	// call is pm.execution.runRequest, nil where the run cannot call requests.
 	// calls counts the calls this send's scripts made.
 	call  func(ref string, overrides map[string]string) (Execution, error)
@@ -819,6 +821,15 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	set("clearTimeout", func(id goja.Value) { timers.clear(id) })
 	set("clearInterval", func(id goja.Value) { timers.clear(id) })
 	set("clearImmediate", func(id goja.Value) { timers.clear(id) })
+	if run.mark != nil {
+		set("mark", func(color string, strike bool) error {
+			if color != "" && !slices.Contains(capture.MarkColorNames, color) {
+				return fmt.Errorf("mark color must be one of %s", strings.Join(capture.MarkColorNames, ", "))
+			}
+			run.mark(color, strike)
+			return nil
+		})
+	}
 	set("ajv", func() (goja.Value, error) { return vm.RunProgram(ajvProgram()) })
 	set("lodash", func() (goja.Value, error) { return vm.RunProgram(lodashProgram()) })
 	set("moment", func() (goja.Value, error) { return vm.RunProgram(momentProgram()) })

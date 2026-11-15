@@ -288,7 +288,7 @@ func (f sessionFlow) flow() flow {
 		reqTrailer: f.ReqTrailer, resTrailer: f.ResTrailer, resProto: f.ResProto,
 		conn: conn{proto: f.ReqProto, log: f.ConnectionLog, error: f.ConnectionError, errorStage: f.ConnectionStage, remote: f.Remote},
 		dns:  f.HostsMapped, hostProfile: f.HostProfile,
-		at: f.At, kind: f.Kind, color: f.Color, note: f.Note, streamEnd: f.StreamEnd,
+		at: f.At, kind: f.Kind, color: f.Color, note: f.Note, strike: f.Strike, streamEnd: f.StreamEnd,
 	}
 }
 

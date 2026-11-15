@@ -85,7 +85,7 @@
 
 | 功能 | 状态 | 说明 | 里程碑 |
 | --- | --- | --- | --- |
-| 排序、多选、Pin、颜色标记和备注 | 已有 | | |
+| 排序、多选、Pin、颜色标记、备注和删除线 | 已有 | 颜色、备注和删除线随会话保存；规则的 Mark color 和脚本的 `pm.vscroxy.mark(color, strike)` 可给行上色 | |
 | 多个视图 tab、保存的筛选 | 已有 | | |
 | 自定义列：header、query | 已有 | | |
 | 自定义列：JSON body 字段、Remote IP | 已有 | 请求/响应标量 JSON pointer，后台完整正文读取；Remote IP 显隐 | M2 / M5 |
