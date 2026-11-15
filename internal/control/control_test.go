@@ -193,6 +193,50 @@ func TestDiscoveryOwnership(t *testing.T) {
 			t.Fatal("symlink changed")
 		}
 	})
+	t.Run("stale discovery is reclaimed", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "control.json")
+		dead, err := net.Listen("tcp4", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		addr := dead.Addr().String()
+		dead.Close()
+		data, err := json.Marshal(discovery{Version: 1, Address: addr, Token: strings.Repeat("0", 64)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		s, err := Start(path, noop)
+		if err != nil {
+			t.Fatalf("stale discovery was not reclaimed: %v", err)
+		}
+		defer s.Close()
+		if _, err := Load(path); err != nil {
+			t.Fatal("reclaimed discovery is not readable:", err)
+		}
+	})
+	t.Run("live discovery is kept", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "control.json")
+		owner, err := Start(path, noop)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer owner.Close()
+		before, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s, err := Start(path, noop); err == nil {
+			s.Close()
+			t.Fatal("replaced a live endpoint's discovery")
+		}
+		after, err := os.ReadFile(path)
+		if err != nil || string(after) != string(before) {
+			t.Fatal("live endpoint's discovery changed")
+		}
+	})
 	t.Run("concurrent start", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "control.json")
 		winners := make(chan *Server, 16)

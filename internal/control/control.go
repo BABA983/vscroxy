@@ -17,6 +17,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -100,9 +101,18 @@ func Start(discoveryPath string, dispatch Dispatch) (*Server, error) {
 		return nil, errors.New("control: cannot sync discovery file")
 	}
 	if err := os.Link(f.Name(), path); err != nil {
-		f.Close()
-		listener.Close()
-		return nil, errors.New("control: discovery path already exists or cannot be published")
+		// A crash leaves the discovery file behind. Reclaim it only when it
+		// names an endpoint that no longer answers; a live endpoint keeps it.
+		if !reclaimStale(path) {
+			f.Close()
+			listener.Close()
+			return nil, errors.New("control: discovery path already exists or cannot be published")
+		}
+		if err := os.Link(f.Name(), path); err != nil {
+			f.Close()
+			listener.Close()
+			return nil, errors.New("control: discovery path already exists or cannot be published")
+		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{cancel: cancel, done: make(chan struct{}), file: f, path: path}
@@ -122,6 +132,39 @@ func Start(discoveryPath string, dispatch Dispatch) (*Server, error) {
 		_ = s.http.Serve(listener)
 	}()
 	return s, nil
+}
+
+// reclaimStale removes the discovery file of an endpoint that stopped
+// answering, such as after a crash. Anything else keeps its file: a symlink,
+// a file that is not this version's discovery, or one whose endpoint answers.
+func reclaimStale(path string) bool {
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var d discovery
+	if err := json.Unmarshal(data, &d); err != nil || d.Version != 1 || d.Address == "" || d.Token == "" {
+		return false
+	}
+	// The address is a loopback literal from our own discovery, but the token
+	// keeps a port reused by another process from counting as live.
+	req, err := http.NewRequest(http.MethodPost, "http://"+d.Address+"/v1/call", strings.NewReader(`{"action":"status","params":{}}`))
+	if err != nil {
+		return false
+	}
+	req.Host = d.Address
+	req.Header.Set("Authorization", "Bearer "+d.Token)
+	client := &http.Client{Timeout: time.Second}
+	resp, err := client.Do(req)
+	if err == nil {
+		resp.Body.Close()
+		return false
+	}
+	return os.Remove(path) == nil
 }
 
 // Close cancels in-flight dispatch contexts, closes all connections, and removes
