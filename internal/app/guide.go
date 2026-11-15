@@ -225,8 +225,20 @@ func (a *app) guideDecrypt(c *ui.Context, t *ui.Theme) {
 		}
 	}
 	apps = apps[:min(len(apps), guideChoices)]
-	domains := a.domains[:min(len(a.domains), guideChoices)]
-	if len(apps) == 0 && len(domains) == 0 {
+	// One box per host: a host seen on two ports is still one rule, and two
+	// check boxes sharing a key would share their state.
+	hosts := make([]string, 0, guideChoices)
+	seen := map[string]bool{}
+	for _, d := range a.domains {
+		if host := hostOnly(d.name); !seen[host] {
+			seen[host] = true
+			hosts = append(hosts, host)
+		}
+		if len(hosts) == guideChoices {
+			break
+		}
+	}
+	if len(apps) == 0 && len(hosts) == 0 {
 		uikit.Meta(c, locales.AppsAndDomainsShowHere())
 		return
 	}
@@ -236,8 +248,7 @@ func (a *app) guideDecrypt(c *ui.Context, t *ui.Theme) {
 	for _, app := range apps {
 		box("guide-app:"+app.Path, app.Name, a.appInspectionEnabled(app.Path), func(on bool) { a.setAppInspection(app, on) })
 	}
-	for _, d := range domains {
-		host := hostOnly(d.name)
+	for _, host := range hosts {
 		box("guide-host:"+host, host, cfg.All || slices.Contains(cfg.Hosts, host), func(on bool) {
 			if on {
 				a.decryptHost(host)

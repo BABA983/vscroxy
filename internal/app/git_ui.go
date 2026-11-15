@@ -59,6 +59,8 @@ func (a *app) refreshGit() {
 	load := func() {
 		tree, err := gitStatus(dir)
 		apply := func() {
+			// The Tools window is not the window Update repaints.
+			defer a.invalidateTools()
 			if a.projectDir != dir {
 				return
 			}
@@ -121,6 +123,7 @@ func (a *app) chooseGitFile(path string) {
 	show := func() {
 		text, cut, err := gitDiff(root, file)
 		apply := func() {
+			defer a.invalidateTools()
 			if a.git.chosen != path || a.git.root != root {
 				return
 			}
