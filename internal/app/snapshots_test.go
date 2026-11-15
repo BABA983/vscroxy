@@ -836,6 +836,23 @@ func snapshotStates(t *testing.T) []snapshot {
 			tt.Key(0, ui.KeyTab)
 		}, want: "Remove header 1"},
 		{name: "requests-body", setup: func(a *app) { draft(a); a.composeTab = composeTabBody }, want: "Request body"},
+		{name: "requests-websocket-body", setup: func(a *app) {
+			draft(a)
+			a.composeURL, a.composeTab = "wss://socket.example.com/events", composeTabBody
+			a.requestDocument.wsMessages = []request.WebSocketMessage{
+				{Payload: `{"type":"subscribe","channel":"orders"}`},
+				{Payload: `{"type":"ping"}`},
+				{Encoding: "Hex", Payload: "ff 00"},
+			}
+			a.requestDocument.wsWait = 2000
+		}, want: "Add message"},
+		{name: "websocket-session-saved", setup: func(a *app) {
+			draft(a)
+			a.composeURL = "wss://socket.example.com/events"
+			a.requestDocument.wsMessages = []request.WebSocketMessage{{Payload: "subscribe"}, {Payload: "ping"}}
+			a.socket = websocketWorkbench{open: true, url: a.composeURL, document: a.requestDocument,
+				saved: a.requestDocument.wsMessages, session: &wsSession{state: "Disconnected"}}
+		}, want: "Send saved"},
 		{name: "requests-response", setup: response, want: "201 Created"},
 		{name: "requests-response-timing", setup: func(a *app) {
 			snapshotTiming(a)

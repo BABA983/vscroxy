@@ -2370,6 +2370,44 @@
   "websocketSubprotocolsHelp": "逗号分隔，按优先级排列。",
   "websocketUrl": "WebSocket URL",
   "websocketUrlHelp": "ws:// 或 wss://；wss:// 通过抓包代理。",
+  "webSocketMessagesHelp": "保存的请求会按顺序发送这些消息，并保留每条消息收到的回复。没有消息的请求只监听服务器推送。",
+  "webSocketReplyWindowMs": "回复等待（毫秒）",
+  "savedMessagesCount": "已保存 {count} 条",
+  "@savedMessagesCount": {
+  "placeholders": {
+    "count": {
+      "type": "int"
+    }
+  }
+},
+  "sendSavedMessages": "发送已保存",
+  "saveSentMessages": "保存已发送",
+  "savedMessagesHelp": "请求的 Body 标签页保存这些消息。“发送已保存”按请求的回复等待时间依次发送；“保存已发送”用本次会话发送的消息替换它们。",
+  "savedTheSessionMessages": "已把 {count} 条消息保存到请求",
+  "@savedTheSessionMessages": {
+  "placeholders": {
+    "count": {
+      "type": "int"
+    }
+  }
+},
+  "webSocketMessageOf": "WebSocket 消息 {number}",
+  "@webSocketMessageOf": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "removeWebSocketMessage": "移除消息 {number}",
+  "@removeWebSocketMessage": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "addMessage": "添加消息",
   "whatCaptureChangesOnThe": "抓包在传输过程中会改动什么，以及表格显示什么。",
   "whatDidThisAttemptTest": "这次尝试测试了什么？",
   "whatTheseRequestsAreFor": "这些请求的用途",

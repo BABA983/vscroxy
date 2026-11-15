@@ -51,6 +51,8 @@ type requestDocument struct {
 	composeMethod     string
 	composeURL        string
 	protocol          string
+	wsMessages        []request.WebSocketMessage
+	wsWait            float64 // milliseconds between a message and its replies
 	grpcConfig        request.GRPCConfig
 	grpcUI            *grpcDocument
 	graphqlUI         *graphqlDocument
@@ -131,15 +133,16 @@ type requestDocument struct {
 	bodyFor    string
 	// bodyRead is how the Body view reads the draft's bytes: 0 edits them,
 	// the rest are the read-only representations draftBodyFormats lists.
-	bodyRead       int
-	preEditor      *editor.State
-	preFor         string
-	postEditor     *editor.State
-	postFor        string
-	composeTests   []request.TestResult
-	composeReplies []string
-	console        []request.ConsoleMessage
-	response       *capture.Flow
+	bodyRead         int
+	preEditor        *editor.State
+	preFor           string
+	postEditor       *editor.State
+	postFor          string
+	composeTests     []request.TestResult
+	composeReplies   []string
+	composeExchanges []request.WebSocketExchange
+	console          []request.ConsoleMessage
+	response         *capture.Flow
 	// responseTab is the response tab the reader chose. Comparing with the
 	// source capture is not a tab: it replaces the whole response area and
 	// returns to the tab kept here.
@@ -174,6 +177,7 @@ type requestResult struct {
 	response    *capture.Flow
 	tests       []request.TestResult
 	replies     []string
+	exchanges   []request.WebSocketExchange
 	console     []request.ConsoleMessage
 	environment string
 	varsBefore  map[string]string
@@ -187,7 +191,7 @@ func (d *requestDocument) value() savedRequest {
 		ID: d.assetID, Source: d.origin,
 		Name: d.composeName, Collection: d.composeCollection,
 		Method: d.composeMethod, URL: d.composeURL, PathVariables: pathRowsFor(d.composeURL, d.pathRows), Headers: d.composeHeaders,
-		Protocol: d.protocol, GRPC: d.grpcConfig, SocketIO: d.socketIOConfig, MQTT: d.mqttConfig, MCP: d.mcpConfig,
+		Protocol: d.protocol, GRPC: d.grpcConfig, WebSocket: d.webSocketConfig(), SocketIO: d.socketIOConfig, MQTT: d.mqttConfig, MCP: d.mcpConfig,
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
 		Auth: d.auth, BodyMode: d.bodyMode, BodyFile: d.bodyFile, Form: slices.Clone(d.formFields),
 		GraphQL: d.graphql,
@@ -278,6 +282,11 @@ func (d *requestDocument) load(a *app, r savedRequest, key string) {
 	d.mqttConfig = r.MQTT
 	d.mcpConfig = r.MCP
 	d.composeHeaders, d.composeBody = r.Headers, r.Body
+	d.wsMessages, d.wsWait = slices.Clone(r.WebSocket.Messages), float64(r.WebSocket.Wait().Milliseconds())
+	if len(d.wsMessages) == 0 && r.Body != "" && request.IsWebSocket(r.URL) {
+		// A request saved before the message list existed keeps its one message.
+		d.wsMessages = []request.WebSocketMessage{{Payload: r.Body}}
+	}
 	d.headerRows, d.headerFor = slices.Clone(r.HeaderList), ""
 	d.composePre, d.composePost, d.checks = r.Pre, r.Post, r.Checks
 	d.description, d.settings = r.Description, r.Settings.Clone()
@@ -1121,6 +1130,9 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 	width := a.editorPaneWidthAt(c, &a.editorReqPane, draftPercent)
 	wide := width >= 720
 	bodyTools := func() {
+		if request.IsWebSocket(d.composeURL) {
+			return // the message list has no body type, reader or formatter
+		}
 		uikit.SelectLabels(c, &d.bodyMode, bodyTypes, optionLabel).Label(locales.RequestBodyType()).Width(132).FontSize(uikit.Scaled(uikit.TextMeta))
 		// Reading the bytes is a view of the same draft: the formats a
 		// capture's readers used to offer, without leaving the Body tab.
@@ -1489,6 +1501,9 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	switch d.responseTab {
 	case resViewBody:
 		body := strings.Join(d.composeReplies, "\n\n")
+		if len(d.composeExchanges) > 0 {
+			body = webSocketTranscript(d.composeExchanges)
+		}
 		if d.response != nil {
 			body = d.response.ResponseBody
 			if d.response.ResponseBodySize > len(d.response.ResponseBody) {
@@ -1668,4 +1683,33 @@ func (a *app) sentFlowIndex(d *requestDocument) int {
 		}
 	}
 	return -1
+}
+
+// webSocketConfig is the saved message list of a ws/wss request; an HTTP
+// request keeps none.
+func (d *requestDocument) webSocketConfig() request.WebSocketConfig {
+	if !request.IsWebSocket(d.composeURL) {
+		return request.WebSocketConfig{}
+	}
+	return request.WebSocketConfig{Messages: slices.Clone(d.wsMessages), WaitMS: int(d.wsWait)}
+}
+
+// webSocketTranscript shows a ws send as what was sent and heard, one block per
+// message. Replies keep their order, and a message with none shows alone.
+func webSocketTranscript(exchanges []request.WebSocketExchange) string {
+	var b strings.Builder
+	for i, exchange := range exchanges {
+		if i > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString("→ ")
+		if encoding := exchange.Message.Encoding; encoding != "" && !strings.EqualFold(encoding, "Text") {
+			b.WriteString("[" + encoding + "] ")
+		}
+		b.WriteString(exchange.Message.Payload)
+		for _, reply := range exchange.Replies {
+			b.WriteString("\n← " + reply)
+		}
+	}
+	return b.String()
 }

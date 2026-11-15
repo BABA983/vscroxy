@@ -208,7 +208,7 @@
 | 导入：Swagger 2、Insomnia、Bruno、Hoppscotch | 已有 | Swagger 2 转 OpenAPI 3 后复用集合导入；Insomnia v4 JSON／v5 YAML（集合与环境）；Bruno `.bru` 目录；Hoppscotch 集合／环境 JSON。文件夹、变量、auth、body 类型和描述尽量保留，无法表达的部分在导入报告中列出 | M7 |
 | 导入：PowerShell / CMD 风格的 cURL | 已有 | Chrome Copy as cURL (cmd) 与 Copy as PowerShell (Invoke-WebRequest)；复用 cURL 导入入口和请求模型，未支持的参数明确报错 | M7 |
 | WebSocket 客户端（文本） | 已有 | | |
-| WebSocket 客户端：二进制消息、子协议 | 已有 | Hex／Base64 发送、原样二进制回显；WS／WSS 双侧握手协商和实际子协议显示 | M8 |
+| WebSocket 客户端：二进制消息、子协议、保存的消息列表 | 已有 | Hex／Base64 发送、原样二进制回显；WS／WSS 双侧握手协商和实际子协议显示；请求文档的 Body 标签页保存多条消息，按顺序发送并保留每条消息的回复（回复等待默认 2 s、每条最多 200 条回复／1 MiB；无消息时只监听推送），实时会话可重放已保存列表并把已发送消息存回请求 | M8 |
 | SSE 客户端（持续接收事件） | 首版已有 | HTTP(S) 实时 GET、事件类型／ID／数据、搜索复制、显式可选重连与 Last-Event-ID、取消及有界时间线 | M8 |
 | gRPC 客户端（导入 proto 或服务端反射） | 首版已有 | 请求文档、proto／descriptor set、v1／v1alpha 反射、四种调用、metadata／trailers／最终状态、取消和 deadline；HTTP Runner／脚本暂不支持 | M8 |
 | Socket.IO 客户端 | 首版已有 | 请求文档、EIO4／WebSocket、namespace／auth、JSON／二进制附件、双向 ACK、有界实时消息、取消；无轮询／重连／重发 | M8 |

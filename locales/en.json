@@ -3683,6 +3683,44 @@
   "websocketSubprotocolsHelp": "Comma-separated, in preference order.",
   "websocketUrl": "WebSocket URL",
   "websocketUrlHelp": "ws:// or wss://. wss:// goes through the capture proxy.",
+  "webSocketMessagesHelp": "The saved request sends these messages in order and keeps the replies each one gets. A request with no messages only listens for server pushes.",
+  "webSocketReplyWindowMs": "Reply window (ms)",
+  "savedMessagesCount": "{count} saved",
+  "@savedMessagesCount": {
+  "placeholders": {
+    "count": {
+      "type": "int"
+    }
+  }
+},
+  "sendSavedMessages": "Send saved",
+  "saveSentMessages": "Save sent",
+  "savedMessagesHelp": "The request's Body tab keeps these messages. Send saved sends them in order with the request's reply window; Save sent replaces them with what this session sent.",
+  "savedTheSessionMessages": "Saved {count} messages to the request",
+  "@savedTheSessionMessages": {
+  "placeholders": {
+    "count": {
+      "type": "int"
+    }
+  }
+},
+  "webSocketMessageOf": "WebSocket message {number}",
+  "@webSocketMessageOf": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "removeWebSocketMessage": "Remove message {number}",
+  "@removeWebSocketMessage": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "addMessage": "Add message",
   "whatCaptureChangesOnThe": "What capture changes on the way, and what the table shows.",
   "whatDidThisAttemptTest": "What did this attempt test?",
   "whatTheseRequestsAreFor": "What these requests are for",

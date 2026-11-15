@@ -33,13 +33,14 @@ type Request struct {
 	Collection string `json:"collection,omitempty"`
 	// Empty Protocol is HTTP (including the existing ws/wss send). Protocol
 	// documents use their interactive clients, not HTTP sends or Runner steps.
-	Protocol string         `json:"protocol,omitempty"`
-	GRPC     GRPCConfig     `json:"grpc,omitzero"`
-	SocketIO SocketIOConfig `json:"socketio,omitzero"`
-	MQTT     MQTTConfig     `json:"mqtt,omitzero"`
-	MCP      MCPConfig      `json:"mcp,omitzero"`
-	Method   string         `json:"method"`
-	URL      string         `json:"url"`
+	Protocol  string          `json:"protocol,omitempty"`
+	GRPC      GRPCConfig      `json:"grpc,omitzero"`
+	WebSocket WebSocketConfig `json:"websocket,omitzero"`
+	SocketIO  SocketIOConfig  `json:"socketio,omitzero"`
+	MQTT      MQTTConfig      `json:"mqtt,omitzero"`
+	MCP       MCPConfig       `json:"mcp,omitzero"`
+	Method    string          `json:"method"`
+	URL       string          `json:"url"`
 	// PathVariables are the values of the URL's :name path segments; the
 	// URL keeps the segments as written.
 	PathVariables []Field `json:"pathVariables,omitempty"`

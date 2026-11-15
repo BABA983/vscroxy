@@ -165,12 +165,12 @@ func TestWSSendThroughTheProxy(t *testing.T) {
 	target := "ws://" + strings.TrimPrefix(upstream.URL, "http://")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	replies, err := wsSend(ctx, proxyAddr, &Prepared{URL: target, Body: "hello"}, srv.CACertificate(), certs.Settings{}, nil, time.Second)
+	exchanges, pushed, err := wsSendMessages(ctx, proxyAddr, &Prepared{URL: target}, []WebSocketMessage{{Payload: "hello"}}, time.Second, srv.CACertificate(), certs.Settings{}, nil)
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
-	if len(replies) != 1 || replies[0] != "hello" {
-		t.Fatalf("replies = %q, want the echo", replies)
+	if len(exchanges) != 1 || len(exchanges[0].Replies) != 1 || exchanges[0].Replies[0] != "hello" || len(pushed) != 0 {
+		t.Fatalf("exchanges = %+v, pushed %q, want the echo", exchanges, pushed)
 	}
 
 	// The proxy carried the exchange, so it shows in the table: a ws://
@@ -208,7 +208,7 @@ func TestWebSocketCancellationInterruptsTheReplyWait(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		_, err := wsSend(ctx, srv.Addr(), &Prepared{URL: "ws" + upstream.URL[4:], Body: "hello"}, srv.CACertificate(), certs.Settings{}, nil, time.Minute)
+		_, _, err := wsSendMessages(ctx, srv.Addr(), &Prepared{URL: "ws" + upstream.URL[4:]}, []WebSocketMessage{{Payload: "hello"}}, time.Minute, srv.CACertificate(), certs.Settings{}, nil)
 		done <- err
 	}()
 	select {
@@ -224,5 +224,177 @@ func TestWebSocketCancellationInterruptsTheReplyWait(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("cancellation left the socket waiting for replies")
+	}
+}
+
+// wsEchoServer echoes every message and records the frames it saw.
+func wsEchoServer(t *testing.T, seen *[][]string) *httptest.Server {
+	t.Helper()
+	upgrader := websocket.Upgrader{}
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for {
+			kind, data, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			*seen = append(*seen, []string{map[int]string{websocket.TextMessage: "text", websocket.BinaryMessage: "binary"}[kind], string(data)})
+			if err := conn.WriteMessage(kind, append([]byte("echo:"), data...)); err != nil {
+				return
+			}
+		}
+	}))
+}
+
+func TestWebSocketSendsEverySavedMessageInOrder(t *testing.T) {
+	var seen [][]string
+	upstream := wsEchoServer(t, &seen)
+	defer upstream.Close()
+	srv := testProxy(t)
+	messages := []WebSocketMessage{{Payload: "login"}, {Payload: "subscribe"}, {Payload: "ping"}}
+	exchanges, pushed, err := wsSendMessages(t.Context(), srv.Addr(), &Prepared{URL: "ws" + upstream.URL[4:]}, messages, 400*time.Millisecond, srv.CACertificate(), certs.Settings{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pushed) != 0 {
+		t.Fatalf("pushed = %q", pushed)
+	}
+	if len(exchanges) != 3 {
+		t.Fatalf("exchanges = %+v", exchanges)
+	}
+	for i, want := range []string{"echo:login", "echo:subscribe", "echo:ping"} {
+		if len(exchanges[i].Replies) != 1 || exchanges[i].Replies[0] != want {
+			t.Fatalf("exchange %d = %+v, want %q", i, exchanges[i], want)
+		}
+		if exchanges[i].Message.Payload != messages[i].Payload {
+			t.Fatalf("exchange %d kept %q, want %q", i, exchanges[i].Message.Payload, messages[i].Payload)
+		}
+	}
+	if len(seen) != 3 || seen[0][1] != "login" || seen[1][1] != "subscribe" || seen[2][1] != "ping" {
+		t.Fatalf("server saw %v", seen)
+	}
+}
+
+func TestWebSocketMessageEncodingsSendBinaryFrames(t *testing.T) {
+	var seen [][]string
+	upstream := wsEchoServer(t, &seen)
+	defer upstream.Close()
+	srv := testProxy(t)
+	messages := []WebSocketMessage{
+		{Encoding: "Hex", Payload: "00 ff 10"},
+		{Encoding: "Base64", Payload: "AAEC"},
+		{Payload: "plain"},
+	}
+	if _, _, err := wsSendMessages(t.Context(), srv.Addr(), &Prepared{URL: "ws" + upstream.URL[4:]}, messages, 300*time.Millisecond, srv.CACertificate(), certs.Settings{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{{"binary", "\x00\xff\x10"}, {"binary", "\x00\x01\x02"}, {"text", "plain"}}
+	if !slices.EqualFunc(seen, want, slices.Equal[[]string]) {
+		t.Fatalf("server saw %v, want %v", seen, want)
+	}
+	for _, bad := range []WebSocketMessage{
+		{Encoding: "Hex", Payload: "zz"},
+		{Encoding: "Base64", Payload: "!"},
+		{Encoding: "Utf16", Payload: "x"},
+		{Encoding: "Text", Payload: string([]byte{0xff})},
+	} {
+		if _, _, err := bad.Decode(); err == nil {
+			t.Fatalf("%+v decoded", bad)
+		}
+	}
+}
+
+func TestWebSocketWithoutMessagesListensForPushes(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		conn.WriteMessage(websocket.TextMessage, []byte("first"))
+		conn.WriteMessage(websocket.TextMessage, []byte("second"))
+		<-r.Context().Done()
+	}))
+	defer upstream.Close()
+	srv := testProxy(t)
+	exchanges, pushed, err := wsSendMessages(t.Context(), srv.Addr(), &Prepared{URL: "ws" + upstream.URL[4:]}, nil, 500*time.Millisecond, srv.CACertificate(), certs.Settings{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(exchanges) != 0 || !slices.Equal(pushed, []string{"first", "second"}) {
+		t.Fatalf("exchanges = %+v, pushed = %q", exchanges, pushed)
+	}
+}
+
+func TestWebSocketStopsWhenTheServerClosesBeforeTheLastMessage(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		conn.ReadMessage()
+		conn.WriteMessage(websocket.TextMessage, []byte("only"))
+		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		conn.Close()
+	}))
+	defer upstream.Close()
+	srv := testProxy(t)
+	messages := []WebSocketMessage{{Payload: "one"}, {Payload: "two"}}
+	exchanges, _, err := wsSendMessages(t.Context(), srv.Addr(), &Prepared{URL: "ws" + upstream.URL[4:]}, messages, time.Second, srv.CACertificate(), certs.Settings{}, nil)
+	if err == nil || !strings.Contains(err.Error(), "before every message") {
+		t.Fatalf("err = %v, exchanges = %+v", err, exchanges)
+	}
+	if len(exchanges) != 1 || !slices.Equal(exchanges[0].Replies, []string{"only"}) {
+		t.Fatalf("exchanges = %+v", exchanges)
+	}
+}
+
+func TestWebSocketExecutionSendsTheSavedListWithVariables(t *testing.T) {
+	var seen [][]string
+	upstream := wsEchoServer(t, &seen)
+	defer upstream.Close()
+	srv := testProxy(t)
+	req := Request{
+		Method: "GET", URL: "ws" + upstream.URL[4:],
+		WebSocket: WebSocketConfig{Messages: []WebSocketMessage{{Payload: "hello {{name}}"}}, WaitMS: 400},
+	}
+	got := req.Execute(t.Context(), srv, Context{}, map[string]string{"name": "world"}, nil)
+	if got.Err != nil {
+		t.Fatal(got.Err)
+	}
+	if len(got.WebSocket) != 1 || !slices.Equal(got.WebSocket[0].Replies, []string{"echo:hello world"}) {
+		t.Fatalf("exchanges = %+v", got.WebSocket)
+	}
+	if !slices.Equal(got.Replies, []string{"echo:hello world"}) {
+		t.Fatalf("replies = %q", got.Replies)
+	}
+	if len(seen) != 1 || seen[0][1] != "hello world" {
+		t.Fatalf("server saw %v", seen)
+	}
+}
+
+func TestWebSocketExecutionFallsBackToTheBody(t *testing.T) {
+	var seen [][]string
+	upstream := wsEchoServer(t, &seen)
+	defer upstream.Close()
+	srv := testProxy(t)
+	got := Request{Method: "GET", URL: "ws" + upstream.URL[4:], Body: "from the body"}.Execute(t.Context(), srv, Context{}, nil, nil)
+	if got.Err != nil || !slices.Equal(got.Replies, []string{"echo:from the body"}) {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestWebSocketWaitDefaultsAndClamps(t *testing.T) {
+	cases := map[int]time.Duration{0: DefaultWebSocketWait, -5: DefaultWebSocketWait, 500: 500 * time.Millisecond, 600000: MaxWebSocketWait}
+	for ms, want := range cases {
+		if got := (WebSocketConfig{WaitMS: ms}).Wait(); got != want {
+			t.Fatalf("WaitMS %d = %v, want %v", ms, got, want)
+		}
 	}
 }

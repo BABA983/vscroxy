@@ -5,7 +5,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/request"
@@ -21,19 +23,27 @@ type websocketWorkbench struct {
 	url, headers, message, query, direction, problem string
 	subprotocols, encoding                           string
 	session                                          *wsSession
-	picked                                           int
-	viewMode                                         int
-	protobuf                                         protoInspector
-	reader                                           *editor.State
-	sent                                             chan error
-	sending                                          bool
-	scroll                                           ui.ScrollState
+	// document is the draft the session was opened from. Its saved message
+	// list is what Send saved replays and what Save sent writes back.
+	document   *requestDocument
+	saved      []request.WebSocketMessage
+	wait       time.Duration
+	sendingAll bool
+	sentAll    chan error
+	picked     int
+	viewMode   int
+	protobuf   protoInspector
+	reader     *editor.State
+	sent       chan error
+	sending    bool
+	scroll     ui.ScrollState
 }
 
 func (a *app) openSocket() {
 	s := &a.socket
 	state, _, _ := s.session.snapshot()
 	if state == "Not connected" || state == "Disconnected" {
+		s.document, s.saved = nil, nil
 		if d := a.requestDocument; d != nil && request.IsWebSocket(d.composeURL) {
 			r, err := d.value().Prepare(a.activeVars())
 			if err != nil {
@@ -48,6 +58,11 @@ func (a *app) openSocket() {
 	if s.url == "" {
 		s.url = "ws://127.0.0.1:8080/socket"
 	}
+	s.document, s.saved = nil, nil
+	if d := a.requestDocument; d != nil && request.IsWebSocket(d.composeURL) {
+		s.document = d
+		s.saved, s.wait = slices.Clone(d.wsMessages), d.webSocketConfig().Wait()
+	}
 	s.open = true
 }
 
@@ -59,6 +74,11 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 	select {
 	case err := <-s.sent:
 		s.sending = false
+		if err != nil {
+			s.problem = err.Error()
+		}
+	case err := <-s.sentAll:
+		s.sendingAll = false
 		if err != nil {
 			s.problem = err.Error()
 		}
@@ -106,7 +126,23 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 			if s.problem != "" {
 				ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 			}
-			ui.Row(c).Gap(t.Space(2)).Children(func() {
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				if uikit.Tip(c, uikit.SecondaryButton(c, locales.SendSavedMessages()).Disabled(state != "Connected" || len(s.saved) == 0 || s.sendingAll || s.sending), locales.SavedMessagesHelp()).Clicked() {
+					s.sendingAll, s.problem = true, ""
+					s.sentAll = make(chan error, 1)
+					session, saved, wait, done := s.session, slices.Clone(s.saved), s.wait, s.sentAll
+					go func() {
+						done <- session.sendAll(saved, wait)
+						a.invalidate()
+					}()
+				}
+				sent := s.session.sentMessages()
+				if uikit.Tip(c, uikit.SecondaryButton(c, locales.SaveSentMessages()).Disabled(len(sent) == 0 || s.document == nil), locales.SavedMessagesHelp()).Clicked() {
+					s.saved = savedWebSocketMessages(sent)
+					a.markWebSocketSaved(s.document, s.saved)
+					a.done(locales.SavedTheSessionMessages(len(s.saved)))
+				}
+				uikit.Meta(c, locales.SavedMessagesCount(len(s.saved)))
 				ui.Spacer(c)
 				if active {
 					if uikit.SecondaryButton(c, locales.Disconnect()).Clicked() {
@@ -262,4 +298,28 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 	if !s.open {
 		s.protobuf.stop()
 	}
+}
+
+// savedWebSocketMessages turns what a session sent into the request's saved
+// list. Binary frames are kept as base64, the encoding that round-trips them.
+func savedWebSocketMessages(sent []wsSessionSent) []request.WebSocketMessage {
+	messages := make([]request.WebSocketMessage, 0, len(sent))
+	for _, message := range sent {
+		if message.Kind == websocket.BinaryMessage {
+			messages = append(messages, request.WebSocketMessage{Encoding: "Base64", Payload: base64.StdEncoding.EncodeToString(message.Data)})
+			continue
+		}
+		messages = append(messages, request.WebSocketMessage{Payload: string(message.Data)})
+	}
+	return messages
+}
+
+// markWebSocketSaved writes a session's messages into the draft. The Body tab
+// shows them and the request's save action stores them; nothing is sent.
+func (a *app) markWebSocketSaved(d *requestDocument, messages []request.WebSocketMessage) {
+	if d == nil || !slices.Contains(a.documents, d) {
+		return
+	}
+	d.wsMessages = slices.Clone(messages)
+	a.invalidate()
 }

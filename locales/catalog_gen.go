@@ -23728,6 +23728,110 @@ func (msgs Messages) WebsocketUrlHelp() string {
 	return Catalog.Format(msgs.locale, "websocketUrlHelp", nil)
 }
 
+// WebSocketMessagesHelp says "The saved request sends these messages in order and keeps the replies each one gets. A request with no messages only …"
+// in the language the app shows.
+func WebSocketMessagesHelp() string { return In(i18n.Locale()).WebSocketMessagesHelp() }
+
+// WebSocketMessagesHelp says "The saved request sends these messages in order and keeps the replies each one gets. A request with no messages only …"
+// in the language of msgs.
+func (msgs Messages) WebSocketMessagesHelp() string {
+	return Catalog.Format(msgs.locale, "webSocketMessagesHelp", nil)
+}
+
+// WebSocketReplyWindowMs says "Reply window (ms)"
+// in the language the app shows.
+func WebSocketReplyWindowMs() string { return In(i18n.Locale()).WebSocketReplyWindowMs() }
+
+// WebSocketReplyWindowMs says "Reply window (ms)"
+// in the language of msgs.
+func (msgs Messages) WebSocketReplyWindowMs() string {
+	return Catalog.Format(msgs.locale, "webSocketReplyWindowMs", nil)
+}
+
+// SavedMessagesCount says "{count} saved"
+// in the language the app shows.
+func SavedMessagesCount(count int) string { return In(i18n.Locale()).SavedMessagesCount(count) }
+
+// SavedMessagesCount says "{count} saved"
+// in the language of msgs.
+func (msgs Messages) SavedMessagesCount(count int) string {
+	return Catalog.Format(msgs.locale, "savedMessagesCount", map[string]any{"count": count})
+}
+
+// SendSavedMessages says "Send saved"
+// in the language the app shows.
+func SendSavedMessages() string { return In(i18n.Locale()).SendSavedMessages() }
+
+// SendSavedMessages says "Send saved"
+// in the language of msgs.
+func (msgs Messages) SendSavedMessages() string {
+	return Catalog.Format(msgs.locale, "sendSavedMessages", nil)
+}
+
+// SaveSentMessages says "Save sent"
+// in the language the app shows.
+func SaveSentMessages() string { return In(i18n.Locale()).SaveSentMessages() }
+
+// SaveSentMessages says "Save sent"
+// in the language of msgs.
+func (msgs Messages) SaveSentMessages() string {
+	return Catalog.Format(msgs.locale, "saveSentMessages", nil)
+}
+
+// SavedMessagesHelp says "The request's Body tab keeps these messages. Send saved sends them in order with the request's reply window; Save sen…"
+// in the language the app shows.
+func SavedMessagesHelp() string { return In(i18n.Locale()).SavedMessagesHelp() }
+
+// SavedMessagesHelp says "The request's Body tab keeps these messages. Send saved sends them in order with the request's reply window; Save sen…"
+// in the language of msgs.
+func (msgs Messages) SavedMessagesHelp() string {
+	return Catalog.Format(msgs.locale, "savedMessagesHelp", nil)
+}
+
+// SavedTheSessionMessages says "Saved {count} messages to the request"
+// in the language the app shows.
+func SavedTheSessionMessages(count int) string {
+	return In(i18n.Locale()).SavedTheSessionMessages(count)
+}
+
+// SavedTheSessionMessages says "Saved {count} messages to the request"
+// in the language of msgs.
+func (msgs Messages) SavedTheSessionMessages(count int) string {
+	return Catalog.Format(msgs.locale, "savedTheSessionMessages", map[string]any{"count": count})
+}
+
+// WebSocketMessageOf says "WebSocket message {number}"
+// in the language the app shows.
+func WebSocketMessageOf(number int) string { return In(i18n.Locale()).WebSocketMessageOf(number) }
+
+// WebSocketMessageOf says "WebSocket message {number}"
+// in the language of msgs.
+func (msgs Messages) WebSocketMessageOf(number int) string {
+	return Catalog.Format(msgs.locale, "webSocketMessageOf", map[string]any{"number": number})
+}
+
+// RemoveWebSocketMessage says "Remove message {number}"
+// in the language the app shows.
+func RemoveWebSocketMessage(number int) string {
+	return In(i18n.Locale()).RemoveWebSocketMessage(number)
+}
+
+// RemoveWebSocketMessage says "Remove message {number}"
+// in the language of msgs.
+func (msgs Messages) RemoveWebSocketMessage(number int) string {
+	return Catalog.Format(msgs.locale, "removeWebSocketMessage", map[string]any{"number": number})
+}
+
+// AddMessage says "Add message"
+// in the language the app shows.
+func AddMessage() string { return In(i18n.Locale()).AddMessage() }
+
+// AddMessage says "Add message"
+// in the language of msgs.
+func (msgs Messages) AddMessage() string {
+	return Catalog.Format(msgs.locale, "addMessage", nil)
+}
+
 // WhatCaptureChangesOnThe says "What capture changes on the way, and what the table shows."
 // in the language the app shows.
 func WhatCaptureChangesOnThe() string { return In(i18n.Locale()).WhatCaptureChangesOnThe() }

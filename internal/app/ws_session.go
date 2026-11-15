@@ -26,8 +26,16 @@ type wsSession struct {
 	notify            func()
 	state             string
 	events            []wsSessionEvent
+	sent              []wsSessionSent
 	sequence, evicted int
 	localClose        bool
+}
+
+// wsSessionSent is one message the session sent, kept whole so the request can
+// save it; events truncate their payload for the timeline.
+type wsSessionSent struct {
+	Kind int
+	Data []byte
 }
 
 type wsSessionEvent struct {
@@ -144,8 +152,39 @@ func (s *wsSession) send(kind int, data []byte) error {
 	if err := c.WriteMessage(kind, data); err != nil {
 		return err
 	}
+	s.mu.Lock()
+	s.sent = append(s.sent, wsSessionSent{Kind: kind, Data: slices.Clone(data)})
+	s.mu.Unlock()
 	s.add(wsSessionEvent{Direction: "Out", Kind: kind, Data: data, Size: len(data)})
 	return nil
+}
+
+// sendAll sends the saved messages in order, waiting for each one's replies
+// before the next, as a saved request does.
+func (s *wsSession) sendAll(messages []request.WebSocketMessage, wait time.Duration) error {
+	for i, message := range messages {
+		kind, data, err := message.Decode()
+		if err != nil {
+			return fmt.Errorf("message %d: %w", i+1, err)
+		}
+		if err := s.send(kind, data); err != nil {
+			return fmt.Errorf("message %d: %w", i+1, err)
+		}
+		if i < len(messages)-1 {
+			time.Sleep(wait)
+		}
+	}
+	return nil
+}
+
+// sentMessages returns what the session sent, in order.
+func (s *wsSession) sentMessages() []wsSessionSent {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.sent)
 }
 
 func (s *wsSession) disconnect() {

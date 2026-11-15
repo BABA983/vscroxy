@@ -3,11 +3,13 @@ package app
 import (
 	"cmp"
 	"fmt"
-	"github.com/baba983/vscroxy/internal/uikit"
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+
+	"github.com/baba983/vscroxy/internal/uikit"
 
 	"github.com/baba983/vscroxy/internal/inspect"
 	"github.com/baba983/vscroxy/internal/request"
@@ -593,6 +595,10 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 }
 
 func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
+	if request.IsWebSocket(d.composeURL) {
+		a.webSocketMessagesEditor(c, d, t)
+		return
+	}
 	// The body type and JSON formatting sit on the editor's tab row, which
 	// already names the Body tab they belong to.
 	if d.bodyMode == "Raw" {
@@ -653,6 +659,51 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 				}()
 			}
 		})
+	}
+}
+
+// webSocketMessagesEditor is the Body tab of a ws/wss request: the messages the
+// saved request sends, in order, and the reply window after each one.
+func (a *app) webSocketMessagesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
+	remove := -1
+	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
+		ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+			uikit.Meta(c, locales.WebSocketMessagesHelp()).Grow(1).MinWidth(200)
+			ui.NumberInput(c, &d.wsWait, 0, 60000, 100).Label(locales.WebSocketReplyWindowMs()).Width(160)
+		})
+		ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
+			for i := range d.wsMessages {
+				message := &d.wsMessages[i]
+				row := ui.Row(c.Key(i)).AlignItems(ui.Start).Gap(t.Space(2))
+				row.Children(func() {
+					ui.Text(c, strconv.Itoa(i+1)).FontSize(uikit.Scaled(uikit.TextMeta)).
+						TextColor(t.TextMuted).Width(t.Space(3)).Padding(t.Space(2), 0)
+					if message.Encoding == "" {
+						message.Encoding = "Text"
+					}
+					uikit.SelectLabels(c, &message.Encoding, []string{"Text", "Hex", "Base64"}, optionLabel).
+						Label(locales.WebsocketMessageEncoding()).Width(104)
+					uikit.TextArea(c, &message.Payload).Label(locales.WebSocketMessageOf(i + 1)).
+						Placeholder(locales.TextHexBytesOrPadded()).Height(54).Font(uikit.FontMono).
+						FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(0)
+					label := locales.RemoveWebSocketMessage(i + 1)
+					if uikit.IconButton(c, label, label, closeIcon).Clicked() {
+						remove = i
+					}
+				})
+			}
+			ui.Row(c).MinHeight(uikit.HeightControl).Children(func() {
+				if uikit.ToolbarButton(c, locales.AddMessage(), locales.AddMessage(), false).Children(func() {
+					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
+					uikit.Body(c, locales.AddMessage())
+				}).Clicked() {
+					d.wsMessages = append(d.wsMessages, request.WebSocketMessage{})
+				}
+			})
+		})
+	})
+	if remove >= 0 {
+		d.wsMessages = slices.Delete(d.wsMessages, remove, remove+1)
 	}
 }
 

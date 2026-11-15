@@ -35,8 +35,9 @@ type experimentRecord struct {
 	Outcome      string `json:",omitempty"`
 	Tests        []request.TestResult
 	Replies      []string
-	Console      []request.ConsoleMessage   `json:",omitempty"`
-	Variables    []request.ResolvedVariable `json:",omitempty"`
+	Exchanges    []request.WebSocketExchange `json:",omitempty"`
+	Console      []request.ConsoleMessage    `json:",omitempty"`
+	Variables    []request.ResolvedVariable  `json:",omitempty"`
 	Exchange     *capture.Flow
 	RequestBody  []byte
 	ResponseBody []byte
@@ -74,7 +75,7 @@ func snapshotExperiment(id int, draft savedRequest, environment string, got requ
 	draft.GraphQL.Schema, draft.GraphQL.SchemaSource = "", ""
 	r := experimentRecord{
 		ID: id, At: time.Now(), Draft: draft, Source: draft.Source, Environment: environment,
-		Summary: runSummary(got), Outcome: executionOutcome(got), Tests: slices.Clone(got.Tests), Replies: slices.Clone(got.Replies),
+		Summary: runSummary(got), Outcome: executionOutcome(got), Tests: slices.Clone(got.Tests), Replies: slices.Clone(got.Replies), Exchanges: slices.Clone(got.WebSocket),
 		Console:   slices.Clone(got.Console),
 		Variables: slices.Clone(got.Variables),
 	}

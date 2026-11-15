@@ -1192,6 +1192,7 @@ func (a *app) drain() {
 		d.composeResult = result.summary
 		d.composeTests = result.tests
 		d.composeReplies = result.replies
+		d.composeExchanges = result.exchanges
 		d.console = result.console
 		if result.outcome == "Cancelled" {
 			d.responseTab = resViewBody
@@ -3897,6 +3898,7 @@ func (a *app) sendComposed() {
 	}
 	d.composeTests = nil
 	d.composeReplies = nil
+	d.composeExchanges = nil
 	d.console = nil
 	d.historyPick = 0 // The new response replaces a retained run on screen.
 	d.response = nil
@@ -3928,7 +3930,7 @@ func (a *app) sendComposed() {
 	go func() {
 		defer cancel()
 		got := r.Execute(ctx, srv, in, vars, jar)
-		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: executionOutcome(got), response: got.Response, tests: got.Tests, replies: got.Replies, console: got.Console, varsBefore: vars, vars: got.Vars, writes: got.Writes}
+		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: executionOutcome(got), response: got.Response, tests: got.Tests, replies: got.Replies, exchanges: got.WebSocket, console: got.Console, varsBefore: vars, vars: got.Vars, writes: got.Writes}
 		record := snapshotExperiment(0, r, env, got)
 		record.RunKey, record.DraftKey, record.Source = runKey, draftKey, origin
 		result.experiment = &record

@@ -1,6 +1,7 @@
 package request
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -214,6 +215,12 @@ func expandDynamic(s string, defined map[string]string) string {
 func (r Request) withDynamic(defined map[string]string) Request {
 	expand := func(s *string) { *s = expandDynamic(*s, defined) }
 	fields := []*string{&r.Method, &r.URL, &r.Headers, &r.Body, &r.BodyFile, &r.Auth.Token, &r.Auth.Username, &r.Auth.Password, &r.Auth.Key, &r.Auth.Value}
+	if len(r.WebSocket.Messages) > 0 {
+		r.WebSocket.Messages = slices.Clone(r.WebSocket.Messages)
+		for i := range r.WebSocket.Messages {
+			fields = append(fields, &r.WebSocket.Messages[i].Payload)
+		}
+	}
 	fields = append(fields, &r.GraphQL.Query, &r.GraphQL.Variables)
 	if r.Protocol == "Socket.IO" {
 		fields = append(fields, &r.SocketIO.Namespace, &r.SocketIO.Auth, &r.SocketIO.Event, &r.SocketIO.Attachments)

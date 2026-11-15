@@ -19,9 +19,12 @@ import (
 // WebSocket replies, check and script results, the variables afterwards, and
 // the Stage that failed when Err is set.
 type Execution struct {
-	Request        *Prepared
-	Response       *capture.Flow
-	Replies        []string
+	Request  *Prepared
+	Response *capture.Flow
+	Replies  []string
+	// WebSocket are the exchanges a ws/wss send made, in order. Replies holds
+	// every reply flattened, including pushes a request with no messages heard.
+	WebSocket      []WebSocketExchange
 	Tests          []TestResult
 	Vars           map[string]string
 	Err            error
@@ -252,7 +255,13 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 		}
 	}
 	if IsWebSocket(req.URL) {
-		out.Replies, out.Err = wsSend(ctx, srv.Addr(), req, srv.CACertificate(), in.Certificates, jar, 2*time.Second)
+		messages := r.webSocketMessages(req.Body, effective)
+		var pushed []string
+		out.WebSocket, pushed, out.Err = wsSendMessages(ctx, srv.Addr(), req, messages, r.WebSocket.Wait(), srv.CACertificate(), in.Certificates, jar)
+		for _, exchange := range out.WebSocket {
+			out.Replies = append(out.Replies, exchange.Replies...)
+		}
+		out.Replies = append(out.Replies, pushed...)
 		if out.Err == nil && (r.Post != "" || slices.ContainsFunc(in.Folders, func(f Folder) bool { return f.Post != "" })) {
 			out.Stage = "Post-response script failed"
 			out.Err = fmt.Errorf("post-response scripts require an HTTP response")

@@ -1525,8 +1525,16 @@ headers and CONNECT-only capture metadata (see `third_party/go-mitmproxy/VSCROXY
 Composed WS requests use structured auth, custom headers and session cookies;
 WSS verifies the system/custom roots and presents a matching client certificate
 from **Settings → Certificates** rather than disabling certificate checks.
-The one-shot sender waits up to two seconds for five replies, capped at 1 MiB
-each; cancellation closes the socket. Post-response scripts require HTTP.
+A saved `ws://` or `wss://` request sends its **Body** tab's message list in
+order and keeps the replies each message gets. Each message waits for the
+request's **Reply window** (2000 ms by default, 0–60000) before the next one is
+sent; one window keeps at most 200 replies and 1 MiB, so a chatty server cannot
+grow a run without limit. A request with no messages only listens for pushes for
+one window. Text messages must be UTF-8, Hex and Base64 messages go out as
+binary frames, and each message is limited to 1 MiB. The result shows each
+message with its replies and Capture records the frames. Cancellation closes the
+socket; post-response scripts require HTTP. A request saved before the list
+existed keeps sending its body as one text message.
 
 ### Interactive SSE sessions
 
@@ -1572,8 +1580,8 @@ retains traffic under its own limits and event framing.
 ### Interactive WebSocket sessions
 
 **Network / Commands → WebSocket session…** opens a separate live client. If
-the active request draft has a WS URL, it prepares that draft's URL, auth,
-headers and body using current variables, without running scripts or sending.
+the active request draft has a WS URL, it prepares that draft's URL, auth and
+headers using current variables, without running scripts or sending.
 Otherwise enter a `ws://` or `wss://` target and handshake headers. **Connect**
 performs the handshake through the capture proxy using the Requests cookie jar
 and verified TLS. **Subprotocols** offers comma-separated HTTP tokens in client
@@ -1582,7 +1590,12 @@ the actual selection. WS and decrypted WSS preserve negotiation through both
 proxy handshakes. Duplicate/invalid tokens or an unoffered selection fail rather
 than silently falling back to another protocol.
 
-It sends no message until **Send text** / **Send binary**. Select **Text** for
+**Send saved** replays the request's saved messages in order, waiting the
+request's reply window between them; **Save sent** replaces that list with what
+this session sent, keeping binary frames as Base64. The request's **Body** tab
+shows and edits the same list, so a session's messages survive the panel.
+
+It sends no message until **Send text** / **Send binary** or **Send saved**. Select **Text** for
 UTF-8 text, **Hex** for binary bytes (whitespace allowed), or **Base64** for padded
 base64 binary input. Invalid encoding sends nothing. Empty binary messages are
 valid, and bytes are never converted through UTF-8. Send repeatedly on
@@ -1612,8 +1625,8 @@ still appear in Capture with its existing retention/export capabilities.
 
 **Disconnect**, Escape, clicking outside or closing the panel disconnects; a
 new **Connect** starts a fresh timeline. No automatic reconnect or restart
-restore occurs. The timeline is session-local, not an experiment or a saved
-conversation. HTTP Requests/Runner's one-shot WS sender remains available.
+restore occurs. The timeline itself is session-local; the saved message list
+belongs to the request and is what Requests and Runner send.
 Automatic SSE reconnect and live gRPC timelines are not provided by this panel.
 
 ### WebSocket message interception
