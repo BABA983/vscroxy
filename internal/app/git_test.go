@@ -12,6 +12,19 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// gitTestEnvironment is os.Environ without every GIT_* variable, plus the
+// test's own identity. A linked worktree's git rebase --exec exports GIT_DIR;
+// without this filter the test would configure and commit in the real
+// repository instead of its temporary one.
+func gitTestEnvironment() []string {
+	env := slices.DeleteFunc(os.Environ(), func(variable string) bool {
+		return strings.HasPrefix(strings.ToUpper(variable), "GIT_")
+	})
+	return append(env, "GIT_TERMINAL_PROMPT=0", "LC_ALL=C",
+		"GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com",
+		"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com")
+}
+
 // gitRepo is a temporary repository with a fixed identity, so a test's
 // commits never depend on the machine's git configuration.
 func gitRepo(t *testing.T) string {
@@ -20,9 +33,7 @@ func gitRepo(t *testing.T) string {
 	git := func(args ...string) string {
 		t.Helper()
 		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-		cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "LC_ALL=C",
-			"GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com",
-			"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com")
+		cmd.Env = gitTestEnvironment()
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
@@ -104,7 +115,7 @@ func TestGitStatusKeepsSpacesAndRenameSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd := exec.Command("git", "-C", dir, "mv", "a file.txt", "b file.txt")
-	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	cmd.Env = gitTestEnvironment()
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git mv: %v\n%s", err, out)
 	}
@@ -271,5 +282,38 @@ func TestGitPanelCommitsTheSelectedFile(t *testing.T) {
 	}
 	if a.git.message != "" || !tt.HasText("Committed 1 file.") {
 		t.Fatalf("message %q, texts %q", a.git.message, tt.Texts())
+	}
+}
+
+// A rebase --exec in a linked worktree exports GIT_DIR (and sometimes
+// GIT_INDEX_FILE). The panel and its test helper must act on their own folder,
+// never on the repository those variables name.
+func TestGitIgnoresInheritedRepositoryVariables(t *testing.T) {
+	other := gitRepo(t)
+	index := filepath.Join(t.TempDir(), "inherited-index")
+	t.Setenv("GIT_DIR", filepath.Join(other, ".git"))
+	t.Setenv("GIT_INDEX_FILE", index)
+
+	dir := gitRepo(t)
+	writeFile(t, dir, "a.txt", "one\n")
+	tree, err := gitStatus(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	real, _ := filepath.EvalSymlinks(dir)
+	if tree.Root != real {
+		t.Fatalf("status root = %q, want %q", tree.Root, real)
+	}
+	if err := gitCommit(tree.Root, tree.Files, "add a"); err != nil {
+		t.Fatal(err)
+	}
+	if subject, err := gitOutput(dir, "log", "-1", "--format=%s"); err != nil || subject != "add a" {
+		t.Fatalf("temporary repository log = %q, %v", subject, err)
+	}
+	if status, err := gitOutput(other, "status", "--porcelain"); err != nil || status != "" {
+		t.Fatalf("other repository changed: %q, %v", status, err)
+	}
+	if _, err := os.Stat(index); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("inherited index was used: %v", err)
 	}
 }

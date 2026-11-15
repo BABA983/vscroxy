@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -57,7 +58,10 @@ func gitCommand(dir string, stdout io.Writer, args ...string) error {
 		return errGitMissing
 	}
 	cmd := exec.Command(git, append([]string{"--no-pager", "-c", "color.ui=false", "-C", dir}, args...)...)
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "LC_ALL=C")
+	// A parent process may carry GIT_DIR, GIT_WORK_TREE or GIT_INDEX_FILE from
+	// a rebase --exec or another checkout. The panel always acts on dir, so
+	// none of those may reach git.
+	cmd.Env = gitEnvironment()
 	var stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = stdout, &stderr
 	if err := cmd.Run(); err != nil {
@@ -68,6 +72,16 @@ func gitCommand(dir string, stdout io.Writer, args ...string) error {
 		return errors.New(message)
 	}
 	return nil
+}
+
+// gitEnvironment is os.Environ without every GIT_* variable, plus the
+// settings the panel always wants. A Git panel must not inherit another
+// repository's GIT_DIR or index.
+func gitEnvironment() []string {
+	env := slices.DeleteFunc(os.Environ(), func(variable string) bool {
+		return strings.HasPrefix(strings.ToUpper(variable), "GIT_")
+	})
+	return append(env, "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "LC_ALL=C")
 }
 
 // gitOutput runs a command whose output is small enough to keep whole.
