@@ -24,6 +24,7 @@ import (
 	"github.com/baba983/vscroxy/internal/postman"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
+	"github.com/baba983/vscroxy/internal/version"
 	"github.com/gorilla/websocket"
 )
 
@@ -527,5 +528,15 @@ func TestRunLongLivedProtocols(t *testing.T) {
 	}
 	if statuses["Chat"] != 200 || statuses["Echo"] != 101 {
 		t.Fatalf("statuses: %v", statuses)
+	}
+}
+
+func TestVersionFlag(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cli.Run(t.Context(), []string{"--version"}, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "vscroxy-cli "+version.Number) {
+		t.Fatalf("version output = %q", out.String())
 	}
 }

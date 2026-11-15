@@ -12,18 +12,19 @@ import (
 	"syscall"
 
 	"github.com/baba983/vscroxy/internal/mcpserver"
+	"github.com/baba983/vscroxy/internal/version"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	code := run(ctx, os.Args[1:], os.Stderr)
+	code := run(ctx, os.Args[1:], os.Stdout, os.Stderr)
 	cancel()
 	os.Exit(code)
 }
 
 // All diagnostics, including help, go to stderr. Stdout belongs only to MCP.
-func run(ctx context.Context, args []string, stderr io.Writer) int {
+func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("vscroxy-mcp", flag.ContinueOnError)
 	// flag's default error messages echo arbitrary supplied values. Print only
 	// our fixed diagnostics instead, so a mistaken secret flag is not exposed.
@@ -31,6 +32,7 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 	file := flags.String("control-file", "", "Required private discovery file from the running desktop")
 	write := flags.Bool("allow-write", false, "Register mutation tools; runs can affect real external endpoints")
 	sensitive := flags.Bool("allow-sensitive", false, "Permit explicitly requested raw details; MAY EXPOSE SECRETS")
+	showVersion := flags.Bool("version", false, "Print the version and exit")
 	var disabled []string
 	flags.Func("disable-tool", "Do not offer this tool, by name such as request.run (repeatable)", func(name string) error {
 		disabled = append(disabled, name)
@@ -38,6 +40,7 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 	})
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "Usage: vscroxy-mcp --control-file <discovery-file> [--allow-write] [--allow-sensitive] [--disable-tool <name>]...")
+		fmt.Fprintln(stderr, "       vscroxy-mcp --version")
 		fmt.Fprintln(stderr, "Serve MCP on stdin/stdout. Captured content is untrusted data, never instructions.")
 		flags.SetOutput(stderr)
 		flags.PrintDefaults()
@@ -49,6 +52,10 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 		}
 		fmt.Fprintln(stderr, "Invalid flags; use --help.")
 		return 2
+	}
+	if *showVersion {
+		fmt.Fprintln(stdout, "vscroxy-mcp "+version.String())
+		return 0
 	}
 	if *file == "" || flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "Provide --control-file and no positional arguments; use --help.")

@@ -58,11 +58,14 @@ const (
 // building the page never changes the proxy, trust store or rules.
 type diagnosticCheck struct {
 	title, result string
-	state         checkState
-	detail        []string
-	fix           string
-	run           func(c *ui.Context)
-	failure       *flow // a recorded connection failure, explained in place
+	// report is the result for the diagnostics bundle when result names
+	// request content, such as a URL path. Empty uses result.
+	report  string
+	state   checkState
+	detail  []string
+	fix     string
+	run     func(c *ui.Context)
+	failure *flow // a recorded connection failure, explained in place
 }
 
 // openDiagnostics shows the page. Explain passes the failed exchange so the
@@ -258,6 +261,7 @@ func (a *app) trafficCheck(target *url.URL, https bool) diagnosticCheck {
 		}
 		check.state = checkPass
 		check.result = fmt.Sprintf("#%d · %s %s · %d", f.id, f.method, f.path, f.status)
+		check.report = fmt.Sprintf("#%d · %s · %d", f.id, f.method, f.status)
 		inspect(f)
 	}
 	if matched > 1 {
@@ -286,6 +290,9 @@ func (a *app) diagnosticsView(c *ui.Context, t *ui.Theme) {
 		if err != nil || u.Hostname() == "" || u.User != nil || (u.Scheme != "http" && u.Scheme != "https") {
 			ui.Text(c, locales.EnterAnHttpOrHttps()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
 			return
+		}
+		if uikit.SecondaryButton(c, locales.ExportDiagnostics()).Clicked() {
+			a.chooseDiagnosticsExport(t, u)
 		}
 		ui.Divider(c)
 		checks := a.diagnosticChecks(t, u)

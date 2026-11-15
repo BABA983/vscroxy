@@ -34,6 +34,7 @@ import (
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/baba983/vscroxy/internal/upstream"
+	"github.com/baba983/vscroxy/internal/version"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -135,9 +136,16 @@ type app struct {
 	docsOpen     bool
 	docsPath     string
 	docsMarkdown markdown.Options
-	deviceUI     deviceSetup
-	clientUI     clientSetup
-	diagnostics  captureDiagnostics
+	// aboutOpen shows the About window; aboutTab picks its licenses page.
+	// aboutLicense and aboutNotices are the texts the package ships.
+	aboutOpen     bool
+	aboutTab      int
+	aboutLicense  string
+	aboutNotices  string
+	aboutMarkdown markdown.Options
+	deviceUI      deviceSetup
+	clientUI      clientSetup
+	diagnostics   captureDiagnostics
 
 	apis            []*apiDocument
 	apisPath        string
@@ -356,6 +364,9 @@ type app struct {
 	// backupDir keeps the last copies of the files the app replaces, so an
 	// upgrade or a mistaken save never loses what was there.
 	backupDir string
+	// updateCheck asks GitHub for the latest release once per launch; the
+	// setting turns it off. It never downloads or installs anything.
+	updateCheck bool
 	// mcpConsents are local approvals for stdio commands, keyed by a hash of
 	// the document and its expanded command shape. They never enter a
 	// collection file.
@@ -626,12 +637,13 @@ func newApp() *app {
 		// A flow is numbered when it starts and arrives when it ends, so
 		// arrival order puts 6 above 5. The number is the start order: the
 		// table reads by it, and the # column says so with its arrow.
-		sort:       ui.SortOrder{Column: "id"},
-		detailFor:  -1,
-		frames:     make(map[int][]frame),
-		throttle:   capture.Presets[0],
-		autoSelect: true,
-		workbench:  desktopWorkbench{layout: "right"},
+		sort:        ui.SortOrder{Column: "id"},
+		detailFor:   -1,
+		frames:      make(map[int][]frame),
+		throttle:    capture.Presets[0],
+		autoSelect:  true,
+		updateCheck: true,
+		workbench:   desktopWorkbench{layout: "right"},
 	}
 	// The engine reads SSLKEYLOGFILE on its first handshake, so a key log the
 	// settings ask for has to be in the environment before it starts.
@@ -675,6 +687,7 @@ func newApp() *app {
 			a.errText = err.Error()
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
+			a.updateCheck = !saved.DisableUpdateCheck
 			a.language = saved.Language
 			a.certificates = saved.Certificates.Normalize()
 			a.saved.Certificates = a.certificates
@@ -1875,6 +1888,7 @@ func (a *app) view(c *ui.Context) {
 	a.importReportModal(c, t)
 	a.folderModal(c, t)
 	a.docsModal(c, t)
+	a.aboutModal(c, t)
 	a.deleteModal(c, t)
 	a.codeModal(c, t)
 	a.vaultModal(c, t)
@@ -3341,8 +3355,11 @@ func Run() error {
 			defer logs.Close()
 		}
 	}
-	slog.Info("vscroxy starting", "os", runtime.GOOS, "arch", runtime.GOARCH)
+	slog.Info("vscroxy starting", "version", version.String(), "commit", version.CommitString(), "os", runtime.GOOS, "arch", runtime.GOARCH)
 	a := newApp()
+	if a.updateCheck {
+		go a.checkForUpdate()
+	}
 	if a.srv != nil {
 		defer a.srv.Close()
 	}

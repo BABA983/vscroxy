@@ -24759,3 +24759,175 @@ func TokenRefreshFailed(problem string) string { return In(i18n.Locale()).TokenR
 func (msgs Messages) TokenRefreshFailed(problem string) string {
 	return Catalog.Format(msgs.locale, "tokenRefreshFailed", map[string]any{"problem": problem})
 }
+
+// AboutVscroxy says "About vscroxy"
+// in the language the app shows.
+func AboutVscroxy() string { return In(i18n.Locale()).AboutVscroxy() }
+
+// AboutVscroxy says "About vscroxy"
+// in the language of msgs.
+func (msgs Messages) AboutVscroxy() string {
+	return Catalog.Format(msgs.locale, "aboutVscroxy", nil)
+}
+
+// Commit says "Commit"
+// in the language the app shows.
+func Commit() string { return In(i18n.Locale()).Commit() }
+
+// Commit says "Commit"
+// in the language of msgs.
+func (msgs Messages) Commit() string {
+	return Catalog.Format(msgs.locale, "commit", nil)
+}
+
+// Platform says "Platform"
+// in the language the app shows.
+func Platform() string { return In(i18n.Locale()).Platform() }
+
+// Platform says "Platform"
+// in the language of msgs.
+func (msgs Messages) Platform() string {
+	return Catalog.Format(msgs.locale, "platform", nil)
+}
+
+// License says "License"
+// in the language the app shows.
+func License() string { return In(i18n.Locale()).License() }
+
+// License says "License"
+// in the language of msgs.
+func (msgs Messages) License() string {
+	return Catalog.Format(msgs.locale, "license", nil)
+}
+
+// ThirdPartyNotices says "Third-party notices"
+// in the language the app shows.
+func ThirdPartyNotices() string { return In(i18n.Locale()).ThirdPartyNotices() }
+
+// ThirdPartyNotices says "Third-party notices"
+// in the language of msgs.
+func (msgs Messages) ThirdPartyNotices() string {
+	return Catalog.Format(msgs.locale, "thirdPartyNotices", nil)
+}
+
+// AboutLicenseLine says "vscroxy is free software under the MIT license."
+// in the language the app shows.
+func AboutLicenseLine() string { return In(i18n.Locale()).AboutLicenseLine() }
+
+// AboutLicenseLine says "vscroxy is free software under the MIT license."
+// in the language of msgs.
+func (msgs Messages) AboutLicenseLine() string {
+	return Catalog.Format(msgs.locale, "aboutLicenseLine", nil)
+}
+
+// AboutNoticesHint says "License texts of every Go module and embedded library this build ships."
+// in the language the app shows.
+func AboutNoticesHint() string { return In(i18n.Locale()).AboutNoticesHint() }
+
+// AboutNoticesHint says "License texts of every Go module and embedded library this build ships."
+// in the language of msgs.
+func (msgs Messages) AboutNoticesHint() string {
+	return Catalog.Format(msgs.locale, "aboutNoticesHint", nil)
+}
+
+// AboutLicenseMissing says "The license file is not beside this build."
+// in the language the app shows.
+func AboutLicenseMissing() string { return In(i18n.Locale()).AboutLicenseMissing() }
+
+// AboutLicenseMissing says "The license file is not beside this build."
+// in the language of msgs.
+func (msgs Messages) AboutLicenseMissing() string {
+	return Catalog.Format(msgs.locale, "aboutLicenseMissing", nil)
+}
+
+// AboutNoticesMissing says "The third-party notices are not beside this build."
+// in the language the app shows.
+func AboutNoticesMissing() string { return In(i18n.Locale()).AboutNoticesMissing() }
+
+// AboutNoticesMissing says "The third-party notices are not beside this build."
+// in the language of msgs.
+func (msgs Messages) AboutNoticesMissing() string {
+	return Catalog.Format(msgs.locale, "aboutNoticesMissing", nil)
+}
+
+// Unknown says "Unknown"
+// in the language the app shows.
+func Unknown() string { return In(i18n.Locale()).Unknown() }
+
+// Unknown says "Unknown"
+// in the language of msgs.
+func (msgs Messages) Unknown() string {
+	return Catalog.Format(msgs.locale, "unknown", nil)
+}
+
+// ExportDiagnostics says "Export diagnostics…"
+// in the language the app shows.
+func ExportDiagnostics() string { return In(i18n.Locale()).ExportDiagnostics() }
+
+// ExportDiagnostics says "Export diagnostics…"
+// in the language of msgs.
+func (msgs Messages) ExportDiagnostics() string {
+	return Catalog.Format(msgs.locale, "exportDiagnostics", nil)
+}
+
+// DiagnosticsBundleSaved says "Diagnostics bundle saved as {file}"
+// in the language the app shows.
+func DiagnosticsBundleSaved(file string) string {
+	return In(i18n.Locale()).DiagnosticsBundleSaved(file)
+}
+
+// DiagnosticsBundleSaved says "Diagnostics bundle saved as {file}"
+// in the language of msgs.
+func (msgs Messages) DiagnosticsBundleSaved(file string) string {
+	return Catalog.Format(msgs.locale, "diagnosticsBundleSaved", map[string]any{"file": file})
+}
+
+// Updates says "Updates"
+// in the language the app shows.
+func Updates() string { return In(i18n.Locale()).Updates() }
+
+// Updates says "Updates"
+// in the language of msgs.
+func (msgs Messages) Updates() string {
+	return Catalog.Format(msgs.locale, "updates", nil)
+}
+
+// CheckForUpdates says "Check for updates on launch"
+// in the language the app shows.
+func CheckForUpdates() string { return In(i18n.Locale()).CheckForUpdates() }
+
+// CheckForUpdates says "Check for updates on launch"
+// in the language of msgs.
+func (msgs Messages) CheckForUpdates() string {
+	return Catalog.Format(msgs.locale, "checkForUpdates", nil)
+}
+
+// CheckForUpdatesHint says "Asks GitHub for the latest release number once per launch. vscroxy never downloads or installs an update."
+// in the language the app shows.
+func CheckForUpdatesHint() string { return In(i18n.Locale()).CheckForUpdatesHint() }
+
+// CheckForUpdatesHint says "Asks GitHub for the latest release number once per launch. vscroxy never downloads or installs an update."
+// in the language of msgs.
+func (msgs Messages) CheckForUpdatesHint() string {
+	return Catalog.Format(msgs.locale, "checkForUpdatesHint", nil)
+}
+
+// UpdateAvailable says "vscroxy {version} is available"
+// in the language the app shows.
+func UpdateAvailable(version string) string { return In(i18n.Locale()).UpdateAvailable(version) }
+
+// UpdateAvailable says "vscroxy {version} is available"
+// in the language of msgs.
+func (msgs Messages) UpdateAvailable(version string) string {
+	return Catalog.Format(msgs.locale, "updateAvailable", map[string]any{"version": version})
+}
+
+// UpdateAvailableHint says "Download it from github.com/BABA983/vscroxy/releases."
+// in the language the app shows.
+func UpdateAvailableHint() string { return In(i18n.Locale()).UpdateAvailableHint() }
+
+// UpdateAvailableHint says "Download it from github.com/BABA983/vscroxy/releases."
+// in the language of msgs.
+func (msgs Messages) UpdateAvailableHint() string {
+	return Catalog.Format(msgs.locale, "updateAvailableHint", nil)
+}

@@ -667,6 +667,9 @@ func snapshotStates(t *testing.T) []snapshot {
 				WorkingDir: "/home/user", Env: []string{"TOKEN=hidden", "DEBUG=1"},
 			}}
 		}, want: "Run local MCP server?", short: true},
+		{name: "dialog-about", setup: func(a *app) {
+			a.openAbout()
+		}, want: "MIT License", short: true},
 		{name: "dialog-decode", setup: func(a *app) {
 			a.openDecoder(nil, "5L2g5aW977yM")
 		}, act: click("Decode"), want: "Decoded result"},

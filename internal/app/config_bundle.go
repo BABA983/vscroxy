@@ -105,6 +105,7 @@ func (a *app) currentSettings() settings {
 		VaultScripts:         a.vault.scripts,
 		CookiePersistence:    a.cookiePersistence,
 		LocalControl:         a.localControl,
+		DisableUpdateCheck:   !a.updateCheck,
 		Guide:                a.guide,
 		AllowList:            a.allowOn,
 		FlowLimit:            a.flowLimit,
@@ -132,6 +133,7 @@ func (a *app) exportConfig() (b configBundle, notes []string) {
 	// automation are this computer's: a configuration file never turns cookie
 	// persistence or the control endpoint on elsewhere.
 	s.KeyLogPath, s.ProjectDir, s.Guide, s.CookiePersistence, s.LocalControl = "", "", false, false, false
+	s.DisableUpdateCheck = false
 	s.Language = ""      // the reader's language, not the bundle's
 	s.SOCKSPassword = "" // a credential, never in a shared bundle
 	ssl := a.inspectionConfig()

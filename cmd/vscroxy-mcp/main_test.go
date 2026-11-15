@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/control"
+	"github.com/baba983/vscroxy/internal/version"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -26,6 +27,7 @@ func TestFlags(t *testing.T) {
 		text string
 	}{
 		{"help", []string{"--help"}, 0, "--allow-sensitive"},
+		{"version", []string{"--version"}, 0, "vscroxy-mcp " + version.Number},
 		{"required", nil, 2, "Provide --control-file"},
 		{"positional", []string{"--control-file", "missing", "unexpected"}, 2, "no positional arguments"},
 		{"unknown", []string{"--secret-token=do-not-echo-this"}, 2, "Invalid flags"},
@@ -34,7 +36,7 @@ func TestFlags(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var stderr bytes.Buffer
-			if got := run(t.Context(), tc.args, &stderr); got != tc.code {
+			if got := run(t.Context(), tc.args, &stderr, &stderr); got != tc.code {
 				t.Fatalf("exit %d; want %d: %s", got, tc.code, stderr.String())
 			}
 			if !strings.Contains(stderr.String(), tc.text) || strings.Contains(stderr.String(), "do-not-echo-this") {

@@ -20,11 +20,16 @@ import (
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/internal/version"
 )
 
 // Run returns an exit code: 0 success, 1 failed attempt, 2 setup/output error,
 // 124 whole-run deadline, 130 cancellation. Flags precede the input path.
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if len(args) == 1 && (args[0] == "--version" || args[0] == "-version") {
+		fmt.Fprintln(stdout, "vscroxy-cli "+version.String())
+		return 0
+	}
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
 		fmt.Fprintln(stdout, "Usage: vscroxy-cli run [options] <collections-root | postman.json>\n       vscroxy-cli load [options] <collections-root | postman.json>\n       vscroxy-cli mock [options] <collections-root | postman.json>\n       vscroxy-cli control --file <discovery> [options] <action>\nUse 'run --help', 'load --help', 'mock --help' or 'control --help' for options.")
 		return 0

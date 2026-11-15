@@ -87,6 +87,10 @@ type settings struct {
 	// LocalControl keeps the local automation endpoint on across launches.
 	// It is this computer's choice and is never exported.
 	LocalControl bool `json:"localControl,omitzero"`
+	// DisableUpdateCheck turns off the once-per-launch question to GitHub for
+	// the latest release number. It is this computer's choice and is never
+	// exported; the default is to check.
+	DisableUpdateCheck bool `json:"disableUpdateCheck,omitzero"`
 	// AllowList narrows the table to the hosts and apps in allow.txt and
 	// allow-apps.txt.
 	AllowList bool `json:"allowList,omitzero"`
@@ -227,6 +231,7 @@ func sameSettings(x, y settings) bool {
 		x.CookiePersistence == y.CookiePersistence &&
 		x.Guide == y.Guide &&
 		x.LocalControl == y.LocalControl &&
+		x.DisableUpdateCheck == y.DisableUpdateCheck &&
 		x.AllowList == y.AllowList &&
 		x.FlowLimit == y.FlowLimit && x.MemoryLimit == y.MemoryLimit && x.DiskLimit == y.DiskLimit &&
 		x.HistoryLimit == y.HistoryLimit && x.HistorySizeMB == y.HistorySizeMB &&

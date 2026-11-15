@@ -15,6 +15,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/internal/version"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -98,6 +99,27 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			}, locales.CapturingTrustingTheCertificateAnd())
+		})
+		uikit.SettingsGroup(c, locales.Updates(), func() {
+			uikit.SettingsRow(c, locales.CheckForUpdates(), func() ui.Element {
+				on := a.updateCheck
+				toggle := ui.Switch(c, &on)
+				if toggle.Changed() {
+					a.updateCheck = on
+					a.persistSettings()
+				}
+				return toggle
+			}, locales.CheckForUpdatesHint())
+		})
+		uikit.SettingsGroup(c, locales.AboutVscroxy(), func() {
+			uikit.SettingsRow(c, locales.Version(), func() ui.Element {
+				return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					uikit.Meta(c, version.String())
+					if uikit.SecondaryButton(c, locales.AboutVscroxy()).Clicked() {
+						a.openAbout()
+					}
+				})
+			}, locales.AboutLicenseLine())
 		})
 	})
 }

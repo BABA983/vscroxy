@@ -28,6 +28,9 @@ type notice struct {
 	text   string
 	detail string
 	action string
+	// sticky keeps an info notice until it is closed, for something worth
+	// acting on that did not just happen, such as an available update.
+	sticky bool
 	run    func() // runs on the UI thread
 }
 
@@ -82,6 +85,9 @@ func (a *app) showNotices(c *ui.Context) {
 		t := ui.Toast{ID: n.line(), Title: n.text, Description: n.detail, Action: n.action, OnAction: n.run}
 		if n.action != "" {
 			t.Timeout = 10 * time.Second // time to read it and decide
+		}
+		if n.sticky {
+			t.Timeout = -1
 		}
 		switch n.level {
 		case noticeSuccess:
