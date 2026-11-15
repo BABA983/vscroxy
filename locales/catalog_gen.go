@@ -4186,6 +4186,18 @@ func (msgs Messages) ContractDriftCount(count int) string {
 	return Catalog.Format(msgs.locale, "contractDriftCount", map[string]any{"count": count})
 }
 
+// ContractMatchedByPath says "Matched by method and path under {base}; the contract server is {servers}."
+// in the language the app shows.
+func ContractMatchedByPath(base string, servers string) string {
+	return In(i18n.Locale()).ContractMatchedByPath(base, servers)
+}
+
+// ContractMatchedByPath says "Matched by method and path under {base}; the contract server is {servers}."
+// in the language of msgs.
+func (msgs Messages) ContractMatchedByPath(base string, servers string) string {
+	return Catalog.Format(msgs.locale, "contractMatchedByPath", map[string]any{"base": base, "servers": servers})
+}
+
 // ContractMatches says "Matches the saved contract."
 // in the language the app shows.
 func ContractMatches() string { return In(i18n.Locale()).ContractMatches() }

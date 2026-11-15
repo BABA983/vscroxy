@@ -418,6 +418,7 @@
   "contract": "契约",
   "contractChecked": "已检查 {count} 个已保存契约",
   "contractDriftCount": "{count} 项漂移",
+  "contractMatchedByPath": "按方法 + 路径在 {base} 下匹配；契约服务器为 {servers}。",
   "contractMatches": "与已保存的契约一致。",
   "contractNoSpecs": "没有可用来检查此交换的已保存 OpenAPI 文档。请在 APIs 页面添加。",
   "contractNotCovered": "没有已保存的契约覆盖此交换。",

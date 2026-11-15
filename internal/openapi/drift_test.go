@@ -78,3 +78,40 @@ func TestValidationProblemsFlattensAndDedupes(t *testing.T) {
 		t.Fatalf("problems = %q", problems)
 	}
 }
+
+func TestCheckerRoutesByPathUnderServerBase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "api.yaml")
+	source := strings.Replace(driftSpec, "info: {title: Pets, version: 1.0.0}", "info: {title: Pets, version: 1.0.0}\nservers: [{url: https://api.example.com/v1}]", 1)
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	checker, err := LoadChecker(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exchange := Exchange{Method: "GET", URL: "http://127.0.0.1:4567/v1/pets/7", Status: 200,
+		ResponseHeader: http.Header{"Content-Type": {"application/json"}}, ResponseBody: []byte(`{"name":"Rex"}`)}
+	drift, matched := checker.Check(exchange)
+	if !matched || drift.Endpoint != "GET /pets/{id}" || len(drift.Problems) != 0 {
+		t.Fatalf("matched=%v drift=%+v", matched, drift)
+	}
+	if len(drift.Servers) != 1 || drift.Servers[0] != "https://api.example.com/v1" || drift.MatchedBase != "/v1" {
+		t.Errorf("match = %q %q", drift.MatchedBase, drift.Servers)
+	}
+	if _, matched := checker.Check(Exchange{Method: "GET", URL: "http://127.0.0.1:4567/other"}); matched {
+		t.Error("a path outside the server base matched")
+	}
+}
+
+func TestNormalizePathMatchesSyncIdentity(t *testing.T) {
+	for _, tc := range [][2]string{
+		{"https://api.example.com/v1/pets/7?x=1", "/v1/pets/7"},
+		{"/v1/pets/{id}", "/v1/pets/:param"},
+		{"/v1/pets/:id", "/v1/pets/:param"},
+		{"{{base}}/pets/7", "/pets/7"},
+	} {
+		if got := NormalizePath(tc[0]); got != tc[1] {
+			t.Errorf("NormalizePath(%q) = %q, want %q", tc[0], got, tc[1])
+		}
+	}
+}

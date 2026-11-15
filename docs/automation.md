@@ -52,10 +52,12 @@ silently discarded.
   including the first attempt of a later iteration, to pace a run against a
   rate-limited server. The wait ends early when the run is cancelled.
 - `--contract api.yaml` checks every sent request and response against one
-  local OpenAPI 3.0/3.1 document, resolving its local `$ref` files only. The
-  gate uses kin-openapi's request and response filters: an endpoint the contract
-  does not serve, an undocumented status, or a parameter, body or schema
-  mismatch makes the run exit 1. Findings are printed after the run, and the
+  local OpenAPI 3.0/3.1 document, resolving its local `$ref` files only. Routes
+  match by method and path under a server's base path, ignoring the contract
+  server's scheme and host, so a local or staging `--var base=...` can run
+  against a production spec. The gate uses kin-openapi's request and response
+  filters: an endpoint the contract does not serve, an undocumented status, or
+  a parameter, body or schema mismatch makes the run exit 1. Findings are printed after the run, and the
   JSON report's `contract` object carries `checked`, `matched`, `failed` and the
   drifted endpoint templates, never raw traffic.
 - `--export-environment`, `--export-globals` and `--export-cookie-jar` write the

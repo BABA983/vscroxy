@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/openapi"
@@ -166,6 +167,9 @@ func (a *app) contractView(c *ui.Context, t *ui.Theme, key string, ex openapi.Ex
 					continue
 				}
 				uikit.Mono(c, drift.Endpoint).FontWeight(500)
+				if len(drift.Servers) > 0 {
+					uikit.Meta(c, locales.ContractMatchedByPath(drift.MatchedBase, strings.Join(drift.Servers, ", ")))
+				}
 				uikit.Meta(c, locales.ContractDriftCount(len(drift.Problems)))
 				for _, problem := range drift.Problems {
 					ui.Text(c, "• "+problem).FontSize(uikit.Scaled(uikit.TextSmall)).TextColor(t.Danger).Selectable()

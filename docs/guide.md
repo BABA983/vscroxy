@@ -3620,7 +3620,10 @@ restart. **API contracts** in Commands opens the first one.
 
 A response's **Contract** view (in the response pane's **⋯** menu) checks the
 exchange against every saved OpenAPI document with kin-openapi's request and
-response filters. It names the matched operation and lists drift findings such
+response filters, matching by method and path under each server's base path;
+the contract's scheme and host do not have to match the captured or sent URL,
+so a local or staging base can be checked against a production spec. It names
+the matched operation and lists drift findings such
 as an undocumented status, an invalid path or query parameter, a missing
 required body field or a response schema mismatch. When no saved contract
 serves the exchange it says so instead of guessing; unsaved API drafts are not

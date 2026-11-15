@@ -25,11 +25,11 @@ func TestRunContractGate(t *testing.T) {
 	root := t.TempDir()
 	input := filepath.Join(root, "collections")
 	write(t, filepath.Join(input, "Shop", "Pet.request.json"), request.Request{
-		ID: "pet", Name: "Pet", Collection: "Shop", Method: "GET", URL: "{{base}}/pets/7",
+		ID: "pet", Name: "Pet", Collection: "Shop", Method: "GET", URL: "{{base}}/v1/pets/7",
 	})
-	good := fmt.Sprintf(`openapi: 3.0.3
+	good := `openapi: 3.0.3
 info: {title: Pets, version: 1.0.0}
-servers: [{url: %q}]
+servers: [{url: https://api.example.com/v1}]
 paths:
   /pets/{id}:
     get:
@@ -44,18 +44,18 @@ paths:
                 type: object
                 required: [name]
                 properties: {name: {type: string}}
-`, upstream.URL)
+`
 	missing := strings.Replace(good, "required: [name]", "required: [age]", 1)
 	missing = strings.Replace(missing, "properties: {name: {type: string}}", "properties: {age: {type: integer}}", 1)
-	unmatched := fmt.Sprintf(`openapi: 3.0.3
+	unmatched := `openapi: 3.0.3
 info: {title: Pets, version: 1.0.0}
-servers: [{url: %q}]
+servers: [{url: https://api.example.com/v1}]
 paths:
   /other:
     get:
       responses:
         "200": {description: ok}
-`, upstream.URL)
+`
 	for name, tc := range map[string]struct {
 		spec string
 		code int
@@ -88,5 +88,37 @@ paths:
 				t.Fatalf("contract report = %+v", report.Contract)
 			}
 		})
+	}
+}
+
+func TestRunContractRejectsPathOutsideServerBase(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"name":"Rex"}`)
+	}))
+	defer upstream.Close()
+	root := t.TempDir()
+	input := filepath.Join(root, "collections")
+	write(t, filepath.Join(input, "Shop", "Pet.request.json"), request.Request{
+		ID: "pet", Name: "Pet", Collection: "Shop", Method: "GET", URL: "{{base}}/outside",
+	})
+	spec := filepath.Join(root, "api.yaml")
+	if err := os.WriteFile(spec, []byte(`openapi: 3.0.3
+info: {title: Pets, version: 1.0.0}
+servers: [{url: https://api.example.com/v1}]
+paths:
+  /pets/{id}:
+    get:
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        "200": {description: ok}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	code := cli.Run(t.Context(), []string{"run", "--var", "base=" + upstream.URL, "--contract", spec, input}, &out, &errOut)
+	if code != 1 || !strings.Contains(out.String(), "no operation in the contract serves this request") {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, &out, &errOut)
 	}
 }
