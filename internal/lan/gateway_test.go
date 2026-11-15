@@ -17,6 +17,7 @@ import (
 	"net/netip"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -763,36 +764,175 @@ func TestGatewayWaitsForADelayedFirstByte(t *testing.T) {
 
 func TestGateAsksForAnUnknownClientOnce(t *testing.T) {
 	asked := 0
-	gate, err := newGate([]string{"192.168.1.10"}, func(addr netip.Addr) bool {
+	gate, err := newGate([]string{"192.168.1.10"}, func(addr netip.Addr) Verdict {
 		asked++
-		return addr.String() == "192.168.1.11"
+		return VerdictAllow
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	allowed := netip.MustParseAddr("192.168.1.10")
-	if !gate.allows(allowed) || asked != 0 {
+	if !gate.known(netip.MustParseAddr("192.168.1.10")) || asked != 0 {
 		t.Fatalf("allowed client asked: %d", asked)
 	}
 	approved := netip.MustParseAddr("192.168.1.11")
-	if !gate.allows(approved) || asked != 1 {
+	if !gate.decide(approved) || asked != 1 {
 		t.Fatalf("approved client: asked=%d", asked)
 	}
-	if !gate.allows(approved) || asked != 1 {
+	if !gate.decide(approved) || asked != 1 {
 		t.Fatalf("approval was not remembered: asked=%d", asked)
 	}
 	denied := netip.MustParseAddr("192.168.1.12")
-	if gate.allows(denied) || asked != 2 {
+	denying, err := newGate([]string{"192.168.1.10"}, func(netip.Addr) Verdict {
+		asked++
+		return VerdictDeny
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if denying.decide(denied) || asked != 2 {
 		t.Fatalf("denied client: asked=%d", asked)
 	}
-	if gate.allows(denied) || asked != 2 {
+	if denying.decide(denied) || asked != 2 {
 		t.Fatalf("denial was not remembered: asked=%d", asked)
 	}
 	quiet, err := newGate([]string{"192.168.1.10"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if quiet.allows(approved) {
+	if quiet.decide(approved) {
 		t.Fatal("a gate without Ask admitted an unknown client")
 	}
 }
+
+func TestGateSharesOnePromptForConcurrentConnections(t *testing.T) {
+	var calls atomic.Int32
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	gate, err := newGate([]string{"192.168.1.10"}, func(netip.Addr) Verdict {
+		calls.Add(1)
+		once.Do(func() { close(started) })
+		<-release
+		return VerdictAllow
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := netip.MustParseAddr("192.168.1.11")
+	var wg sync.WaitGroup
+	results := make(chan bool, 16)
+	for range 16 {
+		wg.Go(func() { results <- gate.decide(addr) })
+	}
+	<-started
+	time.Sleep(20 * time.Millisecond) // let the other connections join the prompt
+	close(release)
+	wg.Wait()
+	close(results)
+	for allowed := range results {
+		if !allowed {
+			t.Fatal("a connection sharing the prompt was refused")
+		}
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("asked %d times for one address", got)
+	}
+}
+
+func TestGateUndecidedIsNotRemembered(t *testing.T) {
+	calls := 0
+	gate, err := newGate([]string{"192.168.1.10"}, func(netip.Addr) Verdict {
+		calls++
+		if calls == 1 {
+			return VerdictUndecided
+		}
+		return VerdictAllow
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := netip.MustParseAddr("192.168.1.11")
+	if gate.decide(addr) {
+		t.Fatal("an undecided prompt admitted the device")
+	}
+	if !gate.decide(addr) || calls != 2 {
+		t.Fatalf("the next connection did not ask again: calls=%d", calls)
+	}
+}
+
+// An allowed device must connect while another device's prompt is open: the
+// prompt is decided off the accept loop, and the unknown connection is handed
+// over without waiting for it.
+func TestAllowedClientConnectsWhileAPromptIsOpen(t *testing.T) {
+	release := make(chan struct{})
+	askStarted := make(chan struct{})
+	var once sync.Once
+	gate, err := newGate([]string{"192.168.1.10"}, func(netip.Addr) Verdict {
+		once.Do(func() { close(askStarted) })
+		<-release
+		return VerdictAllow
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener := &fakeListener{conns: make(chan net.Conn, 2)}
+	gateway := &Gateway{conns: newConnSet()}
+	gated := &gatedListener{Listener: listener, gate: gate, gateway: gateway, kind: proxyListener}
+	accepted := make(chan net.Conn, 2)
+	go func() {
+		for range 2 {
+			conn, err := gated.Accept()
+			if err != nil {
+				return
+			}
+			accepted <- conn
+		}
+	}()
+	listener.conns <- fakeConn{remote: fakeAddr("192.168.1.11:5000")}
+	<-askStarted
+	listener.conns <- fakeConn{remote: fakeAddr("192.168.1.10:5001")}
+	for i := range 2 {
+		select {
+		case conn := <-accepted:
+			want := "192.168.1.11:5000"
+			if i == 1 {
+				want = "192.168.1.10:5001"
+			}
+			if got := conn.RemoteAddr().String(); got != want {
+				t.Fatalf("connection %d is %s, want %s", i, got, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("connection %d waited for the prompt", i)
+		}
+	}
+	close(release)
+	gateway.conns.closeAll()
+}
+
+type fakeListener struct {
+	conns chan net.Conn
+}
+
+func (l *fakeListener) Accept() (net.Conn, error) {
+	conn, ok := <-l.conns
+	if !ok {
+		return nil, net.ErrClosed
+	}
+	return conn, nil
+}
+
+func (l *fakeListener) Close() error   { return nil }
+func (l *fakeListener) Addr() net.Addr { return fakeAddr("127.0.0.1:0") }
+
+type fakeConn struct {
+	net.Conn
+	remote net.Addr
+}
+
+func (c fakeConn) RemoteAddr() net.Addr { return c.remote }
+func (c fakeConn) Close() error         { return nil }
+
+type fakeAddr string
+
+func (a fakeAddr) Network() string { return "tcp" }
+func (a fakeAddr) String() string  { return string(a) }

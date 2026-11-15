@@ -81,10 +81,12 @@ type Config struct {
 	// exact IPs or CIDR ranges.
 	Allowed []string
 	// Ask is called for a client address outside Allowed when it is not nil.
-	// It runs on the accept loop, so it must return within a bounded time;
-	// true admits the address for this gateway's lifetime and false keeps it
-	// out. Nil keeps every unknown address out without asking.
-	Ask func(netip.Addr) bool
+	// It runs once per unknown address at a time, off the accept loop, and
+	// concurrent connections from that address share its answer. Only Allow
+	// and Deny are remembered for the gateway's lifetime; Undecided refuses
+	// this connection and asks again on the next one. Nil keeps every unknown
+	// address out without asking.
+	Ask func(netip.Addr) Verdict
 	// Certificate is the public CA certificate in DER form. PEM bundles are
 	// not accepted; the capture core provides public DER without its key.
 	Certificate []byte
@@ -458,20 +460,40 @@ func caCertificate(der []byte) error {
 	return nil
 }
 
+// Verdict is the answer to an unknown client's prompt.
+type Verdict int
+
+const (
+	// VerdictUndecided refuses this connection without remembering the
+	// address: a timeout, a dismissed prompt, or a busy one. The next
+	// connection asks again.
+	VerdictUndecided Verdict = iota
+	VerdictAllow
+	VerdictDeny
+)
+
+// askCall is one prompt for one address, shared by every connection waiting
+// on it.
+type askCall struct {
+	done    chan struct{}
+	allowed bool
+}
+
 // gate decides whether a source address may use either listener. It is built
 // once and never changes: a new configuration is a new gateway.
 type gate struct {
 	prefixes []netip.Prefix
-	ask      func(netip.Addr) bool
+	ask      func(netip.Addr) Verdict
 	mu       sync.Mutex
 	approved map[netip.Addr]struct{}
 	denied   map[netip.Addr]struct{}
+	asking   map[netip.Addr]*askCall
 }
 
 // newGate parses the allowed addresses. An empty list is refused rather than
 // read as "everyone": the gateway exists to be narrow.
-func newGate(allowed []string, ask func(netip.Addr) bool) (*gate, error) {
-	g := &gate{ask: ask, approved: map[netip.Addr]struct{}{}, denied: map[netip.Addr]struct{}{}}
+func newGate(allowed []string, ask func(netip.Addr) Verdict) (*gate, error) {
+	g := &gate{ask: ask, approved: map[netip.Addr]struct{}{}, denied: map[netip.Addr]struct{}{}, asking: map[netip.Addr]*askCall{}}
 	for i, entry := range allowed {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
@@ -516,11 +538,20 @@ func allowedPrefix(entry string) (netip.Prefix, error) {
 	return netip.PrefixFrom(addr, addr.BitLen()), nil
 }
 
-// allows reports whether a client address may connect. An IPv4-mapped address
-// is compared as the IPv4 address it names.
-func (g *gate) allows(addr netip.Addr) bool {
+// known reports whether a client address is in the allow list. An IPv4-mapped
+// address is compared as the IPv4 address it names.
+func (g *gate) known(addr netip.Addr) bool {
 	addr = addr.Unmap()
-	if slices.ContainsFunc(g.prefixes, func(p netip.Prefix) bool { return p.Contains(addr) }) {
+	return slices.ContainsFunc(g.prefixes, func(p netip.Prefix) bool { return p.Contains(addr) })
+}
+
+// decide reports whether an address outside the allow list may connect. It
+// waits for one prompt per address, so several connections from the same
+// device share one answer. Only an explicit Allow or Deny is remembered; an
+// undecided answer refuses this connection and leaves the address askable.
+func (g *gate) decide(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	if g.known(addr) {
 		return true
 	}
 	if g.ask == nil {
@@ -535,16 +566,29 @@ func (g *gate) allows(addr netip.Addr) bool {
 		g.mu.Unlock()
 		return false
 	}
+	if call, ok := g.asking[addr]; ok {
+		g.mu.Unlock()
+		<-call.done
+		return call.allowed
+	}
+	call := &askCall{done: make(chan struct{})}
+	g.asking[addr] = call
 	g.mu.Unlock()
-	allowed := g.ask(addr)
+
+	verdict := g.ask(addr)
+
 	g.mu.Lock()
-	if allowed {
+	switch verdict {
+	case VerdictAllow:
 		g.approved[addr] = struct{}{}
-	} else {
+		call.allowed = true
+	case VerdictDeny:
 		g.denied[addr] = struct{}{}
 	}
+	delete(g.asking, addr)
+	close(call.done)
 	g.mu.Unlock()
-	return allowed
+	return call.allowed
 }
 
 // listenerKind says which listener admitted a client, for the status line.
@@ -584,21 +628,79 @@ func (l *gatedListener) accept() (*trackedConn, error) {
 			return nil, err
 		}
 		addr, ok := sourceAddr(conn)
-		if !ok || !l.gate.allows(addr) {
+		if !ok || (!l.gate.known(addr) && l.gate.ask == nil) {
 			_ = conn.Close()
 			continue
 		}
-		tracked, ok := l.gateway.conns.add(conn)
+		if l.gate.known(addr) {
+			tracked, ok := l.gateway.conns.add(conn)
+			if !ok {
+				// The gateway closed while this connection was being accepted:
+				// close it here rather than hand it to a worker that cannot
+				// finish.
+				_ = conn.Close()
+				return nil, net.ErrClosed
+			}
+			l.gateway.note(l.kind, tracked.RemoteAddr().String())
+			return tracked, nil
+		}
+		// An unknown address is decided off the accept loop: the connection
+		// is handed over now and its first read waits for the answer, so an
+		// open prompt never blocks an allowed device or another listener.
+		pending := &pendingConn{Conn: conn, ready: make(chan struct{})}
+		tracked, ok := l.gateway.conns.add(pending)
 		if !ok {
-			// The gateway closed while this connection was being accepted:
-			// close it here rather than hand it to a worker that cannot
-			// finish.
 			_ = conn.Close()
 			return nil, net.ErrClosed
 		}
-		l.gateway.note(l.kind, tracked.RemoteAddr().String())
+		go func() {
+			if l.gate.decide(addr) {
+				l.gateway.note(l.kind, tracked.RemoteAddr().String())
+				pending.approve()
+				return
+			}
+			pending.deny()
+		}()
 		return tracked, nil
 	}
+}
+
+// pendingConn is an unknown client's connection while its prompt is open. A
+// read or write waits for the answer; a refusal ends the connection as if the
+// peer closed it.
+type pendingConn struct {
+	net.Conn
+	ready   chan struct{}
+	once    sync.Once
+	allowed atomic.Bool
+}
+
+func (c *pendingConn) approve() {
+	c.allowed.Store(true)
+	c.once.Do(func() { close(c.ready) })
+}
+
+func (c *pendingConn) deny() { c.once.Do(func() { close(c.ready) }) }
+
+func (c *pendingConn) Read(p []byte) (int, error) {
+	<-c.ready
+	if !c.allowed.Load() {
+		return 0, io.EOF
+	}
+	return c.Conn.Read(p)
+}
+
+func (c *pendingConn) Write(p []byte) (int, error) {
+	<-c.ready
+	if !c.allowed.Load() {
+		return 0, io.ErrClosedPipe
+	}
+	return c.Conn.Write(p)
+}
+
+func (c *pendingConn) Close() error {
+	c.once.Do(func() { close(c.ready) })
+	return c.Conn.Close()
 }
 
 // sourceAddr is the address a connection came from. A connection whose address

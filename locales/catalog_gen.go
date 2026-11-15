@@ -26432,11 +26432,11 @@ func (msgs Messages) AskWhenUnknownDevice() string {
 	return Catalog.Format(msgs.locale, "askWhenUnknownDevice", nil)
 }
 
-// AskUnknownDeviceHint says "Off by default; 60 seconds without an answer denies."
+// AskUnknownDeviceHint says "Off by default; answers are remembered for this LAN session."
 // in the language the app shows.
 func AskUnknownDeviceHint() string { return In(i18n.Locale()).AskUnknownDeviceHint() }
 
-// AskUnknownDeviceHint says "Off by default; 60 seconds without an answer denies."
+// AskUnknownDeviceHint says "Off by default; answers are remembered for this LAN session."
 // in the language of msgs.
 func (msgs Messages) AskUnknownDeviceHint() string {
 	return Catalog.Format(msgs.locale, "askUnknownDeviceHint", nil)
@@ -26462,11 +26462,11 @@ func (msgs Messages) DeviceNotAllowed(addr string) string {
 	return Catalog.Format(msgs.locale, "deviceNotAllowed", map[string]any{"addr": addr})
 }
 
-// DeviceAskTimeout says "The prompt denies itself after 60 seconds."
+// DeviceAskTimeout says "Closing it or 60 seconds without an answer refuses only this connection."
 // in the language the app shows.
 func DeviceAskTimeout() string { return In(i18n.Locale()).DeviceAskTimeout() }
 
-// DeviceAskTimeout says "The prompt denies itself after 60 seconds."
+// DeviceAskTimeout says "Closing it or 60 seconds without an answer refuses only this connection."
 // in the language of msgs.
 func (msgs Messages) DeviceAskTimeout() string {
 	return Catalog.Format(msgs.locale, "deviceAskTimeout", nil)

@@ -4127,10 +4127,10 @@
   "waitMilliseconds": "Wait (ms)",
   "graphqlSubscriptionHint": "graphql-ws and graphql-transport-ws open a WebSocket and collect messages until the server completes or the wait ends.",
   "askWhenUnknownDevice": "Ask when an unknown device connects",
-  "askUnknownDeviceHint": "Off by default; 60 seconds without an answer denies.",
+  "askUnknownDeviceHint": "Off by default; answers are remembered for this LAN session.",
   "deviceWantsToConnect": "Device wants to connect",
   "deviceNotAllowed": "{addr} is not in the allowed list. Allow it to use this proxy for this LAN session?",
-  "deviceAskTimeout": "The prompt denies itself after 60 seconds.",
+  "deviceAskTimeout": "Closing it or 60 seconds without an answer refuses only this connection.",
   "allow": "Allow",
   "deny": "Deny"
 }

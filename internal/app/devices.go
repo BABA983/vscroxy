@@ -94,7 +94,7 @@ func (a *app) enableDevices() {
 		d.problem = "Choose a proxy port between 1 and 65534; the certificate service uses the next port"
 		return
 	}
-	var ask func(netip.Addr) bool
+	var ask func(netip.Addr) lan.Verdict
 	if d.askUnknown {
 		ask = a.askDevice
 	}
@@ -113,7 +113,7 @@ func (a *app) enableDevices() {
 
 func (a *app) disableDevices() {
 	d := &a.deviceUI
-	a.answerDeviceAsk(false)
+	a.answerDeviceAsk(lan.VerdictUndecided)
 	if d.gateway != nil {
 		err := d.gateway.Close()
 		d.gateway = nil
@@ -125,51 +125,56 @@ func (a *app) disableDevices() {
 	a.inform(locales.DeviceAccessOffLocalCapture())
 }
 
+// deviceAskTimeout is how long a prompt waits for an answer. A test may
+// shorten it; the app always uses a minute.
+var deviceAskTimeout = 60 * time.Second
+
 // deviceAskRequest is one unknown device waiting for the reader's answer.
 // The gateway's accept loop blocks on reply until the prompt answers or times
 // out, so only one device is asked at a time.
 type deviceAskRequest struct {
 	addr  string
-	reply chan bool
+	reply chan lan.Verdict
 }
 
-// askDevice runs on the gateway's accept loop, never on the UI goroutine. It
-// posts the prompt and waits for the answer or a timeout; a second unknown
-// device while a prompt is open is denied rather than queued.
-func (a *app) askDevice(addr netip.Addr) bool {
-	request := &deviceAskRequest{addr: addr.String(), reply: make(chan bool, 1)}
+// askDevice runs on the gateway's connection goroutine, never on the UI
+// goroutine. It posts the prompt and waits for an explicit answer or a
+// timeout; a second device while a prompt is open is refused for this
+// connection only, so it can ask again on its next one.
+func (a *app) askDevice(addr netip.Addr) lan.Verdict {
+	request := &deviceAskRequest{addr: addr.String(), reply: make(chan lan.Verdict, 1)}
 	a.deviceAskMu.Lock()
 	if a.deviceAskPending != nil {
 		a.deviceAskMu.Unlock()
-		return false
+		return lan.VerdictUndecided
 	}
 	a.deviceAskPending = request
 	a.deviceAskMu.Unlock()
 	a.invalidate()
 	select {
-	case allow := <-request.reply:
-		return allow
-	case <-time.After(60 * time.Second):
+	case verdict := <-request.reply:
+		return verdict
+	case <-time.After(deviceAskTimeout):
 		a.deviceAskMu.Lock()
 		if a.deviceAskPending == request {
 			a.deviceAskPending = nil
 		}
 		a.deviceAskMu.Unlock()
 		a.invalidate()
-		return false
+		return lan.VerdictUndecided
 	}
 }
 
 // answerDeviceAsk resolves the open prompt. The UI owns the modal's open
 // state; a timeout or Disable leaves it to close itself.
-func (a *app) answerDeviceAsk(allow bool) {
+func (a *app) answerDeviceAsk(verdict lan.Verdict) {
 	a.deviceAskMu.Lock()
 	request := a.deviceAskPending
 	a.deviceAskPending = nil
 	a.deviceAskMu.Unlock()
 	if request != nil {
 		select {
-		case request.reply <- allow:
+		case request.reply <- verdict:
 		default:
 		}
 	}
@@ -197,17 +202,17 @@ func (a *app) deviceAskModal(c *ui.Context, t *ui.Theme) {
 			uikit.Hint(c, locales.DeviceAskTimeout())
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Deny()).Clicked() {
-					a.answerDeviceAsk(false)
+					a.answerDeviceAsk(lan.VerdictDeny)
 				}
 				ui.Spacer(c)
 				if uikit.PrimaryButton(c, locales.Allow()).Clicked() {
-					a.answerDeviceAsk(true)
+					a.answerDeviceAsk(lan.VerdictAllow)
 				}
 			})
 		})
 	})
 	if !a.deviceAskOpen {
-		a.answerDeviceAsk(false)
+		a.answerDeviceAsk(lan.VerdictUndecided)
 	}
 }
 
