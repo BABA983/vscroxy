@@ -142,6 +142,30 @@
       }
     }
   },
+  "@contractChecked": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@contractDriftCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@contractSpecFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "problem": {
+        "type": "String"
+      }
+    }
+  },
   "@cookiesCaptured": {
     "placeholders": {
       "count": {
@@ -1728,6 +1752,13 @@
   "contentTypeApplicationJson": "Content-Type: application/json",
   "continueOrAbortInThe": "Continue or abort in the breakpoint dialog.",
   "continueOriginal": "Continue original",
+  "contract": "Contract",
+  "contractChecked": "{count} saved contracts checked",
+  "contractDriftCount": "{count, plural, one {# drift finding} other {# drift findings}}",
+  "contractMatches": "Matches the saved contract.",
+  "contractNoSpecs": "No saved OpenAPI document to check this exchange against. Add one on the APIs page.",
+  "contractNotCovered": "No saved contract serves this exchange.",
+  "contractSpecFailed": "{name}: {problem}",
   "cookieDomain": "Cookie domain",
   "cookieName": "Cookie name",
   "cookiePath": "Cookie path",

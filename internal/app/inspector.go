@@ -51,6 +51,7 @@ const (
 	resViewRaw
 	resViewTests
 	resViewConsole
+	resViewContract
 	resViewMessages
 )
 
@@ -313,6 +314,8 @@ func (a *app) responsePane(c *ui.Context, f flow) {
 			a.timingView(c, f)
 		case resViewCookies:
 			cookieView(c, f.respHeader, true, &a.inspect.reveal[0])
+		case resViewContract:
+			a.contractView(c, t, fmt.Sprintf("capture:%d:%s:%d", f.id, f.url, f.status), a.flowExchange(f))
 		case resViewMessages:
 			a.messages(c, f)
 		default:
@@ -738,6 +741,7 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 		{resViewRaw, locales.Raw(), ""},
 		{resViewTests, locales.Checks(), ""},
 		{resViewConsole, locales.Console(), ""},
+		{resViewContract, locales.Contract(), ""},
 	}
 	if i := slices.IndexFunc(extras, func(v paneView) bool { return v.view == *selected }); i >= 0 {
 		views = append(views, extras[i])
@@ -847,6 +851,8 @@ func (a *app) responseViews(selected *int, raw bool, checks string, console bool
 		items = append(items, do("response.view", locales.Console(), func() { *selected = resViewConsole }).
 			checked(checkbox(*selected == resViewConsole)).in("views"))
 	}
+	items = append(items, do("response.view", locales.Contract(), func() { *selected = resViewContract }).
+		checked(checkbox(*selected == resViewContract)).in("views"))
 	return items
 }
 

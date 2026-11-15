@@ -137,6 +137,7 @@ type app struct {
 	docsPath       string
 	docsMarkdown   markdown.Options
 	docsSampleLang map[string]int
+	contractCache  map[string]contractResult
 	// aboutOpen shows the About window; aboutTab picks its licenses page.
 	// aboutLicense and aboutNotices are the texts the package ships.
 	aboutOpen     bool

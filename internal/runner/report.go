@@ -30,6 +30,18 @@ type Report struct {
 	Incomplete     bool      `json:"incomplete"`
 	Problem        string    `json:"problem"`
 	Results        []Attempt `json:"results"`
+	// Contract is set when the run gated sent exchanges against an OpenAPI
+	// contract. It holds counts and drifted endpoints, never raw traffic.
+	Contract *ContractReport `json:"contract,omitempty"`
+}
+
+// ContractReport is an OpenAPI drift gate's outcome for one run.
+type ContractReport struct {
+	Spec      string   `json:"spec"`
+	Checked   int      `json:"checked"`
+	Matched   int      `json:"matched"`
+	Failed    int      `json:"failed"`
+	Endpoints []string `json:"endpoints,omitempty"`
 }
 
 // Attempt is one request attempt, not one assertion. Error and assertion names

@@ -3609,6 +3609,18 @@ collection importer reads Swagger 2 and converts it to OpenAPI 3.0. Unsaved API
 editors and source links are session-local; saved contracts are restored after
 restart. **API contracts** in Commands opens the first one.
 
+## Contract drift
+
+A response's **Contract** view (in the response pane's **⋯** menu) checks the
+exchange against every saved OpenAPI document with kin-openapi's request and
+response filters. It names the matched operation and lists drift findings such
+as an undocumented status, an invalid path or query parameter, a missing
+required body field or a response schema mismatch. When no saved contract
+serves the exchange it says so instead of guessing; unsaved API drafts are not
+used. Only saved contracts are checked. `vscroxy-cli run --contract api.yaml`
+applies one spec to every sent exchange and exits 1 on drift or an unmatched
+request.
+
 ## Timing
 
 The captured response's **Timing** tab shows a request-local waterfall on one

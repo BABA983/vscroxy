@@ -1545,6 +1545,12 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			d.responseEditor.Theme = uikit.EditorTheme(t)
 			editor.View(c, d.responseEditor).Grow(1)
 		}
+	case resViewContract:
+		if d.response == nil {
+			uikit.Hint(c, locales.NoResponseYet()).Padding(t.Space(3))
+			return
+		}
+		a.contractView(c, t, fmt.Sprintf("send:%d:%s:%d", d.response.ID, d.response.URL, d.response.Status), a.captureExchange(d.response))
 	case resViewHeaders:
 		ui.Scroll(c).Grow(1).Padding(t.Space(2), t.Space(3)).Children(func() {
 			if d.response != nil {

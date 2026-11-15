@@ -4156,6 +4156,78 @@ func (msgs Messages) ContinueOriginal() string {
 	return Catalog.Format(msgs.locale, "continueOriginal", nil)
 }
 
+// Contract says "Contract"
+// in the language the app shows.
+func Contract() string { return In(i18n.Locale()).Contract() }
+
+// Contract says "Contract"
+// in the language of msgs.
+func (msgs Messages) Contract() string {
+	return Catalog.Format(msgs.locale, "contract", nil)
+}
+
+// ContractChecked says "{count} saved contracts checked"
+// in the language the app shows.
+func ContractChecked(count int) string { return In(i18n.Locale()).ContractChecked(count) }
+
+// ContractChecked says "{count} saved contracts checked"
+// in the language of msgs.
+func (msgs Messages) ContractChecked(count int) string {
+	return Catalog.Format(msgs.locale, "contractChecked", map[string]any{"count": count})
+}
+
+// ContractDriftCount says "{count, plural, one {# drift finding} other {# drift findings}}"
+// in the language the app shows.
+func ContractDriftCount(count int) string { return In(i18n.Locale()).ContractDriftCount(count) }
+
+// ContractDriftCount says "{count, plural, one {# drift finding} other {# drift findings}}"
+// in the language of msgs.
+func (msgs Messages) ContractDriftCount(count int) string {
+	return Catalog.Format(msgs.locale, "contractDriftCount", map[string]any{"count": count})
+}
+
+// ContractMatches says "Matches the saved contract."
+// in the language the app shows.
+func ContractMatches() string { return In(i18n.Locale()).ContractMatches() }
+
+// ContractMatches says "Matches the saved contract."
+// in the language of msgs.
+func (msgs Messages) ContractMatches() string {
+	return Catalog.Format(msgs.locale, "contractMatches", nil)
+}
+
+// ContractNoSpecs says "No saved OpenAPI document to check this exchange against. Add one on the APIs page."
+// in the language the app shows.
+func ContractNoSpecs() string { return In(i18n.Locale()).ContractNoSpecs() }
+
+// ContractNoSpecs says "No saved OpenAPI document to check this exchange against. Add one on the APIs page."
+// in the language of msgs.
+func (msgs Messages) ContractNoSpecs() string {
+	return Catalog.Format(msgs.locale, "contractNoSpecs", nil)
+}
+
+// ContractNotCovered says "No saved contract serves this exchange."
+// in the language the app shows.
+func ContractNotCovered() string { return In(i18n.Locale()).ContractNotCovered() }
+
+// ContractNotCovered says "No saved contract serves this exchange."
+// in the language of msgs.
+func (msgs Messages) ContractNotCovered() string {
+	return Catalog.Format(msgs.locale, "contractNotCovered", nil)
+}
+
+// ContractSpecFailed says "{name}: {problem}"
+// in the language the app shows.
+func ContractSpecFailed(name string, problem string) string {
+	return In(i18n.Locale()).ContractSpecFailed(name, problem)
+}
+
+// ContractSpecFailed says "{name}: {problem}"
+// in the language of msgs.
+func (msgs Messages) ContractSpecFailed(name string, problem string) string {
+	return Catalog.Format(msgs.locale, "contractSpecFailed", map[string]any{"name": name, "problem": problem})
+}
+
 // CookieDomain says "Cookie domain"
 // in the language the app shows.
 func CookieDomain() string { return In(i18n.Locale()).CookieDomain() }

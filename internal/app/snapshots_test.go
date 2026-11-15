@@ -1130,6 +1130,15 @@ func snapshotStates(t *testing.T) []snapshot {
 			off := false
 			a.requestDocument.settings.VerifyTLS = &off
 		}, want: "Certificate verification is off"},
+		{name: "capture-contract", setup: func(a *app) {
+			a.addAPI(apiSpec{ID: "snapshot-contract", Source: contractUISpec}, true)
+			a.inspect.ready, a.inspect.tab[1] = true, resViewContract
+		}, want: "Matches the saved contract."},
+		{name: "capture-contract-drift", setup: func(a *app) {
+			a.addAPI(apiSpec{ID: "snapshot-contract", Source: contractUISpec}, true)
+			a.inspect.ready, a.inspect.tab[1] = true, resViewContract
+			a.flows[0].status = 500
+		}, want: "status is not supported"},
 		{name: "requests-docs", setup: func(a *app) {
 			a.openSaved(a.requests[0].key())
 			a.composeTab = composeTabDocs

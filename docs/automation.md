@@ -51,6 +51,13 @@ silently discarded.
 - `--delay-request` (default 0) waits before every attempt after the first,
   including the first attempt of a later iteration, to pace a run against a
   rate-limited server. The wait ends early when the run is cancelled.
+- `--contract api.yaml` checks every sent request and response against one
+  local OpenAPI 3.0/3.1 document, resolving its local `$ref` files only. The
+  gate uses kin-openapi's request and response filters: an endpoint the contract
+  does not serve, an undocumented status, or a parameter, body or schema
+  mismatch makes the run exit 1. Findings are printed after the run, and the
+  JSON report's `contract` object carries `checked`, `matched`, `failed` and the
+  drifted endpoint templates, never raw traffic.
 - `--export-environment`, `--export-globals` and `--export-cookie-jar` write the
   state the run ended with, after reports. The environment and globals are
   Postman environment files, so `--env` reads them back; the cookie jar is the

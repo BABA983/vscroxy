@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/library"
+	"github.com/baba983/vscroxy/internal/openapi"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
 	"github.com/baba983/vscroxy/internal/store"
@@ -67,6 +69,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	jsonPath := flags.String("report-json", "", "Write a private JSON report")
 	xmlPath := flags.String("report-junit", "", "Write a private JUnit XML report")
 	htmlPath := flags.String("report-html", "", "Write a self-contained HTML report")
+	contractPath := flags.String("contract", "", "Fail when sent exchanges drift from this OpenAPI contract")
 	exports := runExports{}
 	flags.StringVar(&exports.environment, "export-environment", "", "Write the environment's final values as a Postman environment file")
 	flags.StringVar(&exports.globals, "export-globals", "", "Write the global variables' final values as a Postman globals file")
@@ -104,6 +107,15 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				return 2
 			}
 		}
+	}
+	var contract *openapi.Checker
+	if *contractPath != "" {
+		loaded, loadErr := openapi.LoadChecker(*contractPath)
+		if loadErr != nil {
+			fmt.Fprintln(stderr, "Could not load contract:", loadErr)
+			return 2
+		}
+		contract = loaded
 	}
 	requests, folders, warnings, err := loadCollection(flags.Arg(0), *folder)
 	if err != nil {
@@ -152,7 +164,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		if output == "" {
 			continue
 		}
-		for _, input := range []string{flags.Arg(0), *envPath, *dataPath} {
+		for _, input := range []string{flags.Arg(0), *envPath, *dataPath, *contractPath} {
 			if input != "" && overlaps(output, input) {
 				fmt.Fprintln(stderr, "Report or export destination overlaps an input; choose a separate output directory.")
 				return 2
@@ -191,7 +203,9 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				if !ok {
 					return
 				}
-				srv.Discard([]string{f.RequestBodyFile, f.ResponseBodyFile})
+				if contract == nil {
+					srv.Discard([]string{f.RequestBodyFile, f.ResponseBodyFile})
+				}
 			case f := <-srv.Frames():
 				srv.Discard([]string{f.Frame.File})
 			case <-drainCtx.Done():
@@ -210,12 +224,37 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 	start := time.Now()
 	report := runner.Report{Version: 1, StartedAt: start.UTC()}
+	if contract != nil {
+		report.Contract = &runner.ContractReport{Spec: filepath.Base(*contractPath)}
+	}
+	var contractProblems []string
 	// Exports hold the state the run ended with: the environment a script
 	// last set, and the globals' initial values with the scripts' changes.
 	finalVars, finalGlobals := maps.Clone(values), maps.Clone(globals)
 	summary, runErr := runner.Run(runCtx, srv, steps, runner.Options{Iterations: *iterations, Timeout: *stepTimeout, Delay: *delayRequest, StopOnFailure: *bail, Vars: values, Data: rows, Cookies: jar, MaxSteps: *maxSteps}, func(result runner.Result) error {
 		r := requests[result.Index]
 		report.Append(r, result, *details)
+		if contract != nil && !result.Execution.Skipped {
+			endpoint, problems, matched := checkContract(contract, result)
+			report.Contract.Checked++
+			if matched && len(problems) == 0 {
+				report.Contract.Matched++
+			} else {
+				if !matched {
+					endpoint = contractEndpoint(result)
+					problems = []string{"no operation in the contract serves this request"}
+				}
+				report.Contract.Failed++
+				if endpoint != "" && !slices.Contains(report.Contract.Endpoints, endpoint) {
+					report.Contract.Endpoints = append(report.Contract.Endpoints, endpoint)
+				}
+				line := r.Name + " · " + endpoint + ": " + strings.Join(problems, " · ")
+				if len(line) > 700 {
+					line = line[:700] + "…"
+				}
+				contractProblems = append(contractProblems, line)
+			}
+		}
 		if result.Execution.Vars != nil {
 			finalVars = maps.Clone(result.Execution.Vars)
 		}
@@ -255,6 +294,9 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	case summary.Failed > 0:
 		code = 1
 	}
+	if report.Contract != nil && report.Contract.Failed > 0 && code == 0 {
+		code = 1
+	}
 	for _, output := range []struct {
 		path string
 		data func() ([]byte, error)
@@ -277,6 +319,16 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	if runErr != nil {
 		fmt.Fprintln(stderr, "Run incomplete:", report.Problem)
+	}
+	if report.Contract != nil {
+		if _, err := fmt.Fprintf(stdout, "Contract %s · %d checked · %d matched · %d drifted\n", report.Contract.Spec, report.Contract.Checked, report.Contract.Matched, report.Contract.Failed); err != nil {
+			return 2
+		}
+		for _, problem := range contractProblems {
+			if _, err := fmt.Fprintln(stdout, "DRIFT "+problem); err != nil {
+				return 2
+			}
+		}
 	}
 	if _, err := fmt.Fprintf(stdout, "%d completed · %d failed · %d skipped\n", summary.Completed, summary.Failed, summary.Skipped); err != nil {
 		return 2
@@ -311,4 +363,48 @@ func overlaps(output, input string) bool {
 		return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 	}
 	return false
+}
+
+// checkContract validates one attempt against the contract. An empty endpoint
+// means the contract has no operation for the request.
+func checkContract(checker *openapi.Checker, result runner.Result) (string, []string, bool) {
+	var ex openapi.Exchange
+	if prepared := result.Execution.Request; prepared != nil {
+		ex.Method, ex.URL, ex.Header = prepared.Method, prepared.URL, prepared.Header
+		ex.Body = contractBody(prepared.Body, prepared.BodyFile)
+	}
+	if response := result.Execution.Response; response != nil {
+		ex.Status = response.Status
+		ex.ResponseHeader = response.ResponseHeader
+		ex.ResponseBody = contractBody(response.ResponseBody, response.ResponseBodyFile)
+	}
+	drift, matched := checker.Check(ex)
+	return drift.Endpoint, drift.Problems, matched
+}
+
+func contractEndpoint(result runner.Result) string {
+	prepared := result.Execution.Request
+	if prepared == nil {
+		return ""
+	}
+	path := ""
+	if u, err := url.Parse(prepared.URL); err == nil {
+		path = u.EscapedPath()
+	}
+	return strings.TrimSpace(prepared.Method + " " + path)
+}
+
+// contractBody returns a body for validation, reading a spilled body within a
+// bound so one huge response cannot exhaust the run.
+func contractBody(text, file string) []byte {
+	if file != "" {
+		if f, err := os.Open(file); err == nil {
+			data, readErr := io.ReadAll(io.LimitReader(f, 16<<20))
+			_ = f.Close()
+			if readErr == nil {
+				return data
+			}
+		}
+	}
+	return []byte(text)
 }
