@@ -3,6 +3,8 @@
 package request
 
 import (
+	"bufio"
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -12,6 +14,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"golang.org/x/sys/windows"
 )
@@ -100,20 +103,28 @@ func TestNamedPipeSend(t *testing.T) {
 	}
 	seen := make(chan seenRequest, 1)
 	listener := listenNamedPipe(t)
-	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		seen <- seenRequest{host: r.Host, path: r.URL.RequestURI(), body: string(body)}
-		fmt.Fprint(w, "pong over a pipe")
-	})}
-	go func() { _ = server.Serve(listener) }()
-	t.Cleanup(func() {
-		_ = server.Close()
-		_ = listener.Close()
-	})
+	t.Cleanup(func() { _ = listener.Close() })
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		req, err := http.ReadRequest(bufio.NewReader(conn))
+		if err != nil {
+			return
+		}
+		body, _ := io.ReadAll(req.Body)
+		seen <- seenRequest{host: req.Host, path: req.URL.RequestURI(), body: string(body)}
+		reply := "pong over a pipe"
+		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s", len(reply), reply)
+	}()
 
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
 	r := Request{Method: "POST", URL: "http://pipe.test/echo?x=1", Headers: "X-Pipe: yes",
 		BodyMode: "Raw", Body: "through the pipe", Settings: Settings{SocketPath: listener.name}}
-	out := r.Execute(t.Context(), testProxy(t), Context{}, nil, nil)
+	out := r.Execute(ctx, testProxy(t), Context{}, nil, nil)
 	if out.Err != nil {
 		t.Fatalf("%s: %v", out.Stage, out.Err)
 	}
