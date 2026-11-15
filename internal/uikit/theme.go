@@ -33,8 +33,11 @@ type Palette struct {
 	MethodGet, MethodPost, MethodPatch, Socket ui.Color
 	// Inverse fills tooltips, so they stand out from what they cover.
 	Inverse, InverseText ui.Color
+	// Scrim dims what a dialog covers: black at 35% in both themes, enough
+	// to put the dialog forward without hiding the screen behind it.
+	Scrim ui.Color
 	// Shadow is the soft lift under a popover or a dialog; the hairline
-	// draws its edge.
+	// draws its edge. The three Shadow tokens carry the exact elevations.
 	Shadow ui.Color
 }
 
@@ -48,7 +51,7 @@ func fills(p Palette, rest, hover, pressed float32) Palette {
 // selected, primary or on, and green only for what passed or is recording.
 // TextFaint is only for icons and placeholders; it carries no information.
 var Light = fills(Palette{
-	Chrome: ui.Hex("#edf3ea"), Canvas: ui.Hex("#f9fdf6"), Well: ui.Hex("#ebebeb"),
+	Chrome: ui.Hex("#f2f6ee"), Canvas: ui.Hex("#f9fdf6"), Well: ui.Hex("#ebebeb"),
 	Hairline: ui.Hex("#ebefe8"),
 	Text:     ui.Hex("#0b0d0b"), TextMuted: ui.Hex("#595959"), TextFaint: ui.Hex("#8a8f88"),
 	Accent: ui.Hex("#141614"), AccentHover: ui.Hex("#2a2d2a"), AccentPressed: ui.Hex("#3d413d"),
@@ -59,6 +62,7 @@ var Light = fills(Palette{
 	MethodGet: ui.Hex("#2f6ea5"), MethodPost: ui.Hex("#5b6b1c"), MethodPatch: ui.Hex("#7a3e6d"),
 	Socket:  ui.Hex("#2b6868"),
 	Inverse: ui.Hex("#0b0d0b"), InverseText: ui.Hex("#f9fdf6"),
+	Scrim:  ui.RGBA(0, 0, 0, 0.35),
 	Shadow: ui.RGBA(11, 13, 11, 0.16),
 }, 0.07, 0.11, 0.15)
 
@@ -80,6 +84,7 @@ var Dark = fills(Palette{
 	MethodGet: ui.Hex("#8fb3d1"), MethodPost: ui.Hex("#b5c27a"), MethodPatch: ui.Hex("#c99abd"),
 	Socket:  ui.Hex("#6fc3d6"),
 	Inverse: ui.Hex("#f6fff5"), InverseText: ui.Hex("#0c1516"),
+	Scrim:  ui.RGBA(0, 0, 0, 0.35),
 	Shadow: ui.RGBA(0, 0, 0, 0.5),
 }, 0.07, 0.11, 0.15)
 

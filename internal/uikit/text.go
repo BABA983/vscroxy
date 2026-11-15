@@ -11,15 +11,27 @@ func Heading(c *ui.Context, s string) ui.Element {
 	return ui.Text(c, s).FontSize(Scaled(TextTitle)).FontWeight(500).LineHeight(LineTitle)
 }
 
+// Display titles a first-run guide or a command palette: the one line a
+// person reads before anything else on the surface.
+func Display(c *ui.Context, s string) ui.Element {
+	return ui.Text(c, s).FontSize(Scaled(TextDisplay)).FontWeight(500).LineHeight(LineDisplay)
+}
+
 // Body is ordinary reading text. It keeps the color around it, so it reads
-// right inside buttons and selected rows. Its leading stays compact because
-// controls and table cells use it too.
+// right inside buttons and selected rows. Its 13/20 leading is the desktop
+// scale's; controls and table cells still fit their fixed heights.
 func Body(c *ui.Context, s string) ui.Element {
-	return ui.Text(c, s).FontSize(Scaled(TextBody))
+	return ui.Text(c, s).FontSize(Scaled(TextBody)).LineHeight(LineBody)
+}
+
+// Small is secondary interface text: a popover description, a field hint or
+// a second line in a menu. It is smaller than a body but still prose.
+func Small(c *ui.Context, s string) ui.Element {
+	return ui.Text(c, s).FontSize(Scaled(TextSmall)).LineHeight(LineSmall)
 }
 
 // Prose is body text that reads as a paragraph, with the leading long
-// sentences and CJK need. Body stays compact for controls and cells.
+// sentences and CJK need. Body is already 13/20; prose adds a little more.
 func Prose(c *ui.Context, s string) ui.Element {
 	return Body(c, s).LineHeight(LineProse)
 }
@@ -31,10 +43,10 @@ func Mono(c *ui.Context, s string) ui.Element {
 }
 
 // Hint explains: a sentence under a control or in an empty pane. It is the
-// prose role, so it carries the looser leading Chinese and long English
-// sentences need.
+// small prose role, so it carries the looser leading Chinese and long English
+// sentences need without taking a body line's height.
 func Hint(c *ui.Context, s string) ui.Element {
-	return Prose(c, s).TextColor(c.Theme().TextMuted)
+	return Small(c, s).LineHeight(LineProse).TextColor(c.Theme().TextMuted)
 }
 
 // Meta is a secondary fact: a count, a timestamp, a size. Tabular figures
