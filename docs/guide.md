@@ -1155,8 +1155,13 @@ also have a Decode button. A selection takes priority over the body; input is
 limited to 64 KiB. Supports standard/URL-safe Base64 (binary output is shown as
 hex), JWT header/payload, URL components, query values, and explicitly selected
 Unix seconds or milliseconds (shown in UTC). URL query decoding treats `+` as a
-space; component decoding does not. JWT decoding **does not verify signatures,
-expiry, issuer or other claims**. Copy result copies only the decoded preview;
+space; component decoding does not. **JSON** pretty-prints a selected object or
+array, **XML** indents a fragment while keeping namespaces, attributes and text,
+and **Key-value** shows `a=b&c=d`, one pair per line, or `key: value` lines as a
+table. **Base64 image** draws a decoded PNG, JPEG, GIF, BMP or WebP inline with
+its media type and pixel size instead of hex. JWT decoding **does not verify
+signatures, expiry, issuer or other claims**. Copy result copies only the decoded
+preview (key-value rows as tab-separated lines; images have no text to copy);
 neither decoding nor editing its scratch input modifies or sends a request.
 
 Both captured sides have a **Cookies** tab, separate from the request cookie

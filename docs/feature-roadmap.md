@@ -96,7 +96,7 @@
 | Body 查看：Pretty、JSON 树、Hex、图片、HTML、Protobuf、JavaScript/CSS 美化、Markdown、合并流 | 已有 | 手动格式按 Content-Type 记住；JS/CSS 只重排不改 token，Markdown 渲染为富文本，SSE／OpenAI 分块合并并注明结束原因 | |
 | Body 查看：multipart 分段、表单字段表、MessagePack、XML 格式化 | 已有 | 后台只读解析，保留重名/整数/二进制证据；multipart 分段可另存为文件；见使用指南限制 | M5 |
 | JSON 筛选：JSONPath、jq | 已有 | 后台只读有界子集，支持取消；JSONPath 过滤器支持 `=~`、`in`、`length()`；查询可命名保存（`queries.json`，带版本）并在 JSON 树旁内联运行；详见使用指南 | M5 |
-| 快速解码：选中文字解 Base64、JWT、URL 编码、时间戳 | 已有 | 本地只读预览；JWT 不验证签名或 claims | M5 |
+| 快速解码：选中文字解 Base64、JWT、JSON、XML、键值、图片、URL 编码、时间戳 | 已有 | 本地只读预览；JSON／XML 就地格式化，键值显示为表格，Base64 图片内联显示类型与尺寸；JWT 不验证签名或 claims | M5 |
 | Cookies 标签（解析 Cookie 和 Set-Cookie） | 已有 | 抓包两侧和已发送响应；保留重名，默认遮罩 | M5 |
 | 耗时瀑布图（DNS、连接、TLS、等待、下载） | 已有 | 请求级实际偏移，支持重叠、失败／未结束、复用；代理观测边界见使用指南 | M5 |
 | Diff、两条对比、多选汇总 | 已有 | | |

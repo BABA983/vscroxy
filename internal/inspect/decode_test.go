@@ -32,3 +32,38 @@ func TestDecode(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeValueShapes(t *testing.T) {
+	json, err := DecodeValue("JSON", `{"b":1,"a":[2,3]}`)
+	if want := "{\n  \"b\": 1,\n  \"a\": [\n    2,\n    3\n  ]\n}"; err != nil || json.Text != want {
+		t.Fatalf("JSON: %q, %v; want %q", json.Text, err, want)
+	}
+	xml, err := DecodeValue("XML", `<root><name>A &amp; B</name></root>`)
+	if want := "<root>\n  <name>A &amp; B</name>\n</root>"; err != nil || xml.Text != want {
+		t.Fatalf("XML: %q, %v; want %q", xml.Text, err, want)
+	}
+	form, err := DecodeValue("Key-value", "a=1&b=hello+world&a=2")
+	if err != nil || len(form.Fields) != 3 || form.Fields[1].Key != "b" || form.Fields[1].Value != "hello world" {
+		t.Fatalf("form: %+v, %v", form.Fields, err)
+	}
+	lines, err := DecodeValue("Key-value", "Authorization: Bearer x\nX-Trace = 42")
+	if err != nil || len(lines.Fields) != 2 || lines.Fields[0].Key != "Authorization" || lines.Fields[1].Value != "42" {
+		t.Fatalf("lines: %+v, %v", lines.Fields, err)
+	}
+	png := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+	picture, err := DecodeValue("Base64 image", png)
+	if err != nil || picture.MediaType != "image/png" || len(picture.Image) == 0 {
+		t.Fatalf("image: %s, %d bytes, %v", picture.MediaType, len(picture.Image), err)
+	}
+	for _, tc := range []struct{ kind, input string }{
+		{"JSON", `42`},
+		{"JSON", `{`},
+		{"XML", `<a>`},
+		{"Key-value", `no separators here`},
+		{"Base64 image", `aGVsbG8=`},
+	} {
+		if _, err := DecodeValue(tc.kind, tc.input); err == nil {
+			t.Fatalf("accepted invalid %s input %q", tc.kind, tc.input)
+		}
+	}
+}

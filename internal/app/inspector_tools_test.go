@@ -547,3 +547,25 @@ func TestInspectorGraphQLOperationsSelectFilterAndInvalidate(t *testing.T) {
 		t.Fatal("parse failure not visible, or inspection changed the capture")
 	}
 }
+
+func TestDecoderShowsKeyValueTableAndInlineImage(t *testing.T) {
+	a := workspaceApp()
+	a.decoder = quickDecoder{open: true, kind: "Key-value", input: "name=vscroxy&port=8080"}
+	tt := ui.NewTester(a.view, 1100, 800)
+	if err := tt.Click("Decode"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.decoder.fields) != 2 || a.decoder.fields[1].Key != "port" || a.decoder.fields[1].Value != "8080" || a.decoder.result == nil {
+		t.Fatalf("key-value decode: %+v", a.decoder.fields)
+	}
+	if !tt.HasText("8080") {
+		t.Fatal("decoded table did not render the value")
+	}
+	a.decoder = quickDecoder{open: true, kind: "Base64 image", input: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="}
+	if err := tt.Click("Decode"); err != nil {
+		t.Fatal(err)
+	}
+	if a.decoder.image == nil || a.decoder.mediaType != "image/png" || a.decoder.result != nil {
+		t.Fatalf("image decode: %v %q", a.decoder.image != nil, a.decoder.mediaType)
+	}
+}
