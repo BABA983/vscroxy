@@ -60,7 +60,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 				}
 				state = locales.CustomCaSubject(subject)
 			}
-			settingsCardBlock(c, locales.SigningCa(), func() ui.Element {
+			settingsCardBlock(c, "", func() ui.Element {
 				return ui.Column(c).Gap(t.Space(1)).Children(func() {
 					ui.Text(c, state).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
 					if e.signingSaved && !e.signingClear {

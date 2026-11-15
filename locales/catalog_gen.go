@@ -2514,6 +2514,16 @@ func (msgs Messages) Choose() string {
 	return Catalog.Format(msgs.locale, "choose", nil)
 }
 
+// ChooseCommand says "Choose"
+// in the language the app shows.
+func ChooseCommand() string { return In(i18n.Locale()).ChooseCommand() }
+
+// ChooseCommand says "Choose"
+// in the language of msgs.
+func (msgs Messages) ChooseCommand() string {
+	return Catalog.Format(msgs.locale, "chooseCommand", nil)
+}
+
 // ChooseABaseline says "Choose a baseline"
 // in the language the app shows.
 func ChooseABaseline() string { return In(i18n.Locale()).ChooseABaseline() }
@@ -14834,6 +14844,26 @@ func PauseEachMatchingRequestOr() string { return In(i18n.Locale()).PauseEachMat
 // in the language of msgs.
 func (msgs Messages) PauseEachMatchingRequestOr() string {
 	return Catalog.Format(msgs.locale, "pauseEachMatchingRequestOr", nil)
+}
+
+// PauseOnMatchingRequests says "Pause on matching requests"
+// in the language the app shows.
+func PauseOnMatchingRequests() string { return In(i18n.Locale()).PauseOnMatchingRequests() }
+
+// PauseOnMatchingRequests says "Pause on matching requests"
+// in the language of msgs.
+func (msgs Messages) PauseOnMatchingRequests() string {
+	return Catalog.Format(msgs.locale, "pauseOnMatchingRequests", nil)
+}
+
+// StopPausingRequests says "Stop pausing requests"
+// in the language the app shows.
+func StopPausingRequests() string { return In(i18n.Locale()).StopPausingRequests() }
+
+// StopPausingRequests says "Stop pausing requests"
+// in the language of msgs.
+func (msgs Messages) StopPausingRequests() string {
+	return Catalog.Format(msgs.locale, "stopPausingRequests", nil)
 }
 
 // PauseCapture says "Pause capture"
