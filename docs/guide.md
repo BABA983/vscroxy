@@ -1408,6 +1408,11 @@ containing a port are also understood as hostname rules. IP clients without TLS
 SNI receive a certificate for their CONNECT target, not an empty name. Nothing
 is decrypted out of the box.
 
+**Settings → HTTPS → Never decrypt** is the exclude list: a host there stays an
+encrypted tunnel even when **Every domain**, a domain rule or an app rule
+matches. The list accepts the same host patterns as the decryption list,
+including `*` and `?` wildcards; a plain host also matches its subdomains.
+
 Decrypted HTTPS verifies the upstream certificate by default, against the
 system roots and the custom roots under **Settings → Certificates**. A server
 whose certificate does not verify never receives a forged certificate from the

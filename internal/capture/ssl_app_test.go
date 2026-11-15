@@ -385,3 +385,73 @@ func reachableAddress(t *testing.T) string {
 	t.Skip("no non-loopback IPv4 address this machine can reach itself on")
 	return ""
 }
+
+// An exclude rule wins over All, a domain rule and an app rule, and "?"
+// matches one character in both lists.
+func TestSSLExclusionWinsOverBroaderRules(t *testing.T) {
+	all := SSLConfig{All: true, Exclude: []string{"private.example.com"}}
+	if all.Decrypts("private.example.com") || all.Decrypts("api.private.example.com") {
+		t.Fatal("an excluded host was decrypted under All")
+	}
+	if !all.Decrypts("api.example.com") {
+		t.Fatal("All stopped decrypting another host")
+	}
+	hosts := SSLConfig{Hosts: []string{"*.example.com"}, Exclude: []string{"private.example.com"}}
+	if hosts.Decrypts("private.example.com") || !hosts.Decrypts("api.example.com") {
+		t.Fatal("exclude did not win over a domain rule")
+	}
+	apps := SSLConfig{Apps: []SSLApp{{Path: "/apps/Browser"}}, Exclude: []string{"private.example.com"}}
+	if apps.DecryptsProcess("private.example.com", "/apps/Browser") {
+		t.Fatal("exclude did not win over an app rule")
+	}
+	if !apps.DecryptsProcess("api.example.com", "/apps/Browser") {
+		t.Fatal("app rule stopped decrypting another host")
+	}
+	q := SSLConfig{Hosts: []string{"api?.example.com"}}
+	if !q.Decrypts("api1.example.com") || q.Decrypts("api12.example.com") {
+		t.Fatal("? did not match exactly one character")
+	}
+	qe := SSLConfig{All: true, Exclude: []string{"api?.example.com"}}
+	if qe.Decrypts("api1.example.com") || !qe.Decrypts("api12.example.com") {
+		t.Fatal("? in an exclude rule did not match exactly one character")
+	}
+}
+
+// A host on the exclude list stays an encrypted tunnel even when All would
+// otherwise decrypt it: the client sees the upstream certificate, not the
+// proxy's forged one.
+func TestSSLExclusionKeepsHostEncrypted(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "tunneled")
+	}))
+	defer upstream.Close()
+	roots := x509.NewCertPool()
+	roots.AddCert(upstream.Certificate())
+
+	for _, tc := range []struct {
+		name string
+		cfg  SSLConfig
+	}{
+		{"all", SSLConfig{All: true, Exclude: []string{"127.0.0.1"}}},
+		{"domain", SSLConfig{Hosts: []string{"127.0.0.1"}, Exclude: []string{"127.0.0.1"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _ := startServer(t)
+			s.SetSSL(tc.cfg)
+			client := clientFor(t, s, roots)
+			defer client.CloseIdleConnections()
+			resp, err := client.Get(upstream.URL + "/excluded")
+			if err != nil {
+				t.Fatalf("excluded host was decrypted: %v", err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != 200 || string(body) != "tunneled" {
+				t.Fatalf("excluded host = %d %q", resp.StatusCode, body)
+			}
+			if f := waitFlow(t, s); f.Kind != "connect" {
+				t.Fatalf("excluded host flow = %+v, want a tunnel", f)
+			}
+		})
+	}
+}

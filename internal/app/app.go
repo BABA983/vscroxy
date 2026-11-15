@@ -338,11 +338,13 @@ type app struct {
 	sslPath           string
 	sslAll            bool
 	sslHosts          string
+	sslExclude        string
 	sslUntrusted      string
 	sslApps           []capture.SSLApp
 	sslOpen           bool
 	sslDraft          *capture.SSLConfig
 	sslDraftHosts     string
+	sslDraftExclude   string
 	sslDraftUntrusted string
 
 	// appearance is "light", "dark", or empty to follow the system; dark is
@@ -912,6 +914,7 @@ func (a *app) reloadConfig() {
 			a.srv.SetSSL(cfg)
 			a.sslAll = cfg.All
 			a.sslHosts = strings.Join(cfg.Hosts, "\n")
+			a.sslExclude = strings.Join(cfg.Exclude, "\n")
 			a.sslUntrusted = strings.Join(cfg.AllowUntrusted, "\n")
 			a.sslApps = slices.Clone(cfg.Apps)
 		}
@@ -4442,12 +4445,12 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 		// buttons in a small window. Later save errors still remain visible.
 		c.CloseToast("")
 		cfg := a.inspectionConfig()
-		a.sslDraft, a.sslDraftHosts, a.sslDraftUntrusted = &cfg, a.sslHosts, a.sslUntrusted
+		a.sslDraft, a.sslDraftHosts, a.sslDraftExclude, a.sslDraftUntrusted = &cfg, a.sslHosts, a.sslExclude, a.sslUntrusted
 	}
 	draft := a.sslDraft
 	_, height := c.Size()
 	uikit.Modal(c, &a.sslOpen, locales.SslProxying(), func() {
-		uikit.DialogColumn(c, uikit.DialogMedium).Height(min(600, height-80)).Children(func() {
+		uikit.DialogColumn(c, uikit.DialogMedium).Height(min(680, height-80)).Children(func() {
 			uikit.DialogTitle(c, locales.SslProxying())
 			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Meta(c, locales.EnableADomainOrA())
@@ -4457,6 +4460,10 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 				})
 				ui.Text(c, locales.DomainsAndSubdomains()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
 				uikit.TextArea(c, &a.sslDraftHosts).Height(100).Label(locales.DecryptionDomains()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+				ui.Divider(c)
+				ui.Text(c, locales.NeverDecrypt()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
+				uikit.Meta(c, locales.NeverDecryptHint())
+				uikit.TextArea(c, &a.sslDraftExclude).Height(80).Label(locales.ExcludedHosts()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 				ui.Divider(c)
 				ui.Text(c, locales.AllowUntrustedUpstream()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
 				uikit.Meta(c, locales.AllowUntrustedUpstreamHint())
@@ -4489,6 +4496,7 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 				}
 				if uikit.PrimaryButton(c, locales.Save()).Clicked() {
 					draft.Hosts = splitHosts(a.sslDraftHosts)
+					draft.Exclude = splitHosts(a.sslDraftExclude)
 					draft.AllowUntrusted = splitHosts(a.sslDraftUntrusted)
 					if a.saveSSL(*draft) {
 						a.sslOpen = false
@@ -4517,6 +4525,7 @@ func (a *app) saveSSL(cfg capture.SSLConfig) bool {
 		a.srv.SetSSL(cfg)
 	}
 	a.sslAll, a.sslHosts = cfg.All, strings.Join(cfg.Hosts, "\n")
+	a.sslExclude = strings.Join(cfg.Exclude, "\n")
 	a.sslUntrusted = strings.Join(cfg.AllowUntrusted, "\n")
 	a.sslApps = slices.Clone(cfg.Apps)
 	if cfg.All {

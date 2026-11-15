@@ -7076,6 +7076,16 @@ func (msgs Messages) ExchangesCount(count int) string {
 	return Catalog.Format(msgs.locale, "exchangesCount", map[string]any{"count": count})
 }
 
+// ExcludedHosts says "Excluded hosts"
+// in the language the app shows.
+func ExcludedHosts() string { return In(i18n.Locale()).ExcludedHosts() }
+
+// ExcludedHosts says "Excluded hosts"
+// in the language of msgs.
+func (msgs Messages) ExcludedHosts() string {
+	return Catalog.Format(msgs.locale, "excludedHosts", nil)
+}
+
 // ExecutionOrder says "Execution order"
 // in the language the app shows.
 func ExecutionOrder() string { return In(i18n.Locale()).ExecutionOrder() }
@@ -11216,6 +11226,16 @@ func (msgs Messages) ManageEnvironments2() string {
 	return Catalog.Format(msgs.locale, "manageEnvironments2", nil)
 }
 
+// ManageExclusions says "Manage exclusions…"
+// in the language the app shows.
+func ManageExclusions() string { return In(i18n.Locale()).ManageExclusions() }
+
+// ManageExclusions says "Manage exclusions…"
+// in the language of msgs.
+func (msgs Messages) ManageExclusions() string {
+	return Catalog.Format(msgs.locale, "manageExclusions", nil)
+}
+
 // ManageExceptions says "Manage exceptions…"
 // in the language the app shows.
 func ManageExceptions() string { return In(i18n.Locale()).ManageExceptions() }
@@ -12458,6 +12478,26 @@ func NetworkRules() string { return In(i18n.Locale()).NetworkRules() }
 // in the language of msgs.
 func (msgs Messages) NetworkRules() string {
 	return Catalog.Format(msgs.locale, "networkRules", nil)
+}
+
+// NeverDecrypt says "Never decrypt"
+// in the language the app shows.
+func NeverDecrypt() string { return In(i18n.Locale()).NeverDecrypt() }
+
+// NeverDecrypt says "Never decrypt"
+// in the language of msgs.
+func (msgs Messages) NeverDecrypt() string {
+	return Catalog.Format(msgs.locale, "neverDecrypt", nil)
+}
+
+// NeverDecryptHint says "These hosts stay encrypted tunnels even when Every domain, a domain rule or an app rule matches. `*` and `?` wildcard…"
+// in the language the app shows.
+func NeverDecryptHint() string { return In(i18n.Locale()).NeverDecryptHint() }
+
+// NeverDecryptHint says "These hosts stay encrypted tunnels even when Every domain, a domain rule or an app rule matches. `*` and `?` wildcard…"
+// in the language of msgs.
+func (msgs Messages) NeverDecryptHint() string {
+	return Catalog.Format(msgs.locale, "neverDecryptHint", nil)
 }
 
 // NeverDisablesCertificateVerificationCertificate says "Never disables certificate verification. Certificate trust comes from the system store on macOS/Windows and NSS on Li…"

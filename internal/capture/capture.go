@@ -656,19 +656,36 @@ type SSLApp struct {
 }
 
 // SSLConfig says which domains or local executables the proxy decrypts.
-// Nothing is decrypted until a domain/app is listed, or All is set.
-// AllowUntrusted names hosts whose upstream certificate may be accepted
-// without verification; verification is on by default.
+// Nothing is decrypted until a domain/app is listed, or All is set. Exclude
+// names hosts that are never decrypted, even when All or a broader rule
+// matches. AllowUntrusted names hosts whose upstream certificate may be
+// accepted without verification; verification is on by default.
 type SSLConfig struct {
 	All            bool     `json:"all"`
 	Hosts          []string `json:"hosts,omitempty"`
+	Exclude        []string `json:"exclude,omitempty"`
 	AllowUntrusted []string `json:"allowUntrusted,omitempty"`
 	Apps           []SSLApp `json:"apps,omitempty"`
+}
+
+// Excluded reports whether host must stay an encrypted tunnel. An exclude
+// rule wins over every domain, app or All rule.
+func (c SSLConfig) Excluded(host string) bool {
+	host = sslHostname(host)
+	for _, pattern := range c.Exclude {
+		if rules.Host(host, []string{sslHostname(pattern)}) {
+			return true
+		}
+	}
+	return false
 }
 
 // Decrypts reports whether the current rules enable HTTPS inspection for host.
 // Existing connections keep the rules they were opened with.
 func (c SSLConfig) Decrypts(host string) bool {
+	if c.Excluded(host) {
+		return false
+	}
 	if c.All {
 		return true
 	}
@@ -718,8 +735,12 @@ func splitHostPortPattern(raw string) (host, port string) {
 }
 
 // DecryptsProcess adds opt-in executable rules to the host/global rules.
-// Names, parent apps, path prefixes and unidentified clients never match.
+// Names, parent apps, path prefixes and unidentified clients never match, and
+// an excluded host stays encrypted even for a selected executable.
 func (c SSLConfig) DecryptsProcess(host, path string) bool {
+	if c.Excluded(host) {
+		return false
+	}
 	if c.Decrypts(host) {
 		return true
 	}
@@ -817,6 +838,7 @@ func (s *Server) noteDNS(f *proxy.Flow) {
 // SetSSL sets what the proxy decrypts.
 func (s *Server) SetSSL(c SSLConfig) {
 	c.Hosts = slices.Clone(c.Hosts)
+	c.Exclude = slices.Clone(c.Exclude)
 	c.AllowUntrusted = slices.Clone(c.AllowUntrusted)
 	c.Apps = slices.Clone(c.Apps)
 	s.ssl.Store(c)
@@ -826,6 +848,7 @@ func (s *Server) SetSSL(c SSLConfig) {
 func (s *Server) SSL() SSLConfig {
 	c, _ := s.ssl.Load().(SSLConfig)
 	c.Hosts = slices.Clone(c.Hosts)
+	c.Exclude = slices.Clone(c.Exclude)
 	c.AllowUntrusted = slices.Clone(c.AllowUntrusted)
 	c.Apps = slices.Clone(c.Apps)
 	return c

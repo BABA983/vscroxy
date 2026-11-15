@@ -525,6 +525,9 @@ func TestDecryptedUpstreamVerificationDefault(t *testing.T) {
 		if f.Status != http.StatusBadGateway || !strings.Contains(strings.ToLower(f.Conn.Error), "certificate") {
 			t.Fatalf("connection detail = %+v, want the certificate error", f.Conn)
 		}
+		if !strings.Contains(strings.ToLower(f.Conn.Log), "certificate") {
+			t.Fatalf("connection log = %q, want the certificate error", f.Conn.Log)
+		}
 	}
 
 	t.Run("default rejects", func(t *testing.T) {

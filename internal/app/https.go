@@ -222,6 +222,20 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 					uikit.Tip(c, uikit.Hint(c, summary).SingleLine().Shrink(1).MinWidth(0), summary)
 				})
 			}, hint)
+			excluded := splitHosts(a.sslExclude)
+			excludedSummary := locales.None()
+			if len(excluded) > 0 {
+				excludedSummary = strings.Join(excluded, ", ")
+			}
+			uikit.SettingsRow(c, locales.NeverDecrypt(), func() ui.Element {
+				return ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+					if uikit.SecondaryButton(c, locales.ManageExclusions()).Clicked() {
+						a.leaveSettings()
+						a.sslOpen = true
+					}
+					uikit.Tip(c, uikit.Hint(c, excludedSummary).SingleLine().Shrink(1).MinWidth(0), excludedSummary)
+				})
+			}, locales.NeverDecryptHint())
 			allowed := splitHosts(a.sslUntrusted)
 			allowedSummary := locales.None()
 			if len(allowed) > 0 {
@@ -265,6 +279,7 @@ func (a *app) inspectionConfig() capture.SSLConfig {
 	return capture.SSLConfig{
 		All:            a.sslAll,
 		Hosts:          splitHosts(a.sslHosts),
+		Exclude:        splitHosts(a.sslExclude),
 		AllowUntrusted: splitHosts(a.sslUntrusted),
 		Apps:           slices.Clone(a.sslApps),
 	}

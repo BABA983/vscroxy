@@ -366,19 +366,25 @@ func TestSSLAllowUntrustedPersists(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = a.srv.Close() })
 	a.reloadConfig()
-	if !a.saveSSL(capture.SSLConfig{All: true, AllowUntrusted: []string{"api.local", "*.dev.test"}}) {
+	if !a.saveSSL(capture.SSLConfig{All: true, Exclude: []string{"private.test"}, AllowUntrusted: []string{"api.local", "*.dev.test"}}) {
 		t.Fatal("save failed")
 	}
 	if a.sslUntrusted != "api.local\n*.dev.test" {
 		t.Fatalf("draft = %q", a.sslUntrusted)
 	}
+	if a.sslExclude != "private.test" || a.inspectionConfig().Exclude[0] != "private.test" {
+		t.Fatalf("exclude = %q, config = %+v", a.sslExclude, a.inspectionConfig())
+	}
+	if a.srv.SSL().Decrypts("private.test") || !a.srv.SSL().Decrypts("api.test") {
+		t.Fatalf("exclude did not win over All: %+v", a.srv.SSL())
+	}
 	if !a.srv.SSL().AllowsUntrusted("api.local:8443") || !a.srv.SSL().AllowsUntrusted("x.dev.test") || a.srv.SSL().AllowsUntrusted("other.test") {
 		t.Fatalf("active rules = %+v", a.srv.SSL().AllowUntrusted)
 	}
-	a.sslUntrusted = ""
+	a.sslUntrusted, a.sslExclude = "", ""
 	a.reloadConfig()
-	if a.sslUntrusted != "api.local\n*.dev.test" {
-		t.Fatalf("reload = %q", a.sslUntrusted)
+	if a.sslUntrusted != "api.local\n*.dev.test" || a.sslExclude != "private.test" {
+		t.Fatalf("reload = %q, exclude = %q", a.sslUntrusted, a.sslExclude)
 	}
 }
 
