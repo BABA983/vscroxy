@@ -51,6 +51,7 @@ type components struct {
 	invalid                           string
 	bypass                            string
 	format, pick, labels              string
+	query                             string
 	tab, counted, sub, segment        int
 	sidebar                           string
 	range_                            uikit.ActivityRange
@@ -73,15 +74,19 @@ func (g *Gallery) components() *Group {
 		{ID: "inputs", Title: "Inputs", Note: "Fields, focus, invalid, search and the two selects", Height: 680, Hover: hoverInputs, Focus: focusInputs, build: k.inputPlate},
 		{ID: "tabs", Title: "Tabs", Note: "Tabs, counted tabs, sub-tabs and a scrolling strip", Height: 440, Hover: hoverTabs, Focus: focusTabs, build: k.tabPlate},
 		{ID: "segmented", Title: "Segmented", Note: "A recessed groove and a raised thumb", Height: 280, Hover: hoverSegmented, Focus: focusSegmented, build: k.segmentedPlate},
-		{ID: "menus", Title: "Menus", Note: "Menu select, the ⋯ buttons and a tooltip", Height: 400, Hover: hoverMenus, Focus: focusMenus, Tip: true, build: k.menuPlate},
+		{ID: "menus", Title: "Menus", Note: "A 28-point row, the menu shadow and keycaps", Height: 560, Hover: hoverMenus, Focus: focusMenus, Tip: true, build: k.menuPlate},
+		{ID: "kbd", Title: "Kbd", Note: "Shortcuts as 4-point keycaps on a hairline", Height: 280, build: k.kbdPlate},
 		{ID: "panes", Title: "Pane headers", Note: "A title, its tabs and what the pane reports", Height: 380, Hover: hoverPanes, Focus: focusPanes, Tip: true, build: k.panePlate},
 		{ID: "sidebar", Title: "Sidebar", Note: "Rows, headings, letters and the action row", Height: 600, Hover: hoverSidebar, build: k.sidebarPlate},
 		{ID: "activity", Title: "Activity strip", Note: "Rest and a brushed range; drag the plot to brush", Height: 300, Hover: hoverActivity, Focus: focusActivity, build: k.activityPlate},
 		{ID: "status", Title: "Status and methods", Note: "Pills, method inks, response meta, sparkline, chip", Height: 560, Hover: hoverStatus, Focus: focusStatus, build: k.statusPlate},
 		{ID: "empty", Title: "Empty state", Note: "One icon, a title, a sentence and the actions", Height: 340, build: k.emptyPlate},
-		{ID: "panels", Title: "Panels and dialogs", Note: "Popover, dialog column and footer; the dialog opens", Height: 480, Hover: hoverPanels, Focus: focusPanels, build: k.panelPlate},
+		{ID: "panels", Title: "Panels and dialogs", Note: "Popover, 12/16-point panels and the dialog scrim", Height: 520, Hover: hoverPanels, Focus: focusPanels, build: k.panelPlate},
+		{ID: "dialog", Title: "Dialog", Note: "The modal open: title, scrim and the dialog shadow", Height: 520, Click: "Open dialog", build: k.dialogPlate},
+		{ID: "command-palette-loose", Title: "Command palette", Note: "720 wide, a 48-point input and 40-point result rows", Height: 620, build: k.commandPalettePlate},
 		{ID: "settings", Title: "Settings form", Note: "A page, its groups, SettingsRow and its multiline row", Height: 560, Hover: hoverSettings, Focus: focusSettings, build: k.settingsPlate},
-		{ID: "toasts", Title: "Toasts", Note: "Three kinds; the buttons add another", Height: 300, Hover: hoverToasts, Focus: focusToasts, build: k.toastPlate},
+		{ID: "settings-cards", Title: "Settings cards", Note: "The 620-wide card skeleton with 44-point rows", Height: 640, build: k.settingsCardPlate},
+		{ID: "toasts", Title: "Toasts", Note: "16-point corners, the popover shadow and a live action", Height: 320, Hover: hoverToasts, Focus: focusToasts, build: k.toastPlate},
 		{ID: "lists", Title: "List selection", Note: "Selected rows, the marker and a list's theme", Height: 440, Hover: hoverLists, build: k.listPlate},
 	}}
 }
@@ -310,6 +315,14 @@ func (k *components) menuPlate(c *ui.Context) {
 			m.Item("Staging").ID("staging")
 		}).Width(140)
 	})
+	stateRow(c, "Open menu", func() {
+		uikit.MenuPanel(c, ui.Column(c)).Width(236).Padding(c.Theme().Space(1)).Gap(0).Children(func() {
+			menuRow(c, "Copy as cURL", "⌘C", false, false)
+			menuRow(c, "Copy as fetch", "⇧⌘C", false, false)
+			menuRow(c, "Replay", "⌘R", true, false)
+			menuRow(c, "Delete", "⌫", false, true)
+		})
+	})
 	stateRow(c, "Hover", func() {
 		uikit.MenuSelect(c, "Pretty", func(m *ui.Menu) { m.Item("Pretty").ID("pretty") }).Width(140)
 	})
@@ -328,7 +341,50 @@ func (k *components) menuPlate(c *ui.Context) {
 	stateRow(c, "Tooltip", func() {
 		labelled(uikit.Tip(c, uikit.SecondaryButton(c, "Hover for a tip"), "Copy as cURL · Ctrl+C").Width(180), hoverMenus)
 	})
-	caption(c, "Menus, popovers and tooltips wear the same panel: canvas, a hairline and the shadow, rising 4 points. A tooltip waits for the pointer; the export advances the clock to show it.")
+	caption(c, "A menu is a 10-point canvas panel on the menu shadow; its rows are 28 points, and the shortcut is a Kbd, not plain muted text. Tooltips keep their inverse face and wait for the pointer.")
+}
+
+// menuRow is a drawn menu's row in the gallery: the real menus are MyGo's,
+// and this is the face their items take when the app draws them.
+func menuRow(c *ui.Context, label, shortcut string, selected, danger bool) {
+	t, p := c.Theme(), uikit.Colors(c.Theme())
+	row := ui.Row(c).Height(uikit.MenuRowHeight).FillWidth().Padding(0, t.Space(2)).Gap(t.Space(2)).
+		Radius(uikit.RadiusControl).AlignItems(ui.Center)
+	color := t.Text
+	if danger {
+		color = p.Danger
+	}
+	if selected {
+		row.Background(p.Accent)
+		color = t.AccentText
+	}
+	row.Children(func() {
+		ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(color).Grow(1).SingleLine()
+		uikit.Kbd(c, shortcut)
+	})
+}
+
+func (k *components) kbdPlate(c *ui.Context) {
+	t, p := c.Theme(), uikit.Colors(c.Theme())
+	stateRow(c, "On canvas", func() {
+		for _, key := range []string{"⌘K", "⇧⌘Z", "↩", "⌥←", "esc"} {
+			uikit.Kbd(c, key)
+		}
+	})
+	stateRow(c, "On chrome", func() {
+		ui.Row(c).Padding(t.Space(2), t.Space(3)).Radius(uikit.RadiusControl).Background(p.Chrome).Gap(t.Space(2)).Children(func() {
+			for _, key := range []string{"⌘K", "⇧⌘Z", "⌥←"} {
+				uikit.Kbd(c, key)
+			}
+		})
+	})
+	stateRow(c, "In a row", func() {
+		ui.Column(c).Width(300).Children(func() {
+			menuRow(c, "Open command palette", "⌘K", false, false)
+			menuRow(c, "Copy as cURL", "⌘C", true, false)
+		})
+	})
+	caption(c, "A Kbd is 18 points high with 4-point corners, a 1-point hairline and an 11-point label. It sits at the trailing edge of a menu or command row, never inside prose.")
 }
 
 func (k *components) panePlate(c *ui.Context) {
@@ -503,15 +559,16 @@ func (k *components) emptyPlate(c *ui.Context) {
 
 func (k *components) panelPlate(c *ui.Context) {
 	stateRow(c, "Popover", func() {
-		uikit.PopoverPanel(c, ui.Column(c)).Padding(c.Theme().Space(3)).Width(260).Gap(c.Theme().Space(1)).Children(func() {
+		uikit.PopoverPanel(c, ui.Column(c)).Padding(uikit.PopoverPadding).Width(260).Gap(c.Theme().Space(1)).Children(func() {
 			uikit.Body(c, "Popover panel")
-			uikit.Meta(c, "Menus, popovers and toasts")
+			uikit.Small(c, "12-point corners and a 16-point inset")
 		})
 	})
 	stateRow(c, "Dialog", func() {
-		ui.Column(c).Width(420).Padding(c.Theme().Space(4)).Gap(c.Theme().Space(3)).Radius(uikit.RadiusPanel).
-			Background(uikit.Colors(c.Theme()).Canvas).InsetShadow(0, 0, 0, 1, uikit.Colors(c.Theme()).Hairline).
-			Shadow(0, 20, 56, 0, uikit.Colors(c.Theme()).Shadow).Children(func() {
+		p := uikit.Colors(c.Theme())
+		panel := ui.Column(c).Width(420).Padding(uikit.DialogPadding).Gap(uikit.DialogGap).Radius(uikit.RadiusDialog).
+			Background(p.Canvas).InsetShadow(0, 0, 0, 1, p.Hairline)
+		uikit.ShadowDialog.Apply(panel, c.Theme().Dark).Children(func() {
 			uikit.DialogTitle(c, "Delete 3 requests?")
 			uikit.Hint(c, "They leave this collection; captured traffic is not touched.")
 			uikit.DialogFooter(c).Children(func() {
@@ -535,7 +592,97 @@ func (k *components) panelPlate(c *ui.Context) {
 	stateRow(c, "Focus", func() {
 		labelled(uikit.SecondaryButton(c, "Open dialog"), focusPanels)
 	})
-	caption(c, "Modal adds the backdrop, the focus trap and Escape; the column, title and footer are the kit's. The dialog opens over the plate.")
+	caption(c, "Modal adds the 35% scrim, the focus trap and Escape; the column, title and footer are the kit's. The dialog is 16-point cornered on the dialog shadow.")
+}
+
+func (k *components) dialogPlate(c *ui.Context) {
+	// The open state belongs to this tester, not to the plate's shared
+	// components: the light export must not leave the dark one with a
+	// dialog already open.
+	open := ui.Local(c.Root(), "dialog-open", func() bool { return false })
+	stateRow(c, "Modal", func() {
+		labelled(uikit.SecondaryButton(c, "Open dialog"), "Open dialog").OnClick(func() { *open = true })
+		uikit.Modal(c, open, "Delete 3 requests?", func() {
+			uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
+				uikit.DialogTitle(c, "Delete 3 requests?")
+				uikit.Hint(c, "They leave this collection; captured traffic is not touched.")
+				uikit.DialogFooter(c).Children(func() {
+					uikit.SecondaryButton(c, "Cancel")
+					uikit.DestructiveButton(c, "Delete")
+				})
+			})
+		})
+	})
+	caption(c, "A destructive confirmation is the only place DestructiveButton appears: solid danger, one primary action, Cancel beside it.")
+}
+
+func (k *components) commandPalettePlate(c *ui.Context) {
+	t, p := c.Theme(), uikit.Colors(c.Theme())
+	ui.Row(c).Children(func() {
+		uikit.PopoverPanel(c, ui.Column(c)).Width(uikit.CommandPaletteWidth).Padding(0).Gap(0).Children(func() {
+			ui.Row(c).Height(uikit.CommandPaletteInputRow).Padding(0, t.Space(4)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, lucide.Search()).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.TextMuted)
+				ui.TextInput(c, &k.query).Height(uikit.CommandPaletteInputRow).Padding(0).FontSize(uikit.Scaled(uikit.CommandPaletteInputSize)).
+					Grow(1).MinWidth(0).FocusRing(false).Background(ui.Color{}).Border(0, ui.Color{}).
+					Label("Find a command").Placeholder("Search commands, requests and environments")
+				uikit.Kbd(c, "esc")
+			})
+			ui.Divider(c)
+			ui.Column(c).Padding(uikit.CommandPaletteRowInset).Gap(0).Children(func() {
+				for i, item := range []struct {
+					label, detail, key string
+				}{
+					{"Send the draft", "Request editor · ⌘↩", "⌘↩"},
+					{"Open Settings", "Appearance, proxy, certificates", "⌘,"},
+					{"Copy as cURL", "The chosen capture, with its headers", "⌘C"},
+					{"Replay 3 requests", "The selection in the capture table", "⌘R"},
+				} {
+					row := ui.Row(c).Height(uikit.CommandPaletteRow).FillWidth().Padding(0, t.Space(3)).Gap(t.Space(2)).
+						Radius(uikit.RadiusControl).AlignItems(ui.Center)
+					if i == 0 {
+						row.Background(p.AccentTint)
+					}
+					row.Children(func() {
+						ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
+							ui.Text(c, item.label).FontSize(uikit.Scaled(uikit.CommandPaletteRowSize)).
+								LineHeight(20.0 / 14.0).TextColor(t.Text).SingleLine()
+							uikit.Small(c, item.detail).TextColor(t.TextMuted).SingleLine()
+						})
+						uikit.Kbd(c, item.key)
+					})
+				}
+			})
+			ui.Divider(c)
+			ui.Row(c).Padding(t.Space(2), t.Space(4)).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+				uikit.Meta(c, "↑↓ Choose")
+				uikit.Meta(c, "↩ Run")
+				uikit.Meta(c, "esc Close")
+			})
+		})
+	})
+	caption(c, "The command palette is 720 points wide: a 48-point input at 16 points, then 40-point rows at 14. The chosen row is inset 4 points and takes RadiusControl, so the highlight never touches the panel edge.")
+}
+
+func (k *components) settingsCardPlate(c *ui.Context) {
+	uikit.SettingsCardPage(c, "Capture", "What the proxy keeps and what it drops.", func() {
+		uikit.SettingsCard(c, "Storage", func() {
+			uikit.SettingsCardRow(c, "Flow limit", "Rows kept before the oldest spill to disk.", func() {
+				uikit.Input(c, &k.host).Placeholder("20000").Width(160)
+			})
+			uikit.SettingsCardRow(c, "Memory limit", "Bodies above this are read from disk.", func() {
+				uikit.Input(c, &k.empty).Placeholder("512 MB").Width(160)
+			})
+		})
+		uikit.SettingsCard(c, "Behavior", func() {
+			uikit.SettingsCardRow(c, "Keep traffic", "Captured requests stay in this window.", func() {
+				uikit.SettingsSwitch(c, &k.on, "Keep traffic")
+			})
+			uikit.SettingsCardRow(c, "Pause on start", "Open with the proxy stopped until Send.", func() {
+				uikit.SettingsSwitch(c, &k.off, "Pause on start")
+			})
+		})
+	})
+	caption(c, "The Settings skeleton is 620 points wide. Each group is one canvas card with a hairline, and each row is at least 44 points: title and one description line on the left, control on the right.")
 }
 
 func (k *components) settingsPlate(c *ui.Context) {

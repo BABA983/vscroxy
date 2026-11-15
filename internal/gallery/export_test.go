@@ -49,6 +49,9 @@ func plateView(t *testing.T, e *Entry, dark bool) (func(*ui.Context), func()) {
 		ui.Column(c).Fill().Background(uikit.Colors(c.Theme()).Canvas).Padding(28).Children(func() {
 			e.build(c)
 		})
+		// A component plate that adds toasts gets the kit's look, not MyGo's
+		// default inverse one, as the window does.
+		uikit.Toasts(c)
 	}
 	return view, func() {}
 }
@@ -139,6 +142,14 @@ func TestGallerySnapshots(t *testing.T) {
 // states a pointer and a keyboard show.
 func forceStates(t *testing.T, tt *ui.Tester, e *Entry) {
 	t.Helper()
+	if e.Click != "" {
+		r, ok := tt.Find(e.Click)
+		if !ok {
+			t.Fatalf("%s: no click sample %q", e.ID, e.Click)
+		}
+		tt.ClickAt(r.X+r.W/2, r.Y+r.H/2)
+		tt.Frame()
+	}
 	if e.Hover != "" {
 		r, ok := tt.Find(e.Hover)
 		if !ok {
