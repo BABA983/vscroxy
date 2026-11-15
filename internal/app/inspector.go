@@ -57,7 +57,14 @@ const (
 
 // detail is the inspector under the traffic list: one compact summary, then
 // the request and the response beside each other, each with its own tabs.
-func (a *app) detail(c *ui.Context) {
+func (a *app) detail(c *ui.Context) { a.detailWith(c, false) }
+
+// detailInWindow is detail in the detached inspector window. It has no
+// traffic list of its own, so Escape docks it rather than moving focus to a
+// list that is not there.
+func (a *app) detailInWindow(c *ui.Context) { a.detailWith(c, true) }
+
+func (a *app) detailWith(c *ui.Context, detached bool) {
 	// The table may change the choice during this frame. Sync after it draws,
 	// so all detail widgets see the same selected request immediately.
 	a.syncDetail()
@@ -71,9 +78,15 @@ func (a *app) detail(c *ui.Context) {
 		a.inspect.ready = true
 	}
 	t := c.Theme()
-	ui.Column(c).Bind(&a.workbench.inspector).Focusable().Label(locales.RequestInspector()).
-		OnShortcut(0, ui.KeyEscape, func() { a.focusTraffic(c) }).
-		Fill().Background(t.Background).Children(func() {
+	col := ui.Column(c).Focusable().Label(locales.RequestInspector())
+	if !detached {
+		col.Bind(&a.workbench.inspector)
+	}
+	escape := func() { a.focusTraffic(c) }
+	if detached {
+		escape = func() { a.closeInspectorWindow() }
+	}
+	col.OnShortcut(0, ui.KeyEscape, escape).Fill().Background(t.Background).Children(func() {
 		if selected := a.selectedFlows(); len(selected) > 1 {
 			a.analysisDetail(c, selected)
 			return
@@ -229,6 +242,9 @@ func (a *app) paneWidthAt(c *ui.Context, h *ui.Handle) float32 {
 // the list, or the full window while the inspector is focused.
 func (a *app) inspectorWidth(c *ui.Context) float32 {
 	width := a.contentWidth(c)
+	if a.inspectorInWindow {
+		return width
+	}
 	switch {
 	case a.workbench.focused:
 		width, _ = c.Size()
@@ -457,7 +473,7 @@ func requestPaneTabs(d *requestDocument, f flow) []paneView {
 // same way.
 func (a *app) requestTabsFit(c *ui.Context, d *requestDocument, width float32) bool {
 	t := c.Theme()
-	if !a.sidesStacked(c) {
+	if !a.requestSidesStacked(c) {
 		// The share the divider is at now: a response pulls it to the
 		// response's favour, and the tabs have to fit where it leaves them.
 		share := float32(draftPercent)
@@ -1194,6 +1210,12 @@ func (a *app) inspectorActions(c *ui.Context, f flow) []action {
 	for _, x := range a.pickActions(c, "view.focus-inspector", "view.layout-right", "view.layout-bottom") {
 		actions = append(actions, x.in("view"))
 	}
+	actions = append(actions,
+		do("inspector.detach", locales.DetachInspector(), a.openInspectorWindow).
+			when(!a.inspectorDetached, "").keys(ui.Cmd|ui.Shift, ui.KeyI).in("view"),
+		do("inspector.dock", locales.DockInspector(), a.closeInspectorWindow).
+			when(a.inspectorDetached, "").keys(ui.Cmd|ui.Shift, ui.KeyI).in("view"),
+	)
 	// The exchange's own commands are the row's menu, so the inspector's
 	// actions and the table's right-click cannot drift apart.
 	actions = append(actions,

@@ -190,6 +190,11 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 		info := uikit.IconButton(c, locales.ConnectionDetails(), locales.ConnectionAddressesDnsAndTls(), infoIcon)
 		info.OnClick(func() { a.connOpen = !a.connOpen })
 		ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
+		if !a.inspectorDetached {
+			if uikit.Tip(c, uikit.IconButton(c, locales.DetachInspector(), locales.DetachInspectorHint(), detachIcon), locales.DetachInspectorHint()).Clicked() {
+				a.openInspectorWindow()
+			}
+		}
 		a.inspectorMenu(c, t, f)
 	})
 }

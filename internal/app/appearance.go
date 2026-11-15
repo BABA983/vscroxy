@@ -20,6 +20,8 @@ var (
 	plusIcon          = lucide.Plus()
 	sideLayoutIcon    = lucide.Columns2()
 	stackedLayoutIcon = lucide.Rows2()
+	detachIcon        = lucide.PanelRightOpen()
+	dockIcon          = lucide.PanelRightClose()
 	lockIcon          = lucide.Lock()
 	appIcon           = lucide.AppWindow()
 	trafficIcon       = lucide.LayoutList()

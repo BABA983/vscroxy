@@ -161,7 +161,11 @@ type requestDocument struct {
 	sentAt          time.Time
 	sentSet         bool
 	lastAttemptOpen bool
-	requestPercent  float32
+	// split pins the debugging screen's two panes side by side or stacked.
+	// Nil follows the width, as it always has; the title bar's layout button
+	// sets it for this request tab.
+	split          *bool
+	requestPercent float32
 	// splitSeen is the share the editor last laid out, so a divider the reader
 	// moved is never moved back by the app.
 	splitSeen float32
@@ -623,7 +627,7 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 		}
 		// The same rule as the inspector's panes: side by side while there is
 		// room for both, stacked in a narrow column.
-		if a.sidesStacked(c) {
+		if a.requestSidesStacked(c) {
 			ui.SplitVerticalPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1)
 			return
 		}
@@ -871,13 +875,23 @@ func (a *app) editorWidth(c *ui.Context) float32 {
 	return width
 }
 
+// requestSidesStacked reports whether the debugging screen stacks its two
+// panes. A request tab may pin either layout; otherwise it follows the room,
+// as the capture inspector does.
+func (a *app) requestSidesStacked(c *ui.Context) bool {
+	if d := a.requestDocument; d != nil && d.split != nil {
+		return !*d.split
+	}
+	return a.sidesStacked(c)
+}
+
 // editorPaneWidthAt is how wide one pane of the editor was laid out, from the
 // frame before, or the share it expects before the first layout.
 func (a *app) editorPaneWidthAt(c *ui.Context, h *ui.Handle, share float32) float32 {
 	if r := h.Bounds(c); r.W > 0 {
 		return r.W
 	}
-	if a.sidesStacked(c) {
+	if a.requestSidesStacked(c) {
 		return a.editorWidth(c)
 	}
 	return a.editorWidth(c) * share / 100
@@ -885,7 +899,7 @@ func (a *app) editorPaneWidthAt(c *ui.Context, h *ui.Handle, share float32) floa
 
 // draftShare is where the editor's divider starts in this layout.
 func (a *app) draftShare(c *ui.Context) float32 {
-	if a.sidesStacked(c) {
+	if a.requestSidesStacked(c) {
 		return draftStackedPercent
 	}
 	return draftPercent

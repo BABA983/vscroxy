@@ -26552,6 +26552,46 @@ func (msgs Messages) SocketPathHint() string {
 	return Catalog.Format(msgs.locale, "socketPathHint", nil)
 }
 
+// DetachInspector says "Detach inspector"
+// in the language the app shows.
+func DetachInspector() string { return In(i18n.Locale()).DetachInspector() }
+
+// DetachInspector says "Detach inspector"
+// in the language of msgs.
+func (msgs Messages) DetachInspector() string {
+	return Catalog.Format(msgs.locale, "detachInspector", nil)
+}
+
+// DetachInspectorHint says "Move the inspector into its own window"
+// in the language the app shows.
+func DetachInspectorHint() string { return In(i18n.Locale()).DetachInspectorHint() }
+
+// DetachInspectorHint says "Move the inspector into its own window"
+// in the language of msgs.
+func (msgs Messages) DetachInspectorHint() string {
+	return Catalog.Format(msgs.locale, "detachInspectorHint", nil)
+}
+
+// DockInspector says "Dock inspector"
+// in the language the app shows.
+func DockInspector() string { return In(i18n.Locale()).DockInspector() }
+
+// DockInspector says "Dock inspector"
+// in the language of msgs.
+func (msgs Messages) DockInspector() string {
+	return Catalog.Format(msgs.locale, "dockInspector", nil)
+}
+
+// DockInspectorHint says "Return the inspector to the main window"
+// in the language the app shows.
+func DockInspectorHint() string { return In(i18n.Locale()).DockInspectorHint() }
+
+// DockInspectorHint says "Return the inspector to the main window"
+// in the language of msgs.
+func (msgs Messages) DockInspectorHint() string {
+	return Catalog.Format(msgs.locale, "dockInspectorHint", nil)
+}
+
 // DockerContainer says "Docker container"
 // in the language the app shows.
 func DockerContainer() string { return In(i18n.Locale()).DockerContainer() }

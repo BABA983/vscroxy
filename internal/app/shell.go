@@ -151,11 +151,29 @@ func (a *app) sidebarToggle(c *ui.Context) {
 	}
 }
 
-// layoutToggle switches where the inspector sits: beside the traffic list or
-// under it. One button shows the layout it switches to, so the title bar carries
-// one control rather than a pair that has to be read to tell which is on.
+// layoutToggle switches the current screen's split: the inspector beside the
+// traffic list or under it, and on a request the editor beside its response or
+// above it. One button shows the layout it switches to, so the title bar
+// carries one control rather than a pair that has to be read to tell which is
+// on.
 func (a *app) layoutToggle(c *ui.Context) {
 	w := &a.workbench
+	if a.page == pageRequest {
+		d := a.requestDocument
+		if d == nil {
+			return
+		}
+		side := !a.requestSidesStacked(c)
+		label, icon := locales.StackedLayout(), stackedLayoutIcon
+		if !side {
+			label, icon = locales.SideBySideLayout(), sideLayoutIcon
+		}
+		if uikit.IconButton(c, label, label, icon).Clicked() {
+			next := !side
+			d.split = &next
+		}
+		return
+	}
 	next, label, icon := "bottom", locales.StackedLayout(), stackedLayoutIcon
 	if w.layout != "right" {
 		next, label, icon = "right", locales.SideBySideLayout(), sideLayoutIcon
