@@ -1148,7 +1148,8 @@ var authTypeNames = map[string]string{"None": "noauth", "Bearer": "bearer", "Bas
 
 // authSettable maps the Postman names a script may set to the stored types.
 var authSettable = map[string]string{"noauth": "None", "bearer": "Bearer", "basic": "Basic",
-	"apikey": "API key", "digest": AuthDigest}
+	"apikey": "API key", "digest": AuthDigest, "oauth2": AuthOAuth2, "oauth1": AuthOAuth1,
+	"hawk": AuthHawk, "awsv4": AuthAWS, "ntlm": AuthNTLM, "jwt": AuthJWT, "edgegrid": AuthEdgeGrid}
 
 // authAccess is pm.request.auth: the type, and the fields of the simple auth
 // types by name. Nil when there is no auth to edit.
@@ -1166,42 +1167,365 @@ func authAccess(a *Auth) any {
 			a.Type = t
 			return nil
 		},
-		"get": func(name string) (string, error) {
+		"get": func(name string) (any, error) {
 			field, err := authField(a, name)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
-			return *field, nil
+			return field.get(), nil
 		},
 		"set": func(name, value string) error {
 			field, err := authField(a, name)
 			if err != nil {
 				return err
 			}
-			*field = value
-			return nil
+			return field.set(value)
 		},
 	}
 }
 
-// authField is the field of the simple auth types pm.request.auth reads and
-// writes. Other types keep their fields elsewhere, so they have none here.
-func authField(a *Auth, name string) (*string, error) {
-	switch {
-	case a.Type == "Bearer" && name == "token":
-		return &a.Token, nil
-	case (a.Type == "Basic" || a.Type == AuthDigest) && name == "username":
-		return &a.Username, nil
-	case (a.Type == "Basic" || a.Type == AuthDigest) && name == "password":
-		return &a.Password, nil
-	case a.Type == "API key" && name == "key":
-		return &a.Key, nil
-	case a.Type == "API key" && name == "value":
-		return &a.Value, nil
-	case a.Type == "API key" && name == "location":
-		return &a.Location, nil
+// authField is one pm.request.auth field, named as Postman's import and
+// export name it. get returns a string, or a bool for a switch.
+type authFieldAccess struct {
+	get func() any
+	set func(string) error
+}
+
+func textAuthField(value *string) authFieldAccess {
+	return authFieldAccess{get: func() any { return *value }, set: func(v string) error { *value = v; return nil }}
+}
+
+func boolAuthField(value *bool) authFieldAccess {
+	return authFieldAccess{get: func() any { return *value }, set: func(v string) error {
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "true", "1":
+			*value = true
+		case "false", "0", "":
+			*value = false
+		default:
+			return fmt.Errorf("pm.request.auth: %q is not true or false", v)
+		}
+		return nil
+	}}
+}
+
+// fixedTextAuthField reads a value the app always uses and refuses to change it.
+func fixedTextAuthField(value, reason string) authFieldAccess {
+	return authFieldAccess{get: func() any { return value }, set: func(v string) error {
+		if strings.EqualFold(strings.TrimSpace(v), value) {
+			return nil
+		}
+		return errors.New("pm.request.auth: " + reason)
+	}}
+}
+
+// fixedBoolAuthField reads a switch the app always leaves off and refuses to
+// turn it on.
+func fixedBoolAuthField(reason string) authFieldAccess {
+	return authFieldAccess{get: func() any { return false }, set: func(v string) error {
+		on, err := parseAuthBool(v)
+		if err != nil {
+			return err
+		}
+		if on {
+			return errors.New("pm.request.auth: " + reason)
+		}
+		return nil
+	}}
+}
+
+// enumAuthField reads and writes one of choices; empty is the first.
+func enumAuthField(get func() string, set func(string), choices ...string) authFieldAccess {
+	return authFieldAccess{get: func() any { return get() }, set: func(v string) error {
+		v = strings.TrimSpace(v)
+		for _, choice := range choices {
+			if strings.EqualFold(choice, v) {
+				set(choice)
+				return nil
+			}
+		}
+		return fmt.Errorf("pm.request.auth: %q is not one of %s", v, strings.Join(choices, ", "))
+	}}
+}
+
+// authField is the field of an auth type pm.request.auth reads and writes.
+func authField(a *Auth, name string) (authFieldAccess, error) {
+	switch a.Type {
+	case "Bearer":
+		if name == "token" {
+			return textAuthField(&a.Token), nil
+		}
+	case "Basic", AuthDigest:
+		switch name {
+		case "username":
+			return textAuthField(&a.Username), nil
+		case "password":
+			return textAuthField(&a.Password), nil
+		}
+	case "API key":
+		switch name {
+		case "key":
+			return textAuthField(&a.Key), nil
+		case "value":
+			return textAuthField(&a.Value), nil
+		case "in", "location":
+			return enumAuthField(func() string {
+				if a.Location == "Query" {
+					return "query"
+				}
+				return "header"
+			}, func(v string) {
+				if v == "query" {
+					a.Location = "Query"
+				} else {
+					a.Location = ""
+				}
+			}, "header", "query"), nil
+		}
+	case AuthOAuth2:
+		o := &a.OAuth2
+		switch name {
+		case "grant_type":
+			return authFieldAccess{get: func() any { return postmanGrant(o.Grant) }, set: func(v string) error {
+				grant, ok := grantFromPostman(v)
+				if !ok {
+					return fmt.Errorf("pm.request.auth: %q is not an OAuth 2.0 grant", v)
+				}
+				o.Grant = grant
+				return nil
+			}}, nil
+		case "authUrl":
+			return textAuthField(&o.AuthURL), nil
+		case "accessTokenUrl":
+			return textAuthField(&o.TokenURL), nil
+		case "clientId":
+			return textAuthField(&o.ClientID), nil
+		case "clientSecret":
+			return textAuthField(&o.ClientSecret), nil
+		case "scope":
+			return textAuthField(&o.Scope), nil
+		case "username":
+			return textAuthField(&o.Username), nil
+		case "password":
+			return textAuthField(&o.Password), nil
+		case "redirect_uri":
+			return textAuthField(&o.RedirectURL), nil
+		case "headerPrefix":
+			return textAuthField(&o.HeaderPrefix), nil
+		case "client_authentication":
+			return enumAuthField(func() string {
+				if o.ClientAuth == "Body" {
+					return "body"
+				}
+				return "header"
+			}, func(v string) {
+				if v == "body" {
+					o.ClientAuth = "Body"
+				} else {
+					o.ClientAuth = ""
+				}
+			}, "header", "body"), nil
+		case "addTokenTo":
+			return fixedTextAuthField("header", "OAuth 2.0 tokens are always sent in the header"), nil
+		}
+	case AuthOAuth1:
+		o := &a.OAuth1
+		switch name {
+		case "consumerKey":
+			return textAuthField(&o.ConsumerKey), nil
+		case "consumerSecret":
+			return textAuthField(&o.ConsumerSecret), nil
+		case "token":
+			return textAuthField(&o.Token), nil
+		case "tokenSecret":
+			return textAuthField(&o.TokenSecret), nil
+		case "privateKey":
+			return textAuthField(&o.PrivateKey), nil
+		case "signatureMethod":
+			return textAuthField(&o.SignatureMethod), nil
+		case "timestamp":
+			return textAuthField(&o.Timestamp), nil
+		case "nonce":
+			return textAuthField(&o.Nonce), nil
+		case "version":
+			return textAuthField(&o.Version), nil
+		case "realm":
+			return textAuthField(&o.Realm), nil
+		case "callback":
+			return textAuthField(&o.Callback), nil
+		case "verifier":
+			return textAuthField(&o.Verifier), nil
+		case "addParamsToHeader":
+			return authFieldAccess{get: func() any { return o.AddTo == "" || o.AddTo == "Header" }, set: func(v string) error {
+				on, err := parseAuthBool(v)
+				if err != nil {
+					return err
+				}
+				if on {
+					o.AddTo = "Header"
+				} else {
+					o.AddTo = "Auto"
+				}
+				return nil
+			}}, nil
+		case "includeBodyHash":
+			return boolAuthField(&o.IncludeBodyHash), nil
+		case "addEmptyParamsToSign":
+			return boolAuthField(&o.AddEmptyParamsToSign), nil
+		case "disableHeaderEncoding":
+			return fixedBoolAuthField("header encoding cannot be disabled"), nil
+		}
+	case AuthHawk:
+		h := &a.Hawk
+		switch name {
+		case "authId":
+			return textAuthField(&h.AuthID), nil
+		case "authKey":
+			return textAuthField(&h.AuthKey), nil
+		case "algorithm":
+			return textAuthField(&h.Algorithm), nil
+		case "user":
+			return textAuthField(&h.User), nil
+		case "nonce":
+			return textAuthField(&h.Nonce), nil
+		case "timestamp":
+			return textAuthField(&h.Timestamp), nil
+		case "extraData":
+			return textAuthField(&h.ExtraData), nil
+		case "app":
+			return textAuthField(&h.App), nil
+		case "delegation":
+			return textAuthField(&h.Delegation), nil
+		case "includePayloadHash":
+			return boolAuthField(&h.IncludePayloadHash), nil
+		}
+	case AuthAWS:
+		w := &a.AWS
+		switch name {
+		case "accessKey":
+			return textAuthField(&w.AccessKey), nil
+		case "secretKey":
+			return textAuthField(&w.SecretKey), nil
+		case "region":
+			return textAuthField(&w.Region), nil
+		case "service":
+			return textAuthField(&w.Service), nil
+		case "sessionToken":
+			return textAuthField(&w.SessionToken), nil
+		case "addAuthDataToQuery":
+			return fixedBoolAuthField("AWS signatures are always in headers"), nil
+		}
+	case AuthNTLM:
+		n := &a.NTLM
+		switch name {
+		case "username":
+			return textAuthField(&n.Username), nil
+		case "password":
+			return textAuthField(&n.Password), nil
+		case "domain":
+			return textAuthField(&n.Domain), nil
+		case "workstation":
+			return textAuthField(&n.Workstation), nil
+		case "disableRetryRequest":
+			return boolAuthField(&n.DisableRetry), nil
+		}
+	case AuthJWT:
+		j := &a.JWT
+		switch name {
+		case "algorithm":
+			return textAuthField(&j.Algorithm), nil
+		case "secret":
+			return textAuthField(&j.Secret), nil
+		case "privateKey":
+			return textAuthField(&j.PrivateKey), nil
+		case "payload":
+			return textAuthField(&j.Payload), nil
+		case "header":
+			return textAuthField(&j.Header), nil
+		case "isSecretBase64Encoded":
+			return boolAuthField(&j.SecretBase64), nil
+		case "headerPrefix":
+			return textAuthField(&j.Prefix), nil
+		case "queryParamKey":
+			return textAuthField(&j.QueryParam), nil
+		case "addTokenTo":
+			return enumAuthField(func() string {
+				if j.AddTo == "Query" {
+					return "queryParam"
+				}
+				return "header"
+			}, func(v string) {
+				if v == "queryParam" {
+					j.AddTo = "Query"
+				} else {
+					j.AddTo = ""
+				}
+			}, "header", "queryParam"), nil
+		}
+	case AuthEdgeGrid:
+		e := &a.EdgeGrid
+		switch name {
+		case "accessToken":
+			return textAuthField(&e.AccessToken), nil
+		case "clientToken":
+			return textAuthField(&e.ClientToken), nil
+		case "clientSecret":
+			return textAuthField(&e.ClientSecret), nil
+		case "baseURL":
+			return textAuthField(&e.BaseURL), nil
+		case "nonce":
+			return textAuthField(&e.Nonce), nil
+		case "timestamp":
+			return textAuthField(&e.Timestamp), nil
+		case "headersToSign":
+			return textAuthField(&e.HeadersToSign), nil
+		}
 	}
-	return nil, fmt.Errorf("pm.request.auth has no field %q for this auth type", name)
+	return authFieldAccess{}, fmt.Errorf("pm.request.auth has no field %q for this auth type", name)
+}
+
+func parseAuthBool(value string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "true", "1":
+		return true, nil
+	case "false", "0", "":
+		return false, nil
+	}
+	return false, fmt.Errorf("pm.request.auth: %q is not true or false", value)
+}
+
+// postmanGrant and grantFromPostman translate between the app's grant names
+// and Postman's grant_type values.
+func postmanGrant(grant string) string {
+	switch grant {
+	case GrantAuthorizationCodePKCE, "":
+		return "authorization_code_with_pkce"
+	case GrantAuthorizationCode:
+		return "authorization_code"
+	case GrantImplicit:
+		return "implicit"
+	case GrantClientCredentials:
+		return "client_credentials"
+	case GrantPassword:
+		return "password_credentials"
+	}
+	return grant
+}
+
+func grantFromPostman(value string) (string, bool) {
+	switch strings.TrimSpace(value) {
+	case "authorization_code_with_pkce":
+		return GrantAuthorizationCodePKCE, true
+	case "authorization_code":
+		return GrantAuthorizationCode, true
+	case "implicit":
+		return GrantImplicit, true
+	case "client_credentials":
+		return GrantClientCredentials, true
+	case "password_credentials":
+		return GrantPassword, true
+	}
+	return "", false
 }
 
 func responseObject(vm *goja.Runtime, res *jsResponse, pairs func(http.Header) goja.Value) *goja.Object {
