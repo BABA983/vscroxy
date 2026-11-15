@@ -68,7 +68,7 @@ func docEntries(requests []savedRequest, root string) []docsEntry {
 	})
 	entries := make([]docsEntry, 0, len(list))
 	for _, r := range list {
-		entry := docsEntry{Name: r.Name, Method: cmp.Or(r.Protocol, r.Method, "HTTP"), URL: r.URL,
+		entry := docsEntry{Name: r.Name, Method: cmp.Or(r.Protocol, r.Method, "HTTP"), URL: request.RedactURL(r.URL),
 			Collection: strings.TrimPrefix(strings.TrimPrefix(r.Collection, root), "/"), Description: r.Description,
 			Auth: authSummary(r.Auth)}
 		for name, values := range request.ParseHeaderBlock(r.Headers) {
@@ -89,7 +89,7 @@ func docEntries(requests []savedRequest, root string) []docsEntry {
 			}
 			entry.Examples = append(entry.Examples, example)
 		}
-		prepared := &request.Prepared{Method: r.Method, URL: r.URL, Header: redactedHeaderBlock(r.Headers), Body: r.Body}
+		prepared := &request.Prepared{Method: r.Method, URL: request.RedactURL(r.URL), Header: redactedHeaderBlock(r.Headers), Body: r.Body}
 		for _, language := range docSampleLanguages {
 			if code, err := request.Snippet(language, prepared); err == nil && strings.TrimSpace(code) != "" {
 				entry.Samples = append(entry.Samples, docsSample{Language: language, Code: truncateDocs(code, 8000)})

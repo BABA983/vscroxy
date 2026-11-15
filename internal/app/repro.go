@@ -107,25 +107,7 @@ func redactReproHeaders(block string) string {
 }
 
 // redactReproURL hides credential query values and URL userinfo passwords.
-func redactReproURL(raw string) string {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return raw
-	}
-	if u.User != nil {
-		if _, set := u.User.Password(); set {
-			u.User = url.UserPassword(u.User.Username(), "••••")
-		}
-	}
-	query := u.Query()
-	for name := range query {
-		if request.IsSensitiveHeader(name) {
-			query.Set(name, "••••")
-		}
-	}
-	u.RawQuery = query.Encode()
-	return u.String()
-}
+func redactReproURL(raw string) string { return request.RedactURL(raw) }
 
 // redactReproBody redacts credential-named JSON fields and form values.
 func redactReproBody(body string) string {

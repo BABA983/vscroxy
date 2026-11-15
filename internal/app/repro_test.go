@@ -16,7 +16,7 @@ func TestBuildReproBundleRedactsAndEmbedsCollection(t *testing.T) {
 		ID: 1, Method: "POST", Path: "/orders", URL: "https://api.example.com/orders?token=query-secret&code=oauth-code-secret",
 		Status: 201, Millis: 42, Wait: 10, Download: 32, Timing: &capture.Timing{},
 		ReqHeaders: "Authorization: Bearer header-secret\nCookie: session=cookie-secret\nX-Amz-Signature: signature-secret\nX-Amz-Credential: credential-secret\nsessionid: session-id-secret\nauthToken: auth-token-secret\nContent-Type: application/json",
-		ReqBody:    `{"password":"body-secret","session":"session-body-secret","signature":"signature-body-secret","credential":"credential-body-secret","auth":"auth-body-secret","code":"code-body-secret","amount":42}`,
+		ReqBody:    `{"password":"body-secret","session":"session-body-secret","signature":"signature-body-secret","credential":"credential-body-secret","auth":"auth-body-secret","code":"code-value","amount":42}`,
 		ResHeaders: "Set-Cookie: session=response-secret\nContent-Type: application/json",
 		ResBody:    `{"token":"response-token","id":7}`,
 		Note:       "created an order", Color: "red", Pinned: true, At: time.Unix(100, 0),
@@ -28,7 +28,7 @@ func TestBuildReproBundleRedactsAndEmbedsCollection(t *testing.T) {
 	text := string(data)
 	for _, secret := range []string{
 		"header-secret", "cookie-secret", "signature-secret", "credential-secret", "session-id-secret", "auth-token-secret",
-		"body-secret", "session-body-secret", "signature-body-secret", "credential-body-secret", "auth-body-secret", "code-body-secret",
+		"body-secret", "session-body-secret", "signature-body-secret", "credential-body-secret", "auth-body-secret",
 		"response-secret", "response-token", "query-secret", "oauth-code-secret",
 	} {
 		if strings.Contains(text, secret) {
@@ -63,6 +63,9 @@ func TestBuildReproBundleRedactsAndEmbedsCollection(t *testing.T) {
 	}
 	if !strings.Contains(request.Headers, "••••") {
 		t.Fatalf("collection headers not redacted: %+v", request)
+	}
+	if !strings.Contains(request.Body, `"code":"code-value"`) {
+		t.Fatalf("body code was hidden: %+v", request)
 	}
 	u, err := url.Parse(request.URL)
 	if err != nil || u.Query().Get("token") != "••••" || u.Query().Get("code") != "••••" {

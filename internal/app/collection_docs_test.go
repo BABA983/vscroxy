@@ -10,7 +10,7 @@ import (
 
 func docsTestRequests() []savedRequest {
 	return []savedRequest{{Request: request.Request{
-		Name: "Create invoice", Collection: "Billing/Invoices", Method: "POST", URL: "https://api.example.test/invoices",
+		Name: "Create invoice", Collection: "Billing/Invoices", Method: "POST", URL: "https://api.example.test/invoices?token=url-token-secret&code=oauth-code-secret&page=2",
 		Description: "Creates an invoice. **Required:** an amount.",
 		Headers:     "Authorization: Bearer header-token-secret\nContent-Type: application/json\nX-Api-Key: api-key-secret\nX-Amz-Signature: signature-secret\nsessionid: session-id-secret\nauthToken: auth-token-secret",
 		Body:        `{"amount":42}`,
@@ -58,7 +58,10 @@ func TestCollectionDocsRedactSecretsAndIncludeEverything(t *testing.T) {
 			t.Errorf("markdown lacks %q", want)
 		}
 	}
-	for _, secret := range []string{"header-token-secret", "api-key-secret", "auth-token-secret", "signature-secret", "session-id-secret", "example-cookie-secret"} {
+	if !strings.Contains(md, "page=2") {
+		t.Error("markdown lost a safe query value")
+	}
+	for _, secret := range []string{"header-token-secret", "api-key-secret", "auth-token-secret", "signature-secret", "session-id-secret", "example-cookie-secret", "url-token-secret", "oauth-code-secret"} {
 		if strings.Contains(md, secret) {
 			t.Errorf("markdown leaks %q", secret)
 		}
@@ -80,7 +83,7 @@ func TestCollectionDocsRedactSecretsAndIncludeEverything(t *testing.T) {
 	if !strings.Contains(html, "Invoices &amp; &lt;script&gt;") {
 		t.Error("description is not escaped")
 	}
-	for _, secret := range []string{"header-token-secret", "api-key-secret", "auth-token-secret", "signature-secret", "session-id-secret", "example-cookie-secret"} {
+	for _, secret := range []string{"header-token-secret", "api-key-secret", "auth-token-secret", "signature-secret", "session-id-secret", "example-cookie-secret", "url-token-secret", "oauth-code-secret"} {
 		if strings.Contains(html, secret) {
 			t.Errorf("html leaks %q", secret)
 		}
@@ -111,7 +114,7 @@ func TestCollectionDocsAuthSummariesHideCredentials(t *testing.T) {
 func TestCollectionDocsCodeSampleSwitchesLanguage(t *testing.T) {
 	a := workspaceApp()
 	a.requests = []savedRequest{{Request: request.Request{
-		Name: "Create invoice", Collection: "Billing", Method: "POST", URL: "https://api.example.test/invoices",
+		Name: "Create invoice", Collection: "Billing", Method: "POST", URL: "https://api.example.test/invoices?token=url-token-secret&code=oauth-code-secret&page=2",
 		Body: `{"amount":42}`,
 	}}}
 	a.folders = []request.Folder{{Path: "Billing", Description: "Invoices."}}
