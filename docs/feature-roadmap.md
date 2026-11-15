@@ -11,7 +11,7 @@
 - Host 切换：SwitchHosts 式的多方案切换，基于代理实现。
 - 差异化：抓包和请求是同一份数据，流量可以一步整理成集合，集合里的示例可以反过来当 mock 用。
 
-明确不做（见第 8 节）：云同步和团队空间、手机端 app、可视化编排（Postman Flows）、云端监控、app 内置 AI 助手。协作走 Git（集合本来就落盘成目录），AI 走对外的 MCP 接口。
+明确不做（见第 8 节）：云同步和团队空间、手机端 app、可视化编排（Postman Flows）、云端监控、app 内置 AI 助手、脚本文件 I/O 和 npm 包、`pm.visualizer`、Webhook 监听、HTTP/3。协作走 Git（集合本来就落盘成目录），AI 走对外的 MCP 接口。
 
 依据：`docs/guide.md`、`internal/` 的代码、Proxyman 文档（docs.proxyman.com）、Postman v12 发布说明。
 
@@ -78,8 +78,8 @@
 | TLS key 记录（SSLKEYLOGFILE） | 已有 | | |
 | 连接日志 | 已有 | | |
 | 来源 App 识别和图标 | 已有 | Windows 从可执行文件的图标资源读取并转成 PNG；读取失败时仍显示字母徽标 | |
-| 透明代理（抓不走系统代理的 App） | 缺少 | 各平台机制不同，研究项 | 远期 |
-| HTTP/3 / QUIC | 缺少 | 引擎不支持，研究项 | 远期 |
+| 透明代理（抓不走系统代理的 App） | 缺少 | 各平台机制不同；WireGuard 模式已有方案，0.1.0 后再评估 | 0.1.0 之后 |
+| HTTP/3 / QUIC | 缺少 | 引擎不支持；Proxyman 也没有，0.1.0 不做 | 不做 |
 
 ### 4.2 列表和检查器
 
@@ -104,8 +104,8 @@
 | Copy as：URL、cURL、body | 已有 | | |
 | Copy as：Markdown 表格、CSV、原始报文 | 已有 | 抓包与多选；表格用可见列，CSV 按 RFC 4180 并防公式注入；原始报文为 HTTP/1.1 文本，二进制／超大正文有明确标记 | M5 |
 | 抓包流量直接生成代码 | 已有 | 抓包就是请求文档，Request options／命令面板的 Generate code… 直接可用；生成器限制见使用指南 | M5 |
-| 左右分屏（两个视图并排） | 缺少 | | M9 |
-| 检查器拆成独立窗口 | 缺少 | | M9 |
+| 左右分屏（两个视图并排） | 缺少 | UI 线程负责 | UI 线程 |
+| 检查器拆成独立窗口 | 缺少 | UI 线程负责 | UI 线程 |
 | 命令面板 | 已有 | | |
 
 ### 4.3 调试工具（Tools）
@@ -123,7 +123,7 @@
 | Map Remote：换端口和路径、是否保留原 Host header、WebSocket | 已有 | 端口写在目标 URL 里；路径前缀改写；WebSocket（含解密的 wss）跟随第一条匹配的 Map Remote。原主机连不上、且有启用的 Map Remote 可能匹配它时，改用生成的证书 | M4 |
 | Scenario（规则分组切换） | 已有 | | |
 | 规则嵌套文件夹 | 已有 | 每条规则可填 `folder`（如 `API/Auth`），规则列表按文件夹折叠分组；文件夹只整理列表，不改变匹配或执行顺序 | M4 |
-| 脚本：挂在规则上、app 内编辑、`pm` 风格 API | 部分 | Script 规则运行 `tools/scripts/*.js` 的 onRequest／onResponse；Tools → Scripts 编辑，带 Console；全局 `script.js` 已删除；每个钩子 10 秒 CPU 预算（等待网络／定时器不计），正文可读 8 MiB，二进制正文用 `bodyBase64()`。无文件 I/O，不能用 npm 包；单条 WebSocket 消息 1 MiB | M4 |
+| 脚本：挂在规则上、app 内编辑、`pm` 风格 API | 部分 | Script 规则运行 `tools/scripts/*.js` 的 onRequest／onResponse；Tools → Scripts 编辑，带 Console；全局 `script.js` 已删除；每个钩子 10 秒 CPU 预算（等待网络／定时器不计），正文可读 8 MiB，二进制正文用 `bodyBase64()`。无文件 I/O，不能用 npm 包（两者不做，见第 8 节）；单条 WebSocket 消息 1 MiB | M4 |
 | 脚本：异步发请求、规则间共享状态、读系统环境变量 | 部分 | `pm.sendRequest` 直连服务器；`pm.variables` 跨同一请求的脚本，`pm.globals` 跨规则并保存；`process.env`；`pm.execution.runRequest` 按 ID（或唯一名称）运行集合内的请求，桌面 Send／Runner、MCP 运行与 `vscroxy-cli run` 可用，`vscroxy-cli load` 不可用 | M4 |
 | 脚本：内置库（lodash、crypto-js、moment 等）、代码片段库、自定义 addon | 部分 | lodash 4.18.1、crypto-js 4.2.0、moment 2.31.0、chai 和 Insert snippet 与请求脚本共用；规则脚本和 addon 是 ES 模块（esbuild 转成 CommonJS 后由 goja 运行，source map 指回原行号，不支持顶层 await），addon 在 `tools/addons/*.js`，规则脚本 `import`、请求脚本 `require` 加载，Tools → Scripts → Addons 编辑，CLI 用 `--addons` | M4 |
 | 脚本：WebSocket 消息钩子 | 部分 | `onMessage(message)` 双向文本／二进制编辑、单条 drop；`pm.websocket.send`／`sendBase64` 向服务器注入消息（单条 1 MiB）、`pm.websocket.close` 带状态码和原因关闭；连接级 locals 串行执行；WS／解密 WSS | M8 |
@@ -148,7 +148,7 @@
 | 导出 CSV | 已有 | 当前视图或选中；列与表格可见列一致；RFC 4180、公式注入防护；沿用导出脱敏 | M5 |
 | 导出时脱敏选项 | 已有 | Postman、HAR、会话共用六类脱敏选项；CSV 使用其中适用的四类；默认全部启用，可明确原样导出，需确认范围 | M1 |
 | 导入 Charles 会话（.chls）、Proxyman 日志 | 部分 | Charles `.chlsj`（JSON）与 `.chlsx`（XML）会话、Proxyman `.proxymanlogv2` 归档和旧 `.proxymanlog` 目录进入抓包列表：方法、URL、请求／响应 header（保留重复，单侧最多 1000 个）、body（二进制、base64；源标记为未解码且带 gzip／deflate／br 时按 Content-Encoding 解压，单 body 上限 32 MiB，整个导入保留的 body＋帧字节上限 512 MiB、解压工作量上限 1 GiB）、状态码（含 `:status`／`firstLine` 回退）、时间／耗时、远端／客户端 IP、TLS 协议／密码套件／证书。Charles 的 WebSocket 帧从 `webSocket:true` 事务的 encoded body 解析；Proxyman 的 `websocketMessageStorage` 映射到 Messages（单条流最多 10 万帧、整个导入最多 20 万帧；permessage-deflate 帧跳过并警告，后续帧继续解析）。XML 嵌套超过 64 层按畸形文件拒绝；Proxyman 归档先按请求序号排序再取前 2000。原生 `.chls` 是 Java 序列化对象流，不反序列化，导入时提示在 Charles 导出为 `.chlsj` 或 HAR；Charles 中无法识别或截断的 WebSocket 帧只保留可解析部分并写入导入报告；Charles `.chlz` 归档按 `N-meta.json`／`N-req.*`／`N-res.*` 编号读取，body 原样保留（不解压）；Charles 设置导出（`.xml`）映射 Map Local、Map Remote、Block List、SSL 代理位置和 No Caching，Breakpoints、Rewrite 等未导入，列入导入报告。这些布局来自公开资料，导入器未用真实 Charles 导出测试 | M7 |
-| 分享到 GitHub Gist | 缺少 | | M9 |
+| 分享到 GitHub Gist | 缺少 | | 0.1.0 之后 |
 
 ### 4.5 设备和接入
 
@@ -179,13 +179,14 @@
 | Auth：Inherit、Bearer、Basic、API key、OAuth 2.0、OAuth 1.0、Digest、NTLM、AWS、JWT、Hawk、Akamai EdgeGrid、Atlassian ASAP | 已有 | OAuth 2.0：授权码（PKCE／普通）、隐式、client credentials、password；令牌用 vault 密钥密封保存在 `~/.vscroxy/oauth-tokens.json`，Auth 页的已保存令牌列表可刷新／删除，刷新用保存的配置，需要浏览器时重新登录；`pm.request.auth` 用 Postman 字段名读写 oauth2／oauth1／hawk／awsv4／ntlm／jwt／edgegrid／asap； OAuth 1.0：HMAC-SHA1/SHA256、PLAINTEXT、RSA-SHA1/256/512，header／query／body 位置、body hash、Postman oauth1 导入导出；Hawk：SHA-256/SHA-1、payload hash、ext／app／delegation；EdgeGrid：Base URL、签名头列表、POST 正文 hash；ASAP：RS／PS／ES 256/384/512 自签 JWT，iss／aud／kid／私钥必填，sub 默认 iss，jti／iat 自动生成，exp 为秒数（默认 3600，claims 里的绝对 exp 优先），附加 claims 覆盖字段，私钥支持 PEM、Postman PKCS#8 data URI 和 base64 DER，Postman asap 导入导出；NTLM：NTLMv2，经抓包代理在同一连接完成 Type 1/2/3，HTTPS、重定向只对原 origin 出示凭据 | |
 | Auth：NTLM | 已有 | NTLMv2；用户名、口令、Domain、Workstation 和 Postman 的「disable retrying the request」。首发送不带凭据，401／403 的 Type 1/2/3 在同一连接完成：抓包代理把上游固定到该下游连接，交换照常抓包且上游规则生效；HTTPS 同样。初始请求和 Type 3 带正文，Type 1 不带（大 POST 不会提前关连接）；服务器在质询后关连接时报 NTLM 认证失败而不是普通 401。Send、Runner 和 `vscroxy-cli run` 共用；请求超时、证书校验、客户端证书照常；重定向按请求设置，凭据只发给原 origin，同源重定向重新握手；字段支持变量和 Vault，用户名自带的 DOMAIN\user／user@domain 优先于 Domain 字段，凭据和 token 不写日志；Postman v2.1 导入导出（含 `disableRetryRequest`）和 v3 导入；cURL／代码生成不输出 Authorization（握手需要服务端质询）。Map Remote 或脚本改写目标的请求走不保持连接的独立上游传输，NTLM 无法完成。仅 NTLMv2：协商 NTLMv1 LM_KEY 的质询明确报错，不发 LM 响应，只接受 NTLMv1 的服务器返回其 401；未实现 NTLM 会话签名／加密、MIC 和 channel binding（EPA）；WebSocket 不支持 | M6 |
 | 环境、全局变量、集合/文件夹变量、Vault | 已有 | | |
+| 外部密钥库（1Password、AWS Secrets Manager、Azure Key Vault、HashiCorp Vault） | 缺少 | 本机 Vault 已覆盖本地密钥；外部服务留到 0.1.0 之后 | 0.1.0 之后 |
 | 变量分"可提交的初始值"和"仅本地的当前值" | 已有 | 环境、全局、集合/文件夹变量都有 Initial 和 Current；发送用非空 Current，否则 Initial（显式空 Current 等于未设置）；脚本 set 写 Current，unset 清 Current 并回退 Initial；变量表和文件夹设置可持久化或重置 Current，凭据位与 camelCase/分隔符识别出的敏感名不持久化；Current 列默认遮罩；Postman 导入导出只用 Initial，第三方导入的 current/secret 只进本机 Current。M3 向导和录制的凭据引用复用同一套环境 Current | M6 |
 | `{{变量}}` 自动补全、悬停预览、未定义高亮 | 已有 | URL、Params、Headers、Body（raw/GraphQL/form/binary 路径）和 Auth；补全列出环境/集合/文件夹/全局/动态/Vault（Vault 解锁时），悬停显示值与来源并遮罩敏感值，未定义用危险色或诊断下划线。单行输入是整字段悬停，代码编辑器是精确 token；编辑器补全在变量名首字符或 Ctrl+Space 后出现 | M6 |
 | 动态变量 | 已有 | 覆盖 Postman 官方文档的 118 个名称（2026-11-08 查阅 https://learning.postman.com/docs/tests-and-scripts/write-scripts/variables-list/），按 Postman 的 `postman-collection` 和 `@faker-js/faker` 5.5.3 输出形状生成：日期为 JavaScript `Date.toString()`、IBAN 带 mod-97 校验位、BIC 8/11 位、`$randomLoremParagraphs` 用 faker 的 `"\n \r"` 分隔；每次出现都重新生成。名称表是唯一数据源，发送、补全、悬停和 `pm.variables.replaceIn` 共用；内置小型词库，不引入运行时依赖 | M6 |
 | `pm` 脚本 API、Console、测试 | 已有 | | |
 | 脚本沙箱库（Postman sandbox） | 已有 | 请求脚本 `require`，规则脚本、addon 和 Code Mock `import`，首次使用才加载，按脚本隔离（moment 的 locale、updateLocale、defaultFormat 不跨脚本）；内嵌 Ajv 6.12.6、Chai 4.5.0、Lodash 4.18.1、CryptoJS 4.2.0、Moment 2.31.0、tv4 1.3.0、cheerio 0.22.0、xml2js 0.6.2、csv-parse/lib/sync 1.2.4、uuid 3.4.0、postman-collection 5.3.1、liquid-json（`json`）和 Backbone 1.6.0，以及 Postman 暴露的 Node 内建 shim（buffer、url、util、path、querystring、punycode、string_decoder、events、stream、timers、assert、fs、os、process）；全局 `Buffer`、`xml2Json`、`_`、`CryptoJS`、`tv4`、`cheerio`、`Backbone`、`atob`/`btoa`；定时器是脚本内队列，回调在正文后按到期顺序执行，延迟真实等待（单钩子总计最多 10 秒），等待不计入 10 秒 CPU 预算；`fs` 为空，无网络/文件 I/O，`path.parse`、`querystring.escape` 等旧 shim 缺口见使用指南 | M6 |
 | `have.jsonSchema` | 已有 | 响应和 `pm.expect(data)` 共用 Ajv 6.12.6，默认 Draft-07，支持选项和取反；不下载外部引用，不支持异步 schema | M6 |
-| `pm.visualizer`（响应可视化） | 缺少 | | M9 |
+| `pm.visualizer`（响应可视化） | 缺少 | 原生 UI 没有 WebView；保留现有“not supported”提示 | 不做 |
 | 可复用脚本库（Postman Packages） | 部分 | addon 已覆盖一部分：`tools/addons/*.js` 可在规则脚本和请求脚本里复用；Postman Packages（npm 包解析）未做 | M9 |
 | Checks（无代码断言） | 已有 | 导出 Postman 时转成 `pm.test`，结果与 Checks 一致；无效的 Checks 跳过并警告 | M1 |
 | 集合、文件夹、设置、落盘为目录 | 已有 | | |
@@ -225,6 +226,9 @@
 | Socket.IO 客户端 | 首版已有 | 请求文档、EIO4／WebSocket、namespace／auth、JSON／二进制附件、双向 ACK、有界实时消息、取消；保存的事件列表（添加当前、按顺序发送已保存、把已发送存回请求）；Runner／CLI 重放列表并运行脚本／Checks（合成 101 响应、`X-Vscroxy-Sent`／`X-Vscroxy-Received`，`WaitMS` 回复窗口）；无轮询／重连／重发 | M8 |
 | MCP 客户端（调试 MCP server） | 首版已有 | 请求文档；Streamable HTTP／旧版 HTTP+SSE／stdio（命令、参数、环境、工作目录，显式连接才启动，首次及命令形状／环境变化时确认）、headers／auth／变量／证书设置、initialize 的服务器信息／协议版本／能力、工具／资源／模板／提示词目录与调用、结构化／图片／文本块和 isError、真实 JSON-RPC／通知／进度／服务器日志时间线、取消和断开；有界帧／时间线／目录／结果，图片后台解码与像素上限；GET 流按退避长期重连但不重放 POST，重连只保留一条实时状态行，关闭标签异步停止、退出统一等待；不接 HTTP 脚本／Checks／Runner，交互会话结束时写一条 History 摘要 | M8 |
 | MQTT 客户端 | 首版已有 | 请求文档与独立会话；MQTT 3.1.1／5.0 over TCP／TLS／WebSocket、QoS 0／1／2、retain、通配符订阅、last will、MQTT 5 属性、有界时间线；mqtt／mqtts 直连，ws／wss 经抓包代理；无脚本／Runner，交互会话结束时写一条 History 摘要 | M8 |
+| LLM 请求 | 缺少 | 0.1.0 之后 | 0.1.0 之后 |
+| Kafka 请求 | 缺少 | 0.1.0 之后 | 0.1.0 之后 |
+| Webhook 监听 | 缺少 | 需要公网回调地址，本地工具不做 | 不做 |
 
 ### 4.7 一体化（vscroxy 独有）
 
@@ -247,6 +251,7 @@
 | 命令行：开关工具、开关系统代理、导出流量、导入规则、运行集合 | 部分：查询、录制／规则开关、系统代理异步修改与回读、受控 HAR 导出、追加规则导入、运行集合；没有设置、会话和证书子命令 | M9 |
 | MCP server：让 AI 工具读取流量、解释请求、创建规则、运行请求 | 部分：stdio、查询／请求执行、独立写入／敏感权限、受控 HAR 导出，流量按 host／方法／状态／时间筛选，规则增删改，清空、标记、断点继续／中止、SSL 域名、会话保存／打开；`--disable-tool` 逐个关闭工具；仍没有设置、会话、证书工具，`flows.list` 不能按 host／method／状态筛选 | M9 |
 | 中文界面 | 已有 | Settings → Appearance → Language；英文和简体中文，全部消息已翻译，默认跟随系统 | |
+| 更多界面语言（日语、葡萄牙语、西班牙语等） | 缺少 | 0.1.0 之后 | 0.1.0 之后 |
 | 第三方主题（Tokyo Night、Dracula 等） | 缺少 | M9 |
 
 ## 5. 里程碑
@@ -359,14 +364,20 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - DevTools 式常用复制格式已完成：Bash／CMD cURL、原生 PowerShell、浏览器／Node fetch 和受限 HAR（默认脱敏、明确选择敏感内容）。生成器不增加运行时依赖；cURL 导入选项仍独立待做。
 - 首版代码 Mock 已完成（见[使用指南](guide.md#code-mocks)）：Code Mock 规则、`onMock` 动态本地响应、脚本编辑器与 Scenario；HTTP／已解密 HTTPS 不连接原站，失败关闭。Postman Node.js Mock／`pm.state` 等不在首版范围。
 - 更多代码生成语言已完成（见[使用指南](guide.md#curl)）：Swift URLSession、Kotlin OkHttp、Java java.net.http、C# HttpClient／RestSharp、PHP cURL／Guzzle、Ruby Net::HTTP、Rust reqwest、Dart http、C libcurl、Objective-C NSURLSession、wget；method、query、重复／空 header、raw／urlencoded／multipart／GraphQL body 和已展开的 auth header 原样输出，Binary body 引用本地文件。生成器本身不增加运行时依赖；OkHttp／reqwest 由目标项目提供，非 UTF-8 的抓包 body 仍只支持 cURL。
-- `pm.visualizer`、可复用脚本库。
+- 可复用脚本库。
 - 第三方主题导入。
-- 左右分屏、检查器独立窗口、分享到 Gist。
+- 左右分屏、检查器独立窗口由 UI 线程负责。
+
+### 0.1.0 之后
+
+- 更多界面语言：日语、葡萄牙语、西班牙语等。
+- 分享到 GitHub Gist。
+- 外部密钥库：1Password、AWS Secrets Manager、Azure Key Vault、HashiCorp Vault。
+- LLM 请求、Kafka 请求。
+- 透明代理 / WireGuard 模式：WireGuard 方案已出（[WireGuard 模式方案](https://ampcode.com/artifacts/8-wireguard-b54a1649-a4c6-42f8-8bbe-2a0b456b6134)），0.1.0 后重新评估；透明代理的 Linux nftables、Windows WinDivert、macOS Network Extension 同样留到之后。
 
 ### 远期研究
 
-- 透明代理：Linux 用 nftables 重定向，Windows 用 WinDivert，macOS 用 Network Extension（需要签名和权限）。
-- HTTP/3 / QUIC 抓包。
 - Host 方案与 Requests 环境的联动。
 
 ## 6. 抓包 → 集合：一体化流程
@@ -433,3 +444,7 @@ DNS 映射换的是 IP，请求保留原 host，适合"同一个域名指到不�
 | app 内置 AI 助手 | 通过 MCP server 交给外部 AI 工具 |
 | 写系统 hosts 文件 | 见第 7 节 |
 | 自定义工具栏 | 命令面板已覆盖 |
+| 脚本文件 I/O、从脚本安装 npm 包 | 两者都会突破脚本沙箱；首版保持无文件 I/O、无 npm |
+| `pm.visualizer` | 原生 UI 没有 WebView；保留现有“not supported”提示 |
+| Webhook 监听 | 需要公网回调地址，超出本地工具范围 |
+| HTTP/3 / QUIC | Proxyman 也没有；不投入引擎支持 |
