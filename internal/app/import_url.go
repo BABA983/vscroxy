@@ -56,7 +56,9 @@ func (a *app) fetchImportURL() {
 	raw := strings.TrimSpace(a.urlImportText)
 	a.urlImportBusy, a.urlImportProblem = true, ""
 	go func() {
-		data, name, err := downloadImportURL(&http.Client{Timeout: 30 * time.Second}, raw)
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.Proxy = nil // Never loop back through vscroxy's own proxy.
+		data, name, err := downloadImportURL(&http.Client{Timeout: 30 * time.Second, Transport: transport}, raw)
 		if err != nil {
 			a.win.Update(func() { a.urlImportBusy, a.urlImportProblem = false, err.Error() })
 			return
