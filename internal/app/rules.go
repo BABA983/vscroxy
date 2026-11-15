@@ -38,6 +38,7 @@ type ruleEditor struct {
 	kind           string
 	status         string
 	statusValue    float64
+	delay          string
 	headers        string
 	problem        string
 	unsavedMock    string
@@ -84,6 +85,7 @@ func (a *app) editRule(index int, r capture.Rule) {
 	e := &a.ruleUI
 	e.open, e.deleting, e.index, e.draft, e.kind = true, false, index, r, ruleLabel(r.Type)
 	e.status, e.headers, e.problem = strconv.Itoa(cmp.Or(r.Status, 200)), request.HeaderBlock(r.Headers), ""
+	e.delay = strconv.FormatInt(r.DelayMS, 10)
 	e.statusValue, _ = strconv.ParseFloat(e.status, 64)
 	// The draft must not edit the saved rule's slices in place.
 	e.draft.Apps, e.draft.When = nil, slices.Clone(r.When)
@@ -236,8 +238,16 @@ func (a *app) saveRule() {
 	}
 	// Joining an active group inherits its group state, never its Disabled flags.
 	r.ScenarioActive = r.Scenario != "" && r.Scenario == capture.ActiveScenario(a.rules)
-	r.Status, r.Headers = 0, nil
+	r.Status, r.Headers, r.DelayMS = 0, nil, 0
 	if r.Type == capture.RuleMapLocal {
+		if delay := strings.TrimSpace(e.delay); delay != "" {
+			ms, err := strconv.ParseInt(delay, 10, 64)
+			if err != nil || ms < 0 || ms > 60_000 {
+				e.problem = "Delay must be a whole number from 0 to 60000 ms"
+				return
+			}
+			r.DelayMS = ms
+		}
 		status, err := strconv.Atoi(e.status)
 		if err != nil {
 			e.problem = "Response status must be a number between 200 and 599"
@@ -763,6 +773,9 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 							uikit.Tip(c, uikit.Meta(c, e.draft.Target).Font(uikit.FontMono).SingleLine().TruncateMiddle().MinWidth(0), e.draft.Target)
 						}
 					})
+				})
+				uikit.FormRow(c, locales.Delay(), locales.DelayMapLocalHelp(), "", func() {
+					uikit.Input(c, &e.delay).Label(locales.DelayMs()).Placeholder("0").Font(uikit.FontMono).Width(200)
 				})
 				if !e.bodyDir {
 					uikit.FormRowTall(c, locales.Body(), cmp.Or(e.bodyNote, "Save rule writes it to the file."), "", func() ui.Element {

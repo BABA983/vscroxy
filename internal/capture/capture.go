@@ -284,8 +284,11 @@ type Rule struct {
 	PathFrom string `json:"pathFrom,omitempty"`
 	PathTo   string `json:"pathTo,omitempty"`
 	KeepHost bool   `json:"keepHost,omitzero"`
-	// Block is what a Block rule does: BlockRefuse, BlockDrop or BlockHide.
+	// Block is what a Block rule does: BlockRefuse, BlockDrop, BlockHide or
+	// BlockRefuseHide.
 	Block string `json:"block,omitempty"`
+	// DelayMS waits before a Map Local answer, simulating a slow file.
+	DelayMS int64 `json:"delayMS,omitempty"`
 	// Scenario groups response-affecting rules; empty is always global.
 	// Every member of a group has the same ScenarioActive value, and at most
 	// one group is active. Disabled remains an independent per-rule choice.
@@ -2084,6 +2087,7 @@ func applyResponseDecision(f *proxy.Flow, d *Decision) {
 	}
 	if !d.KeepBody {
 		f.Response.Body = []byte(d.Body)
+		f.Response.BodyReader = nil
 	}
 }
 
@@ -2178,7 +2182,21 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 			}
 		case RuleMapLocal:
 			recordAction(f, "Map Local · "+r.Match+" → "+file)
-			body, err := readMockBody(file)
+			if r.DelayMS > 0 {
+				recordAction(f, fmt.Sprintf("Map Local · delay %d ms", r.DelayMS))
+				ctx := context.Background()
+				if raw := f.Request.Raw(); raw != nil {
+					ctx = raw.Context()
+				}
+				if err := networkWait(ctx, s.closed, nil, time.Duration(r.DelayMS)*time.Millisecond); err != nil {
+					return &proxy.Response{
+						StatusCode: http.StatusBadGateway,
+						Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+						Body:       []byte("map local: delay interrupted\n"),
+					}
+				}
+			}
+			resp, err := localResponse(f, r, file)
 			if err != nil {
 				return &proxy.Response{
 					StatusCode: http.StatusBadGateway,
@@ -2186,24 +2204,7 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 					Body:       []byte("map local: " + err.Error() + "\n"),
 				}
 			}
-			status := r.Status
-			if status == 0 {
-				status = http.StatusOK
-			}
-			headers := r.Headers.Clone()
-			if headers == nil {
-				headers = make(http.Header)
-			}
-			StripHopHeaders(headers)
-			if headers.Get("Content-Type") == "" {
-				headers.Set("Content-Type", contentType(file))
-			}
-			headers.Set("Content-Length", strconv.Itoa(len(body)))
-			return &proxy.Response{
-				StatusCode: status,
-				Header:     headers,
-				Body:       body,
-			}
+			return s.breakLocalResponse(f, resp)
 		case RuleCodeMock:
 			return s.codeMock(f, r)
 		case RuleMapRemote:
@@ -2233,6 +2234,100 @@ func localFile(r Rule, u *url.URL) (file string, ok bool) {
 	file = filepath.Join(r.Target, filepath.FromSlash(path.Clean("/"+p)))
 	info, err = os.Stat(file)
 	return file, err == nil && info.Mode().IsRegular()
+}
+
+// localBodyPreview is how much of a streamed local file the capture keeps for
+// the table; the client receives the whole file from disk.
+const localBodyPreview = 64 << 10
+
+// localResponse builds the response r answers with from file. A file above
+// maxRuleBody is streamed: the flow keeps a 64 KiB preview, and the client
+// receives the rest from disk with the file's full Content-Length. The file is
+// closed when the exchange finishes.
+func localResponse(flow *proxy.Flow, r Rule, file string) (*proxy.Response, error) {
+	handle, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	info, err := handle.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		handle.Close()
+		if err != nil {
+			return nil, err
+		}
+		return nil, errors.New("local response is not a regular file")
+	}
+	status := r.Status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	headers := r.Headers.Clone()
+	if headers == nil {
+		headers = make(http.Header)
+	}
+	StripHopHeaders(headers)
+	if headers.Get("Content-Type") == "" {
+		headers.Set("Content-Type", contentType(file))
+	}
+	resp := &proxy.Response{StatusCode: status, Header: headers}
+	if info.Size() <= maxRuleBody {
+		body, err := io.ReadAll(io.LimitReader(handle, maxRuleBody+1))
+		handle.Close()
+		if err != nil {
+			return nil, err
+		}
+		if len(body) > maxRuleBody {
+			return nil, errors.New("the file grew beyond 8 MiB while it was read")
+		}
+		headers.Set("Content-Length", strconv.Itoa(len(body)))
+		resp.Body = body
+		return resp, nil
+	}
+	preview := make([]byte, localBodyPreview)
+	n, err := io.ReadFull(handle, preview)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		handle.Close()
+		return nil, err
+	}
+	headers.Set("Content-Length", strconv.FormatInt(info.Size(), 10))
+	resp.Body = preview[:n]
+	resp.BodyReader = handle
+	// The engine finishes the flow after it has written the body, including
+	// a client that goes away part way.
+	go func() {
+		<-flow.Done()
+		handle.Close()
+	}()
+	return resp, nil
+}
+
+// breakLocalResponse pauses a Map Local answer at a matching response
+// breakpoint and returns the response to send: the original, the edited one,
+// or an abort. A drop closes the connection after the answer is published.
+func (s *Server) breakLocalResponse(f *proxy.Flow, resp *proxy.Response) *proxy.Response {
+	if !s.Breaking() {
+		return resp
+	}
+	f.Response = resp
+	d := s.maybeBreak(f, PhaseResponse)
+	if d == nil {
+		return resp
+	}
+	if d.Drop {
+		recordAction(f, "Response breakpoint · drop connection")
+		f.Error = errDropped
+		if dbg := debugOf(f); dbg != nil {
+			dbg.drop = true
+		}
+		return breakpointAbort(http.StatusBadGateway)
+	}
+	recordAction(f, "Response breakpoint applied")
+	applyResponseDecision(f, d)
+	if d.Abort || !d.KeepBody {
+		clearBodyEncoding(f.Response.Header)
+		f.Response.Header.Set("Content-Length", strconv.Itoa(len(f.Response.Body)))
+	}
+	return f.Response
 }
 
 // mapRemote sends the request where r says.
@@ -2836,6 +2931,13 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		respBody, respFile, respSize, respErr = s.keepBody(f.Id, "res", respData)
 		if err != nil {
 			respErr = "response body could not be decoded: " + err.Error()
+		}
+		// A streamed body's retained bytes are a preview; its declared
+		// length is what the client receives.
+		if f.Response.BodyReader != nil {
+			if n, err := strconv.Atoi(f.Response.Header.Get("Content-Length")); err == nil && n > respSize {
+				size, respSize = n, n
+			}
 		}
 	}
 	if streamRes != nil {

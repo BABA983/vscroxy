@@ -64,11 +64,11 @@ func (msgs Messages) AFileOrAFolder() string {
 	return Catalog.Format(msgs.locale, "aFileOrAFolder", nil)
 }
 
-// AFileUpTo8 says "A file up to 8 MiB, or a folder that answers with the file at the request’s path; a missing file is left to the ser…"
+// AFileUpTo8 says "A file or a folder that answers with the file at the request’s path; a missing file is left to the server. Files ov…"
 // in the language the app shows.
 func AFileUpTo8() string { return In(i18n.Locale()).AFileUpTo8() }
 
-// AFileUpTo8 says "A file up to 8 MiB, or a folder that answers with the file at the request’s path; a missing file is left to the ser…"
+// AFileUpTo8 says "A file or a folder that answers with the file at the request’s path; a missing file is left to the server. Files ov…"
 // in the language of msgs.
 func (msgs Messages) AFileUpTo8() string {
 	return Catalog.Format(msgs.locale, "aFileUpTo8", nil)
@@ -5478,6 +5478,26 @@ func Delay() string { return In(i18n.Locale()).Delay() }
 // in the language of msgs.
 func (msgs Messages) Delay() string {
 	return Catalog.Format(msgs.locale, "delay", nil)
+}
+
+// DelayMs says "Delay (ms)"
+// in the language the app shows.
+func DelayMs() string { return In(i18n.Locale()).DelayMs() }
+
+// DelayMs says "Delay (ms)"
+// in the language of msgs.
+func (msgs Messages) DelayMs() string {
+	return Catalog.Format(msgs.locale, "delayMs", nil)
+}
+
+// DelayMapLocalHelp says "Waits before answering, as a slow file would. 0 answers immediately."
+// in the language the app shows.
+func DelayMapLocalHelp() string { return In(i18n.Locale()).DelayMapLocalHelp() }
+
+// DelayMapLocalHelp says "Waits before answering, as a slow file would. 0 answers immediately."
+// in the language of msgs.
+func (msgs Messages) DelayMapLocalHelp() string {
+	return Catalog.Format(msgs.locale, "delayMapLocalHelp", nil)
 }
 
 // Delegation says "Delegation"

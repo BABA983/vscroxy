@@ -163,7 +163,7 @@ func (r Rule) key() string {
 		network = fmt.Appendf(nil, "%d,%d,%d,%d", profile.DownPerSec, profile.UpPerSec, profile.Latency, profile.FailurePercent)
 	}
 	return strings.Join([]string{string(r.Type), r.MatchMode, r.Match, r.Method, strings.Join(r.Apps, "\n"), string(when), r.Target,
-		r.PathFrom, r.PathTo, fmt.Sprint(r.KeepHost), r.Block, r.Direction, r.Operation, string(network)}, "\x00")
+		r.PathFrom, r.PathTo, fmt.Sprint(r.KeepHost), r.Block, r.Direction, r.Operation, fmt.Sprint(r.DelayMS), string(network)}, "\x00")
 }
 
 // RulePreview explains a saved rule's part in one exchange. Step is its place
@@ -405,6 +405,9 @@ func ValidateRules(rules []Rule) error {
 		if r.Type != RuleNetwork && r.Network != nil {
 			return fail("only Network rules can carry network conditions")
 		}
+		if r.Type != RuleMapLocal && r.DelayMS != 0 {
+			return fail("only Map Local rules can carry a delay")
+		}
 		switch r.Type {
 		case RuleNetwork:
 			if r.Network == nil {
@@ -427,6 +430,9 @@ func ValidateRules(rules []Rule) error {
 		case RuleMapLocal:
 			if strings.TrimSpace(r.Target) == "" {
 				return fail("choose a local response file or folder")
+			}
+			if r.DelayMS < 0 || r.DelayMS > 60_000 {
+				return fail("Map Local delay must be from 0 to 60000 ms")
 			}
 			if r.PathFrom != "" && !strings.HasPrefix(r.PathFrom, "/") || r.PathTo != "" {
 				return fail("a folder's path prefix starts with /")

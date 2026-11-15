@@ -115,7 +115,7 @@
 | 规则测试（输入 URL 看命中哪条） | 已有 | | |
 | Breakpoint：请求、响应 | 部分 | 原始报文（Raw）视图；query 与 form 按行编辑；断开连接（真正关闭客户端连接，不回应）；超时后继续的时间可选 30 秒至 10 分钟，默认 2 分钟；对话框正文 1 MiB 只读上限（脚本可读 8 MiB）；Protobuf 消息类型不能按 URL 保存 | |
 | Breakpoint 模板（保存常用报文一键套用） | 已有 | 断点对话框里 Save as template… 和模板菜单；按请求／响应分开，不改暂停时的 URL | M4 |
-| Map Local：文件 | 已有 | | |
+| Map Local：文件 | 已有 | 可设 `delayMS` 延迟；超过 8 MiB 从磁盘流式发送（表格保留 64 KiB 预览），响应断点也能暂停本地应答 | |
 | Map Local：在 app 内直接编辑响应 | 已有 | Tools 规则编辑器里的 Body，保存写回文件；没有文件时建在 mocks 里；二进制和超过 8 MiB 的除外 | M4 |
 | Map Local：目录（按路径找文件，找不到回源） | 已有 | 可去掉路径前缀，/ 结尾读 index.html | M4 |
 | Map Remote：换 scheme 和 host | 已有 | | |
@@ -286,7 +286,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 - Tools 管理窗口：规则、Scenario、脚本、Host 方案集中管理。（已完成：Scenarios、Scripts、Mocks 页已开放；规则页：规则从弹窗移进 Tools，测试请求时按作用顺序标号，显示命中数和 Scenario。）
 - 规则匹配：通配符、正则、method、App、header。（已完成）
-- Map Local：app 内编辑响应、目录映射。（已完成）
+- Map Local：app 内编辑响应、目录映射、按规则延迟、流式大文件、响应断点。（已完成）
 - Map Remote：端口、路径、Host header、WebSocket。（已完成，含原主机不可达时的 HTTPS 映射）
 - Block：隐藏或拦截、断开连接、拦截并隐藏、按 App，WebSocket 握手也适用。（已完成）
 - Breakpoint 模板。（已完成）

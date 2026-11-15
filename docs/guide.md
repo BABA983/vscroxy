@@ -748,10 +748,18 @@ rules alone; a new rule there is a Map Local rule.
 
 - `map_local` answers from a file, without calling an upstream. Optional `status`
   and `headers` customize the response; connection headers are removed and length
-  is recalculated. Files over 8 MiB fail with 502 instead of being truncated.
+  is recalculated. `delayMS` waits before answering, from 0 to 60000 ms, and is
+  shown in the rule's actions and the table's timing. A file up to 8 MiB is
+  buffered; a larger file is streamed from disk with its full `Content-Length`,
+  so serving a big fixture does not load it into memory or fail. The table
+  keeps a 64 KiB preview of a streamed file and says the body is incomplete.
   The rule editor shows a text file's **Body** and **Save rule** writes edits
   back to it; a rule with a typed body and no file gets one in
   `~/.vscroxy/mocks`. Binary files and files over 8 MiB are edited outside.
+
+  A Map Local answer still pauses at a matching `break_response` breakpoint
+  while breakpoints are on: the inspector shows the file's status, headers and
+  body, and an edit, an abort or a drop applies before the client receives it.
   A `target` that is a folder answers with the file at the request's path inside
   it, after removing `pathFrom` (`/api/users/42.json` with `"pathFrom": "/api"`
   reads `users/42.json`); a path ending in `/` reads `index.html`, `..` cannot
