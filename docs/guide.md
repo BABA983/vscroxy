@@ -2608,7 +2608,11 @@ an expiry are saved to `~/.vscroxy/cookies.json` (0600); session cookies are
 never written, and the file is outside collections, exports and configuration
 import/export. Writes are debounced by about half a second and flushed on quit;
 a response that sets only session cookies never writes. Turning the option off
-removes the file. Raw capture Replay does not use this jar. Saved auth,
+removes the file. Raw capture Replay does not use this jar. In a captured
+exchange's Cookies tab, **Save cookies to jar** copies both the request's
+`Cookie` values and the response's `Set-Cookie` values into the request jar
+for that exchange's URL; response attributes such as domain, path and expiry
+are kept. Saved auth,
 environment variables and request history may
 contain credentials: local files are private (0600), not encrypted. Prefer
 `{{variables}}` and review exports before sharing. OpenAPI

@@ -737,3 +737,36 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 		})
 	})
 }
+
+// saveFlowCookies copies a captured exchange's Cookie and Set-Cookie values
+// into the request workspace's jar for the exchange's URL. The request's
+// cookies carry no domain or path, so they attach to that URL's host and path;
+// response cookies keep the attributes the server sent.
+func (a *app) saveFlowCookies(f flow) {
+	u, err := url.Parse(f.url)
+	if err != nil || u.Hostname() == "" {
+		a.fail(locales.Cookies2(), fmt.Errorf("the captured exchange has no absolute URL"))
+		return
+	}
+	var cookies []*http.Cookie
+	for _, line := range f.reqHeader.Values("Cookie") {
+		parsed, err := http.ParseCookie(line)
+		if err != nil {
+			continue
+		}
+		cookies = append(cookies, parsed...)
+	}
+	for _, line := range f.respHeader.Values("Set-Cookie") {
+		parsed, err := http.ParseSetCookie(line)
+		if err != nil {
+			continue
+		}
+		cookies = append(cookies, parsed)
+	}
+	if len(cookies) == 0 {
+		a.warn(locales.NoCookiesRecordedOnThis())
+		return
+	}
+	a.requestCookies().SetCookies(u, cookies)
+	a.done(locales.CookiesSavedToJar(len(cookies)))
+}

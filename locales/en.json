@@ -3991,5 +3991,7 @@
   "importUrlNeedsHttp": "Enter an http:// or https:// URL.",
   "importUrlTooLarge": "The document is larger than 32 MiB.",
   "importAction": "Import",
-  "imagePreviewTooLarge": "Image is {width}×{height}; previews are limited to {megapixels} megapixels."
-}
+  "imagePreviewTooLarge": "Image is {width}×{height}; previews are limited to {megapixels} megapixels.",
+  "saveCookiesToJar": "Save cookies to jar",
+  "cookiesSavedToJar": "Saved {count} cookies to the request jar",
+  "@cookiesSavedToJar": {"placeholders":{"count":{"type":"int"}}}}

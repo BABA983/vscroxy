@@ -199,7 +199,7 @@
 | Runner：性能测试（虚拟用户、时长、指标） | 已有 | 内置集合负载；复用 Runner、HdrHistogram 执行耗时；原生／CLI／MCP。`--profile ramp|spike`（`--ramp`、`--spike-users`、`--spike-seconds`、`--spike-at`）；`--data` 可按虚拟用户重复，行按用户循环；`--pass-if p95<500ms,errors<1%` 失败退出 1；`--compare-before` 与上一份 JSON 报告比较总览和每请求 P95／失败率／吞吐。无固定 RPS、分布式压测或 setup／teardown | M9 |
 | 命令行运行集合（CI，JUnit/JSON/HTML 报告） | 部分 | 独立无 UI CLI；本地集合、Postman v2.1 文件或 Postman v3 YAML 目录、环境/数据文件、超时/取消/执行预算、私有 JSON／JUnit／HTML 报告，运行后可导出环境、全局变量和 cookie jar。协议客户端只支持 gRPC 一元方法；不连桌面的 mock | M9 |
 | Cookies 管理 | 已有 | 按域名分组，值默认遮罩；可按域名或全部清除 | |
-| Cookies 可选持久化 | 已有 | 默认关闭；持久 Cookie 落盘到 `~/.vscroxy/cookies.json`（0600），约 500 ms 防抖写入并在退出时 flush，Session Cookie 永不落盘；不进集合、导出或配置导入导出 | M6 |
+| Cookies 可选持久化 | 已有 | 默认关闭；持久 Cookie 落盘到 `~/.vscroxy/cookies.json`（0600），约 500 ms 防抖写入并在退出时 flush，Session Cookie 永不落盘；不进集合、导出或配置导入导出；抓包 Cookies 页的 Save cookies to jar 把请求 Cookie 与响应 Set-Cookie 一起写入该交换 URL 的请求 jar，保留响应的 domain／path／expiry | M6 |
 | 响应：Pretty、Raw、Hex、预览、测试结果、耗时 | 已有 | | |
 | 响应保存到文件 | 已有 | Requests 保存按钮／Capture Body 菜单；原样保存已解压正文，流式读取完整落盘内容，拒绝不完整正文 | M6 |
 | 全局搜索（集合、请求、环境） | 已有 | 并进命令面板；搜索集合、文件夹、请求名称／method／URL、环境名和变量名，不搜索变量值；请求索引随集合变化更新，宽泛查询最多显示 50 条并提示剩余数量 | M6 |

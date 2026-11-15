@@ -145,7 +145,7 @@ func decodedImage(c *ui.Context, bitmap *ui.Bitmap, mediaType string) {
 
 // cookieView reads only this exchange's headers, not the live cookie jar.
 // Preserve repeated names and Set-Cookie lines; never split them on commas.
-func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool) {
+func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool, save func()) {
 	t := c.Theme()
 	var cookies []*http.Cookie
 	invalid := 0
@@ -169,8 +169,14 @@ func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool)
 		}
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(t.Space(2), t.Space(3)).Children(func() {
 			uikit.Meta(c, locales.CookiesCaptured(len(cookies))).Grow(1)
+		})
+		ui.Row(c).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Spacer(c)
+			if save != nil && len(cookies) > 0 && uikit.SecondaryButton(c, locales.SaveCookiesToJar()).Clicked() {
+				save()
+			}
 			label := "Reveal cookie values"
 			if *reveal {
 				label = "Hide cookie values"

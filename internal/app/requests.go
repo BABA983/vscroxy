@@ -1227,7 +1227,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 			case composeTabOriginal:
 				a.headersSide(c, f, 1)
 			case composeTabCookies:
-				cookieView(c, f.reqHeader, false, &a.inspect.reveal[1])
+				cookieView(c, f.reqHeader, false, &a.inspect.reveal[1], func() { a.saveFlowCookies(f) })
 			}
 		})
 		// A visible response already names the last attempt and draft changes.
@@ -1668,7 +1668,7 @@ func (a *app) responseCookies(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		uikit.Hint(c, locales.NoResponseYet()).Padding(t.Space(3))
 		return
 	}
-	cookieView(c, d.response.ResponseHeader, true, &d.cookieReveal)
+	cookieView(c, d.response.ResponseHeader, true, &d.cookieReveal, nil)
 }
 
 // responseHex renders a response body as a hex dump.

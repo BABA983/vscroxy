@@ -2631,5 +2631,7 @@
   "importUrlNeedsHttp": "请输入 http:// 或 https:// URL。",
   "importUrlTooLarge": "文档超过 32 MiB。",
   "importAction": "导入",
-  "imagePreviewTooLarge": "图片为 {width}×{height}；预览上限为 {megapixels} 百万像素。"
-}
+  "imagePreviewTooLarge": "图片为 {width}×{height}；预览上限为 {megapixels} 百万像素。",
+  "saveCookiesToJar": "保存 Cookie 到 jar",
+  "cookiesSavedToJar": "已保存 {count} 个 Cookie 到请求 jar",
+  "@cookiesSavedToJar": {"placeholders":{"count":{"type":"int"}}}}

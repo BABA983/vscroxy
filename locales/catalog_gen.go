@@ -25719,3 +25719,23 @@ func ImagePreviewTooLarge(width int, height int, megapixels int) string {
 func (msgs Messages) ImagePreviewTooLarge(width int, height int, megapixels int) string {
 	return Catalog.Format(msgs.locale, "imagePreviewTooLarge", map[string]any{"width": width, "height": height, "megapixels": megapixels})
 }
+
+// SaveCookiesToJar says "Save cookies to jar"
+// in the language the app shows.
+func SaveCookiesToJar() string { return In(i18n.Locale()).SaveCookiesToJar() }
+
+// SaveCookiesToJar says "Save cookies to jar"
+// in the language of msgs.
+func (msgs Messages) SaveCookiesToJar() string {
+	return Catalog.Format(msgs.locale, "saveCookiesToJar", nil)
+}
+
+// CookiesSavedToJar says "Saved {count} cookies to the request jar"
+// in the language the app shows.
+func CookiesSavedToJar(count int) string { return In(i18n.Locale()).CookiesSavedToJar(count) }
+
+// CookiesSavedToJar says "Saved {count} cookies to the request jar"
+// in the language of msgs.
+func (msgs Messages) CookiesSavedToJar(count int) string {
+	return Catalog.Format(msgs.locale, "cookiesSavedToJar", map[string]any{"count": count})
+}

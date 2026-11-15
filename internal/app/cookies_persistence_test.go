@@ -368,3 +368,27 @@ func TestCookieManagerMasksValuesAndClearsByDomain(t *testing.T) {
 		t.Fatalf("clearing a domain left rows: %v", tt.Texts())
 	}
 }
+
+// Copying a captured exchange's cookies stores the request's Cookie values and
+// the response's Set-Cookie attributes in the request jar.
+func TestSaveFlowCookiesCopiesBothSides(t *testing.T) {
+	a := workspaceApp()
+	f := a.flows[0]
+	f.url = "https://api.example.com/app/start"
+	f.reqHeader = http.Header{"Cookie": {"session=abc; theme=paper"}}
+	f.respHeader = http.Header{"Set-Cookie": {"token=xyz; Path=/app; HttpOnly", "scoped=1; Path=/app"}}
+	a.saveFlowCookies(f)
+	u, _ := url.Parse("https://api.example.com/app/start")
+	got := map[string]string{}
+	for _, c := range a.requestCookies().Cookies(u) {
+		got[c.Name] = c.Value
+	}
+	for name, want := range map[string]string{"session": "abc", "theme": "paper", "token": "xyz", "scoped": "1"} {
+		if got[name] != want {
+			t.Errorf("cookie %s = %q, want %q (all %v)", name, got[name], want, got)
+		}
+	}
+	if a.message == "" {
+		t.Fatal("no confirmation message")
+	}
+}

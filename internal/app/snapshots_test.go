@@ -637,6 +637,11 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.flows[0].respHeader["Set-Cookie"] = []string{"session=fixture-value; Path=/; HttpOnly; Secure; SameSite=Lax", "theme=paper; Path=/account; Max-Age=3600"}
 			a.inspect.tab[1] = resViewCookies
 		}, want: "2 cookies · captured headers"},
+		{name: "capture-cookies-save", setup: func(a *app) {
+			a.flows[0].reqHeader["Cookie"] = []string{"session=fixture-value; theme=paper"}
+			a.flows[0].respHeader["Set-Cookie"] = []string{"token=fixture-value; Path=/; HttpOnly"}
+			a.inspect.tab[1] = resViewCookies
+		}, want: "Save cookies to jar"},
 		{name: "capture-form-xml", setup: func(a *app) {
 			snapshotStructured(a)
 			a.workbench.focused = true

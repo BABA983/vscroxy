@@ -287,7 +287,7 @@ func (a *app) requestPane(c *ui.Context, f flow) {
 		case composeTabRaw:
 			a.rawSide(c, f, 1)
 		case composeTabCookies:
-			cookieView(c, f.reqHeader, false, &a.inspect.reveal[1])
+			cookieView(c, f.reqHeader, false, &a.inspect.reveal[1], func() { a.saveFlowCookies(f) })
 		default:
 			a.headersSide(c, f, 1)
 		}
@@ -313,7 +313,7 @@ func (a *app) responsePane(c *ui.Context, f flow) {
 		case resViewTiming:
 			a.timingView(c, f)
 		case resViewCookies:
-			cookieView(c, f.respHeader, true, &a.inspect.reveal[0])
+			cookieView(c, f.respHeader, true, &a.inspect.reveal[0], func() { a.saveFlowCookies(f) })
 		case resViewContract:
 			a.contractView(c, t, fmt.Sprintf("capture:%d:%s:%d", f.id, f.url, f.status), a.flowExchange(f))
 		case resViewMessages:
