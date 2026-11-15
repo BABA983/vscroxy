@@ -16,6 +16,13 @@ func OpenTerminal(p Proxy) (Argv, error) {
 	if err != nil {
 		return Argv{}, err
 	}
+	return openTerminalScript(script)
+}
+
+// OpenScript opens an already written executable script in Terminal.
+func OpenScript(script string) (Argv, error) { return openTerminalScript(script) }
+
+func openTerminalScript(script string) (Argv, error) {
 	if _, err := toolPath("/usr/bin/open"); err != nil {
 		RemoveTerminalScript(script)
 		return Argv{}, err

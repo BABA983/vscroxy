@@ -20,6 +20,17 @@ var linuxTerminals = []string{
 // OpenTerminal opens a new terminal window whose shell has the proxy and CA
 // environment. The window's process tree is the only thing changed.
 func OpenTerminal(p Proxy) (Argv, error) {
+	script, err := WritePOSIXTerminalScript(p)
+	if err != nil {
+		return Argv{}, err
+	}
+	return openTerminalScript(script)
+}
+
+// OpenScript opens an already written executable script in a terminal.
+func OpenScript(script string) (Argv, error) { return openTerminalScript(script) }
+
+func openTerminalScript(script string) (Argv, error) {
 	names := linuxTerminals
 	if name := strings.TrimSpace(os.Getenv("TERMINAL")); name != "" {
 		names = append([]string{name}, names...)
@@ -29,14 +40,11 @@ func OpenTerminal(p Proxy) (Argv, error) {
 		if err != nil {
 			continue
 		}
-		script, err := WritePOSIXTerminalScript(p)
-		if err != nil {
-			return Argv{}, err
-		}
 		command := Argv{Name: bin, Args: terminalArgs(bin, script)}
 		command.OnStartError = func() { RemoveTerminalScript(script) }
 		return command, nil
 	}
+	RemoveTerminalScript(script)
 	return Argv{}, &MissingToolError{
 		Tool: "terminal emulator",
 		Hint: "install xterm, gnome-terminal, konsole or another terminal, or set $TERMINAL",

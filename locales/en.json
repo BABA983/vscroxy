@@ -4134,5 +4134,13 @@
   "allow": "Allow",
   "deny": "Deny",
   "socketPath": "Unix socket or named pipe",
-  "socketPathHint": "Send HTTP(S) directly to this local socket or named pipe, bypassing the capture proxy. The URL host is sent as the Host header."
+  "socketPathHint": "Send HTTP(S) directly to this local socket or named pipe, bypassing the capture proxy. The URL host is sent as the Host header.",
+  "dockerContainer": "Docker container",
+  "container": "Container",
+  "runsANewContainerFrom": "Runs a new container from the named container's image and command, with this proxy and the CA bundle.",
+  "containerProxyHint": "The container reaches the proxy at {host} and trusts /vscroxy/ca.pem for Node, Python, curl, Git, pip and Deno.",
+  "containerCaMounted": "The CA bundle is mounted read-only at /vscroxy/ca.pem.",
+  "containerLimitations": "Volumes, published ports, network settings and the original environment are not copied; proxy and trust variables are replaced.",
+  "interceptContainer": "Intercept container",
+  "containerPlaceholder": "my-app"
 }

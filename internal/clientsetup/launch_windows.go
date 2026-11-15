@@ -13,6 +13,10 @@ import (
 // proxy. Passing the environment directly avoids a batch file and its OEM code
 // page, so non-ASCII user names and paths work. The window stays open at a
 // prompt and only its process tree changes.
+// OpenScript is not used on Windows: the container launcher runs cmd.exe
+// directly with the docker command.
+func OpenScript(string) (Argv, error) { return Argv{}, ErrUnsupported }
+
 func OpenTerminal(p Proxy) (Argv, error) {
 	env, err := Environment(p)
 	if err != nil {

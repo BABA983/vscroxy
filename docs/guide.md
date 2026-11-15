@@ -3941,6 +3941,51 @@ The **Apps** section of the sidebar filters by app. An executable whose icon
 cannot be read, or a process without an executable path, keeps the letter
 badge.
 
+## Containers and app frameworks
+
+**Client setup → Docker container** re-runs an existing container through the
+proxy. Enter a container name or ID; the launcher reads its image, entrypoint,
+command, working directory, user and environment with `docker inspect`, then
+starts a new `--rm -it` container from that image and command. It adds
+`HTTP_PROXY`, `HTTPS_PROXY` and their lowercase forms, `NO_PROXY` for the
+container's own loopback, `NODE_USE_ENV_PROXY=1`, and the trust variables
+(`NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`,
+`CURL_CA_BUNDLE`, `GIT_SSL_CAINFO`, `PIP_CERT`, `DENO_CERT`) pointing at
+`/vscroxy/ca.pem`, a read-only mount of the app's system+CA bundle. The
+original container's other environment variables are copied; proxy and trust
+variables are replaced. Volumes, published ports and network settings are not
+copied, so the new container is for observing traffic, not cloning a deployment.
+
+On Linux the container uses host networking and the proxy at `127.0.0.1`, since
+the capture listener is loopback-only. On Docker Desktop (macOS and Windows) it
+uses the default bridge and `host.docker.internal`, which Docker Desktop
+forwards to the host. A remote Docker daemon or a rootless setup that cannot
+reach either address needs its own port forwarding; the generated command in
+**Last command** shows exactly what ran. The copied environment is visible to
+`docker inspect` as it already was on the original container; do not use this
+launcher with a container whose environment you would not expose locally.
+
+**Flutter.** Start capture, then run `flutter run` from **Client setup →
+Terminal**. Dart's `HttpClient` reads the proxy variables on desktop, but it
+does not read `SSL_CERT_FILE`: install the vscroxy CA in the OS trust store for
+a desktop build, or give a custom `SecurityContext` the CA. For a web build use
+**Open proxied Chrome**. For an Android emulator use **Client setup → Android
+emulator** and the app's network security config; for an iOS simulator use the
+iOS setup or `xcrun simctl keychain add-root-cert`. A Flutter app that uses its
+own HTTP client (Dio, `package:http`) still needs that client pointed at the
+proxy and CA explicitly; the environment alone does not change its code.
+
+**React Native.** Run Metro in the proxied terminal (`npx react-native start`);
+Node picks up `NODE_EXTRA_CA_CERTS` and, on Node 24+, the proxy variables for
+its built-in fetch. For an Android emulator, add the emulator's proxy in **Client
+setup → Android emulator**, run `adb reverse tcp:8081 tcp:8081` if Metro is not
+reachable, and give the app a debug network security config that trusts the
+user CA. For the iOS simulator, install the CA in the simulator's keychain and
+let the app use the simulator's proxy. React Native's native networking stack
+does not automatically honor every proxy variable, and libraries such as OkHttp
+or `NSURLSession` may need their own proxy configuration; the device setup and
+the certificate trust are what make HTTPS inspectable.
+
 ## Settings
 
 **Settings → General → Back up and share** exports one JSON file with the

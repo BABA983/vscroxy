@@ -619,3 +619,18 @@ func TestMissingAndroidProxyRecordsIsNotDamage(t *testing.T) {
 		t.Fatal("a missing file disabled the records path")
 	}
 }
+
+func TestOneClickContainerShowsProxyAndCaMount(t *testing.T) {
+	a := oneClickApp(t)
+	a.clientUI.target = clientTargetContainer
+	a.clientUI.container = "my-app"
+	tt := ui.NewTester(a.view, 960, 600)
+	for _, want := range []string{
+		"Docker container", "Intercept container", "Container",
+		"host.docker.internal", "/vscroxy/ca.pem", "Volumes, published ports",
+	} {
+		if !tt.HasText(want) {
+			t.Fatalf("container setup lacks %q: %v", want, tt.Texts())
+		}
+	}
+}

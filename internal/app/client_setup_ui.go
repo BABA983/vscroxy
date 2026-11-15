@@ -91,6 +91,8 @@ func (a *app) clientSetupOneClick(c *ui.Context, t *ui.Theme) {
 			a.clientJavaPanel(c, t, p, running)
 		case clientTargetElectron:
 			a.clientElectronPanel(c, t, p, running)
+		case clientTargetContainer:
+			a.clientContainerPanel(c, t, p, running)
 		default:
 			a.clientTerminalPanel(c, t, p, running)
 		}
@@ -124,6 +126,32 @@ func (a *app) clientTerminalPanel(c *ui.Context, t *ui.Theme, p clientsetup.Prox
 		a.openProxiedTerminal()
 	}
 	uikit.Meta(c, locales.NodeExtraCaCertsAdds())
+}
+
+func (a *app) clientContainerPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, running bool) {
+	s := &a.clientUI
+	uikit.Hint(c, locales.RunsANewContainerFrom())
+	ui.Form(c, func() {
+		ui.Field(c, locales.Container(), func() {
+			uikit.Input(c, &s.container).Label(locales.Container()).Placeholder(locales.ContainerPlaceholder())
+		})
+	})
+	host := "host.docker.internal"
+	if runtime.GOOS == "linux" {
+		host = "127.0.0.1 (host network)"
+	}
+	uikit.Meta(c, locales.ContainerProxyHint(host))
+	if p.BundlePath == "" {
+		ui.Text(c, locales.SystemCaBundleUnavailableOnly()).
+			FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).MaxLines(2)
+	} else {
+		uikit.Meta(c, locales.ContainerCaMounted())
+	}
+	if uikit.PrimaryButton(c, locales.InterceptContainer()).
+		Disabled(!running || strings.TrimSpace(s.container) == "").Clicked() {
+		a.openInterceptContainer()
+	}
+	uikit.Meta(c, locales.ContainerLimitations())
 }
 
 func (a *app) clientChromePanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, running bool) {

@@ -5,6 +5,9 @@ package clientsetup
 // OpenTerminal is unavailable on this platform.
 func OpenTerminal(Proxy) (Argv, error) { return Argv{}, ErrUnsupported }
 
+// OpenScript is unavailable on this platform.
+func OpenScript(string) (Argv, error) { return Argv{}, ErrUnsupported }
+
 // OpenChrome is unavailable on this platform.
 func OpenChrome(Proxy, string) (Argv, error) { return Argv{}, ErrUnsupported }
 

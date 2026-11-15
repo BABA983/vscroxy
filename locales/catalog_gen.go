@@ -26511,3 +26511,83 @@ func SocketPathHint() string { return In(i18n.Locale()).SocketPathHint() }
 func (msgs Messages) SocketPathHint() string {
 	return Catalog.Format(msgs.locale, "socketPathHint", nil)
 }
+
+// DockerContainer says "Docker container"
+// in the language the app shows.
+func DockerContainer() string { return In(i18n.Locale()).DockerContainer() }
+
+// DockerContainer says "Docker container"
+// in the language of msgs.
+func (msgs Messages) DockerContainer() string {
+	return Catalog.Format(msgs.locale, "dockerContainer", nil)
+}
+
+// Container says "Container"
+// in the language the app shows.
+func Container() string { return In(i18n.Locale()).Container() }
+
+// Container says "Container"
+// in the language of msgs.
+func (msgs Messages) Container() string {
+	return Catalog.Format(msgs.locale, "container", nil)
+}
+
+// RunsANewContainerFrom says "Runs a new container from the named container's image and command, with this proxy and the CA bundle."
+// in the language the app shows.
+func RunsANewContainerFrom() string { return In(i18n.Locale()).RunsANewContainerFrom() }
+
+// RunsANewContainerFrom says "Runs a new container from the named container's image and command, with this proxy and the CA bundle."
+// in the language of msgs.
+func (msgs Messages) RunsANewContainerFrom() string {
+	return Catalog.Format(msgs.locale, "runsANewContainerFrom", nil)
+}
+
+// ContainerProxyHint says "The container reaches the proxy at {host} and trusts /vscroxy/ca.pem for Node, Python, curl, Git, pip and Deno."
+// in the language the app shows.
+func ContainerProxyHint(host string) string { return In(i18n.Locale()).ContainerProxyHint(host) }
+
+// ContainerProxyHint says "The container reaches the proxy at {host} and trusts /vscroxy/ca.pem for Node, Python, curl, Git, pip and Deno."
+// in the language of msgs.
+func (msgs Messages) ContainerProxyHint(host string) string {
+	return Catalog.Format(msgs.locale, "containerProxyHint", map[string]any{"host": host})
+}
+
+// ContainerCaMounted says "The CA bundle is mounted read-only at /vscroxy/ca.pem."
+// in the language the app shows.
+func ContainerCaMounted() string { return In(i18n.Locale()).ContainerCaMounted() }
+
+// ContainerCaMounted says "The CA bundle is mounted read-only at /vscroxy/ca.pem."
+// in the language of msgs.
+func (msgs Messages) ContainerCaMounted() string {
+	return Catalog.Format(msgs.locale, "containerCaMounted", nil)
+}
+
+// ContainerLimitations says "Volumes, published ports, network settings and the original environment are not copied; proxy and trust variables are…"
+// in the language the app shows.
+func ContainerLimitations() string { return In(i18n.Locale()).ContainerLimitations() }
+
+// ContainerLimitations says "Volumes, published ports, network settings and the original environment are not copied; proxy and trust variables are…"
+// in the language of msgs.
+func (msgs Messages) ContainerLimitations() string {
+	return Catalog.Format(msgs.locale, "containerLimitations", nil)
+}
+
+// InterceptContainer says "Intercept container"
+// in the language the app shows.
+func InterceptContainer() string { return In(i18n.Locale()).InterceptContainer() }
+
+// InterceptContainer says "Intercept container"
+// in the language of msgs.
+func (msgs Messages) InterceptContainer() string {
+	return Catalog.Format(msgs.locale, "interceptContainer", nil)
+}
+
+// ContainerPlaceholder says "my-app"
+// in the language the app shows.
+func ContainerPlaceholder() string { return In(i18n.Locale()).ContainerPlaceholder() }
+
+// ContainerPlaceholder says "my-app"
+// in the language of msgs.
+func (msgs Messages) ContainerPlaceholder() string {
+	return Catalog.Format(msgs.locale, "containerPlaceholder", nil)
+}

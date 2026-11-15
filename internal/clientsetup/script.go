@@ -22,6 +22,13 @@ func WritePOSIXTerminalScriptAs(p Proxy, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return writeTerminalScript(script, name)
+}
+
+// writeTerminalScript writes an executable script in a private directory and
+// returns its path. The caller opens it in a terminal; the script removes
+// itself there.
+func writeTerminalScript(script, name string) (string, error) {
 	// Some terminal emulators re-split -e arguments on spaces. A private
 	// directory under /tmp keeps the script path free of spaces even when
 	// TMPDIR contains one. Fall back to the system temp directory.

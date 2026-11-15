@@ -20,18 +20,19 @@ import (
 // One-click targets. The labels are the picker's values, so a target can be
 // opened from a command without a second identifier.
 const (
-	clientTargetTerminal = "Terminal"
-	clientTargetChrome   = "Chrome"
-	clientTargetFirefox  = "Firefox"
-	clientTargetAndroid  = "Android emulator"
-	clientTargetIOS      = "iOS simulator"
-	clientTargetJava     = "Java"
-	clientTargetElectron = "Electron app"
+	clientTargetTerminal  = "Terminal"
+	clientTargetChrome    = "Chrome"
+	clientTargetFirefox   = "Firefox"
+	clientTargetAndroid   = "Android emulator"
+	clientTargetIOS       = "iOS simulator"
+	clientTargetJava      = "Java"
+	clientTargetElectron  = "Electron app"
+	clientTargetContainer = "Docker container"
 )
 
 var clientTargets = []string{
 	clientTargetTerminal, clientTargetChrome, clientTargetFirefox,
-	clientTargetAndroid, clientTargetIOS, clientTargetJava, clientTargetElectron,
+	clientTargetAndroid, clientTargetIOS, clientTargetJava, clientTargetElectron, clientTargetContainer,
 }
 
 // clientSetup is the client and device setup dialog. One-click actions change
@@ -73,6 +74,7 @@ type clientSetup struct {
 	javaChecked bool
 
 	electronPath string
+	container    string
 	last         string
 	problem      string
 
@@ -312,6 +314,14 @@ func commandString(command clientsetup.Argv) string {
 		return ""
 	}
 	return command.String(runtime.GOOS == "windows")
+}
+
+func (a *app) openInterceptContainer() {
+	container := strings.TrimSpace(a.clientUI.container)
+	a.launchClient("Intercept container", "Started container through vscroxy", true, func(p clientsetup.Proxy) (clientLaunch, error) {
+		command, err := clientsetup.OpenContainer(p, container)
+		return clientLaunch{command: command}, err
+	})
 }
 
 func (a *app) openProxiedTerminal() {
