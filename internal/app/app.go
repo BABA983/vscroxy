@@ -163,6 +163,7 @@ type app struct {
 	// chosen are the rows chosen for a bulk action, by flow id.
 	chosen        ui.Selection[int]
 	overviewScope overviewScope
+	overviewCache overviewCache
 	// picked bridges the table's row-index API; pickedID survives row rebuilds.
 	picked   int
 	pickedID int

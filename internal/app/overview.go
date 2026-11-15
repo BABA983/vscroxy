@@ -118,13 +118,55 @@ func (a *app) overviewFlows() []flow {
 	return a.flows
 }
 
+// overviewCache is the last built dashboard. A repaint reuses it until the
+// scope, the flow list, the selection size or the newest flow changes; while
+// capture is running it is rebuilt at most every 250 ms, since a response can
+// complete on any older row without changing the list's length.
+type overviewCache struct {
+	valid  bool
+	key    string
+	at     time.Time
+	builds int
+	stats  overviewStats
+}
+
+func (a *app) overviewKey() string {
+	key := fmt.Sprintf("%d:%d", a.overviewScope, len(a.flows))
+	if a.overviewScope == overviewChosen {
+		// An order-independent sum of the chosen IDs catches a swap that
+		// keeps the selection's size, without sorting it every frame.
+		var selection uint64
+		for id := range a.chosen.All() {
+			selection += uint64(id) * 0x9E3779B97F4A7C15
+		}
+		key += fmt.Sprintf(":%d", selection)
+	}
+	if n := len(a.flows); n > 0 {
+		last := a.flows[n-1]
+		key += fmt.Sprintf(":%d:%d:%d", last.id, last.bytes, last.status)
+	}
+	return key
+}
+
+func (a *app) cachedOverview() overviewStats {
+	c := &a.overviewCache
+	key, now := a.overviewKey(), time.Now()
+	capturing := a.srv != nil && a.srv.Running()
+	if c.valid && c.key == key && (!capturing || now.Sub(c.at) < 250*time.Millisecond) {
+		return c.stats
+	}
+	c.stats, c.key, c.at, c.valid = buildOverview(a.overviewFlows()), key, now, true
+	c.builds++
+	return c.stats
+}
+
 func (a *app) openOverview() {
 	a.page, a.sidebarChoice = pageOverview, "overview"
 }
 
 func (a *app) overviewView(c *ui.Context, t *ui.Theme) {
 	flows := a.overviewFlows()
-	stats := buildOverview(flows)
+	stats := a.cachedOverview()
 	p := uikit.Colors(t)
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).MinHeight(uikit.HeightLarge).AlignItems(ui.Center).Wrap().Children(func() {

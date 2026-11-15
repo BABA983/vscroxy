@@ -58,3 +58,52 @@ func TestOverviewPageShowsSessionAndSelection(t *testing.T) {
 		t.Fatalf("selection scope: %v %q", a.overviewScope, tt.Texts())
 	}
 }
+
+func TestOverviewRepaintReusesCachedStats(t *testing.T) {
+	a := workspaceApp()
+	a.cachedOverview()
+	if a.overviewCache.builds != 1 {
+		t.Fatalf("first build: %d", a.overviewCache.builds)
+	}
+	a.cachedOverview()
+	if a.overviewCache.builds != 1 {
+		t.Fatalf("unchanged inputs rebuilt: %d", a.overviewCache.builds)
+	}
+	a.openOverview()
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	tt.Frame()
+	builds := a.overviewCache.builds
+	tt.Frame()
+	tt.Frame()
+	if a.overviewCache.builds != builds {
+		t.Fatalf("a repaint rebuilt the stats: %d -> %d", builds, a.overviewCache.builds)
+	}
+	a.flows = append(a.flows, flow{id: 99, host: "new.example.com", status: 200})
+	a.cachedOverview()
+	if a.overviewCache.builds != builds+1 {
+		t.Fatalf("a new flow did not rebuild: %d", a.overviewCache.builds)
+	}
+	a.overviewScope = overviewChosen
+	a.cachedOverview()
+	if a.overviewCache.builds != builds+2 {
+		t.Fatalf("the chosen scope did not rebuild: %d", a.overviewCache.builds)
+	}
+	a.chosen.Add(7)
+	a.cachedOverview()
+	if a.overviewCache.builds != builds+3 {
+		t.Fatalf("a selection change did not rebuild: %d", a.overviewCache.builds)
+	}
+}
+
+func BenchmarkOverviewRepaint(b *testing.B) {
+	a := workspaceApp()
+	for i := range 100000 {
+		a.flows = append(a.flows, flow{id: 1000 + i, process: "Browser", host: "api.example.com", status: 200, bytes: 2048})
+	}
+	a.cachedOverview()
+	b.ReportAllocs()
+	for b.Loop() {
+		a.cachedOverview()
+	}
+}
