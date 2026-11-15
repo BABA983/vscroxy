@@ -2539,7 +2539,11 @@ func TestShellIsOneSurfaceAroundTheRaisedPanel(t *testing.T) {
 		if !hidden {
 			// The sidebar is part of the shell: the brand's row, the sidebar
 			// and the footer are one surface, with no seam at the top left.
-			if got := im.RGBAAt(100, 300); got != chrome {
+			// Probe below the last row and its controls: rows, the Sources
+			// segmented control and the collection tree move with the sidebar's
+			// content and the window's text scale, and a control's face is not
+			// a seam.
+			if got := im.RGBAAt(100, 600); got != chrome {
 				t.Fatalf("the sidebar is %v, not the shell's %v", got, chrome)
 			}
 		}

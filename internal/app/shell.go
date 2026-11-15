@@ -719,6 +719,10 @@ func (a *app) syncSections() {
 		a.sidebarChoice = "diagnostics"
 		return
 	}
+	if a.page == pageOverview {
+		a.sidebarChoice = "overview"
+		return
+	}
 	if !a.page.capture() {
 		if a.page == pageAPI {
 			if a.apiChoice == "" && len(a.apis) > 0 {

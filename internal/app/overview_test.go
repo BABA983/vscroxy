@@ -46,7 +46,7 @@ func TestOverviewPageShowsSessionAndSelection(t *testing.T) {
 	if err := tt.Click("Overview"); err != nil {
 		t.Fatal(err)
 	}
-	if a.page != pageOverview || !tt.HasText("Top apps") || !tt.HasText("api.example.com") {
+	if a.page != pageOverview || a.sidebarChoice != "overview" || !tt.HasText("Top apps") || !tt.HasText("api.example.com") {
 		t.Fatalf("overview page: page=%v texts=%q", a.page, tt.Texts())
 	}
 	a.chosen.Clear()
