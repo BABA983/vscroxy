@@ -363,3 +363,93 @@ func TestRunNativeGRPCCollection(t *testing.T) {
 		t.Fatalf("report: %+v %v", report, err)
 	}
 }
+
+// A Postman Collection v3 directory is YAML files, not a native library; -i
+// selects one item the way --folder does.
+func TestRunPostmanV3Directory(t *testing.T) {
+	var gotPath, gotAuth string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotAuth = r.URL.Path, r.Header.Get("Authorization")
+		fmt.Fprint(w, `{"ok":true}`)
+	}))
+	defer upstream.Close()
+	input := filepath.Join("..", "postman", "testdata", "v3", "shop")
+	var out, errOut bytes.Buffer
+	code := cli.Run(t.Context(), []string{"run", "-i", "Shop API/Users", "--var", "baseUrl=" + upstream.URL, "--var", "token=run-token", input}, &out, &errOut)
+	if code != 0 || !strings.Contains(out.String(), "1 completed · 0 failed") {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, &out, &errOut)
+	}
+	if gotPath != "/users/42" || gotAuth != "Bearer run-token" {
+		t.Fatalf("path=%q auth=%q, want the v3 path variable and inherited auth", gotPath, gotAuth)
+	}
+}
+
+func TestRunHTMLReportAndStateExports(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "session", Value: "private-cookie", Path: "/"})
+		fmt.Fprint(w, `{"ok":true}`)
+	}))
+	defer upstream.Close()
+	root := t.TempDir()
+	input := filepath.Join(root, "collections")
+	write(t, filepath.Join(input, "One.request.json"), request.Request{
+		ID: "one", Name: `<script>alert("name")</script>`, Method: "GET", URL: "{{base}}/login",
+		Post: `pm.environment.set("session", "abc"); pm.globals.set("visit", "2"); pm.globals.unset("gone"); pm.globals.set("temp", "1"); pm.globals.unset("temp");`,
+	})
+	env := filepath.Join(root, "env.json")
+	write(t, env, map[string]any{
+		"active":       "local",
+		"environments": []any{map[string]any{"name": "local", "vars": map[string]string{"base": "http://wrong.invalid", "keep": "yes"}}},
+		"globals":      map[string]string{"gone": "initial", "keepg": "yes"},
+	})
+	htmlPath := filepath.Join(root, "reports", "run.html")
+	envOut := filepath.Join(root, "out", "environment.json")
+	globalsOut := filepath.Join(root, "out", "globals.json")
+	jarOut := filepath.Join(root, "out", "cookies.json")
+	var out, errOut bytes.Buffer
+	code := cli.Run(t.Context(), []string{"run", "--env", env, "--var", "base=" + upstream.URL,
+		"--report-html", htmlPath, "--export-environment", envOut, "--export-globals", globalsOut, "--export-cookie-jar", jarOut, input}, &out, &errOut)
+	if code != 0 || !strings.Contains(out.String(), "1 completed · 0 failed") {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, &out, &errOut)
+	}
+	page, err := os.ReadFile(htmlPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(page), "&lt;script&gt;") || strings.Contains(string(page), `<script>alert`) {
+		t.Errorf("HTML report does not escape the request name: %s", page)
+	}
+	envData, _ := os.ReadFile(envOut)
+	exported, err := postman.ReadEnvironment(envData)
+	if err != nil || exported.Name != "local" || exported.Values["session"] != "abc" || exported.Values["keep"] != "yes" || exported.Values["base"] != upstream.URL {
+		t.Fatalf("exported environment: %+v %v\n%s", exported, err, envData)
+	}
+	globalsData, _ := os.ReadFile(globalsOut)
+	exportedGlobals, err := postman.ReadEnvironment(globalsData)
+	if err != nil || exportedGlobals.Values["visit"] != "2" || exportedGlobals.Values["keepg"] != "yes" {
+		t.Fatalf("exported globals: %+v %v\n%s", exportedGlobals, err, globalsData)
+	}
+	for _, removed := range []string{"gone", "temp"} {
+		if _, ok := exportedGlobals.Values[removed]; ok {
+			t.Errorf("exported globals kept unset %q", removed)
+		}
+	}
+	jarData, _ := os.ReadFile(jarOut)
+	var jar struct {
+		Cookies []struct {
+			Name     string `json:"name"`
+			Value    string `json:"value"`
+			Domain   string `json:"domain"`
+			Path     string `json:"path"`
+			HostOnly bool   `json:"hostOnly"`
+			Session  bool   `json:"session"`
+		} `json:"cookies"`
+	}
+	if err := json.Unmarshal(jarData, &jar); err != nil || len(jar.Cookies) != 1 {
+		t.Fatalf("cookie jar: %+v %v\n%s", jar, err, jarData)
+	}
+	cookie := jar.Cookies[0]
+	if cookie.Name != "session" || cookie.Value != "private-cookie" || cookie.Domain != "127.0.0.1" || cookie.Path != "/" || !cookie.HostOnly || !cookie.Session {
+		t.Fatalf("cookie = %+v", cookie)
+	}
+}

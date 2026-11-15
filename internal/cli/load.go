@@ -23,7 +23,13 @@ func loadCollection(name, folder string) ([]request.Request, []request.Folder, [
 	var requests []request.Request
 	var folders []request.Folder
 	var warnings []string
-	if info.IsDir() {
+	if info.IsDir() && postman.LooksLikeCollectionDir(name) {
+		// Postman Collection v3 is a directory of YAML files. The desktop
+		// importer reads it the same way, so both accept one input tree.
+		var collection postman.Collection
+		collection, err = postman.ReadCollectionDir(name)
+		requests, folders, warnings = collection.Requests, collection.Folders, collection.Warnings
+	} else if info.IsDir() {
 		requests, folders, _, err = library.Read(name, func(data []byte, collection string) (request.Request, error) {
 			var r request.Request
 			err := json.Unmarshal(data, &r)

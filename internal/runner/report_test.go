@@ -307,3 +307,33 @@ func TestReportAppendSnapshotsAndZeroValue(t *testing.T) {
 		t.Errorf("report aliases mutable execution: %+v", got)
 	}
 }
+
+func TestReportHTMLEscapesAndSummarizes(t *testing.T) {
+	report := runner.Report{StartedAt: time.Date(2026, time.November, 2, 10, 20, 30, 0, time.UTC)}
+	req := request.Request{ID: "one", Name: `<script>alert("name")</script>`, Collection: "API"}
+	report.Append(req, runner.Result{Iteration: 1, Duration: 1500 * time.Millisecond, Execution: request.Execution{
+		Response: &capture.Flow{Status: 500}, Stage: "Network error", Err: errors.New(`<b>bad</b>`),
+		Tests: []request.TestResult{{Name: `<img src=x onerror=alert(1)>`, Pass: false, Error: `<b>bad</b>`}},
+	}}, true)
+	report.Append(req, runner.Result{Iteration: 2, Execution: request.Execution{Skipped: true}}, true)
+	report.Finish(runner.Summary{Completed: 2, Failed: 1, Skipped: 1}, nil, 2*time.Second)
+
+	data, err := report.HTML()
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(data)
+	for _, raw := range []string{`<script>alert("name")</script>`, `<img src=x`, `<b>bad</b>`} {
+		if strings.Contains(page, raw) {
+			t.Errorf("HTML contains unescaped %q", raw)
+		}
+	}
+	for _, want := range []string{"&lt;script&gt;", "&lt;img src=x", "2.000s", "1.500s", "Network error", "1 failed", "skipped"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("HTML does not contain %q", want)
+		}
+	}
+	if strings.Contains(page, "<link") || strings.Contains(page, "http://") || strings.Contains(page, "https://") {
+		t.Error("HTML report must be self-contained")
+	}
+}

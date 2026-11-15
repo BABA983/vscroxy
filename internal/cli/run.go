@@ -7,7 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net/http/cookiejar"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -20,7 +20,6 @@ import (
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
 	"github.com/baba983/vscroxy/internal/store"
-	"golang.org/x/net/publicsuffix"
 )
 
 // Run returns an exit code: 0 success, 1 failed attempt, 2 setup/output error,
@@ -46,6 +45,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	folder := flags.String("folder", "", "Collection/folder path to run (includes children)")
+	flags.StringVar(folder, "i", "", "Alias of --folder, for Newman-style item selection")
 	envPath := flags.String("env", "", "Explicit native env.json or Postman environment/globals file")
 	envName := flags.String("environment", "", "Environment name in --env; defaults to its active environment")
 	dataPath := flags.String("data", "", "CSV or JSON iteration data")
@@ -58,6 +58,11 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	maxSteps := flags.Int("max-steps", 10000, "Maximum attempts, including script jumps (1–100000)")
 	jsonPath := flags.String("report-json", "", "Write a private JSON report")
 	xmlPath := flags.String("report-junit", "", "Write a private JUnit XML report")
+	htmlPath := flags.String("report-html", "", "Write a self-contained HTML report")
+	exports := runExports{}
+	flags.StringVar(&exports.environment, "export-environment", "", "Write the environment's final values as a Postman environment file")
+	flags.StringVar(&exports.globals, "export-globals", "", "Write the global variables' final values as a Postman globals file")
+	flags.StringVar(&exports.cookieJar, "export-cookie-jar", "", "Write the run's cookies as a JSON cookie jar")
 	details := flags.Bool("include-details", false, "Include assertion names/errors in reports; MAY EXPOSE SECRETS")
 	vars := map[string]string{}
 	flags.Func("var", "Environment override KEY=VALUE (repeatable; use --env for secrets)", func(s string) error {
@@ -80,10 +85,16 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "Provide one collection input, positive timeouts, a non-negative request delay, 1–1000 iterations, and 1–100000 max steps.")
 		return 2
 	}
-	if *jsonPath != "" && *xmlPath != "" {
-		if overlaps(*jsonPath, *xmlPath) || overlaps(*xmlPath, *jsonPath) {
-			fmt.Fprintln(stderr, "JSON and JUnit reports need different destinations.")
-			return 2
+	outputs := append([]string{*jsonPath, *xmlPath, *htmlPath}, exports.paths()...)
+	for i, output := range outputs {
+		if output == "" {
+			continue
+		}
+		for _, other := range outputs[i+1:] {
+			if other != "" && (overlaps(output, other) || overlaps(other, output)) {
+				fmt.Fprintln(stderr, "Report and export destinations must be different files.")
+				return 2
+			}
 		}
 	}
 	requests, folders, warnings, err := loadCollection(flags.Arg(0), *folder)
@@ -127,15 +138,15 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if *iterations == 0 {
 		*iterations = max(1, len(rows))
 	}
-	// Refuse report destinations that could replace an input. Nothing writes
+	// Refuse destinations that could replace an input. Nothing writes
 	// requests, environments, or data, including script-generated writes.
-	for _, output := range []string{*jsonPath, *xmlPath} {
+	for _, output := range outputs {
 		if output == "" {
 			continue
 		}
 		for _, input := range []string{flags.Arg(0), *envPath, *dataPath} {
 			if input != "" && overlaps(output, input) {
-				fmt.Fprintln(stderr, "Report destination overlaps an input; choose a separate output directory.")
+				fmt.Fprintln(stderr, "Report or export destination overlaps an input; choose a separate output directory.")
 				return 2
 			}
 		}
@@ -181,7 +192,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 	})
 	defer func() { stopDrain(); drain.Wait() }()
-	jar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	jar := newRecordingJar()
 	tokens := &request.Tokens{}
 	steps := make([]runner.Step, len(requests))
 	for i, r := range requests {
@@ -191,9 +202,25 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 	start := time.Now()
 	report := runner.Report{Version: 1, StartedAt: start.UTC()}
+	// Exports hold the state the run ended with: the environment a script
+	// last set, and the globals' initial values with the scripts' changes.
+	finalVars, finalGlobals := maps.Clone(values), maps.Clone(globals)
 	summary, runErr := runner.Run(runCtx, srv, steps, runner.Options{Iterations: *iterations, Timeout: *stepTimeout, Delay: *delayRequest, StopOnFailure: *bail, Vars: values, Data: rows, Cookies: jar, MaxSteps: *maxSteps}, func(result runner.Result) error {
 		r := requests[result.Index]
 		report.Append(r, result, *details)
+		if result.Execution.Vars != nil {
+			finalVars = maps.Clone(result.Execution.Vars)
+		}
+		for _, write := range result.Execution.Writes {
+			if write.Scope != "global" {
+				continue
+			}
+			if !write.Unset {
+				finalGlobals[write.Name] = write.Value
+			} else {
+				delete(finalGlobals, write.Name)
+			}
+		}
 		state := "PASS"
 		if result.Execution.Skipped {
 			state = "SKIP"
@@ -223,7 +250,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	for _, output := range []struct {
 		path string
 		data func() ([]byte, error)
-	}{{*jsonPath, report.JSON}, {*xmlPath, report.JUnit}} {
+	}{{*jsonPath, report.JSON}, {*xmlPath, report.JUnit}, {*htmlPath, report.HTML}} {
 		if output.path == "" {
 			continue
 		}
@@ -235,6 +262,10 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "Could not write report.")
 			code = 2
 		}
+	}
+	if err := exports.write(name, finalVars, finalGlobals, jar); err != nil {
+		fmt.Fprintln(stderr, "Could not write exported state.")
+		code = 2
 	}
 	if runErr != nil {
 		fmt.Fprintln(stderr, "Run incomplete:", report.Problem)

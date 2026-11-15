@@ -1,12 +1,14 @@
 package runner
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json/v2"
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"html/template"
 	"strconv"
 	"strings"
 	"time"
@@ -202,3 +204,119 @@ func (r Report) JUnit() ([]byte, error) {
 func reportSeconds(millis int64) string {
 	return strconv.FormatFloat(float64(millis)/1000, 'f', 3, 64)
 }
+
+// htmlAttempt is one report row with its assertion tallies.
+type htmlAttempt struct {
+	Attempt
+	TestsPassed  int
+	TestsFailed  int
+	TestsSkipped int
+}
+
+// htmlReport is the page's data; the template escapes every value, so a
+// request name or assertion error can never inject markup.
+type htmlReport struct {
+	StartedAt      time.Time
+	DurationMillis int64
+	Completed      int
+	Failed         int
+	Skipped        int
+	Stopped        bool
+	Incomplete     bool
+	Problem        string
+	Attempts       []htmlAttempt
+}
+
+// HTML renders a self-contained report: no scripts, fonts or stylesheets are
+// fetched, so it opens from an artifact directory or a CI job's archive. Like
+// JSON and JUnit it contains only what Append retained; pass includeDetails to
+// Append when the report should carry assertion names and errors.
+func (r Report) HTML() ([]byte, error) {
+	view := htmlReport{
+		StartedAt: r.StartedAt, DurationMillis: r.DurationMillis,
+		Completed: r.Completed, Failed: r.Failed, Skipped: r.Skipped,
+		Stopped: r.Stopped, Incomplete: r.Incomplete, Problem: r.Problem,
+		Attempts: make([]htmlAttempt, 0, len(r.Results)),
+	}
+	for _, attempt := range r.Results {
+		row := htmlAttempt{Attempt: attempt}
+		for _, test := range attempt.Tests {
+			switch {
+			case test.Skipped:
+				row.TestsSkipped++
+			case test.Pass:
+				row.TestsPassed++
+			default:
+				row.TestsFailed++
+			}
+		}
+		view.Attempts = append(view.Attempts, row)
+	}
+	var out bytes.Buffer
+	if err := reportHTML.Execute(&out, view); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
+}
+
+var reportHTML = template.Must(template.New("report").Funcs(template.FuncMap{
+	"seconds": func(millis int64) string { return reportSeconds(millis) },
+}).Parse(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collection run report</title>
+<style>
+:root{color-scheme:light dark;--bg:#fbfbfc;--panel:#fff;--text:#18181b;--muted:#666;--line:#e4e4e7;--pass:#12805c;--fail:#c02525;--skip:#8a6d1a}
+@media (prefers-color-scheme:dark){:root{--bg:#111113;--panel:#18181b;--text:#ececee;--muted:#a1a1aa;--line:#2e2e33;--pass:#4ade80;--fail:#f87171;--skip:#facc15}}
+*{box-sizing:border-box}
+body{margin:0;padding:32px;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:1040px;margin:0 auto}
+h1{font-size:22px;margin:0 0 4px}
+p.meta{color:var(--muted);margin:0 0 24px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+.card span{color:var(--muted);font-size:12px}
+.banner{border:1px solid var(--line);border-left:4px solid var(--fail);background:var(--panel);border-radius:8px;padding:10px 14px;margin-bottom:20px}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600}
+tr:last-child td{border-bottom:0}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.pass{color:var(--pass)}.fail{color:var(--fail)}.skip{color:var(--skip)}
+code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
+footer{color:var(--muted);font-size:12px;margin-top:20px}
+</style>
+</head>
+<body>
+<main>
+<h1>Collection run report</h1>
+<p class="meta">{{if not .StartedAt.IsZero}}Started {{.StartedAt.UTC.Format "2006-01-02 15:04:05 UTC"}} · {{end}}{{seconds .DurationMillis}}s</p>
+<div class="cards">
+<div class="card"><b>{{.Completed}}</b><span>completed</span></div>
+<div class="card"><b class="{{if .Failed}}fail{{else}}pass{{end}}">{{.Failed}}</b><span>failed</span></div>
+<div class="card"><b>{{.Skipped}}</b><span>skipped</span></div>
+</div>
+{{if .Incomplete}}<div class="banner"><strong>Run incomplete.</strong> {{.Problem}}</div>{{end}}
+{{if .Stopped}}<div class="banner" style="border-left-color:var(--skip)">A script stopped the run with <code>pm.execution.setNextRequest(null)</code>.</div>{{end}}
+<table>
+<thead><tr><th>Iteration</th><th>Request</th><th>Collection</th><th>Status</th><th>Time</th><th>Outcome</th><th>Assertions</th></tr></thead>
+<tbody>
+{{range .Attempts}}<tr>
+<td class="num">{{.Iteration}}</td>
+<td>{{.Name}}{{if .Error}}<br><code>{{.Error}}</code>{{end}}</td>
+<td>{{.Collection}}</td>
+<td class="num">{{if .Status}}{{.Status}}{{else}}—{{end}}</td>
+<td class="num">{{seconds .DurationMillis}}s</td>
+<td class="{{if .Failed}}fail{{else if .Skipped}}skip{{else}}pass{{end}}">{{.Outcome}}</td>
+<td>{{if .Tests}}<span class="pass">{{.TestsPassed}} passed</span>{{if .TestsFailed}} · <span class="fail">{{.TestsFailed}} failed</span>{{end}}{{if .TestsSkipped}} · <span class="skip">{{.TestsSkipped}} skipped</span>{{end}}{{range .Tests}}<br><code>{{.Name}}{{if .Error}}: {{.Error}}{{end}}</code>{{end}}{{else}}—{{end}}</td>
+</tr>{{end}}
+</tbody>
+</table>
+<footer>Generated by vscroxy. Variables, headers and bodies are never included. Assertion names are ordinal unless the run opted in with --include-details.</footer>
+</main>
+</body>
+</html>
+`))

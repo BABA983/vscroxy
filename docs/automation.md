@@ -11,12 +11,15 @@ bin/vscroxy-cli run --folder Shop --env ./env.json --environment Local \
 ```
 
 Flags precede the single input. The input is a native **collections root**
-(not a selected collection subdirectory) or a Postman v2.0/v2.1 collection file.
-`--folder Shop/Orders` includes descendants and keeps ancestor auth/scripts and
-variables. Like the desktop Runner, requests are grouped by collection path,
-with saved order within each folder. This is not Postman's interleaved
-request/folder ordering. Postman import warnings are printed, not silently
-discarded.
+(not a selected collection subdirectory), a Postman v2.0/v2.1 collection file,
+or a Postman Collection v3 directory (YAML files with `.resources/definition.yaml`
+and `*.request.yaml`; the same reader as the desktop importer, bounded and
+confined to the directory). `--folder Shop/Orders` (short: `-i Shop/Orders`,
+for Newman-style item selection) includes descendants and keeps ancestor
+auth/scripts and variables. Like the desktop Runner, requests are grouped by
+collection path, with saved order within each folder. This is not Postman's
+interleaved request/folder ordering. Postman import warnings are printed, not
+silently discarded.
 
 ## Variables and execution
 
@@ -48,6 +51,13 @@ discarded.
 - `--delay-request` (default 0) waits before every attempt after the first,
   including the first attempt of a later iteration, to pace a run against a
   rate-limited server. The wait ends early when the run is cancelled.
+- `--export-environment`, `--export-globals` and `--export-cookie-jar` write the
+  state the run ended with, after reports. The environment and globals are
+  Postman environment files, so `--env` reads them back; the cookie jar is the
+  browser/Postman cookie JSON (`cookies` array with `domain`, `path`,
+  `expirationDate` for persistent cookies, and `session`). Script writes,
+  `--var` overrides and response `Set-Cookie` values are included. Exports are
+  private atomic writes and, like reports, cannot replace an input.
 
 Each run starts an isolated loopback proxy with an ephemeral CA directory.
 It does not change the system proxy, trust store, desktop rules or settings.
@@ -64,7 +74,9 @@ set in native Checks retain their desktop semantics. A Postman `pm.test` alone
 does not override the Runner's default HTTP-error policy.
 
 JSON version 1 reports each request attempt and assertion result. JUnit has one
-testcase per request attempt, with assertion results in `system-out`. A cancelled
+testcase per request attempt, with assertion results in `system-out`. The
+`--report-html` page is self-contained (no scripts, fonts or stylesheets are
+fetched) and shows the same attempts with their assertion tallies. A cancelled
 or otherwise incomplete run adds an error testcase even if no request started.
 Reports are generated for execution failures/cancellation, but not setup errors.
 Reports use atomic private writes and cannot overwrite any selected input or
