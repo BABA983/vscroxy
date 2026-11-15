@@ -211,7 +211,7 @@
 | WebSocket 客户端：二进制消息、子协议、保存的消息列表 | 已有 | Hex／Base64 发送、原样二进制回显；WS／WSS 双侧握手协商和实际子协议显示；请求文档的 Body 标签页保存多条消息，按顺序发送并保留每条消息的回复（回复等待默认 2 s、每条最多 200 条回复／1 MiB；无消息时只监听推送），实时会话可重放已保存列表并把已发送消息存回请求 | M8 |
 | SSE 客户端（持续接收事件） | 首版已有 | HTTP(S) 实时 GET、事件类型／ID／数据、搜索复制、显式可选重连与 Last-Event-ID、取消及有界时间线 | M8 |
 | gRPC 客户端（导入 proto 或服务端反射） | 首版已有 | 请求文档、proto／descriptor set、v1／v1alpha 反射、四种调用、metadata／trailers／最终状态、取消和 deadline；HTTP Runner／脚本暂不支持 | M8 |
-| Socket.IO 客户端 | 首版已有 | 请求文档、EIO4／WebSocket、namespace／auth、JSON／二进制附件、双向 ACK、有界实时消息、取消；无轮询／重连／重发 | M8 |
+| Socket.IO 客户端 | 首版已有 | 请求文档、EIO4／WebSocket、namespace／auth、JSON／二进制附件、双向 ACK、有界实时消息、取消；保存的事件列表（添加当前、按顺序发送已保存、把已发送存回请求）；无轮询／重连／重发 | M8 |
 | MCP 客户端（调试 MCP server） | 首版已有 | 请求文档；Streamable HTTP／旧版 HTTP+SSE／stdio（命令、参数、环境、工作目录，显式连接才启动，首次及命令形状／环境变化时确认）、headers／auth／变量／证书设置、initialize 的服务器信息／协议版本／能力、工具／资源／模板／提示词目录与调用、结构化／图片／文本块和 isError、真实 JSON-RPC／通知／进度／服务器日志时间线、取消和断开；有界帧／时间线／目录／结果，图片后台解码与像素上限；GET 流按退避长期重连但不重放 POST，重连只保留一条实时状态行，关闭标签异步停止、退出统一等待；不接 HTTP 脚本／Checks／Runner／History | M8 |
 | MQTT 客户端 | 首版已有 | 请求文档与独立会话；MQTT 3.1.1／5.0 over TCP／TLS／WebSocket、QoS 0／1／2、retain、通配符订阅、last will、MQTT 5 属性、有界时间线；mqtt／mqtts 直连，ws／wss 经抓包代理；无脚本／Runner／History | M8 |
 

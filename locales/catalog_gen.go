@@ -23810,16 +23810,14 @@ func (msgs Messages) WebSocketMessageOf(number int) string {
 	return Catalog.Format(msgs.locale, "webSocketMessageOf", map[string]any{"number": number})
 }
 
-// RemoveWebSocketMessage says "Remove message {number}"
+// RemoveMessage says "Remove message {number}"
 // in the language the app shows.
-func RemoveWebSocketMessage(number int) string {
-	return In(i18n.Locale()).RemoveWebSocketMessage(number)
-}
+func RemoveMessage(number int) string { return In(i18n.Locale()).RemoveMessage(number) }
 
-// RemoveWebSocketMessage says "Remove message {number}"
+// RemoveMessage says "Remove message {number}"
 // in the language of msgs.
-func (msgs Messages) RemoveWebSocketMessage(number int) string {
-	return Catalog.Format(msgs.locale, "removeWebSocketMessage", map[string]any{"number": number})
+func (msgs Messages) RemoveMessage(number int) string {
+	return Catalog.Format(msgs.locale, "removeMessage", map[string]any{"number": number})
 }
 
 // AddMessage says "Add message"
@@ -23830,6 +23828,56 @@ func AddMessage() string { return In(i18n.Locale()).AddMessage() }
 // in the language of msgs.
 func (msgs Messages) AddMessage() string {
 	return Catalog.Format(msgs.locale, "addMessage", nil)
+}
+
+// Saved says "Saved"
+// in the language the app shows.
+func Saved() string { return In(i18n.Locale()).Saved() }
+
+// Saved says "Saved"
+// in the language of msgs.
+func (msgs Messages) Saved() string {
+	return Catalog.Format(msgs.locale, "saved", nil)
+}
+
+// AddCurrentEvent says "Add current"
+// in the language the app shows.
+func AddCurrentEvent() string { return In(i18n.Locale()).AddCurrentEvent() }
+
+// AddCurrentEvent says "Add current"
+// in the language of msgs.
+func (msgs Messages) AddCurrentEvent() string {
+	return Catalog.Format(msgs.locale, "addCurrentEvent", nil)
+}
+
+// EmitSaved says "Emit saved"
+// in the language the app shows.
+func EmitSaved() string { return In(i18n.Locale()).EmitSaved() }
+
+// EmitSaved says "Emit saved"
+// in the language of msgs.
+func (msgs Messages) EmitSaved() string {
+	return Catalog.Format(msgs.locale, "emitSaved", nil)
+}
+
+// SocketIOSavedMessagesHelp says "Emit saved sends this list in order on the connected session. Add current copies the event, arguments and attachments…"
+// in the language the app shows.
+func SocketIOSavedMessagesHelp() string { return In(i18n.Locale()).SocketIOSavedMessagesHelp() }
+
+// SocketIOSavedMessagesHelp says "Emit saved sends this list in order on the connected session. Add current copies the event, arguments and attachments…"
+// in the language of msgs.
+func (msgs Messages) SocketIOSavedMessagesHelp() string {
+	return Catalog.Format(msgs.locale, "socketIOSavedMessagesHelp", nil)
+}
+
+// SocketIoArgumentsOf says "Socket.IO arguments {number}"
+// in the language the app shows.
+func SocketIoArgumentsOf(number int) string { return In(i18n.Locale()).SocketIoArgumentsOf(number) }
+
+// SocketIoArgumentsOf says "Socket.IO arguments {number}"
+// in the language of msgs.
+func (msgs Messages) SocketIoArgumentsOf(number int) string {
+	return Catalog.Format(msgs.locale, "socketIoArgumentsOf", map[string]any{"number": number})
 }
 
 // WhatCaptureChangesOnThe says "What capture changes on the way, and what the table shows."

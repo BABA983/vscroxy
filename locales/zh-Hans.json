@@ -2399,8 +2399,8 @@
       }
     }
   },
-  "removeWebSocketMessage": "移除消息 {number}",
-  "@removeWebSocketMessage": {
+  "removeMessage": "移除消息 {number}",
+  "@removeMessage": {
     "placeholders": {
       "number": {
         "type": "int"
@@ -2408,6 +2408,18 @@
     }
   },
   "addMessage": "添加消息",
+  "saved": "已保存",
+  "addCurrentEvent": "添加当前",
+  "emitSaved": "发送已保存",
+  "socketIOSavedMessagesHelp": "“发送已保存”在当前连接上按顺序发送此列表。“添加当前”复制上方的事件、参数和附件；“保存已发送”用本次会话发送的内容替换列表。",
+  "socketIoArgumentsOf": "Socket.IO 参数 {number}",
+  "@socketIoArgumentsOf": {
+  "placeholders": {
+    "number": {
+      "type": "int"
+    }
+  }
+},
   "whatCaptureChangesOnThe": "抓包在传输过程中会改动什么，以及表格显示什么。",
   "whatDidThisAttemptTest": "这次尝试测试了什么？",
   "whatTheseRequestsAreFor": "这些请求的用途",

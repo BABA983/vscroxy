@@ -97,7 +97,10 @@ func (a *app) sendSocketIOMessage(d *requestDocument, reply bool) {
 		id = new(n)
 	}
 	u.problem = ""
-	s.send(cfg.Event, p.Body, attachments, cfg.WantACK, id)
+	s.send(cfg.Event, p.Body, attachments, cfg.WantACK, id, request.SocketIOMessageDoc{
+		Event: d.socketIOConfig.Event, Args: d.composeBody,
+		Attachments: d.socketIOConfig.Attachments, WantACK: d.socketIOConfig.WantACK,
+	})
 }
 
 func (a *app) socketIOActions(d *requestDocument, editing bool) []action {
@@ -111,15 +114,18 @@ func (a *app) socketIOActions(d *requestDocument, editing bool) []action {
 	return []action{
 		do("request.socketio-emit", locales.EmitSocketIoEvent(), func() { a.sendSocketIOMessage(d, false) }).when(ready, "Connect a Socket.IO document first"),
 		do("request.socketio-ack", locales.ReplySocketIoAck(), func() { a.sendSocketIOMessage(d, true) }).when(ack, "Choose a pending server ACK request"),
+		do("request.socketio-emit-saved", locales.EmitSaved(), func() { a.emitSocketIOSaved(d) }).
+			when(ready && len(d.socketIOConfig.Messages) > 0, "Connect a Socket.IO document and save messages first"),
 	}
 }
 
 func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	u := d.socketIOState()
 	s := u.session.snapshot()
+	sent := u.session.sentMessages()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Children(func() {
-			uikit.Tabs(c, &u.tab, locales.SocketIOEditorTabPrefix(), locales.Event(), locales.Attachments(), locales.Connection(), locales.RequestHeadersLabel(), locales.HttpAuth()).Grow(1)
+			uikit.Tabs(c, &u.tab, locales.SocketIOEditorTabPrefix(), locales.Event(), locales.Attachments(), locales.Connection(), locales.RequestHeadersLabel(), locales.HttpAuth(), locales.Saved()).Grow(1)
 		})
 		if u.problem != "" {
 			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(0, t.Space(3))
@@ -165,6 +171,8 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.headerEditor(c, d, t) })
 			case 4:
 				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.authEditor(c, d, t) })
+			case 5:
+				a.socketIOSavedEditor(c, t, d, sent)
 			}
 		})
 	})
@@ -238,4 +246,68 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			})
 		}).Grow(1)
 	})
+}
+
+// emitSocketIOSaved sends the document's saved messages in order on the live
+// session. The session keeps one busy period and records each emit.
+func (a *app) emitSocketIOSaved(d *requestDocument) {
+	u := d.socketIOState()
+	if u.session == nil {
+		return
+	}
+	messages := slices.Clone(d.socketIOConfig.Messages)
+	u.problem = ""
+	session := u.session
+	go func() {
+		_ = session.emitAll(messages) // the session shows a failure in its problem
+		a.invalidate()
+	}()
+}
+
+// socketIOSavedEditor is the Saved tab: the request's emit list, which the
+// session replays in order.
+func (a *app) socketIOSavedEditor(c *ui.Context, t *ui.Theme, d *requestDocument, sent []request.SocketIOMessageDoc) {
+	remove := -1
+	uikit.Meta(c, locales.SocketIOSavedMessagesHelp())
+	ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+		if uikit.SecondaryButton(c, locales.AddCurrentEvent()).Clicked() {
+			d.socketIOConfig.Messages = append(d.socketIOConfig.Messages, request.SocketIOMessageDoc{
+				Event: d.socketIOConfig.Event, Args: d.composeBody,
+				Attachments: d.socketIOConfig.Attachments, WantACK: d.socketIOConfig.WantACK,
+			})
+		}
+		a.actionButton(c, "request.socketio-emit-saved", "Emit saved")
+		if uikit.SecondaryButton(c, locales.SaveSentMessages()).Disabled(len(sent) == 0).Clicked() {
+			d.socketIOConfig.Messages = slices.Clone(sent)
+			a.done(locales.SavedTheSessionMessages(len(sent)))
+		}
+		uikit.Meta(c, locales.SavedMessagesCount(len(d.socketIOConfig.Messages)))
+	})
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
+		for i := range d.socketIOConfig.Messages {
+			message := &d.socketIOConfig.Messages[i]
+			row := ui.Row(c.Key(i)).AlignItems(ui.Start).Gap(t.Space(2))
+			row.Children(func() {
+				ui.Text(c, strconv.Itoa(i+1)).FontSize(uikit.Scaled(uikit.TextMeta)).
+					TextColor(t.TextMuted).Width(t.Space(3)).Padding(t.Space(2), 0)
+				ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
+					uikit.Input(c, &message.Event).Label(locales.SocketIoEventName()).
+						Placeholder(locales.EventNameEGEcho()).Font(uikit.FontMono)
+					uikit.TextArea(c, &message.Args).Label(locales.SocketIoArgumentsOf(i + 1)).
+						Placeholder("[]").Height(54).Font(uikit.FontMono).
+						FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(0)
+				})
+				ui.Box(c).Width(140).Padding(t.Space(2), 0).Children(func() {
+					ui.Checkbox(c, &message.WantACK, "Request ACK")
+				})
+				label := locales.RemoveMessage(i + 1)
+				if uikit.IconButton(c, label, label, closeIcon).Clicked() {
+					remove = i
+				}
+			})
+		}
+	})
+	if remove >= 0 {
+		d.socketIOConfig.Messages = slices.Delete(d.socketIOConfig.Messages, remove, remove+1)
+	}
 }

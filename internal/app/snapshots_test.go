@@ -468,6 +468,13 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.addDocument(savedRequest{Protocol: "Socket.IO", Name: "Binary events", URL: "https://api.example.com/socket.io/", Body: `[{"_placeholder":true,"num":0}]`, SocketIO: request.SocketIOConfig{Event: "bytes", Attachments: `["/wBJwyg=", ""]`}}, "")
 			a.socketIOState().tab = 1
 		}, want: "Socket.IO attachments JSON"},
+		{name: "requests-socketio-saved", setup: func(a *app) {
+			a.addDocument(savedRequest{Protocol: "Socket.IO", Name: "Admin events", URL: "https://api.example.com/socket.io/", Body: `["answer-73"]`, SocketIO: request.SocketIOConfig{Event: "echo", Namespace: "/admin", WantACK: true, Messages: []request.SocketIOMessageDoc{
+				{Event: "join", Args: `["admin"]`},
+				{Event: "echo", Args: `["hello"]`, WantACK: true},
+			}}}, "")
+			a.socketIOState().tab = 5
+		}, want: "Add current"},
 		{name: "requests-socketio-stream", setup: func(a *app) {
 			a.addDocument(savedRequest{Protocol: "Socket.IO", Name: "Admin events", URL: "https://api.example.com/socket.io/", Body: `["answer-73"]`, SocketIO: request.SocketIOConfig{Event: "echo", Namespace: "/admin", WantACK: true}}, "")
 			a.socketIOState().session = &socketIOSession{state: "Connected", conn: new(request.SocketIOConn), cancel: func() {}, owed: map[uint64]bool{7: true}, seq: 3, events: []socketIOEvent{

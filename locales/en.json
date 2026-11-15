@@ -3712,8 +3712,8 @@
       }
     }
   },
-  "removeWebSocketMessage": "Remove message {number}",
-  "@removeWebSocketMessage": {
+  "removeMessage": "Remove message {number}",
+  "@removeMessage": {
     "placeholders": {
       "number": {
         "type": "int"
@@ -3721,6 +3721,18 @@
     }
   },
   "addMessage": "Add message",
+  "saved": "Saved",
+  "addCurrentEvent": "Add current",
+  "emitSaved": "Emit saved",
+  "socketIOSavedMessagesHelp": "Emit saved sends this list in order on the connected session. Add current copies the event, arguments and attachments above; Save sent replaces the list with what this session emitted.",
+  "socketIoArgumentsOf": "Socket.IO arguments {number}",
+  "@socketIoArgumentsOf": {
+  "placeholders": {
+    "number": {
+      "type": "int"
+    }
+  }
+},
   "whatCaptureChangesOnThe": "What capture changes on the way, and what the table shows.",
   "whatDidThisAttemptTest": "What did this attempt test?",
   "whatTheseRequestsAreFor": "What these requests are for",

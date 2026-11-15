@@ -1757,6 +1757,13 @@ a connection-local ID and shows incoming ACKs in the timeline. When the server
 asks for an ACK, select its numeric ID and **Reply ACK**, using the same argument
 array and attachments; each request can be answered only once.
 
+**Saved** keeps a list of events with the request. **Add current** copies the
+event, argument array, attachments and ACK choice from the composer; each row
+can be edited or removed. **Emit saved** sends the list in order on the
+connected session, and **Save sent** replaces it with what this session emitted.
+The list is saved with the document, so a sequence survives the connection;
+variables expand at emit time as they do for a single event.
+
 **Attachments** is a JSON array of canonical padded base64 strings, for example
 `["AP9J", ""]`. Each corresponds to a placeholder in the arguments, such as
 `[{"payload":{"_placeholder":true,"num":0}}, {"_placeholder":true,"num":1}]`.
@@ -1776,8 +1783,9 @@ Reconnect to discard pending ACKs. The opening/namespace handshake has a
 ordinary events do not extend. Writes have a 5-second deadline.
 
 **Disconnect**, closing/reloading the document, or quitting cancels the session,
-including a pending handshake. Draft configuration is saved with the request;
-the live connection, ACK state and timeline are not saved or restored. Supports
+including a pending handshake. Draft configuration and the saved event list are
+saved with the request; the live connection, ACK state and timeline are not
+saved or restored. Supports
 Socket.IO v3/v4 servers with the default parser, Engine.IO 4 and WebSocket-only
 transport. No polling fallback, automatic reconnect, retry, offline queue,
 Socket.IO v2 or alternate parsers. HTTP scripts/Checks/token bindings (including

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -234,5 +235,98 @@ func TestSocketIODocumentBoundsRetainedTimeline(t *testing.T) {
 	large := v.events[198]
 	if large.name != "large" || large.size < 90000 || len(large.text) > 66<<10 || !utf8.ValidString(large.text) || !strings.Contains(large.text, "Retained") {
 		t.Fatal("large Unicode event not explicitly bounded")
+	}
+}
+
+func TestSocketIOSavedMessagesTabAddsTheComposer(t *testing.T) {
+	a := workspaceApp()
+	a.openCompose()
+	d := a.requestDocument
+	d.protocol = "Socket.IO"
+	d.socketIOConfig = request.SocketIOConfig{Namespace: "/", Event: "join", WantACK: true}
+	d.composeBody = `["room-1"]`
+	d.socketIOState().tab = 5
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	for _, want := range []string{"Add current", "Emit saved", "Save sent", "Saved"} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q: %v", want, tt.Texts())
+		}
+	}
+	if err := tt.Click("Add current"); err != nil {
+		t.Fatal(err)
+	}
+	want := []request.SocketIOMessageDoc{{Event: "join", Args: `["room-1"]`, WantACK: true}}
+	if !slices.Equal(d.socketIOConfig.Messages, want) {
+		t.Fatalf("messages: %+v", d.socketIOConfig.Messages)
+	}
+	if got := d.value().SocketIO.Messages; !slices.Equal(got, want) {
+		t.Fatalf("saved config: %+v", got)
+	}
+}
+
+func TestSocketIOEmitsTheSavedListInOrder(t *testing.T) {
+	frames := make(chan string, 4)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := new(websocket.Upgrader).Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer ws.Close()
+		_ = ws.SetReadDeadline(time.Now().Add(10 * time.Second))
+		ws.WriteMessage(1, []byte(`0{"sid":"engine","pingInterval":5000,"pingTimeout":5000}`))
+		if _, b, err := ws.ReadMessage(); err != nil || !strings.HasPrefix(string(b), "40/admin,") {
+			frames <- fmt.Sprintf("handshake %s %v", b, err)
+			return
+		}
+		ws.WriteMessage(1, []byte(`40/admin,{"sid":"socket"}`))
+		for range 2 {
+			_, b, err := ws.ReadMessage()
+			if err != nil {
+				frames <- fmt.Sprint("read: ", err)
+				return
+			}
+			frames <- string(b)
+		}
+	}))
+	t.Cleanup(server.Close)
+	a := libraryApp(t)
+	a.srv = requestProxy(t)
+	a.addDocument(savedRequest{
+		Protocol: "Socket.IO", Name: "Saved", URL: server.URL,
+		SocketIO: request.SocketIOConfig{Namespace: "/admin", Messages: []request.SocketIOMessageDoc{
+			{Event: "one", Args: `[1]`},
+			{Event: "two", Args: `[2]`},
+		}},
+	}, "")
+	d := a.requestDocument
+	t.Cleanup(func() { d.socketIOState().stop() })
+	tt := ui.NewTester(a.view, 1100, 800)
+	if err := tt.Click("Connect"); err != nil {
+		t.Fatal(err)
+	}
+	waitSocketIO(t, tt, func() bool { return d.socketIOState().session.snapshot().ready })
+	d.socketIOState().tab = 5
+	tt.Frame()
+	if err := tt.Click("Emit saved"); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for len(got) < 2 {
+		select {
+		case frame := <-frames:
+			got = append(got, frame)
+		case <-time.After(10 * time.Second):
+			t.Fatalf("server saw %q", got)
+		}
+	}
+	want := []string{`42/admin,["one",1]`, `42/admin,["two",2]`}
+	if !slices.Equal(got, want) {
+		t.Fatalf("frames: got %q want %q", got, want)
+	}
+	waitSocketIO(t, tt, func() bool { return !d.socketIOState().session.snapshot().busy })
+	sent := d.socketIOState().session.sentMessages()
+	if !slices.Equal(sent, d.socketIOConfig.Messages) {
+		t.Fatalf("sent: %+v", sent)
 	}
 }

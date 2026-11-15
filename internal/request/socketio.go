@@ -27,6 +27,20 @@ type SocketIOConfig struct {
 	Event       string `json:"event,omitempty"`
 	Attachments string `json:"attachments,omitempty"`
 	WantACK     bool   `json:"wantAck,omitzero"`
+	// Messages is the request's saved emit list. The event, arguments and
+	// attachments above are the composer; a saved message keeps what it was
+	// added with.
+	Messages []SocketIOMessageDoc `json:"messages,omitempty"`
+}
+
+// SocketIOMessageDoc is one saved Socket.IO emit. Args is the JSON array text
+// and Attachments the JSON array of canonical base64 strings the composer
+// holds, so variables survive until the emit.
+type SocketIOMessageDoc struct {
+	Event       string `json:"event,omitempty"`
+	Args        string `json:"args,omitempty"`
+	Attachments string `json:"attachments,omitempty"`
+	WantACK     bool   `json:"wantAck,omitzero"`
 }
 
 // SocketIOMessage keeps JSON placeholders and raw attachments, not lossy base64

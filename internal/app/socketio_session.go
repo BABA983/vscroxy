@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json/jsontext"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,6 +39,7 @@ type socketIOSession struct {
 	state, problem string
 	finished, busy bool
 	events         []socketIOEvent
+	sent           []request.SocketIOMessageDoc
 	seq, evicted   int
 	owed           map[uint64]bool
 	input          request.Request
@@ -146,7 +149,17 @@ func openSocketIOSession(proxy string, ca []byte, certificates certs.Settings, j
 	return s
 }
 
-func (s *socketIOSession) send(event, args string, attachments [][]byte, wantACK bool, ack *uint64) {
+// sentMessages are the saved-form messages this session emitted, in order.
+func (s *socketIOSession) sentMessages() []request.SocketIOMessageDoc {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.sent)
+}
+
+func (s *socketIOSession) send(event, args string, attachments [][]byte, wantACK bool, ack *uint64, doc request.SocketIOMessageDoc) {
 	s.mu.Lock()
 	if s.finished || s.conn == nil || s.busy {
 		s.mu.Unlock()
@@ -176,6 +189,8 @@ func (s *socketIOSession) send(event, args string, attachments [][]byte, wantACK
 			} else {
 				if ack != nil {
 					delete(s.owed, *ack)
+				} else {
+					s.sent = append(s.sent, doc)
 				}
 				s.append("Out", name, text)
 			}
@@ -183,4 +198,60 @@ func (s *socketIOSession) send(event, args string, attachments [][]byte, wantACK
 		s.mu.Unlock()
 		s.changed()
 	}()
+}
+
+// emitAll sends saved messages in order on the connection's original endpoint
+// and scope, as one busy period. It runs on a worker; each emitted message
+// joins the timeline and the session's sent list.
+func (s *socketIOSession) emitAll(messages []request.SocketIOMessageDoc) error {
+	s.mu.Lock()
+	if s.finished || s.conn == nil || s.busy {
+		s.mu.Unlock()
+		return errors.New("connect before emitting")
+	}
+	s.busy, s.problem = true, ""
+	conn := s.conn
+	s.mu.Unlock()
+	s.changed()
+	var failure error
+	for i, doc := range messages {
+		r := s.input
+		r.Body = cmp.Or(strings.TrimSpace(doc.Args), "[]")
+		r.SocketIO.Event, r.SocketIO.Attachments, r.SocketIO.WantACK = doc.Event, doc.Attachments, doc.WantACK
+		prepared, cfg, err := r.PrepareSocketIO(s.scope, s.vars)
+		if err != nil {
+			failure = fmt.Errorf("message %d: %w", i+1, err)
+			break
+		}
+		attachments, err := request.SocketIOAttachments(cfg.Attachments)
+		if err != nil {
+			failure = fmt.Errorf("message %d: %w", i+1, err)
+			break
+		}
+		message := request.SocketIOMessage{Event: cfg.Event, Args: jsontext.Value(prepared.Body), Attachments: attachments}
+		ack, err := conn.Emit(cfg.Event, message.Args, attachments, cfg.WantACK)
+		if err != nil {
+			failure = fmt.Errorf("message %d: %w", i+1, err)
+			break
+		}
+		message.ACKID = ack
+		name, text := socketIOMessageText(message)
+		s.mu.Lock()
+		if !s.finished {
+			s.append("Out", name, text)
+			s.sent = append(s.sent, doc)
+		}
+		s.mu.Unlock()
+		s.changed()
+	}
+	s.mu.Lock()
+	if !s.finished {
+		s.busy = false
+		if failure != nil {
+			s.problem = failure.Error()
+		}
+	}
+	s.mu.Unlock()
+	s.changed()
+	return failure
 }
