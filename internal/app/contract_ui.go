@@ -93,10 +93,10 @@ func (a *app) contractCheck(key string, ex openapi.Exchange) contractResult {
 func (a *app) flowExchange(f flow) openapi.Exchange {
 	reqBody, resBody := []byte(f.reqBody), []byte(f.resBody)
 	if f.reqFile != "" {
-		reqBody = readContractBody(f.reqFile)
+		reqBody = readBodyFile(f.reqFile)
 	}
 	if f.resFile != "" {
-		resBody = readContractBody(f.resFile)
+		resBody = readBodyFile(f.resFile)
 	}
 	return openapi.Exchange{
 		Method: f.method, URL: f.url, Header: f.reqHeader, Body: reqBody,
@@ -108,10 +108,10 @@ func (a *app) flowExchange(f flow) openapi.Exchange {
 func (a *app) captureExchange(r *capture.Flow) openapi.Exchange {
 	reqBody, resBody := []byte(r.RequestBody), []byte(r.ResponseBody)
 	if r.RequestBodyFile != "" {
-		reqBody = readContractBody(r.RequestBodyFile)
+		reqBody = readBodyFile(r.RequestBodyFile)
 	}
 	if r.ResponseBodyFile != "" {
-		resBody = readContractBody(r.ResponseBodyFile)
+		resBody = readBodyFile(r.ResponseBodyFile)
 	}
 	return openapi.Exchange{
 		Method: r.Method, URL: r.URL, Header: r.RequestHeader, Body: reqBody,
@@ -119,9 +119,9 @@ func (a *app) captureExchange(r *capture.Flow) openapi.Exchange {
 	}
 }
 
-// readContractBody reads a spilled body within a bound. The contract view runs
-// on the UI thread, so it reads once per exchange and the result is cached.
-func readContractBody(path string) []byte {
+// readBodyFile reads a spilled body within a bound. The contract and snapshot
+// views run on the UI thread, so they read once per exchange and cache.
+func readBodyFile(path string) []byte {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil

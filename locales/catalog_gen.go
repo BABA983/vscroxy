@@ -21316,6 +21316,136 @@ func (msgs Messages) SomeValuesOverrideTheCollection() string {
 	return Catalog.Format(msgs.locale, "someValuesOverrideTheCollection", nil)
 }
 
+// Snapshot says "Snapshot"
+// in the language the app shows.
+func Snapshot() string { return In(i18n.Locale()).Snapshot() }
+
+// Snapshot says "Snapshot"
+// in the language of msgs.
+func (msgs Messages) Snapshot() string {
+	return Catalog.Format(msgs.locale, "snapshot", nil)
+}
+
+// SnapshotBody says "Snapshot body"
+// in the language the app shows.
+func SnapshotBody() string { return In(i18n.Locale()).SnapshotBody() }
+
+// SnapshotBody says "Snapshot body"
+// in the language of msgs.
+func (msgs Messages) SnapshotBody() string {
+	return Catalog.Format(msgs.locale, "snapshotBody", nil)
+}
+
+// SnapshotHint says "Compared as JSON; learned fields are skipped or checked by type."
+// in the language the app shows.
+func SnapshotHint() string { return In(i18n.Locale()).SnapshotHint() }
+
+// SnapshotHint says "Compared as JSON; learned fields are skipped or checked by type."
+// in the language of msgs.
+func (msgs Messages) SnapshotHint() string {
+	return Catalog.Format(msgs.locale, "snapshotHint", nil)
+}
+
+// SnapshotIgnoreValues says "Ignore values"
+// in the language the app shows.
+func SnapshotIgnoreValues() string { return In(i18n.Locale()).SnapshotIgnoreValues() }
+
+// SnapshotIgnoreValues says "Ignore values"
+// in the language of msgs.
+func (msgs Messages) SnapshotIgnoreValues() string {
+	return Catalog.Format(msgs.locale, "snapshotIgnoreValues", nil)
+}
+
+// SnapshotLearned says "Learned {count} varying fields from captures."
+// in the language the app shows.
+func SnapshotLearned(count int) string { return In(i18n.Locale()).SnapshotLearned(count) }
+
+// SnapshotLearned says "Learned {count} varying fields from captures."
+// in the language of msgs.
+func (msgs Messages) SnapshotLearned(count int) string {
+	return Catalog.Format(msgs.locale, "snapshotLearned", map[string]any{"count": count})
+}
+
+// SnapshotNoCaptures says "No matching captures with complete JSON bodies to learn from."
+// in the language the app shows.
+func SnapshotNoCaptures() string { return In(i18n.Locale()).SnapshotNoCaptures() }
+
+// SnapshotNoCaptures says "No matching captures with complete JSON bodies to learn from."
+// in the language of msgs.
+func (msgs Messages) SnapshotNoCaptures() string {
+	return Catalog.Format(msgs.locale, "snapshotNoCaptures", nil)
+}
+
+// SnapshotNoVaryingFields says "No varying fields found; the snapshot still compares exactly."
+// in the language the app shows.
+func SnapshotNoVaryingFields() string { return In(i18n.Locale()).SnapshotNoVaryingFields() }
+
+// SnapshotNoVaryingFields says "No varying fields found; the snapshot still compares exactly."
+// in the language of msgs.
+func (msgs Messages) SnapshotNoVaryingFields() string {
+	return Catalog.Format(msgs.locale, "snapshotNoVaryingFields", nil)
+}
+
+// SnapshotTypesOnly says "Check types only"
+// in the language the app shows.
+func SnapshotTypesOnly() string { return In(i18n.Locale()).SnapshotTypesOnly() }
+
+// SnapshotTypesOnly says "Check types only"
+// in the language of msgs.
+func (msgs Messages) SnapshotTypesOnly() string {
+	return Catalog.Format(msgs.locale, "snapshotTypesOnly", nil)
+}
+
+// SnapshotVaryCount says "{count} fields learned to vary"
+// in the language the app shows.
+func SnapshotVaryCount(count int) string { return In(i18n.Locale()).SnapshotVaryCount(count) }
+
+// SnapshotVaryCount says "{count} fields learned to vary"
+// in the language of msgs.
+func (msgs Messages) SnapshotVaryCount(count int) string {
+	return Catalog.Format(msgs.locale, "snapshotVaryCount", map[string]any{"count": count})
+}
+
+// LearnSnapshotVary says "Learn varying fields"
+// in the language the app shows.
+func LearnSnapshotVary() string { return In(i18n.Locale()).LearnSnapshotVary() }
+
+// LearnSnapshotVary says "Learn varying fields"
+// in the language of msgs.
+func (msgs Messages) LearnSnapshotVary() string {
+	return Catalog.Format(msgs.locale, "learnSnapshotVary", nil)
+}
+
+// RemoveSnapshot says "Remove snapshot"
+// in the language the app shows.
+func RemoveSnapshot() string { return In(i18n.Locale()).RemoveSnapshot() }
+
+// RemoveSnapshot says "Remove snapshot"
+// in the language of msgs.
+func (msgs Messages) RemoveSnapshot() string {
+	return Catalog.Format(msgs.locale, "removeSnapshot", nil)
+}
+
+// ResponseSnapshot says "Response snapshot"
+// in the language the app shows.
+func ResponseSnapshot() string { return In(i18n.Locale()).ResponseSnapshot() }
+
+// ResponseSnapshot says "Response snapshot"
+// in the language of msgs.
+func (msgs Messages) ResponseSnapshot() string {
+	return Catalog.Format(msgs.locale, "responseSnapshot", nil)
+}
+
+// UseAsSnapshot says "Use as snapshot"
+// in the language the app shows.
+func UseAsSnapshot() string { return In(i18n.Locale()).UseAsSnapshot() }
+
+// UseAsSnapshot says "Use as snapshot"
+// in the language of msgs.
+func (msgs Messages) UseAsSnapshot() string {
+	return Catalog.Format(msgs.locale, "useAsSnapshot", nil)
+}
+
 // SourceApi says "Source API"
 // in the language the app shows.
 func SourceApi() string { return In(i18n.Locale()).SourceApi() }

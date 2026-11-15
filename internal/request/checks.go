@@ -22,6 +22,9 @@ type Checks struct {
 	Status  string `json:"status,omitempty"`
 	Headers string `json:"headers,omitempty"`
 	JSON    string `json:"json,omitempty"`
+	// Snapshot compares the whole response body. Status and Headers above
+	// still apply, so promoting an example fills all three.
+	Snapshot *Snapshot `json:"snapshot,omitempty"`
 }
 
 type JSONCheck struct {
@@ -30,6 +33,11 @@ type JSONCheck struct {
 }
 
 func (r Checks) Parse() (int, http.Header, []JSONCheck, error) {
+	if r.Snapshot != nil {
+		if err := r.Snapshot.Validate(); err != nil {
+			return 0, nil, nil, err
+		}
+	}
 	status := 0
 	if r.Status != "" {
 		var err error
@@ -77,10 +85,14 @@ func (r Checks) Evaluate(f capture.Flow) []TestResult {
 			results = append(results, TestResult{Name: "Header " + name + " equals expected value", Pass: slices.Contains(f.ResponseHeader.Values(name), want)})
 		}
 	}
+	complete := f.ResponseBodySize <= len(f.ResponseBody) && f.ResponseBodyError == ""
 	for _, check := range checks {
 		got, ok := jsonField(jsontext.Value(f.ResponseBody), check.pointer)
-		complete := f.ResponseBodySize <= len(f.ResponseBody) && f.ResponseBodyError == ""
 		results = append(results, TestResult{Name: "JSON " + string(check.pointer) + " equals expected value", Pass: complete && ok && equalJSONScalar(got, check.want)})
+	}
+	if r.Snapshot != nil {
+		mismatches := r.Snapshot.Evaluate(f.ResponseBody, complete)
+		results = append(results, TestResult{Name: "Body matches snapshot", Pass: len(mismatches) == 0, Error: strings.Join(mismatches, "\n")})
 	}
 	return results
 }
@@ -90,7 +102,7 @@ func (r Checks) Evaluate(f capture.Flow) []TestResult {
 // as JavaScript does, so past 2^53 two IDs Evaluate tells apart can pass.
 func (r Checks) Script() (string, error) {
 	status, headers, checks, err := r.Parse()
-	if err != nil || status == 0 && len(headers) == 0 && len(checks) == 0 {
+	if err != nil || status == 0 && len(headers) == 0 && len(checks) == 0 && r.Snapshot == nil {
 		return "", err
 	}
 	quote := func(s string) string {
@@ -134,6 +146,9 @@ func (r Checks) Script() (string, error) {
 			fmt.Fprintf(&b, "\tpm.test(%s, function () {\n\t\tvar got = field(%s);\n\t\tpm.expect(got.found, %s).to.be.true;\n\t\tpm.expect(got.value).to.equal(%s);\n\t});\n",
 				quote("JSON "+string(check.pointer)+" equals expected value"), jsLiteral(tokens), quote(string(check.pointer)+" in the JSON body"), jsLiteral(check.want))
 		}
+	}
+	if snapshot := r.Snapshot; snapshot != nil {
+		writeSnapshotScript(&b, *snapshot, quote)
 	}
 	b.WriteString("})();")
 	return b.String(), nil
@@ -284,4 +299,59 @@ func (r Request) Variables() []string {
 	}
 	slices.Sort(names)
 	return slices.Compact(names)
+}
+
+// writeSnapshotScript exports a whole-response snapshot as a pm.test. It
+// mirrors Snapshot.Evaluate: structural JSON comparison, with learned paths
+// skipped or checked by type.
+func writeSnapshotScript(b *strings.Builder, snapshot Snapshot, quote func(string) string) {
+	mode := snapshot.VaryMode
+	if mode == "" {
+		mode = SnapshotVaryIgnore
+	}
+	b.WriteString("\tpm.test(\"Body matches snapshot\", function () {\n")
+	if _, ok := decodeSnapshotJSON(snapshot.Body); !ok {
+		fmt.Fprintf(b, "\t\tpm.expect(pm.response.text()).to.eql(%s);\n\t});\n", quote(snapshot.Body))
+		return
+	}
+	fmt.Fprintf(b, "\t\tvar want = JSON.parse(%s);\n", quote(snapshot.Body))
+	b.WriteString(`		var got;
+		try { got = JSON.parse(pm.response.text()); } catch (e) { pm.expect.fail("response is not JSON"); return; }
+		var vary = {};
+`)
+	for _, path := range snapshot.Vary {
+		fmt.Fprintf(b, "\t\tvary[%s] = %s;\n", quote(path), quote(mode))
+	}
+	b.WriteString(`		var kind = function (v) {
+			if (v === null) return "null";
+			if (Array.isArray(v)) return "array";
+			return typeof v === "object" ? "object" : typeof v;
+		};
+		var token = function (s) { return s.replace(/~/g, "~0").replace(/\//g, "~1"); };
+		var walk = function (w, g, p) {
+			if (Object.prototype.hasOwnProperty.call(vary, p)) {
+				if (vary[p] === "type" && kind(w) !== kind(g)) return [p + ": expected " + kind(w) + ", got " + kind(g)];
+				return [];
+			}
+			var kw = kind(w), kg = kind(g), out = [];
+			if (kw !== kg) return [p + ": expected " + kw + ", got " + kg];
+			if (kw === "object") {
+				var keys = Object.keys(w).sort(), all = Object.keys(g).sort(), i;
+				for (i = 0; i < keys.length; i++) {
+					if (!Object.prototype.hasOwnProperty.call(g, keys[i])) out.push(p + "/" + token(keys[i]) + ": missing from the response");
+					else out = out.concat(walk(w[keys[i]], g[keys[i]], p + "/" + token(keys[i])));
+				}
+				for (i = 0; i < all.length; i++) if (!Object.prototype.hasOwnProperty.call(w, all[i])) out.push(p + "/" + token(all[i]) + ": unexpected field");
+			} else if (kw === "array") {
+				if (w.length !== g.length) out.push(p + ": expected " + w.length + " items, got " + g.length);
+				for (var j = 0; j < Math.min(w.length, g.length); j++) out = out.concat(walk(w[j], g[j], p + "/" + j));
+			} else if (w !== g) {
+				out.push(p + ": value differs");
+			}
+			return out;
+		};
+		var problems = walk(want, got, "");
+		pm.expect(problems, problems.join("\n")).to.eql([]);
+	});
+`)
 }

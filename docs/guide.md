@@ -3349,7 +3349,9 @@ must be 100 to 599. The body and headers are edited in place, and the next
 **Save** keeps the edit; the request view is read-only, as it is what was sent.
 **New example** adds one with no response: status 200, an empty body, and the
 request's `Content-Type`. **Duplicate example** copies the chosen one, for
-example to add a 404 case. They live in the
+example to add a 404 case. **Use as snapshot** promotes an example's status,
+payload headers (volatile headers such as `Date` and `Content-Length` are
+dropped) and body into the request's Checks. They live in the
 request's file and travel through Postman import and export; sends and Run
 records leave them out.
 
@@ -3465,6 +3467,14 @@ missing is not null, numbers are not strings, and large integer IDs are not
 rounded to float64. Numeric comparisons support up to 1024 characters and
 exponents from -10000 to 10000. JSON checks fail for invalid/truncated responses;
 the inline response limit is 8 MiB. All checks must pass.
+
+A **Response snapshot** compares the whole body structurally, so key order does
+not matter. **Use as snapshot** on an example fills the status, headers and body
+at once. **Learn varying fields** compares the snapshot with complete captures
+of the same method and path and records fields whose value, presence or array
+length changed. Learned fields can be **ignored** (the default) or checked by
+JSON type only, which catches a number turning into a string without failing on
+a new timestamp or ID. A non-JSON body is compared as exact text.
 
 **Send** and **Runner…** execute these same checks and show pass/fail results.
 An explicitly expected 4xx/5xx is not a Runner failure. Requests with Checks stop

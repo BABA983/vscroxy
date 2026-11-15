@@ -178,6 +178,11 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				if uikit.Tip(c, uikit.SecondaryButton(c, locales.Mock()).Label(locales.MockThisExample()), locales.AnswerMatchingRequestsWithThis()).Clicked() {
 					a.mockExample(d.value().Request, *e)
 				}
+				if uikit.SecondaryButton(c, locales.Snapshot()).Label(locales.UseAsSnapshot()).Clicked() {
+					d.checks.Status = strconv.Itoa(e.Status)
+					d.checks.Headers = snapshotHeaders(e.Headers)
+					d.checks.Snapshot = &request.Snapshot{Body: e.Body}
+				}
 				if uikit.SecondaryButton(c, locales.Duplicate()).Label(locales.DuplicateExample()).Clicked() {
 					dup := *e
 					dup.ID, dup.Name = uuid.New().String(), uniqueExampleName(d.examples, e.Name)

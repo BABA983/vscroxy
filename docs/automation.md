@@ -42,6 +42,9 @@ silently discarded.
 - `pm.execution.runRequest` in `run` reaches any request in the collection,
   including ones outside `--folder`. `load` has no request lookup, so those calls
   fail with “not available in this run”.
+- Native Checks include whole-response snapshots. `vscroxy-cli run` compares the
+  body structurally and honors the snapshot's learned varying fields (ignored or
+  checked by type), exactly as the desktop Runner does.
 - `--bail` stops at the first failed attempt; otherwise the run continues.
   `setNextRequest(null)` deliberately stops the entire run, as on the desktop.
   An unknown next request is incomplete, not a green result.

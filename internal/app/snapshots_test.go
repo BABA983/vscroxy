@@ -1144,6 +1144,12 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.inspect.ready, a.inspect.tab[1] = true, resViewContract
 			a.flows[0].status = 500
 		}, want: "status is not supported"},
+		{name: "requests-checks-snapshot", setup: func(a *app) {
+			a.openSaved(a.requests[0].key())
+			a.composeTab = composeTabChecks
+			a.requestDocument.checks.Status = "200"
+			a.requestDocument.checks.Snapshot = &request.Snapshot{Body: `{"id":1,"name":"Rex"}`, Vary: []string{"/id"}, VaryMode: request.SnapshotVaryType}
+		}, want: "Response snapshot"},
 		{name: "requests-docs", setup: func(a *app) {
 			a.openSaved(a.requests[0].key())
 			a.composeTab = composeTabDocs

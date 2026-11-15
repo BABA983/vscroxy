@@ -1197,6 +1197,20 @@
       }
     }
   },
+  "@snapshotLearned": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@snapshotVaryCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@sourceNumber": {
     "placeholders": {
       "id": {
@@ -3506,6 +3520,19 @@
   "socksNotListening": "SOCKS5 is not listening: {error}",
   "someAppsKeepTheirOwn": "Some apps keep their own trust store, or pin certificates; they may need setting up themselves.",
   "someValuesOverrideTheCollection": "Some values override the collection and folder defaults.",
+  "snapshot": "Snapshot",
+  "snapshotBody": "Snapshot body",
+  "snapshotHint": "Compared as JSON; learned fields are skipped or checked by type.",
+  "snapshotIgnoreValues": "Ignore values",
+  "snapshotLearned": "Learned {count} varying fields from captures.",
+  "snapshotNoCaptures": "No matching captures with complete JSON bodies to learn from.",
+  "snapshotNoVaryingFields": "No varying fields found; the snapshot still compares exactly.",
+  "snapshotTypesOnly": "Check types only",
+  "snapshotVaryCount": "{count} fields learned to vary",
+  "learnSnapshotVary": "Learn varying fields",
+  "removeSnapshot": "Remove snapshot",
+  "responseSnapshot": "Response snapshot",
+  "useAsSnapshot": "Use as snapshot",
   "sourceApi": "Source API",
   "sourceCollection": "Source collection",
   "sourceNumber": "Source #{id} · {method} {url} · {status}",
