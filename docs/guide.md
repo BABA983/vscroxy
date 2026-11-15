@@ -3921,8 +3921,10 @@ The icon comes from the app itself: the `.desktop` entry's icon on Linux, an
 icon theme's for the app's name, or the logo a bundled app keeps beside its
 executable, as Chrome does; on macOS, the PNG inside the `.icns` of the `.app`
 bundle that encloses the process, so a helper process such as Chrome's shows
-Chrome's icon. An app with none gets a badge in its color with its initial, so
-every row still reads at a glance.
+Chrome's icon; on Windows, the icon resource of the executable, read through
+the shell and converted to a PNG (its mask supplies transparency for icons
+without an alpha channel). An app with none gets a badge in its color with its
+initial, so every row still reads at a glance.
 When a connection opens, the proxy finds the socket that the client holds on
 the other end and reads the process that owns it: `/proc/net/tcp` and the
 descriptor tables on Linux, `lsof` on macOS, `netstat` and `tasklist` on
@@ -3931,9 +3933,9 @@ Both client and proxy socket endpoints must match a unique local owner.
 A request from another machine has no local process, so the column
 stays empty.
 
-The **Apps** section of the sidebar filters by app. Windows shows a badge
-only: an app's icon lives in its executable's resources, which are not read
-yet.
+The **Apps** section of the sidebar filters by app. An executable whose icon
+cannot be read, or a process without an executable path, keeps the letter
+badge.
 
 ## Settings
 
