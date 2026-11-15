@@ -12,7 +12,7 @@ func docsTestRequests() []savedRequest {
 	return []savedRequest{{Request: request.Request{
 		Name: "Create invoice", Collection: "Billing/Invoices", Method: "POST", URL: "https://api.example.test/invoices",
 		Description: "Creates an invoice. **Required:** an amount.",
-		Headers:     "Authorization: Bearer header-token-secret\nContent-Type: application/json\nX-Api-Key: api-key-secret",
+		Headers:     "Authorization: Bearer header-token-secret\nContent-Type: application/json\nX-Api-Key: api-key-secret\nX-Amz-Signature: signature-secret\nsessionid: session-id-secret\nauthToken: auth-token-secret",
 		Body:        `{"amount":42}`,
 		Auth:        request.Auth{Type: "Bearer", Token: "auth-token-secret"},
 		Examples: []request.Example{{
@@ -58,7 +58,7 @@ func TestCollectionDocsRedactSecretsAndIncludeEverything(t *testing.T) {
 			t.Errorf("markdown lacks %q", want)
 		}
 	}
-	for _, secret := range []string{"header-token-secret", "api-key-secret", "auth-token-secret", "example-cookie-secret"} {
+	for _, secret := range []string{"header-token-secret", "api-key-secret", "auth-token-secret", "signature-secret", "session-id-secret", "example-cookie-secret"} {
 		if strings.Contains(md, secret) {
 			t.Errorf("markdown leaks %q", secret)
 		}
@@ -80,7 +80,7 @@ func TestCollectionDocsRedactSecretsAndIncludeEverything(t *testing.T) {
 	if !strings.Contains(html, "Invoices &amp; &lt;script&gt;") {
 		t.Error("description is not escaped")
 	}
-	for _, secret := range []string{"header-token-secret", "api-key-secret", "auth-token-secret", "example-cookie-secret"} {
+	for _, secret := range []string{"header-token-secret", "api-key-secret", "auth-token-secret", "signature-secret", "session-id-secret", "example-cookie-secret"} {
 		if strings.Contains(html, secret) {
 			t.Errorf("html leaks %q", secret)
 		}

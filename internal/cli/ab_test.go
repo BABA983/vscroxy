@@ -106,13 +106,13 @@ func TestABReplaySessionRewritesBases(t *testing.T) {
 
 func TestABSessionSafetyDefaults(t *testing.T) {
 	type seen struct {
-		method, path, authorization, cookie, apiKey string
+		method, path, authorization, cookie, apiKey, signature, session, auth string
 	}
 	var mu sync.Mutex
 	var requests []seen
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
-		requests = append(requests, seen{r.Method, r.URL.Path, r.Header.Get("Authorization"), r.Header.Get("Cookie"), r.Header.Get("X-Api-Key")})
+		requests = append(requests, seen{r.Method, r.URL.Path, r.Header.Get("Authorization"), r.Header.Get("Cookie"), r.Header.Get("X-Api-Key"), r.Header.Get("X-Amz-Signature"), r.Header.Get("sessionid"), r.Header.Get("authToken")})
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"ok":true}`)
@@ -121,7 +121,7 @@ func TestABSessionSafetyDefaults(t *testing.T) {
 	root := t.TempDir()
 	session := filepath.Join(root, "session.json")
 	if err := os.WriteFile(session, []byte(`{"version":1,"flows":[
-		{"id":1,"method":"GET","url":"http://prod.example/safe","reqHeaders":"Authorization: Bearer captured-secret\nCookie: session=captured-cookie\nX-Api-Key: captured-key","status":200},
+		{"id":1,"method":"GET","url":"http://prod.example/safe","reqHeaders":"Authorization: Bearer captured-secret\nCookie: session=captured-cookie\nX-Api-Key: captured-key\nX-Amz-Signature: captured-signature\nsessionid: captured-session\nauthToken: captured-auth","status":200},
 		{"id":2,"method":"POST","url":"http://prod.example/danger","reqHeaders":"Content-Type: application/json","reqBody":"{\"x\":1}","status":200}
 	]}`), 0o600); err != nil {
 		t.Fatal(err)
@@ -139,7 +139,7 @@ func TestABSessionSafetyDefaults(t *testing.T) {
 		t.Fatalf("requests = %+v", got)
 	}
 	for _, request := range got {
-		if request.authorization != "" || request.cookie != "" || request.apiKey != "" {
+		if request.authorization != "" || request.cookie != "" || request.apiKey != "" || request.signature != "" || request.session != "" || request.auth != "" {
 			t.Fatalf("credential leaked: %+v", request)
 		}
 	}
@@ -169,7 +169,8 @@ func TestABSessionSafetyDefaults(t *testing.T) {
 		if request.method == "POST" {
 			posts++
 		}
-		if request.method == "GET" && (request.authorization != "Bearer captured-secret" || request.cookie != "session=captured-cookie") {
+		if request.method == "GET" && (request.authorization != "Bearer captured-secret" || request.cookie != "session=captured-cookie" ||
+			request.signature != "captured-signature" || request.session != "captured-session" || request.auth != "captured-auth") {
 			t.Fatalf("captured credentials missing: %+v", request)
 		}
 	}
