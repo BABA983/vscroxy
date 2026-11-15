@@ -38,15 +38,17 @@ func (a *app) chooseCertificateFile(target *string, title string, extensions []s
 func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 	e := &a.certificateUI
 	e.load(a)
-	uikit.SettingsPage(c, locales.Certificates(), locales.ClientCertificatesAndExtraRoots(), func() {
+	uikit.SettingsCardPage(c, locales.Certificates(), locales.ClientCertificatesAndExtraRoots(), func() {
 		if a.certProblem != "" {
 			ui.Text(c, a.certProblem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
 		}
 		if e.problem != "" {
 			ui.Text(c, e.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
 		}
-		uikit.SettingsGroup(c, locales.SigningCa(), func() {
-			uikit.Meta(c, locales.SigningCaHint())
+		uikit.SettingsCard(c, locales.SigningCa(), func() {
+			settingsCardBlock(c, "", func() ui.Element {
+				return uikit.Meta(c, locales.SigningCaHint())
+			}, "")
 			state := locales.SigningCaGenerated()
 			switch {
 			case e.signingClear:
@@ -58,7 +60,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 				}
 				state = locales.CustomCaSubject(subject)
 			}
-			uikit.SettingsRowMultiline(c, locales.SigningCa(), func() ui.Element {
+			settingsCardBlock(c, locales.SigningCa(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(1)).Children(func() {
 					ui.Text(c, state).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
 					if e.signingSaved && !e.signingClear {
@@ -66,7 +68,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			}, "")
-			uikit.SettingsRow(c, locales.SigningCaCertificate(), func() ui.Element {
+			settingsCardBlock(c, locales.SigningCaCertificate(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
 					if uikit.Input(c, &e.signingCert).Label(locales.CertificateFile()).Placeholder(locales.PemRootCertificate()).Grow(1).Changed() {
 						e.dirty = true
@@ -76,7 +78,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			}, "")
-			uikit.SettingsRow(c, locales.SigningCaPrivateKey(), func() ui.Element {
+			settingsCardBlock(c, locales.SigningCaPrivateKey(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
 					if uikit.Input(c, &e.signingKey).Label(locales.SigningCaPrivateKey()).Placeholder(locales.PemPrivateKey()).Grow(1).Changed() {
 						e.dirty = true
@@ -86,7 +88,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			}, locales.SigningCaKeyHint())
-			uikit.SettingsRow(c, "", func() ui.Element {
+			settingsCardBlock(c, "", func() ui.Element {
 				return ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 					if !e.signingClear && (e.signingSaved || e.signingCert != "" || e.signingKey != "") {
 						if uikit.SecondaryButton(c, locales.UseGeneratedCa()).Clicked() {
@@ -106,88 +108,97 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, "")
 		})
-		uikit.SettingsGroup(c, locales.ClientCertificates(), func() {
-			uikit.Meta(c, locales.PresentedToAMatchingHost())
+		uikit.SettingsCard(c, locales.ClientCertificates(), func() {
+			settingsCardBlock(c, "", func() ui.Element {
+				return uikit.Meta(c, locales.PresentedToAMatchingHost())
+			}, "")
 			if len(e.rows) == 0 {
-				uikit.Hint(c, locales.NoClientCertificates())
+				settingsCardBlock(c, "", func() ui.Element {
+					return uikit.Hint(c, locales.NoClientCertificates())
+				}, "")
 			}
 			remove := -1
 			for i := range e.rows {
 				row := &e.rows[i]
-				ui.Column(c).Gap(t.Space(2)).Children(func() {
-					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
-						if uikit.Input(c, &row.Host).Label(locales.Host()).Placeholder("api.example.com or *.example.com:8443").Grow(1).Changed() {
-							e.dirty = true
-						}
-						format := 0
-						if row.Format == certs.FormatPKCS12 {
-							format = 1
-						}
-						if uikit.Segmented(c, &format, locales.Pem(), locales.Pkcs12()).Label(locales.CertificateFormat()).Changed() {
-							row.Format = certs.FormatPEM
-							if format == 1 {
-								row.Format, row.KeyFile = certs.FormatPKCS12, ""
-							}
-							e.dirty = true
-						}
-					})
-					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
-						if uikit.Input(c, &row.CertFile).Label(locales.CertificateFile()).Placeholder(locales.PemChainOrP12Pfx()).Grow(1).Changed() {
-							e.dirty = true
-						}
-						if uikit.SecondaryButton(c, locales.Choose()).Clicked() {
-							a.chooseCertificateFile(&row.CertFile, "Certificate file", []string{"pem", "crt", "cer", "p12", "pfx"})
-						}
-					})
-					if row.Format != certs.FormatPKCS12 {
+				settingsCardBlock(c, "", func() ui.Element {
+					return ui.Column(c).Gap(t.Space(2)).Children(func() {
 						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
-							if uikit.Input(c, &row.KeyFile).Label(locales.KeyFile()).Placeholder(locales.PemPrivateKey()).Grow(1).Changed() {
+							if uikit.Input(c, &row.Host).Label(locales.Host()).Placeholder("api.example.com or *.example.com:8443").Grow(1).Changed() {
+								e.dirty = true
+							}
+							format := 0
+							if row.Format == certs.FormatPKCS12 {
+								format = 1
+							}
+							if uikit.Segmented(c, &format, locales.Pem(), locales.Pkcs12()).Label(locales.CertificateFormat()).Changed() {
+								row.Format = certs.FormatPEM
+								if format == 1 {
+									row.Format, row.KeyFile = certs.FormatPKCS12, ""
+								}
+								e.dirty = true
+							}
+						})
+						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
+							if uikit.Input(c, &row.CertFile).Label(locales.CertificateFile()).Placeholder(locales.PemChainOrP12Pfx()).Grow(1).Changed() {
 								e.dirty = true
 							}
 							if uikit.SecondaryButton(c, locales.Choose()).Clicked() {
-								a.chooseCertificateFile(&row.KeyFile, "Private key file", []string{"key", "pem"})
+								a.chooseCertificateFile(&row.CertFile, "Certificate file", []string{"pem", "crt", "cer", "p12", "pfx"})
 							}
 						})
-					}
-					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
-						if uikit.Input(c, &row.Passphrase).Password().Label(locales.Passphrase()).Placeholder(locales.Optional()).Grow(1).Changed() {
-							row.Clear, e.dirty = false, true
+						if row.Format != certs.FormatPKCS12 {
+							ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
+								if uikit.Input(c, &row.KeyFile).Label(locales.KeyFile()).Placeholder(locales.PemPrivateKey()).Grow(1).Changed() {
+									e.dirty = true
+								}
+								if uikit.SecondaryButton(c, locales.Choose()).Clicked() {
+									a.chooseCertificateFile(&row.KeyFile, "Private key file", []string{"key", "pem"})
+								}
+							})
 						}
-						if uikit.SecondaryButton(c, locales.Remove()).Clicked() {
-							remove = i
-						}
-					})
-					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-						switch {
-						case row.Clear:
-							uikit.Hint(c, locales.SavedPassphraseWillBeRemoved())
-							if uikit.SecondaryButton(c, locales.Keep()).Clicked() {
+						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
+							if uikit.Input(c, &row.Passphrase).Password().Label(locales.Passphrase()).Placeholder(locales.Optional()).Grow(1).Changed() {
 								row.Clear, e.dirty = false, true
 							}
-						case row.Saved && row.Passphrase == "":
-							uikit.Hint(c, locales.SavedPassphraseInUse())
-							if uikit.SecondaryButton(c, locales.Clear()).Clicked() {
-								row.Clear, e.dirty = true, true
+							if uikit.SecondaryButton(c, locales.Remove()).Clicked() {
+								remove = i
 							}
-						default:
-							uikit.Hint(c, locales.SealedLocallyNeverExported())
-						}
+						})
+						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+							switch {
+							case row.Clear:
+								uikit.Hint(c, locales.SavedPassphraseWillBeRemoved())
+								if uikit.SecondaryButton(c, locales.Keep()).Clicked() {
+									row.Clear, e.dirty = false, true
+								}
+							case row.Saved && row.Passphrase == "":
+								uikit.Hint(c, locales.SavedPassphraseInUse())
+								if uikit.SecondaryButton(c, locales.Clear()).Clicked() {
+									row.Clear, e.dirty = true, true
+								}
+							default:
+								uikit.Hint(c, locales.SealedLocallyNeverExported())
+							}
+						})
 					})
-				})
-				ui.Divider(c)
+				}, "")
 			}
 			if remove >= 0 {
 				e.rows = slices.Delete(e.rows, remove, remove+1)
 				e.dirty = true
 			}
-			if uikit.SecondaryButton(c, locales.AddClientCertificate()).Clicked() {
-				e.rows = append(e.rows, certificateRow{ID: uuid.NewString(), Format: certs.FormatPEM})
-				e.dirty = true
-			}
+			settingsCardBlock(c, "", func() ui.Element {
+				b := uikit.SecondaryButton(c, locales.AddClientCertificate())
+				if b.Clicked() {
+					e.rows = append(e.rows, certificateRow{ID: uuid.NewString(), Format: certs.FormatPEM})
+					e.dirty = true
+				}
+				return b
+			}, "")
 		})
-		uikit.SettingsGroup(c, locales.TrustedRoots(), func() {
-			uikit.SettingsRow(c, locales.TrustSystemRoots(), func() ui.Element {
-				toggle := ui.Switch(c, &e.trustSystem).Label(locales.TrustSystemRoots())
+		uikit.SettingsCard(c, locales.TrustedRoots(), func() {
+			settingsCardRow(c, locales.TrustSystemRoots(), func() ui.Element {
+				toggle := uikit.SettingsSwitch(c, &e.trustSystem, locales.TrustSystemRoots())
 				if toggle.Changed() {
 					e.dirty = true
 				}
@@ -196,35 +207,43 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 			remove := -1
 			for i := range e.roots {
 				root := &e.roots[i]
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
-					if uikit.Input(c, &root.Path).Label(locales.CustomCaFile()).Placeholder(locales.PemRootCertificate()).Grow(1).Changed() {
-						e.dirty = true
-					}
-					if uikit.SecondaryButton(c, locales.Choose()).Clicked() {
-						a.chooseCertificateFile(&root.Path, "Custom CA file", []string{"pem", "crt", "cer"})
-					}
-					if uikit.SecondaryButton(c, locales.Remove()).Clicked() {
-						remove = i
-					}
-				})
+				settingsCardBlock(c, "", func() ui.Element {
+					return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
+						if uikit.Input(c, &root.Path).Label(locales.CustomCaFile()).Placeholder(locales.PemRootCertificate()).Grow(1).Changed() {
+							e.dirty = true
+						}
+						if uikit.SecondaryButton(c, locales.Choose()).Clicked() {
+							a.chooseCertificateFile(&root.Path, "Custom CA file", []string{"pem", "crt", "cer"})
+						}
+						if uikit.SecondaryButton(c, locales.Remove()).Clicked() {
+							remove = i
+						}
+					})
+				}, "")
 			}
 			if remove >= 0 {
 				e.roots = slices.Delete(e.roots, remove, remove+1)
 				e.dirty = true
 			}
-			if uikit.SecondaryButton(c, locales.AddCaFile()).Clicked() {
-				e.roots = append(e.roots, certificateRoot{})
-				e.dirty = true
-			}
+			settingsCardBlock(c, "", func() ui.Element {
+				b := uikit.SecondaryButton(c, locales.AddCaFile())
+				if b.Clicked() {
+					e.roots = append(e.roots, certificateRoot{})
+					e.dirty = true
+				}
+				return b
+			}, "")
 		})
-		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			if uikit.PrimaryButton(c, locales.SaveCertificates()).Clicked() {
-				a.saveCertificates()
-			}
-			if e.dirty && uikit.SecondaryButton(c, locales.DiscardChanges()).Clicked() {
-				e.loaded, e.dirty, e.problem = false, false, ""
-			}
-			uikit.Meta(c, locales.PassphrasesAreSealedInA())
-		})
+		settingsCardBlock(c, "", func() ui.Element {
+			return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				if uikit.PrimaryButton(c, locales.SaveCertificates()).Clicked() {
+					a.saveCertificates()
+				}
+				if e.dirty && uikit.SecondaryButton(c, locales.DiscardChanges()).Clicked() {
+					e.loaded, e.dirty, e.problem = false, false, ""
+				}
+				uikit.Meta(c, locales.PassphrasesAreSealedInA())
+			})
+		}, "")
 	})
 }

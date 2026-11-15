@@ -116,8 +116,8 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **状态色和方法色不填充背景。** 2xx 和 304 是普通的次要文字，前面没有圆点；4xx（赭黄）和 5xx（朱红）只染状态文字本身，3xx 也按次要文字读。慢请求（≥ 1 秒）的耗时用朱红文字，没有底色块。method 是纯色文字，不做 chip（表格里是界面字体，侧栏和树里是等宽）。
 - **选中保留形状。** 列表失焦时，选中底从强调浅底换成中性面（6%），表格行同时把标记线换成 faint 色，位置和形状都不变。
 - **等宽只用于线上数据：** 路径、header 值、URL、数字、body。host、client、标签用界面字体。会变的数字开 `tnum`。
-- **四个字号，两个字重：** 15（标题）／13（正文和控件）／12（等宽数据）／11（次要信息），只有 400 和 500，没有 600。
-- **三档栏高，两档控件：** 栏 40／32／24，控件 `ControlHeight` 28／`ControlHeightSmall` 22，行 `HeightControl` 24；圆角 4／6／10；间距 4／8／12／16／24，左右边距统一 12。
+- **五个字号，两个字重：** 20（展示）／16（标题）／13（正文和控件）／12（次要文字和等宽数据）／11（元信息），只有 400 和 500，没有 600。
+- **三档栏高，两档控件：** 栏 40／32／24，控件 `ControlHeight` 28／`ControlHeightSmall` 22，行 `HeightControl` 24；工作区圆角 4／6／8，浮层再取 10／12／16；间距 4／8／12／16／24，左右边距统一 12。
 - **线只画在区域之间。** 侧栏与内容、列表与检查器、请求面板与响应面板、状态栏上沿；区域内部靠间距和表面区分，面板头、抓包信息行、URL 行都没有底线。流量表表头没有列分隔线，拖动列宽的命中区还在，指针停在那一列边缘时才画出强调色细线。
 - **输入框只有两种：** 在 chrome 上的是 canvas 底加 1px 细线（`ChromeFieldFace`），在 canvas 上的是 well 填充（`FieldFace`）。标题栏的命令入口不是输入框，是一个 24 高的按钮（放大镜加 `⌘K`／`Ctrl K`）。
 - **侧栏退后。** 未选中行的文字用次要色、图标再低一档（faint），悬停和选中时回到正文色；计数为 0 不显示。侧栏的三个分区标题可以点击折叠，折叠状态记在 settings 里。
@@ -144,7 +144,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 | Token | Light | Dark | 说明 |
 | --- | --- | --- | --- |
-| `Chrome` | `#edf3ea` | `#070807` | 外壳：标题栏、侧栏、底栏，以及内容卡片四周 2px 的缝；标题栏和侧栏是一块底，左上角没有接缝 |
+| `Chrome` | `#f2f6ee` | `#070807` | 外壳：标题栏、侧栏、底栏，以及内容卡片四周 2px 的缝；标题栏和侧栏是一块底，左上角没有接缝 |
 | `Canvas` | `#f9fdf6` | `#0c1516` | 内容卡片，也是 MyGo 的 Background 和 Surface |
 | `Well` | `#ebebeb` | `#192121` | canvas 上的输入框 |
 | `Hairline` | `#ebefe8` | `#1b2324` | 面板的 1px 边、同一表面的分隔线、表头边框、对话框边缘 |
@@ -156,6 +156,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `AccentHover`／`AccentPressed` | `#2a2d2a`／`#3d413d` | `#ffffff`／`#cfd8ce` | |
 | `AccentText` | `#f9fdf6` | `#0c1516` | 主按钮文字，也是 Success 面（向导的完成标记）上的文字 |
 | `AccentTint` | `#d6dcd6` | `#2f372f` | 聚焦时的选中浅底、输入框的焦点晕圈、活动行选区 |
+| `Ring` | `#636e61` | `#9aa89a` | 键盘焦点环和输入框聚焦边；和墨色强调分开 |
 | `Success` | `#2c784d` | `#54b879` | 检查通过、录制点、信任状态、向导里已完成的步骤 |
 | `Info`／3xx／GET | `#2f6ea5` | `#8fb3d1` | |
 | `Warning` | `#86600f` | `#d6a038` | 慢请求、4xx 的提示色 |
@@ -164,7 +165,8 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `MethodPatch` | `#7a3e6d` | `#c99abd` | PATCH 的方法色（梅紫），编辑器里的字符串也用它 |
 | `Socket` | `#2b6868` | `#6fc3d6` | WebSocket 的协议色 |
 | `Inverse`／`InverseText` | `#0b0d0b`／`#f9fdf6` | `#f6fff5`／`#0c1516` | 提示条和 toast 的反色面 |
-| `Shadow` | 墨 16% | 黑 50% | 弹层、对话框 |
+| `Scrim` | 黑 35% | 黑 35% | 对话框遮罩 |
+| `ShadowMenu`／`ShadowPopover`／`ShadowDialog` | `0 8 24 .14`／`0 12 32 .16`／`0 16 48 .18` | Dark 透明度 ×2 | 菜单／弹层／对话框；工作区不加阴影 |
 
 `Bar` 这个 token 已删掉：耗时条的底就是 `Fill`，和设计稿的 `.dur` 一样。
 
@@ -198,13 +200,15 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 | Token | 值 | 用途 |
 | --- | --- | --- |
-| `TextMeta`／`TextData`／`TextBody`／`TextTitle` | 11／12／13／15 | 计数和次要信息／等宽数据／正文、控件／标题。18 已删掉：结论也用 15 |
-| `LineMeta`／`LineProse`／`LineTitle` | 1.45／1.5／1.3 | 次要信息／说明文字／标题的行高倍数；`Body` 和 `Mono` 保持字体自带的行高，避免撑高控件和表格行 |
+| `TextMeta`／`TextData`／`TextSmall`／`TextBody`／`TextTitle`／`TextDisplay` | 11／12／12／13／16／20 | 元信息／等宽数据／次要文字／正文、控件／标题／展示。行高分别 15／16／20／24／28 |
+| `LineMeta`／`LineSmall`／`LineBody`／`LineProse`／`LineTitle`／`LineDisplay` | 15/11／16/12／20/13／1.6／24/16／28/20 | 元信息／次要文字／正文／说明文字／标题／展示的行高倍数 |
 | `HeightBar`／`HeightTabs`／`HeightStatus` | 40／32／24 | 标题栏／面板头和过滤栏／状态栏。只有这三档栏高 |
 | `ControlHeight`／`ControlHeightSmall`／`HeightControl` | 28／22／24 | 按钮、输入框、tab／chip、行内动作／表格行、侧栏条目和栏内的一行。`HeightLarge` 仍是 28，只在个别历史布局里用；`HeightCompact`（20）已删掉 |
-| `RadiusInner`／`RadiusControl`／`RadiusPanel` | 4／6／8 | 嵌在控件里的面（分段控件的滑块、chip 里的按钮）／控件和 tab／弹层、卡片、对话框。`RadiusDialog`（14）已删掉 |
+| `RadiusInner`／`RadiusControl`／`RadiusPanel`／`RadiusMenu`／`RadiusCard`／`RadiusDialog` | 4／6／8／10／12／16 | 控件内的面／控件和 tab／工作区面板／菜单／卡片和弹层／对话框和 toast |
 | `IconInline`／`IconLarge` | 14／16 | 行内和按钮／rail 和空状态 |
-| `DurationFast`／`DurationHover`／`DurationStandard`／`DurationSlow` | 80／120／160／200ms | 离开和收起／悬停面和弹层进出／选中面和数字变化／面板和区域的开合。界面只写 token，不写毫秒 |
+| `MotionFast`／`MotionBase`／`MotionSlow` | 120／150／200ms | 悬停和离开／弹层和对话框进入／toast 和尺寸落定。界面只写 token，不写毫秒 |
+| `MotionEase` | `cubic-bezier(.4, 0, .2, 1)` | 所有浮层、对话框、toast 和悬停共用的缓动 |
+| 浮层尺寸 | 菜单行 28（MyGo 当前画 24，见第 12 节 93）；弹层圆角 12、内边距 16；对话框圆角 16、内边距 24、间距 16；toast 圆角 16；命令面板 720／输入 48/16／结果 40/14 | |
 | `MotionSpring` | 200ms，无回弹 | 侧栏区域收起展开、面板和分栏改变尺寸时用的唯一弹簧；`RegionMotion` 和 `PaneMotion` 由它组成 |
 | `DialogSmall`／`DialogMedium`／`DialogLarge` | 480／640／840 | 对话框宽度档，随窗口收缩 |
 
@@ -219,8 +223,8 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | 24 | 区块之间 |
 
 - 表格行高 24。MyGo 的 `ui.Table` 最小行高是 `t.Space(8)`，所以流量表格在局部主题里设 `Spacing = 3`。
-- 分隔统一 1px `Hairline`，不靠色块分区。只有菜单、弹层、对话框有阴影：1px 边框画边缘，阴影只做柔和的浮起（弹层 `0 8 28`、对话框 `0 20 56`，颜色是 palette 的 `Shadow`：Light `rgba(25,32,28,.16)`、Dark `rgba(0,0,0,.5)`）。
-- 菜单的面由 uikit 接管：v0.9 的 `PopoverMenuButtonOptions.Panel` 让 `MenuSelect` 用和弹层同一张面（canvas、hairline、`RadiusPanel`、同样的阴影），并挂上 `popoverMotion`。菜单项本身仍是库画的（高亮是强调色实底，和 macOS 一致），圆角写死为 `t.Radius`。
+- 分隔统一 1px `Hairline`，不靠色块分区。只有菜单、弹层、对话框有阴影：1px 边框画边缘，阴影只做柔和的浮起（`ShadowMenu 0 8 24 .14`、`ShadowPopover 0 12 32 .16`、`ShadowDialog 0 16 48 .18`；Dark 透明度 ×2）。工作区不加阴影。
+- 菜单的面由 uikit 接管：`MenuPanel` 给 `MenuSelect` 和所有 `PopoverMenuButton` 用 canvas、hairline、`RadiusMenu` 和 `ShadowMenu`，并挂上 `popoverMotion`；`actionMenu` 用 `Content` 把快捷键画成 `Kbd`。`ContextMenu` 和 `PopoverMenu` 的面板仍是 MyGo 内部固定样式，见第 12 节。
 
 ### 6.4 文字角色（`text.go`）
 
@@ -246,7 +250,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | 输入 | `Input`／`InputState`（well，无边框；聚焦时 1px `Ring` 内边和 3px `Ring` 光晕；invalid 时用 `Danger` 内边）、`FormRow`／`FormRowTall`（标签、说明和错误绑定到控件）、`TextArea`（多行输入，聚焦边用 `Ring`）、`FieldFace`（同样的面给自带控件的输入行，如搜索框和 URL 栏）、`ChromeFieldFace`（chrome 上的输入框：canvas 底加 1px 细线）、`Select`／`MenuSelect`（按钮的面；后者给用菜单做的选择，如 body 格式）、`Segmented`（中性凹槽加浮起的滑块，选中是 canvas 底加细线，只用于互斥的模式）、`Tabs`／`CountedTabs`（选中是中性面圆角块加正文色文字，可带计数；放在 `TabStrip` 里横向滚动，有藏起来的 tab 的一侧渐隐）、`SubTabs`（嵌在另一行 tab 选中内容里的第二层，选中只有正文色文字） |
 | 列表和侧栏 | `DataList`／`DataListIndexed`（数据列表的选中色和行首标记，组件内固定 `ListTheme` 和 `RowMarker`）、`ListTheme`（MyGo 表格／列表／树的选中色）、`Marker`／`RowMarker`、`Selected`（失焦换成中性面；选择列表用）、`SidebarHeading`（11 号、次要色、500，右端可带开关或加号）、`SidebarItem`（24 高、内缩 6 的圆角行，图标／圆点／箭头占同一个槽，右侧可带计数）、`SidebarButton`（同样的行，做动作而不是选中，`on` 时图标用强调色）、`SidebarDot`（没有图标时占住槽的圆点）、`SearchField`（带放大镜的单行搜索框，canvas 上是 well、chrome 上是 canvas 加细线） |
 | 信号 | `Sparkline`（录制 pill 的速率曲线）、`ResponseMeta`（面板头右侧的耗时和大小，耗时悬停显示分段）、`StatusPill`（只有文字色，不填底；2xx／304 是次要色）、`MethodLabel`（12 等宽 500）、`MethodColor`、`StatusColor`、`MarkColors`、`BadgeColors` |
-| 结构和反馈 | `EdgeFade`（滚动条被裁掉的一侧渐隐到表面色，`TabStrip` 和标题栏的 chip 用它）、`PaneHeader`（面板头的 32 高一行：内容 + 右侧）、`PaneTitle`（面板名，带状态点，点它把共享读取器交给这一侧）、`TabMenu`（长得像 tab 的菜单，放 More）、`KVRow`（只读）、`EmptyState`、`Toasts`、`Modal`、`DialogColumn`、`DialogTitle`、`DialogFooter`、`PopoverPanel`、`EditorTheme` |
+| 结构和反馈 | `Kbd`（18 高、4 圆角、1px hairline、11 号字）、`MenuPanel`／`MenuButtonOptions`（宽松菜单面）、`ToastPanel`、`ModalFlush`（无内边距的浮层模态）、`SettingsCardPage`／`SettingsCard`／`SettingsCardBlock`／`SettingsCardRow`／`SettingsSwitch`、`EdgeFade`（滚动条被裁掉的一侧渐隐到表面色，`TabStrip` 和标题栏的 chip 用它）、`PaneHeader`（面板头的 32 高一行：内容 + 右侧）、`PaneTitle`（面板名，带状态点，点它把共享读取器交给这一侧）、`TabMenu`（长得像 tab 的菜单，放 More）、`KVRow`（只读）、`EmptyState`、`Toasts`、`Modal`、`DialogColumn`、`DialogTitle`、`DialogFooter`、`PopoverPanel`、`EditorTheme` |
 
 待做（随用到它们的步骤加入）：
 
@@ -266,12 +270,12 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **按下：** 背景变 Pressed。
 - **焦点环：** 键盘焦点显示 2px `Ring` 外框，鼠标点击不显示，所有可交互元素都要有。输入框例外：聚焦时是 `Ring` 细边加 3px 柔和光晕，不再画外框；输入框的聚焦边和主操作不再同色。对话框关闭后焦点回到打开它的控件，`Modal` 会请求一帧重绘让焦点环显示出来。
 - **禁用：** 文字用 TextFaint，不响应 hover；tooltip 说明为什么不可用。
-- **动效：** 只用于说明变化，时长一律用 token（`DurationFast` 80／`DurationHover` 120／`DurationStandard` 160／`DurationSlow` 200），面板和区域改变尺寸用 `MotionSpring`（200ms，无回弹）。
+- **动效：** 只用于说明变化，时长一律用 token（`MotionFast` 120／`MotionBase` 150／`MotionSlow` 200），缓动统一 `MotionEase`（`cubic-bezier(.4,0,.2,1)`）；面板和区域改变尺寸用 `MotionSpring`（200ms，无回弹）。
   - 悬停和按下的面：进入即时，离开用 120ms 淡回，指针扫过一排按钮时不落后。过渡每一帧都挂着（悬停帧时长 `-1`）：MyGo 只在上一帧也有过渡时才混色，撤掉过渡等于让离开的那一帧当成新元素。
-  - 菜单、弹层、工具提示：淡入加上移 4px，进 120、出 80。
-  - 对话框和命令面板：淡入，160。放大不做：缩放把画出来的像素挪离布局位置，开场那几帧点不到控件。
+  - 菜单、弹层、工具提示：淡入加上移 4px，进 150、出 120，缓动 `MotionEase`。
+  - 对话框和命令面板：淡入，150。放大不做：缩放把画出来的像素挪离布局位置，开场那几帧点不到控件。
   - 侧栏分区折叠、面板和分栏改变尺寸：`RegionMotion`／`PaneMotion`，无回弹弹簧，约 200。
-  - 计数、状态码、耗时这类数字变化：`ContentTransition{Numeric}`，160。
+  - 计数、状态码、耗时这类数字变化：`ContentTransition{Numeric}`，150。
   - 录制中：有流量经过时状态点轻微脉动（1.2s，55%–100%），没有流量或暂停时静止。脉动画在点自己的 `Draw` 里（30fps），只重绘不重跑视图，流量表不会跟着每秒重建 60 次。
   - 不做动效的地方（高频或必须即时）：流量表新行进入、行选中和键盘上下移动、输入、自动跟随滚动。流量持续进来时用 `AnimatePose` 一类只重绘不重建的写法，保证列表不掉帧。
   - 系统要求减少动态效果时 MyGo 自己把值直接送到终态、过渡立即结束；`Loop` 继续（系统转圈也这样）。
@@ -501,7 +505,7 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 25. v3 用三种表面：chrome（侧栏、栏、表头）、canvas（数据）、well（canvas 上的输入框）；chrome 上的输入框是 canvas 加 1px 细线。MyGo 的 Background 是 canvas、Surface 是 chrome，输入框的面由 uikit 自己画，不再和窗口同色（2026-11-11）。
 26. 选中、主操作和已开启用强调色：标签页、过滤器、命令面板的选中是中性面；`StatusPill` 不填底，状态色和方法色只染文字，例外是慢请求的耗时标签（2026-11-11；"绿色"的角色在第六阶段由墨色接管）。
 27. 控件不描边，面是文字色的 7%／11%／15%（两个主题一样，Amp 配色时定下）；选中失焦时保留形状、换成中性面（2026-11-11）。
-28. 尺寸只有三档栏高（40／32／24）、两档控件（`ControlHeight` 28／`ControlHeightSmall` 22）和 24 高的行（`HeightControl`）、四档字号（15／13／12 等宽／11）、两个字重（400／500）、三档圆角（4／6／10）。`HeightCompact`、`RadiusDialog`、`TextHeadline` 删掉（2026-11-11）。
+28. 尺寸只有三档栏高（40／32／24）、两档控件（`ControlHeight` 28／`ControlHeightSmall` 22）和 24 高的行（`HeightControl`）、五档字号（`TextDisplay` 20／`TextTitle` 16／`TextBody` 13／`TextSmall` 12／`TextMeta` 11）、两个字重（400／500）、六档圆角（4／6／8／10／12／16）。`HeightCompact`、`TextHeadline` 删掉（2026-11-11；字号和圆角在第十六阶段扩展）。
 29. 等宽只用于线上数据：路径、header 值、URL、数字、body；host、client 和标签用界面字体（2026-11-11）。
 30. Light 的 warning 从设计稿的 `#a15c07` 深到 `#9c5906`：前者在 well 上只有 4.44:1，其余信号色和设计稿一致；设计稿的信号色在按下态是 3.6–4.5:1，测试对叠在表面上的面按 UI 组件的 3:1 计（2026-11-11）。
 31. 每个面板只有一排标签页，面板头 32 高：标题、标签页、右侧元信息。请求的 Headers／Params／Body／Auth 是 tab，其余视图进 More；响应的 Body／Headers／Cookies／Timing 是 tab，Raw／Checks／Console 进 `⋯`。从 More 选中的视图作为最后一个 chip 回到同一行，不再开第二排（2026-11-11）。
@@ -570,6 +574,7 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 90. 两个空状态不再解释自己：历史列和响应面板只留一个淡色图标加发送键（`⌘↩ Send`）。历史列的两个下拉只在有记录时出现，设了筛选时保留，免得筛选把列表清空后没法撤销（第十五阶段，2026-11-13）。
 91. 系统代理用一个开关（`Use this app’s proxy`）代替 Enable／Disable 两个按钮：开关显示 OS 的状态，翻过来就是改变；「Check again」留着，重读机器和改变它是两件事（第十五阶段，2026-11-13）。
 92. 等宽只给要对齐比较的数字和代码：路径改成界面字体，状态码、耗时、大小、`#` 仍是等宽（第十五阶段，2026-11-13）。
+93. 宽松档接进 app（第十六阶段，2026-11-15）：命令面板改成 720 宽的无标题浮层，输入 48/16、结果 40/14，选中行内缩 4 加 `RadiusControl`，快捷键和底部提示用 `Kbd`；`actionMenu` 用 `Content` 把每个动作的快捷键画成 `Kbd`，`PopoverMenuButton` 统一走 `MenuPanel`。七个 Settings 页改成 620 宽的 `SettingsCardPage`，导航 188，行最小 44，多行内容和证书编辑器用 `SettingsCardBlock`。`ContextMenu` 和 `PopoverMenu` 的面板仍由 MyGo 内部画（没有 Panel 入口），但其中的动作快捷键已经用 `Kbd`；要连面板一起统一，得替换 MyGo 的菜单或等上游开 API。MyGo 画的行高固定为 24，`MenuPanel` 只能换面板、圆角和投影；宽松档的菜单行 28 是替换菜单后的目标，当前不硬改。
 
 ## 13. 仍与设计稿不一致的地方
 

@@ -137,9 +137,9 @@ func (a *app) certificateBanner(c *ui.Context, t *ui.Theme) {
 func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 	status, color := a.certificateStatus(t)
 	s := &a.certificate
-	uikit.SettingsPage(c, locales.Https(), locales.TrustingTheCaMakesDecryption(), func() {
-		uikit.SettingsGroup(c, locales.Certificate(), func() {
-			uikit.SettingsRowMultiline(c, locales.Trust(), func() ui.Element {
+	uikit.SettingsCardPage(c, locales.Https(), locales.TrustingTheCaMakesDecryption(), func() {
+		uikit.SettingsCard(c, locales.Certificate(), func() {
+			settingsCardBlock(c, locales.Trust(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(1)).Children(func() {
 					ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(color)
 					if s.cert != nil {
@@ -177,7 +177,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 			}, "")
 			// The buttons are their own row, so a disabled one does not
 			// gray the Trust label.
-			uikit.SettingsRow(c, "", func() ui.Element {
+			settingsCardBlock(c, "", func() ui.Element {
 				return ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 					if uikit.Tip(c, uikit.PrimaryButton(c, locales.InstallTrust()), locales.TrustTheLocalCaOn()).Disabled(s.checking || s.cert == nil || s.checked && s.err == nil).Clicked() {
 						a.checkCertificate(true)
@@ -191,10 +191,10 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, certificateScope())
 		})
-		uikit.SettingsGroup(c, locales.Decryption(), func() {
-			uikit.SettingsRow(c, locales.EveryDomain(), func() ui.Element {
+		uikit.SettingsCard(c, locales.Decryption(), func() {
+			settingsCardRow(c, locales.EveryDomain(), func() ui.Element {
 				all := a.sslAll
-				toggle := ui.Switch(c, &all).Label(locales.DecryptEveryDomain())
+				toggle := uikit.SettingsSwitch(c, &all, locales.DecryptEveryDomain())
 				if toggle.Changed() {
 					cfg := a.inspectionConfig()
 					cfg.All = all
@@ -213,7 +213,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 				summary = strings.Join(domains, ", ")
 				hint = "These domains and their subdomains are decrypted. Every other host stays an encrypted tunnel."
 			}
-			uikit.SettingsRow(c, locales.DomainsAndApps(), func() ui.Element {
+			settingsCardBlock(c, locales.DomainsAndApps(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.ManageDomains()).Clicked() {
 						a.leaveSettings()
@@ -241,7 +241,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 			if len(allowed) > 0 {
 				allowedSummary = strings.Join(allowed, ", ")
 			}
-			uikit.SettingsRow(c, locales.AllowUntrustedUpstream(), func() ui.Element {
+			settingsCardBlock(c, locales.AllowUntrustedUpstream(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.ManageExceptions()).Clicked() {
 						a.leaveSettings()
@@ -251,8 +251,8 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, locales.AllowUntrustedUpstreamHint())
 		})
-		uikit.SettingsGroup(c, locales.Wireshark(), func() {
-			uikit.SettingsRow(c, locales.TlsKeyLog(), func() ui.Element {
+		uikit.SettingsCard(c, locales.Wireshark(), func() {
+			settingsCardBlock(c, locales.TlsKeyLog(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.TlsKeyLog2()).Clicked() {
 						a.leaveSettings()

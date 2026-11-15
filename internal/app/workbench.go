@@ -686,17 +686,23 @@ func (a *app) commandPalette(c *ui.Context) {
 	if !w.paletteOpen {
 		return
 	}
-	uikit.Modal(c, &w.paletteOpen, locales.Commands2(), func() {
-		width, _ := c.Size()
+	uikit.ModalFlush(c, &w.paletteOpen, locales.Commands2(), func() {
+		width, height := c.Size()
 		t := c.Theme()
-		ui.Column(c).Width(min(560, width-48)).Gap(t.Space(3)).Children(func() {
-			uikit.DialogTitle(c, locales.Commands2(
-			// Modal focuses its first input after remembering the opener. An
-			// explicit AutoFocus here would replace that remembered focus.
-			))
-
-			input := uikit.Input(c, &w.query).Label(locales.FindCommand()).Placeholder(locales.SearchCommandsRequestsEnvironments()).
-				Height(uikit.HeightLarge).FontSize(uikit.Scaled(uikit.TextBody)).FillWidth()
+		ui.Column(c).Width(min(uikit.CommandPaletteWidth, width-32)).Gap(0).Children(func() {
+			var input ui.Element
+			ui.Row(c).Height(uikit.CommandPaletteInputRow).Padding(0, t.Space(4)).Gap(t.Space(2)).
+				AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, searchIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.TextMuted)
+				// Modal focuses its first input after remembering the opener.
+				// An explicit AutoFocus here would replace that focus.
+				input = ui.TextInput(c, &w.query).Height(uikit.CommandPaletteInputRow).Padding(0).
+					FontSize(uikit.Scaled(uikit.CommandPaletteInputSize)).Grow(1).MinWidth(0).
+					FocusRing(false).Background(ui.Color{}).Border(0, ui.Color{}).
+					Label(locales.FindCommand()).Placeholder(locales.SearchCommandsRequestsEnvironments())
+				uikit.Kbd(c, "esc")
+			})
+			ui.Divider(c)
 			if input.Changed() {
 				w.command = 0
 				w.commands.ScrollTo(0, ui.Start)
@@ -713,12 +719,12 @@ func (a *app) commandPalette(c *ui.Context) {
 				case action.id == "app.palette" || !strings.Contains(strings.ToLower(action.label), query):
 				case action.enabled:
 					matches = append(matches, paletteEntry{
-						label: action.label, detail: action.hint(), meta: action.shortcut.String(),
+						label: action.label, meta: action.shortcut.keycap(),
 						enabled: true, action: true, run: action.run,
 					})
 				case query != "":
 					unavailable = append(unavailable, paletteEntry{
-						label: action.label, detail: action.hint(), meta: action.shortcut.String(),
+						label: action.label, detail: action.why(), meta: action.shortcut.keycap(),
 						enabled: false, why: action.why(), action: true, run: action.run,
 					})
 				}
@@ -750,61 +756,67 @@ func (a *app) commandPalette(c *ui.Context) {
 			// The highlighted command is a menu highlight: the tint without a
 			// marker, as menus have no selection to keep.
 			c.SetTheme(uikit.ListTheme(t, focused))
-			list := ui.List(c, &w.commands, len(matches), func(i int) {
-				item := matches[i]
-				b := uikit.Tip(c, uikit.RowButton(c, item.label).Disabled(!item.enabled).Height(uikit.HeightLarge).Padding(0, t.Space(3)), item.detail)
-				// The list's highlight shows through; RowButton saw the row
-				// before Disabled, so an unavailable command drops its hover too.
-				if !item.enabled || i == w.command && !b.Pressed() {
-					b.Background(ui.Transparent)
-				}
-				b.Children(func() {
-					color := t.Text
-					if !item.enabled {
-						color = uikit.Colors(t).TextFaint
-					}
-					label := item.label
-					if !item.enabled {
-						label += " (unavailable)"
-					}
-					ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(color)
-					ui.Spacer(c)
-					ui.Text(c, item.meta).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color)
+			listHeight := min(float32(9)*uikit.CommandPaletteRow, max(float32(120), height-190))
+			var list ui.Element
+			if len(matches) > 0 {
+				ui.Column(c).Padding(uikit.CommandPaletteRowInset).Gap(0).Children(func() {
+					list = ui.List(c, &w.commands, len(matches), func(i int) {
+						item := matches[i]
+						b := uikit.RowButton(c, item.label).Disabled(!item.enabled).
+							Height(uikit.CommandPaletteRow).Padding(0, t.Space(3))
+						if !item.enabled {
+							b.Background(ui.Transparent)
+						}
+						b.Children(func() {
+							color := t.Text
+							if !item.enabled {
+								color = uikit.Colors(t).TextFaint
+							}
+							ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
+								ui.Text(c, item.label).FontSize(uikit.Scaled(uikit.CommandPaletteRowSize)).
+									LineHeight(20.0 / 14.0).TextColor(color).SingleLine()
+								if item.detail != "" {
+									uikit.Small(c, item.detail).TextColor(t.TextMuted).SingleLine()
+								}
+							})
+							if item.action && item.meta != "" {
+								uikit.Kbd(c, item.meta)
+							}
+						})
+						if b.Clicked() {
+							w.command = i
+							run()
+						}
+					}).Height(listHeight).FillWidth()
 				})
-				if b.Clicked() {
-					w.command = i
-					run()
-				}
-			}).Height(9 * uikit.HeightLarge).FillWidth()
+			} else {
+				ui.Row(c).Padding(t.Space(4)).Children(func() {
+					uikit.Hint(c, locales.NoMatchingCommandsRequestsOr())
+				})
+			}
 			c.SetTheme(t)
-			if list.Submitted() {
+			if len(matches) > 0 && list.Submitted() {
 				run()
 			}
-			if len(matches) == 0 {
-				uikit.Hint(c, locales.NoMatchingCommandsRequestsOr())
-			} else if w.command >= 0 && w.command < len(matches) {
-				item := matches[w.command]
-				message := ""
-				switch {
-				case !item.enabled:
-					message = item.why
-				case !item.action:
-					message = item.detail
-				case a.page.capture():
-					if a.chosen.Len() > 1 {
-						message = fmt.Sprintf("Capture · %d selected requests", a.chosen.Len())
-					} else if f, ok := a.current(); ok {
-						message = fmt.Sprintf("Capture #%d · %s %s", f.id, f.method, f.path)
-					}
-				case !a.page.capture() && a.requestDocument != nil:
-					message = "Draft · " + a.title()
-				}
-				uikit.Tip(c, uikit.Meta(c, message).SingleLine(), message)
-			}
 			if assets.more > 0 {
-				uikit.Meta(c, locales.MoreResults(assets.more)).SingleLine()
+				ui.Row(c).Padding(0, t.Space(4)).Children(func() {
+					uikit.Meta(c, locales.MoreResults(assets.more)).SingleLine()
+				})
 			}
-			uikit.Meta(c, locales.ChooseEnterRunEscClose())
+			ui.Divider(c)
+			enter := "Enter"
+			if runtime.GOOS == "darwin" {
+				enter = "↩"
+			}
+			ui.Row(c).Height(40).Padding(0, t.Space(4)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				uikit.Kbd(c, "↑")
+				uikit.Kbd(c, "↓")
+				uikit.Small(c, locales.Choose())
+				uikit.Kbd(c, enter)
+				uikit.Small(c, locales.Open())
+				uikit.Kbd(c, "esc")
+				uikit.Small(c, locales.Close())
+			})
 		})
 	})
 }

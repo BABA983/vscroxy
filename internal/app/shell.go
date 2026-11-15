@@ -42,7 +42,7 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 			a.layoutToggle(c)
 			uikit.IconButton(c, locales.Tools(), locales.ManageDebuggingRulesAndNetwork(), toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
 				actionMenu(m, append([]action{do("tools.rules", locales.DebuggingRules2(), a.openRules).in("rules")}, a.networkTools()...))
-			})
+			}, uikit.MenuButtonOptions(c))
 			uikit.MoreButton(c, locales.More(), locales.MoreCommands(), func(m *ui.Menu) { a.moreMenu(c, m) })
 		})
 	})
@@ -223,7 +223,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 		} else {
 			actionMenu(m, []action{start, settings})
 		}
-	})
+	}, uikit.MenuButtonOptions(c))
 }
 
 // hostsShortcut spells the Host profiles shortcut for its tooltip.
@@ -547,7 +547,7 @@ func (a *app) footerTools(c *ui.Context, t *ui.Theme) {
 					}
 				}
 				actionMenu(m, items)
-			})
+			}, uikit.MenuButtonOptions(c))
 		}
 	})
 }

@@ -199,7 +199,7 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 			} {
 				uikit.SidebarItem(c, item.id, item.icon, item.label, a.settingsChoice == item.id, active).Label(locales.SettingsCategory(item.label))
 			}
-		}).Width(176).Padding(t.Space(2)).Gap(t.Space(0.5)).Background(uikit.Colors(t).Chrome)
+		}).Width(188).Padding(t.Space(2)).Gap(t.Space(0.5)).Background(uikit.Colors(t).Chrome)
 		ui.Divider(c)
 		top := t.Space(2)
 		if a.settingsWin != nil {
