@@ -176,6 +176,8 @@ func (b *builder) attribute(text string, warnings *[]string) {
 		b.settings.FollowRedirects = &follow
 	case "no-cookie-jar", "no-log", "no-client-cert":
 		*warnings = append(*warnings, fmt.Sprintf("line %d: @%s is not imported", b.line, name))
+	default:
+		*warnings = append(*warnings, fmt.Sprintf("line %d: @%s is not imported", b.line, name))
 	}
 }
 

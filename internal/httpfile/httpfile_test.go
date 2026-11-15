@@ -50,6 +50,7 @@ Content-Type: application/json
 {"subscribe":"prices"}
 
 ### File
+# @no-proxy
 POST https://api.example.com/upload
 Content-Type: application/json
 
@@ -65,7 +66,7 @@ Content-Type: application/json
 	if doc.Requests[0].Body != "" || doc.Requests[1].Body != "" {
 		t.Fatalf("bodies = %q, %q", doc.Requests[0].Body, doc.Requests[1].Body)
 	}
-	want := []string{"response handlers are not imported", "WEBSOCKET requests are not imported", "a file body is not imported"}
+	want := []string{"response handlers are not imported", "WEBSOCKET requests are not imported", "a file body is not imported", "@no-proxy is not imported"}
 	for _, part := range want {
 		if !slices.ContainsFunc(doc.Warnings, func(line string) bool { return strings.Contains(line, part) }) {
 			t.Fatalf("warnings = %q, want %q", doc.Warnings, part)
