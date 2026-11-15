@@ -210,10 +210,10 @@
 | 导入：Swagger 2、Insomnia、Bruno、Hoppscotch | 已有 | Swagger 2 转 OpenAPI 3 后复用集合导入；Insomnia v4 JSON／v5 YAML（集合与环境）；Bruno `.bru` 目录；Hoppscotch 集合／环境 JSON。文件夹、变量、auth、body 类型和描述尽量保留，无法表达的部分在导入报告中列出 | M7 |
 | 导入：PowerShell / CMD 风格的 cURL | 已有 | Chrome Copy as cURL (cmd) 与 Copy as PowerShell (Invoke-WebRequest)；复用 cURL 导入入口和请求模型，未支持的参数明确报错 | M7 |
 | WebSocket 客户端（文本） | 已有 | | |
-| WebSocket 客户端：二进制消息、子协议、保存的消息列表 | 已有 | Hex／Base64 发送、原样二进制回显；WS／WSS 双侧握手协商和实际子协议显示；请求文档的 Body 标签页保存多条消息，按顺序发送并保留每条消息的回复（回复等待默认 2 s、每条最多 200 条回复／1 MiB；无消息时只监听推送），实时会话可重放已保存列表并把已发送消息存回请求 | M8 |
+| WebSocket 客户端：二进制消息、子协议、保存的消息列表 | 已有 | Hex／Base64 发送、原样二进制回显；WS／WSS 双侧握手协商和实际子协议显示；请求文档的 Body 标签页保存多条消息，按顺序发送并保留每条消息的回复（回复等待默认 2 s、每条最多 200 条回复／1 MiB；无消息时只监听推送），实时会话可重放已保存列表并把已发送消息存回请求；Runner／CLI 发送同一列表，Checks 与后置脚本读取合成 101 响应（JSON 回复数组、`X-Vscroxy-Sent`／`X-Vscroxy-Received`） | M8 |
 | SSE 客户端（持续接收事件） | 首版已有 | HTTP(S) 实时 GET、事件类型／ID／数据、搜索复制、显式可选重连与 Last-Event-ID、取消及有界时间线 | M8 |
-| gRPC 客户端（导入 proto 或服务端反射） | 已有 | 请求文档、proto／descriptor set、v1／v1alpha 反射、四种调用、metadata／trailers／最终状态、取消和 deadline；一元方法走与 HTTP 相同的执行路径：前置／后置脚本、Checks（`Grpc-Status`／`Grpc-Message`／`Grpc-Trailer-*` 作为响应头）、Examples 和 Runner／`vscroxy-cli run`；流式方法仍用交互客户端且拒绝脚本／Checks；Postman v2.1 导出仍跳过 gRPC 文档 | M8 |
-| Socket.IO 客户端 | 首版已有 | 请求文档、EIO4／WebSocket、namespace／auth、JSON／二进制附件、双向 ACK、有界实时消息、取消；保存的事件列表（添加当前、按顺序发送已保存、把已发送存回请求）；无轮询／重连／重发 | M8 |
+| gRPC 客户端（导入 proto 或服务端反射） | 已有 | 请求文档、proto／descriptor set、v1／v1alpha 反射、四种调用、metadata／trailers／最终状态、取消和 deadline；一元与流式方法走同一条执行路径：前置／后置脚本、Checks（`Grpc-Status`／`Grpc-Message`／`Grpc-Trailer-*`，流式另有 `Grpc-Sent`／`Grpc-Received`）、Examples 和 Runner／`vscroxy-cli run`；客户端／双向流保存消息列表（Message 标签添加当前／保存已发送），Runner 按序发送后半关闭；多响应为 JSON 数组；Postman v2.1 导出仍跳过 gRPC 文档 | M8 |
+| Socket.IO 客户端 | 首版已有 | 请求文档、EIO4／WebSocket、namespace／auth、JSON／二进制附件、双向 ACK、有界实时消息、取消；保存的事件列表（添加当前、按顺序发送已保存、把已发送存回请求）；Runner／CLI 重放列表并运行脚本／Checks（合成 101 响应、`X-Vscroxy-Sent`／`X-Vscroxy-Received`，`WaitMS` 回复窗口）；无轮询／重连／重发 | M8 |
 | MCP 客户端（调试 MCP server） | 首版已有 | 请求文档；Streamable HTTP／旧版 HTTP+SSE／stdio（命令、参数、环境、工作目录，显式连接才启动，首次及命令形状／环境变化时确认）、headers／auth／变量／证书设置、initialize 的服务器信息／协议版本／能力、工具／资源／模板／提示词目录与调用、结构化／图片／文本块和 isError、真实 JSON-RPC／通知／进度／服务器日志时间线、取消和断开；有界帧／时间线／目录／结果，图片后台解码与像素上限；GET 流按退避长期重连但不重放 POST，重连只保留一条实时状态行，关闭标签异步停止、退出统一等待；不接 HTTP 脚本／Checks／Runner／History | M8 |
 | MQTT 客户端 | 首版已有 | 请求文档与独立会话；MQTT 3.1.1／5.0 over TCP／TLS／WebSocket、QoS 0／1／2、retain、通配符订阅、last will、MQTT 5 属性、有界时间线；mqtt／mqtts 直连，ws／wss 经抓包代理；无脚本／Runner／History | M8 |
 

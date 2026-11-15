@@ -23,6 +23,7 @@ import (
 	"github.com/baba983/vscroxy/internal/postman"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
+	"github.com/gorilla/websocket"
 )
 
 func write(t *testing.T, path string, value any) []byte {
@@ -451,5 +452,64 @@ func TestRunHTMLReportAndStateExports(t *testing.T) {
 	cookie := jar.Cookies[0]
 	if cookie.Name != "session" || cookie.Value != "private-cookie" || cookie.Domain != "127.0.0.1" || cookie.Path != "/" || !cookie.HostOnly || !cookie.Session {
 		t.Fatalf("cookie = %+v", cookie)
+	}
+}
+
+// The CLI runs WebSocket saved messages and streaming gRPC calls, with their
+// Checks and scripts, like the desktop Runner.
+func TestRunLongLivedProtocols(t *testing.T) {
+	endpoint, schema := grpctest.Echo(t)
+	upgrader := websocket.Upgrader{}
+	ws := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for {
+			kind, data, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			if err := conn.WriteMessage(kind, append([]byte("echo:"), data...)); err != nil {
+				return
+			}
+		}
+	}))
+	defer ws.Close()
+	root := t.TempDir()
+	input := filepath.Join(root, "collections")
+	write(t, filepath.Join(input, "Chat.request.json"), request.Request{
+		ID: "chat", Name: "Chat", Collection: "Streams", Protocol: "gRPC", URL: endpoint,
+		GRPC:    request.GRPCConfig{Schema: schema, Method: "/grpctest.Echo/Chat", Messages: []string{`"a"`, `"b"`}},
+		Headers: "x-token: " + grpctest.Token,
+		Checks:  request.Checks{Headers: "Grpc-Status: 0\nGrpc-Received: 2"},
+		Post:    `pm.test("two echoes", () => pm.expect(pm.response.json()).to.have.length(2))`,
+	})
+	write(t, filepath.Join(input, "Echo.request.json"), request.Request{
+		ID: "echo", Name: "Echo", Collection: "Streams", Method: "GET", URL: "ws" + ws.URL[4:],
+		WebSocket: request.WebSocketConfig{Messages: []request.WebSocketMessage{{Payload: "one"}, {Payload: "two"}}, WaitMS: 150},
+		Checks:    request.Checks{Status: "101", JSON: `/0 = "echo:one"` + "\n" + `/1 = "echo:two"`},
+	})
+	reportPath := filepath.Join(root, "reports", "run.json")
+	var out, errOut bytes.Buffer
+	code := cli.Run(t.Context(), []string{"run", "--report-json", reportPath, input}, &out, &errOut)
+	if code != 0 || !strings.Contains(out.String(), "2 completed · 0 failed") {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, &out, &errOut)
+	}
+	data, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report runner.Report
+	if err := json.Unmarshal(data, &report); err != nil || report.Completed != 2 || report.Failed != 0 {
+		t.Fatalf("report: %+v %v", report, err)
+	}
+	statuses := map[string]int{}
+	for _, attempt := range report.Results {
+		statuses[attempt.Name] = attempt.Status
+	}
+	if statuses["Chat"] != 200 || statuses["Echo"] != 101 {
+		t.Fatalf("statuses: %v", statuses)
 	}
 }

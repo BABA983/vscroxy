@@ -33,10 +33,19 @@ func TestSocketIOPrepareScopesAndVault(t *testing.T) {
 	if _, _, err := r.PrepareSocketIO(in, vars); err == nil || !strings.Contains(err.Error(), "host denied") {
 		t.Fatal("Vault host restriction bypassed")
 	}
-	for _, r := range []Request{{Protocol: "Socket.IO", URL: "https://api.test", Pre: "throw 1"}, {Protocol: "Socket.IO", URL: "https://api.test", SocketIO: SocketIOConfig{Auth: `{"token":"{{missing}}"}`}}} {
+	for _, r := range []Request{
+		{Protocol: "Socket.IO", URL: "https://api.test", SocketIO: SocketIOConfig{Auth: `{"token":"{{missing}}"}`}},
+		{Protocol: "Socket.IO", URL: "https://api.test", TokenSources: []TokenSource{{Environment: "local", Variable: "token"}}},
+	} {
 		if _, _, err := r.PrepareSocketIO(Context{}, nil); err == nil {
-			t.Fatal("unsupported scripts or unresolved auth silently accepted")
+			t.Fatal("unresolved auth or a token binding was silently accepted")
 		}
+	}
+	// Scripts and Checks now run around a Socket.IO send, so preparation keeps
+	// them instead of refusing the document.
+	withScripts := Request{Protocol: "Socket.IO", URL: "https://api.test", Pre: "pm.variables.set('x', 1)", Post: "pm.test('ok', () => {})", Checks: Checks{Status: "101"}}
+	if _, _, err := withScripts.PrepareSocketIO(Context{}, nil); err != nil {
+		t.Fatalf("scripts or checks were refused: %v", err)
 	}
 	if _, err := r.Prepare(nil); err == nil {
 		t.Fatal("Socket.IO routed through HTTP")

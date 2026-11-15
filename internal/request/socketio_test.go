@@ -311,3 +311,61 @@ func TestSocketIOOfficialServer(t *testing.T) {
 		t.Fatal("namespace refusal accepted")
 	}
 }
+
+// A Socket.IO send now replays the saved emit list, reports received events
+// as a synthetic 101 response, and runs Checks and post-response scripts.
+func TestSocketIOExecuteSendsSavedMessages(t *testing.T) {
+	proxy, endpoint := socketIOPeer(t, false, func(ws *websocket.Conn, r *http.Request) {
+		ws.WriteMessage(websocket.TextMessage, []byte(`0{"sid":"engine-id","pingInterval":5000,"pingTimeout":5000,"maxPayload":1048576}`))
+		if _, data, err := ws.ReadMessage(); err != nil || !bytes.HasPrefix(data, []byte("40")) {
+			t.Errorf("connect packet %q %v", data, err)
+			return
+		}
+		ws.WriteMessage(websocket.TextMessage, []byte(`40{"sid":"namespace-id"}`))
+		for _, want := range []string{`42["chat","one"]`, `42["chat","two"]`} {
+			_, data, err := ws.ReadMessage()
+			if err != nil || string(data) != want {
+				t.Errorf("emit got %q %v, want %q", data, err, want)
+				return
+			}
+			value := `"one"`
+			if want == `42["chat","two"]` {
+				value = `"two"`
+			}
+			ws.WriteMessage(websocket.TextMessage, []byte(`42["reply",`+value+`]`))
+		}
+		// Keep reading until the client closes so the reply window is real.
+		for {
+			if _, _, err := ws.ReadMessage(); err != nil {
+				return
+			}
+		}
+	})
+	r := Request{
+		Protocol: "Socket.IO", URL: endpoint,
+		SocketIO: SocketIOConfig{
+			Messages: []SocketIOMessageDoc{{Event: "chat", Args: `["one"]`}, {Event: "chat", Args: `["two"]`}},
+			WaitMS:   100,
+		},
+		Checks: Checks{Status: "101", Headers: "X-Vscroxy-Sent: 2\nX-Vscroxy-Received: 2", JSON: "/0/event = \"reply\"\n/0/args/0 = \"one\"\n/1/args/0 = \"two\""},
+		Post:   `pm.test("two replies", () => pm.expect(pm.response.json()).to.have.length(2))`,
+	}
+	got := r.Execute(t.Context(), proxy, Context{}, nil, nil)
+	if got.Err != nil {
+		t.Fatalf("err: %v", got.Err)
+	}
+	if got.Response == nil || got.Response.Status != 101 || got.Response.ResponseHeader.Get("X-Vscroxy-Received") != "2" {
+		t.Fatalf("response: %+v", got.Response)
+	}
+	if len(got.Replies) != 2 || got.Replies[0] != `reply ["one"]` {
+		t.Fatalf("replies: %+v", got.Replies)
+	}
+	if len(got.Tests) != 7 {
+		t.Fatalf("tests: %+v", got.Tests)
+	}
+	for _, test := range got.Tests {
+		if !test.Pass {
+			t.Errorf("test %q failed: %s", test.Name, test.Error)
+		}
+	}
+}

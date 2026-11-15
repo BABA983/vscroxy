@@ -453,6 +453,24 @@ func snapshotStates(t *testing.T) []snapshot {
 		}, want: "No gRPC call yet"},
 		{name: "requests-grpc-schema", setup: func(a *app) { grpcDraft(a); a.grpcState().tab = 3 }, want: "1 method · descriptors saved with this request"},
 		{name: "requests-grpc-stream", setup: grpcStream, want: "gRPC OK"},
+		{name: "requests-grpc-saved-messages", setup: func(a *app) {
+			// A client-streaming method is where the saved message list
+			// appears; the shared fixture's Fetch is server-streaming.
+			dir := t.TempDir()
+			path := filepath.Join(dir, "chat.proto")
+			source := "syntax = \"proto3\"; package chat;\nmessage Line { string text = 1; }\nservice Room { rpc Chat(stream Line) returns (stream Line); }\n"
+			if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			schema, _, err := importProtoSchema(t.Context(), path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.addDocument(savedRequest{Protocol: "gRPC", Name: "Room chat", URL: "https://api.example.com:443",
+				Body: `{"text":"hello"}`,
+				GRPC: request.GRPCConfig{Method: "/chat.Room/Chat", Messages: []string{`{"text":"one"}`, `{"text":"two"}`}}}, "")
+			a.grpcState().schema, a.grpcState().loaded = schema, true
+		}, want: "2 saved"},
 		{name: "requests-grpc-metadata", setup: func(a *app) { grpcStream(a); a.grpcState().responseTab = 1 }, want: "Final trailers"},
 		{name: "requests-grpc-unary", setup: func(a *app) {
 			grpcDraft(a)

@@ -94,6 +94,28 @@ The repository CI runs `docs/examples/ci/collection.json` against a local static
 fixture and uploads its JSON/JUnit reports. To use your own API, replace that
 fixture server with your test service and pass its URL as `base_url`.
 
+## Long-lived protocols
+
+`run` executes WebSocket, Socket.IO and gRPC documents, not only HTTP(S):
+
+- A `ws`/`wss` request sends its saved message list with the request's reply
+  window. Checks and post-response scripts see a synthetic **101** response:
+  the body is a JSON array of reply strings, `X-Vscroxy-Sent` and
+  `X-Vscroxy-Received` are headers, and `pm.response.json()` returns the array.
+- A Socket.IO request replays its saved emit list (the composer event when the
+  list is empty), waits for requested ACKs and a final reply window (`WaitMS`,
+  default 1 s, at most 30 s), then exposes received events as a JSON array of
+  `{"event","args","ack","acknowledgement"}` objects on the same synthetic 101
+  response. Token bindings are refused; scripts and Checks run.
+- A gRPC document sends one message (unary or server-streaming) or its saved
+  client-streaming/bidirectional list, half-closes, and reads every response.
+  One response is the body; several become a JSON array. `Grpc-Status`,
+  `Grpc-Message`, `Grpc-Trailer-*`, `Grpc-Sent` and `Grpc-Received` are response
+  headers, and the document's deadline bounds the stream.
+
+`load` remains HTTP(S)-only. Long-lived steps are rejected rather than run as a
+closed workload.
+
 ## Built-in collection load runs
 
 The desktop Collection Runner's **Load test…** opens a separate fixed-concurrency

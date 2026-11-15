@@ -77,6 +77,10 @@ type GRPCConfig struct {
 	Method         string `json:"method,omitempty"`
 	Schema         []byte `json:"schema,omitempty"`
 	TimeoutSeconds int    `json:"timeoutSeconds,omitzero"`
+	// Messages is a streaming call's saved request messages, in order, as
+	// protojson text with {{variables}}. Empty sends Body once, which is what
+	// a unary call does. The interactive client can save what it sent.
+	Messages []string `json:"messages,omitempty"`
 }
 
 type TokenSource struct {

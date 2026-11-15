@@ -315,6 +315,9 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 						a.actionButton(c, "request.grpc-finish", "Finish sending")
 					})
 				}
+				if method, err := g.schema.method(d.grpcConfig.Method); err == nil && method.IsStreamingClient() {
+					a.grpcSavedMessages(c, t, d, g)
+				}
 				authoredText(c, &d.composeBody, &d.bodyEditor, &d.bodyFor, "gRPC request JSON", "json")
 			case 1:
 				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.headerEditor(c, d, t) })
@@ -515,4 +518,44 @@ func grpcSessionFromExecution(got request.Execution) *grpcSession {
 	}
 	s.details = strings.Join(sections, "\n\n")
 	return s
+}
+
+// grpcSavedMessages is a client-streaming or bidirectional call's saved
+// request messages, in order: Runner and the CLI replay them, and a session
+// can save what it actually sent. The list is stored with the request, so it
+// travels through Git and exports like the body.
+func (a *app) grpcSavedMessages(c *ui.Context, t *ui.Theme, d *requestDocument, g *grpcDocument) {
+	remove := -1
+	sent := g.session.sentMessages()
+	uikit.Meta(c, locales.GrpcSavedMessagesHelp())
+	ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+		if uikit.SecondaryButton(c, locales.AddCurrentMessage()).Clicked() {
+			d.grpcConfig.Messages = append(d.grpcConfig.Messages, d.composeBody)
+		}
+		if uikit.SecondaryButton(c, locales.SaveSentMessages()).Disabled(len(sent) == 0).Clicked() {
+			d.grpcConfig.Messages = slices.Clone(sent)
+			a.done(locales.SavedTheSessionMessages(len(sent)))
+		}
+		uikit.Meta(c, locales.SavedMessagesCount(len(d.grpcConfig.Messages)))
+	})
+	ui.Scroll(c).MinHeight(0).MaxHeight(140).Gap(t.Space(1)).Children(func() {
+		for i := range d.grpcConfig.Messages {
+			message := &d.grpcConfig.Messages[i]
+			row := ui.Row(c.Key(i)).AlignItems(ui.Start).Gap(t.Space(2))
+			row.Children(func() {
+				ui.Text(c, strconv.Itoa(i+1)).FontSize(uikit.Scaled(uikit.TextMeta)).
+					TextColor(t.TextMuted).Width(t.Space(3)).Padding(t.Space(2), 0)
+				uikit.TextArea(c, message).Label(locales.GrpcMessagePayload()).
+					Placeholder("{}").Height(48).Font(uikit.FontMono).
+					FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(0)
+				label := locales.RemoveMessage(i + 1)
+				if uikit.IconButton(c, label, label, closeIcon).Clicked() {
+					remove = i
+				}
+			})
+		}
+	})
+	if remove >= 0 {
+		d.grpcConfig.Messages = slices.Delete(d.grpcConfig.Messages, remove, remove+1)
+	}
 }

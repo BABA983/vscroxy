@@ -27,6 +27,10 @@ type SocketIOConfig struct {
 	Event       string `json:"event,omitempty"`
 	Attachments string `json:"attachments,omitempty"`
 	WantACK     bool   `json:"wantAck,omitzero"`
+	// WaitMS is how long each emit collects replies, and the window after
+	// the last one. Zero uses DefaultSocketIOWait; MaxSocketIOWait is the
+	// ceiling.
+	WaitMS int `json:"waitMs,omitzero"`
 	// Messages is the request's saved emit list. The event, arguments and
 	// attachments above are the composer; a saved message keeps what it was
 	// added with.

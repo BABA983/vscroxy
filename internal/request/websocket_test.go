@@ -398,3 +398,35 @@ func TestWebSocketWaitDefaultsAndClamps(t *testing.T) {
 		}
 	}
 }
+
+// A WebSocket send now exposes its replies to Checks and post-response
+// scripts as a synthetic 101 response with a JSON body.
+func TestWebSocketExecuteRunsChecksAndPostScript(t *testing.T) {
+	var seen [][]string
+	upstream := wsEchoServer(t, &seen)
+	srv := testProxy(t)
+	r := Request{
+		Name: "Echo", URL: "ws" + upstream.URL[4:],
+		WebSocket: WebSocketConfig{Messages: []WebSocketMessage{{Payload: "one"}, {Payload: "two"}}, WaitMS: 150},
+		Checks:    Checks{Status: "101", Headers: "X-Vscroxy-Sent: 2\nX-Vscroxy-Received: 2", JSON: `/0 = "echo:one"` + "\n" + `/1 = "echo:two"`},
+		Post:      `pm.test("two replies", () => pm.expect(pm.response.json()).to.have.length(2)); pm.globals.set("ws-done", "yes")`,
+	}
+	got := r.Execute(t.Context(), srv, Context{}, nil, nil)
+	if got.Err != nil {
+		t.Fatalf("err: %v", got.Err)
+	}
+	if got.Response == nil || got.Response.Status != 101 || got.Response.ResponseBody != `["echo:one","echo:two"]` {
+		t.Fatalf("response: %+v", got.Response)
+	}
+	if len(got.Tests) != 6 {
+		t.Fatalf("tests: %+v", got.Tests)
+	}
+	for _, test := range got.Tests {
+		if !test.Pass {
+			t.Errorf("test %q failed: %s", test.Name, test.Error)
+		}
+	}
+	if len(got.Writes) != 1 || got.Writes[0] != (Write{Scope: "global", Name: "ws-done", Value: "yes"}) {
+		t.Fatalf("writes: %+v", got.Writes)
+	}
+}

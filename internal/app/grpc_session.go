@@ -41,8 +41,11 @@ type grpcSession struct {
 	halfClosed              bool
 	state, problem, details string
 	events                  []grpcEvent
-	seq, evicted            int
-	header, trailer         metadata.MD
+	// sent is what this call wrote, in order, in the saved-message form the
+	// request keeps.
+	sent            []string
+	seq, evicted    int
+	header, trailer metadata.MD
 	// Inputs are immutable snapshots. Later messages use the original host,
 	// auth and variable scopes, not another environment selected mid-call.
 	input request.Request
@@ -127,6 +130,9 @@ func openGRPCSession(ctx context.Context, cancel context.CancelFunc, input reque
 			return
 		}
 		s.add("Out", req.Body)
+		s.mu.Lock()
+		s.sent = append(s.sent, req.Body)
+		s.mu.Unlock()
 		if !method.IsStreamingClient() {
 			if err := call.CloseSend(); err != nil {
 				final = err
@@ -153,6 +159,16 @@ func openGRPCSession(ctx context.Context, cancel context.CancelFunc, input reque
 		}
 	}()
 	return s
+}
+
+// sentMessages are the messages this call wrote, in order.
+func (s *grpcSession) sentMessages() []string {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.sent)
 }
 
 func (s *grpcSession) changed() {
@@ -200,6 +216,9 @@ func (s *grpcSession) write(body string, halfClose bool) {
 			err = call.Send([]byte(body))
 			if err == nil {
 				s.add("Out", body)
+				s.mu.Lock()
+				s.sent = append(s.sent, body)
+				s.mu.Unlock()
 			}
 		}
 		s.mu.Lock()

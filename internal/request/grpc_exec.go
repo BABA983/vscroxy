@@ -1,6 +1,7 @@
 package request
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -28,6 +29,10 @@ import (
 
 // grpcMaxMessageBytes bounds one message, as the interactive client does.
 const grpcMaxMessageBytes = 1 << 20
+
+// grpcMaxResponses bounds what one streaming call retains, so a chatty server
+// cannot grow a run's result without limit.
+const grpcMaxResponses = 1000
 
 // grpcMethod resolves the saved descriptor set and the method it calls.
 func grpcMethod(schema []byte, path string) (protoreflect.MethodDescriptor, *dynamicpb.Types, error) {
@@ -65,6 +70,8 @@ type GRPCResult struct {
 	Completed bool
 	Code      codes.Code
 	Message   string
+	// Sent and Received count the messages this call exchanged.
+	Sent, Received int
 	// Details is the status proto as JSON, including any typed details.
 	Details string
 	Header  metadata.MD
@@ -77,16 +84,16 @@ type grpcCallResult struct {
 	Body []byte
 }
 
-// grpcCall runs one unary call through the proxy. A non-OK status is a
+// grpcCall runs one call through the proxy, sending messages in order and
+// collecting every response. A unary call sends one message and receives one;
+// a client, server or bidirectional stream sends its saved list and closes the
+// send side, then reads until the server ends the stream. A non-OK status is a
 // completed call, so the result keeps its code and metadata; err is set so the
 // run reports the failure.
-func grpcCall(ctx context.Context, proxy string, req *Prepared, cfg GRPCConfig, ca []byte, certificates certs.Settings) (grpcCallResult, error) {
+func grpcCall(ctx context.Context, proxy string, req *Prepared, cfg GRPCConfig, ca []byte, certificates certs.Settings, messages []string) (grpcCallResult, error) {
 	method, types, err := grpcMethod(cfg.Schema, cfg.Method)
 	if err != nil {
 		return grpcCallResult{}, err
-	}
-	if method.IsStreamingClient() || method.IsStreamingServer() {
-		return grpcCallResult{}, fmt.Errorf("%s is a streaming method; Runner and the CLI run unary methods, and the gRPC client handles streams", cfg.Method)
 	}
 	var tlsConfig *tls.Config
 	if u, err := url.Parse(req.URL); err == nil && u.Scheme == "https" {
@@ -109,24 +116,44 @@ func grpcCall(ctx context.Context, proxy string, req *Prepared, cfg GRPCConfig, 
 		return grpcCallResult{}, err
 	}
 	result := grpcCallResult{GRPCResult: GRPCResult{Completed: true}}
-	if len(req.Body) > grpcMaxMessageBytes {
-		return grpcCallResult{}, fmt.Errorf("messages are limited to %d MiB", grpcMaxMessageBytes>>20)
-	}
-	if err := call.Send([]byte(req.Body)); err != nil {
-		return withGRPCStatus(result, err, types), err
+	for i, message := range messages {
+		if len(message) > grpcMaxMessageBytes {
+			return grpcCallResult{}, fmt.Errorf("messages are limited to %d MiB", grpcMaxMessageBytes>>20)
+		}
+		if err := call.Send([]byte(message)); err != nil {
+			result.Sent = i
+			return withGRPCStatus(result, err, types), err
+		}
+		result.Sent++
 	}
 	if err := call.CloseSend(); err != nil {
 		return withGRPCStatus(result, err, types), err
 	}
-	body, err := call.Recv()
-	if err != nil {
-		return withGRPCMetadata(withGRPCStatus(result, err, types), call), err
+	var bodies [][]byte
+	for {
+		body, err := call.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			result.Received = len(bodies)
+			return withGRPCMetadata(withGRPCStatus(result, err, types), call), err
+		}
+		bodies = append(bodies, body)
+		if len(bodies) >= grpcMaxResponses {
+			return withGRPCMetadata(withGRPCStatus(result, fmt.Errorf("more than %d response messages", grpcMaxResponses), types), call), fmt.Errorf("more than %d response messages", grpcMaxResponses)
+		}
 	}
-	result.Body = body
-	// A unary call's final status arrives with the end of the stream, after the
-	// one response message; trailers are complete only then.
-	if _, err := call.Recv(); err != nil && !errors.Is(err, io.EOF) {
-		return withGRPCMetadata(withGRPCStatus(result, err, types), call), err
+	result.Received = len(bodies)
+	// One response keeps the unary shape; several become a JSON array of the
+	// messages, and none is an empty array.
+	switch len(bodies) {
+	case 0:
+		result.Body = []byte("[]")
+	case 1:
+		result.Body = bodies[0]
+	default:
+		result.Body = append(append([]byte("["), bytes.Join(bodies, []byte(","))...), ']')
 	}
 	result.Code = codes.OK
 	return withGRPCMetadata(result, call), nil
@@ -166,7 +193,19 @@ func (r Request) executeGRPC(ctx context.Context, srv *capture.Server, in Contex
 		proxy, ca = srv.Addr(), srv.CACertificate()
 	}
 	start := time.Now()
-	result, callErr := grpcCall(ctx, proxy, req, r.GRPC, ca, in.Certificates)
+	messages := make([]string, 0, max(1, len(r.GRPC.Messages)))
+	for _, message := range r.GRPC.Messages {
+		messages = append(messages, ExpandVars(message, effective))
+	}
+	if len(messages) == 0 {
+		messages = []string{req.Body}
+	}
+	if seconds := r.GRPC.TimeoutSeconds; seconds > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(seconds)*time.Second)
+		defer cancel()
+	}
+	result, callErr := grpcCall(ctx, proxy, req, r.GRPC, ca, in.Certificates, messages)
 	flow := capture.Flow{
 		Method: "POST", URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body,
 		Status: 200, ResponseHeader: headerFromMetadata(result.Header),
@@ -174,6 +213,8 @@ func (r Request) executeGRPC(ctx context.Context, srv *capture.Server, in Contex
 		Millis: int(time.Since(start).Milliseconds()), Bytes: len(result.Body),
 	}
 	flow.ResponseHeader.Set("Grpc-Status", strconv.Itoa(int(result.Code)))
+	flow.ResponseHeader.Set("Grpc-Sent", strconv.Itoa(result.Sent))
+	flow.ResponseHeader.Set("Grpc-Received", strconv.Itoa(result.Received))
 	if result.Message != "" {
 		flow.ResponseHeader.Set("Grpc-Message", result.Message)
 	}

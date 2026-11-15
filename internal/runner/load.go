@@ -155,9 +155,10 @@ func RunLoad(ctx context.Context, srv *capture.Server, steps []Step, opts LoadOp
 		return LoadReport{}, errors.New("choose 1–200 HTTP requests and start the local proxy first")
 	}
 	for _, step := range steps {
-		// Resolve variable-based schemes inside Execute; explicit WebSocket
-		// requests have different lifetimes and are not a load scenario.
-		if step.Request.Method == "WS" || step.Request.Method == "WSS" || strings.HasPrefix(strings.ToLower(step.Request.URL), "ws:") || strings.HasPrefix(strings.ToLower(step.Request.URL), "wss:") {
+		// Resolve variable-based schemes inside Execute; protocol documents and
+		// explicit WebSocket requests have different lifetimes and are not a
+		// closed load scenario.
+		if step.Request.Protocol != "" || step.Request.Method == "WS" || step.Request.Method == "WSS" || strings.HasPrefix(strings.ToLower(step.Request.URL), "ws:") || strings.HasPrefix(strings.ToLower(step.Request.URL), "wss:") {
 			return LoadReport{}, errors.New("load runs support HTTP(S) requests only")
 		}
 	}

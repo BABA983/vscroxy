@@ -73,8 +73,8 @@ func WithRunKey(ctx context.Context, key string) context.Context {
 // vars are the environment's values; Execution.Vars returns them with the
 // scripts' writes, never the inherited, dynamic or vault values.
 func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, vars map[string]string, jar http.CookieJar) (out Execution) {
-	if r.Protocol != "" && r.Protocol != "gRPC" {
-		return Execution{Stage: "Request setup failed", Vars: vars, Err: fmt.Errorf("%s documents must be opened in their interactive protocol client; Runner supports HTTP, WebSocket and unary gRPC sends", r.Protocol)}
+	if r.Protocol != "" && r.Protocol != "gRPC" && r.Protocol != "Socket.IO" {
+		return Execution{Stage: "Request setup failed", Vars: vars, Err: fmt.Errorf("%s documents must be opened in their interactive protocol client; Runner supports HTTP, WebSocket, Socket.IO and gRPC sends", r.Protocol)}
 	}
 	run := in.scriptRun(r, vars)
 	runKey, _ := ctx.Value(debugRunKey{}).(string)
@@ -191,6 +191,9 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	if r.Protocol == "gRPC" {
 		return r.executeGRPC(ctx, srv, in, effective, run, out)
 	}
+	if r.Protocol == "Socket.IO" {
+		return r.executeSocketIO(ctx, srv, in, effective, run, out)
+	}
 	req, err := r.Prepare(effective)
 	if err != nil {
 		out.Err = err
@@ -227,10 +230,6 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 		}
 	}
 	out.Request = req
-	if IsWebSocket(req.URL) && r.Checks != (Checks{}) {
-		out.Err = fmt.Errorf("response checks require an HTTP(S) request, not a WebSocket exchange")
-		return out
-	}
 	u, err := url.Parse(req.URL)
 	if err != nil || u.Hostname() == "" || u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "ws" && u.Scheme != "wss" {
 		out.Stage, out.Err = "Request setup failed", fmt.Errorf("use an absolute HTTP(S) or WebSocket URL with a host")
@@ -260,6 +259,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 		}
 	}
 	if IsWebSocket(req.URL) {
+		start := time.Now()
 		messages := r.webSocketMessages(req.Body, effective)
 		var pushed []string
 		out.WebSocket, pushed, out.Err = wsSendMessages(ctx, srv.Addr(), req, messages, r.WebSocket.Wait(), srv.CACertificate(), in.Certificates, jar)
@@ -267,9 +267,19 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			out.Replies = append(out.Replies, exchange.Replies...)
 		}
 		out.Replies = append(out.Replies, pushed...)
-		if out.Err == nil && (r.Post != "" || slices.ContainsFunc(in.Folders, func(f Folder) bool { return f.Post != "" })) {
+		if out.Err == nil {
+			// A WebSocket exchange has no HTTP response; Checks and
+			// post-response scripts see the replies as a JSON array, with
+			// 101 as the status and the counts in headers.
+			flow := sessionFlow(req, repliesJSON(out.Replies), len(out.WebSocket), len(out.Replies), int(time.Since(start).Milliseconds()))
+			out.Response = &flow
+			run.tests = append(run.tests, r.Checks.Evaluate(flow)...)
+			run.target = func() string { return req.URL }
+			res := &jsResponse{Status: flow.Status, Body: flow.ResponseBody, Header: flow.ResponseHeader, Millis: flow.Millis, Bytes: flow.Bytes}
 			out.Stage = "Post-response script failed"
-			out.Err = fmt.Errorf("post-response scripts require an HTTP response")
+			if err := run.scripts(ctx, "post-response", in.Folders, func(f Folder) string { return f.Post }, r.Post, map[string]any{"res": res, "req": req}); err != nil {
+				out.Err = err
+			}
 		}
 	} else {
 		policy := settings.Transfer()

@@ -1647,7 +1647,13 @@ still appear in Capture with its existing retention/export capabilities.
 **Disconnect**, Escape, clicking outside or closing the panel disconnects; a
 new **Connect** starts a fresh timeline. No automatic reconnect or restart
 restore occurs. The timeline itself is session-local; the saved message list
-belongs to the request and is what Requests and Runner send.
+belongs to the request and is what Send, the Runner and `vscroxy-cli run` send.
+A headless send runs the request's pre-request scripts, sends the saved list
+with its reply window, then exposes the received payloads to Checks and
+post-response scripts as a synthetic **101** response: the body is a JSON array
+of reply strings, `X-Vscroxy-Sent` and `X-Vscroxy-Received` count the exchange,
+and `pm.response.json()` returns the array. A failed dial or send keeps the
+error and runs no response Checks.
 Automatic SSE reconnect and live gRPC timelines are not provided by this panel.
 
 ### WebSocket message interception
@@ -1817,10 +1823,17 @@ saved with the request; the live connection, ACK state and timeline are not
 saved or restored. Supports
 Socket.IO v3/v4 servers with the default parser, Engine.IO 4 and WebSocket-only
 transport. No polling fallback, automatic reconnect, retry, offline queue,
-Socket.IO v2 or alternate parsers. HTTP scripts/Checks/token bindings (including
-inherited scripts) must be removed, not silently skipped. HTTP Runner, code
-generation, History and Examples are not this client's execution API; Postman
-export skips non-HTTP documents with a warning. See [interoperability checks](socketio.md).
+Socket.IO v2 or alternate parsers. The interactive client does not run HTTP
+scripts or Checks; token bindings are refused rather than skipped. The Runner
+and `vscroxy-cli run` do run inherited and request scripts and Checks around the
+saved event list: after emitting each message (waiting for its ACK when one was
+requested) they expose the received events to Checks and post-response scripts
+as a synthetic **101** response. Its body is a JSON array of
+`{"event","args","ack","acknowledgement"}` objects, with `X-Vscroxy-Sent` and
+`X-Vscroxy-Received` counts; `WaitMS` on the request sets each reply window
+(default 1 s, at most 30 s). Code generation, History and Examples are not this
+client's execution API; Postman export skips non-HTTP documents with a warning.
+See [interoperability checks](socketio.md).
 
 ### Interactive MQTT requests
 
@@ -1927,15 +1940,23 @@ runs a unary method through the same execution path as an HTTP request, so
 the response message is the response body, and `grpc-status`/`grpc-message`
 appear as response headers (`Grpc-Status`, `Grpc-Message`) with final trailers
 under `Grpc-Trailer-*`, so a Check can assert `Grpc-Status: 0` or `Grpc-Status: 7`.
-Streaming methods (server, client and bidirectional) keep the interactive client:
+Streaming methods (server, client and bidirectional) keep an interactive client:
 the first message is sent immediately; **Send message** sends the current editor
 contents again, and **Finish sending** half-closes the send side without
 cancelling received replies. Bidirectional replies appear before finishing.
-Scripts and Checks run with unary methods only; the streaming client refuses a
-document that has them rather than skipping them. **Cancel send** cancels the
-RPC; it cannot undo work already performed by the server. The default deadline is
-30 seconds, selectable up to one hour. Closing/reloading the document or quitting
-cancels its discovery and calls. No automatic reconnect or replay occurs.
+For a client or bidirectional method the **Message** tab also lists the
+request's **saved messages**: **Add current** appends the editor's JSON,
+**Save sent** replaces the list with what this session wrote, and each row can
+be edited or removed. Runner and `vscroxy-cli run` replay that list in order
+(one message from **Message** when it is empty), half-close, and read until the
+server ends the stream. Scripts and Checks run around streaming calls the same
+way as unary: one response is the body as before, several are a JSON array, and
+`Grpc-Sent` / `Grpc-Received` count the exchange beside `Grpc-Status`,
+`Grpc-Message` and `Grpc-Trailer-*`. The call's **deadline** bounds the whole
+stream in a headless run. **Cancel send** cancels the RPC; it cannot undo work
+already performed by the server. The default deadline is 30 seconds, selectable
+up to one hour. Closing/reloading the document or quitting cancels its discovery
+and calls. No automatic reconnect or replay occurs.
 
 **Messages** retains the latest 200 input/output events with original byte counts,
 an eviction count and at most 64 KiB of UTF-8 preview each. **Copy shown message**
@@ -1948,10 +1969,9 @@ Metadata and JSON support the existing variables and host-restricted Vault.
 Auth supports inherited/explicit None, Basic, Bearer and header API keys.
 A unary call runs pre-request scripts, the call, Checks and post-response
 scripts, in that order, like HTTP; token bindings still apply only to HTTP.
-The Runner and `vscroxy-cli run` execute unary gRPC documents and report the
-same Checks, while streaming methods need the interactive client. **Save as
-example** keeps a unary response with the request, and the **Examples** tab
-edits it like an HTTP example. HTTP code generation rejects gRPC documents, and
+The Runner and `vscroxy-cli run` execute unary and streaming gRPC documents and
+report the same Checks. **Save as example** keeps a unary response with the
+request, and the **Examples** tab edits it like an HTTP example. HTTP code generation rejects gRPC documents, and
 Postman v2.1 export skips them with a warning; `vscroxy-cli run` reads them from
 a native collection directory. Streaming calls and their timelines are
 session-local, not HTTP History.

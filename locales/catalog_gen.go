@@ -8606,6 +8606,16 @@ func (msgs Messages) GrpcMethods(count int) string {
 	return Catalog.Format(msgs.locale, "grpcMethods", map[string]any{"count": count})
 }
 
+// GrpcSavedMessagesHelp says "A client or bidirectional stream sends these saved messages in order before half-closing; Runner and the CLI replay t…"
+// in the language the app shows.
+func GrpcSavedMessagesHelp() string { return In(i18n.Locale()).GrpcSavedMessagesHelp() }
+
+// GrpcSavedMessagesHelp says "A client or bidirectional stream sends these saved messages in order before half-closing; Runner and the CLI replay t…"
+// in the language of msgs.
+func (msgs Messages) GrpcSavedMessagesHelp() string {
+	return Catalog.Format(msgs.locale, "grpcSavedMessagesHelp", nil)
+}
+
 // GrpcResponse says "gRPC response"
 // in the language the app shows.
 func GrpcResponse() string { return In(i18n.Locale()).GrpcResponse() }
@@ -23838,6 +23848,16 @@ func Saved() string { return In(i18n.Locale()).Saved() }
 // in the language of msgs.
 func (msgs Messages) Saved() string {
 	return Catalog.Format(msgs.locale, "saved", nil)
+}
+
+// AddCurrentMessage says "Add current"
+// in the language the app shows.
+func AddCurrentMessage() string { return In(i18n.Locale()).AddCurrentMessage() }
+
+// AddCurrentMessage says "Add current"
+// in the language of msgs.
+func (msgs Messages) AddCurrentMessage() string {
+	return Catalog.Format(msgs.locale, "addCurrentMessage", nil)
 }
 
 // AddCurrentEvent says "Add current"

@@ -8,13 +8,8 @@ func (r Request) PrepareSocketIO(in Context, vars map[string]string) (*Prepared,
 	if r.Protocol != "Socket.IO" {
 		return nil, SocketIOConfig{}, fmt.Errorf("not a Socket.IO document")
 	}
-	if r.Pre != "" || r.Post != "" || r.Checks != (Checks{}) || len(r.TokenSources) > 0 {
-		return nil, SocketIOConfig{}, fmt.Errorf("Socket.IO does not run HTTP scripts, Checks or token bindings; remove them first")
-	}
-	for _, f := range in.Folders {
-		if f.Pre != "" || f.Post != "" {
-			return nil, SocketIOConfig{}, fmt.Errorf("Socket.IO does not run inherited HTTP scripts; use a collection without scripts")
-		}
+	if len(r.TokenSources) > 0 {
+		return nil, SocketIOConfig{}, fmt.Errorf("Socket.IO does not run token bindings; remove them first")
 	}
 	r.Auth, _ = in.InheritAuth(r.Auth)
 	switch r.Auth.Type {
