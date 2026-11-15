@@ -1,6 +1,7 @@
 package clientsetup
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -41,6 +43,13 @@ func OpenContainer(p Proxy, container string) (Argv, error) {
 	cfg, err := inspectContainer(docker, container)
 	if err != nil {
 		return Argv{}, err
+	}
+	if p.BundlePath != "" {
+		// The terminal bundle is private to this user; a container may run as
+		// another user and must still read the mounted trust file.
+		if p.BundlePath, err = containerBundle(p.BundlePath); err != nil {
+			return Argv{}, err
+		}
 	}
 	args, env, err := containerRunArgs(p, cfg)
 	if err != nil {
@@ -79,6 +88,30 @@ func inspectContainer(docker, container string) (containerConfig, error) {
 		return containerConfig{}, fmt.Errorf("container %s has no image", container)
 	}
 	return cfg, nil
+}
+
+// containerBundle copies the public CA bundle beside the original with a mode
+// a container's user can read. The terminal bundle is 0600 for this user, and
+// a bind mount keeps that mode inside the container, where the process may run
+// as another user. The bundle holds only public certificates, so 0644 is safe.
+func containerBundle(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	out := filepath.Join(filepath.Dir(path), "client-ca-bundle.container.pem")
+	if existing, err := os.ReadFile(out); err == nil && bytes.Equal(existing, data) {
+		if info, err := os.Stat(out); err == nil && info.Mode().Perm() == 0o644 {
+			return out, nil
+		}
+	}
+	if err := os.WriteFile(out, data, 0o644); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(out, 0o644); err != nil {
+		return "", err
+	}
+	return out, nil
 }
 
 func containerRunArgs(p Proxy, cfg containerConfig) ([]string, []string, error) {

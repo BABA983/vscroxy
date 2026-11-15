@@ -1,10 +1,55 @@
 package clientsetup
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 )
+
+func TestContainerBundleIsReadableByAnotherUser(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "client-ca-bundle.pem")
+	data := []byte("-----BEGIN CERTIFICATE-----\npublic\n-----END CERTIFICATE-----\n")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := containerBundle(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == path {
+		t.Fatal("the container would mount the private bundle")
+	}
+	info, err := os.Stat(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o644 {
+		t.Fatalf("container bundle mode = %o, want 644", perm)
+	}
+	if content, err := os.ReadFile(got); err != nil || !bytes.Equal(content, data) {
+		t.Fatalf("container bundle content = %q, %v", content, err)
+	}
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("the private bundle changed: %v, %v", info, err)
+	}
+	if again, err := containerBundle(path); err != nil || again != got {
+		t.Fatalf("second call = %q, %v; want %q", again, err, got)
+	}
+	changed := append(data, []byte("more\n")...)
+	if err := os.WriteFile(path, changed, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := containerBundle(path); err != nil {
+		t.Fatal(err)
+	}
+	if content, err := os.ReadFile(got); err != nil || !bytes.Equal(content, changed) {
+		t.Fatalf("a changed bundle was not copied: %q, %v", content, err)
+	}
+}
 
 func TestContainerRunArgsCarryTheProxyAndTrustBundle(t *testing.T) {
 	p := Proxy{Addr: "127.0.0.1:7890", CAPath: "/tmp/ca.pem", BundlePath: "/tmp/bundle.pem"}
