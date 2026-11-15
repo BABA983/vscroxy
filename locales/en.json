@@ -3818,5 +3818,11 @@
   "gitRenamed": "Renamed",
   "gitTypeChanged": "Type changed",
   "gitConflict": "Conflict",
-  "gitCommit": "Commit"
+  "gitCommit": "Commit",
+  "importHttpFile": "Import .http file",
+  "exportHttp": "Export .http",
+  "exportAsHttp": "Export as .http…",
+  "exportCollectionAsHttp": "Export “{name}” as .http…",
+  "@exportCollectionAsHttp": {"placeholders": {"name": {"type": "String"}}},
+  "httpExportNoRequests": "Export .http: no HTTP requests to export"
 }

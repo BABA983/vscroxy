@@ -40,6 +40,8 @@ type exportReview struct {
 	warnings                   []string
 	options                    exportOptions
 	csv                        *captureTable
+	// text redacts a non-JSON export, such as .http. nil uses redactExport.
+	text func([]byte, exportOptions) ([]byte, error)
 }
 
 // reviewExport is called on the UI thread, with already-marshaled bytes. It
@@ -164,9 +166,12 @@ func (a *app) writeReviewedExport(job exportReview) {
 	}
 	var data []byte
 	var err error
-	if job.csv != nil {
+	switch {
+	case job.csv != nil:
 		data, err = job.csv.csv(options)
-	} else {
+	case job.text != nil:
+		data, err = job.text(job.data, options)
+	default:
 		data, err = redactExport(job.data, options)
 	}
 	if err != nil {

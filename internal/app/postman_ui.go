@@ -31,7 +31,7 @@ func (a *app) importRequests() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Title:   locales.ImportText2(),
-			Filters: []mygo.FileFilter{{Name: "Postman, HAR or OpenAPI", Extensions: []string{"json", "har", "yaml", "yml"}}},
+			Filters: []mygo.FileFilter{{Name: "Postman, HAR, OpenAPI or .http", Extensions: []string{"json", "har", "yaml", "yml", "http", "rest"}}},
 		})
 		if err != nil || len(paths) == 0 {
 			return
@@ -95,6 +95,10 @@ func (a *app) importCollectionDir(path string) {
 
 // importData merges data into the library; the UI thread calls it.
 func (a *app) importData(data []byte, path string) {
+	if ext := strings.ToLower(filepath.Ext(path)); ext == ".http" || ext == ".rest" {
+		a.importHTTPFile(data, path)
+		return
+	}
 	switch postman.Detect(data) {
 	case postman.KindCollection:
 		col, err := postman.ReadCollection(data)

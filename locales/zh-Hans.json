@@ -2505,5 +2505,11 @@
   "gitRenamed": "重命名",
   "gitTypeChanged": "类型更改",
   "gitConflict": "冲突",
-  "gitCommit": "提交"
+  "gitCommit": "提交",
+  "importHttpFile": "导入 .http 文件",
+  "exportHttp": "导出 .http",
+  "exportAsHttp": "导出为 .http…",
+  "exportCollectionAsHttp": "将“{name}”导出为 .http…",
+  "@exportCollectionAsHttp": {"placeholders": {"name": {"type": "String"}}},
+  "httpExportNoRequests": "导出 .http：没有可导出的 HTTP 请求"
 }

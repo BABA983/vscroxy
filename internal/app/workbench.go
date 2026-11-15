@@ -599,10 +599,15 @@ func (a *app) actions(c *ui.Context) []action {
 		do("tools.rules", locales.ManageDebuggingRules(), a.openRules),
 	}...)
 	actions = append(actions, a.hostsActions()...)
+	collectionName := ""
+	if d != nil {
+		collectionName = collectionRoot(d.composeCollection)
+	}
 	actions = append(actions, []action{
 		do("vault.open", locales.Vault(), a.openVault),
 		do("environment.manage", locales.ManageEnvironments(), a.openVars),
 		do("request.code", locales.GenerateCode(), a.openCode).when(editing, draft),
+		do("request.export-http", locales.ExportAsHttp(), func() { a.exportHTTPDocument(d) }).when(editing, draft),
 		do("collection.settings", locales.CollectionSettings(), func() { a.openFolder(d.composeCollection) }).
 			when(editing && d.composeCollection != "", ""),
 		do("request.new", locales.NewRequest(), a.openCompose).keys(ui.Cmd, ui.KeyN),
@@ -617,6 +622,8 @@ func (a *app) actions(c *ui.Context) []action {
 		do("collection.import", locales.ImportText(), a.importRequests),
 		do("collection.import-folder", locales.ImportCollectionFolder(), a.importCollectionFolder),
 		do("collection.export-postman", locales.ExportCollectionAsPostman(), func() { a.exportPostman(collectionRoot(d.composeCollection)) }).
+			when(editing && d.composeCollection != "", ""),
+		do("collection.export-http", locales.ExportCollectionAsHttp(collectionName), func() { a.exportHTTPCollection(collectionName) }).
 			when(editing && d.composeCollection != "", ""),
 		do("app.settings", locales.OpenSettings(), func() { a.openSettings(-1) }).keys(ui.Cmd, ui.KeyComma),
 		do("go.live", locales.GoToLiveTraffic(), func() {

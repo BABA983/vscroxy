@@ -206,6 +206,7 @@
 | 代码生成：Swift、Kotlin、Java、C#、PHP、Ruby、Rust | 已有 | Swift URLSession、Kotlin OkHttp、Java 11+ java.net.http、C# HttpClient、PHP cURL、Ruby Net::HTTP、Rust reqwest；抓包／草稿共用 Generate code… 与 Copy as… 入口；Binary body 引用源文件，其他文本 body 内联；非 UTF-8 抓包 body 仍用 cURL | M9 |
 | 导入：Postman v2.0/2.1、环境、OpenAPI 3.x、cURL、HAR | 已有 | | |
 | 导入：Postman Collection v3 | 已有 | Postman v12 的本地／Native Git 格式：多文件 YAML 目录（`.resources/definition.yaml`、`*.request.yaml`、examples/messages）；复用 v2.1 的 auth、body、脚本、变量、设置和 examples 转换，无法表达的部分进导入报告。Postman 的 Export collection 仍写 v2.1 JSON，所以导出继续 v2.1 | M6 |
+| 导入导出：JetBrains／VS Code REST Client `.http` | 已有 | 一个 `.http`／`.rest` 文件导入为一个集合；`###`／`# @name` 命名请求，文件级 `@name = value` 变集合 Initial 变量，`# @timeout`／`# @no-redirect` 变请求设置；导出集合或当前请求，写入变量、auth 和 body；二进制／multipart body、协议请求、继承的文件夹 auth 和文件夹层级不导出并报告；响应处理器、文件 body 和 WEBSOCKET／GRPC 等协议请求导入时报告 | M9 |
 | 导入：Swagger 2、Insomnia、Bruno、Hoppscotch | 已有 | Swagger 2 转 OpenAPI 3 后复用集合导入；Insomnia v4 JSON／v5 YAML（集合与环境）；Bruno `.bru` 目录；Hoppscotch 集合／环境 JSON。文件夹、变量、auth、body 类型和描述尽量保留，无法表达的部分在导入报告中列出 | M7 |
 | 导入：PowerShell / CMD 风格的 cURL | 已有 | Chrome Copy as cURL (cmd) 与 Copy as PowerShell (Invoke-WebRequest)；复用 cURL 导入入口和请求模型，未支持的参数明确报错 | M7 |
 | WebSocket 客户端（文本） | 已有 | | |

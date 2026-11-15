@@ -63,6 +63,7 @@ func (a *app) menu() *mygo.Menu {
 		command("request.duplicate", locales.DuplicateAsNewRequest()),
 		command("flow.replay", locales.ReplaySelected()),
 		command("flow.copy-curl", locales.CopyAsCurl()),
+		command("request.export-http", locales.ExportAsHttp()),
 		{Label: locales.CopyAs(), Submenu: copyFormats},
 		mygo.Separator(),
 		command("request.send", locales.SendRequest()),

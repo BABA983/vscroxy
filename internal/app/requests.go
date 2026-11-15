@@ -761,6 +761,7 @@ func (a *app) documentActions(c *ui.Context, d *requestDocument) []action {
 	return []action{
 		do("request.duplicate", locales.DuplicateAsNewRequest(), func() { a.duplicateDocument(d) }).keys(ui.Cmd, ui.KeyD),
 		do("request.copy-curl", locales.CopyAsCurl(), func() { a.copyRequest(c, flow{}, d, "cURL") }),
+		do("request.export-http", locales.ExportAsHttp(), func() { a.exportHTTPDocument(d) }),
 		copyAsMenu(a.requestCopyActions(c, flow{}, d)),
 		do("request.code", locales.GenerateCode(), a.openCode),
 		do("request.history", locales.History(), func() { a.openSendHistory(d) }),

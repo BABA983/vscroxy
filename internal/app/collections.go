@@ -211,7 +211,9 @@ func (a *app) folderSettingsActions(path string) []action {
 		}
 		actions = append(actions, do("collection.settings", label, func() { a.openFolder(strings.Join(parts[:i+1], "/")) }).in("edit"))
 	}
-	return append(actions, do("collection.export-postman", "Export “"+parts[0]+"” as Postman…", func() { a.exportPostman(parts[0]) }).in("copy"))
+	return append(actions,
+		do("collection.export-postman", "Export “"+parts[0]+"” as Postman…", func() { a.exportPostman(parts[0]) }).in("copy"),
+		do("collection.export-http", locales.ExportCollectionAsHttp(parts[0]), func() { a.exportHTTPCollection(parts[0]) }).in("copy"))
 }
 
 // settingsLabel names the settings of the level path is: its collection's

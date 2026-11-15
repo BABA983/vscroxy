@@ -3010,6 +3010,24 @@ values only; local Current values are never exported. The common export options
 control auth, variables and scripts; the default script removal also removes
 generated Checks. Vault references are never resolved to secrets for export.
 
+**Import…** also reads JetBrains HTTP Client and VS Code REST Client `.http`
+and `.rest` files. Each file becomes one collection named after the file;
+`### Name` or `# @name` names a request, and file-level `@name = value` lines
+become the collection's Initial variables. `# @timeout` (milliseconds) and
+`# @no-redirect` set the request's settings. Bodies stay raw text, so JSON,
+form and multipart bodies keep their exact bytes. Response handlers
+(`> {% ... %}`), file bodies (`< ./file`), and `WEBSOCKET`, `GRPC`, `GRAPHQL`
+and other protocol requests are not imported; each is listed after the import.
+
+**Export “Shop” as .http…** on a collection, or **Export as .http…** on an
+open request, writes the same format. Collection variables become
+`@name = value` lines, and Bearer, Basic and API-key auth and URL-encoded,
+GraphQL and raw bodies are written as the request sends them. Binary and
+multipart bodies, protocol requests, inherited folder auth and folder
+structure are listed as not exported; `.http` has one flat list of requests
+and one set of file variables. The common export options redact the copy;
+**Export unredacted** writes it unchanged.
+
 **Vault…** (sidebar footer, request **⋯** menu or command palette) keeps secrets
 as name, value and optional allowed domains. Reference one anywhere a variable
 works with `{{vault:name}}`. It is unlocked only for a send whose target host is

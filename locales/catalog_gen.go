@@ -24517,3 +24517,55 @@ func GitCommit() string { return In(i18n.Locale()).GitCommit() }
 func (msgs Messages) GitCommit() string {
 	return Catalog.Format(msgs.locale, "gitCommit", nil)
 }
+
+// ImportHttpFile says "Import .http file"
+// in the language the app shows.
+func ImportHttpFile() string { return In(i18n.Locale()).ImportHttpFile() }
+
+// ImportHttpFile says "Import .http file"
+// in the language of msgs.
+func (msgs Messages) ImportHttpFile() string {
+	return Catalog.Format(msgs.locale, "importHttpFile", nil)
+}
+
+// ExportHttp says "Export .http"
+// in the language the app shows.
+func ExportHttp() string { return In(i18n.Locale()).ExportHttp() }
+
+// ExportHttp says "Export .http"
+// in the language of msgs.
+func (msgs Messages) ExportHttp() string {
+	return Catalog.Format(msgs.locale, "exportHttp", nil)
+}
+
+// ExportAsHttp says "Export as .http…"
+// in the language the app shows.
+func ExportAsHttp() string { return In(i18n.Locale()).ExportAsHttp() }
+
+// ExportAsHttp says "Export as .http…"
+// in the language of msgs.
+func (msgs Messages) ExportAsHttp() string {
+	return Catalog.Format(msgs.locale, "exportAsHttp", nil)
+}
+
+// ExportCollectionAsHttp says "Export “{name}” as .http…"
+// in the language the app shows.
+func ExportCollectionAsHttp(name string) string {
+	return In(i18n.Locale()).ExportCollectionAsHttp(name)
+}
+
+// ExportCollectionAsHttp says "Export “{name}” as .http…"
+// in the language of msgs.
+func (msgs Messages) ExportCollectionAsHttp(name string) string {
+	return Catalog.Format(msgs.locale, "exportCollectionAsHttp", map[string]any{"name": name})
+}
+
+// HttpExportNoRequests says "Export .http: no HTTP requests to export"
+// in the language the app shows.
+func HttpExportNoRequests() string { return In(i18n.Locale()).HttpExportNoRequests() }
+
+// HttpExportNoRequests says "Export .http: no HTTP requests to export"
+// in the language of msgs.
+func (msgs Messages) HttpExportNoRequests() string {
+	return Catalog.Format(msgs.locale, "httpExportNoRequests", nil)
+}

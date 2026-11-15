@@ -717,3 +717,67 @@ func TestHARImportReservesIDsAgainstLiveTraffic(t *testing.T) {
 		t.Fatalf("live flow ID = %d; the HAR row used ID 1", liveID)
 	}
 }
+
+// A .http file becomes one collection, with its @variables as the
+// collection's Initial values.
+func TestImportHTTPFile(t *testing.T) {
+	a := libraryApp(t)
+	a.importData([]byte("@baseUrl = https://api.example.com\n\n### List\nGET {{baseUrl}}/items\nAccept: application/json\n\n### Create\nPOST {{baseUrl}}/items\nContent-Type: application/json\n\n{\"name\":\"Demo\"}\n"), "shop.http")
+	want := []imported{
+		{Collection: "shop", Name: "List", Method: "GET", URL: "{{baseUrl}}/items", Headers: "Accept: application/json"},
+		{Collection: "shop", Name: "Create", Method: "POST", URL: "{{baseUrl}}/items", Headers: "Content-Type: application/json", Body: "{\"name\":\"Demo\"}"},
+	}
+	if got := importedRequests(t, a.requests); !reflect.DeepEqual(got, want) {
+		t.Fatalf("requests\n got %+v\nwant %+v", got, want)
+	}
+	if len(a.folders) != 1 || a.folders[0].Path != "shop" || len(a.folders[0].Variables) != 1 || a.folders[0].Variables[0].Initial != "https://api.example.com" {
+		t.Fatalf("folders = %+v", a.folders)
+	}
+	if a.message != "Imported “shop” · 2 requests" {
+		t.Fatalf("message = %q", a.message)
+	}
+}
+
+// A collection and an open request export as .http files; the collection
+// export leaves other collections out and carries its variables.
+func TestExportHTTPCollectionAndDocument(t *testing.T) {
+	a := libraryApp(t)
+	a.requests = []savedRequest{
+		{Request: request.Request{ID: "a", Name: "List", Collection: "Shop", Method: "GET", URL: "{{base}}/items", Headers: "Accept: application/json"}},
+		{Request: request.Request{ID: "b", Name: "Other", Collection: "Other", Method: "GET", URL: "https://other.example.com"}},
+	}
+	a.folders = []request.Folder{{Path: "Shop", Variables: []request.Variable{{Name: "base", Initial: "https://api.example.com"}}}}
+	a.exportHTTPCollection("Shop")
+	if !a.exportUI.open || a.exportUI.file != "Shop.http" {
+		t.Fatalf("export = %+v", a.exportUI)
+	}
+	text := string(a.exportUI.data)
+	if !strings.Contains(text, "@base = https://api.example.com") || !strings.Contains(text, "### List") || strings.Contains(text, "Other") {
+		t.Fatalf("collection export = %q", text)
+	}
+	a.exportHTTPDocument(&requestDocument{composeName: "List", composeCollection: "Shop", composeMethod: "GET", composeURL: "{{base}}/items"})
+	if a.exportUI.file != "List.http" || !strings.Contains(string(a.exportUI.data), "GET {{base}}/items") {
+		t.Fatalf("document export = %+v", a.exportUI)
+	}
+}
+
+func TestHTTPExportRedaction(t *testing.T) {
+	data := []byte("@base = https://api.example.com\n\n### List\nGET {{base}}/items?token=secret\nAuthorization: Bearer secret\nAccept: application/json\n\n{\"secret\":\"body\"}\n")
+	out, err := redactHTTPFile(data, safeExportOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(out)
+	for _, leaked := range []string{"Bearer secret", "token=secret", "body"} {
+		if strings.Contains(text, leaked) {
+			t.Fatalf("redacted export still holds %q: %q", leaked, text)
+		}
+	}
+	if !strings.Contains(text, "Accept: application/json") || !strings.Contains(text, "token=REDACTED") || !strings.Contains(text, "@base = [REDACTED]") {
+		t.Fatalf("redacted export = %q", text)
+	}
+	same, err := redactHTTPFile(data, exportOptions{})
+	if err != nil || !bytes.Equal(same, data) {
+		t.Fatalf("unredacted export changed: %v, %q", err, same)
+	}
+}
