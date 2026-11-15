@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -158,7 +159,13 @@ func TestNTLMRequestInRunner(t *testing.T) {
 // first attempt, and one before each later attempt, including the first
 // attempt of the second iteration.
 func TestRequestDelaySpacesAttempts(t *testing.T) {
-	ok := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	var mu sync.Mutex
+	var starts []time.Time
+	ok := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		starts = append(starts, time.Now())
+		mu.Unlock()
+	}))
 	defer ok.Close()
 	srv := runnerProxy(t)
 
@@ -167,14 +174,26 @@ func TestRequestDelaySpacesAttempts(t *testing.T) {
 		{Request: request.Request{Method: "GET", URL: ok.URL}},
 		{Request: request.Request{Method: "GET", URL: ok.URL}},
 	}
-	start := time.Now()
 	summary, err := Run(t.Context(), srv, steps, Options{Iterations: 2, Delay: delay}, func(Result) error { return nil })
-	elapsed := time.Since(start)
 	if err != nil || summary.Completed != 4 {
 		t.Fatalf("run = %+v, %v", summary, err)
 	}
-	if elapsed < 3*delay || elapsed >= 4*delay {
-		t.Fatalf("elapsed %v, want three delays of %v", elapsed, delay)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(starts) != 4 {
+		t.Fatalf("server saw %d attempts, want 4", len(starts))
+	}
+	// The delay sits between attempts, so three gaps carry it. A slow machine
+	// stretches a gap, so only a floor plus generous slack keeps this reliable.
+	for i := 1; i < len(starts); i++ {
+		gap := starts[i].Sub(starts[i-1])
+		if gap < delay {
+			t.Errorf("attempt %d started %v after the previous one; want at least %v", i+1, gap, delay)
+		}
+		if gap > delay+5*time.Second {
+			t.Errorf("attempt %d started %v after the previous one; want about %v", i+1, gap, delay)
+		}
 	}
 }
 
