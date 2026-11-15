@@ -295,7 +295,7 @@ func TestScriptControlsTheRun(t *testing.T) {
 		t.Errorf("setNextRequest(null) = %v, want a stop", out.Next)
 	}
 
-	// Waiting on the network does not use up the script's two seconds.
+	// Waiting on the network does not use up the script's CPU budget.
 	slow := Request{Method: "GET", URL: upstream.URL, Pre: `await pm.sendRequest("` + upstream.URL + `/slow")`}
 	if out := slow.Execute(t.Context(), srv, Context{}, nil, nil); out.Err != nil {
 		t.Errorf("a slow pm.sendRequest: %s: %v", out.Stage, out.Err)

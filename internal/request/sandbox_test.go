@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // sandboxExpectations is internal/request/testdata/sandbox-expectations.json,
@@ -115,7 +116,7 @@ pm.environment.set("out", JSON.stringify(out));`
 
 // TestSandboxTimers covers the script-scoped timer queue: due order, clearing,
 // intervals, awaiting a timer and tests recorded from a callback. Delays are
-// virtual and never sleep.
+// real, so the cases below keep them short.
 func TestSandboxTimers(t *testing.T) {
 	cases := []struct {
 		name, script, want string
@@ -160,7 +161,7 @@ func TestSandboxTimers(t *testing.T) {
 
 // TestSandboxHostileInputStaysBounded parses large and entity-heavy input
 // with each library that takes untrusted bodies. Every case is its own script,
-// so the normal two-second budget is the bound; a hang fails the test instead
+// so the normal script budget is the bound; a hang fails the test instead
 // of stalling the app.
 func TestSandboxHostileInputStaysBounded(t *testing.T) {
 	t.Run("cheerio", func(t *testing.T) {
@@ -267,5 +268,30 @@ func TestSandboxUnknownModule(t *testing.T) {
 	err := runScript(`require("left-pad")`, run, nil)
 	if err == nil || !strings.Contains(err.Error(), "not available") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// TestSandboxTimerDelaysAreReal checks that a script's delay waits, and that a
+// wait beyond the limit fails instead of stalling the run.
+func TestSandboxTimerDelaysAreReal(t *testing.T) {
+	run := &scriptRun{vars: map[string]string{}}
+	start := time.Now()
+	if err := runScript(`await new Promise((resolve) => setTimeout(resolve, 80)); pm.environment.set("out", "late");`, run, nil); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(start); elapsed < 60*time.Millisecond {
+		t.Fatalf("a 80 ms timer returned after %v; the delay was not real", elapsed)
+	}
+	if run.vars["out"] != "late" {
+		t.Fatalf("out = %q", run.vars["out"])
+	}
+	run = &scriptRun{vars: map[string]string{}}
+	start = time.Now()
+	err := runScript(`setTimeout(() => pm.environment.set("out", "never"), 60000);`, run, nil)
+	if err == nil || !strings.Contains(err.Error(), "limit") {
+		t.Fatalf("err = %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("a rejected 60 s wait took %v", elapsed)
 	}
 }

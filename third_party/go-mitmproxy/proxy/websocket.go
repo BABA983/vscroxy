@@ -213,6 +213,15 @@ func (h *webSocketHandler) forwardMessages(clientWS, serverWS *websocket.Conn, f
 		cancel()
 	}
 	var readers, writers sync.WaitGroup
+	// A script's pm.websocket.send goes to the server, whichever direction's
+	// message it runs on, so both processors may write to serverWS: serialize
+	// them, as gorilla allows only one writer per connection.
+	var serverMu sync.Mutex
+	writeServer := func(kind int, data []byte) error {
+		serverMu.Lock()
+		defer serverMu.Unlock()
+		return serverWS.WriteMessage(kind, data)
+	}
 	// Local shutdown must release hooks even if both directions are paused.
 	readers.Go(func() {
 		select {
@@ -254,10 +263,31 @@ func (h *webSocketHandler) forwardMessages(clientWS, serverWS *websocket.Conn, f
 					}
 					f.WebSocket.addMessage(m)
 					if !m.Drop {
-						if err := dst.WriteMessage(m.Type, m.Content); err != nil {
+						write := dst.WriteMessage
+						if fromClient {
+							write = writeServer
+						}
+						if err := write(m.Type, m.Content); err != nil {
 							fail(err)
 							return
 						}
+					}
+					for _, extra := range m.Send {
+						if err := writeServer(extra.Type, extra.Content); err != nil {
+							fail(err)
+							return
+						}
+						f.WebSocket.addMessage(extra)
+					}
+					if m.Close != nil {
+						// A script asked to end the connection: tell both peers why,
+						// then stop forwarding. The cleanup below closes the sockets.
+						deadline := time.Now().Add(time.Second)
+						frame := websocket.FormatCloseMessage(m.Close.Code, m.Close.Reason)
+						clientWS.WriteControl(websocket.CloseMessage, frame, deadline)
+						serverWS.WriteControl(websocket.CloseMessage, frame, deadline)
+						fail(fmt.Errorf("closed by script: %d %s", m.Close.Code, m.Close.Reason))
+						return
 					}
 				}
 			}

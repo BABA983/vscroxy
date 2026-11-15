@@ -198,6 +198,18 @@ type WebSocketMessage struct {
 	FromClient bool
 	Timestamp  time.Time
 	Drop       bool
+	// Send are frames a script adds after this message; they go to the server,
+	// like a live Send, and are recorded like any other message. Close, when
+	// set, ends the connection after them.
+	Send  []*WebSocketMessage
+	Close *WebSocketClose
+}
+
+// WebSocketClose is a script's request to close a WebSocket connection with a
+// status code and reason.
+type WebSocketClose struct {
+	Code   int
+	Reason string
 }
 
 func (m *WebSocketMessage) MarshalJSON() ([]byte, error) {

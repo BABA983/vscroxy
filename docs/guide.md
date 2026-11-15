@@ -923,10 +923,9 @@ repeated names. Unchecked and empty rows are not sent. A query or form that does
 not decode stays as text.
 
 Binary, undecodable and text bodies over 1 MiB are preserved read-only; their
-headers can still be edited. The 1 MiB limit is shared with scripts, so a pause
-and a script see the same bytes; it is kept as it is. Streamed exchanges do not
-offer body breakpoints. The dialog shows the pending count; queued pauses
-appear in turn.
+headers can still be edited. The limit applies to the pause dialog only:
+scripts read bodies up to 8 MiB. Streamed exchanges do not offer body
+breakpoints. The dialog shows the pending count; queued pauses appear in turn.
 
 **Continue after** sets how long an unanswered pause waits before it continues
 unchanged: 30 seconds, 1, 2 (the default), 5 or 10 minutes. The choice is saved
@@ -996,11 +995,15 @@ export async function onResponse() {
   `import moment from "moment"`, `import cheerio from "cheerio"`,
   `import xml2js from "xml2js"` and the other Postman sandbox modules load
   the built-in libraries; `require(...)` also works.
-- Bodies that are binary, compressed on the request side, or larger than 1 MiB
-  are not handed to the script and stay as they are. Streaming and SSE
+- Bodies up to 8 MiB are handed to the script; a larger body is left out and
+  stays as it is. A binary or still-compressed body has no text form:
+  `pm.request.bodyBase64()` and `pm.response.bodyBase64()` read its exact bytes,
+  while the text accessors and text edits do not apply. Streaming and SSE
   responses skip `onResponse`.
-- Each hook has two seconds of run time; one that fails or times out leaves the
-  exchange as it was, is counted in the status bar and shows in the Console.
+- Each hook has ten seconds of CPU-bound run time; time spent waiting on
+  `pm.sendRequest` or a timer does not count. One that fails or times out
+  leaves the exchange as it was, is counted in the status bar and shows in the
+  Console.
 
 ### Code mocks
 
@@ -1040,7 +1043,7 @@ export function onMock() {
   Generated bodies are at most **1 MiB**, headers **64 KiB**, status **200–599**.
   Connection/framing and Content-Encoding headers are removed, length is
   recalculated, and HEAD/204/205/304 responses send no body. The existing
-  two-second script execution budget applies; this is not a memory sandbox.
+  ten-second script execution budget applies; this is not a memory sandbox.
 - HTTPS needs inspection enabled for that app/host and the client to trust
   vscroxy's CA. A potentially matching Code Mock host uses a generated
   certificate **without first connecting upstream**; unmatched requests dial
@@ -1677,10 +1680,18 @@ script chain and breakpoint. Empty payloads are valid. There is no `pm.message`
 or global `message` alias. `pm.info.eventName` is `message`.
 
 Incoming messages over 1 MiB skip scripts; setters enforce the same byte limit.
-A failed/invalid/timed-out hook preserves the message and connection-local
-variables as they were before that rule, logs its error to the Scripts Console,
-and lets later rules run. Successful earlier rules remain applied. The existing
-CPU budget and direct `pm.sendRequest` path apply, with connection cancellation.
+`pm.websocket.send(text)`, `pm.websocket.sendBase64(base64)` and
+`pm.websocket.close(code, reason)` act after the current message. Sends always
+go to the server, as a live Send does, even when the hook ran on a message the
+server sent; they are recorded as outgoing messages in the connection's
+timeline. Each sent message is at most 1 MiB. A close code is 1000–4999,
+except 1004, 1005, 1006 and 1015, and its reason is at most 123 bytes; the
+connection then closes with that code and reason after the message and any
+sends. A failed/invalid/timed-out hook preserves the message,
+connection-local variables, sends and close as they were before that rule,
+logs its error to the Scripts Console, and lets later rules run. Successful
+earlier rules remain applied. The existing CPU budget and direct
+`pm.sendRequest` path apply, with connection cancellation.
 `pm.variables` last for one connection and are shared across both directions;
 script chains are serialized, but a paused dialog does not hold that lock.
 Every hook has a fresh JS runtime: use variables, not module closures, for state.
@@ -2449,8 +2460,8 @@ variables. cURL export encodes the draft without executing scripts.
 
 Request scripts use Postman's `pm` API, so scripts from an imported collection
 run as they are. Each runs as the body of an async function, so `await` works
-at the top level, with two seconds of run time (time spent waiting on
-`pm.sendRequest` does not count).
+at the top level, with ten seconds of CPU-bound run time (time spent waiting
+on `pm.sendRequest` or a timer does not count).
 
 - **Variables**: `pm.environment`, `pm.globals`, `pm.collectionVariables` and
   `pm.variables` (`get`, `set`, `unset`, `has`, `clear`, `toObject`,
@@ -2563,14 +2574,16 @@ functions. `xml2Json` is the same wrapper Postman uses: xml2js with
 `explicitArray: false`, `async: false`, `trim: true` and `mergeAttrs: false`.
 `Buffer` and the other globals load their library on first access.
 
-Timers are script-scoped and virtual. `setTimeout`, `setInterval`,
+Timers are script-scoped and real. `setTimeout`, `setInterval`,
 `setImmediate`, `clearTimeout`, `clearInterval`, `clearImmediate` and
 `queueMicrotask` exist, and `await` works with them. Callbacks run after the
-script body in due order, before `pm.test` results are collected; the delay is
-ordering only and never sleeps, so a long delay does not stall the app. An
-interval keeps firing until it is cleared or the normal two-second script
-budget interrupts it. There is no Node event loop and no I/O timer: use
-`pm.sendRequest` for network work.
+script body in due order, before `pm.test` results are collected; a delay
+really waits, so a long delay stalls the app until it fires. The delays one
+hook waits in total are limited to 10 seconds, and a timer past that fails the
+hook instead of sleeping; waiting does not consume the CPU budget. An interval
+keeps firing until it is cleared or the ten-second script budget interrupts
+it. There is no Node event loop and no I/O timer: use `pm.sendRequest` for
+network work.
 
 Moment is the latest 2.x release (2.31.0) in the line Postman's sandbox loads
 (2.30.1), the same minified build without locale files, with only its built-in
@@ -3027,7 +3040,7 @@ iterations past the last row reuse it, as in Postman. A row's values are never
 written to the environment. **Remove** goes back to running without one.
 Select/reorder steps, set 1–1000 iterations, and optionally stop on HTTP errors,
 failed assertions or execution errors. Each step has a 30-second deadline;
-scripts have a 2-second limit and cancellation interrupts both scripts and I/O.
+scripts have a 10-second limit and cancellation interrupts both scripts and I/O.
 The starting environment is snapshotted; script variables and session cookies
 carry into later steps. Results show status, timing and assertions (latest 1000
 rows, with cumulative totals). Closing the dialog leaves the run active;

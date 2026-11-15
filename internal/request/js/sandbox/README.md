@@ -87,8 +87,9 @@ script-scoped queue in `internal/request/script.go`:
 
 - callbacks run after the script body, before `pm.test` results are collected;
 - due order decides order, and equal due times use scheduling order;
-- delays are virtual and never sleep, so a long delay cannot stall the UI;
-- intervals repeat until cleared or the normal two-second script budget
+- delays really wait, and one hook may wait at most 10 seconds in total;
+  waiting does not consume the CPU budget;
+- intervals repeat until cleared or the normal ten-second script budget
   interrupts the script;
 - a pending `await` can be settled by a timer; a promise with no timer left is
   still "awaited something that never finished";
@@ -96,13 +97,13 @@ script-scoped queue in `internal/request/script.go`:
 
 This is enough for xml2js's `async: true` / `parseStringPromise`, lodash
 `delay`/`debounce` and Postman scripts that use zero-delay callbacks. It is
-not a real-time scheduler: `setTimeout(fn, 60000)` runs as soon as the body
-finishes, not a minute later.
+not a real-time scheduler: `setTimeout(fn, 60000)` fails the hook instead of
+waiting a minute, because a hook may wait at most 10 seconds.
 
 ## Hostile input
 
 cheerio 0.22.0 and xml2js 0.6.2 parse untrusted response bodies. They run
-inside the same two-second script budget as any other script code, so a
+inside the same ten-second script budget as any other script code, so a
 pathological input is interrupted rather than hanging the app. sax does not
 expand DTD entities or resolve external entities, so XML entity expansion
 cannot multiply the input. csv-parse's sync API is used, so it never waits on

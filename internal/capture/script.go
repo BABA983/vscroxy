@@ -24,9 +24,10 @@ type ScriptRunner interface {
 
 // ScriptExchange is an exchange as a rule script reads and edits it. In the
 // request phase the request's fields are what the script may change; in the
-// response phase, the response's. A body that is not text, or is larger
-// than 1 MiB, is left out and stays as it is: Binary says so. In the mock
-// phase the request is read-only and the script generates the response.
+// response phase, the response's. Body and ResponseBody hold the bytes, up to
+// maxScriptBody; BinaryBody and BinaryResult say a body has no text form, so
+// only its base64 accessor reads it and a text edit cannot replace it. In the
+// mock phase the request is read-only and the script generates the response.
 type ScriptExchange struct {
 	Phase string // "request", "response", "mock" or "message"
 	Rule  string // the rule's name, or its script's
@@ -42,10 +43,23 @@ type ScriptExchange struct {
 	ResponseBody []byte
 	BinaryResult bool
 	Message      *ScriptMessage
+	// Send are frames a message script adds after this one, and Close ends the
+	// connection after them.
+	Send  []ScriptMessage
+	Close *ScriptClose
 	// Locals are pm.variables, which the scripts of one exchange share from
 	// its request to its response.
 	Locals map[string]string
 }
+
+// ScriptClose is a message script's request to end the WebSocket connection.
+type ScriptClose struct {
+	Code   int
+	Reason string
+}
+
+// maxScriptMessage bounds one WebSocket message a script reads or edits.
+const maxScriptMessage = 1 << 20
 
 // ScriptMessage is one complete WebSocket data message. Edits apply only when
 // the hook succeeds. Locals on its exchange are shared for this connection.
@@ -130,10 +144,7 @@ func (s *Server) runRequestScripts(f *proxy.Flow) {
 		}
 		binary := !textBody(f.Request.Body, f.Request.Header.Get("Content-Encoding"))
 		x := &ScriptExchange{Phase: "request", Rule: scriptRuleName(r), App: req.App,
-			Method: f.Request.Method, URL: f.Request.URL.String(), Header: f.Request.Header.Clone(), BinaryBody: binary, Locals: d.locals}
-		if !binary {
-			x.Body = f.Request.Body
-		}
+			Method: f.Request.Method, URL: f.Request.URL.String(), Header: f.Request.Header.Clone(), Body: f.Request.Body, BinaryBody: binary, Locals: d.locals}
 		if err := runner.Run(scriptContext(f), r.Target, x); err != nil {
 			s.scriptErrors.Add(1)
 			recordAction(f, "Request script "+r.Target+" failed")
@@ -175,14 +186,11 @@ func (s *Server) runResponseScripts(f *proxy.Flow, body []byte) (ran, bodyEdited
 		x := &ScriptExchange{Phase: "response", Rule: scriptRuleName(r), App: s.clientProcess(f).Name,
 			Method: f.Request.Method, URL: f.Request.URL.String(), Header: f.Request.Header.Clone(),
 			Status: f.Response.StatusCode, Response: f.Response.Header.Clone(), BinaryResult: binary, Locals: d.locals}
-		if textBody(f.Request.Body, f.Request.Header.Get("Content-Encoding")) {
-			x.Body = f.Request.Body
-		} else {
+		x.Body = f.Request.Body
+		if !textBody(f.Request.Body, f.Request.Header.Get("Content-Encoding")) {
 			x.BinaryBody = true
 		}
-		if !binary {
-			x.ResponseBody = body
-		}
+		x.ResponseBody = body
 		if x.Response == nil {
 			x.Response = http.Header{}
 		}

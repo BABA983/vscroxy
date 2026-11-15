@@ -214,6 +214,9 @@
 			headers: headers,
 			get body() { return body(); },
 			set body(v) { body().update(v); },
+			// bodyBase64 reads the exact request bytes, including a binary body
+			// that body.raw cannot show.
+			bodyBase64: function () { return r.bodyBase64(); },
 			addHeader: headers.add || function () {},
 			removeHeader: headers.remove || function () {},
 			upsertHeader: headers.upsert || function () {},
@@ -335,6 +338,18 @@
 		return a;
 	}
 
+	// makeWebSocket is pm.websocket in a message script: frames sent to the
+	// server after this message, and an optional close.
+	function makeWebSocket(w) {
+		return {
+			send: function (v) { return w.send(text(v)); },
+			sendBase64: function (v) { return w.sendBase64(text(v)); },
+			close: function (code, reason) {
+				return w.close(code === undefined ? 1000 : Number(code), reason === undefined ? "" : text(reason));
+			},
+		};
+	}
+
 	// makeResponse is pm.response. A rule script's response is editable: code
 	// can be assigned, headers changed and setBody replaces the body.
 	// responseCookies is pm.response.cookies: each Set-Cookie header's name and
@@ -357,6 +372,9 @@
 			responseSize: r.size,
 			headers: headerList(r.headers, r.add, r.upsert, r.remove),
 			text: function () { return r.body; },
+			// bodyBase64 reads the exact bytes, including a binary body that
+			// text() cannot show.
+			bodyBase64: function () { return r.bodyBase64(); },
 			json: function () { return parseJSON(r.body); },
 			reason: function () { return r.status; },
 			size: function () { return { body: r.body.length, total: r.size }; },
@@ -514,6 +532,7 @@
 		Object.defineProperty(pm, "request", { get: function () { return mockRequest; }, set: readOnlyRequest });
 	}
 	if (host.response) pm.response = makeResponse(host.response);
+	if (host.websocket) pm.websocket = makeWebSocket(host.websocket);
 	global.pm = pm;
 
 	global.console = {

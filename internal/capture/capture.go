@@ -58,8 +58,10 @@ const (
 	maxBody = 64 << 10
 	// maxRuleBody bounds what a map local rule serves from a file.
 	maxRuleBody = 8 << 20
-	// maxScriptBody bounds what a response script reads.
-	maxScriptBody = 1 << 20
+	// maxScriptBody bounds what a script reads; a larger body is not passed.
+	maxScriptBody = 8 << 20
+	// maxBreakpointBody bounds the body a breakpoint shows and edits.
+	maxBreakpointBody = 1 << 20
 	// maxFrames bounds the messages kept for one WebSocket or SSE flow, and
 	// maxFrameBytes what one message keeps in memory.
 	maxFrames     = 200
@@ -1148,7 +1150,7 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 	if phase == PhaseResponse && f.Response != nil {
 		body, err = f.Response.DecodedBody()
 	}
-	bp.BodyReadOnly = err != nil || len(body) > maxScriptBody || !utf8.Valid(body) || bytes.ContainsRune(body, 0)
+	bp.BodyReadOnly = err != nil || len(body) > maxBreakpointBody || !utf8.Valid(body) || bytes.ContainsRune(body, 0)
 	if !bp.BodyReadOnly {
 		bp.Body = string(body)
 	}

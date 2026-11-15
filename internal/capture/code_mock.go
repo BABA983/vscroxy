@@ -8,6 +8,10 @@ import (
 	"golang.org/x/net/http/httpguts"
 )
 
+// maxMockBody bounds a Code Mock's input and generated body. It is smaller
+// than a script's body limit: a mock generates a response from text.
+const maxMockBody = 1 << 20
+
 // codeMock runs only the winning response rule. No failure here can fall
 // through to an upstream: an absent/broken script is still a local 502.
 func (s *Server) codeMock(f *proxy.Flow, r Rule) *proxy.Response {
@@ -18,7 +22,7 @@ func (s *Server) codeMock(f *proxy.Flow, r Rule) *proxy.Response {
 			Header: http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
 			Body:   []byte("code mock: " + message + "\n")}
 	}
-	if f.Stream || len(f.Request.Body) > maxScriptBody {
+	if f.Stream || len(f.Request.Body) > maxMockBody {
 		return fail(http.StatusRequestEntityTooLarge, "requires a complete buffered request body of at most 1 MiB")
 	}
 	if !textBody(f.Request.Body, f.Request.Header.Get("Content-Encoding")) {
@@ -40,7 +44,7 @@ func (s *Server) codeMock(f *proxy.Flow, r Rule) *proxy.Response {
 		// Console owns diagnostics; never echo an exception to the client.
 		return fail(http.StatusBadGateway, "script failed; see Scripts Console")
 	}
-	if x.Status < 200 || x.Status > 599 || len(x.ResponseBody) > maxScriptBody {
+	if x.Status < 200 || x.Status > 599 || len(x.ResponseBody) > maxMockBody {
 		return fail(http.StatusBadGateway, "response must have status 200–599 and a body of at most 1 MiB")
 	}
 	headers := make(http.Header)

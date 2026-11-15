@@ -132,11 +132,23 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 	if x.Phase != "mock" {
 		run.send = func(req *Prepared) (capture.Flow, error) { return sendDirect(ctx, req) }
 	}
-	req := &Prepared{Method: x.Method, URL: x.URL, Header: x.Header.Clone(), Body: string(x.Body)}
+	req := &Prepared{Method: x.Method, URL: x.URL, Header: x.Header.Clone()}
+	if !x.BinaryBody {
+		req.Body = string(x.Body)
+	}
 	if req.Header == nil {
 		req.Header = http.Header{}
 	}
 	objects := map[string]any{"req": req}
+	if x.BinaryBody {
+		// A binary request body has no text form; bodyBase64 reads these bytes.
+		objects["reqBase64"] = base64.StdEncoding.EncodeToString(x.Body)
+	}
+	var send *scriptWebSocket
+	if message != nil {
+		send = &scriptWebSocket{}
+		objects["websocket"] = send
+	}
 	argument := ""
 	if message != nil {
 		objects["message"] = message
@@ -148,6 +160,11 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 	var res *jsResponse
 	if x.Phase == "response" {
 		res = &jsResponse{Status: x.Status, Header: x.Response.Clone(), Body: string(x.ResponseBody), Bytes: len(x.ResponseBody), editable: true}
+		if x.BinaryResult {
+			// A binary response body has no text form; bodyBase64 reads these
+			// bytes and text edits cannot replace them.
+			res.Body, res.Base64 = "", base64.StdEncoding.EncodeToString(x.ResponseBody)
+		}
 		objects["res"] = res
 	}
 	if x.Phase == "mock" {
@@ -167,6 +184,7 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 	}
 	if message != nil {
 		*x.Message = *message
+		x.Send, x.Close = send.messages, send.close
 		return out, nil
 	}
 	if x.Phase == "request" {

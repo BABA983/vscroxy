@@ -229,6 +229,14 @@ current complete message explicitly. Forwarding consumes its edited Type,
 Content and Drop flag. Capture and LogAddon no longer guess the message from
 the last entry of a concurrently appended history. History appends stay locked.
 
+An addon may also set `Send` to frames to write after the message and `Close`
+to end the connection with a status code and reason. A send always goes to the
+server, whichever direction's message it follows, so both processors may write
+to that socket; a mutex serializes those writes. Close frames go to both peers,
+the history keeps the sent frames, and the forwarding loop then fails with
+`closed by script`. `internal/capture` turns a message script's
+`pm.websocket.send`/`sendBase64`/`close` into these fields.
+
 Each direction has a reader and a processor joined at connection end. An
 unbuffered handoff allows one message of lookahead while a hook pauses, then
 applies backpressure. Reading a close/error or closing the wrapped client

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -669,5 +670,77 @@ func TestProxyScriptMessageTimeoutAndCancellation(t *testing.T) {
 				t.Fatalf("interrupted hook published message: %+v", x.Message)
 			}
 		})
+	}
+}
+
+// TestProxyScriptReadsBinaryAndLargeBodies checks the body accessors: a binary
+// body is readable as base64, and a body past the old 1 MiB limit is passed.
+func TestProxyScriptReadsBinaryAndLargeBodies(t *testing.T) {
+	s, err := ParseProxyScript("t", `export function onRequest() {
+	pm.variables.set("raw", pm.request.body.raw);
+	pm.variables.set("b64", pm.request.bodyBase64());
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x := &capture.ScriptExchange{Phase: "request", URL: "https://api.test/", Header: http.Header{},
+		Body: []byte{0, 255, 128, 1}, BinaryBody: true, Locals: map[string]string{}}
+	if _, err := s.Run(t.Context(), x, ProxyEnv{}); err != nil {
+		t.Fatal(err)
+	}
+	if x.Locals["raw"] != "" || x.Locals["b64"] != "AP+AAQ==" {
+		t.Fatalf("binary body: raw %q b64 %q", x.Locals["raw"], x.Locals["b64"])
+	}
+	// A body past the old 1 MiB limit reaches the script and is not replaced.
+	large := strings.Repeat("x", (1<<20)+17)
+	s, err = ParseProxyScript("t", `export function onRequest() {
+	pm.variables.set("size", String(pm.request.body.raw.length));
+	pm.variables.set("b64", pm.request.bodyBase64());
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x = &capture.ScriptExchange{Phase: "request", URL: "https://api.test/", Header: http.Header{},
+		Body: []byte(large), Locals: map[string]string{}}
+	if _, err := s.Run(t.Context(), x, ProxyEnv{}); err != nil {
+		t.Fatal(err)
+	}
+	if x.Locals["size"] != strconv.Itoa(len(large)) || x.Locals["b64"] != base64.StdEncoding.EncodeToString([]byte(large)) {
+		t.Fatalf("large body: size %q, %d base64 bytes", x.Locals["size"], len(x.Locals["b64"]))
+	}
+	if string(x.Body) != large {
+		t.Fatal("the large body was replaced")
+	}
+	// A text body's base64 follows an edit, not the bytes it arrived with.
+	s, err = ParseProxyScript("t", `export function onRequest() {
+	pm.request.body.update("changed");
+	pm.variables.set("b64", pm.request.bodyBase64());
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x = &capture.ScriptExchange{Phase: "request", URL: "https://api.test/", Header: http.Header{},
+		Body: []byte("original"), Locals: map[string]string{}}
+	if _, err := s.Run(t.Context(), x, ProxyEnv{}); err != nil {
+		t.Fatal(err)
+	}
+	if x.Locals["b64"] != base64.StdEncoding.EncodeToString([]byte("changed")) || string(x.Body) != "changed" {
+		t.Fatalf("edited body: b64 %q, body %q", x.Locals["b64"], x.Body)
+	}
+	// A binary response is readable as base64 too.
+	s, err = ParseProxyScript("t", `export function onResponse() {
+	pm.variables.set("text", pm.response.text());
+	pm.variables.set("b64", pm.response.bodyBase64());
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x = &capture.ScriptExchange{Phase: "response", URL: "https://api.test/", Header: http.Header{},
+		Response: http.Header{}, Status: 200, ResponseBody: []byte{0, 255, 42}, BinaryResult: true, Locals: map[string]string{}}
+	if _, err := s.Run(t.Context(), x, ProxyEnv{}); err != nil {
+		t.Fatal(err)
+	}
+	if x.Locals["text"] != "" || x.Locals["b64"] != "AP8q" {
+		t.Fatalf("binary response: text %q b64 %q", x.Locals["text"], x.Locals["b64"])
 	}
 }

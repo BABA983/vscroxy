@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/vault"
@@ -206,8 +207,11 @@ func (r *Prepared) edited(name string) {
 // response is editable: its code, headers and body change what the client
 // gets.
 type jsResponse struct {
-	Status   int
-	Body     string
+	Status int
+	Body   string
+	// Base64 is the exact body bytes, for a body that is binary or not valid
+	// UTF-8; empty means Body holds them.
+	Base64   string
 	Header   http.Header
 	Millis   int
 	Bytes    int
@@ -476,8 +480,16 @@ func runScript(src string, run *scriptRun, objects map[string]any) error {
 	return runScriptContext(context.Background(), src, run, objects)
 }
 
-// budget is a script's two seconds of CPU-bound time, paused while
-// pm.sendRequest waits on the network.
+// Script limits. The budget is CPU-bound time, paused while the script waits
+// on the network or a timer; a script may wait at most maxScriptWait of real
+// time in timers.
+const (
+	scriptBudget  = 10 * time.Second
+	maxScriptWait = 10 * time.Second
+)
+
+// budget is a script's CPU-bound time, paused while pm.sendRequest waits on the
+// network or a timer sleeps.
 type budget struct {
 	mu        sync.Mutex
 	remaining time.Duration
@@ -508,9 +520,9 @@ func (b *budget) resume() {
 }
 
 // scriptTimer is one pending setTimeout, setImmediate or setInterval. due and
-// interval are virtual milliseconds: the queue runs callbacks as soon as the
-// script body has finished, in due order, without sleeping. The script's
-// existing budget still bounds the total work.
+// interval are milliseconds from the script's start; callbacks run after the
+// script body, in due order, and a delay really waits, bounded by
+// maxScriptWait.
 type scriptTimer struct {
 	id, due, interval, seq int64
 	fn                     goja.Callable
@@ -570,8 +582,9 @@ func (t *scriptTimers) clear(id goja.Value) {
 
 // drain runs queued timers until none are left, or until promise settles.
 // A callback can schedule more timers; the budget interrupts a loop that
-// never lets the script finish.
-func (t *scriptTimers) drain(promise *goja.Promise) error {
+// never lets the script finish, and maxScriptWait bounds the real waits.
+func (t *scriptTimers) drain(ctx context.Context, clock *budget, promise *goja.Promise) error {
+	waited := time.Duration(0)
 	for {
 		// A rejected script stops; a fulfilled one still runs timers it
 		// scheduled, and a pending one may be settled by a timer.
@@ -589,6 +602,18 @@ func (t *scriptTimers) drain(promise *goja.Promise) error {
 			return nil
 		}
 		timer := t.entries[best]
+		if delay := time.Duration(timer.due-t.now) * time.Millisecond; delay > 0 {
+			if waited+delay > maxScriptWait {
+				return fmt.Errorf("script timers waited %s; the limit is %s", waited+delay, maxScriptWait)
+			}
+			clock.pause()
+			err := sleepContext(ctx, delay)
+			clock.resume()
+			waited += delay
+			if err != nil {
+				return err
+			}
+		}
 		t.now = max(t.now, timer.due)
 		if timer.interval > 0 {
 			timer.due = t.now + timer.interval
@@ -601,6 +626,18 @@ func (t *scriptTimers) drain(promise *goja.Promise) error {
 	}
 }
 
+// sleepContext waits for d or the script's cancellation.
+func sleepContext(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // Bound user scripts as well as network I/O. Interrupt also lets Runner cancel
 // a script loop without leaving a goroutine (or the UI thread) stuck in Goja.
 func runScriptContext(ctx context.Context, src string, run *scriptRun, objects map[string]any) error {
@@ -608,7 +645,7 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 		return nil
 	}
 	vm := goja.New()
-	clock := newBudget(2*time.Second, func() { vm.Interrupt(context.DeadlineExceeded) })
+	clock := newBudget(scriptBudget, func() { vm.Interrupt(context.DeadlineExceeded) })
 	defer clock.pause()
 	stop := context.AfterFunc(ctx, func() { vm.Interrupt(ctx.Err()) })
 	defer stop()
@@ -672,7 +709,7 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 	// Timers run after the script body, as Postman waits for its timer queue
 	// before finishing the execution and reporting tests. A pending promise
 	// can be resolved by a timer; one that never settles is an error below.
-	if err := timers.drain(promise); err != nil {
+	if err := timers.drain(ctx, clock, promise); err != nil {
 		_ = finish()
 		return err
 	}
@@ -1026,6 +1063,12 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 					req.editedBody = true
 				}
 			},
+			"bodyBase64": func() string {
+				if encoded, ok := objects["reqBase64"].(string); ok && encoded != "" {
+					return encoded
+				}
+				return base64.StdEncoding.EncodeToString([]byte(req.Body))
+			},
 			"headers": func() goja.Value { return pairs(req.Header) },
 			"add":     req.Add,
 			"upsert":  req.Set,
@@ -1038,6 +1081,45 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	}
 	if message, ok := objects["message"].(*capture.ScriptMessage); ok {
 		set("message", messageObject(vm, message))
+	}
+	if ws, ok := objects["websocket"].(*scriptWebSocket); ok {
+		set("websocket", map[string]any{
+			"send": func(value goja.Value) error {
+				s, ok := value.(goja.String)
+				if !ok {
+					return errors.New("pm.websocket.send requires a string")
+				}
+				if s.Length() > maxScriptMessage {
+					return errors.New("WebSocket messages are limited to 1 MiB")
+				}
+				if text := s.String(); !utf8.ValidString(text) || len(text) > maxScriptMessage {
+					return errors.New("pm.websocket.send requires valid UTF-8 text")
+				}
+				ws.messages = append(ws.messages, capture.ScriptMessage{Type: "text", Data: []byte(s.String())})
+				return nil
+			},
+			"sendBase64": func(encoded string) error {
+				if len(encoded) > base64.StdEncoding.EncodedLen(maxScriptMessage) {
+					return errors.New("WebSocket messages are limited to 1 MiB")
+				}
+				data, err := base64.StdEncoding.Strict().DecodeString(encoded)
+				if err != nil || base64.StdEncoding.EncodeToString(data) != encoded {
+					return errors.New("pm.websocket.sendBase64 requires valid padded base64")
+				}
+				ws.messages = append(ws.messages, capture.ScriptMessage{Type: "binary", Data: data})
+				return nil
+			},
+			"close": func(code int, reason string) error {
+				if code < 1000 || code > 4999 || code == 1004 || code == 1005 || code == 1006 || code == 1015 {
+					return errors.New("pm.websocket.close requires a status code from 1000 to 4999, except 1004, 1005, 1006 and 1015")
+				}
+				if len(reason) > 123 {
+					return errors.New("pm.websocket.close reason is limited to 123 bytes")
+				}
+				ws.close = &capture.ScriptClose{Code: code, Reason: reason}
+				return nil
+			},
+		})
 	}
 	return h, nil
 }
@@ -1113,6 +1195,12 @@ func responseObject(vm *goja.Runtime, res *jsResponse, pairs func(http.Header) g
 	obj.Set("time", res.Millis)
 	obj.Set("size", res.Bytes)
 	obj.Set("headers", func() goja.Value { return pairs(res.Header) })
+	obj.Set("bodyBase64", func() string {
+		if res.Base64 != "" {
+			return res.Base64
+		}
+		return base64.StdEncoding.EncodeToString([]byte(res.Body))
+	})
 	obj.Set("body", res.Body)
 	if res.editable {
 		if res.Header == nil {
@@ -1149,4 +1237,11 @@ func (r *scriptRun) passed() int {
 		}
 	}
 	return n
+}
+
+// scriptWebSocket collects pm.websocket in the message phase: frames to send
+// after the message and an optional close.
+type scriptWebSocket struct {
+	messages []capture.ScriptMessage
+	close    *capture.ScriptClose
 }

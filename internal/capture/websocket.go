@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"maps"
+	"time"
 	"unicode/utf8"
 
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
@@ -37,7 +38,7 @@ func (s *Server) interceptMessage(ctx context.Context, f *proxy.Flow, m *proxy.W
 	}
 	s.hit(*matched)
 	bp := Breakpoint{Phase: PhaseMessage, Method: f.Request.Method, URL: req.URL,
-		Direction: direction, MessageType: wsFrameKind(m.Type), BodyReadOnly: len(m.Content) > maxScriptBody}
+		Direction: direction, MessageType: wsFrameKind(m.Type), BodyReadOnly: len(m.Content) > maxBreakpointBody}
 	if !bp.BodyReadOnly {
 		if m.Type == 2 {
 			bp.Body = base64.StdEncoding.EncodeToString(m.Content)
@@ -66,14 +67,14 @@ func (s *Server) interceptMessage(ctx context.Context, f *proxy.Flow, m *proxy.W
 			return
 		}
 	}
-	if len(data) <= maxScriptBody && (m.Type == 2 || utf8.Valid(data)) {
+	if len(data) <= maxBreakpointBody && (m.Type == 2 || utf8.Valid(data)) {
 		m.Content = data
 	}
 }
 
 func (s *Server) runMessageScripts(ctx context.Context, f *proxy.Flow, m *proxy.WebSocketMessage, direction string) {
 	runner, d := s.scriptRunner(), debugOf(f)
-	if runner == nil || d == nil || len(m.Content) > maxScriptBody {
+	if runner == nil || d == nil || len(m.Content) > maxScriptMessage {
 		return
 	}
 	d.messageMu.Lock()
@@ -106,7 +107,7 @@ func (s *Server) runMessageScripts(ctx context.Context, f *proxy.Flow, m *proxy.
 			continue // this rule's message edits and locals are not published
 		}
 		msg := x.Message
-		if msg == nil || len(msg.Data) > maxScriptBody || msg.Type != "text" && msg.Type != "binary" || msg.Type == "text" && !utf8.Valid(msg.Data) {
+		if msg == nil || len(msg.Data) > maxScriptMessage || msg.Type != "text" && msg.Type != "binary" || msg.Type == "text" && !utf8.Valid(msg.Data) {
 			s.scriptErrors.Add(1)
 			continue
 		}
@@ -115,6 +116,20 @@ func (s *Server) runMessageScripts(ctx context.Context, f *proxy.Flow, m *proxy.
 		m.Type = 1
 		if msg.Type == "binary" {
 			m.Type = 2
+		}
+		for _, extra := range x.Send {
+			kind := 1
+			if extra.Type == "binary" {
+				kind = 2
+			}
+			// pm.websocket.send addresses the server, as a live Send does,
+			// even when the script runs on a message the server sent.
+			extra := &proxy.WebSocketMessage{Type: kind, Content: bytes.Clone(extra.Data), FromClient: true, Timestamp: time.Now()}
+			m.Send = append(m.Send, extra)
+			s.emitFrame(f, frameInput{Direction: "out", Kind: wsFrameKind(kind), Data: extra.Content, At: extra.Timestamp})
+		}
+		if x.Close != nil {
+			m.Close = &proxy.WebSocketClose{Code: x.Close.Code, Reason: x.Close.Reason}
 		}
 	}
 }
