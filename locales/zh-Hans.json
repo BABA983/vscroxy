@@ -2630,4 +2630,6 @@
   "importUrlHint": "通过 HTTP(S) 读取 Postman、Thunder Client、SoapUI、JMeter、HAR 或 OpenAPI 文档，最大 32 MiB。",
   "importUrlNeedsHttp": "请输入 http:// 或 https:// URL。",
   "importUrlTooLarge": "文档超过 32 MiB。",
-  "importAction": "导入"}
+  "importAction": "导入",
+  "imagePreviewTooLarge": "图片为 {width}×{height}；预览上限为 {megapixels} 百万像素。"
+}

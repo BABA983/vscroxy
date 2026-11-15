@@ -25707,3 +25707,15 @@ func ImportAction() string { return In(i18n.Locale()).ImportAction() }
 func (msgs Messages) ImportAction() string {
 	return Catalog.Format(msgs.locale, "importAction", nil)
 }
+
+// ImagePreviewTooLarge says "Image is {width}×{height}; previews are limited to {megapixels} megapixels."
+// in the language the app shows.
+func ImagePreviewTooLarge(width int, height int, megapixels int) string {
+	return In(i18n.Locale()).ImagePreviewTooLarge(width, height, megapixels)
+}
+
+// ImagePreviewTooLarge says "Image is {width}×{height}; previews are limited to {megapixels} megapixels."
+// in the language of msgs.
+func (msgs Messages) ImagePreviewTooLarge(width int, height int, megapixels int) string {
+	return Catalog.Format(msgs.locale, "imagePreviewTooLarge", map[string]any{"width": width, "height": height, "megapixels": megapixels})
+}

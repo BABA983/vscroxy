@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/url"
 	"os"
@@ -567,5 +568,12 @@ func TestDecoderShowsKeyValueTableAndInlineImage(t *testing.T) {
 	}
 	if a.decoder.image == nil || a.decoder.mediaType != "image/png" || a.decoder.result != nil {
 		t.Fatalf("image decode: %v %q", a.decoder.image != nil, a.decoder.mediaType)
+	}
+	a.decoder = quickDecoder{open: true, kind: "Base64 image", input: base64.StdEncoding.EncodeToString(hugePNG(60000, 60000))}
+	if err := tt.Click("Decode"); err != nil {
+		t.Fatal(err)
+	}
+	if a.decoder.image != nil || !strings.Contains(a.decoder.error, "60,000×60,000") {
+		t.Fatalf("huge decoder image: %v %q", a.decoder.image != nil, a.decoder.error)
 	}
 }

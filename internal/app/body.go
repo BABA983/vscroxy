@@ -493,15 +493,26 @@ func (a *app) imagePreview(c *ui.Context, key, body string, side int) {
 	t := c.Theme()
 	if a.imageFor[side] != key {
 		a.imageFor[side], a.imageErr[side], a.imageBmp[side] = key, "", nil
-		bmp, err := ui.DecodeBitmap([]byte(body))
+		bmp, err := decodePreviewImage([]byte(body))
 		if err != nil {
-			a.imageErr[side] = err.Error()
+			var tooLarge imageTooLargeError
+			if errors.As(err, &tooLarge) {
+				a.imageErr[side] = locales.ImagePreviewTooLarge(tooLarge.width, tooLarge.height, previewImagePixels>>20)
+			} else {
+				a.imageErr[side] = locales.CannotDecodeImage(err.Error())
+			}
 		} else {
 			a.imageBmp[side] = bmp
 		}
 	}
 	if a.imageErr[side] != "" {
-		uikit.Hint(c, locales.CannotDecodeImage(a.imageErr[side])).Padding(t.Space(4))
+		uikit.Hint(c, a.imageErr[side]).Padding(t.Space(4))
+		if uikit.SecondaryButton(c, locales.ShowAsText()).Margin(0, t.Space(3)).Clicked() {
+			a.bodyMode[side] = 1
+		}
+		if uikit.SecondaryButton(c, locales.ShowAsHex()).Margin(0, t.Space(3)).Clicked() {
+			a.bodyMode[side] = 3
+		}
 		return
 	}
 	if a.imageBmp[side] == nil {

@@ -432,6 +432,19 @@
       }
     }
   },
+  "@imagePreviewTooLarge": {
+    "placeholders": {
+      "width": {
+        "type": "int"
+      },
+      "height": {
+        "type": "int"
+      },
+      "megapixels": {
+        "type": "int"
+      }
+    }
+  },
   "@importedExchanges": {
     "placeholders": {
       "file": {
@@ -3977,4 +3990,6 @@
   "importUrlHint": "Fetches a Postman, Thunder Client, SoapUI, JMeter, HAR or OpenAPI document over HTTP(S), up to 32 MiB.",
   "importUrlNeedsHttp": "Enter an http:// or https:// URL.",
   "importUrlTooLarge": "The document is larger than 32 MiB.",
-  "importAction": "Import"}
+  "importAction": "Import",
+  "imagePreviewTooLarge": "Image is {width}×{height}; previews are limited to {megapixels} megapixels."
+}

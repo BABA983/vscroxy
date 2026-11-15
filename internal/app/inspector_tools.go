@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -96,9 +97,14 @@ func (a *app) decoderModal(c *ui.Context) {
 							text = lines.String()
 						}
 						if len(decoded.Image) > 0 {
-							bitmap, err := ui.DecodeBitmap(decoded.Image)
+							bitmap, err := decodePreviewImage(decoded.Image)
 							if err != nil {
-								u.error = locales.CannotDecodeImage(err.Error())
+								var tooLarge imageTooLargeError
+								if errors.As(err, &tooLarge) {
+									u.error = locales.ImagePreviewTooLarge(tooLarge.width, tooLarge.height, previewImagePixels>>20)
+								} else {
+									u.error = locales.CannotDecodeImage(err.Error())
+								}
 							} else {
 								u.image = bitmap
 							}

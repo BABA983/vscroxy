@@ -1212,6 +1212,12 @@ structured view when applicable. A manual mode is remembered for that body's
 media type, so the next JSON, CSS or image body opens the way the last one was
 read; **Auto** still follows the content type.
 
+Image previews check the declared size before decoding, because a PNG, GIF,
+BMP or WebP header alone can ask for a canvas of many gigabytes. More than 16
+megapixels (or a size that overflows the pixel count) is refused with the
+declared width×height and the limit; **Show as text** and **Show as hex** stay
+available, and the captured bytes are unchanged.
+
 JavaScript and CSS bodies offer **JavaScript** and **CSS** views that re-indent
 the captured text without changing its tokens, and Markdown offers a rendered
 **Markdown** view. **Merged stream** joins an SSE or newline-delimited
