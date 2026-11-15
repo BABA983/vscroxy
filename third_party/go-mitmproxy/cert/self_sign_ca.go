@@ -1,6 +1,8 @@
 package cert
 
 import (
+	"bytes"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -49,9 +51,9 @@ const (
 )
 
 type SelfSignCA struct {
-	rsa.PrivateKey
-	RootCert  x509.Certificate
-	StorePath string
+	PrivateKey crypto.Signer
+	RootCert   x509.Certificate
+	StorePath  string
 
 	cache *lru.Cache
 	group *singleflight.Group
@@ -75,7 +77,6 @@ func createCert() (*rsa.PrivateKey, *x509.Certificate, error) {
 		NotAfter:              time.Now().Add(time.Hour * 24 * 365 * 3),
 		BasicConstraintsValid: true,
 		IsCA:                  true,
-		SignatureAlgorithm:    x509.SHA256WithRSA,
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		// This CA signs intercepted server certificates and nothing else:
 		// no code signing, email protection or timestamping.
@@ -101,7 +102,7 @@ func NewSelfSignCAMemory() (CA, error) {
 		return nil, err
 	}
 	return &SelfSignCA{
-		PrivateKey: *key,
+		PrivateKey: key,
 		RootCert:   *cert,
 		StorePath:  "",
 		cache:      lru.New(100),
@@ -136,6 +137,81 @@ func NewSelfSignCA(path string) (CA, error) {
 	}
 	log.Debug("create root ca")
 	return ca, nil
+}
+
+// parsePrivateKey reads an RSA or ECDSA private key in PKCS#8, PKCS#1 or
+// SEC1 form.
+func parsePrivateKey(der []byte) (crypto.Signer, error) {
+	if key, err := x509.ParsePKCS8PrivateKey(der); err == nil {
+		signer, ok := key.(crypto.Signer)
+		if !ok {
+			return nil, errors.New("unsupported private key type")
+		}
+		return signer, nil
+	} else if strings.Contains(err.Error(), "use ParsePKCS1PrivateKey instead") {
+		key, err := x509.ParsePKCS1PrivateKey(der)
+		if err != nil {
+			return nil, err
+		}
+		return key, nil
+	} else if strings.Contains(err.Error(), "use ParseECPrivateKey instead") {
+		key, err := x509.ParseECPrivateKey(der)
+		if err != nil {
+			return nil, err
+		}
+		return key, nil
+	} else {
+		return nil, err
+	}
+}
+
+// NewCustomCA builds an in-memory CA from PEM certificate and key bytes. The
+// certificate must be a valid CA certificate and the key must match it; the
+// key may be RSA or ECDSA. Nothing is written to disk.
+func NewCustomCA(certPEM, keyPEM []byte) (CA, error) {
+	certBlock, _ := pem.Decode(certPEM)
+	if certBlock == nil || certBlock.Type != "CERTIFICATE" {
+		return nil, errors.New("no PEM certificate found")
+	}
+	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse CA certificate: %w", err)
+	}
+	if !cert.BasicConstraintsValid || !cert.IsCA {
+		return nil, errors.New("certificate is not a CA")
+	}
+	if cert.KeyUsage != 0 && cert.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return nil, errors.New("CA certificate is not allowed to sign certificates")
+	}
+	now := time.Now()
+	if now.Before(cert.NotBefore) || now.After(cert.NotAfter) {
+		return nil, fmt.Errorf("CA certificate is not valid now (valid %s to %s)", cert.NotBefore.Format(time.RFC3339), cert.NotAfter.Format(time.RFC3339))
+	}
+	keyBlock, _ := pem.Decode(keyPEM)
+	if keyBlock == nil {
+		return nil, errors.New("no PEM private key found")
+	}
+	key, err := parsePrivateKey(keyBlock.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse CA private key: %w", err)
+	}
+	certPublic, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	keyPublic, err := x509.MarshalPKIXPublicKey(key.Public())
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(certPublic, keyPublic) {
+		return nil, errors.New("private key does not match the CA certificate")
+	}
+	return &SelfSignCA{
+		PrivateKey: key,
+		RootCert:   *cert,
+		cache:      lru.New(100),
+		group:      new(singleflight.Group),
+	}, nil
 }
 
 func getStorePath(path string) (string, error) {
@@ -220,26 +296,11 @@ func (ca *SelfSignCA) load() error {
 		return fmt.Errorf("%v 中不存在 CERTIFICATE", caFile)
 	}
 
-	var privateKey *rsa.PrivateKey
-	key, err := x509.ParsePKCS8PrivateKey(keyDERBlock.Bytes)
+	privateKey, err := parsePrivateKey(keyDERBlock.Bytes)
 	if err != nil {
-		// fix #14
-		if strings.Contains(err.Error(), "use ParsePKCS1PrivateKey instead") {
-			privateKey, err = x509.ParsePKCS1PrivateKey(keyDERBlock.Bytes)
-			if err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
-	} else {
-		if v, ok := key.(*rsa.PrivateKey); ok {
-			privateKey = v
-		} else {
-			return errors.New("found unknown rsa private key type in PKCS#8 wrapping")
-		}
+		return err
 	}
-	ca.PrivateKey = *privateKey
+	ca.PrivateKey = privateKey
 
 	x509Cert, err := x509.ParseCertificate(certDERBlock.Bytes)
 	if err != nil {
@@ -262,7 +323,7 @@ func (ca *SelfSignCA) create() error {
 		return err
 	}
 
-	ca.PrivateKey = *key
+	ca.PrivateKey = key
 	ca.RootCert = *cert
 
 	if err := ca.save(); err != nil {
@@ -272,7 +333,7 @@ func (ca *SelfSignCA) create() error {
 }
 
 func (ca *SelfSignCA) saveTo(out io.Writer) error {
-	keyBytes, err := x509.MarshalPKCS8PrivateKey(&ca.PrivateKey)
+	keyBytes, err := x509.MarshalPKCS8PrivateKey(ca.PrivateKey)
 	if err != nil {
 		return err
 	}
@@ -378,10 +439,9 @@ func (ca *SelfSignCA) DummyCert(commonName string) (*tls.Certificate, error) {
 			CommonName:   name,
 			Organization: []string{RootCAOrg},
 		},
-		NotBefore:          time.Now().Add(-time.Hour * 48),
-		NotAfter:           time.Now().Add(time.Hour * 24 * 365),
-		SignatureAlgorithm: x509.SHA256WithRSA,
-		ExtKeyUsage:        []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		NotBefore:   time.Now().Add(-time.Hour * 48),
+		NotAfter:    time.Now().Add(time.Hour * 24 * 365),
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
 
 	if ip := net.ParseIP(name); ip != nil {
@@ -390,14 +450,14 @@ func (ca *SelfSignCA) DummyCert(commonName string) (*tls.Certificate, error) {
 		template.DNSNames = []string{name}
 	}
 
-	certBytes, err := x509.CreateCertificate(rand.Reader, template, &ca.RootCert, &ca.PrivateKey.PublicKey, &ca.PrivateKey)
+	certBytes, err := x509.CreateCertificate(rand.Reader, template, &ca.RootCert, ca.PrivateKey.Public(), ca.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
 
 	cert := &tls.Certificate{
 		Certificate: [][]byte{certBytes},
-		PrivateKey:  &ca.PrivateKey,
+		PrivateKey:  ca.PrivateKey,
 	}
 
 	return cert, nil

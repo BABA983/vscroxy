@@ -411,9 +411,12 @@ type Server struct {
 	lastDNS atomic.Value // DNSHit
 	dnsHits map[uuid.UUID]DNSHit
 
-	// caPool holds only this proxy's CA, for traffic that must come from
-	// this proxy rather than the real server.
-	caPool *x509.CertPool
+	// caPool holds only this proxy's active signing CA, for traffic that
+	// must come from this proxy rather than the real server. defaultCA is the
+	// generated CA, restored when a custom signing CA is removed.
+	caMu      sync.RWMutex
+	caPool    *x509.CertPool
+	defaultCA mitmcert.CA
 	// certs holds the client certificates and extra roots shared by authored
 	// sends, intercepted upstream TLS and reverse proxies. Files are read on
 	// each handshake.
@@ -594,10 +597,8 @@ func New(addr, caRootPath string) (*Server, error) {
 		return snapshot.resolve(req, address)
 	})
 	s.proxy = p
-	ca := p.GetCertificate()
-	own := x509.NewCertPool()
-	own.AddCert(&ca)
-	s.caPool = own
+	s.defaultCA = p.GetCA()
+	s.setCAPool(s.defaultCA.GetRootCA())
 	if dir, err := os.MkdirTemp("", "vscroxy-bodies-"); err == nil {
 		s.bodyDir = dir
 	}
@@ -623,6 +624,48 @@ func (s *Server) Running() bool { return s.running.Load() }
 func (s *Server) CACertificate() []byte {
 	ca := s.proxy.GetCertificate()
 	return bytes.Clone(ca.Raw)
+}
+
+// ValidateSigningCA checks that PEM bytes are a matching CA certificate and
+// private key, without changing the running proxy.
+func ValidateSigningCA(certPEM, keyPEM []byte) error {
+	_, err := mitmcert.NewCustomCA(certPEM, keyPEM)
+	return err
+}
+
+// SetSigningCA replaces the CA that signs intercepted server certificates.
+// Empty PEM arguments restore the app-generated CA. New connections use the
+// new CA; existing connections keep the one they started with.
+func (s *Server) SetSigningCA(certPEM, keyPEM []byte) error {
+	if len(certPEM) == 0 && len(keyPEM) == 0 {
+		if s.defaultCA == nil {
+			return errors.New("no app-generated signing CA")
+		}
+		s.proxy.SetCA(s.defaultCA)
+		s.setCAPool(s.defaultCA.GetRootCA())
+		return nil
+	}
+	ca, err := mitmcert.NewCustomCA(certPEM, keyPEM)
+	if err != nil {
+		return err
+	}
+	s.proxy.SetCA(ca)
+	s.setCAPool(ca.GetRootCA())
+	return nil
+}
+
+func (s *Server) setCAPool(ca *x509.Certificate) {
+	pool := x509.NewCertPool()
+	pool.AddCert(ca)
+	s.caMu.Lock()
+	s.caPool = pool
+	s.caMu.Unlock()
+}
+
+func (s *Server) ownCAPool() *x509.CertPool {
+	s.caMu.RLock()
+	defer s.caMu.RUnlock()
+	return s.caPool
 }
 
 // SetCertificates replaces the client certificates and extra roots used by

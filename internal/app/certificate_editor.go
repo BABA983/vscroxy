@@ -1,11 +1,16 @@
 package app
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/certs"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/google/uuid"
 )
@@ -17,7 +22,13 @@ type certificateEditor struct {
 	rows          []certificateRow
 	roots         []certificateRoot
 	trustSystem   bool
-	problem       string
+	// signingCert and signingKey are the imported CA files this session.
+	// signingSaved means a custom signing CA is active; signingClear asks Save
+	// to restore the app-generated CA.
+	signingCert, signingKey    string
+	signingSaved, signingClear bool
+	signingSubject             string
+	problem                    string
 }
 
 type certificateRow struct {
@@ -54,6 +65,13 @@ func (e *certificateEditor) load(a *app) {
 	}
 	for _, path := range a.certificates.RootCAs {
 		e.roots = append(e.roots, certificateRoot{Path: path})
+	}
+	e.signingCert, e.signingKey = "", ""
+	e.signingSaved, e.signingClear, e.signingSubject = false, false, ""
+	if a.certificates.SigningCA != nil {
+		e.signingCert = a.certificates.SigningCA.CertFile
+		e.signingSaved = true
+		e.signingSubject = certs.CertificateSubject(e.signingCert)
 	}
 	e.trustSystem = a.certificates.TrustsSystem()
 	e.loaded = true
@@ -107,6 +125,41 @@ func (e *certificateEditor) build(a *app) (certs.Settings, map[string]string, er
 			settings.RootCAs = append(settings.RootCAs, path)
 		}
 	}
+	switch {
+	case e.signingClear:
+		delete(secrets, certs.SigningKeySecret)
+	case e.signingCert != "" || e.signingKey != "":
+		certFile, keyFile := strings.TrimSpace(e.signingCert), strings.TrimSpace(e.signingKey)
+		if certFile == "" || keyFile == "" {
+			return settings, nil, errors.New("signing CA: choose both the certificate and the private key")
+		}
+		certPEM, err := readPEMFile(certFile)
+		if err != nil {
+			return settings, nil, fmt.Errorf("signing CA: %w", err)
+		}
+		keyPEM, err := readPEMFile(keyFile)
+		if err != nil {
+			return settings, nil, fmt.Errorf("signing CA: %w", err)
+		}
+		if err := capture.ValidateSigningCA(certPEM, keyPEM); err != nil {
+			return settings, nil, fmt.Errorf("signing CA: %w", err)
+		}
+		dir := a.caDirectory()
+		if dir == "" {
+			return settings, nil, errors.New("signing CA: the CA directory is unavailable")
+		}
+		customPath := filepath.Join(dir, certs.CustomCACertFile)
+		if err := store.WriteFile(customPath, certPEM); err != nil {
+			return settings, nil, fmt.Errorf("signing CA: %w", err)
+		}
+		settings.SigningCA = &certs.SigningCA{CertFile: customPath}
+		secrets[certs.SigningKeySecret] = string(keyPEM)
+	case e.signingSaved && a.certificates.SigningCA != nil:
+		settings.SigningCA = &certs.SigningCA{CertFile: a.certificates.SigningCA.CertFile}
+		if saved := a.certificates.Secrets[certs.SigningKeySecret]; saved != "" {
+			secrets[certs.SigningKeySecret] = saved
+		}
+	}
 	trust := e.trustSystem
 	settings.TrustSystemRoots = &trust
 	settings = settings.Normalize()
@@ -148,5 +201,69 @@ func (a *app) saveCertificates() {
 	if a.srv != nil {
 		a.srv.SetCertificates(a.certificates)
 	}
+	if err := a.applySigningCA(); err != nil {
+		e.problem, a.certProblem = err.Error(), err.Error()
+		a.fail(locales.Certificates(), err)
+		return
+	}
+	a.checkCertificate(false)
 	a.done(locales.CertificatesSaved(len(settings.Clients), len(settings.RootCAs)))
+}
+
+// readPEMFile reads a certificate or key file, bounded like the certificate
+// settings reader.
+func readPEMFile(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > 8<<20 {
+		return nil, fmt.Errorf("%s is larger than 8 MiB", path)
+	}
+	return data, nil
+}
+
+// caDirectory is the app's CA directory, even before capture starts.
+func (a *app) caDirectory() string {
+	if a.caPath != "" {
+		return filepath.Dir(a.caPath)
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return capture.CADir(home)
+	}
+	return ""
+}
+
+// applySigningCA hands the imported CA to the proxy, or restores the generated
+// one, and points a.caPath at the public certificate clients must trust.
+func (a *app) applySigningCA() error {
+	if a.certificates.SigningCA == nil {
+		if a.srv != nil {
+			if err := a.srv.SetSigningCA(nil, nil); err != nil {
+				return err
+			}
+		}
+		if a.caPath != "" {
+			a.caPath = filepath.Join(filepath.Dir(a.caPath), capture.CACertFile)
+		}
+		return nil
+	}
+	certPEM, err := readPEMFile(a.certificates.SigningCA.CertFile)
+	if err != nil {
+		return err
+	}
+	keyPEM := a.certificates.Secrets[certs.SigningKeySecret]
+	if keyPEM == "" {
+		return errors.New("signing CA: the sealed private key is missing; import the certificate and key again")
+	}
+	if err := capture.ValidateSigningCA(certPEM, []byte(keyPEM)); err != nil {
+		return err
+	}
+	if a.srv != nil {
+		if err := a.srv.SetSigningCA(certPEM, []byte(keyPEM)); err != nil {
+			return err
+		}
+	}
+	a.caPath = a.certificates.SigningCA.CertFile
+	return nil
 }

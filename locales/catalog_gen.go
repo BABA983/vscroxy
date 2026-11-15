@@ -5206,6 +5206,16 @@ func (msgs Messages) CustomCaFile() string {
 	return Catalog.Format(msgs.locale, "customCaFile", nil)
 }
 
+// CustomCaSubject says "Custom CA: {subject}"
+// in the language the app shows.
+func CustomCaSubject(subject string) string { return In(i18n.Locale()).CustomCaSubject(subject) }
+
+// CustomCaSubject says "Custom CA: {subject}"
+// in the language of msgs.
+func (msgs Messages) CustomCaSubject(subject string) string {
+	return Catalog.Format(msgs.locale, "customCaSubject", map[string]any{"subject": subject})
+}
+
 // CustomNetworkPresets says "Custom network presets"
 // in the language the app shows.
 func CustomNetworkPresets() string { return In(i18n.Locale()).CustomNetworkPresets() }
@@ -10586,6 +10596,16 @@ func KeepAliveInSeconds() string { return In(i18n.Locale()).KeepAliveInSeconds()
 // in the language of msgs.
 func (msgs Messages) KeepAliveInSeconds() string {
 	return Catalog.Format(msgs.locale, "keepAliveInSeconds", nil)
+}
+
+// KeepCustomCa says "Keep custom CA"
+// in the language the app shows.
+func KeepCustomCa() string { return In(i18n.Locale()).KeepCustomCa() }
+
+// KeepCustomCa says "Keep custom CA"
+// in the language of msgs.
+func (msgs Messages) KeepCustomCa() string {
+	return Catalog.Format(msgs.locale, "keepCustomCa", nil)
 }
 
 // KeepDraftsVariablesAndResponses says "Keep drafts, variables and responses together in one request tab."
@@ -18636,6 +18656,16 @@ func (msgs Messages) UseDefaultFolder() string {
 	return Catalog.Format(msgs.locale, "useDefaultFolder", nil)
 }
 
+// UseGeneratedCa says "Use app-generated CA"
+// in the language the app shows.
+func UseGeneratedCa() string { return In(i18n.Locale()).UseGeneratedCa() }
+
+// UseGeneratedCa says "Use app-generated CA"
+// in the language of msgs.
+func (msgs Messages) UseGeneratedCa() string {
+	return Catalog.Format(msgs.locale, "useGeneratedCa", nil)
+}
+
 // SaveMessagesJson says "Save messages JSON…"
 // in the language the app shows.
 func SaveMessagesJson() string { return In(i18n.Locale()).SaveMessagesJson() }
@@ -20578,6 +20608,76 @@ func SignatureMethod() string { return In(i18n.Locale()).SignatureMethod() }
 // in the language of msgs.
 func (msgs Messages) SignatureMethod() string {
 	return Catalog.Format(msgs.locale, "signatureMethod", nil)
+}
+
+// SigningCa says "MITM signing CA"
+// in the language the app shows.
+func SigningCa() string { return In(i18n.Locale()).SigningCa() }
+
+// SigningCa says "MITM signing CA"
+// in the language of msgs.
+func (msgs Messages) SigningCa() string {
+	return Catalog.Format(msgs.locale, "signingCa", nil)
+}
+
+// SigningCaAfterSave says "The app-generated vscroxy CA will be used after Save"
+// in the language the app shows.
+func SigningCaAfterSave() string { return In(i18n.Locale()).SigningCaAfterSave() }
+
+// SigningCaAfterSave says "The app-generated vscroxy CA will be used after Save"
+// in the language of msgs.
+func (msgs Messages) SigningCaAfterSave() string {
+	return Catalog.Format(msgs.locale, "signingCaAfterSave", nil)
+}
+
+// SigningCaCertificate says "CA certificate"
+// in the language the app shows.
+func SigningCaCertificate() string { return In(i18n.Locale()).SigningCaCertificate() }
+
+// SigningCaCertificate says "CA certificate"
+// in the language of msgs.
+func (msgs Messages) SigningCaCertificate() string {
+	return Catalog.Format(msgs.locale, "signingCaCertificate", nil)
+}
+
+// SigningCaGenerated says "Using the app-generated vscroxy CA"
+// in the language the app shows.
+func SigningCaGenerated() string { return In(i18n.Locale()).SigningCaGenerated() }
+
+// SigningCaGenerated says "Using the app-generated vscroxy CA"
+// in the language of msgs.
+func (msgs Messages) SigningCaGenerated() string {
+	return Catalog.Format(msgs.locale, "signingCaGenerated", nil)
+}
+
+// SigningCaHint says "The CA that signs decrypted server certificates. Import your own certificate and key; the key is sealed on this machi…"
+// in the language the app shows.
+func SigningCaHint() string { return In(i18n.Locale()).SigningCaHint() }
+
+// SigningCaHint says "The CA that signs decrypted server certificates. Import your own certificate and key; the key is sealed on this machi…"
+// in the language of msgs.
+func (msgs Messages) SigningCaHint() string {
+	return Catalog.Format(msgs.locale, "signingCaHint", nil)
+}
+
+// SigningCaKeyHint says "Choose both files to replace the signing CA. The certificate is copied to the app's CA directory; the key is sealed."
+// in the language the app shows.
+func SigningCaKeyHint() string { return In(i18n.Locale()).SigningCaKeyHint() }
+
+// SigningCaKeyHint says "Choose both files to replace the signing CA. The certificate is copied to the app's CA directory; the key is sealed."
+// in the language of msgs.
+func (msgs Messages) SigningCaKeyHint() string {
+	return Catalog.Format(msgs.locale, "signingCaKeyHint", nil)
+}
+
+// SigningCaPrivateKey says "CA private key"
+// in the language the app shows.
+func SigningCaPrivateKey() string { return In(i18n.Locale()).SigningCaPrivateKey() }
+
+// SigningCaPrivateKey says "CA private key"
+// in the language of msgs.
+func (msgs Messages) SigningCaPrivateKey() string {
+	return Catalog.Format(msgs.locale, "signingCaPrivateKey", nil)
 }
 
 // Size says "Size"

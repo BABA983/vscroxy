@@ -1,7 +1,9 @@
 package capture
 
 import (
+	"bytes"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/pem"
 	"io"
 	"net"
@@ -577,4 +579,79 @@ func TestDecryptedUpstreamVerificationDefault(t *testing.T) {
 			t.Fatalf("custom-root upstream = %d %q", resp.StatusCode, body)
 		}
 	})
+}
+
+// A custom signing CA replaces the generated one, its leaves carry an IP SAN
+// for IP-literal hosts, and removing it restores the generated CA.
+func TestCustomSigningCAAndIPSANs(t *testing.T) {
+	ca := testcert.NewCA(t)
+	keyDER, err := x509.MarshalPKCS8PrivateKey(ca.Key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "custom CA")
+	}))
+	defer upstream.Close()
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := "https://127.0.0.1:" + u.Port() + "/custom"
+
+	s, _ := startServer(t)
+	if err := s.SetSigningCA(ca.PEM, keyPEM); err != nil {
+		t.Fatalf("custom signing CA: %v", err)
+	}
+	if got := s.CACertificate(); !bytes.Equal(got, ca.Cert.Raw) {
+		t.Fatal("the custom CA was not published")
+	}
+	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})
+	roots := x509.NewCertPool()
+	roots.AddCert(ca.Cert)
+	client := clientFor(t, s, roots)
+	defer client.CloseIdleConnections()
+	resp, err := client.Get(target)
+	if err != nil {
+		t.Fatalf("a leaf signed by the custom CA: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || string(body) != "custom CA" {
+		t.Fatalf("custom CA response = %d %q", resp.StatusCode, body)
+	}
+	if f := waitFlow(t, s); f.Status != 200 {
+		t.Fatalf("custom CA flow = %+v", f)
+	}
+
+	// A key that does not match the certificate, and a leaf that is not a CA,
+	// are refused without changing the active CA.
+	other := testcert.NewCA(t)
+	otherDER, _ := x509.MarshalPKCS8PrivateKey(other.Key)
+	if err := s.SetSigningCA(ca.PEM, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: otherDER})); err == nil {
+		t.Fatal("a mismatched private key was accepted")
+	}
+	leaf := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: upstream.Certificate().Raw})
+	if err := s.SetSigningCA(leaf, keyPEM); err == nil {
+		t.Fatal("a leaf certificate was accepted as a signing CA")
+	}
+	if got := s.CACertificate(); !bytes.Equal(got, ca.Cert.Raw) {
+		t.Fatal("a refused CA changed the active one")
+	}
+
+	// Removing the custom CA restores the generated one.
+	if err := s.SetSigningCA(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(s.CACertificate(), ca.Cert.Raw) {
+		t.Fatal("the custom CA was not removed")
+	}
+	generated := clientFor(t, s, s.caPool)
+	defer generated.CloseIdleConnections()
+	resp, err = generated.Get(target)
+	if err != nil {
+		t.Fatalf("a leaf signed by the restored CA: %v", err)
+	}
+	resp.Body.Close()
 }

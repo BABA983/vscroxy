@@ -45,6 +45,67 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 		if e.problem != "" {
 			ui.Text(c, e.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
 		}
+		uikit.SettingsGroup(c, locales.SigningCa(), func() {
+			uikit.Meta(c, locales.SigningCaHint())
+			state := locales.SigningCaGenerated()
+			switch {
+			case e.signingClear:
+				state = locales.SigningCaAfterSave()
+			case e.signingSaved:
+				subject := e.signingSubject
+				if subject == "" {
+					subject = e.signingCert
+				}
+				state = locales.CustomCaSubject(subject)
+			}
+			uikit.SettingsRowMultiline(c, locales.SigningCa(), func() ui.Element {
+				return ui.Column(c).Gap(t.Space(1)).Children(func() {
+					ui.Text(c, state).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
+					if e.signingSaved && !e.signingClear {
+						uikit.Tip(c, uikit.Meta(c, e.signingCert).SingleLine(), e.signingCert)
+					}
+				})
+			}, "")
+			uikit.SettingsRow(c, locales.SigningCaCertificate(), func() ui.Element {
+				return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
+					if uikit.Input(c, &e.signingCert).Label(locales.CertificateFile()).Placeholder(locales.PemRootCertificate()).Grow(1).Changed() {
+						e.dirty = true
+					}
+					if uikit.SecondaryButton(c, locales.Choose()).Clicked() {
+						a.chooseCertificateFile(&e.signingCert, "Signing CA certificate", []string{"pem", "crt", "cer"})
+					}
+				})
+			}, "")
+			uikit.SettingsRow(c, locales.SigningCaPrivateKey(), func() ui.Element {
+				return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
+					if uikit.Input(c, &e.signingKey).Label(locales.SigningCaPrivateKey()).Placeholder(locales.PemPrivateKey()).Grow(1).Changed() {
+						e.dirty = true
+					}
+					if uikit.SecondaryButton(c, locales.Choose()).Clicked() {
+						a.chooseCertificateFile(&e.signingKey, "Signing CA private key", []string{"pem", "key"})
+					}
+				})
+			}, locales.SigningCaKeyHint())
+			uikit.SettingsRow(c, "", func() ui.Element {
+				return ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+					if !e.signingClear && (e.signingSaved || e.signingCert != "" || e.signingKey != "") {
+						if uikit.SecondaryButton(c, locales.UseGeneratedCa()).Clicked() {
+							e.signingClear, e.signingSaved = true, false
+							e.signingCert, e.signingKey, e.signingSubject = "", "", ""
+							e.dirty = true
+						}
+					}
+					if e.signingClear && a.certificates.SigningCA != nil {
+						if uikit.SecondaryButton(c, locales.KeepCustomCa()).Clicked() {
+							e.signingClear, e.signingSaved = false, true
+							e.signingCert = a.certificates.SigningCA.CertFile
+							e.signingSubject = certs.CertificateSubject(e.signingCert)
+							e.dirty = true
+						}
+					}
+				})
+			}, "")
+		})
 		uikit.SettingsGroup(c, locales.ClientCertificates(), func() {
 			uikit.Meta(c, locales.PresentedToAMatchingHost())
 			if len(e.rows) == 0 {

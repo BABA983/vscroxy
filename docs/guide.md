@@ -2359,7 +2359,7 @@ Client certificates and extra roots are configured once in **Settings →
 Certificates**; a matching client certificate is still presented when
 verification is off, while custom roots are used only when it is on.
 
-### Client certificates and custom roots
+### Client certificates, custom roots and the signing CA
 
 **Settings → Certificates** configures one client certificate per host and
 extra roots for both authored sends and captured upstream TLS. A host may
@@ -2390,16 +2390,27 @@ therefore presents the destination's certificate, never the origin's.
 **Trust system roots** is on by default. Turning it off trusts only the listed
 PEM roots (plus the running proxy's own CA where a connection goes through
 capture). Custom roots are additional trust for verified connections; they do
-not disable verification and are not needed when a request turns verification
-off. The request Settings page's **Verify TLS certificate** switch is per
-request and wins over the roots: off accepts any certificate, including an
-impostor's, while the client certificate is still presented.
+not disable verification. The request Settings page's **Verify TLS certificate**
+switch is per request: off accepts any certificate only on a blind tunnel; a
+decrypted upstream is still verified by the proxy, and the per-domain allow
+list under **Settings → HTTPS** is the explicit exception. A client certificate
+is still presented either way.
 
 A host that is not decrypted is a blind tunnel: vscroxy cannot add a client
 certificate or verify the upstream for it, so the client program must do that
-itself. Captured WebSocket upstream TLS keeps the inspection proxy's
-accept-any default unless verification is explicitly requested; the custom
-roots apply when it is.
+itself. Captured WebSocket upstream TLS is verified like other decrypted
+traffic; custom roots apply, and the per-domain allow list is the exception.
+
+The **MITM signing CA** section at the top of Settings → Certificates replaces
+the app-generated `vscroxy CA` with your own CA certificate and private key
+(RSA or ECDSA, PEM). The certificate must be a CA, be currently valid, and match
+the key. The public certificate is copied to
+`~/.vscroxy/ca/custom-ca-cert.pem`; the private key is sealed in
+`certificates-secrets.json` and never written to `settings.json`, a
+configuration export or a log. New connections are signed by the imported CA,
+so clients must trust that certificate instead; **Use app-generated CA**
+restores the generated one. Generated leaves for IP-literal hosts include an IP
+subject alternative name.
 
 **OAuth 2.0** gets an access token with the authorization code grant with PKCE
 (the default), the authorization code grant, the implicit grant, client
@@ -4024,8 +4035,8 @@ What this version leaves for later, in rough order:
 - Network conditions with real packet loss.
 - WebSocket streams with more than 200 messages, search and independent
   inspector windows.
-- Replacing the MITM signing CA, per-host server certificates, GraphQL
-  subscriptions, and gRPC streaming in scripts and the Runner.
+- Per-host server certificates, GraphQL subscriptions, and gRPC
+  streaming in scripts and the Runner.
 - More MCP tools (settings, sessions, certificates) and filters in
   `flows.list`; npm packages in scripts.
 - Transparent or per-process capture for apps that ignore the proxy.

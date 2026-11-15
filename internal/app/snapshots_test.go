@@ -1336,6 +1336,11 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.allowOn, a.allowText = true, "api.example.com\n.internal.test"
 		}, want: "Only show allowed traffic"},
 		{name: "dialog-settings-devices", setup: func(a *app) { snapshotSettings(a, 5) }, want: "Settings"},
+		{name: "dialog-settings-certificates", setup: func(a *app) {
+			snapshotSettings(a, 6)
+			a.certificates.SigningCA = &certs.SigningCA{CertFile: "/Users/me/.vscroxy/ca/custom-ca-cert.pem"}
+		}, want: "MITM signing CA", short: true},
+
 		{name: "dialog-ssl", setup: func(a *app) {
 			a.sslOpen, a.sslHosts, a.sslExclude, a.sslUntrusted = true, "api.example.com\n*.example.org", "private.example.com", "api.local"
 		}, want: "Never decrypt", short: true},

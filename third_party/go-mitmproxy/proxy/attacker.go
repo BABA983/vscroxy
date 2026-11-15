@@ -44,6 +44,7 @@ type attackerConn struct {
 
 type attacker struct {
 	proxy    *Proxy
+	caMu     sync.RWMutex
 	ca       cert.CA
 	server   *http.Server
 	h2Server *http2.Server
@@ -84,6 +85,20 @@ func newAttacker(proxy *Proxy) (*attacker, error) {
 	}
 
 	return a, nil
+}
+
+// getCA returns the signing CA under the lock. A saved custom CA can replace
+// it while the proxy runs; existing handshakes keep the CA they started with.
+func (a *attacker) getCA() cert.CA {
+	a.caMu.RLock()
+	defer a.caMu.RUnlock()
+	return a.ca
+}
+
+func (a *attacker) setCA(ca cert.CA) {
+	a.caMu.Lock()
+	defer a.caMu.Unlock()
+	a.ca = ca
 }
 
 // hostOnly is the host part of a CONNECT or dial address, without its port.
@@ -569,7 +584,7 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 				// IP clients omit SNI; certify the original CONNECT target.
 				name, _, _ = net.SplitHostPort(connCtx.ServerConn.Address)
 			}
-			c, err := a.ca.GetCert(name)
+			c, err := a.getCA().GetCert(name)
 			if err != nil {
 				return nil, err
 			}
@@ -644,7 +659,7 @@ func (a *attacker) httpsLazyAttack(ctx context.Context, cconn net.Conn, req *htt
 			if name == "" {
 				name = req.URL.Hostname()
 			}
-			c, err := a.ca.GetCert(name)
+			c, err := a.getCA().GetCert(name)
 			if err != nil {
 				return nil, err
 			}

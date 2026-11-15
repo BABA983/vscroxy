@@ -28,6 +28,26 @@ brackets removed). The desktop app passes `~/.vscroxy/ca` explicitly and reads
 `vscroxy-ca-cert.pem` for system trust and client setup; an earlier prototype's
 `mitmproxy` root is not read or migrated.
 
+### Custom signing CA
+
+`cert.NewCustomCA(certPEM, keyPEM)` builds an in-memory CA from an imported
+certificate and key. It requires a valid CA certificate that is currently
+valid, a matching RSA or ECDSA key (PKCS#8, PKCS#1 or SEC1), and a key usage
+that allows certificate signing; nothing is written to disk. `SelfSignCA`
+holds its key as a `crypto.Signer`, and leaf certificates let x509 choose the
+signature algorithm from that key, so an ECDSA CA works as well as the
+generated RSA one. Leaves for IP-literal hosts carry an IP subject alternative
+name, with any port or brackets removed.
+
+`Proxy.SetCA`/`GetCA` swap the active CA under a read/write lock; a handshake
+keeps the CA it started with. `capture.SetSigningCA(certPEM, keyPEM)` wraps it
+for the desktop app, and empty arguments restore the app-generated CA;
+`capture.ValidateSigningCA` checks a pair without applying it. The app copies
+the public certificate to `~/.vscroxy/ca/custom-ca-cert.pem`, seals the key in
+`certificates-secrets.json`, and points `a.caPath` at that certificate so
+system trust, client setup and the LAN certificate endpoint serve the same
+root.
+
 ## Log privacy
 
 The engine's logrus output is discarded when the `proxy` package initializes:

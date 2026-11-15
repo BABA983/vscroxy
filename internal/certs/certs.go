@@ -25,7 +25,21 @@ import (
 const (
 	FormatPEM    = "pem"
 	FormatPKCS12 = "pkcs12"
+
+	// SigningKeySecret is the reserved SecretStore name of the imported MITM
+	// signing CA's private key. Client IDs are UUIDs, so it cannot collide.
+	SigningKeySecret = "mitm-signing-ca"
+	// CustomCACertFile is the public certificate of an imported signing CA,
+	// kept beside the app-generated CA.
+	CustomCACertFile = "custom-ca-cert.pem"
 )
+
+// SigningCA is an imported CA that signs intercepted server certificates.
+// CertFile is its public certificate; the private key is sealed in
+// SecretStore under SigningKeySecret and never written to settings.
+type SigningCA struct {
+	CertFile string `json:"certFile"`
+}
 
 // ResolveFormat returns the configured format, or infers PEM when a key file
 // is present and PKCS#12 otherwise. Unknown explicit formats are returned
@@ -64,6 +78,7 @@ type Settings struct {
 	Clients          []Client          `json:"clients,omitempty"`
 	RootCAs          []string          `json:"rootCAs,omitempty"`
 	TrustSystemRoots *bool             `json:"trustSystemRoots,omitempty"`
+	SigningCA        *SigningCA        `json:"signingCA,omitempty"`
 	Secrets          map[string]string `json:"-"`
 	SecretsProblem   string            `json:"-"`
 }
@@ -76,6 +91,10 @@ func (s Settings) Clone() Settings {
 	if s.TrustSystemRoots != nil {
 		value := *s.TrustSystemRoots
 		out.TrustSystemRoots = &value
+	}
+	if s.SigningCA != nil {
+		value := *s.SigningCA
+		out.SigningCA = &value
 	}
 	if s.Secrets != nil {
 		out.Secrets = make(map[string]string, len(s.Secrets))
@@ -93,6 +112,13 @@ func (s Settings) Equal(other Settings) bool {
 		return false
 	}
 	switch {
+	case s.SigningCA == nil && other.SigningCA == nil:
+	case s.SigningCA == nil || other.SigningCA == nil:
+		return false
+	case s.SigningCA.CertFile != other.SigningCA.CertFile:
+		return false
+	}
+	switch {
 	case s.TrustSystemRoots == nil && other.TrustSystemRoots == nil:
 		return true
 	case s.TrustSystemRoots == nil || other.TrustSystemRoots == nil:
@@ -105,7 +131,7 @@ func (s Settings) Equal(other Settings) bool {
 // Configured reports whether the settings change TLS behavior at all. The zero
 // value trusts the system roots and adds no client certificate.
 func (s Settings) Configured() bool {
-	return len(s.Clients) > 0 || len(s.RootCAs) > 0 || s.TrustSystemRoots != nil
+	return len(s.Clients) > 0 || len(s.RootCAs) > 0 || s.TrustSystemRoots != nil || s.SigningCA != nil
 }
 
 // TrustsSystem reports whether system roots are trusted. The default is yes.
@@ -122,6 +148,12 @@ func (s Settings) Normalize() Settings {
 	})
 	for i := range out.RootCAs {
 		out.RootCAs[i] = strings.TrimSpace(out.RootCAs[i])
+	}
+	if out.SigningCA != nil {
+		out.SigningCA.CertFile = strings.TrimSpace(out.SigningCA.CertFile)
+		if out.SigningCA.CertFile == "" {
+			out.SigningCA = nil
+		}
 	}
 	for i := range out.Clients {
 		c := &out.Clients[i]
@@ -183,7 +215,45 @@ func (s Settings) Validate() error {
 			return fmt.Errorf("custom CA %s: no PEM certificate", path)
 		}
 	}
+	if s.SigningCA != nil {
+		if s.SigningCA.CertFile == "" {
+			return errors.New("signing CA: choose a certificate file")
+		}
+		data, err := readCertificateFile(s.SigningCA.CertFile, "signing CA")
+		if err != nil {
+			return err
+		}
+		block, _ := pem.Decode(data)
+		if block == nil || block.Type != "CERTIFICATE" {
+			return fmt.Errorf("signing CA %s: no PEM certificate", s.SigningCA.CertFile)
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return fmt.Errorf("signing CA %s: %w", s.SigningCA.CertFile, err)
+		}
+		if !cert.BasicConstraintsValid || !cert.IsCA {
+			return fmt.Errorf("signing CA %s: certificate is not a CA", s.SigningCA.CertFile)
+		}
+	}
 	return nil
+}
+
+// CertificateSubject returns the common name of the first PEM certificate in
+// path, or "" when it cannot be read.
+func CertificateSubject(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return ""
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return ""
+	}
+	return cert.Subject.CommonName
 }
 
 // ClientCertificate returns the certificate matching address, or nil when no

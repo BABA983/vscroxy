@@ -216,12 +216,13 @@ func (s *Server) startReverseLocked(r ReverseProxy, httpAddr, socksAddr string) 
 		// verified request send uses; it is removed before the flow exists.
 		connectHeader.Set(proxy.HeaderVerifyUpstream, "1")
 	}
+	ownCA := s.ownCAPool()
 	transport := &http.Transport{
 		Proxy: http.ProxyURL(&url.URL{Scheme: "http", Host: httpAddr}),
 		TLSClientConfig: &tls.Config{
 			// The peer must be this proxy's own interception certificate,
 			// not the real server: the reverse proxy always captures.
-			RootCAs:            s.caPool,
+			RootCAs:            ownCA,
 			InsecureSkipVerify: isIPLiteral(target.Hostname()),
 			VerifyConnection: func(cs tls.ConnectionState) error {
 				if !isIPLiteral(target.Hostname()) {
@@ -232,7 +233,7 @@ func (s *Server) startReverseLocked(r ReverseProxy, httpAddr, socksAddr string) 
 				if len(cs.PeerCertificates) == 0 {
 					return errors.New("no peer certificate")
 				}
-				opts := x509.VerifyOptions{Roots: s.caPool, Intermediates: x509.NewCertPool()}
+				opts := x509.VerifyOptions{Roots: ownCA, Intermediates: x509.NewCertPool()}
 				for _, cert := range cs.PeerCertificates[1:] {
 					opts.Intermediates.AddCert(cert)
 				}

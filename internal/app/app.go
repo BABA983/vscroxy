@@ -766,6 +766,9 @@ func newApp() *app {
 	} else {
 		a.srv = srv
 		srv.SetCertificates(a.certificates)
+		if err := a.applySigningCA(); err != nil {
+			a.certProblem = err.Error()
+		}
 		srv.SetBreakWait(a.breakWait())
 		a.upstreamPending = make(chan upstreamLoadResult, 1)
 		if a.upstreamCfg.Enabled() {

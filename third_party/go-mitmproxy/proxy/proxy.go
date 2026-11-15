@@ -153,11 +153,22 @@ func (proxy *Proxy) Shutdown(ctx context.Context) error {
 }
 
 func (proxy *Proxy) GetCertificate() x509.Certificate {
-	return *proxy.attacker.ca.GetRootCA()
+	return *proxy.attacker.getCA().GetRootCA()
 }
 
 func (proxy *Proxy) GetCertificateByCN(commonName string) (*tls.Certificate, error) {
-	return proxy.attacker.ca.GetCert(commonName)
+	return proxy.attacker.getCA().GetCert(commonName)
+}
+
+// SetCA replaces the CA that signs intercepted certificates. New handshakes
+// use it; existing connections keep the CA they started with.
+func (proxy *Proxy) SetCA(ca cert.CA) {
+	proxy.attacker.setCA(ca)
+}
+
+// GetCA returns the active signing CA.
+func (proxy *Proxy) GetCA() cert.CA {
+	return proxy.attacker.getCA()
 }
 
 func (proxy *Proxy) SetShouldInterceptRule(rule func(req *http.Request) bool) {
