@@ -61,6 +61,9 @@ type clientSetup struct {
 	// blocks a second Set action while the first adb round trip is in flight.
 	androidApplied map[string]androidProxyState
 	androidPending bool
+	// androidSnippet shows the network security config snippet under the
+	// Android actions.
+	androidSnippet bool
 
 	javaConfirm bool
 	// javaCACerts, javaProblem and javaChecked cache the Java lookup. A failed
@@ -78,7 +81,7 @@ type clientSetup struct {
 }
 
 type clientSetupResult struct {
-	action   string // devices, launch, android, undo, push, ios, java
+	action   string // devices, launch, android, undo, push, system-ca, ios, java
 	what     string // action name, used when the action fails
 	success  string // result title, used when it succeeds
 	command  string
@@ -228,7 +231,7 @@ func (a *app) drainClientSetup() {
 					}
 				}
 			default:
-				if r.action == "android" {
+				if r.action == "android" || r.action == "system-ca" {
 					s.androidPending = false
 				}
 				if r.err != nil {
@@ -542,6 +545,47 @@ func (a *app) pushAndroidCA() {
 			success: "Copied CA to Android Downloads",
 			command: commandString(command),
 			err:     err,
+		}
+		a.invalidate()
+	}()
+}
+
+// installAndroidSystemCA writes the CA into the device's system store. Android
+// 14 and later keep that store in the Conscrypt APEX, so the install mounts a
+// tmpfs over it in the zygote mount namespaces; a reboot restores the original
+// store.
+func (a *app) installAndroidSystemCA() {
+	s := &a.clientUI
+	p, err := a.clientProxyReady()
+	if err != nil {
+		a.fail(locales.InstallSystemCa(), err)
+		return
+	}
+	if s.androidSerial == "" {
+		a.warn(locales.ChooseAConnectedAndroidDevice())
+		return
+	}
+	if s.androidPending {
+		return
+	}
+	for _, device := range s.android {
+		if device.Serial == s.androidSerial && device.State != "device" {
+			a.warn(locales.AndroidDeviceState(device.Serial, device.State))
+			return
+		}
+	}
+	serial := s.androidSerial
+	s.androidPending = true
+	results := a.clientSetupResults()
+	go func() {
+		install, err := clientsetup.InstallAndroidSystemCA(serial, p.CAPath)
+		results <- clientSetupResult{
+			action:  "system-ca",
+			what:    locales.InstallSystemCa(),
+			success: locales.InstalledCaInTheAndroidSystemStore(),
+			command: clientsetup.JoinCommands(install.Commands, runtime.GOOS == "windows"),
+			err:     err,
+			serial:  serial,
 		}
 		a.invalidate()
 	}()

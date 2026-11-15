@@ -194,9 +194,27 @@ func (a *app) clientAndroidPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy
 		if uikit.SecondaryButton(c, locales.CopyCaToDevice()).Disabled(!running || s.androidSerial == "").Clicked() {
 			a.pushAndroidCA()
 		}
+		if uikit.SecondaryButton(c, locales.InstallSystemCa()).Disabled(!running || s.androidSerial == "" || s.androidPending).Clicked() {
+			a.installAndroidSystemCA()
+		}
+		if uikit.SecondaryButton(c, locales.NetworkSecurityConfig()).Clicked() {
+			s.androidSnippet = !s.androidSnippet
+		}
 	})
 	uikit.Meta(c, locales.UsesAdbReverseSo127())
+	if s.androidSnippet {
+		ui.Row(c).Gap(t.Space(2)).Children(func() {
+			if uikit.SecondaryButton(c, locales.CopySnippet()).Clicked() {
+				c.Services().WriteClipboard(clientsetup.AndroidNetworkSecurityConfig())
+				a.done(locales.CopiedTheNetworkSecurityConfig())
+			}
+		})
+		uikit.Meta(c, locales.TheSnippetTrustsTheCaOnlyIn())
+		ui.Text(c, clientsetup.AndroidNetworkSecurityConfig()).
+			Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(12)
+	}
 	uikit.Meta(c, locales.TheCaIsCopiedTo())
+	uikit.Meta(c, locales.InstallingASystemCaRunsAdbRoot())
 }
 
 func (a *app) clientIOSPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, running bool) {

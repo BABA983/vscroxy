@@ -4306,6 +4306,18 @@ func (msgs Messages) CopiedKeytoolCommands() string {
 	return Catalog.Format(msgs.locale, "copiedKeytoolCommands", nil)
 }
 
+// CopiedTheNetworkSecurityConfig says "Copied the network security config snippet"
+// in the language the app shows.
+func CopiedTheNetworkSecurityConfig() string {
+	return In(i18n.Locale()).CopiedTheNetworkSecurityConfig()
+}
+
+// CopiedTheNetworkSecurityConfig says "Copied the network security config snippet"
+// in the language of msgs.
+func (msgs Messages) CopiedTheNetworkSecurityConfig() string {
+	return Catalog.Format(msgs.locale, "copiedTheNetworkSecurityConfig", nil)
+}
+
 // CopiedMessage says "Copied {label} message · {size}"
 // in the language the app shows.
 func CopiedMessage(label string, size string) string {
@@ -4520,6 +4532,16 @@ func CopyCaToDevice() string { return In(i18n.Locale()).CopyCaToDevice() }
 // in the language of msgs.
 func (msgs Messages) CopyCaToDevice() string {
 	return Catalog.Format(msgs.locale, "copyCaToDevice", nil)
+}
+
+// CopySnippet says "Copy snippet"
+// in the language the app shows.
+func CopySnippet() string { return In(i18n.Locale()).CopySnippet() }
+
+// CopySnippet says "Copy snippet"
+// in the language of msgs.
+func (msgs Messages) CopySnippet() string {
+	return Catalog.Format(msgs.locale, "copySnippet", nil)
 }
 
 // CopyCapabilities says "Copy capabilities"
@@ -10194,6 +10216,40 @@ func (msgs Messages) InstallCaInIosSimulator2() string {
 	return Catalog.Format(msgs.locale, "installCaInIosSimulator2", nil)
 }
 
+// InstallSystemCa says "Install system CA"
+// in the language the app shows.
+func InstallSystemCa() string { return In(i18n.Locale()).InstallSystemCa() }
+
+// InstallSystemCa says "Install system CA"
+// in the language of msgs.
+func (msgs Messages) InstallSystemCa() string {
+	return Catalog.Format(msgs.locale, "installSystemCa", nil)
+}
+
+// InstalledCaInTheAndroidSystemStore says "Installed CA in the Android system store"
+// in the language the app shows.
+func InstalledCaInTheAndroidSystemStore() string {
+	return In(i18n.Locale()).InstalledCaInTheAndroidSystemStore()
+}
+
+// InstalledCaInTheAndroidSystemStore says "Installed CA in the Android system store"
+// in the language of msgs.
+func (msgs Messages) InstalledCaInTheAndroidSystemStore() string {
+	return Catalog.Format(msgs.locale, "installedCaInTheAndroidSystemStore", nil)
+}
+
+// InstallingASystemCaRunsAdbRoot says "Installing a system CA runs adb root and lasts until the device reboots; restart the app you are testing. Chrome 115 …"
+// in the language the app shows.
+func InstallingASystemCaRunsAdbRoot() string {
+	return In(i18n.Locale()).InstallingASystemCaRunsAdbRoot()
+}
+
+// InstallingASystemCaRunsAdbRoot says "Installing a system CA runs adb root and lasts until the device reboots; restart the app you are testing. Chrome 115 …"
+// in the language of msgs.
+func (msgs Messages) InstallingASystemCaRunsAdbRoot() string {
+	return Catalog.Format(msgs.locale, "installingASystemCaRunsAdbRoot", nil)
+}
+
 // InstallCertificate says "Install certificate"
 // in the language the app shows.
 func InstallCertificate() string { return In(i18n.Locale()).InstallCertificate() }
@@ -12566,6 +12622,16 @@ func NoAndroidDeviceOrEmulator() string { return In(i18n.Locale()).NoAndroidDevi
 // in the language of msgs.
 func (msgs Messages) NoAndroidDeviceOrEmulator() string {
 	return Catalog.Format(msgs.locale, "noAndroidDeviceOrEmulator", nil)
+}
+
+// NetworkSecurityConfig says "Network security config"
+// in the language the app shows.
+func NetworkSecurityConfig() string { return In(i18n.Locale()).NetworkSecurityConfig() }
+
+// NetworkSecurityConfig says "Network security config"
+// in the language of msgs.
+func (msgs Messages) NetworkSecurityConfig() string {
+	return Catalog.Format(msgs.locale, "networkSecurityConfig", nil)
 }
 
 // NoAppRulesEnabled says "No app rules enabled"
@@ -21758,14 +21824,24 @@ func (msgs Messages) TheBaseUrlRequestsAre() string {
 	return Catalog.Format(msgs.locale, "theBaseUrlRequestsAre", nil)
 }
 
-// TheCaIsCopiedTo says "The CA is copied to Downloads only. Android 7+ apps do not trust user-installed CAs; installing it and enabling trust…"
+// TheCaIsCopiedTo says "The CA is copied to Downloads, where Android Settings installs it as a user certificate. Apps that target Android 7+ …"
 // in the language the app shows.
 func TheCaIsCopiedTo() string { return In(i18n.Locale()).TheCaIsCopiedTo() }
 
-// TheCaIsCopiedTo says "The CA is copied to Downloads only. Android 7+ apps do not trust user-installed CAs; installing it and enabling trust…"
+// TheCaIsCopiedTo says "The CA is copied to Downloads, where Android Settings installs it as a user certificate. Apps that target Android 7+ …"
 // in the language of msgs.
 func (msgs Messages) TheCaIsCopiedTo() string {
 	return Catalog.Format(msgs.locale, "theCaIsCopiedTo", nil)
+}
+
+// TheSnippetTrustsTheCaOnlyIn says "Save it as app/src/debug/res/xml/network_security_config.xml, with the CA at app/src/debug/res/raw/vscroxy_ca.pem. De…"
+// in the language the app shows.
+func TheSnippetTrustsTheCaOnlyIn() string { return In(i18n.Locale()).TheSnippetTrustsTheCaOnlyIn() }
+
+// TheSnippetTrustsTheCaOnlyIn says "Save it as app/src/debug/res/xml/network_security_config.xml, with the CA at app/src/debug/res/raw/vscroxy_ca.pem. De…"
+// in the language of msgs.
+func (msgs Messages) TheSnippetTrustsTheCaOnlyIn() string {
+	return Catalog.Format(msgs.locale, "theSnippetTrustsTheCaOnlyIn", nil)
 }
 
 // TheCollectionGroupsSavedRequests says "The collection groups saved requests in the library."

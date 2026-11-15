@@ -89,12 +89,28 @@ func TestOneClickAndroidShowsReverseProxyAndCertificateLimits(t *testing.T) {
 		"Undo proxy",
 		"Forget saved proxy",
 		"Copy CA to device",
+		"Install system CA",
+		"Network security config",
 		"adb reverse",
 		"Undo restores the proxy value",
-		"Android 7+ apps do not trust user-installed CAs",
+		"Apps that target Android 7+ do not trust user certificates",
+		"Installing a system CA runs adb root",
+		"Chrome 115 and later uses its own root store",
 	} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q: %v", want, tt.Texts())
+		}
+	}
+	// The snippet stays hidden until asked for, then shows the debug resource.
+	if tt.HasText("vscroxy_ca") {
+		t.Fatalf("the snippet was shown before it was requested: %v", tt.Texts())
+	}
+	if err := tt.Click("Network security config"); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"vscroxy_ca", "Copy snippet", "app/src/debug/res/raw/vscroxy_ca.pem"} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q after showing the snippet: %v", want, tt.Texts())
 		}
 	}
 }
@@ -542,5 +558,52 @@ func TestOneClickAndroidPersistsAndClearsUndoState(t *testing.T) {
 	}
 	if len(a.clientUI.androidApplied) != 0 {
 		t.Fatalf("undo did not clear state: %+v", a.clientUI.androidApplied)
+	}
+}
+
+func TestOneClickAndroidInstallsTheSystemCA(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake adb is a shell script")
+	}
+	a := oneClickApp(t)
+	a.clientUI.target = clientTargetAndroid
+	a.clientUI.androidLoaded = true
+	a.clientUI.android = []clientsetup.AndroidDevice{{Serial: "emulator-5554", State: "device", Model: "Pixel_7"}}
+	a.clientUI.androidSerial = "emulator-5554"
+	logPath := filepath.Join(t.TempDir(), "adb.log")
+	binDir := t.TempDir()
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + clientsetup.POSIXQuote(logPath) + "\n" +
+		"case \"$*\" in\n" +
+		"*\"shell id -u\"*) echo 0 ;;\n" +
+		"*\"pidof zygote64 zygote\"*) echo 389 ;;\n" +
+		"*\"vscroxy-ca-backup | wc -l\"*) echo 145 ;;\n" +
+		"*\"wc -l\"*) echo 146 ;;\n" +
+		"*\"ls /apex/com.android.conscrypt/cacerts/*.0\"*) echo apex ;;\n" +
+		"esac\nexit 0\n"
+	if err := os.WriteFile(filepath.Join(binDir, "adb"), []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Install system CA"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for a.clientUI.androidPending && time.Now().Before(deadline) {
+		tt.Frame()
+		time.Sleep(10 * time.Millisecond)
+	}
+	if a.clientUI.androidPending {
+		t.Fatal("the install did not finish")
+	}
+	if !strings.Contains(a.message, "Installed CA in the Android system store") {
+		t.Fatalf("message: %q", a.message)
+	}
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if log := string(data); !strings.Contains(log, "mount -t tmpfs tmpfs /apex/com.android.conscrypt/cacerts") {
+		t.Fatalf("the install did not mount the APEX store:\n%s", log)
 	}
 }

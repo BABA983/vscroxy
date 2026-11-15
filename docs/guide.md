@@ -125,11 +125,31 @@ profile, an emulator setting or the app's own Java truststore changes.
   only the local record, for a restarted emulator, a reused serial, or a saved
   value that no longer validates.
   **Copy CA to device** pushes
-  only the public CA to `/sdcard/Download/vscroxy-ca.crt`; installing it and
-  trusting it remains a device-side step. Android 7+ apps do not trust
-  user-installed CAs, and the system store needs a rooted, writable-system
-  image; this app does not modify it. Apps that ignore the system proxy or pin
-  certificates still need app-side changes.
+  only the public CA to `/sdcard/Download/vscroxy-ca.crt` for Android Settings
+  to install as a user certificate. Android 7+ apps do not trust user
+  certificates by default, so **Install system CA** installs it as a system
+  certificate instead. It runs `adb root`, which an emulator with a Google APIs
+  image (not Play Store) or a rooted device allows, and writes
+  `/system/etc/security/cacerts/<subject_hash_old>.0` through Android 13; the
+  emulator must be started with `-writable-system` for `adb remount` to succeed.
+  Android 14 moved the store into the read-only Conscrypt APEX, so there it
+  mounts a tmpfs over `/apex/com.android.conscrypt/cacerts` in the zygote mount
+  namespaces, holding the certificates the device shipped with plus the app's
+  CA. The install lasts until the device reboots; apps that were already
+  running keep their old mount namespace and must be restarted. The app leaves
+  adbd running as root until the device reboots or `adb unroot`. Chrome 115 and
+  later uses the Chrome Root Store on Android and ignores system certificates,
+  so Chrome still needs the CA in the user store. Apps that ignore the system
+  proxy or pin certificates still need app-side changes. **Network security
+  config** shows a snippet for the user's own debug builds: save it as
+  `app/src/debug/res/xml/network_security_config.xml`, put the CA at
+  `app/src/debug/res/raw/vscroxy_ca.pem`, and reference
+  `@xml/network_security_config` from the debug manifest. Only debuggable
+  builds trust it. The APEX store path is verified on an Android 15 (API 35)
+  emulator, where a targetSdk 35 app trusted a server signed by the installed
+  CA and failed with "Trust anchor for certification path not found" without
+  it; the system-partition path used through Android 13 is covered by tests
+  only.
 - **iOS simulator** (macOS only) runs
   `xcrun simctl keychain booted add-root-cert <CA>` on the booted simulator. It
   does not configure a physical iPhone. The simulator may still require enabling
@@ -195,7 +215,9 @@ Device access is **off on every launch**; consent and listeners are not persiste
 5. Follow the guide's **iOS** or **Android** tab. On iOS, install the downloaded
    profile and explicitly enable full trust under General → About → Certificate
    Trust Settings. On Android, install it as a CA certificate; many Android 7+
-   apps need a debug Network Security Configuration that trusts user CAs.
+   apps need a debug Network Security Configuration that trusts user CAs, and a
+   rooted device or emulator can take it as a system certificate from
+   **Set up a local client** → **Android emulator** instead.
 6. Enable **Configure HTTPS inspection** for the desired hosts, then make an
    HTTPS request from the device and inspect its decrypted path/body in Capture.
 

@@ -158,7 +158,7 @@
 | 本地客户端配置示例 | 已有 | | |
 | 一键打开已配好代理的终端（设置 `HTTP_PROXY`／`HTTPS_PROXY` 及小写、`NO_PROXY`（只含监听地址，localhost 也走代理）、`NODE_USE_ENV_PROXY=1`、`NODE_EXTRA_CA_CERTS`、`REQUESTS_CA_BUNDLE`、`SSL_CERT_FILE`、`CURL_CA_BUNDLE` 等） | 已有 | 独立窗口；替换型信任变量（`DENO_CERT` 为追加）指向系统根证书 + app CA 的 0600 bundle；只影响该窗口；Node 24+ 的内置 `fetch` 走代理，更早的 Node 忽略 `NODE_USE_ENV_PROXY` | M7 |
 | 一键打开已配好代理的 Chrome/Firefox（独立配置） | 已有 | 临时 profile；Chrome `--proxy-server`／`--user-data-dir`／`--proxy-bypass-list=<-loopback>`，Firefox `user.js`（不设 no_proxies_on）；localhost 也走代理；不关闭 TLS 校验 | M7 |
-| Android 模拟器自动配置（adb 设代理、装证书） | 已有 | `adb reverse` + 可撤销的 global proxy；Undo 恢复原值并移除对应 reverse，reverse 已消失时警告并清除记录；Forget saved proxy 清除过期记录；CA 只复制到 Downloads，系统信任需手动或 root 镜像 | M7 |
+| Android 模拟器自动配置（adb 设代理、装证书） | 已有 | `adb reverse` + 可撤销的 global proxy；Undo 恢复原值并移除对应 reverse，reverse 已消失时警告并清除记录；Forget saved proxy 清除过期记录；CA 可复制到 Downloads 走用户证书，也可经 `adb root` 装进系统存储（Android 13 及以前写 `/system/etc/security/cacerts`，需 `-writable-system`；Android 14+ 在 zygote 命名空间给只读的 Conscrypt APEX 挂 tmpfs，保留原有证书），重启后失效、已运行的 App 需重启；另给调试版本的 `network_security_config.xml` 片段；Chrome 115+ 用自带根证书库，不受系统证书影响 | M7 |
 | iOS 模拟器自动装证书（macOS，simctl） | 已有 | 仅已启动的模拟器，不配置真机 | M7 |
 | Java keystore 导入证书 | 已有 | app 自有 PKCS#12 truststore；先从 JDK cacerts 复制系统根证书，再加 app CA；JVM 选项含代理 host／port；先审阅命令再确认 | M7 |
 | Electron App 带代理参数启动 | 已有 | `--proxy-server`、`--proxy-bypass-list=<-loopback>`（localhost 也走代理）；不传 `--ignore-certificate-errors`；信任取决于系统／NSS 或应用自身 | M7 |
@@ -324,7 +324,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 - 一键接入已完成（[使用指南](guide.md#one-click-client-setup)）：终端、Chrome、Firefox、Android 模拟器、iOS 模拟器（仅 macOS）、Java truststore、Electron。
   终端把替换型信任变量指向系统根证书 + app CA 的 0600 bundle，未解密 host 仍可验证；找不到系统 bundle 时只设 `NODE_EXTRA_CA_CERTS` 并警告。
-  浏览器只改变临时 profile；snap 浏览器（含 Ubuntu 的 `/usr/bin/firefox`、`/usr/bin/chromium-browser` 过渡包装脚本）使用 `~/snap/<name>/common/`。Android 用 `adb reverse`，旧代理和端口保存在 `~/.vscroxy/android-proxy.json`；Undo 恢复并移除对应 reverse，reverse 已消失时只警告并清除记录，Forget saved proxy 可清除过期记录；Java 先复制 JDK cacerts 再加 CA，JVM 选项含代理 host／port；Electron 不关闭证书校验。
+  浏览器只改变临时 profile；snap 浏览器（含 Ubuntu 的 `/usr/bin/firefox`、`/usr/bin/chromium-browser` 过渡包装脚本）使用 `~/snap/<name>/common/`。Android 用 `adb reverse`，旧代理和端口保存在 `~/.vscroxy/android-proxy.json`；Undo 恢复并移除对应 reverse，reverse 已消失时只警告并清除记录，Forget saved proxy 可清除过期记录；系统证书安装经 `adb root`（或 `su`）写系统存储或给 Conscrypt APEX 挂 tmpfs，重启后失效，APEX 路径已在 Android 15 模拟器上验证，旧系统分区路径只有单元测试；Java 先复制 JDK cacerts 再加 CA，JVM 选项含代理 host／port；Electron 不关闭证书校验。
   Chrome/Electron 在 Linux 走 NSS，不读取 app 的 CA 文件；Firefox 临时 profile 在 Linux/macOS 用 `certutil`，Windows 用 enterprise roots。
   临时 profile 不随 launcher 退出删除，崩溃遗留的在下次启动清理；不写 hosts，不修改用户全局配置。
 - SOCKS5 入口、反向代理已完成（见[使用指南](guide.md#socks5-and-reverse-proxies)）：SOCKS5 支持 CONNECT、可选 RFC 1929 认证、域名／IPv4／IPv6；解密名单内的 TLS 按既有规则 MITM 或抓取明文 HTTP；名单外先嗅探首字节，明文 HTTP 仍抓取，TLS／其他协议原样透传；反向代理把本地端口转发到 http／https 远端，Host 可改写或保留，规则和抓包同样生效，远端证书默认校验。限制：SOCKS5 只支持 CONNECT（BIND／UDP ASSOCIATE 拒绝），解密名单内的目标必须是 HTTP(S) 且 10 s 内开始发送；名单外服务器先发协议最多延迟一个嗅探窗口；反向代理本地侧只收明文 HTTP，Remote host 时只接受回环 Host，抓包中的客户端是本机 app。
