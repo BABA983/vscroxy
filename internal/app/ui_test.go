@@ -3578,13 +3578,9 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	}))
 	defer upstream.Close()
 	defer close(releaseSlow)
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	addr := listener.Addr().String()
-	listener.Close()
-	srv, err := capture.New(addr, t.TempDir())
+	// Port zero lets Start bind an ephemeral port; closing a reserved listener
+	// first would leave a window for another process to take it.
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4467,13 +4463,9 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 	// verification on and exercise a DNS hostname, as a real API would use.
 	target, _ := url.Parse(upstream.URL)
 	target.Host = net.JoinHostPort("localhost", target.Port())
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	addr := listener.Addr().String()
-	listener.Close()
-	srv, err := capture.New(addr, t.TempDir())
+	// Port zero lets Start bind an ephemeral port; closing a reserved listener
+	// first would leave a window for another process to take it.
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4498,27 +4490,30 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 	if !tt.HasText("LAN off") {
 		t.Fatal("LAN access was not off by default")
 	}
-	// Reserve an adjacent pair while selecting ports; the product intentionally
-	// requires explicit ports, whereas backend tests may use port zero.
-	var port int
-	for range 32 {
-		first, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatal(err)
+	// The gateway needs an explicit proxy port and the certificate service uses
+	// the next one. A pair reserved and closed is only a suggestion: another
+	// process can take it before the gateway binds, so the test picks a new pair
+	// when it loses that race instead of failing on the shared machine.
+	adjacentPort := func() int {
+		t.Helper()
+		for range 32 {
+			first, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			p := first.Addr().(*net.TCPAddr).Port
+			second, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p+1))
+			first.Close()
+			if err == nil {
+				second.Close()
+				return p
+			}
 		}
-		p := first.Addr().(*net.TCPAddr).Port
-		second, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p+1))
-		first.Close()
-		if err == nil {
-			second.Close()
-			port = p
-			break
-		}
-	}
-	if port == 0 {
 		t.Fatal("no adjacent ports available")
+		return 0
 	}
-	a.deviceUI.ips, a.deviceUI.ip, a.deviceUI.port = []string{"127.0.0.1"}, "127.0.0.1", fmt.Sprint(port)
+	a.deviceUI.ips, a.deviceUI.ip = []string{"127.0.0.1"}, "127.0.0.1"
+	a.deviceUI.port = fmt.Sprint(adjacentPort())
 	tt.Frame()
 	click("Enable device access")
 	if !tt.HasText("LAN off") {
@@ -4527,9 +4522,19 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 	click("Allowed device addresses")
 	tt.Type("127.0.0.1")
 	click("I trust this network and the allowed devices")
-	click("Enable device access")
+	for range 8 {
+		click("Enable device access")
+		if a.deviceUI.gateway != nil {
+			break
+		}
+		if problem := a.deviceUI.problem; !strings.Contains(problem, "address already in use") {
+			t.Fatalf("enable failed: %s", problem)
+		}
+		a.deviceUI.port = fmt.Sprint(adjacentPort())
+		tt.Frame()
+	}
 	if !tt.HasText("LAN enabled") {
-		t.Fatalf("enable failed: %s", a.deviceUI.problem)
+		t.Fatalf("enable failed after retries: %s", a.deviceUI.problem)
 	}
 	click("Copy proxy address")
 	gatewayURL, _ := url.Parse("http://" + tt.Clipboard())
