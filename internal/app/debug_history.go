@@ -176,7 +176,7 @@ func (s *experimentWorkbench) compareSource(c *ui.Context, r experimentRecord, s
 	}
 	left, right := r.Source.Exchange.flow(), r.compared("")
 	left.id, right.id = 1, 2
-	s.sourceComparison.compare(c, left, right, [2]string{fmt.Sprintf("Source #%d · snapshot", r.Source.Exchange.ID), fmt.Sprintf("Experiment #%d", r.ID)}, split)
+	s.sourceComparison.compare(c, left, right, [2]string{fmt.Sprintf("Source #%d · snapshot", r.Source.Exchange.ID), fmt.Sprintf("Experiment #%d", r.ID)}, split, nil)
 }
 
 func newDebugSource(f flow) *debugSource {

@@ -25739,3 +25739,133 @@ func CookiesSavedToJar(count int) string { return In(i18n.Locale()).CookiesSaved
 func (msgs Messages) CookiesSavedToJar(count int) string {
 	return Catalog.Format(msgs.locale, "cookiesSavedToJar", map[string]any{"count": count})
 }
+
+// DiffPool says "Diff pool"
+// in the language the app shows.
+func DiffPool() string { return In(i18n.Locale()).DiffPool() }
+
+// DiffPool says "Diff pool"
+// in the language of msgs.
+func (msgs Messages) DiffPool() string {
+	return Catalog.Format(msgs.locale, "diffPool", nil)
+}
+
+// ChooseAtLeastTwoRowsWith says "Choose at least two rows with Ctrl/Cmd-click"
+// in the language the app shows.
+func ChooseAtLeastTwoRowsWith() string { return In(i18n.Locale()).ChooseAtLeastTwoRowsWith() }
+
+// ChooseAtLeastTwoRowsWith says "Choose at least two rows with Ctrl/Cmd-click"
+// in the language of msgs.
+func (msgs Messages) ChooseAtLeastTwoRowsWith() string {
+	return Catalog.Format(msgs.locale, "chooseAtLeastTwoRowsWith", nil)
+}
+
+// ExportUnifiedDiff says "Export unified diff…"
+// in the language the app shows.
+func ExportUnifiedDiff() string { return In(i18n.Locale()).ExportUnifiedDiff() }
+
+// ExportUnifiedDiff says "Export unified diff…"
+// in the language of msgs.
+func (msgs Messages) ExportUnifiedDiff() string {
+	return Catalog.Format(msgs.locale, "exportUnifiedDiff", nil)
+}
+
+// ExportedUnifiedDiff says "Exported unified diff"
+// in the language the app shows.
+func ExportedUnifiedDiff() string { return In(i18n.Locale()).ExportedUnifiedDiff() }
+
+// ExportedUnifiedDiff says "Exported unified diff"
+// in the language of msgs.
+func (msgs Messages) ExportedUnifiedDiff() string {
+	return Catalog.Format(msgs.locale, "exportedUnifiedDiff", nil)
+}
+
+// CapturesHaveNoDifferences says "The compared parts are identical."
+// in the language the app shows.
+func CapturesHaveNoDifferences() string { return In(i18n.Locale()).CapturesHaveNoDifferences() }
+
+// CapturesHaveNoDifferences says "The compared parts are identical."
+// in the language of msgs.
+func (msgs Messages) CapturesHaveNoDifferences() string {
+	return Catalog.Format(msgs.locale, "capturesHaveNoDifferences", nil)
+}
+
+// DiffPoolCount says "Diff pool · {count} captures"
+// in the language the app shows.
+func DiffPoolCount(count int) string { return In(i18n.Locale()).DiffPoolCount(count) }
+
+// DiffPoolCount says "Diff pool · {count} captures"
+// in the language of msgs.
+func (msgs Messages) DiffPoolCount(count int) string {
+	return Catalog.Format(msgs.locale, "diffPoolCount", map[string]any{"count": count})
+}
+
+// AddSelectionToPool says "Add selection"
+// in the language the app shows.
+func AddSelectionToPool() string { return In(i18n.Locale()).AddSelectionToPool() }
+
+// AddSelectionToPool says "Add selection"
+// in the language of msgs.
+func (msgs Messages) AddSelectionToPool() string {
+	return Catalog.Format(msgs.locale, "addSelectionToPool", nil)
+}
+
+// DiffPoolLimit says "The pool holds at most {limit} captures."
+// in the language the app shows.
+func DiffPoolLimit(limit int) string { return In(i18n.Locale()).DiffPoolLimit(limit) }
+
+// DiffPoolLimit says "The pool holds at most {limit} captures."
+// in the language of msgs.
+func (msgs Messages) DiffPoolLimit(limit int) string {
+	return Catalog.Format(msgs.locale, "diffPoolLimit", map[string]any{"limit": limit})
+}
+
+// ClearPool says "Clear pool"
+// in the language the app shows.
+func ClearPool() string { return In(i18n.Locale()).ClearPool() }
+
+// ClearPool says "Clear pool"
+// in the language of msgs.
+func (msgs Messages) ClearPool() string {
+	return Catalog.Format(msgs.locale, "clearPool", nil)
+}
+
+// DiffPoolNeedsTwo says "Add at least two captures to the pool, then pick the two sides."
+// in the language the app shows.
+func DiffPoolNeedsTwo() string { return In(i18n.Locale()).DiffPoolNeedsTwo() }
+
+// DiffPoolNeedsTwo says "Add at least two captures to the pool, then pick the two sides."
+// in the language of msgs.
+func (msgs Messages) DiffPoolNeedsTwo() string {
+	return Catalog.Format(msgs.locale, "diffPoolNeedsTwo", nil)
+}
+
+// RemoveFromPool says "Remove from pool"
+// in the language the app shows.
+func RemoveFromPool() string { return In(i18n.Locale()).RemoveFromPool() }
+
+// RemoveFromPool says "Remove from pool"
+// in the language of msgs.
+func (msgs Messages) RemoveFromPool() string {
+	return Catalog.Format(msgs.locale, "removeFromPool", nil)
+}
+
+// LeftSide says "Left side"
+// in the language the app shows.
+func LeftSide() string { return In(i18n.Locale()).LeftSide() }
+
+// LeftSide says "Left side"
+// in the language of msgs.
+func (msgs Messages) LeftSide() string {
+	return Catalog.Format(msgs.locale, "leftSide", nil)
+}
+
+// RightSide says "Right side"
+// in the language the app shows.
+func RightSide() string { return In(i18n.Locale()).RightSide() }
+
+// RightSide says "Right side"
+// in the language of msgs.
+func (msgs Messages) RightSide() string {
+	return Catalog.Format(msgs.locale, "rightSide", nil)
+}

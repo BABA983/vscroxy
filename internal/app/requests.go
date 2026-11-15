@@ -1659,7 +1659,7 @@ func (a *app) responseCompare(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		right.resError = "preview limited to 8 MiB"
 	}
 	uikit.Meta(c, locales.LastSendClientRequestAnd()).Padding(t.Space(1), t.Space(3))
-	d.comparison.compare(c, *d.source, right, [2]string{fmt.Sprintf("Source #%d", d.sourceFlow), "Last send"}, &a.diffSplit)
+	d.comparison.compare(c, *d.source, right, [2]string{fmt.Sprintf("Source #%d", d.sourceFlow), "Last send"}, &a.diffSplit, nil)
 }
 
 // responseCookies lists what the response asked the client to store.

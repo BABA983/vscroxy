@@ -2634,4 +2634,18 @@
   "imagePreviewTooLarge": "图片为 {width}×{height}；预览上限为 {megapixels} 百万像素。",
   "saveCookiesToJar": "保存 Cookie 到 jar",
   "cookiesSavedToJar": "已保存 {count} 个 Cookie 到请求 jar",
-  "@cookiesSavedToJar": {"placeholders":{"count":{"type":"int"}}}}
+  "@cookiesSavedToJar": {"placeholders":{"count":{"type":"int"}}},
+  "diffPool": "差异池",
+  "chooseAtLeastTwoRowsWith": "按住 Ctrl/Cmd 单击选择至少两行",
+  "exportUnifiedDiff": "导出 unified diff…",
+  "exportedUnifiedDiff": "已导出 unified diff",
+  "capturesHaveNoDifferences": "对比的部分完全相同。",
+  "diffPoolCount": "差异池 · {count} 个抓包",
+  "addSelectionToPool": "加入所选",
+  "diffPoolLimit": "差异池最多 {limit} 个抓包。",
+  "clearPool": "清空差异池",
+  "diffPoolNeedsTwo": "向差异池加入至少两个抓包，再选择两侧。",
+  "removeFromPool": "从差异池移除",
+  "leftSide": "左侧",
+  "rightSide": "右侧"
+}

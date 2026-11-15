@@ -2254,6 +2254,16 @@ when unrelated traffic arrives. **Inspect focused** returns to one request.
 The single-request Diff tab still compares with the previous same-method/URL
 response.
 
+**Diff pool** keeps up to eight captures and compares any two of them. Press it
+with two or more rows chosen to start a pool; **Add selection** appends the
+current table choice and each chip's **×** removes it. **Left side** and
+**Right side** pick the pair without going back to the table, and the
+comparison keeps the same body/header part, swap, split/unified and position
+controls as **Compare two**. **Export unified diff…** writes a standard unified
+diff (three lines of context, `---`/`+++` names, `@@` hunks) of the shown part;
+identical parts report that there is nothing to write. The pool lives for the
+session only and is not part of a saved capture session.
+
 ## Requests
 
 **New request** opens a request in the content area, one at a time. Other open

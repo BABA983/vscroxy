@@ -445,6 +445,20 @@
       }
     }
   },
+  "@diffPoolCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@diffPoolLimit": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
   "@importedExchanges": {
     "placeholders": {
       "file": {
@@ -3994,4 +4008,18 @@
   "imagePreviewTooLarge": "Image is {width}×{height}; previews are limited to {megapixels} megapixels.",
   "saveCookiesToJar": "Save cookies to jar",
   "cookiesSavedToJar": "Saved {count} cookies to the request jar",
-  "@cookiesSavedToJar": {"placeholders":{"count":{"type":"int"}}}}
+  "@cookiesSavedToJar": {"placeholders":{"count":{"type":"int"}}},
+  "diffPool": "Diff pool",
+  "chooseAtLeastTwoRowsWith": "Choose at least two rows with Ctrl/Cmd-click",
+  "exportUnifiedDiff": "Export unified diff…",
+  "exportedUnifiedDiff": "Exported unified diff",
+  "capturesHaveNoDifferences": "The compared parts are identical.",
+  "diffPoolCount": "Diff pool · {count} captures",
+  "addSelectionToPool": "Add selection",
+  "diffPoolLimit": "The pool holds at most {limit} captures.",
+  "clearPool": "Clear pool",
+  "diffPoolNeedsTwo": "Add at least two captures to the pool, then pick the two sides.",
+  "removeFromPool": "Remove from pool",
+  "leftSide": "Left side",
+  "rightSide": "Right side"
+}

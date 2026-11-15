@@ -98,7 +98,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 			}
 			left, right := *s.left, item.data.Flows[item.picked].flow()
 			left.id, right.id = 1, 2
-			s.comparison.compare(c, left, right, [2]string{s.leftLabel, item.data.Title}, &a.diffSplit)
+			s.comparison.compare(c, left, right, [2]string{s.leftLabel, item.data.Title}, &a.diffSplit, nil)
 			return
 		}
 		ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {

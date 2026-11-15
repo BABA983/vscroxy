@@ -11,15 +11,33 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 )
 
+// content is the compared part of a capture, in the part names the selector
+// uses.
+func (s *captureAnalysis) content(f flow) string {
+	switch s.part {
+	case "Request body":
+		return f.body(false)
+	case "Request headers":
+		return f.reqHeaders
+	case "Response headers":
+		return f.resHeaders
+	default:
+		return f.body(true)
+	}
+}
+
 // captureAnalysis keeps the reader's comparison and scroll position while
 // unrelated traffic arrives. The pair is identified by capture IDs, not rows.
 type captureAnalysis struct {
-	tab      int
-	part     string
-	swapped  bool
-	pair     [2]int
-	diffPart string
-	diff     *editor.DiffState
+	tab       int
+	part      string
+	swapped   bool
+	pair      [2]int
+	diffPart  string
+	diff      *editor.DiffState
+	pool      []int
+	poolLeft  string
+	poolRight string
 }
 
 func (a *app) inspectCapture(id int) {
@@ -89,6 +107,9 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 			if uikit.Tip(c, uikit.SecondaryButton(c, locales.CompareTwo()).Disabled(len(selected) != 2), locales.ChooseExactlyTwoRowsWith()).Clicked() {
 				s.tab = 1
 			}
+			if uikit.Tip(c, uikit.SecondaryButton(c, locales.DiffPool()).Disabled(len(selected) < 2), locales.ChooseAtLeastTwoRowsWith()).Clicked() {
+				s.openPool(selected)
+			}
 			if uikit.SecondaryButton(c, locales.InspectFocused()).Clicked() {
 				if f, ok := a.current(); ok {
 					a.inspectCapture(f.id)
@@ -98,6 +119,10 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 		ui.Divider(c)
 		if s.tab == 1 && len(selected) == 2 {
 			a.compareCaptures(c, selected[0], selected[1])
+			return
+		}
+		if s.tab == 2 {
+			a.diffPool(c, selected)
 			return
 		}
 		ui.Scroll(c).Grow(1).Padding(t.Space(3)).Gap(t.Space(3)).Children(func() {
@@ -141,11 +166,14 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 }
 
 func (a *app) compareCaptures(c *ui.Context, left, right flow) {
-	a.analysis.compare(c, left, right, [2]string{fmt.Sprintf("#%d", left.id), fmt.Sprintf("#%d", right.id)}, &a.diffSplit)
+	s := &a.analysis
+	s.compare(c, left, right, [2]string{fmt.Sprintf("#%d", left.id), fmt.Sprintf("#%d", right.id)}, &a.diffSplit, func() {
+		a.exportCaptureDiff(left, right)
+	})
 }
 
 // Each reader owns its diff buffers and position, including request documents.
-func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]string, split *float32) {
+func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]string, split *float32, export func()) {
 	t := c.Theme()
 	if s.swapped {
 		left, right = right, left
@@ -167,6 +195,9 @@ func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]str
 		}
 		if uikit.SecondaryButton(c, locales.Unified()).Clicked() && s.diff != nil {
 			s.diff.Layout = editor.DiffUnified
+		}
+		if export != nil && uikit.SecondaryButton(c, locales.ExportUnifiedDiff()).Clicked() {
+			export()
 		}
 	})
 	pair := [2]int{left.id, right.id}
