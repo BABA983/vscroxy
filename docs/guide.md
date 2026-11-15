@@ -212,13 +212,21 @@ Device access is **off on every launch**; consent and listeners are not persiste
    CA certificate as DER, never a directory or signing key. Compare the CA's
    SHA-256 fingerprint in **Diagnostics** (Phone or tablet); obtain it over a
    trusted network.
-5. Follow the guide's **iOS** or **Android** tab. On iOS, install the downloaded
+5. **Ask when an unknown device connects** is off by default. When it is on, a
+   source outside the allow list pauses the gateway's accept loop and asks
+   here; **Allow** admits that address for this LAN session, while **Deny**,
+   closing the prompt or its backdrop, and 60 seconds without an answer all
+   keep it out. The answer is remembered until device access is turned off or
+   restarted, and only one device is asked at a time: another unknown
+   connection while a prompt is open is denied. The option does not widen the
+   allow list; addresses in it never prompt.
+6. Follow the guide's **iOS** or **Android** tab. On iOS, install the downloaded
    profile and explicitly enable full trust under General → About → Certificate
    Trust Settings. On Android, install it as a CA certificate; many Android 7+
    apps need a debug Network Security Configuration that trusts user CAs, and a
    rooted device or emulator can take it as a system certificate from
    **Set up a local client** → **Android emulator** instead.
-6. Enable **Configure HTTPS inspection** for the desired hosts, then make an
+7. Enable **Configure HTTPS inspection** for the desired hosts, then make an
    HTTPS request from the device and inspect its decrypted path/body in Capture.
 
 **Diagnose…** opens Connection diagnostics for a phone or tablet: the last

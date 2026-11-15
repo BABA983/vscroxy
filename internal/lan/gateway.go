@@ -80,6 +80,11 @@ type Config struct {
 	// Allowed lists the client addresses that may use either listener, as
 	// exact IPs or CIDR ranges.
 	Allowed []string
+	// Ask is called for a client address outside Allowed when it is not nil.
+	// It runs on the accept loop, so it must return within a bounded time;
+	// true admits the address for this gateway's lifetime and false keeps it
+	// out. Nil keeps every unknown address out without asking.
+	Ask func(netip.Addr) bool
 	// Certificate is the public CA certificate in DER form. PEM bundles are
 	// not accepted; the capture core provides public DER without its key.
 	Certificate []byte
@@ -351,7 +356,7 @@ type settings struct {
 	certAddr    string
 	proxyAddr   string
 	socksAddr   string
-	gate        gate
+	gate        *gate
 	certificate []byte
 }
 
@@ -382,7 +387,7 @@ func (c Config) validate() (settings, error) {
 	if err := caCertificate(c.Certificate); err != nil {
 		return settings{}, err
 	}
-	gate, err := newGate(c.Allowed)
+	gate, err := newGate(c.Allowed, c.Ask)
 	if err != nil {
 		return settings{}, err
 	}
@@ -457,12 +462,16 @@ func caCertificate(der []byte) error {
 // once and never changes: a new configuration is a new gateway.
 type gate struct {
 	prefixes []netip.Prefix
+	ask      func(netip.Addr) bool
+	mu       sync.Mutex
+	approved map[netip.Addr]struct{}
+	denied   map[netip.Addr]struct{}
 }
 
 // newGate parses the allowed addresses. An empty list is refused rather than
 // read as "everyone": the gateway exists to be narrow.
-func newGate(allowed []string) (gate, error) {
-	var g gate
+func newGate(allowed []string, ask func(netip.Addr) bool) (*gate, error) {
+	g := &gate{ask: ask, approved: map[netip.Addr]struct{}{}, denied: map[netip.Addr]struct{}{}}
 	for i, entry := range allowed {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
@@ -470,12 +479,12 @@ func newGate(allowed []string) (gate, error) {
 		}
 		prefix, err := allowedPrefix(entry)
 		if err != nil {
-			return gate{}, fmt.Errorf("Allowed[%d]: %w", i, err)
+			return nil, fmt.Errorf("Allowed[%d]: %w", i, err)
 		}
 		g.prefixes = append(g.prefixes, prefix)
 	}
 	if len(g.prefixes) == 0 {
-		return gate{}, errors.New("Allowed is empty: no client may use the gateway")
+		return nil, errors.New("Allowed is empty: no client may use the gateway")
 	}
 	return g, nil
 }
@@ -509,9 +518,33 @@ func allowedPrefix(entry string) (netip.Prefix, error) {
 
 // allows reports whether a client address may connect. An IPv4-mapped address
 // is compared as the IPv4 address it names.
-func (g gate) allows(addr netip.Addr) bool {
+func (g *gate) allows(addr netip.Addr) bool {
 	addr = addr.Unmap()
-	return slices.ContainsFunc(g.prefixes, func(p netip.Prefix) bool { return p.Contains(addr) })
+	if slices.ContainsFunc(g.prefixes, func(p netip.Prefix) bool { return p.Contains(addr) }) {
+		return true
+	}
+	if g.ask == nil {
+		return false
+	}
+	g.mu.Lock()
+	if _, ok := g.approved[addr]; ok {
+		g.mu.Unlock()
+		return true
+	}
+	if _, ok := g.denied[addr]; ok {
+		g.mu.Unlock()
+		return false
+	}
+	g.mu.Unlock()
+	allowed := g.ask(addr)
+	g.mu.Lock()
+	if allowed {
+		g.approved[addr] = struct{}{}
+	} else {
+		g.denied[addr] = struct{}{}
+	}
+	g.mu.Unlock()
+	return allowed
 }
 
 // listenerKind says which listener admitted a client, for the status line.
@@ -527,7 +560,7 @@ const (
 // no request header can change it.
 type gatedListener struct {
 	net.Listener
-	gate    gate
+	gate    *gate
 	gateway *Gateway
 	kind    listenerKind
 }

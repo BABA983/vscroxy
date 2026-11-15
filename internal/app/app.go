@@ -161,9 +161,12 @@ type app struct {
 	apiCollection   string
 
 	// chosen are the rows chosen for a bulk action, by flow id.
-	chosen        ui.Selection[int]
-	overviewScope overviewScope
-	overviewCache overviewCache
+	chosen           ui.Selection[int]
+	overviewScope    overviewScope
+	overviewCache    overviewCache
+	deviceAskMu      sync.Mutex
+	deviceAskPending *deviceAskRequest
+	deviceAskOpen    bool
 	// picked bridges the table's row-index API; pickedID survives row rebuilds.
 	picked   int
 	pickedID int
@@ -1954,6 +1957,7 @@ func (a *app) view(c *ui.Context) {
 	a.runnerModal(c, t)
 	a.loadRunnerModal(c, t)
 	a.cookiesModal(c, t)
+	a.deviceAskModal(c, t)
 	a.decoderModal(c)
 	a.jsonQueryModal(c)
 	a.exportModal(c, t)

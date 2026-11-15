@@ -2702,5 +2702,12 @@
   "incompleteBodiesLabel": "不完整正文",
   "graphqlTransport": "订阅传输",
   "waitMilliseconds": "等待（毫秒）",
-  "graphqlSubscriptionHint": "graphql-ws 和 graphql-transport-ws 会建立 WebSocket，并收集消息直到服务端完成或等待结束。"
+  "graphqlSubscriptionHint": "graphql-ws 和 graphql-transport-ws 会建立 WebSocket，并收集消息直到服务端完成或等待结束。",
+  "askWhenUnknownDevice": "未知设备连接时询问",
+  "askUnknownDeviceHint": "默认关闭；60 秒未回答按拒绝处理。",
+  "deviceWantsToConnect": "设备请求连接",
+  "deviceNotAllowed": "{addr} 不在允许列表中。允许它在本次局域网会话中使用此代理？",
+  "deviceAskTimeout": "60 秒未回答将自动拒绝。",
+  "allow": "允许",
+  "deny": "拒绝"
 }

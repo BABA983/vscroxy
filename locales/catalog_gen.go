@@ -26421,3 +26421,73 @@ func GraphqlSubscriptionHint() string { return In(i18n.Locale()).GraphqlSubscrip
 func (msgs Messages) GraphqlSubscriptionHint() string {
 	return Catalog.Format(msgs.locale, "graphqlSubscriptionHint", nil)
 }
+
+// AskWhenUnknownDevice says "Ask when an unknown device connects"
+// in the language the app shows.
+func AskWhenUnknownDevice() string { return In(i18n.Locale()).AskWhenUnknownDevice() }
+
+// AskWhenUnknownDevice says "Ask when an unknown device connects"
+// in the language of msgs.
+func (msgs Messages) AskWhenUnknownDevice() string {
+	return Catalog.Format(msgs.locale, "askWhenUnknownDevice", nil)
+}
+
+// AskUnknownDeviceHint says "Off by default; 60 seconds without an answer denies."
+// in the language the app shows.
+func AskUnknownDeviceHint() string { return In(i18n.Locale()).AskUnknownDeviceHint() }
+
+// AskUnknownDeviceHint says "Off by default; 60 seconds without an answer denies."
+// in the language of msgs.
+func (msgs Messages) AskUnknownDeviceHint() string {
+	return Catalog.Format(msgs.locale, "askUnknownDeviceHint", nil)
+}
+
+// DeviceWantsToConnect says "Device wants to connect"
+// in the language the app shows.
+func DeviceWantsToConnect() string { return In(i18n.Locale()).DeviceWantsToConnect() }
+
+// DeviceWantsToConnect says "Device wants to connect"
+// in the language of msgs.
+func (msgs Messages) DeviceWantsToConnect() string {
+	return Catalog.Format(msgs.locale, "deviceWantsToConnect", nil)
+}
+
+// DeviceNotAllowed says "{addr} is not in the allowed list. Allow it to use this proxy for this LAN session?"
+// in the language the app shows.
+func DeviceNotAllowed(addr string) string { return In(i18n.Locale()).DeviceNotAllowed(addr) }
+
+// DeviceNotAllowed says "{addr} is not in the allowed list. Allow it to use this proxy for this LAN session?"
+// in the language of msgs.
+func (msgs Messages) DeviceNotAllowed(addr string) string {
+	return Catalog.Format(msgs.locale, "deviceNotAllowed", map[string]any{"addr": addr})
+}
+
+// DeviceAskTimeout says "The prompt denies itself after 60 seconds."
+// in the language the app shows.
+func DeviceAskTimeout() string { return In(i18n.Locale()).DeviceAskTimeout() }
+
+// DeviceAskTimeout says "The prompt denies itself after 60 seconds."
+// in the language of msgs.
+func (msgs Messages) DeviceAskTimeout() string {
+	return Catalog.Format(msgs.locale, "deviceAskTimeout", nil)
+}
+
+// Allow says "Allow"
+// in the language the app shows.
+func Allow() string { return In(i18n.Locale()).Allow() }
+
+// Allow says "Allow"
+// in the language of msgs.
+func (msgs Messages) Allow() string {
+	return Catalog.Format(msgs.locale, "allow", nil)
+}
+
+// Deny says "Deny"
+// in the language the app shows.
+func Deny() string { return In(i18n.Locale()).Deny() }
+
+// Deny says "Deny"
+// in the language of msgs.
+func (msgs Messages) Deny() string {
+	return Catalog.Format(msgs.locale, "deny", nil)
+}

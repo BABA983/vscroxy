@@ -14,6 +14,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"testing"
@@ -757,5 +758,41 @@ func TestGatewayWaitsForADelayedFirstByte(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	if _, err := silent.Read(make([]byte, 1)); err == nil {
 		t.Fatal("a client that sent no first byte stayed open")
+	}
+}
+
+func TestGateAsksForAnUnknownClientOnce(t *testing.T) {
+	asked := 0
+	gate, err := newGate([]string{"192.168.1.10"}, func(addr netip.Addr) bool {
+		asked++
+		return addr.String() == "192.168.1.11"
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowed := netip.MustParseAddr("192.168.1.10")
+	if !gate.allows(allowed) || asked != 0 {
+		t.Fatalf("allowed client asked: %d", asked)
+	}
+	approved := netip.MustParseAddr("192.168.1.11")
+	if !gate.allows(approved) || asked != 1 {
+		t.Fatalf("approved client: asked=%d", asked)
+	}
+	if !gate.allows(approved) || asked != 1 {
+		t.Fatalf("approval was not remembered: asked=%d", asked)
+	}
+	denied := netip.MustParseAddr("192.168.1.12")
+	if gate.allows(denied) || asked != 2 {
+		t.Fatalf("denied client: asked=%d", asked)
+	}
+	if gate.allows(denied) || asked != 2 {
+		t.Fatalf("denial was not remembered: asked=%d", asked)
+	}
+	quiet, err := newGate([]string{"192.168.1.10"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if quiet.allows(approved) {
+		t.Fatal("a gate without Ask admitted an unknown client")
 	}
 }

@@ -73,7 +73,7 @@
 | 系统代理绕过名单（Bypass list） | 已有 | Settings → Proxy → System proxy：开关「Replace the system bypass list」后写入 macOS `networksetup -setproxybypassdomains`、Windows WinINet 每连接 bypass、Linux GNOME `ignore-hosts`；关闭或崩溃恢复时还原原值，替换成别的程序的名单时不覆盖；不配置时三个平台都保留系统原值；`<local>` 仅 Windows 识别 | M7 |
 | SOCKS5 代理入口 | 已有 | RFC 1928 CONNECT，可选 RFC 1929 用户名／密码；域名、IPv4、IPv6；与 HTTP 代理同一条抓包流水线：解密名单内 MITM 并抓取明文 HTTP，名单外 400 ms 嗅探首字节，HTTP 请求行交给 HTTP 前端并抓取，TLS／其他字节原样透传，服务器先发协议窗口后透传；规则、Host 方案、网络条件、Allow／Block、录制生效；10 s peek 超时；嵌套 CONNECT 返回 400；Settings → Proxy 开关和固定端口（1024–65535，冲突不回退，空为自动）；设备接入的 IP 白名单经 LAN 网关同样生效 | M7 |
 | 反向代理（本地端口直接转发到远端） | 已有 | Settings → Proxy：多条本地端口 → http／https 远端 URL，增删改、启停，Host 头改写或保留；经同一规则和抓包，HTTPS 远端由 app 发起 TLS 并默认校验证书（可按条目允许自签名）；Remote host 时只接受回环 Host；端口冲突逐条提示 | M7 |
-| 设备接入访问控制（IP 白名单） | 已有 | | |
+| 设备接入访问控制（IP 白名单） | 已有 | 可选“未知设备连接时询问”，默认关闭；允许／拒绝在本次 LAN 会话内记住，60 秒未回答、关闭提示或拒绝都保持拒绝 | |
 | 自定义证书：上游客户端证书（mTLS）、导入自定义根证书 | 部分 | Settings → Certificates 的同一份配置：按 host（可带端口、`*.` 通配，IDN 转 punycode）出示 PEM cert+key 或 PKCS#12/PFX，可选口令；上游校验和反向代理 https 远端额外信任导入的 PEM 根证书并保留系统根开关。证书文件每次连接读取，读取或解析失败明确报错；口令密封在本机，不进设置文件、配置导出或日志。盲隧道（未解密）仍由客户端自己完成 TLS。可导入自己的 MITM 签名 CA（RSA／ECDSA，证书复制到 CA 目录、私钥密封），生成的叶子证书对 IP 字面量主机带 IP SAN；不能按 host 出示服务器证书 | M6 |
 | TLS key 记录（SSLKEYLOGFILE） | 已有 | | |
 | 连接日志 | 已有 | | |

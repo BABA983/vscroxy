@@ -18,14 +18,15 @@ import (
 // Device access is session-only. Neither consent nor the listener is restored
 // from disk, so reopening the app cannot silently expose the proxy to the LAN.
 type deviceSetup struct {
-	open     bool
-	ips      []string
-	ip, port string
-	allowed  string
-	consent  bool
-	platform int
-	problem  string
-	gateway  *lan.Gateway
+	open       bool
+	ips        []string
+	ip, port   string
+	allowed    string
+	consent    bool
+	askUnknown bool
+	platform   int
+	problem    string
+	gateway    *lan.Gateway
 }
 
 func deviceIPs() []string {
@@ -93,10 +94,14 @@ func (a *app) enableDevices() {
 		d.problem = "Choose a proxy port between 1 and 65534; the certificate service uses the next port"
 		return
 	}
+	var ask func(netip.Addr) bool
+	if d.askUnknown {
+		ask = a.askDevice
+	}
 	gateway, err := lan.Start(lan.Config{
 		ListenAddr: net.JoinHostPort(d.ip, strconv.Itoa(port)), CertificateAddr: net.JoinHostPort(d.ip, strconv.Itoa(port+1)),
 		ProxyAddr: a.srv.Addr(), SOCKSAddr: a.srv.SOCKSAddr(),
-		Allowed: strings.Fields(d.allowed), Certificate: a.srv.CACertificate(),
+		Allowed: strings.Fields(d.allowed), Certificate: a.srv.CACertificate(), Ask: ask,
 	})
 	if err != nil {
 		d.problem = err.Error()
@@ -108,6 +113,7 @@ func (a *app) enableDevices() {
 
 func (a *app) disableDevices() {
 	d := &a.deviceUI
+	a.answerDeviceAsk(false)
 	if d.gateway != nil {
 		err := d.gateway.Close()
 		d.gateway = nil
@@ -117,6 +123,92 @@ func (a *app) disableDevices() {
 	}
 	d.consent = false
 	a.inform(locales.DeviceAccessOffLocalCapture())
+}
+
+// deviceAskRequest is one unknown device waiting for the reader's answer.
+// The gateway's accept loop blocks on reply until the prompt answers or times
+// out, so only one device is asked at a time.
+type deviceAskRequest struct {
+	addr  string
+	reply chan bool
+}
+
+// askDevice runs on the gateway's accept loop, never on the UI goroutine. It
+// posts the prompt and waits for the answer or a timeout; a second unknown
+// device while a prompt is open is denied rather than queued.
+func (a *app) askDevice(addr netip.Addr) bool {
+	request := &deviceAskRequest{addr: addr.String(), reply: make(chan bool, 1)}
+	a.deviceAskMu.Lock()
+	if a.deviceAskPending != nil {
+		a.deviceAskMu.Unlock()
+		return false
+	}
+	a.deviceAskPending = request
+	a.deviceAskMu.Unlock()
+	a.invalidate()
+	select {
+	case allow := <-request.reply:
+		return allow
+	case <-time.After(60 * time.Second):
+		a.deviceAskMu.Lock()
+		if a.deviceAskPending == request {
+			a.deviceAskPending = nil
+		}
+		a.deviceAskMu.Unlock()
+		a.invalidate()
+		return false
+	}
+}
+
+// answerDeviceAsk resolves the open prompt. The UI owns the modal's open
+// state; a timeout or Disable leaves it to close itself.
+func (a *app) answerDeviceAsk(allow bool) {
+	a.deviceAskMu.Lock()
+	request := a.deviceAskPending
+	a.deviceAskPending = nil
+	a.deviceAskMu.Unlock()
+	if request != nil {
+		select {
+		case request.reply <- allow:
+		default:
+		}
+	}
+	a.deviceAskOpen = false
+}
+
+// deviceAskModal asks about one unknown device. Dismissing the dialog denies,
+// as does the timeout in askDevice.
+func (a *app) deviceAskModal(c *ui.Context, t *ui.Theme) {
+	a.deviceAskMu.Lock()
+	request := a.deviceAskPending
+	a.deviceAskMu.Unlock()
+	if request == nil {
+		a.deviceAskOpen = false
+		return
+	}
+	a.deviceAskOpen = true
+	// Only one dialog stacks above the window at a time; the connection
+	// prompt is urgent, so the device setup dialog steps aside.
+	a.deviceUI.open = false
+	uikit.Modal(c, &a.deviceAskOpen, locales.DeviceWantsToConnect(), func() {
+		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
+			uikit.DialogTitle(c, locales.DeviceWantsToConnect())
+			uikit.Body(c, locales.DeviceNotAllowed(request.addr))
+			uikit.Hint(c, locales.DeviceAskTimeout())
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, locales.Deny()).Clicked() {
+					a.answerDeviceAsk(false)
+				}
+				ui.Spacer(c)
+				if uikit.PrimaryButton(c, locales.Allow()).Clicked() {
+					a.answerDeviceAsk(true)
+				}
+			})
+		})
+	})
+	if !a.deviceAskOpen {
+		a.answerDeviceAsk(false)
+	}
 }
 
 func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
@@ -163,6 +255,8 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 						uikit.TextArea(c, &d.allowed).Height(74).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.AllowedDeviceAddresses()).Placeholder("192.168.1.42\nOne IP or CIDR per line")
 						uikit.Meta(c, locales.FindItInTheDevice())
 						ui.Checkbox(c, &d.consent, "I trust this network and the allowed devices").FontSize(uikit.Scaled(uikit.TextBody))
+						ui.Checkbox(c, &d.askUnknown, locales.AskWhenUnknownDevice()).FontSize(uikit.Scaled(uikit.TextBody))
+						uikit.Meta(c, locales.AskUnknownDeviceHint())
 					} else {
 						uikit.Hint(c, locales.ProxyAddress())
 						uikit.Heading(c, d.gateway.Addr()).Font(uikit.FontMono)
