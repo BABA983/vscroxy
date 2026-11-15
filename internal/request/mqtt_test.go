@@ -102,7 +102,18 @@ func startTestBroker(t *testing.T, tlsConfig *tls.Config, websocket bool) *testB
 	if websocket {
 		waitForListener(t, broker.ws)
 	}
-	t.Cleanup(func() { _ = server.Close() })
+	t.Cleanup(func() {
+		// mochi's GetByListener takes its clients RWMutex twice while
+		// closing a listener. A client attach that is deleting itself at the
+		// same moment can deadlock that recursive read lock. The client
+		// cleanups registered after this one have closed their sockets; wait
+		// for their attach goroutines before closing the broker.
+		for _, client := range server.Clients.GetAll() {
+			client.Stop(nil)
+		}
+		server.Listeners.ClientsWg.Wait()
+		_ = server.Close()
+	})
 	return broker
 }
 
