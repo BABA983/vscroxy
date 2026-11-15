@@ -22,9 +22,10 @@ Postman collections and environments. Request scripts are Postman's `pm` API, bu
 packages' existing responsibility boundaries; `third_party/go-mitmproxy/` is a
 locally patched dependency with its own license and patch notes.
 
-The app is a prototype in rapid development: change file formats and APIs
-directly. Do not write migrations, readers for old formats, or deprecation
-shims, and delete such code when you touch it.
+Every file the app owns carries a format version (`internal/store`). From
+0.1.0 on, changing a persisted format needs a migration step in `internal/store`
+and test data for it; a file written by a newer version is refused and left
+untouched. In-memory APIs still change directly: no deprecation shims.
 
 User feedback goes through `notify` (`internal/app/notify.go`): `done`, `inform`,
 `warn`, or `fail(what, err)` for errors, which also go to the log at

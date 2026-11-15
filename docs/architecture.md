@@ -80,18 +80,20 @@ type action struct {
 
 ### 3.3 存储层（`internal/store`）
 
-原型阶段不做兼容：格式要变就直接改，不写迁移，也不保留读取旧格式的代码，旧数据不再读取。下面的版本和迁移机制从第一个公开版本开始启用。
+从 0.1.0 起，落盘格式必须向后兼容：每个应用文件带版本号，读取时按版本迁移，旧数据不能丢。只有内存中的 API 仍然直接改，不写弃用层。
 
-提供一个通用的"带版本的文档"：
+版本与迁移（0.1.0 起，`internal/store/version.go`）：
 
-- **格式版本**：每个文件有 `version` 字段；读取时依次运行迁移函数升到当前版本。迁移是纯函数，每个都有测试数据。
-- **原子写**：所有写入都走临时文件加重命名，权限 0600（把现在的 `writePrivateFile` 推广到所有地方）。
-- **自动备份**：每次迁移前、每次覆盖重要文件前，保存到 `~/.vscroxy/backups/`，每个文件保留最近 10 份。
-- **外部修改检测**：记录读取时的内容哈希，保存前比较；被外部修改时拒绝覆盖并提示重新加载（集合已经这样做了，推广到全部）。
-- **读失败不覆盖**：读不了的文件进入只读状态，界面显示错误和路径（现有行为，保持）。
+- **格式版本**：JSON 文件是带顶层 `version` 的对象。根是数组或 map 的文件用 `{"version":1,"<member>":…}` 包一层（rules、views、apis、breakpoint templates、android-proxy）。行式文本（ignore／allow 列表）第一行是 `# vscroxy format 1`。没有版本号的文件按版本 1 读取。
+- **迁移**：`store.Format.Steps` 的每一步是纯函数，把版本 N 变成 N+1，必须有测试数据（`internal/store/testdata`）；读取时依次运行到当前版本。0.1.0 是第一个带版本的版本，所以现在还没有迁移步骤，机制和测试已就位。
+- **备份**：迁移前、覆盖重要文件前复制到 `~/.vscroxy/backups/`，每个文件保留最近 10 份。
+- **拒绝更新的版本**：文件版本高于本程序时返回 `store.ErrNewer`，文件原样保留并变为只读，用户需要升级 vscroxy。
+- **原子写**：所有写入都走临时文件加重命名，权限 0600，目录 0700。
+- **外部修改检测**：记录读取时的内容哈希，保存前比较；被外部修改时拒绝覆盖并提示重新加载。
+- **读失败不覆盖**：读不了的文件进入只读状态，界面显示错误和路径。
 - **导入导出**：整个配置（设置、规则、Host 方案、脚本）打包成一个文件，用于备份和分享（路线图 M4）。
 
-已完成（`internal/store`，版本、迁移和备份暂不做）：`store.WriteFile` 是唯一的写入方式（临时文件、fsync、重命名，0600，目录 0700），替换了 `writePrivateFile` 和所有直接的 `os.WriteFile`。`store.File` 记住上次读写的内容哈希：规则、SSL、忽略／允许／DNS 列表、环境变量、已保存的捕获筛选和 Vault 都经由 `app.file(path)` 读写，磁盘上被改过就拒绝覆盖，通知带 **Reload**；读不了或解析失败的文件只读，并以错误通知显示路径。集合沿用自己的 `known` 检测。settings、会话、实验记录是应用自己随时保存的状态，只做原子私有写，不做检测。
+已完成：`store.WriteFile` 是唯一的写入方式（临时文件、fsync、重命名，0600，目录 0700），替换了 `writePrivateFile` 和所有直接的 `os.WriteFile`。`store.File` 记住上次读写的内容哈希，并带 `Format` 和 `BackupDir`：版本检查、迁移写回和备份都在这里。规则、SSL、忽略／允许／DNS 列表、环境变量、已保存的捕获筛选、API 文档、断点模板、网络预设和 Host 方案索引都经由 `app.file(path)` 读写，磁盘上被改过就拒绝覆盖，通知带 **Reload**；读不了或解析失败的文件只读，并以错误通知显示路径。集合沿用自己的 `known` 检测，写入时也带版本。settings、cookies、android-proxy 和集合文件走带版本的读写；会话、实验记录、MCP 同意、Vault、control 已有自己的 `version` 字段。用户内容（`tools/scripts`、`tools/addons`、`tools/hosts/*.hosts`、`mocks/`、protobuf 描述符集）不是应用状态，不加版本头。
 
 目标布局：
 
@@ -106,7 +108,7 @@ type action struct {
 | `views.json` | 并进 `settings.json` |
 | `collections/`、`env.json`、`vault.json`、`vault.key`、`apis.json`、`protobuf.pb` | 不变，只加版本号 |
 
-公开版本之后，迁移只做一次：新版本第一次启动时迁移，原文件移到 `backups/` 并保留一个版本周期。
+迁移在读取时进行，结果写回原文件；迁移前的副本留在 `backups/`，每个文件保留最近 10 份。
 
 ### 3.4 规则引擎（`internal/rules`）
 
