@@ -727,6 +727,15 @@ func TestDNSMappingAppliesToEveryApp(t *testing.T) {
 }
 
 func TestDNSMappingsResolveTheNameElsewhere(t *testing.T) {
+	// The system resolver can spend longer than the client's timeout on an
+	// unresolvable name. This test only needs a name that fails at once before
+	// the mapping is installed, so inject a failing resolver.
+	previous := net.DefaultResolver
+	net.DefaultResolver = &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+		return nil, &net.DNSError{Name: "mapped.test", Err: "fixture name not found", IsNotFound: true}
+	}}
+	t.Cleanup(func() { net.DefaultResolver = previous })
+
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "host=%s", r.Host)
 	}))
