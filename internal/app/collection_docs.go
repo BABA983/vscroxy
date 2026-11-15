@@ -51,12 +51,6 @@ type docsEntry struct {
 // docSampleLanguages are the code samples a documentation export carries.
 var docSampleLanguages = []string{"JavaScript (fetch)", "Python (requests)", "Go (net/http)"}
 
-// docSecretHeaders are header values documentation never shows.
-var docSecretHeaders = map[string]bool{
-	"Authorization": true, "Proxy-Authorization": true, "Cookie": true, "Set-Cookie": true,
-	"X-Api-Key": true, "X-Auth-Token": true, "Api-Key": true, "X-Amz-Security-Token": true,
-}
-
 const docBodyPreview = 4000
 
 // docEntries builds the documentation for the requests under root, in folder
@@ -137,7 +131,7 @@ func truncateDocs(text string, limit int) string {
 
 // redactHeader hides a credential header's value.
 func redactDocsHeader(name, value string) string {
-	if docSecretHeaders[http.CanonicalHeaderKey(name)] {
+	if request.IsSensitiveHeader(name) {
 		return "•••• (hidden)"
 	}
 	return value

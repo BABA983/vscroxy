@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +38,11 @@ func abCommand(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	bName := flags.String("environment-b", "", "Environment name in --b")
 	baseA := flags.String("base-a", "", "Session replay only: replace each flow's origin with this base for A")
 	baseB := flags.String("base-b", "", "Session replay only: replace each flow's origin with this base for B")
+	includeUnsafe := flags.Bool("include-unsafe", false, "Session replay: also replay POST, PUT, PATCH and DELETE")
+	keepCredentials := flags.Bool("keep-credentials", false, "Session replay: keep captured credential headers")
+	var headerFlagsA, headerFlagsB abHeaders
+	flags.Var(&headerFlagsA, "header-a", "Header Name: Value added to A (repeatable)")
+	flags.Var(&headerFlagsB, "header-b", "Header Name: Value added to B (repeatable)")
 	folder := flags.String("folder", "", "Collection/folder path to run (includes children)")
 	flags.StringVar(folder, "i", "", "Alias of --folder")
 	jsonPath := flags.String("report-json", "", "Write the A/B report as JSON")
@@ -52,6 +59,16 @@ func abCommand(ctx context.Context, args []string, stdout, stderr io.Writer) int
 		fmt.Fprintln(stderr, "Provide one input, positive timeouts, and --report-json or --report-junit.")
 		return 2
 	}
+	headersA, err := parseABHeaders(headerFlagsA)
+	if err != nil {
+		fmt.Fprintln(stderr, "Could not parse --header-a:", err)
+		return 2
+	}
+	headersB, err := parseABHeaders(headerFlagsB)
+	if err != nil {
+		fmt.Fprintln(stderr, "Could not parse --header-b:", err)
+		return 2
+	}
 	input := flags.Arg(0)
 	session, err := readABSession(input)
 	if err != nil {
@@ -63,7 +80,10 @@ func abCommand(ctx context.Context, args []string, stdout, stderr io.Writer) int
 			fmt.Fprintln(stderr, "A session replay needs --base-a and --base-b.")
 			return 2
 		}
-	} else if *baseA != "" || *baseB != "" {
+		if *includeUnsafe {
+			fmt.Fprintln(stderr, "Warning: --include-unsafe replays captured POST, PUT, PATCH and DELETE requests against both bases.")
+		}
+	} else if *baseA != "" || *baseB != "" || *includeUnsafe || *keepCredentials {
 		fmt.Fprintln(stderr, "--base-a and --base-b apply only to session input.")
 		return 2
 	}
@@ -91,6 +111,7 @@ func abCommand(ctx context.Context, args []string, stdout, stderr io.Writer) int
 		sideA.name, sideB.name = "A", "B"
 	}
 	var requests []request.Request
+	var initialSkipped []ab.Skipped
 	var folders []request.Folder
 	var resolve request.Resolver
 	if session == nil {
@@ -110,11 +131,18 @@ func abCommand(ctx context.Context, args []string, stdout, stderr io.Writer) int
 			fmt.Fprintln(stderr, "Import warning:", warning)
 		}
 	} else {
-		requests = session.requests(*baseA)
+		requests, initialSkipped = session.requests(*baseA, *includeUnsafe, *keepCredentials, headersA)
 	}
 	if len(requests) == 0 {
-		fmt.Fprintln(stderr, "No HTTP(S) requests to replay.")
-		return 2
+		if session == nil {
+			fmt.Fprintln(stderr, "No HTTP(S) requests to replay.")
+			return 2
+		}
+		report := ab.Report{Input: filepath.Base(input), A: sideA.name, B: sideB.name}
+		for _, flow := range initialSkipped {
+			report.Skip(flow.Method, flow.URL, flow.Reason)
+		}
+		return finishABReport(report, *jsonPath, *xmlPath, stdout, stderr)
 	}
 	root, err := os.MkdirTemp("", "vscroxy-ab-")
 	if err != nil {
@@ -160,10 +188,17 @@ func abCommand(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	})
 	defer func() { stopDrain(); drain.Wait() }()
 
-	runSide := func(side abEnvironment, base string) ([]abResult, error) {
+	runSide := func(side abEnvironment, base string, extra http.Header) ([]abResult, []ab.Skipped, error) {
 		sideRequests := requests
+		var skipped []ab.Skipped
 		if session != nil {
-			sideRequests = session.requests(base)
+			sideRequests, skipped = session.requests(base, *includeUnsafe, *keepCredentials, extra)
+		}
+		if len(extra) > 0 && session == nil {
+			sideRequests = slices.Clone(requests)
+			for i := range sideRequests {
+				sideRequests[i].Headers = mergeABHeaders(sideRequests[i].Headers, extra)
+			}
 		}
 		tokens := &request.Tokens{}
 		jar := newRecordingJar()
@@ -184,16 +219,16 @@ func abCommand(ctx context.Context, args []string, stdout, stderr io.Writer) int
 			return nil
 		})
 		if runErr != nil {
-			return results, runErr
+			return results, skipped, runErr
 		}
-		return results, nil
+		return results, skipped, nil
 	}
-	resultsA, err := runSide(sideA, *baseA)
+	resultsA, skipped, err := runSide(sideA, *baseA, headersA)
 	if err != nil {
 		fmt.Fprintln(stderr, "Replay A incomplete:", err)
 		return 2
 	}
-	resultsB, err := runSide(sideB, *baseB)
+	resultsB, _, err := runSide(sideB, *baseB, headersB)
 	if err != nil {
 		fmt.Fprintln(stderr, "Replay B incomplete:", err)
 		return 2
@@ -216,13 +251,20 @@ func abCommand(ctx context.Context, args []string, stdout, stderr io.Writer) int
 		if !okB {
 			right = abResult{response: ab.Response{Error: "not run"}}
 		}
-		endpoint := ab.Compare(r.Name, r.Method, sessionEndpoint(session, i, r.URL), left.response, right.response)
+		endpoint := ab.Compare(r.Name, r.Method, sessionEndpoint(session, r.ID, r.URL), left.response, right.response)
 		report.Add(endpoint)
 	}
+	for _, flow := range skipped {
+		report.Skip(flow.Method, flow.URL, flow.Reason)
+	}
+	return finishABReport(report, *jsonPath, *xmlPath, stdout, stderr)
+}
+
+func finishABReport(report ab.Report, jsonPath, xmlPath string, stdout, stderr io.Writer) int {
 	for _, output := range []struct {
 		path string
 		data func() ([]byte, error)
-	}{{*jsonPath, report.JSON}, {*xmlPath, report.JUnit}} {
+	}{{jsonPath, report.JSON}, {xmlPath, report.JUnit}} {
 		if output.path == "" {
 			continue
 		}
@@ -240,7 +282,10 @@ func abCommand(ctx context.Context, args []string, stdout, stderr io.Writer) int
 			fmt.Fprintf(stdout, "DIFF %s %s · %s\n", endpoint.Method, endpoint.URL, strings.Join(endpoint.Differences, " · "))
 		}
 	}
-	fmt.Fprintf(stdout, "A/B replay · %d endpoints · %d same · %d different\n", len(report.Endpoints), report.Same, report.Different)
+	for _, flow := range report.Skipped {
+		fmt.Fprintf(stdout, "SKIP %s %s · %s\n", flow.Method, flow.URL, flow.Reason)
+	}
+	fmt.Fprintf(stdout, "A/B replay · %d endpoints · %d same · %d different · %d skipped\n", len(report.Endpoints), report.Same, report.Different, len(report.Skipped))
 	if report.Different > 0 {
 		return 1
 	}
@@ -309,26 +354,92 @@ func readABSession(path string) (*abSession, error) {
 	return &session, nil
 }
 
-func (s *abSession) requests(base string) []request.Request {
+func (s *abSession) requests(base string, includeUnsafe, keepCredentials bool, extra http.Header) ([]request.Request, []ab.Skipped) {
 	var out []request.Request
+	var skipped []ab.Skipped
 	for _, flow := range s.Flows {
 		if flow.Method == "" || flow.Kind != "" && flow.Kind != "http" {
+			continue
+		}
+		if !includeUnsafe && !safeABMethod(flow.Method) {
+			skipped = append(skipped, ab.Skipped{Method: flow.Method, URL: abPath(flow.URL), Reason: "unsafe method; use --include-unsafe"})
 			continue
 		}
 		target, err := rewriteOrigin(flow.URL, base)
 		if err != nil {
 			continue
 		}
+		headers := flow.ReqHeaders
+		if !keepCredentials {
+			headers = stripABCredentials(headers)
+		}
+		headers = mergeABHeaders(headers, extra)
 		body := flow.ReqBody
 		if len(flow.ReqBytes) > 0 {
 			body = string(flow.ReqBytes)
 		}
 		out = append(out, request.Request{
 			ID: fmt.Sprintf("session-%d", flow.ID), Name: flow.Method + " " + flow.URL,
-			Method: flow.Method, URL: target, Headers: flow.ReqHeaders, Body: body,
+			Method: flow.Method, URL: target, Headers: headers, Body: body,
 		})
 	}
-	return out
+	return out, skipped
+}
+
+func safeABMethod(method string) bool {
+	switch strings.ToUpper(method) {
+	case "GET", "HEAD", "OPTIONS":
+		return true
+	}
+	return false
+}
+
+func stripABCredentials(block string) string {
+	header := request.ParseHeaderBlock(block)
+	for name := range header {
+		if request.IsSensitiveHeader(name) {
+			header.Del(name)
+		}
+	}
+	return request.HeaderBlock(header)
+}
+
+func mergeABHeaders(block string, extra http.Header) string {
+	if len(extra) == 0 {
+		return block
+	}
+	header := request.ParseHeaderBlock(block)
+	for name, values := range extra {
+		header.Del(name)
+		for _, value := range values {
+			header.Add(name, value)
+		}
+	}
+	return request.HeaderBlock(header)
+}
+
+func abPath(raw string) string {
+	if u, err := url.Parse(raw); err == nil && u.Path != "" {
+		return u.Path
+	}
+	return raw
+}
+
+type abHeaders []string
+
+func (h *abHeaders) String() string { return strings.Join(*h, ", ") }
+
+func (h *abHeaders) Set(value string) error {
+	*h = append(*h, value)
+	return nil
+}
+
+func parseABHeaders(values abHeaders) (http.Header, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	_, headers, _, err := request.Checks{Headers: strings.Join(values, "\n")}.Parse()
+	return headers, err
 }
 
 func rewriteOrigin(raw, base string) (string, error) {
@@ -347,19 +458,14 @@ func rewriteOrigin(raw, base string) (string, error) {
 	return u.String(), nil
 }
 
-func sessionEndpoint(session *abSession, index int, fallback string) string {
+func sessionEndpoint(session *abSession, id, fallback string) string {
 	if session == nil {
 		return fallback
 	}
-	var httpIndex int
 	for _, flow := range session.Flows {
-		if flow.Method == "" || flow.Kind != "" && flow.Kind != "http" {
-			continue
-		}
-		if httpIndex == index {
+		if fmt.Sprintf("session-%d", flow.ID) == id {
 			return flow.URL
 		}
-		httpIndex++
 	}
 	return fallback
 }

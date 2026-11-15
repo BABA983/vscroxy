@@ -32,6 +32,13 @@ type Endpoint struct {
 	Differences []string `json:"differences,omitempty"`
 }
 
+// Skipped is a captured flow that was not replayed, with the reason.
+type Skipped struct {
+	Method string `json:"method"`
+	URL    string `json:"url"`
+	Reason string `json:"reason"`
+}
+
 // Report is a complete A/B replay.
 type Report struct {
 	Version   int        `json:"version"`
@@ -41,6 +48,7 @@ type Report struct {
 	Same      int        `json:"same"`
 	Different int        `json:"different"`
 	Endpoints []Endpoint `json:"endpoints"`
+	Skipped   []Skipped  `json:"skipped,omitempty"`
 }
 
 // Compare returns one endpoint's structural differences.
@@ -205,6 +213,11 @@ func (r *Report) Add(endpoint Endpoint) {
 	}
 }
 
+// Skip records a flow that was not replayed.
+func (r *Report) Skip(method, url, reason string) {
+	r.Skipped = append(r.Skipped, Skipped{Method: method, URL: url, Reason: reason})
+}
+
 // JSON renders the report for a file.
 func (r Report) JSON() ([]byte, error) {
 	r.Version = 1
@@ -224,10 +237,14 @@ func (r Report) JUnit() ([]byte, error) {
 		Message string `xml:"message,attr"`
 		Text    string `xml:",chardata"`
 	}
+	type skipped struct {
+		Message string `xml:"message,attr"`
+	}
 	type testcase struct {
 		Name    string   `xml:"name,attr"`
 		Class   string   `xml:"classname,attr"`
 		Failure *failure `xml:"failure,omitempty"`
+		Skipped *skipped `xml:"skipped,omitempty"`
 	}
 	suite := struct {
 		XMLName  xml.Name   `xml:"testsuite"`
@@ -235,13 +252,19 @@ func (r Report) JUnit() ([]byte, error) {
 		Tests    int        `xml:"tests,attr"`
 		Failures int        `xml:"failures,attr"`
 		Cases    []testcase `xml:"testcase"`
-	}{Name: "A/B replay", Tests: len(r.Endpoints), Failures: r.Different}
+	}{Name: "A/B replay", Tests: len(r.Endpoints) + len(r.Skipped), Failures: r.Different}
 	for _, endpoint := range r.Endpoints {
 		item := testcase{Name: endpoint.Name, Class: endpoint.Method + " " + endpoint.URL}
 		if len(endpoint.Differences) > 0 {
 			item.Failure = &failure{Message: endpoint.Differences[0], Text: strings.Join(endpoint.Differences, "\n")}
 		}
 		suite.Cases = append(suite.Cases, item)
+	}
+	for _, flow := range r.Skipped {
+		suite.Cases = append(suite.Cases, testcase{
+			Name: flow.Method + " " + flow.URL, Class: "skipped",
+			Skipped: &skipped{Message: flow.Reason},
+		})
 	}
 	data, err := xml.MarshalIndent(suite, "", "  ")
 	if err != nil {

@@ -40,6 +40,7 @@ func TestReportJSONAndJUnit(t *testing.T) {
 	report := Report{Input: "collections", A: "staging", B: "production"}
 	report.Add(Compare("List", "GET", "/items", Response{Status: 200, ContentType: "application/json", Body: []byte(`{"id":1}`)}, Response{Status: 200, ContentType: "application/json", Body: []byte(`{"id":2}`)}))
 	report.Add(Compare("Create", "POST", "/items", Response{Status: 201, ContentType: "application/json", Body: []byte(`{"id":1}`)}, Response{Status: 500, ContentType: "application/json", Body: []byte(`{"error":"no"}`)}))
+	report.Skip("POST", "/orders", "unsafe method; use --include-unsafe")
 	data, err := report.JSON()
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +54,7 @@ func TestReportJSONAndJUnit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`tests="2"`, `failures="1"`, `<failure message="status 201 vs 500">`} {
+	for _, want := range []string{`tests="3"`, `failures="1"`, `<failure message="status 201 vs 500">`, `<skipped message="unsafe method; use --include-unsafe">`} {
 		if !strings.Contains(string(junit), want) {
 			t.Errorf("JUnit lacks %q: %s", want, junit)
 		}

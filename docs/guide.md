@@ -2672,7 +2672,10 @@ variables. cURL export encodes the draft without executing scripts.
 `vscroxy-cli ab` replays one collection or a saved session against two
 environments and reports structural differences per endpoint as JSON or JUnit;
 it compares status, content type and JSON shape rather than values, and a saved
-session can be pointed at two hosts with `--base-a` and `--base-b`.
+session can be pointed at two hosts with `--base-a` and `--base-b`. Session
+replay runs only GET, HEAD and OPTIONS unless `--include-unsafe` is given, and
+strips captured credential headers unless `--keep-credentials` is given;
+`--header-a` and `--header-b` supply per-side auth.
 
 ### Postman scripts
 

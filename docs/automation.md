@@ -124,7 +124,14 @@ differs, 2 is a setup or output error. Reports name each endpoint and its
 differences and never include response bodies. A saved session JSON can replace
 the collection; `--base-a` and `--base-b` rewrite each HTTP flow's origin for the
 two sides, so captured traffic can be replayed against two hosts. Non-HTTP
-session flows are skipped.
+session flows are skipped. Session replay is safe by default: only GET, HEAD
+and OPTIONS run; POST, PUT, PATCH and DELETE are listed as skipped with their
+method and path, and `--include-unsafe` opts in with a warning. Captured
+`Authorization`, `Proxy-Authorization`, `Cookie`, `X-Api-Key`, `X-Auth-Token`
+and `X-Amz-Security-Token` headers are stripped because they belong to the
+captured host; `--keep-credentials` opts in. `--header-a` and `--header-b`
+(repeatable `Name: Value`) add per-side headers, and each side keeps its own
+Cookie jar.
 
 ## Long-lived protocols
 
