@@ -43,14 +43,15 @@ func dartSnippet(method string, req *Prepared, headers []snippetHeader) (string,
 	return b.String(), nil
 }
 
-// dartQuote writes s as a Dart double-quoted string. Bytes outside printable
-// ASCII use \xHH so UTF-8 and binary bodies keep their exact bytes.
+// dartQuote writes s as a Dart double-quoted string. It walks runes, because
+// Dart's \xHH is a code point, not a byte: writing a UTF-8 byte that way would
+// turn é into Ã©. Printable non-ASCII stays as UTF-8 source; control runes use
+// \u{...}.
 func dartQuote(s string) string {
 	var b strings.Builder
 	b.WriteByte('"')
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch c {
+	for _, r := range s {
+		switch r {
 		case '\\':
 			b.WriteString(`\\`)
 		case '"':
@@ -64,10 +65,10 @@ func dartQuote(s string) string {
 		case '\t':
 			b.WriteString(`\t`)
 		default:
-			if c >= 0x20 && c <= 0x7e {
-				b.WriteByte(c)
+			if r < 0x20 || r == 0x7f {
+				fmt.Fprintf(&b, `\u{%x}`, r)
 			} else {
-				fmt.Fprintf(&b, `\x%02x`, c)
+				b.WriteRune(r)
 			}
 		}
 	}

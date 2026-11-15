@@ -83,7 +83,12 @@ func objcQuote(s string) string {
 		case '\t':
 			b.WriteString(`\t`)
 		default:
-			b.WriteRune(r)
+			switch {
+			case r < 0x20 || r == 0x7f:
+				fmt.Fprintf(&b, `\%03o`, r)
+			default:
+				b.WriteRune(r)
+			}
 		}
 	}
 	b.WriteByte('"')
