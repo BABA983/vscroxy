@@ -55,6 +55,7 @@ const (
 	pageAPI                     // an API contract
 	pageRuns                    // the run records, which take the window
 	pageDiagnostics             // connection diagnostics
+	pageOverview                // session or selection overview
 )
 
 // capture reports whether the page reads captured traffic.
@@ -160,7 +161,8 @@ type app struct {
 	apiCollection   string
 
 	// chosen are the rows chosen for a bulk action, by flow id.
-	chosen ui.Selection[int]
+	chosen        ui.Selection[int]
+	overviewScope overviewScope
 	// picked bridges the table's row-index API; pickedID survives row rebuilds.
 	picked   int
 	pickedID int
@@ -2260,6 +2262,10 @@ func (a *app) goTo(choice string) {
 		a.openDiagnostics(nil, a.diagnostics.client)
 		return
 	}
+	if choice == "overview" {
+		a.openOverview()
+		return
+	}
 	a.page = pageLive
 	if host, ok := strings.CutPrefix(choice, "host:"); ok {
 		a.filterTriage.Host = host
@@ -2420,6 +2426,7 @@ func (a *app) trafficRows(c *ui.Context) {
 		{"errors", errorIcon, locales.Errors(), a.tally.errors},
 		{"slow", captureIcon, locales.Slow(), a.tally.slow},
 		{"pinned", pinIcon, locales.Pinned(), a.tally.pinned},
+		{"overview", overviewIcon, locales.Overview(), 0},
 	}
 	for _, row := range rows {
 		uikit.SidebarItem(c, row.id, row.icon, row.label, a.sidebarChoice == row.id, !a.windowBehind).Children(func() {

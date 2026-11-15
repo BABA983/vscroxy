@@ -103,6 +103,8 @@ func (a *app) desktopContent(c *ui.Context) {
 			a.sessionsView(c, c.Theme())
 		case pageDiagnostics:
 			a.diagnosticsView(c, c.Theme())
+		case pageOverview:
+			a.overviewView(c, c.Theme())
 		default:
 			ui.Column(c).Fill().Children(func() {
 				if w.focused {

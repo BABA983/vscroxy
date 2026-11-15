@@ -23,6 +23,7 @@ var (
 	lockIcon          = lucide.Lock()
 	appIcon           = lucide.AppWindow()
 	trafficIcon       = lucide.LayoutList()
+	overviewIcon      = lucide.ChartColumn()
 	domainIcon        = lucide.Globe()
 	pinIcon           = lucide.Pin()
 	filterIcon        = lucide.Funnel()

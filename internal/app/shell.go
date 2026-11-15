@@ -336,6 +336,8 @@ func (a *app) footerCountsText() string {
 	switch a.page {
 	case pageDiagnostics:
 		return "Connection diagnostics · read-only until you press a fix"
+	case pageOverview:
+		return fmt.Sprintf("%d captures · session overview", len(a.flows))
 	case pageSession:
 		return fmt.Sprintf("%d saved sessions · read-only evidence", len(a.sessions.items))
 	case pageAPI:

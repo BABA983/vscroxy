@@ -459,6 +459,34 @@
       }
     }
   },
+  "@overviewScopeSession": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@overviewScopeSelection": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@requestBytes": {
+    "placeholders": {
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
+  "@totalBytes": {
+    "placeholders": {
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
   "@importedExchanges": {
     "placeholders": {
       "file": {
@@ -4051,5 +4079,36 @@
   "diffPoolNeedsTwo": "Add at least two captures to the pool, then pick the two sides.",
   "removeFromPool": "Remove from pool",
   "leftSide": "Left side",
-  "rightSide": "Right side"
+  "rightSide": "Right side",
+  "overview": "Overview",
+  "overviewHint": "Top apps and domains, status codes and bandwidth",
+  "selection": "Selection",
+  "overviewScopeSession": "Whole session · {count} captures",
+  "overviewScopeSelection": "Selection · {count} captures",
+  "topApps": "Top apps",
+  "topDomains": "Top domains",
+  "statusCodes": "Status codes",
+  "bandwidth": "Bandwidth",
+  "requestBytes": "Request bytes: {bytes} B",
+  "totalBytes": "Total: {bytes} B",
+  "exportMarkdownReport": "Export Markdown report…",
+  "exportedMarkdownReport": "Exported Markdown report",
+  "copyReport": "Copy report",
+  "copiedReport": "Copied report",
+  "overviewEmpty": "Capture traffic to see top apps, domains, status codes and bandwidth.",
+  "unknownApp": "Unknown app",
+  "overviewReportScope": "Scope: {scope}",
+  "overviewReportGenerated": "Generated: {time}",
+  "columnApp": "App",
+  "columnDomain": "Domain",
+  "columnCaptures": "Captures",
+  "columnBytes": "Bytes",
+  "columnStatus": "Status",
+  "columnDirection": "Direction",
+  "directionRequests": "Requests",
+  "directionResponses": "Responses",
+  "directionTotal": "Total",
+  "captures": "Captures",
+  "responseBytesLabel": "Response bytes",
+  "incompleteBodiesLabel": "Incomplete bodies"
 }

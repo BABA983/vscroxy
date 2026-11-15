@@ -2267,6 +2267,21 @@ diff (three lines of context, `---`/`+++` names, `@@` hunks) of the shown part;
 identical parts report that there is nothing to write. The pool lives for the
 session only and is not part of a saved capture session.
 
+### Overview dashboard
+
+**Overview** in the TRAFFIC sidebar summarizes the whole session, or the current
+table selection after choosing **Selection**. It shows the capture count,
+response bytes, errors and incomplete bodies; top apps and domains with share
+bars (apps by captures, domains by response bytes); status classes 1xx–5xx plus
+exchanges without a response; and request, response and total bytes. Session
+scope counts every retained capture, not just the rows a view filter shows;
+**Selection** follows the same visible selection as bulk actions. **Copy
+report** copies a Markdown document, and **Export Markdown report…** saves it as
+`.md`. The report names its scope and generation time, lists the top ten apps
+and domains, every non-empty status class and the bandwidth totals, and escapes
+pipes in names so its tables stay valid. The dashboard is read-only and is not
+part of a saved session.
+
 ## Requests
 
 **New request** opens a request in the content area, one at a time. Other open

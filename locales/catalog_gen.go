@@ -26029,3 +26029,315 @@ func RightSide() string { return In(i18n.Locale()).RightSide() }
 func (msgs Messages) RightSide() string {
 	return Catalog.Format(msgs.locale, "rightSide", nil)
 }
+
+// Overview says "Overview"
+// in the language the app shows.
+func Overview() string { return In(i18n.Locale()).Overview() }
+
+// Overview says "Overview"
+// in the language of msgs.
+func (msgs Messages) Overview() string {
+	return Catalog.Format(msgs.locale, "overview", nil)
+}
+
+// OverviewHint says "Top apps and domains, status codes and bandwidth"
+// in the language the app shows.
+func OverviewHint() string { return In(i18n.Locale()).OverviewHint() }
+
+// OverviewHint says "Top apps and domains, status codes and bandwidth"
+// in the language of msgs.
+func (msgs Messages) OverviewHint() string {
+	return Catalog.Format(msgs.locale, "overviewHint", nil)
+}
+
+// Selection says "Selection"
+// in the language the app shows.
+func Selection() string { return In(i18n.Locale()).Selection() }
+
+// Selection says "Selection"
+// in the language of msgs.
+func (msgs Messages) Selection() string {
+	return Catalog.Format(msgs.locale, "selection", nil)
+}
+
+// OverviewScopeSession says "Whole session · {count} captures"
+// in the language the app shows.
+func OverviewScopeSession(count int) string { return In(i18n.Locale()).OverviewScopeSession(count) }
+
+// OverviewScopeSession says "Whole session · {count} captures"
+// in the language of msgs.
+func (msgs Messages) OverviewScopeSession(count int) string {
+	return Catalog.Format(msgs.locale, "overviewScopeSession", map[string]any{"count": count})
+}
+
+// OverviewScopeSelection says "Selection · {count} captures"
+// in the language the app shows.
+func OverviewScopeSelection(count int) string { return In(i18n.Locale()).OverviewScopeSelection(count) }
+
+// OverviewScopeSelection says "Selection · {count} captures"
+// in the language of msgs.
+func (msgs Messages) OverviewScopeSelection(count int) string {
+	return Catalog.Format(msgs.locale, "overviewScopeSelection", map[string]any{"count": count})
+}
+
+// TopApps says "Top apps"
+// in the language the app shows.
+func TopApps() string { return In(i18n.Locale()).TopApps() }
+
+// TopApps says "Top apps"
+// in the language of msgs.
+func (msgs Messages) TopApps() string {
+	return Catalog.Format(msgs.locale, "topApps", nil)
+}
+
+// TopDomains says "Top domains"
+// in the language the app shows.
+func TopDomains() string { return In(i18n.Locale()).TopDomains() }
+
+// TopDomains says "Top domains"
+// in the language of msgs.
+func (msgs Messages) TopDomains() string {
+	return Catalog.Format(msgs.locale, "topDomains", nil)
+}
+
+// StatusCodes says "Status codes"
+// in the language the app shows.
+func StatusCodes() string { return In(i18n.Locale()).StatusCodes() }
+
+// StatusCodes says "Status codes"
+// in the language of msgs.
+func (msgs Messages) StatusCodes() string {
+	return Catalog.Format(msgs.locale, "statusCodes", nil)
+}
+
+// Bandwidth says "Bandwidth"
+// in the language the app shows.
+func Bandwidth() string { return In(i18n.Locale()).Bandwidth() }
+
+// Bandwidth says "Bandwidth"
+// in the language of msgs.
+func (msgs Messages) Bandwidth() string {
+	return Catalog.Format(msgs.locale, "bandwidth", nil)
+}
+
+// RequestBytes says "Request bytes: {bytes} B"
+// in the language the app shows.
+func RequestBytes(bytes int) string { return In(i18n.Locale()).RequestBytes(bytes) }
+
+// RequestBytes says "Request bytes: {bytes} B"
+// in the language of msgs.
+func (msgs Messages) RequestBytes(bytes int) string {
+	return Catalog.Format(msgs.locale, "requestBytes", map[string]any{"bytes": bytes})
+}
+
+// TotalBytes says "Total: {bytes} B"
+// in the language the app shows.
+func TotalBytes(bytes int) string { return In(i18n.Locale()).TotalBytes(bytes) }
+
+// TotalBytes says "Total: {bytes} B"
+// in the language of msgs.
+func (msgs Messages) TotalBytes(bytes int) string {
+	return Catalog.Format(msgs.locale, "totalBytes", map[string]any{"bytes": bytes})
+}
+
+// ExportMarkdownReport says "Export Markdown report…"
+// in the language the app shows.
+func ExportMarkdownReport() string { return In(i18n.Locale()).ExportMarkdownReport() }
+
+// ExportMarkdownReport says "Export Markdown report…"
+// in the language of msgs.
+func (msgs Messages) ExportMarkdownReport() string {
+	return Catalog.Format(msgs.locale, "exportMarkdownReport", nil)
+}
+
+// ExportedMarkdownReport says "Exported Markdown report"
+// in the language the app shows.
+func ExportedMarkdownReport() string { return In(i18n.Locale()).ExportedMarkdownReport() }
+
+// ExportedMarkdownReport says "Exported Markdown report"
+// in the language of msgs.
+func (msgs Messages) ExportedMarkdownReport() string {
+	return Catalog.Format(msgs.locale, "exportedMarkdownReport", nil)
+}
+
+// CopyReport says "Copy report"
+// in the language the app shows.
+func CopyReport() string { return In(i18n.Locale()).CopyReport() }
+
+// CopyReport says "Copy report"
+// in the language of msgs.
+func (msgs Messages) CopyReport() string {
+	return Catalog.Format(msgs.locale, "copyReport", nil)
+}
+
+// CopiedReport says "Copied report"
+// in the language the app shows.
+func CopiedReport() string { return In(i18n.Locale()).CopiedReport() }
+
+// CopiedReport says "Copied report"
+// in the language of msgs.
+func (msgs Messages) CopiedReport() string {
+	return Catalog.Format(msgs.locale, "copiedReport", nil)
+}
+
+// OverviewEmpty says "Capture traffic to see top apps, domains, status codes and bandwidth."
+// in the language the app shows.
+func OverviewEmpty() string { return In(i18n.Locale()).OverviewEmpty() }
+
+// OverviewEmpty says "Capture traffic to see top apps, domains, status codes and bandwidth."
+// in the language of msgs.
+func (msgs Messages) OverviewEmpty() string {
+	return Catalog.Format(msgs.locale, "overviewEmpty", nil)
+}
+
+// UnknownApp says "Unknown app"
+// in the language the app shows.
+func UnknownApp() string { return In(i18n.Locale()).UnknownApp() }
+
+// UnknownApp says "Unknown app"
+// in the language of msgs.
+func (msgs Messages) UnknownApp() string {
+	return Catalog.Format(msgs.locale, "unknownApp", nil)
+}
+
+// OverviewReportScope says "Scope: {scope}"
+// in the language the app shows.
+func OverviewReportScope(scope string) string { return In(i18n.Locale()).OverviewReportScope(scope) }
+
+// OverviewReportScope says "Scope: {scope}"
+// in the language of msgs.
+func (msgs Messages) OverviewReportScope(scope string) string {
+	return Catalog.Format(msgs.locale, "overviewReportScope", map[string]any{"scope": scope})
+}
+
+// OverviewReportGenerated says "Generated: {time}"
+// in the language the app shows.
+func OverviewReportGenerated(time_ string) string {
+	return In(i18n.Locale()).OverviewReportGenerated(time_)
+}
+
+// OverviewReportGenerated says "Generated: {time}"
+// in the language of msgs.
+func (msgs Messages) OverviewReportGenerated(time_ string) string {
+	return Catalog.Format(msgs.locale, "overviewReportGenerated", map[string]any{"time": time_})
+}
+
+// ColumnApp says "App"
+// in the language the app shows.
+func ColumnApp() string { return In(i18n.Locale()).ColumnApp() }
+
+// ColumnApp says "App"
+// in the language of msgs.
+func (msgs Messages) ColumnApp() string {
+	return Catalog.Format(msgs.locale, "columnApp", nil)
+}
+
+// ColumnDomain says "Domain"
+// in the language the app shows.
+func ColumnDomain() string { return In(i18n.Locale()).ColumnDomain() }
+
+// ColumnDomain says "Domain"
+// in the language of msgs.
+func (msgs Messages) ColumnDomain() string {
+	return Catalog.Format(msgs.locale, "columnDomain", nil)
+}
+
+// ColumnCaptures says "Captures"
+// in the language the app shows.
+func ColumnCaptures() string { return In(i18n.Locale()).ColumnCaptures() }
+
+// ColumnCaptures says "Captures"
+// in the language of msgs.
+func (msgs Messages) ColumnCaptures() string {
+	return Catalog.Format(msgs.locale, "columnCaptures", nil)
+}
+
+// ColumnBytes says "Bytes"
+// in the language the app shows.
+func ColumnBytes() string { return In(i18n.Locale()).ColumnBytes() }
+
+// ColumnBytes says "Bytes"
+// in the language of msgs.
+func (msgs Messages) ColumnBytes() string {
+	return Catalog.Format(msgs.locale, "columnBytes", nil)
+}
+
+// ColumnStatus says "Status"
+// in the language the app shows.
+func ColumnStatus() string { return In(i18n.Locale()).ColumnStatus() }
+
+// ColumnStatus says "Status"
+// in the language of msgs.
+func (msgs Messages) ColumnStatus() string {
+	return Catalog.Format(msgs.locale, "columnStatus", nil)
+}
+
+// ColumnDirection says "Direction"
+// in the language the app shows.
+func ColumnDirection() string { return In(i18n.Locale()).ColumnDirection() }
+
+// ColumnDirection says "Direction"
+// in the language of msgs.
+func (msgs Messages) ColumnDirection() string {
+	return Catalog.Format(msgs.locale, "columnDirection", nil)
+}
+
+// DirectionRequests says "Requests"
+// in the language the app shows.
+func DirectionRequests() string { return In(i18n.Locale()).DirectionRequests() }
+
+// DirectionRequests says "Requests"
+// in the language of msgs.
+func (msgs Messages) DirectionRequests() string {
+	return Catalog.Format(msgs.locale, "directionRequests", nil)
+}
+
+// DirectionResponses says "Responses"
+// in the language the app shows.
+func DirectionResponses() string { return In(i18n.Locale()).DirectionResponses() }
+
+// DirectionResponses says "Responses"
+// in the language of msgs.
+func (msgs Messages) DirectionResponses() string {
+	return Catalog.Format(msgs.locale, "directionResponses", nil)
+}
+
+// DirectionTotal says "Total"
+// in the language the app shows.
+func DirectionTotal() string { return In(i18n.Locale()).DirectionTotal() }
+
+// DirectionTotal says "Total"
+// in the language of msgs.
+func (msgs Messages) DirectionTotal() string {
+	return Catalog.Format(msgs.locale, "directionTotal", nil)
+}
+
+// Captures says "Captures"
+// in the language the app shows.
+func Captures() string { return In(i18n.Locale()).Captures() }
+
+// Captures says "Captures"
+// in the language of msgs.
+func (msgs Messages) Captures() string {
+	return Catalog.Format(msgs.locale, "captures", nil)
+}
+
+// ResponseBytesLabel says "Response bytes"
+// in the language the app shows.
+func ResponseBytesLabel() string { return In(i18n.Locale()).ResponseBytesLabel() }
+
+// ResponseBytesLabel says "Response bytes"
+// in the language of msgs.
+func (msgs Messages) ResponseBytesLabel() string {
+	return Catalog.Format(msgs.locale, "responseBytesLabel", nil)
+}
+
+// IncompleteBodiesLabel says "Incomplete bodies"
+// in the language the app shows.
+func IncompleteBodiesLabel() string { return In(i18n.Locale()).IncompleteBodiesLabel() }
+
+// IncompleteBodiesLabel says "Incomplete bodies"
+// in the language of msgs.
+func (msgs Messages) IncompleteBodiesLabel() string {
+	return Catalog.Format(msgs.locale, "incompleteBodiesLabel", nil)
+}
