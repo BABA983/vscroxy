@@ -18,6 +18,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
 
@@ -100,6 +101,122 @@ func TestNetworkConditionsValidateBeforeApply(t *testing.T) {
 		if err := s.SetThrottle(invalid); err == nil || s.Throttle() != valid {
 			t.Fatalf("invalid setting changed conditions: %+v, %v", invalid, err)
 		}
+	}
+}
+
+func TestNetworkPresetsCoverSlowFastAndTotalLoss(t *testing.T) {
+	want := []string{"Off", "2G", "3G", "DSL", "4G", "Wi-Fi", "5G", "100% loss"}
+	if len(Presets) != len(want) {
+		t.Fatalf("presets: %+v", Presets)
+	}
+	seen := make(map[string]bool, len(Presets))
+	for i, p := range Presets {
+		if p.Name != want[i] || seen[p.Name] {
+			t.Fatalf("preset %d = %q, want %q, once", i, p.Name, want[i])
+		}
+		seen[p.Name] = true
+		if err := p.Validate(); err != nil {
+			t.Fatalf("preset %q: %v", p.Name, err)
+		}
+	}
+	if Presets[len(Presets)-1].FailurePercent != 100 {
+		t.Fatal("the last preset is not total loss")
+	}
+}
+
+// dialEchoWebSocket opens a WebSocket through s to an echo server that counts
+// the messages it received.
+func dialEchoWebSocket(t *testing.T, s *Server, received *atomic.Int32) *websocket.Conn {
+	t.Helper()
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for {
+			kind, msg, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			received.Add(1)
+			_ = conn.WriteMessage(kind, append([]byte("echo:"), msg...))
+		}
+	}))
+	t.Cleanup(upstream.Close)
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxyURL, err := url.Parse("http://" + s.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dialer := websocket.Dialer{Proxy: http.ProxyURL(proxyURL)}
+	conn, _, err := dialer.Dial("ws://"+u.Host+"/ws", nil)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	return conn
+}
+
+func TestWebSocketMessagesFollowGlobalConditions(t *testing.T) {
+	s, _ := startServer(t)
+	s.SetSSL(SSLConfig{All: true})
+	if err := s.SetThrottle(Throttle{Name: "latency", Latency: 100 * time.Millisecond}); err != nil {
+		t.Fatal(err)
+	}
+	var received atomic.Int32
+	conn := dialEchoWebSocket(t, s, &received)
+	start := time.Now()
+	if err := conn.WriteMessage(websocket.TextMessage, []byte("hello")); err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	_, msg, err := conn.ReadMessage()
+	if err != nil || string(msg) != "echo:hello" {
+		t.Fatalf("echo %q: %v", msg, err)
+	}
+	// Both the client's message and the server's reply pay the latency.
+	if elapsed := time.Since(start); elapsed < 180*time.Millisecond {
+		t.Fatalf("round trip took %v with 100ms latency each way", elapsed)
+	}
+	if received.Load() != 1 {
+		t.Fatalf("upstream received %d messages", received.Load())
+	}
+}
+
+func TestWebSocketNetworkRuleDropsEveryMessage(t *testing.T) {
+	s, _ := startServer(t)
+	s.SetSSL(SSLConfig{All: true})
+	rule := Rule{Name: "loss", Type: RuleNetwork, Match: "/ws", Network: &Throttle{Name: "loss", Latency: 40 * time.Millisecond, FailurePercent: 100}}
+	if err := s.SetRules([]Rule{rule}); err != nil {
+		t.Fatal(err)
+	}
+	var received atomic.Int32
+	conn := dialEchoWebSocket(t, s, &received)
+	start := time.Now()
+	if err := conn.WriteMessage(websocket.TextMessage, []byte("lost")); err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(400 * time.Millisecond))
+	if _, _, err := conn.ReadMessage(); err == nil {
+		t.Fatal("a message survived a 100% network rule")
+	}
+	if elapsed := time.Since(start); elapsed < 35*time.Millisecond {
+		t.Fatalf("the dropped message did not wait for the rule's latency: %v", elapsed)
+	}
+	// Give the upstream a moment to prove it never saw the message.
+	time.Sleep(50 * time.Millisecond)
+	if received.Load() != 0 {
+		t.Fatalf("upstream received %d dropped messages", received.Load())
+	}
+	f := waitFlow(t, s)
+	out := waitFrame(t, s)
+	if out.FlowID != f.ID || out.Frame.Direction != "out" || out.Frame.Kind != "dropped text" {
+		t.Fatalf("dropped frame = %+v", out)
 	}
 }
 

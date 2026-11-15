@@ -263,7 +263,7 @@ func TestActiveToolChipsChangeConfigurationInBothWorkspaces(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { _ = a.srv.Close() })
-			a.breakOn, a.throttle, a.upstream = true, capture.Presets[1], "http://127.0.0.1:8081"
+			a.breakOn, a.throttle, a.upstream = true, presetNamed("3G"), "http://127.0.0.1:8081"
 			a.srv.SetBreak(true)
 			a.srv.SetThrottle(a.throttle)
 			a.srv.SetNoCaching(true)

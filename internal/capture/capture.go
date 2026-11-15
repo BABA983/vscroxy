@@ -2253,8 +2253,10 @@ func (s *Server) mapRemote(f *proxy.Flow, r Rule) {
 }
 
 // applyWebSocketRules sends a WebSocket handshake, whose URL is ws or wss,
-// where the first matching Map Remote rule says.
+// where the first matching Map Remote rule says, and fixes the network
+// conditions its messages use.
 func (s *Server) applyWebSocketRules(f *proxy.Flow) {
+	s.selectWebSocketNetwork(f)
 	s.rulesMu.RLock()
 	list := s.rules
 	s.rulesMu.RUnlock()

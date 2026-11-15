@@ -763,13 +763,27 @@ func TestNetworkRulePreviewOrderAndIndependentWinners(t *testing.T) {
 	if !strings.Contains(p[6].Reason, "30% chance") || !strings.Contains(p[6].Reason, "later steps assume") {
 		t.Fatalf("probabilistic preview promised certainty: %+v", p[6])
 	}
-	for _, req := range []rules.Request{previewRequest("GET", "wss://example.test/item"), previewRequest("CONNECT", "https://example.test/item")} {
+	for _, req := range []rules.Request{previewRequest("CONNECT", "https://example.test/item")} {
 		p := capture.PreviewRules(list, req, true)
 		for _, i := range []int{4, 5, 6, 7} {
 			if p[i].Step != 0 || !strings.Contains(p[i].Reason, "does not act on") {
 				t.Fatalf("network applied to unsupported traffic: %+v", p)
 			}
 		}
+	}
+	// WebSocket messages follow the handshake's conditions, but a failure
+	// drops a message instead of ending the connection, so later hooks act.
+	ws := previewRequest("GET", "wss://example.test/item")
+	p = capture.PreviewRules(list, ws, true)
+	check(p, []int{0, 2, 3, 0, 0, 0, 1, 0, 0})
+	if p[6].Reason != "30% chance of dropping each WebSocket message" {
+		t.Fatalf("WebSocket failure preview: %+v", p[6])
+	}
+	list[6].Network.FailurePercent = 100
+	p = capture.PreviewRules(list, ws, true)
+	check(p, []int{0, 2, 3, 0, 0, 0, 1, 0, 0})
+	if p[6].Reason != "100% network failure drops every WebSocket message" {
+		t.Fatalf("WebSocket total loss preview: %+v", p[6])
 	}
 }
 

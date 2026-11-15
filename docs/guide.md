@@ -1194,20 +1194,33 @@ large body costs memory. The directory is removed when the app closes.
 
 ## Network conditions
 
-The **Network** menu slows traffic to a preset: **3G**, **4G** or **DSL**.
-Each HTTP exchange selects its conditions once before forwarding: later changes
-do not affect its upload or download. Rates pace each body's wire bytes by
-direction (not aggregate connection bandwidth); 0 means unlimited. Latency is
-one wait before forwarding, including an empty request/response, not a wait per
-body or TCP packet. Waiting can be interrupted by cancellation, body close or
-proxy shutdown. This applies to HTTP, inspected HTTPS and SSE, not WebSocket
-messages or opaque CONNECT tunnels. Local responses also use the download limit.
+The **Network** menu slows traffic to a preset: **2G**, **3G**, **DSL**,
+**4G**, **Wi-Fi**, **5G** or **100% loss**. Each HTTP exchange selects its
+conditions once before forwarding: later changes do not affect its upload or
+download. Rates pace each body's wire bytes by direction (not aggregate
+connection bandwidth); 0 means unlimited. Latency is one wait before forwarding,
+including an empty request/response, not a wait per body or TCP packet. Waiting
+can be interrupted by cancellation, body close or proxy shutdown. This applies
+to HTTP, inspected HTTPS, SSE and inspected WebSocket messages; opaque CONNECT
+tunnels are not affected. Local responses also use the download limit.
 The table's buffered-response time includes an estimated paced download;
 upload and latency are not counted twice. The timing waterfall remains the
 measured proxy timeline and excludes downstream delivery. **Off** leaves
-traffic alone. A request-disconnect failure percentage, when set, fails before
-HTTP forwarding and records a connection error; it is not TCP/IP packet loss.
-Clients may independently retry an idempotent request after a disconnect.
+traffic alone.
+
+A WebSocket connection fixes its conditions at the handshake. Every message
+then waits the latency, is paced by the download rate (server to client) or
+upload rate (client to server) for its own bytes, and a failing exchange drops
+that message without closing the connection. The table shows it as a dropped
+frame. This is per-message behavior, not per-TCP-packet behavior.
+
+The failure percentage is honest about what it does: an HTTP request fails
+before forwarding and records a connection error, and a WebSocket message is
+dropped. Neither loses individual TCP/IP packets, so a client that retries or a
+protocol that resends can recover. Clients may independently retry an
+idempotent request after a disconnect. **100% loss** sets only the failure
+percentage: every HTTP request disconnects and every WebSocket message is
+dropped.
 
 **Tools / Network → Custom presets…** saves up to 32 custom profiles with
 separate download/upload bytes per second, latency in milliseconds and an
@@ -1235,14 +1248,19 @@ exchange, so later edits or scenario changes do not affect it in flight.
 Rules use the original URL before scripts and routing. A complete buffered POST
 up to 1 MiB (including decompression) can match its verified GraphQL operation;
 a streamed or oversized POST has no operation match, while a GET still uses its
-URL query. Rules cover the same HTTP, inspected HTTPS and SSE traffic as global
-conditions, not WebSocket messages or opaque CONNECT tunnels. Choosing a preset
+URL query. Rules cover the same HTTP, inspected HTTPS, SSE and inspected WebSocket
+messages as global conditions, not opaque CONNECT tunnels. Choosing a preset
 in this editor copies its values; later preset edits do not update the rule.
 Network rules are included in configuration import/export (the separate custom
 preset list is not). The active-rule chip counts enabled rules in the current
 scenario. Its close action saves all network rules disabled, including inactive
 scenarios. **Off** does the same before clearing the global profile, and leaves
 both rule state and global conditions unchanged if the rules cannot be saved.
+
+A Network rule also applies to a WebSocket whose handshake URL it matches. The
+rule preview says whether a percentage disconnects HTTP requests or drops each
+WebSocket message; a 100% rule still lets later WebSocket hooks act, because
+the connection itself stays open.
 
 **Network → Upstream…** opens **Settings → Proxy → Upstream**; **Upstream off**
 clears the default, host rules and PAC while keeping the bypass list and

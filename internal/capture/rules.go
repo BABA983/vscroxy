@@ -55,7 +55,7 @@ func ScenarioRule(kind RuleType) bool {
 
 // Network selection is independent of response selection, on the original request.
 func firstNetworkRule(list []Rule, req rules.Request) int {
-	if webSocketURL(req.URL) || req.Method == http.MethodConnect {
+	if req.Method == http.MethodConnect {
 		return -1
 	}
 	return slices.IndexFunc(list, func(r Rule) bool {
@@ -181,8 +181,9 @@ type RulePreview struct {
 // first matching Map or Block rule answers or redirects it, and the first
 // matching response breakpoint pauses a response that came from upstream,
 // matched against the redirected URL. Breakpoints act only while breaking is
-// on. WebSockets apply Map Remote, then message scripts and direction-specific
-// message breakpoints. It does not read response files,
+// on. WebSockets apply Map Remote, the conditions selected at the handshake
+// for each message, then message scripts and direction-specific message
+// breakpoints. It does not read response files,
 // contact upstreams or run scripts, so it cannot know what a script changes.
 func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview {
 	preview := make([]RulePreview, len(rules))
@@ -213,8 +214,6 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 		}
 		reason := r.matchReason(req)
 		switch {
-		case ws:
-			reason = "does not act on WebSockets"
 		case req.Method == http.MethodConnect:
 			reason = "does not act on CONNECT tunnels"
 		case reason != "":
@@ -224,10 +223,15 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 			reason = fmt.Sprintf("shadowed by rule %d", networkWinner+1)
 		default:
 			act(i)
-			disconnected = r.Network.FailurePercent == 100
-			if disconnected {
+			switch {
+			case ws && r.Network.FailurePercent == 100:
+				reason = "100% network failure drops every WebSocket message"
+			case ws && r.Network.FailurePercent > 0:
+				reason = fmt.Sprintf("%d%% chance of dropping each WebSocket message", r.Network.FailurePercent)
+			case r.Network.FailurePercent == 100:
+				disconnected = true
 				reason = "100% network failure disconnects the request before later rules"
-			} else if r.Network.FailurePercent > 0 {
+			case r.Network.FailurePercent > 0:
 				reason = fmt.Sprintf("%d%% chance of disconnect; later steps assume the request continues", r.Network.FailurePercent)
 			}
 		}

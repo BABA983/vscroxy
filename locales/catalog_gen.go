@@ -9170,21 +9170,21 @@ func (msgs Messages) HttpAuth() string {
 	return Catalog.Format(msgs.locale, "httpAuth", nil)
 }
 
-// HttpInspectedHttpsAndSse says "HTTP, inspected HTTPS and SSE only; not WebSocket or raw CONNECT. Conditions apply to new exchanges."
+// HttpInspectedHttpsAndSse says "HTTP, inspected HTTPS, SSE and WebSocket messages; not opaque CONNECT. Conditions apply to new exchanges and new WebS…"
 // in the language the app shows.
 func HttpInspectedHttpsAndSse() string { return In(i18n.Locale()).HttpInspectedHttpsAndSse() }
 
-// HttpInspectedHttpsAndSse says "HTTP, inspected HTTPS and SSE only; not WebSocket or raw CONNECT. Conditions apply to new exchanges."
+// HttpInspectedHttpsAndSse says "HTTP, inspected HTTPS, SSE and WebSocket messages; not opaque CONNECT. Conditions apply to new exchanges and new WebS…"
 // in the language of msgs.
 func (msgs Messages) HttpInspectedHttpsAndSse() string {
 	return Catalog.Format(msgs.locale, "httpInspectedHttpsAndSse", nil)
 }
 
-// HttpInspectedHttpsAndSse2 says "HTTP, inspected HTTPS and SSE; not WebSocket or opaque CONNECT. Failure disconnects requests, not TCP packets. Stream…"
+// HttpInspectedHttpsAndSse2 says "HTTP, inspected HTTPS, SSE and WebSocket messages; not opaque CONNECT. Failure disconnects HTTP requests and drops We…"
 // in the language the app shows.
 func HttpInspectedHttpsAndSse2() string { return In(i18n.Locale()).HttpInspectedHttpsAndSse2() }
 
-// HttpInspectedHttpsAndSse2 says "HTTP, inspected HTTPS and SSE; not WebSocket or opaque CONNECT. Failure disconnects requests, not TCP packets. Stream…"
+// HttpInspectedHttpsAndSse2 says "HTTP, inspected HTTPS, SSE and WebSocket messages; not opaque CONNECT. Failure disconnects HTTP requests and drops We…"
 // in the language of msgs.
 func (msgs Messages) HttpInspectedHttpsAndSse2() string {
 	return Catalog.Format(msgs.locale, "httpInspectedHttpsAndSse2", nil)
@@ -15486,11 +15486,11 @@ func (msgs Messages) RandomUuid() string {
 	return Catalog.Format(msgs.locale, "randomUuid", nil)
 }
 
-// RatesLimitEachBodyBy says "Rates limit each body by direction (0 = unlimited). Latency waits once before forwarding. Failure randomly disconnect…"
+// RatesLimitEachBodyBy says "Rates limit each body or WebSocket message by direction (0 = unlimited). Latency waits once before an HTTP exchange a…"
 // in the language the app shows.
 func RatesLimitEachBodyBy() string { return In(i18n.Locale()).RatesLimitEachBodyBy() }
 
-// RatesLimitEachBodyBy says "Rates limit each body by direction (0 = unlimited). Latency waits once before forwarding. Failure randomly disconnect…"
+// RatesLimitEachBodyBy says "Rates limit each body or WebSocket message by direction (0 = unlimited). Latency waits once before an HTTP exchange a…"
 // in the language of msgs.
 func (msgs Messages) RatesLimitEachBodyBy() string {
 	return Catalog.Format(msgs.locale, "ratesLimitEachBodyBy", nil)

@@ -17,6 +17,16 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// presetNamed finds a built-in preset by name, so inserting a preset does not
+// silently change what a scene shows.
+func presetNamed(name string) capture.Throttle {
+	i := slices.IndexFunc(capture.Presets, func(t capture.Throttle) bool { return t.Name == name })
+	if i < 0 {
+		panic("no preset named " + name)
+	}
+	return capture.Presets[i]
+}
+
 func networkTestApp(t *testing.T) *app {
 	t.Helper()
 	a := &app{throttle: capture.Presets[0], srv: &capture.Server{}}

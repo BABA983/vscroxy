@@ -125,8 +125,8 @@
 | 脚本：异步发请求、规则间共享状态、读系统环境变量 | 已有 | `pm.sendRequest` 直连服务器；`pm.variables` 跨同一请求的脚本，`pm.globals` 跨规则并保存；`process.env`；`pm.execution.runRequest` 按 ID（或唯一名称）运行集合内的请求，桌面 Send／Runner、MCP 运行与 `vscroxy-cli run` 可用，`vscroxy-cli load` 不可用 | M4 |
 | 脚本：内置库（lodash、crypto-js、moment 等）、代码片段库、自定义 addon | 已有 | lodash 4.18.1、crypto-js 4.2.0、moment 2.31.0、chai 和 Insert snippet 与请求脚本共用；规则脚本和 addon 是 ES 模块（esbuild 转成 CommonJS 后由 goja 运行，source map 指回原行号，不支持顶层 await），addon 在 `tools/addons/*.js`，规则脚本 `import`、请求脚本 `require` 加载，Tools → Scripts → Addons 编辑，CLI 用 `--addons` | M4 |
 | 脚本：WebSocket 消息钩子 | 已有 | `onMessage(message)` 双向文本／二进制编辑、单条 drop；`pm.websocket.send`／`sendBase64` 向服务器注入消息（单条 1 MiB）、`pm.websocket.close` 带状态码和原因关闭；连接级 locals 串行执行；WS／解密 WSS | M8 |
-| 网络条件：全局预设 | 已有 | 3G / 4G / DSL | |
-| 网络条件：自定义预设、请求断连、按 host/规则生效 | 已有 | 自定义预设与规则作用域；失败率是请求断连，不是 TCP/IP 丢包；见使用指南限制 | M5 |
+| 网络条件：全局预设 | 已有 | Off / 2G / 3G / DSL / 4G / Wi-Fi / 5G / 100% loss；WebSocket 消息也按握手时选定的条件延迟、按方向限速并丢消息 | |
+| 网络条件：自定义预设、请求断连、按 host/规则生效 | 已有 | 自定义预设与规则作用域；HTTP 失败率是请求断连，WebSocket 是逐条丢消息，都不是 TCP/IP 丢包；见使用指南限制 | M5 |
 | No Caching | 已有 | | |
 | DNS 映射（可按 App） | 已有 | 已升级为 Host 方案 | M2 |
 | 上游代理：HTTP、SOCKS5 | 已有 | 默认一个；另可按 host 规则、PAC 和绕过名单选择多个，见下一行 | M7 |

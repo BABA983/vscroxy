@@ -15,6 +15,9 @@ import (
 // chain takes the connection-local lock: pausing one direction never holds
 // the other direction's script state hostage to a UI decision.
 func (s *Server) interceptMessage(ctx context.Context, f *proxy.Flow, m *proxy.WebSocketMessage) {
+	if !s.throttleMessage(ctx, f, m) {
+		return
+	}
 	direction := "in"
 	if m.FromClient {
 		direction = "out"

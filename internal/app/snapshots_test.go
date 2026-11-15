@@ -2044,7 +2044,7 @@ func snapshotScripts(a *app) {
 func snapshotActiveTools(a *app) {
 	// State only: never start a listener or create user settings/CA files.
 	a.srv = &capture.Server{}
-	a.breakOn, a.throttle, a.upstream = true, capture.Presets[1], "http://127.0.0.1:8081"
+	a.breakOn, a.throttle, a.upstream = true, presetNamed("3G"), "http://127.0.0.1:8081"
 	a.srv.SetBreak(true)
 	a.srv.SetThrottle(a.throttle)
 	a.srv.SetNoCaching(true)

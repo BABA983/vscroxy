@@ -18,10 +18,12 @@ import (
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
 
-// Throttle simulates conditions for HTTP, inspected HTTPS and SSE. Rates
-// limit each body's wire bytes, not the connection's aggregate bandwidth.
-// Latency is paid once before forwarding, including for empty bodies.
-// FailurePercent disconnects requests, not TCP packets. Zero rates are unlimited.
+// Throttle simulates conditions for HTTP, inspected HTTPS, SSE and WebSocket
+// messages. Rates limit each body's or message's wire bytes, not the
+// connection's aggregate bandwidth. Latency is paid once before forwarding an
+// HTTP exchange, including for empty bodies, and before each WebSocket
+// message. FailurePercent disconnects HTTP requests and drops WebSocket
+// messages; it is not TCP packet loss. Zero rates are unlimited.
 // Keep zero conditions in JSON so an explicit Off is not an empty object
 // omitted by Rule.Network's omitempty tag.
 type Throttle struct {
@@ -55,12 +57,17 @@ func (t *Throttle) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Presets are the network conditions the UI offers.
+// Presets are the network conditions the UI offers, from the slowest usable
+// connection to the fastest, then the one that fails every exchange.
 var Presets = []Throttle{
 	{Name: "Off"},
+	{Name: "2G", DownPerSec: 250_000, UpPerSec: 50_000, Latency: 300 * time.Millisecond},
 	{Name: "3G", DownPerSec: 780_000, UpPerSec: 330_000, Latency: 100 * time.Millisecond},
-	{Name: "4G", DownPerSec: 4_000_000, UpPerSec: 1_000_000, Latency: 20 * time.Millisecond},
 	{Name: "DSL", DownPerSec: 2_000_000, UpPerSec: 256_000, Latency: 5 * time.Millisecond},
+	{Name: "4G", DownPerSec: 4_000_000, UpPerSec: 1_000_000, Latency: 20 * time.Millisecond},
+	{Name: "Wi-Fi", DownPerSec: 5_000_000, UpPerSec: 2_000_000, Latency: 5 * time.Millisecond},
+	{Name: "5G", DownPerSec: 10_000_000, UpPerSec: 5_000_000, Latency: 10 * time.Millisecond},
+	{Name: "100% loss", FailurePercent: 100},
 }
 
 // Validate bounds both editor input and programmatically supplied conditions.
@@ -101,6 +108,65 @@ func (s *Server) flowThrottle(f *proxy.Flow) Throttle {
 		return *d.network
 	}
 	return Throttle{}
+}
+
+// selectWebSocketNetwork fixes the conditions a WebSocket's messages use, once
+// per connection, at its handshake. A Network rule replaces the whole global
+// profile, as it does for an HTTP exchange; later edits do not affect a
+// connection already open.
+func (s *Server) selectWebSocketNetwork(f *proxy.Flow) Throttle {
+	d := debugOf(f)
+	if d == nil {
+		return s.Throttle()
+	}
+	if d.network != nil {
+		return *d.network
+	}
+	t := s.Throttle()
+	list := s.Rules()
+	if i := firstNetworkRule(list, s.ruleRequest(f)); i >= 0 {
+		r := list[i]
+		t = *r.Network
+		s.hit(r)
+		if r.Scenario != "" {
+			recordAction(f, "Scenario · "+r.Scenario)
+		}
+		recordAction(f, "Network rule · "+r.Name+" · "+r.Match)
+	}
+	d.network = &t
+	if t.DownPerSec != 0 || t.UpPerSec != 0 || t.Latency != 0 || t.FailurePercent != 0 {
+		recordAction(f, "Network · "+t.Name)
+		recordAction(f, fmt.Sprintf("Network conditions · down %d B/s · up %d B/s · latency %s · failure %d%%", t.DownPerSec, t.UpPerSec, t.Latency, t.FailurePercent))
+	}
+	return t
+}
+
+// throttleMessage applies a WebSocket's selected conditions to one message:
+// the latency, the direction's rate for its bytes, then the failure chance,
+// which drops the message instead of closing the connection. It reports
+// whether the message continues.
+func (s *Server) throttleMessage(ctx context.Context, f *proxy.Flow, m *proxy.WebSocketMessage) bool {
+	t := s.selectWebSocketNetwork(f)
+	rate := t.DownPerSec
+	if m.FromClient {
+		rate = t.UpPerSec
+	}
+	if t.Latency == 0 && t.FailurePercent == 0 && rate == 0 {
+		return true
+	}
+	delay := t.Latency
+	if rate > 0 {
+		delay += time.Duration(float64(len(m.Content)) / float64(rate) * float64(time.Second))
+	}
+	if err := networkWait(ctx, s.closed, nil, delay); err != nil {
+		m.Drop = true
+		return false
+	}
+	if t.FailurePercent > 0 && rand.IntN(100) < t.FailurePercent {
+		m.Drop = true
+		return false
+	}
+	return true
 }
 
 var errNetworkFailure = errors.New("simulated network request disconnect")
