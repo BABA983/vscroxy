@@ -33,7 +33,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
-		fmt.Fprintln(stdout, "Usage: vscroxy-cli run [options] <collections-root | postman.json>\n       vscroxy-cli load [options] <collections-root | postman.json>\n       vscroxy-cli mock [options] <collections-root | postman.json>\n       vscroxy-cli openapi lint [options] <spec>\n       vscroxy-cli control --file <discovery> [options] <action>\nUse 'run --help', 'load --help', 'mock --help' or 'control --help' for options.")
+		fmt.Fprintln(stdout, "Usage: vscroxy-cli run [options] <collections-root | postman.json>\n       vscroxy-cli load [options] <collections-root | postman.json>\n       vscroxy-cli ab [options] <collections-root | postman.json | session.json>\n       vscroxy-cli mock [options] <collections-root | postman.json>\n       vscroxy-cli openapi lint [options] <spec>\n       vscroxy-cli control --file <discovery> [options] <action>\nUse 'run --help', 'load --help', 'ab --help', 'mock --help' or 'control --help' for options.")
 		return 0
 	}
 	if args[0] == "control" {
@@ -41,6 +41,9 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	if args[0] == "load" {
 		return loadCommand(ctx, args[1:], stdout, stderr)
+	}
+	if args[0] == "ab" {
+		return abCommand(ctx, args[1:], stdout, stderr)
 	}
 	if args[0] == "mock" {
 		return mockCommand(ctx, args[1:], stdout, stderr)

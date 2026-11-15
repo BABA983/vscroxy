@@ -2658,6 +2658,11 @@ body assignment, even an empty string, overrides structured forms, and header
 changes override generated headers. Expansion happens once with the final
 variables. cURL export encodes the draft without executing scripts.
 
+`vscroxy-cli ab` replays one collection or a saved session against two
+environments and reports structural differences per endpoint as JSON or JUnit;
+it compares status, content type and JSON shape rather than values, and a saved
+session can be pointed at two hosts with `--base-a` and `--base-b`.
+
 ### Postman scripts
 
 Request scripts use Postman's `pm` API, so scripts from an imported collection

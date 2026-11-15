@@ -106,6 +106,26 @@ The repository CI runs `docs/examples/ci/collection.json` against a local static
 fixture and uploads its JSON/JUnit reports. To use your own API, replace that
 fixture server with your test service and pass its URL as `base_url`.
 
+## A/B replay
+
+`vscroxy-cli ab` replays one collection against two environments and reports
+structural differences per endpoint:
+
+```sh copy Copy A/B Replay
+bin/vscroxy-cli ab --a ./staging.json --b ./production.json \
+  --report-json ./reports/ab.json --report-junit ./reports/ab.xml ./collections
+```
+
+Both sides run the same requests with their own environment, Cookie jar and
+token state. The comparison covers status, content type and JSON shape (keys and
+types; array lengths and text bodies are compared too), not scalar values that
+legitimately differ. Exit 0 means the same shape, 1 means at least one endpoint
+differs, 2 is a setup or output error. Reports name each endpoint and its
+differences and never include response bodies. A saved session JSON can replace
+the collection; `--base-a` and `--base-b` rewrite each HTTP flow's origin for the
+two sides, so captured traffic can be replayed against two hosts. Non-HTTP
+session flows are skipped.
+
 ## Long-lived protocols
 
 `run` executes WebSocket, Socket.IO and gRPC documents, not only HTTP(S):
