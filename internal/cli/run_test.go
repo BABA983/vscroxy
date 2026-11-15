@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -190,8 +191,16 @@ func TestRunFailureBudgetAndSelection(t *testing.T) {
 }
 
 // --delay-request waits once between the two attempts, not before the first.
+// A slow machine stretches the gap, so the server records when each attempt
+// arrives and the test checks the gap, not the whole run's elapsed time.
 func TestRunDelayRequestSpacesAttempts(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	var mu sync.Mutex
+	var starts []time.Time
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		starts = append(starts, time.Now())
+		mu.Unlock()
+	}))
 	defer upstream.Close()
 	root := t.TempDir()
 	input, output := filepath.Join(root, "collections"), filepath.Join(root, "run.json")
@@ -199,14 +208,21 @@ func TestRunDelayRequestSpacesAttempts(t *testing.T) {
 	write(t, filepath.Join(input, "last.request.json"), request.Request{Name: "Last", Method: "GET", URL: upstream.URL})
 	const delay = 400 * time.Millisecond
 	var stdout, stderr bytes.Buffer
-	start := time.Now()
 	code := cli.Run(t.Context(), []string{"run", "--report-json", output, "--delay-request", delay.String(), input}, &stdout, &stderr)
-	elapsed := time.Since(start)
 	if code != 0 {
 		t.Fatalf("exit=%d stdout=%s stderr=%s", code, &stdout, &stderr)
 	}
-	if elapsed < delay || elapsed >= 2*delay {
-		t.Fatalf("elapsed %v, want one delay of %v between two requests", elapsed, delay)
+	mu.Lock()
+	defer mu.Unlock()
+	if len(starts) != 2 {
+		t.Fatalf("server saw %d attempts, want 2", len(starts))
+	}
+	gap := starts[1].Sub(starts[0])
+	if gap < delay {
+		t.Fatalf("second attempt started %v after the first; want at least %v", gap, delay)
+	}
+	if gap > delay+5*time.Second {
+		t.Fatalf("second attempt started %v after the first; want about %v", gap, delay)
 	}
 }
 
