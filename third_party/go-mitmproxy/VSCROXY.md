@@ -9,6 +9,25 @@ The source patches are in `proxy/websocket.go`, `proxy/addon.go`, `proxy/sse.go`
 `proxy/attacker.go`, `proxy/proxy.go`, `proxy/entry.go`, `proxy/connection.go` and
 `internal/helper/proxy.go`; `proxy/socks.go` is new. Everything else is upstream.
 
+## Signing CA
+
+The engine no longer writes its CA into `~/.mitmproxy`. `cert/self_sign_ca.go`
+names the files `vscroxy-ca.pem` (key and certificate, 0600),
+`vscroxy-ca-cert.pem` and `vscroxy-ca-cert.cer` (public, 0644), and an empty
+`CaRootPath` resolves to `~/.vscroxy/ca` (`cert.DefaultStoreDir`) instead of
+mitmproxy's directory. The directory is created 0700 and an existing one is
+tightened to 0700; an existing key is tightened to 0600 on load. All three files
+are written through a 0600 temporary file, fsynced and renamed into place, so a
+reader never sees a partial key.
+
+The root is named `vscroxy CA`, organization `vscroxy`, and its extended key
+usage is ServerAuth only: it can sign intercepted server certificates and
+nothing else. Leaves carry the same organization, ServerAuth only, and an IP
+subject alternative name when the host is an IP literal (with any port or
+brackets removed). The desktop app passes `~/.vscroxy/ca` explicitly and reads
+`vscroxy-ca-cert.pem` for system trust and client setup; an earlier prototype's
+`mitmproxy` root is not read or migrated.
+
 ## Connection diagnostics
 
 `ConnContext` keeps a mutex-protected, bounded history of 64 observed connection

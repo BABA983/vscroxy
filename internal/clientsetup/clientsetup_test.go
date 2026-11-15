@@ -21,7 +21,7 @@ import (
 func testProxy() Proxy {
 	return Proxy{
 		Addr:       "127.0.0.1:7890",
-		CAPath:     "/Users/Jane Doe/.mitmproxy/mitmproxy-ca-cert.pem",
+		CAPath:     "/Users/Jane Doe/.vscroxy/ca/vscroxy-ca-cert.pem",
 		BundlePath: "/Users/Jane Doe/.vscroxy/client-ca-bundle.pem",
 	}
 }
@@ -39,7 +39,7 @@ func TestEnvironmentUsesTheSystemBundleForReplacementVariables(t *testing.T) {
 		"NO_PROXY=127.0.0.1:7890",
 		"no_proxy=127.0.0.1:7890",
 		"NODE_USE_ENV_PROXY=1",
-		"NODE_EXTRA_CA_CERTS=/Users/Jane Doe/.mitmproxy/mitmproxy-ca-cert.pem",
+		"NODE_EXTRA_CA_CERTS=/Users/Jane Doe/.vscroxy/ca/vscroxy-ca-cert.pem",
 		"REQUESTS_CA_BUNDLE=/Users/Jane Doe/.vscroxy/client-ca-bundle.pem",
 		"SSL_CERT_FILE=/Users/Jane Doe/.vscroxy/client-ca-bundle.pem",
 		"CURL_CA_BUNDLE=/Users/Jane Doe/.vscroxy/client-ca-bundle.pem",
@@ -75,7 +75,7 @@ func TestEnvironmentWithoutBundleOnlyAddsTheAppCA(t *testing.T) {
 		"NO_PROXY=127.0.0.1:7890",
 		"no_proxy=127.0.0.1:7890",
 		"NODE_USE_ENV_PROXY=1",
-		"NODE_EXTRA_CA_CERTS=/Users/Jane Doe/.mitmproxy/mitmproxy-ca-cert.pem",
+		"NODE_EXTRA_CA_CERTS=/Users/Jane Doe/.vscroxy/ca/vscroxy-ca-cert.pem",
 	}
 	if !slices.Equal(env, want) {
 		t.Fatalf("environment:\n got %q\nwant %q", env, want)
@@ -96,7 +96,7 @@ func TestEnvironmentRejectsAnUnusableProxy(t *testing.T) {
 func TestPOSIXScriptQuotesSpacesAndRemovesItself(t *testing.T) {
 	p := Proxy{
 		Addr:       "127.0.0.1:7890",
-		CAPath:     `/Users/O'Brien/Library/Application Support/vscroxy/ca.pem`,
+		CAPath:     `/Users/O'Brien/Library/Application Support/vscroxy/ca/vscroxy-ca-cert.pem`,
 		BundlePath: `/Users/O'Brien/Library/Application Support/vscroxy/client-ca-bundle.pem`,
 	}
 	script, err := POSIXScript(p)
@@ -106,7 +106,7 @@ func TestPOSIXScriptQuotesSpacesAndRemovesItself(t *testing.T) {
 	for _, want := range []string{
 		"#!/bin/sh\n",
 		`export HTTP_PROXY='http://127.0.0.1:7890'`,
-		`export NODE_EXTRA_CA_CERTS='/Users/O'\''Brien/Library/Application Support/vscroxy/ca.pem'`,
+		`export NODE_EXTRA_CA_CERTS='/Users/O'\''Brien/Library/Application Support/vscroxy/ca/vscroxy-ca-cert.pem'`,
 		`export SSL_CERT_FILE='/Users/O'\''Brien/Library/Application Support/vscroxy/client-ca-bundle.pem'`,
 		`rm -f "$0"`,
 		`rmdir "${0%/*}" 2>/dev/null || true`,
@@ -225,7 +225,7 @@ func TestKeytoolArgsAndJVMOptionsUseTheAppOwnedTruststore(t *testing.T) {
 	want := []string{
 		"-importcert", "-noprompt",
 		"-alias", "vscroxy-ca",
-		"-file", "/Users/Jane Doe/.mitmproxy/mitmproxy-ca-cert.pem",
+		"-file", "/Users/Jane Doe/.vscroxy/ca/vscroxy-ca-cert.pem",
 		"-keystore", keystore,
 		"-storetype", "PKCS12",
 		"-storepass", "changeit",
@@ -310,7 +310,7 @@ func TestJavaTruststoreCommandsCopyCACertsThenAddTheCA(t *testing.T) {
 		{Name: "keytool", Args: []string{
 			"-importcert", "-noprompt",
 			"-alias", "vscroxy-ca",
-			"-file", "/Users/Jane Doe/.mitmproxy/mitmproxy-ca-cert.pem",
+			"-file", "/Users/Jane Doe/.vscroxy/ca/vscroxy-ca-cert.pem",
 			"-keystore", keystore + ".import",
 			"-storetype", "PKCS12",
 			"-storepass", "changeit",

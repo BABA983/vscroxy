@@ -1433,7 +1433,7 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 		t.Fatal(err)
 	}
 	a := workspaceApp()
-	a.srv, a.caPath, a.sslPath = srv, filepath.Join(dir, "mitmproxy-ca-cert.pem"), filepath.Join(dir, "ssl.json")
+	a.srv, a.caPath, a.sslPath = srv, filepath.Join(dir, "vscroxy-ca-cert.pem"), filepath.Join(dir, "ssl.json")
 	a.flows = []flow{{id: 1, method: "CONNECT", scheme: "https", host: "dc.dlife.cn:18443", url: "https://dc.dlife.cn:18443", kind: "connect", status: 200}}
 	a.applyFilter()
 	tt := ui.NewTester(a.view, 1280, 800)
@@ -4919,7 +4919,7 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := workspaceApp()
-	a.srv, a.caPath, a.sslAll = srv, filepath.Join(dir, "mitmproxy-ca-cert.pem"), true
+	a.srv, a.caPath, a.sslAll = srv, filepath.Join(dir, "vscroxy-ca-cert.pem"), true
 	a.openClientSetup()
 	a.clientUI.tab, a.clientUI.url = 1, upstream.URL
 	// An imported capture with the same URL must never prove live setup.

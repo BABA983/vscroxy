@@ -486,7 +486,7 @@ func TestCertificateEndpoint(t *testing.T) {
 		t.Fatalf("GET / served HTML: %q", body)
 	}
 
-	for _, path := range []string{"/vscroxy-ca.key", "/vscroxy-ca.cer.bak", "/mitmproxy-ca.pem", "/index.html", caPath + "/"} {
+	for _, path := range []string{"/vscroxy-ca.key", "/vscroxy-ca.cer.bak", "/vscroxy-ca.pem", "/index.html", caPath + "/"} {
 		if resp, _ := get(t, http.MethodGet, path); resp.StatusCode != http.StatusNotFound {
 			t.Fatalf("GET %s status = %d, want 404", path, resp.StatusCode)
 		}

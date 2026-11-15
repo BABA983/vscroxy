@@ -29,6 +29,25 @@ import (
 
 var errCaNotFound = errors.New("ca not found")
 
+// The files and subject names of the app's own signing CA. They are exported
+// so the desktop app can name the public certificate it asks clients to trust
+// without repeating the strings.
+const (
+	// RootCAFile holds the CA certificate and its private key, mode 0600.
+	RootCAFile = "vscroxy-ca.pem"
+	// RootCACertFile is the public CA certificate in PEM form.
+	RootCACertFile = "vscroxy-ca-cert.pem"
+	// RootCACerFile is the public CA certificate in DER form.
+	RootCACerFile = "vscroxy-ca-cert.cer"
+	// RootCAName is the CA certificate's common name.
+	RootCAName = "vscroxy CA"
+	// RootCAOrg is the organization of the CA and its leaves.
+	RootCAOrg = "vscroxy"
+	// DefaultStoreDir is the CA directory below the user's home directory.
+	// An empty CaRootPath uses it instead of the engine's old ~/.mitmproxy.
+	DefaultStoreDir = ".vscroxy/ca"
+)
+
 type SelfSignCA struct {
 	rsa.PrivateKey
 	RootCert  x509.Certificate
@@ -49,8 +68,8 @@ func createCert() (*rsa.PrivateKey, *x509.Certificate, error) {
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(time.Now().UnixNano() / 100000),
 		Subject: pkix.Name{
-			CommonName:   "mitmproxy",
-			Organization: []string{"mitmproxy"},
+			CommonName:   RootCAName,
+			Organization: []string{RootCAOrg},
 		},
 		NotBefore:             time.Now().Add(-time.Hour * 48),
 		NotAfter:              time.Now().Add(time.Hour * 24 * 365 * 3),
@@ -58,16 +77,9 @@ func createCert() (*rsa.PrivateKey, *x509.Certificate, error) {
 		IsCA:                  true,
 		SignatureAlgorithm:    x509.SHA256WithRSA,
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
-		ExtKeyUsage: []x509.ExtKeyUsage{
-			x509.ExtKeyUsageServerAuth,
-			x509.ExtKeyUsageClientAuth,
-			x509.ExtKeyUsageEmailProtection,
-			x509.ExtKeyUsageTimeStamping,
-			x509.ExtKeyUsageCodeSigning,
-			x509.ExtKeyUsageMicrosoftCommercialCodeSigning,
-			x509.ExtKeyUsageMicrosoftServerGatedCrypto,
-			x509.ExtKeyUsageNetscapeServerGatedCrypto,
-		},
+		// This CA signs intercepted server certificates and nothing else:
+		// no code signing, email protection or timestamping.
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
 
 	certBytes, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
@@ -132,7 +144,7 @@ func getStorePath(path string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		path = filepath.Join(homeDir, ".mitmproxy")
+		path = filepath.Join(homeDir, filepath.FromSlash(DefaultStoreDir))
 	}
 
 	if !filepath.IsAbs(path) {
@@ -146,7 +158,8 @@ func getStorePath(path string) (string, error) {
 	stat, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = os.MkdirAll(path, os.ModePerm)
+			// The directory holds the signing key: only this user may enter it.
+			err = os.MkdirAll(path, 0o700)
 			if err != nil {
 				return "", err
 			}
@@ -157,6 +170,9 @@ func getStorePath(path string) (string, error) {
 		if !stat.Mode().IsDir() {
 			return "", fmt.Errorf("路径 %v 不是文件夹，请移除此文件重试", path)
 		}
+		if err := os.Chmod(path, 0o700); err != nil {
+			return "", err
+		}
 	}
 
 	return path, nil
@@ -164,16 +180,16 @@ func getStorePath(path string) (string, error) {
 
 // The certificate and the private key in PEM format.
 func (ca *SelfSignCA) caFile() string {
-	return filepath.Join(ca.StorePath, "mitmproxy-ca.pem")
+	return filepath.Join(ca.StorePath, RootCAFile)
 }
 
 // The certificate in PEM format.
 func (ca *SelfSignCA) caCertFile() string {
-	return filepath.Join(ca.StorePath, "mitmproxy-ca-cert.pem")
+	return filepath.Join(ca.StorePath, RootCACertFile)
 }
 
 func (ca *SelfSignCA) caCertCerFile() string {
-	return filepath.Join(ca.StorePath, "mitmproxy-ca-cert.cer")
+	return filepath.Join(ca.StorePath, RootCACerFile)
 }
 
 func (ca *SelfSignCA) load() error {
@@ -231,6 +247,12 @@ func (ca *SelfSignCA) load() error {
 	}
 	ca.RootCert = *x509Cert
 
+	// A key written by an older build, or copied from a laxer umask, must not
+	// stay group- or world-readable.
+	if err := os.Chmod(caFile, 0o600); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -266,36 +288,48 @@ func (ca *SelfSignCA) saveCertTo(out io.Writer) error {
 	return pem.Encode(out, &pem.Block{Type: "CERTIFICATE", Bytes: ca.RootCert.Raw})
 }
 
-func (ca *SelfSignCA) save() error {
-	file, err := os.Create(ca.caFile())
+// writeFileAtomic writes a CA file through a temporary file in the same
+// directory and renames it into place, so a reader never sees a partial key.
+// The temporary file starts at 0600; a public certificate is widened to 0644
+// afterwards.
+func writeFileAtomic(path string, mode os.FileMode, write func(io.Writer) error) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	file, err := os.CreateTemp(dir, ".vscroxy-ca-*")
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-	return ca.saveTo(file)
+	tmp := file.Name()
+	defer os.Remove(tmp)
+	if err := file.Chmod(mode); err != nil {
+		file.Close()
+		return err
+	}
+	if err := write(file); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+func (ca *SelfSignCA) save() error {
+	return writeFileAtomic(ca.caFile(), 0o600, ca.saveTo)
 }
 
 func (ca *SelfSignCA) saveCert() error {
-	file, err := os.Create(ca.caCertFile())
-	if err != nil {
+	if err := writeFileAtomic(ca.caCertFile(), 0o644, ca.saveCertTo); err != nil {
 		return err
 	}
-	defer file.Close()
-	err = ca.saveCertTo(file)
-	if err != nil {
-		return err
-	}
-
-	cerFile, err := os.Create(ca.caCertCerFile())
-	if err != nil {
-		return err
-	}
-	defer cerFile.Close()
-	err = ca.saveCertTo(cerFile)
-	if err != nil {
-		return err
-	}
-	return err
+	return writeFileAtomic(ca.caCertCerFile(), 0o644, ca.saveCertTo)
 }
 
 func (ca *SelfSignCA) GetRootCA() *x509.Certificate {
@@ -331,23 +365,29 @@ func (ca *SelfSignCA) GetCert(commonName string) (*tls.Certificate, error) {
 // TODO: 是否应该支持多个 SubjectAltName
 func (ca *SelfSignCA) DummyCert(commonName string) (*tls.Certificate, error) {
 	log.Debugf("ca DummyCert: %v", commonName)
+	// A CONNECT target or SNI may carry a port or IPv6 brackets; a
+	// certificate names the bare host.
+	name := commonName
+	if host, _, err := net.SplitHostPort(name); err == nil {
+		name = host
+	}
+	name = strings.Trim(name, "[]")
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(time.Now().UnixNano() / 100000),
 		Subject: pkix.Name{
-			CommonName:   commonName,
-			Organization: []string{"mitmproxy"},
+			CommonName:   name,
+			Organization: []string{RootCAOrg},
 		},
 		NotBefore:          time.Now().Add(-time.Hour * 48),
 		NotAfter:           time.Now().Add(time.Hour * 24 * 365),
 		SignatureAlgorithm: x509.SHA256WithRSA,
-		ExtKeyUsage:        []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		ExtKeyUsage:        []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
 
-	ip := net.ParseIP(commonName)
-	if ip != nil {
+	if ip := net.ParseIP(name); ip != nil {
 		template.IPAddresses = []net.IP{ip}
 	} else {
-		template.DNSNames = []string{commonName}
+		template.DNSNames = []string{name}
 	}
 
 	certBytes, err := x509.CreateCertificate(rand.Reader, template, &ca.RootCert, &ca.PrivateKey.PublicKey, &ca.PrivateKey)

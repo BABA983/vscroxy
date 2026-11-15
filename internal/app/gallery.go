@@ -471,7 +471,7 @@ func galleryScripts(a *app) {
 func galleryClientSetup(a *app) {
 	// No settings path: the plate must not write a settings file, so the CA
 	// bundle line says it is unavailable, as on a fresh install.
-	a.caPath = "/home/demo/.vscroxy/mitmproxy-ca-cert.pem"
+	a.caPath = "/home/demo/.vscroxy/vscroxy-ca-cert.pem"
 	a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetTerminal,
 		addr: "127.0.0.1:7890", caPath: a.caPath}
 }

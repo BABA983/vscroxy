@@ -20,7 +20,7 @@ func TestWindowsTerminalUsesCmdEnvAndANewConsole(t *testing.T) {
 	if got := envValue(command.Env, "HTTP_PROXY"); got != "http://127.0.0.1:7890" {
 		t.Fatalf("environment proxy %q: %q", got, command.Env)
 	}
-	if got := envValue(command.Env, "NODE_EXTRA_CA_CERTS"); got != "/Users/Jane Doe/.mitmproxy/mitmproxy-ca-cert.pem" {
+	if got := envValue(command.Env, "NODE_EXTRA_CA_CERTS"); got != "/Users/Jane Doe/.vscroxy/ca/vscroxy-ca-cert.pem" {
 		t.Fatalf("environment CA %q: %q", got, command.Env)
 	}
 	for _, entry := range command.Env {

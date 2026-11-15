@@ -28,7 +28,7 @@ func oneClickApp(t *testing.T) *app {
 	}
 	t.Cleanup(func() { _ = srv.Close() })
 	a.srv = srv
-	a.caPath = filepath.Join(dir, "mitmproxy-ca-cert.pem")
+	a.caPath = filepath.Join(dir, "vscroxy-ca-cert.pem")
 	a.settingsPath = filepath.Join(dir, ".vscroxy", "settings.json")
 	a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetTerminal}
 	return a

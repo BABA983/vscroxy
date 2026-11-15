@@ -308,7 +308,7 @@ func TestSSLConfigSwitchPreservesConnectionDecision(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { s.Close() })
-			ca := filepath.Join(dir, "mitmproxy-ca-cert.pem")
+			ca := filepath.Join(dir, "vscroxy-ca-cert.pem")
 			s.SetSSL(SSLConfig{All: intercept})
 			s.proxy.Addons = append([]proxy.Addon{&switchSSLOnConnect{server: s, next: SSLConfig{All: !intercept}}}, s.proxy.Addons...)
 			if err := s.Start(); err != nil {

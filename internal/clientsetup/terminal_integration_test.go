@@ -43,7 +43,7 @@ func TestTerminalLaunchReachesHTTPSThroughTheProxy(t *testing.T) {
 	defer upstream.Close()
 
 	dir := t.TempDir()
-	caPath := filepath.Join(dir, "mitmproxy-ca-cert.pem")
+	caPath := filepath.Join(dir, "vscroxy-ca-cert.pem")
 	srv, err := capture.New("127.0.0.1:0", dir)
 	if err != nil {
 		t.Fatal(err)

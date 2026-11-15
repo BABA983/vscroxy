@@ -1732,34 +1732,34 @@ func snapshotStates(t *testing.T) []snapshot {
 		}, want: "LAN off", short: true},
 		{name: "dialog-client", setup: func(a *app) {
 			a.clientUI = clientSetup{open: true, tab: 1, runtime: "cURL", url: "https://api.example.com/projects",
-				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem"}
+				addr: "127.0.0.1:7890", caPath: "/Users/me/.vscroxy/ca/vscroxy-ca-cert.pem"}
 		}, want: "Copy client example", short: true},
 		{name: "dialog-client-oneclick-terminal", setup: func(a *app) {
 			a.settingsPath = filepath.Join(os.TempDir(), "vscroxy-snapshot", "settings.json")
 			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetTerminal,
-				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem"}
+				addr: "127.0.0.1:7890", caPath: "/Users/me/.vscroxy/ca/vscroxy-ca-cert.pem"}
 		}, want: "Open terminal", short: true},
 		{name: "dialog-client-oneclick-terminal-no-bundle", setup: func(a *app) {
 			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetTerminal,
-				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem"}
+				addr: "127.0.0.1:7890", caPath: "/Users/me/.vscroxy/ca/vscroxy-ca-cert.pem"}
 		}, want: "System CA bundle unavailable", short: true},
 		{name: "dialog-client-oneclick-chrome", setup: func(a *app) {
 			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetChrome,
-				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem"}
+				addr: "127.0.0.1:7890", caPath: "/Users/me/.vscroxy/ca/vscroxy-ca-cert.pem"}
 		}, want: "Open Chrome", short: true},
 		{name: "dialog-client-oneclick-firefox", setup: func(a *app) {
 			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetFirefox,
-				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem"}
+				addr: "127.0.0.1:7890", caPath: "/Users/me/.vscroxy/ca/vscroxy-ca-cert.pem"}
 		}, want: "Open Firefox", short: true},
 		{name: "dialog-client-oneclick-android", setup: func(a *app) {
 			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetAndroid,
-				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem",
+				addr: "127.0.0.1:7890", caPath: "/Users/me/.vscroxy/ca/vscroxy-ca-cert.pem",
 				androidLoaded: true, androidSerial: "emulator-5554",
 				android: []clientsetup.AndroidDevice{{Serial: "emulator-5554", State: "device", Model: "Pixel_7"}}}
 		}, want: "Set proxy", short: true},
 		{name: "dialog-client-oneclick-android-saved", setup: func(a *app) {
 			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetAndroid,
-				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem",
+				addr: "127.0.0.1:7890", caPath: "/Users/me/.vscroxy/ca/vscroxy-ca-cert.pem",
 				androidLoaded: true, androidSerial: "emulator-5554",
 				android: []clientsetup.AndroidDevice{{Serial: "emulator-5554", State: "device", Model: "Pixel_7"}},
 				androidApplied: map[string]androidProxyState{
@@ -1768,22 +1768,22 @@ func snapshotStates(t *testing.T) []snapshot {
 		}, want: "Forget saved proxy", short: true},
 		{name: "dialog-client-oneclick-android-missing", setup: func(a *app) {
 			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetAndroid,
-				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem",
+				addr: "127.0.0.1:7890", caPath: "/Users/me/.vscroxy/ca/vscroxy-ca-cert.pem",
 				androidLoaded: true, androidProblem: "adb not found; install Android platform-tools and put adb on PATH"}
 		}, want: "adb not found", short: true},
 		{name: "dialog-client-oneclick-ios", setup: func(a *app) {
 			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetIOS,
-				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem"}
+				addr: "127.0.0.1:7890", caPath: "/Users/me/.vscroxy/ca/vscroxy-ca-cert.pem"}
 		}, want: "iOS simulator", short: true},
 		{name: "dialog-client-oneclick-java", setup: func(a *app) {
 			a.settingsPath = filepath.Join(os.TempDir(), "vscroxy-snapshot", "settings.json")
 			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetJava,
-				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem",
+				addr: "127.0.0.1:7890", caPath: "/Users/me/.vscroxy/ca/vscroxy-ca-cert.pem",
 				javaCACerts: "/Library/Java/JavaVirtualMachines/jdk-27.jdk/Contents/Home/lib/security/cacerts"}
 		}, want: "Import…", short: true},
 		{name: "dialog-client-oneclick-electron", setup: func(a *app) {
 			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetElectron,
-				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem",
+				addr: "127.0.0.1:7890", caPath: "/Users/me/.vscroxy/ca/vscroxy-ca-cert.pem",
 				electronPath: "/Applications/Slack.app"}
 		}, want: "Launch with proxy", short: true},
 		{name: "commands-one-click", setup: func(a *app) {

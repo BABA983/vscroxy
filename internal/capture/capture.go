@@ -31,6 +31,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	mitmcert "github.com/lqqyt2423/go-mitmproxy/cert"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 	"github.com/sirupsen/logrus"
 
@@ -456,14 +457,35 @@ type Server struct {
 	breakpoints chan Breakpoint
 }
 
+// CACertFile is the public CA certificate the engine writes into its CA
+// directory. Clients trust this file; the signing key beside it is private.
+const CACertFile = mitmcert.RootCACertFile
+
+// CADir is the app's own CA directory under home. It is the one place the
+// engine, the desktop settings and client setup look for the signing CA; the
+// engine's old ~/.mitmproxy default is never used.
+func CADir(home string) string {
+	return filepath.Join(home, filepath.FromSlash(mitmcert.DefaultStoreDir))
+}
+
+// CACertPath is the public CA certificate clients trust.
+func CACertPath(home string) string {
+	return filepath.Join(CADir(home), CACertFile)
+}
+
 // New builds a proxy to listen on addr, with its CA under caRootPath, or in
-// ~/.mitmproxy when that is empty as mitmproxy does. An empty addr prefers
+// ~/.vscroxy/ca when that is empty. An empty addr prefers
 // 127.0.0.1:7890 and falls back to an OS-assigned port if it cannot be bound.
 // An explicit addr is used as-is; port 0 requests an OS-assigned port directly.
 func New(addr, caRootPath string) (*Server, error) {
 	autoPort := addr == ""
 	if addr == "" {
 		addr = "127.0.0.1:7890"
+	}
+	if caRootPath == "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			caRootPath = CADir(home)
+		}
 	}
 	s := &Server{
 		addr:          addr,

@@ -183,7 +183,7 @@ func fakeAndroidAdb(t *testing.T, answers ...string) string {
 
 func androidTestCAFile(t *testing.T) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "mitmproxy-ca-cert.pem")
+	path := filepath.Join(t.TempDir(), "vscroxy-ca-cert.pem")
 	if err := os.WriteFile(path, []byte(androidTestCA), 0o600); err != nil {
 		t.Fatal(err)
 	}

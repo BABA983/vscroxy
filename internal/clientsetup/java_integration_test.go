@@ -70,7 +70,7 @@ func TestJavaRequestUsesTheProxyAndTruststore(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer srv.Close()
-	caPath := filepath.Join(dir, "mitmproxy-ca-cert.pem")
+	caPath := filepath.Join(dir, "vscroxy-ca-cert.pem")
 	proxy := Proxy{Addr: srv.Addr(), CAPath: caPath}
 	keystore := filepath.Join(dir, "java", "truststore.p12")
 	if _, err := ImportJavaCA(proxy, keystore); err != nil {

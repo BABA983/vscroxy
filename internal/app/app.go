@@ -635,7 +635,7 @@ func newApp() *app {
 		if _, err := os.Stat(filepath.Dir(a.settingsPath)); errors.Is(err, fs.ErrNotExist) {
 			a.guide = true
 		}
-		a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
+		a.caPath = capture.CACertPath(home)
 		a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
 		a.network.path = filepath.Join(home, ".vscroxy", "network-presets.json")
 		a.bpTemplatesPath = filepath.Join(home, ".vscroxy", "breakpoint-templates.json")
@@ -719,7 +719,13 @@ func newApp() *app {
 	addr, err := a.saved.proxyAddr()
 	var srv *capture.Server
 	if err == nil {
-		srv, err = capture.New(addr, "")
+		// The CA directory is the parent of the public certificate the rest
+		// of the app trusts and serves to clients.
+		caDir := ""
+		if a.caPath != "" {
+			caDir = filepath.Dir(a.caPath)
+		}
+		srv, err = capture.New(addr, caDir)
 	}
 	if err != nil {
 		// Keep local assets usable, but never present examples as captured data.

@@ -48,10 +48,10 @@ curl -x http://127.0.0.1:7890 http://example.com/
 ```
 
 For HTTPS, install the CA the proxy generates at
-`~/.mitmproxy/mitmproxy-ca-cert.pem` and trust it, then:
+`~/.vscroxy/ca/vscroxy-ca-cert.pem` and trust it, then:
 
 ```sh
-curl --cacert ~/.mitmproxy/mitmproxy-ca-cert.pem -x http://127.0.0.1:7890 https://example.com/
+curl --cacert ~/.vscroxy/ca/vscroxy-ca-cert.pem -x http://127.0.0.1:7890 https://example.com/
 ```
 
 `mygo dev` rebuilds and restarts on changes:
@@ -3521,7 +3521,7 @@ menu bar.
   exit as proof. Controls are disabled while an operation is pending. This checks
   OS settings, not whether every application honors them; clients with their own
   proxy settings, bypass lists, or separate trust stores still need configuration.
-- **Install & Trust…** trusts `~/.mitmproxy/mitmproxy-ca-cert.pem`. Linux
+- **Install & Trust…** trusts `~/.vscroxy/ca/vscroxy-ca-cert.pem`. Linux
   detects `update-ca-certificates` (Debian/Ubuntu) or `update-ca-trust`
   (Fedora/Arch), installs the public CA in the matching anchor directory,
   and refreshes trust through one `pkexec` authorization. Missing helpers
@@ -3556,11 +3556,26 @@ login session; unsigned or invalidly signed builds may be denied before
 an authorization prompt appears. If automatic installation fails on macOS, use
 **Show certificate** to locate the public CA, import it in Keychain Access,
 and set **Trust → When using this certificate → Always Trust**, then check
-again. Never import or share `mitmproxy-ca.pem`, which contains the private key.
+again. Never import or share `vscroxy-ca.pem`, which contains the private key.
 A missing helper or insufficient permission is reported rather than treated
 as proof that a certificate is uninstalled.
 System trust only describes this machine: remote devices, separate application
 trust stores and certificate pinning may require client-side configuration.
+
+The signing CA lives in the app's own directory, `~/.vscroxy/ca/`. Earlier
+prototype builds wrote it to `~/.mitmproxy/mitmproxy-ca.pem` and asked you to
+trust a root named `mitmproxy`. This release neither reads nor migrates that
+old CA, so remove the old root once from every trust store that has it: on
+macOS open Keychain Access, select **System** (and **login**), search for
+`mitmproxy`, and delete that certificate; on Windows open `certmgr.msc` →
+**Trusted Root Certification Authorities** → **Certificates** and delete the
+entry issued to `mitmproxy`; on Linux inspect the anchors, for example
+`openssl x509 -in /usr/local/share/ca-certificates/vscroxy.crt -noout -subject`,
+remove the file only when its subject is `mitmproxy`, and run
+`update-ca-certificates` or `update-ca-trust`. **Install & Trust…** replaces the
+Debian/Ubuntu anchor in place, so reinstalling there is enough. Delete
+`~/.mitmproxy` too if no other tool uses it, then trust `vscroxy CA` from the new
+location.
 
 An undecrypted **CONNECT** detail explains that it is an encrypted tunnel, not
 one HTTPS request. HTTPS encrypts request/response headers (including Cookie and

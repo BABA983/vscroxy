@@ -63,7 +63,7 @@ func startServer(t *testing.T) (*Server, string) {
 		t.Fatalf("start server: %v", err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
-	return s, filepath.Join(dir, "mitmproxy-ca-cert.pem")
+	return s, filepath.Join(dir, "vscroxy-ca-cert.pem")
 }
 
 func clientFor(t *testing.T, s *Server, roots *x509.CertPool) *http.Client {
@@ -1390,7 +1390,7 @@ func startServerWithRules(t *testing.T, rules ...Rule) (*Server, string) {
 		t.Fatalf("start server: %v", err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
-	return s, filepath.Join(dir, "mitmproxy-ca-cert.pem")
+	return s, filepath.Join(dir, "vscroxy-ca-cert.pem")
 }
 
 func TestMapRemote(t *testing.T) {
