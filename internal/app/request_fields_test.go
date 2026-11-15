@@ -463,14 +463,14 @@ func TestRequestDiagnosticsKeepPhasesErrorsAndSentVariables(t *testing.T) {
 		t.Fatalf("post-script rewrote send-time variable evidence: %+v", got.Variables)
 	}
 	var log experimentLog
-	if err := log.retain(snapshotExperiment(0, r, "staging", got)); err != nil {
+	if err := log.retain(snapshotExperiment(0, r, "staging", got), experimentLimits{}); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "experiments.json")
-	if err := saveExperiments(path, log); err != nil {
+	if err := saveExperiments(path, log, experimentLimits{}); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := loadExperiments(path)
+	restored, err := loadExperiments(path, experimentLimits{})
 	if err != nil || !reflect.DeepEqual(restored.Records[0].Console, got.Console) || !reflect.DeepEqual(restored.Records[0].Variables, got.Variables) {
 		t.Fatal("diagnostics did not survive restart", err)
 	}

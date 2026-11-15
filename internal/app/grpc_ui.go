@@ -31,6 +31,8 @@ type grpcDocument struct {
 	loading                chan grpcSchemaResult
 	cancelImport           context.CancelFunc
 	session                *grpcSession
+	// recorded is the session whose summary History already holds.
+	recorded *grpcSession
 	// unary marks a call running through Execute; its result clears
 	// composeWaiting, not an older finished session.
 	unary                      bool

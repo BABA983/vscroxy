@@ -21,6 +21,8 @@ import (
 )
 
 type experimentWorkbench struct {
+	// limits are the configured history caps, shared by the writer.
+	limits                           experimentLimits
 	log                              experimentLog
 	path, problem                    string
 	open, clearing, readOnly, closed bool
@@ -45,7 +47,8 @@ func (a *app) loadExperiments(path string) {
 	s := &a.experiments
 	s.path = path
 	s.notify = a.invalidate
-	log, err := loadExperiments(path)
+	s.limits = a.experimentLimits()
+	log, err := loadExperiments(path, a.experimentLimits())
 	if err != nil {
 		s.problem, s.readOnly = "Experiments: "+err.Error(), true
 		return
@@ -78,7 +81,7 @@ func (s *experimentWorkbench) persist() {
 			for state := range s.jobs {
 				err := os.MkdirAll(filepath.Dir(s.path), 0o700)
 				if err == nil {
-					err = saveExperiments(s.path, state)
+					err = saveExperiments(s.path, state, s.limits)
 				}
 				select {
 				case <-s.results:
@@ -224,12 +227,16 @@ func (r experimentRecord) resultText() string {
 
 func (r experimentRecord) compared(ignore string) flow {
 	f := flow{id: r.ID, method: r.Draft.Method, url: r.Draft.URL, path: r.Draft.URL}
+	// Bodies may have been spilled to disk when the history size cap was hit.
+	f.reqBody, f.resBody = string(r.requestBody()), string(r.responseBody())
 	if reply := r.Exchange; reply != nil {
 		f.method, f.url, f.path, f.status, f.millis = reply.Method, reply.URL, reply.URL, reply.Status, reply.Millis
-		f.reqBody, f.reqSize, f.reqError, f.reqHeaders = string(r.RequestBody), reply.RequestBodySize, reply.RequestBodyError, request.HeaderBlock(reply.RequestHeader)
-		f.resBody, f.resSize, f.resError, f.resHeaders = string(r.ResponseBody), reply.ResponseBodySize, reply.ResponseBodyError, request.HeaderBlock(reply.ResponseHeader)
+		f.reqSize, f.reqError, f.reqHeaders = reply.RequestBodySize, reply.RequestBodyError, request.HeaderBlock(reply.RequestHeader)
+		f.resSize, f.resError, f.resHeaders = reply.ResponseBodySize, reply.ResponseBodyError, request.HeaderBlock(reply.ResponseHeader)
+	} else {
+		f.reqSize, f.resSize = len(f.reqBody), len(f.resBody)
 	}
-	if r.Exchange == nil || r.Exchange.Status == 0 {
+	if (r.Exchange == nil || r.Exchange.Status == 0) && f.resBody == "" {
 		f.resError = "No HTTP response: " + r.Summary
 	}
 	if strings.TrimSpace(ignore) != "" {
@@ -461,6 +468,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					s.clearing = false
 				}
 				if uikit.DestructiveButton(c, locales.ClearRecords()).Clicked() {
+					s.log.clearSpill()
 					s.log.Records = nil
 					s.log.Baseline = 0
 					s.picked = 0

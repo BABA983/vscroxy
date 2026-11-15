@@ -3282,7 +3282,7 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 			r.Source = newDebugSource(a.flows[0])
 		}
 		r.At = time.Now().Add(time.Duration(i) * time.Minute)
-		if err := a.experiments.log.retain(r); err != nil {
+		if err := a.experiments.log.retain(r, experimentLimits{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -5977,7 +5977,7 @@ func TestExperimentWorkbenchComparesIndependentRunsAndReopensWithoutSending(t *t
 	draft := savedRequest{Method: "POST", URL: "https://example.test/items", Body: "original"}
 	for i, body := range []string{`{"value":1,"timestamp":10}`, `{"value":2,"timestamp":20}`} {
 		draft.Body = fmt.Sprintf("attempt %d", i+1)
-		if err := a.experiments.log.retain(snapshotExperiment(0, draft, "staging", request.Execution{Response: &capture.Flow{Method: "POST", URL: draft.URL, Status: 200, RequestBody: draft.Body, ResponseBody: body}})); err != nil {
+		if err := a.experiments.log.retain(snapshotExperiment(0, draft, "staging", request.Execution{Response: &capture.Flow{Method: "POST", URL: draft.URL, Status: 200, RequestBody: draft.Body, ResponseBody: body}}), experimentLimits{}); err != nil {
 			t.Fatal(err)
 		}
 	}

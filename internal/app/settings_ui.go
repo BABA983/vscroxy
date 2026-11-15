@@ -238,6 +238,16 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 			limit("Disk limit", &a.diskLimit, defaultDiskLimit, diskLimits, func(gb int) string {
 				return fmt.Sprintf("%d GB", gb)
 			}, locales.BodiesPast64KbAre())
+			limit(locales.HistoryEntries(), &a.historyLimit, defaultExperimentRecords, []int{25, 50, 100, 250, 500, 1000}, func(n int) string {
+				return groupThousands(n) + " " + locales.HistoryRecordsUnit()
+			}, locales.HistoryEntriesHelp())
+			limit(locales.HistorySize(), &a.historySizeMB, defaultExperimentSizeMB, []int{8, 16, 32, 64, 128, 256}, func(mb int) string {
+				if mb >= 1024 {
+					return fmt.Sprintf("%d GB", mb/1024)
+				}
+				return fmt.Sprintf("%d MB", mb)
+			}, locales.HistorySizeHelp())
+			a.applyHistoryLimits()
 			uikit.SettingsRow(c, locales.InUse(), func() ui.Element {
 				memory, disk := a.retainedTotal()
 				return uikit.Body(c, locales.InUseSummary(humanBytes(int(memory)), humanBytes(int(disk)), len(a.flows))).FontFeatures("tnum")

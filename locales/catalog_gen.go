@@ -8898,6 +8898,56 @@ func (msgs Messages) HistoricalSessionReadOnlyPayloads() string {
 	return Catalog.Format(msgs.locale, "historicalSessionReadOnlyPayloads", nil)
 }
 
+// HistoryEntries says "History entries"
+// in the language the app shows.
+func HistoryEntries() string { return In(i18n.Locale()).HistoryEntries() }
+
+// HistoryEntries says "History entries"
+// in the language of msgs.
+func (msgs Messages) HistoryEntries() string {
+	return Catalog.Format(msgs.locale, "historyEntries", nil)
+}
+
+// HistoryEntriesHelp says "How many sends and interactive session summaries History keeps."
+// in the language the app shows.
+func HistoryEntriesHelp() string { return In(i18n.Locale()).HistoryEntriesHelp() }
+
+// HistoryEntriesHelp says "How many sends and interactive session summaries History keeps."
+// in the language of msgs.
+func (msgs Messages) HistoryEntriesHelp() string {
+	return Catalog.Format(msgs.locale, "historyEntriesHelp", nil)
+}
+
+// HistorySize says "History size"
+// in the language the app shows.
+func HistorySize() string { return In(i18n.Locale()).HistorySize() }
+
+// HistorySize says "History size"
+// in the language of msgs.
+func (msgs Messages) HistorySize() string {
+	return Catalog.Format(msgs.locale, "historySize", nil)
+}
+
+// HistorySizeHelp says "Larger payloads spill beside the history file, within this budget."
+// in the language the app shows.
+func HistorySizeHelp() string { return In(i18n.Locale()).HistorySizeHelp() }
+
+// HistorySizeHelp says "Larger payloads spill beside the history file, within this budget."
+// in the language of msgs.
+func (msgs Messages) HistorySizeHelp() string {
+	return Catalog.Format(msgs.locale, "historySizeHelp", nil)
+}
+
+// HistoryRecordsUnit says "records"
+// in the language the app shows.
+func HistoryRecordsUnit() string { return In(i18n.Locale()).HistoryRecordsUnit() }
+
+// HistoryRecordsUnit says "records"
+// in the language of msgs.
+func (msgs Messages) HistoryRecordsUnit() string {
+	return Catalog.Format(msgs.locale, "historyRecordsUnit", nil)
+}
+
 // History says "History"
 // in the language the app shows.
 func History() string { return In(i18n.Locale()).History() }

@@ -35,7 +35,9 @@ type mqttPublishDraft struct {
 
 type mqttDocument struct {
 	session *mqttSession
-	tab     int
+	// recorded is the session whose summary History already holds.
+	recorded *mqttSession
+	tab      int
 	// selected indexes the filtered timeline.
 	selected int
 	problem  string

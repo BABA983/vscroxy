@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json/v2"
 	"errors"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -23,17 +24,17 @@ func TestExperimentsIndependentSends(t *testing.T) {
 	draft := savedRequest{Method: "POST", URL: "https://example.test/same", Body: "first"}
 	flow := &capture.Flow{Status: 200, RequestBody: "first", ResponseBody: "reply one"}
 	first := snapshotExperiment(0, draft, "staging", request.Execution{Response: flow})
-	if err := log.retain(first); err != nil {
+	if err := log.retain(first, experimentLimits{}); err != nil {
 		t.Fatal(err)
 	}
 	draft.Body, flow.RequestBody, flow.ResponseBody = "second", "second", "reply two"
-	if err := log.retain(snapshotExperiment(0, draft, "production", request.Execution{Response: flow})); err != nil {
+	if err := log.retain(snapshotExperiment(0, draft, "production", request.Execution{Response: flow}), experimentLimits{}); err != nil {
 		t.Fatal(err)
 	}
 	failed := snapshotExperiment(0, draft, "offline", request.Execution{
 		Request: &request.Prepared{Method: "POST", URL: draft.URL, Body: "attempted"}, Err: errors.New("dial failed"),
 	})
-	if err := log.retain(failed); err != nil {
+	if err := log.retain(failed, experimentLimits{}); err != nil {
 		t.Fatal(err)
 	}
 	if log.NextID != 3 || len(log.Records) != 3 || log.Records[0].ID != 3 || log.Records[2].ID != 1 {
@@ -48,7 +49,7 @@ func TestExperimentsIndependentSends(t *testing.T) {
 	if got := snapshotExperiment(4, draft, "", request.Execution{Err: errors.New("invalid draft")}); got.response() != nil || got.Summary != "invalid draft" {
 		t.Fatalf("failure before preparation = %+v", got)
 	}
-	if err := log.retain(snapshotExperiment(42, draft, "", request.Execution{Replies: []string{"a", "b"}})); err != nil {
+	if err := log.retain(snapshotExperiment(42, draft, "", request.Execution{Replies: []string{"a", "b"}}), experimentLimits{}); err != nil {
 		t.Fatal(err)
 	}
 	if log.NextID != 42 || log.Records[0].ID != 42 || log.Records[0].response() != nil || log.Records[0].Summary != "WebSocket: 2 replies" {
@@ -125,10 +126,10 @@ func TestExperimentPayloadRetention(t *testing.T) {
 			}
 			log := experimentLog{Version: 1, Records: []experimentRecord{r}}
 			store := filepath.Join(t.TempDir(), "experiments.json")
-			if err := saveExperiments(store, log); err != nil {
+			if err := saveExperiments(store, log, experimentLimits{}); err != nil {
 				t.Fatal(err)
 			}
-			loaded, err := loadExperiments(store)
+			loaded, err := loadExperiments(store, experimentLimits{})
 			if err != nil || !bytes.Equal(loaded.Records[0].ResponseBody, want) {
 				t.Fatalf("binary roundtrip: %v", err)
 			}
@@ -145,7 +146,7 @@ func TestExperimentPayloadRetention(t *testing.T) {
 func TestExperimentsRetentionPreservesBaseline(t *testing.T) {
 	log := experimentLog{Version: 1, Baseline: 1}
 	for range 110 {
-		if err := log.retain(experimentRecord{}); err != nil {
+		if err := log.retain(experimentRecord{}, experimentLimits{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -156,7 +157,7 @@ func TestExperimentsRetentionPreservesBaseline(t *testing.T) {
 	large := strings.Repeat("x", 12<<20)
 	log = experimentLog{Version: 1, Baseline: 1, Drafts: []experimentDraft{{Value: savedRequest{Body: large}}}}
 	for i := range 3 {
-		if err := log.retain(experimentRecord{ID: i + 1, Note: strings.Repeat("n", 8<<20)}); err != nil {
+		if err := log.retain(experimentRecord{ID: i + 1, Note: strings.Repeat("n", 8<<20)}, experimentLimits{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -168,7 +169,7 @@ func TestExperimentsRetentionPreservesBaseline(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, record := range []experimentRecord{{Note: strings.Repeat("z", 22<<20)}, {ID: 1}, {Note: string([]byte{0xff})}} {
-		if err := log.retain(record); err == nil {
+		if err := log.retain(record, experimentLimits{}); err == nil {
 			t.Fatal("impossible/duplicate/malformed candidate accepted")
 		}
 		after, err := json.Marshal(log)
@@ -180,7 +181,7 @@ func TestExperimentsRetentionPreservesBaseline(t *testing.T) {
 
 func TestExperimentsStorage(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "experiments.json")
-	if log, err := loadExperiments(path); err != nil || log.Version != 1 || log.NextID != 0 || len(log.Records) != 0 {
+	if log, err := loadExperiments(path, experimentLimits{}); err != nil || log.Version != 1 || log.NextID != 0 || len(log.Records) != 0 {
 		t.Fatalf("missing file: %+v, %v", log, err)
 	}
 	draft := savedRequest{Name: "unsaved", Body: strings.Repeat("exact body\x00\n", 30000), Form: []request.Field{{Name: "file", Value: "/tmp/a", File: true}}}
@@ -192,14 +193,14 @@ func TestExperimentsStorage(t *testing.T) {
 	if err := os.WriteFile(path, []byte("old public file"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := saveExperiments(path, want); err != nil {
+	if err := saveExperiments(path, want, experimentLimits{}); err != nil {
 		t.Fatal(err)
 	}
 	info, err := os.Stat(path)
 	if err != nil || info.Mode().Perm() != 0600 {
 		t.Fatalf("private mode: %v, %v", info, err)
 	}
-	got, err := loadExperiments(path)
+	got, err := loadExperiments(path, experimentLimits{})
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("roundtrip differs: %v", err)
 	}
@@ -211,7 +212,7 @@ func TestExperimentsStorage(t *testing.T) {
 		{Version: 2}, {Version: 1, Records: make([]experimentRecord, 101)},
 		{Version: 1, Drafts: []experimentDraft{{Value: savedRequest{Body: strings.Repeat("x", 32<<20)}}}},
 	} {
-		if err := saveExperiments(path, bad); err == nil {
+		if err := saveExperiments(path, bad, experimentLimits{}); err == nil {
 			t.Fatal("invalid save accepted")
 		}
 		if after, err := os.ReadFile(path); err != nil || !bytes.Equal(old, after) {
@@ -233,13 +234,77 @@ func TestExperimentsRejectInvalidInput(t *testing.T) {
 		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := loadExperiments(path); err == nil {
+		if _, err := loadExperiments(path, experimentLimits{}); err == nil {
 			t.Errorf("invalid input case %d accepted", i)
 		}
 	}
 	log := experimentLog{Version: 1, Records: []experimentRecord{{ID: 1}}, Drafts: []experimentDraft{{Value: savedRequest{Body: strings.Repeat("x", 32<<20)}}}}
 	original := slices.Clone(log.Records)
-	if err := log.retain(experimentRecord{}); err == nil || !reflect.DeepEqual(log.Records, original) || log.NextID != 0 {
+	if err := log.retain(experimentRecord{}, experimentLimits{}); err == nil || !reflect.DeepEqual(log.Records, original) || log.NextID != 0 {
 		t.Fatal("oversized drafts did not roll back retention")
+	}
+}
+
+func TestExperimentsConfigurableLimitsAndSpill(t *testing.T) {
+	dir := t.TempDir()
+	limits := experimentLimits{Records: 3, Bytes: 4096, SpillDir: filepath.Join(dir, "spill"), SpillBytes: 1 << 20}
+	body := bytes.Repeat([]byte("payload-"), 200)
+	log := experimentLog{Version: 1}
+	for i := range 3 {
+		if err := log.retain(experimentRecord{ID: i + 1, ResponseBody: body}, limits); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(log.Records) != 3 {
+		t.Fatalf("records = %d, want all three kept by spilling", len(log.Records))
+	}
+	oldest := log.Records[2]
+	if oldest.ResponseBodyFile == "" || len(oldest.ResponseBody) != 0 {
+		t.Fatalf("oldest body was not spilled: %+v", oldest)
+	}
+	if got := string(oldest.responseBody()); got != string(body) {
+		t.Fatalf("spilled body did not read back: %q", got)
+	}
+	if data, err := encodeExperiments(log, limits); err != nil || len(data) > int(limits.Bytes) {
+		t.Fatalf("encoded log = %d bytes, %v; want within %d", len(data), err, limits.Bytes)
+	}
+	// A lower record cap drops the oldest record and its spill file.
+	path := oldest.ResponseBodyFile
+	small := limits
+	small.Records = 2
+	if err := log.retain(experimentRecord{ID: 4, ResponseBody: body}, small); err != nil {
+		t.Fatal(err)
+	}
+	if len(log.Records) != 2 || log.Records[0].ID != 4 {
+		t.Fatalf("record cap: %+v", log.Records)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("dropped record's spill file remains: %v", err)
+	}
+}
+
+func TestSessionHistoryRecordsASummary(t *testing.T) {
+	a := workspaceApp()
+	a.loadExperiments(filepath.Join(t.TempDir(), "experiments.json"))
+	defer a.experiments.close()
+	a.addDocument(savedRequest{ID: "room", Name: "Room", Protocol: "gRPC", URL: "https://api.example.com"}, "")
+	d := a.requestDocument
+	if d == nil {
+		t.Fatal("no document")
+	}
+	a.recordSession(d, sessionSummary{Kind: "gRPC", State: "gRPC OK", Sent: 2, Received: 3,
+		Lines: []string{"Out 2 B: hi", "In 9 B: {\"ok\":true}"}})
+	if len(a.experiments.log.Records) != 1 {
+		t.Fatalf("records = %+v", a.experiments.log.Records)
+	}
+	record := a.experiments.log.Records[0]
+	if record.Summary != "gRPC · gRPC OK" || record.Outcome != "gRPC OK" || record.Draft.ID != "room" {
+		t.Fatalf("record = %+v", record)
+	}
+	text := string(record.ResponseBody)
+	for _, want := range []string{"gRPC session · gRPC OK", "2 sent · 3 received", "Out 2 B: hi"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("summary missing %q:\n%s", want, text)
+		}
 	}
 }

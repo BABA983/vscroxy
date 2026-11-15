@@ -97,6 +97,10 @@ type settings struct {
 	FlowLimit   int `json:"flowLimit,omitzero"`
 	MemoryLimit int `json:"memoryLimitMB,omitzero"`
 	DiskLimit   int `json:"diskLimitGB,omitzero"`
+	// HistoryLimit and HistorySizeMB bound the retained send/session history;
+	// zero uses the defaults (100 records, 32 MiB).
+	HistoryLimit  int `json:"historyLimit,omitzero"`
+	HistorySizeMB int `json:"historySizeMB,omitzero"`
 }
 
 // reverseProxySetting is one saved reverse proxy entry. ID keeps a row's
@@ -226,6 +230,7 @@ func sameSettings(x, y settings) bool {
 		x.LocalControl == y.LocalControl &&
 		x.AllowList == y.AllowList &&
 		x.FlowLimit == y.FlowLimit && x.MemoryLimit == y.MemoryLimit && x.DiskLimit == y.DiskLimit &&
+		x.HistoryLimit == y.HistoryLimit && x.HistorySizeMB == y.HistorySizeMB &&
 		slices.Equal(x.Columns.Order, y.Columns.Order) &&
 		maps.Equal(x.Columns.Widths, y.Columns.Widths) &&
 		slices.Equal(x.CustomColumns, y.CustomColumns) &&

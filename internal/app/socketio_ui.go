@@ -15,7 +15,9 @@ import (
 )
 
 type socketIODocument struct {
-	session                              *socketIOSession
+	session *socketIOSession
+	// recorded is the session whose summary History already holds.
+	recorded                             *socketIOSession
 	tab, selected                        int
 	problem, ackID, query, readerKey     string
 	authEditor, attachmentEditor, reader *editor.State

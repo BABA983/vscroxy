@@ -1,13 +1,16 @@
 package app
 
 import (
+	"cmp"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
@@ -16,11 +19,37 @@ import (
 )
 
 const (
-	experimentVersion     = 1
-	experimentBodyLimit   = 256 << 10
-	experimentRecordLimit = 100
-	experimentSizeLimit   = 32 << 20
+	experimentVersion   = 1
+	experimentBodyLimit = 256 << 10
+	// defaultExperimentRecords and defaultExperimentSizeMB are the retained
+	// send history's defaults; Settings can raise or lower both.
+	defaultExperimentRecords = 100
+	defaultExperimentSizeMB  = 32
 )
+
+// experimentLimits bound the retained history. SpillDir holds bodies evicted
+// from the log file when it would exceed Bytes; SpillBytes bounds those files
+// together, so disk use stays inside the configured history size. A zero
+// SpillDir keeps everything in the log and drops old records instead.
+type experimentLimits struct {
+	Records    int
+	Bytes      int64
+	SpillDir   string
+	SpillBytes int64
+}
+
+func (l experimentLimits) normalized() experimentLimits {
+	if l.Records <= 0 {
+		l.Records = defaultExperimentRecords
+	}
+	if l.Bytes <= 0 {
+		l.Bytes = int64(defaultExperimentSizeMB) << 20
+	}
+	if l.SpillBytes <= 0 {
+		l.SpillBytes = l.Bytes
+	}
+	return l
+}
 
 type experimentRecord struct {
 	ID           int
@@ -41,7 +70,11 @@ type experimentRecord struct {
 	Exchange     *capture.Flow
 	RequestBody  []byte
 	ResponseBody []byte
-	Note         string
+	// RequestBodyFile and ResponseBodyFile hold a body spilled out of the log
+	// when the history size cap was reached. The inline bytes are empty then.
+	RequestBodyFile  string `json:",omitempty"`
+	ResponseBodyFile string `json:",omitempty"`
+	Note             string
 }
 
 type experimentDraft struct {
@@ -150,11 +183,128 @@ func (r experimentRecord) response() *capture.Flow {
 		return nil
 	}
 	f := experimentMetadata(r.Exchange)
-	f.RequestBody, f.ResponseBody = string(r.RequestBody), string(r.ResponseBody)
+	f.RequestBody, f.ResponseBody = string(r.requestBody()), string(r.responseBody())
 	return f
 }
 
-func loadExperiments(path string) (experimentLog, error) {
+// requestBody and responseBody return a record's body, reading a spilled one
+// back from disk. A missing spill file reads as empty rather than failing the
+// whole History view.
+func (r experimentRecord) requestBody() []byte {
+	if len(r.RequestBody) > 0 || r.RequestBodyFile == "" {
+		return r.RequestBody
+	}
+	return readSpill(r.RequestBodyFile)
+}
+
+func (r experimentRecord) responseBody() []byte {
+	if len(r.ResponseBody) > 0 || r.ResponseBodyFile == "" {
+		return r.ResponseBody
+	}
+	return readSpill(r.ResponseBodyFile)
+}
+
+func readSpill(path string) []byte {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, experimentBodyLimit))
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+// spillBodies writes this record's inline bodies under dir and replaces them
+// with file references. It is only called for a record already committed to
+// the candidate log, so a write failure leaves the inline copy in place.
+func (r *experimentRecord) spillBodies(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	write := func(name string, body []byte) (string, error) {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, body, 0o600); err != nil {
+			return "", err
+		}
+		return path, nil
+	}
+	if len(r.RequestBody) > 0 {
+		path, err := write(strconv.Itoa(r.ID)+"-request.bin", r.RequestBody)
+		if err != nil {
+			return err
+		}
+		r.RequestBodyFile, r.RequestBody = path, nil
+	}
+	if len(r.ResponseBody) > 0 {
+		path, err := write(strconv.Itoa(r.ID)+"-response.bin", r.ResponseBody)
+		if err != nil {
+			return err
+		}
+		r.ResponseBodyFile, r.ResponseBody = path, nil
+	}
+	return nil
+}
+
+// dropSpill removes a record's spilled bodies. It is safe to call for a record
+// with none.
+func (r *experimentRecord) dropSpill() {
+	for _, path := range []string{r.RequestBodyFile, r.ResponseBodyFile} {
+		if path != "" {
+			_ = os.Remove(path)
+		}
+	}
+	r.RequestBodyFile, r.ResponseBodyFile = "", ""
+}
+
+// spillUsage is the bytes the candidate log's spill files occupy.
+func (log *experimentLog) spillUsage() int64 {
+	var used int64
+	for _, record := range log.Records {
+		for _, path := range []string{record.RequestBodyFile, record.ResponseBodyFile} {
+			if info, err := os.Stat(path); err == nil {
+				used += info.Size()
+			}
+		}
+	}
+	return used
+}
+
+// spillOldest moves the oldest inline bodies to disk, leaving the records in
+// place. It reports whether anything changed.
+func (log *experimentLog) spillOldest(limits experimentLimits) bool {
+	if limits.SpillDir == "" {
+		return false
+	}
+	used := log.spillUsage()
+	for i := len(log.Records) - 1; i >= 0; i-- {
+		record := &log.Records[i]
+		if record.ID == log.Baseline {
+			continue
+		}
+		size := int64(len(record.RequestBody) + len(record.ResponseBody))
+		if size == 0 || used+size > limits.SpillBytes {
+			continue
+		}
+		if err := record.spillBodies(limits.SpillDir); err != nil {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// clearSpill removes every spilled body, for a History clear.
+func (log *experimentLog) clearSpill() {
+	for i := range log.Records {
+		log.Records[i].dropSpill()
+	}
+}
+
+func loadExperiments(path string, limits experimentLimits) (experimentLog, error) {
+	limits = limits.normalized()
 	empty := experimentLog{Version: experimentVersion}
 	if path == "" {
 		return empty, nil
@@ -167,51 +317,53 @@ func loadExperiments(path string) (experimentLog, error) {
 		return empty, err
 	}
 	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, experimentSizeLimit+1))
+	data, err := io.ReadAll(io.LimitReader(f, limits.Bytes+1))
 	if err != nil {
 		return empty, err
 	}
-	if len(data) > experimentSizeLimit {
-		return empty, fmt.Errorf("experiment log exceeds %d bytes", experimentSizeLimit)
+	if int64(len(data)) > limits.Bytes {
+		return empty, fmt.Errorf("experiment log exceeds %d bytes", limits.Bytes)
 	}
 	var log experimentLog
 	if err := json.Unmarshal(data, &log); err != nil {
 		return empty, err
 	}
-	if _, err := encodeExperiments(log); err != nil {
+	if _, err := encodeExperiments(log, limits); err != nil {
 		return empty, err
 	}
 	return log, nil
 }
 
-func saveExperiments(path string, log experimentLog) error {
-	data, err := encodeExperiments(log)
+func saveExperiments(path string, log experimentLog, limits experimentLimits) error {
+	data, err := encodeExperiments(log, limits)
 	if err != nil {
 		return err
 	}
 	return store.WriteFile(path, data)
 }
 
-func encodeExperiments(log experimentLog) ([]byte, error) {
+func encodeExperiments(log experimentLog, limits experimentLimits) ([]byte, error) {
+	limits = limits.normalized()
 	if log.Version != experimentVersion {
 		return nil, fmt.Errorf("unsupported experiment version %d", log.Version)
 	}
-	if len(log.Records) > experimentRecordLimit {
-		return nil, fmt.Errorf("experiment log exceeds %d records", experimentRecordLimit)
+	if len(log.Records) > limits.Records {
+		return nil, fmt.Errorf("experiment log exceeds %d records", limits.Records)
 	}
 	data, err := json.Marshal(log, json.FormatNilSliceAsNull(true), json.FormatNilMapAsNull(true))
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > experimentSizeLimit {
-		return nil, fmt.Errorf("experiment log exceeds %d bytes", experimentSizeLimit)
+	if int64(len(data)) > limits.Bytes {
+		return nil, fmt.Errorf("experiment log exceeds %d bytes", limits.Bytes)
 	}
 	return data, nil
 }
 
 // retain commits only a complete, encodable candidate. Neither failure nor
 // eviction mutates the old backing array, baseline, or editable drafts.
-func (log *experimentLog) retain(record experimentRecord) error {
+func (log *experimentLog) retain(record experimentRecord, limits experimentLimits) error {
+	limits = limits.normalized()
 	candidate := *log
 	if candidate.Version == 0 {
 		candidate.Version = experimentVersion
@@ -238,9 +390,14 @@ func (log *experimentLog) retain(record experimentRecord) error {
 		if err != nil {
 			return err
 		}
-		if len(candidate.Records) <= experimentRecordLimit && len(data) <= experimentSizeLimit {
+		if len(candidate.Records) <= limits.Records && int64(len(data)) <= limits.Bytes {
 			*log = candidate
 			return nil
+		}
+		// Bodies spill to disk before a record is discarded, so a long
+		// session stays in History within the configured disk budget.
+		if candidate.spillOldest(limits) {
+			continue
 		}
 		oldest := len(candidate.Records) - 1
 		for oldest > 0 && candidate.Records[oldest].ID == candidate.Baseline {
@@ -249,6 +406,23 @@ func (log *experimentLog) retain(record experimentRecord) error {
 		if oldest == 0 {
 			return fmt.Errorf("new experiment, baseline and drafts exceed experiment log limits")
 		}
+		candidate.Records[oldest].dropSpill()
 		candidate.Records = slices.Delete(candidate.Records, oldest, oldest+1)
 	}
+}
+
+// experimentLimits are the configured history caps. Spilled bodies live beside
+// the log, and their total stays within the same size setting.
+func (a *app) experimentLimits() experimentLimits {
+	size := int64(cmp.Or(a.historySizeMB, defaultExperimentSizeMB)) << 20
+	limits := experimentLimits{Records: cmp.Or(a.historyLimit, defaultExperimentRecords), Bytes: size, SpillBytes: size}
+	if a.experiments.path != "" {
+		limits.SpillDir = filepath.Join(filepath.Dir(a.experiments.path), "experiments-spill")
+	}
+	return limits.normalized()
+}
+
+// applyHistoryLimits gives the writer the new caps after a Settings change.
+func (a *app) applyHistoryLimits() {
+	a.experiments.limits = a.experimentLimits()
 }

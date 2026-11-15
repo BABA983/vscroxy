@@ -37,6 +37,8 @@ type websocketWorkbench struct {
 	sent       chan error
 	sending    bool
 	scroll     ui.ScrollState
+	// recorded is the session whose summary History already holds.
+	recorded *wsSession
 }
 
 func (a *app) openSocket() {

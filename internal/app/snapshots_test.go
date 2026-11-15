@@ -2221,7 +2221,7 @@ func snapshotRuns(a *app) {
 			Variables: []request.ResolvedVariable{{Name: "baseUrl", Value: "https://api.example.com", Source: "environment"}},
 		})
 		r.At = snapshotTime.Add(time.Duration(i) * time.Minute)
-		if err := a.experiments.log.retain(r); err != nil {
+		if err := a.experiments.log.retain(r, experimentLimits{}); err != nil {
 			panic(err)
 		}
 	}
@@ -2241,7 +2241,7 @@ func snapshotHistory(a *app) {
 			Response: &capture.Flow{Method: "GET", URL: a.requests[0].URL, Status: status, Millis: 40 + 7*i, Bytes: len(body), ResponseHeader: http.Header{"Content-Type": {"application/json"}}, ResponseBody: body},
 		})
 		r.At = snapshotTime.Add(time.Duration(i) * time.Minute)
-		if err := a.experiments.log.retain(r); err != nil {
+		if err := a.experiments.log.retain(r, experimentLimits{}); err != nil {
 			panic(err)
 		}
 	}

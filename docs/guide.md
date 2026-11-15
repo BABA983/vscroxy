@@ -3800,8 +3800,22 @@ operation and is not undone by returning to Capture or closing a tab.
 **History** in the collection **⋯** menu. It retains independent snapshots of Send and Runner
 attempts, including failures: authored draft, environment name, referenced-variable
 snapshot, Console, prepared request/final response, checks, summary and notes.
+It also keeps one **summary** for each finished interactive gRPC, MQTT, MCP,
+Socket.IO and WebSocket session: final state, problem, sent/received counts and
+the last 40 timeline lines with their usual preview limit. A session summary is
+a record of what happened, not a replayable connection.
 Only referenced variables are retained, not the entire environment. Repeated
-method/URL attempts remain separate. Choose
+method/URL attempts remain separate.
+
+Settings → Capture → **Memory** sets **History entries** (default 100) and
+**History size** (default 32 MiB). When the encoded log would exceed the size,
+the oldest request/response bodies are spilled to private files beside
+`experiments.json` instead of discarding the attempt; the spill files share the
+same size budget and are removed with their record or when History is cleared.
+Records are still dropped, oldest first, when no body is left to spill or the
+entry cap is reached. The baseline record is never evicted.
+
+Choose
 a baseline or **Use as left**, then compare any other attempt using the existing
 body/header diff. **Ignore JSON keys** removes comma-separated top-level response
 keys only in the comparison; invalid or incomplete JSON is never normalized.

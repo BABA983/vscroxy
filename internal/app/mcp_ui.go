@@ -29,7 +29,9 @@ const (
 )
 
 type mcpDocument struct {
-	session      *mcpSession
+	session *mcpSession
+	// recorded is the session whose summary History already holds.
+	recorded     *mcpSession
 	tab          int
 	responseTab  int
 	catalogTab   int

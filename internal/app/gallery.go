@@ -580,7 +580,7 @@ func galleryRuns(a *app) {
 			Variables: []request.ResolvedVariable{{Name: "baseUrl", Value: "https://api.example.com", Source: "environment"}},
 		})
 		r.At = galleryTime.Add(time.Duration(i) * time.Minute)
-		if err := a.experiments.log.retain(r); err != nil {
+		if err := a.experiments.log.retain(r, a.experimentLimits()); err != nil {
 			panic(err)
 		}
 	}

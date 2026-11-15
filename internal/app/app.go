@@ -490,9 +490,12 @@ type app struct {
 	allowText, allowAppsText string
 	allowOpen, allowAppsOpen bool
 
-	// flowLimit, memoryLimit (MB) and diskLimit (GB) bound what the table
+	// historyLimit and historySizeMB (MB) bound the retained send history;
+	// zero uses the defaults. flowLimit, memoryLimit (MB) and diskLimit (GB)
+	// bound what the table
 	// keeps, zero for the defaults.
 	flowLimit, memoryLimit, diskLimit int
+	historyLimit, historySizeMB       int
 
 	// requests are the saved requests, the Compose direction's kept half,
 	// and history what Compose sent.
@@ -685,6 +688,7 @@ func newApp() *app {
 			a.reverses = slices.Clone(saved.ReverseProxies)
 			a.allowOn = saved.AllowList
 			a.flowLimit, a.memoryLimit, a.diskLimit = saved.FlowLimit, saved.MemoryLimit, saved.DiskLimit
+			a.historyLimit, a.historySizeMB = saved.HistoryLimit, saved.HistorySizeMB
 			a.guide = a.guide || saved.Guide
 			if saved.ProjectDir != "" {
 				a.projectDir, a.projectInput = saved.ProjectDir, saved.ProjectDir
@@ -1186,6 +1190,7 @@ func (a *app) breakpointError() string {
 
 // drain moves the flows the capture goroutine collected into the table.
 func (a *app) drain() {
+	a.drainSessionHistory()
 	a.mu.Lock()
 	pending := a.pending
 	a.pending = nil
@@ -1237,7 +1242,7 @@ func (a *app) drain() {
 					result.experiment.keepWire(f)
 				}
 			}
-			if err := a.experiments.log.retain(*result.experiment); err != nil {
+			if err := a.experiments.log.retain(*result.experiment, a.experimentLimits()); err != nil {
 				a.experiments.problem = "Experiment not retained: " + err.Error()
 			} else {
 				d.experimentID = a.experiments.log.NextID
@@ -1401,7 +1406,7 @@ func (a *app) drain() {
 		}
 	}
 	if wireChanged {
-		if _, err := encodeExperiments(checkpoint); err != nil {
+		if _, err := encodeExperiments(checkpoint, a.experimentLimits()); err != nil {
 			a.experiments.problem = "Wire evidence not retained: " + err.Error()
 		} else {
 			a.experiments.log = checkpoint

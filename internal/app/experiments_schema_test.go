@@ -68,7 +68,7 @@ func TestExperimentLogRetainsLargeSchema(t *testing.T) {
 	draft := savedRequest{Request: request.Request{GraphQL: request.GraphQLBody{Schema: big, SchemaSource: "https://api.example.com/graphql"}}}
 	log := experimentLog{Version: experimentVersion, Drafts: []experimentDraft{{Value: draft}}}
 	for range 100 {
-		if err := log.retain(snapshotExperiment(0, draft, "", request.Execution{})); err != nil {
+		if err := log.retain(snapshotExperiment(0, draft, "", request.Execution{}), experimentLimits{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -99,7 +99,7 @@ func TestExperimentLogAcceptsLargeDraftSchemas(t *testing.T) {
 		}
 	}
 	log := experimentLog{Version: experimentVersion, Drafts: drafts}
-	if err := log.retain(snapshotExperiment(0, savedRequest{}, "", request.Execution{})); err != nil {
+	if err := log.retain(snapshotExperiment(0, savedRequest{}, "", request.Execution{}), experimentLimits{}); err != nil {
 		t.Fatalf("retain with four 4 MiB drafts: %v", err)
 	}
 	if len(log.Records) != 1 {
@@ -118,7 +118,7 @@ func TestLoadExperimentsRestoresSharedSchema(t *testing.T) {
 	}}}
 	// The baseline is stored without the schema, as checkpointExperiments does.
 	log.Drafts[0].Baseline.GraphQL.Schema, log.Drafts[0].Baseline.GraphQL.SchemaSource = "", ""
-	if err := saveExperiments(path, log); err != nil {
+	if err := saveExperiments(path, log, experimentLimits{}); err != nil {
 		t.Fatal(err)
 	}
 	a := workspaceApp()

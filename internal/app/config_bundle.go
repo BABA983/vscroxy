@@ -110,6 +110,8 @@ func (a *app) currentSettings() settings {
 		FlowLimit:            a.flowLimit,
 		MemoryLimit:          a.memoryLimit,
 		DiskLimit:            a.diskLimit,
+		HistoryLimit:         a.historyLimit,
+		HistorySizeMB:        a.historySizeMB,
 	}
 }
 
@@ -515,6 +517,8 @@ func (a *app) applySettingsPrepared(s settings, prepared *upstream.Config) error
 		}
 	}
 	a.flowLimit, a.memoryLimit, a.diskLimit = s.FlowLimit, s.MemoryLimit, s.DiskLimit
+	a.historyLimit, a.historySizeMB = s.HistoryLimit, s.HistorySizeMB
+	a.applyHistoryLimits()
 	a.proxyPortInput = ""
 	if s.ProxyPort != 0 {
 		a.proxyPortInput = fmt.Sprint(s.ProxyPort)
