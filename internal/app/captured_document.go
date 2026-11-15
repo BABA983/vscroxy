@@ -180,7 +180,7 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 		}
 		copy := uikit.ToolbarButton(c, locales.CopyAs(), locales.CopyTheOriginalCapturedRequest(), false).PopoverMenuButton(func(m *ui.Menu) {
 			actionMenu(m, copyAsMenu(append(a.requestCopyActions(c, f, nil), a.captureCopyActions(c, []flow{f})...)).items)
-		})
+		}, uikit.MenuButtonOptions(c))
 		copy.Children(func() {
 			ui.Icon(c, copyIcon).Size(uikit.IconInline, uikit.IconInline)
 			if !compact {

@@ -956,7 +956,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 						}
 						d.composeURL = protocolDefaultURL(protocol, d.composeURL)
 					}
-				})
+				}, uikit.MenuButtonOptions(c))
 				ui.Box(c).Width(1).Height(18).Background(t.Border)
 			}
 			if d.protocol == "MCP" && d.mcpConfig.Transport == request.MCPTransportStdio {

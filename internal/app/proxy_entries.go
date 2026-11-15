@@ -151,10 +151,10 @@ func (a *app) saveSOCKS() {
 }
 
 func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
-	uikit.SettingsGroup(c, locales.Socks5(), func() {
-		uikit.SettingsRow(c, locales.Enable(), func() ui.Element {
+	uikit.SettingsCard(c, locales.Socks5(), func() {
+		settingsCardBlock(c, locales.Enable(), func() ui.Element {
 			return ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-				ui.Switch(c, &a.socksOnDraft).Label(locales.EnableSocks5Proxy())
+				uikit.SettingsSwitch(c, &a.socksOnDraft, locales.EnableSocks5Proxy())
 				if a.srv != nil && a.srv.SOCKSAddr() != "" {
 					uikit.Mono(c, a.srv.SOCKSAddr()).Selectable().TextColor(t.TextMuted)
 				} else if err := a.srvError(); err != nil {
@@ -169,7 +169,7 @@ func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
 			})
 		}, locales.ASecondEntryForClients())
 		if a.socksOnDraft {
-			uikit.SettingsRow(c, locales.Port(), func() ui.Element {
+			settingsCardBlock(c, locales.Port(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(1)).Children(func() {
 					uikit.Input(c, &a.socksPortInput).Label(locales.Socks5Port()).Placeholder(locales.Automatic()).Width(100).
 						Invalid(a.socksProblem != "")
@@ -178,19 +178,19 @@ func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			}, locales.BlankIsAutomaticAnOs())
-			uikit.SettingsRow(c, locales.Authentication(), func() ui.Element {
-				return ui.Switch(c, &a.socksAuthDraft).Label(locales.RequireUsernameAndPassword())
+			settingsCardRow(c, locales.Authentication(), func() ui.Element {
+				return uikit.SettingsSwitch(c, &a.socksAuthDraft, locales.RequireUsernameAndPassword())
 			}, locales.Rfc1929WithoutItThe())
 			if a.socksAuthDraft {
-				uikit.SettingsRow(c, locales.Username(), func() ui.Element {
+				settingsCardRow(c, locales.Username(), func() ui.Element {
 					return uikit.Input(c, &a.socksUserDraft).Label(locales.Socks5Username()).Width(220)
 				}, "")
-				uikit.SettingsRow(c, locales.Password(), func() ui.Element {
+				settingsCardRow(c, locales.Password(), func() ui.Element {
 					return uikit.Input(c, &a.socksPassDraft).Label(locales.Socks5Password()).Password().Width(220)
 				}, "")
 			}
 		}
-		uikit.SettingsRow(c, "", func() ui.Element {
+		settingsCardBlock(c, "", func() ui.Element {
 			return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				if uikit.SecondaryButton(c, locales.SaveSocks5Settings()).Clicked() {
 					a.saveSOCKS()
@@ -341,13 +341,15 @@ func portOfAddr(addr string) string {
 }
 
 func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
-	uikit.SettingsGroup(c, locales.ReverseProxies(), func() {
+	uikit.SettingsCard(c, locales.ReverseProxies(), func() {
 		status := map[string]capture.ReverseProxyStatus{}
 		if a.srv != nil {
 			status = a.srv.ReverseProxyStatus()
 		}
 		if len(a.reverses) == 0 {
-			uikit.Hint(c, locales.NoReverseProxiesALocal())
+			settingsCardBlock(c, "", func() ui.Element {
+				return uikit.Hint(c, locales.NoReverseProxiesALocal())
+			}, "")
 		}
 		for _, r := range slices.Clone(a.reverses) {
 			st := status[r.ID]
@@ -372,11 +374,11 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 					state = "Starting…"
 				}
 			}
-			uikit.SettingsRow(c, locales.PortNumber(r.Port), func() ui.Element {
+			settingsCardBlock(c, locales.PortNumber(r.Port), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(1)).Children(func() {
 					ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 						enabled := r.Enabled
-						if ui.Switch(c, &enabled).Label("Reverse proxy on port " + strconv.Itoa(r.Port)).Changed() {
+						if uikit.SettingsSwitch(c, &enabled, "Reverse proxy on port "+strconv.Itoa(r.Port)).Changed() {
 							a.setReverseEnabled(r.ID, enabled)
 						}
 						uikit.Tip(c, uikit.Mono(c, r.Target).SingleLine().MaxWidth(280).TextColor(t.TextMuted), r.Target)
@@ -393,7 +395,7 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, mode+" · "+tlsMode+" · "+state)
 		}
-		uikit.SettingsRow(c, "", func() ui.Element {
+		settingsCardBlock(c, "", func() ui.Element {
 			return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				if uikit.SecondaryButton(c, locales.AddReverseProxy()).Clicked() {
 					a.openReverseProxy("")

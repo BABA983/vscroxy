@@ -446,17 +446,17 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 	busy := s.checking || s.applying || s.quitting
 	status, _ := a.systemProxyStatus(t)
 	detail, detailTip := a.systemProxyDetail(target)
-	uikit.SettingsGroup(c, locales.SystemProxy(), func() {
+	uikit.SettingsCard(c, locales.SystemProxy(), func() {
 		// One row: the name, the switch that changes the OS, what the OS
 		// says, and the check. The scope and the sentence read beneath it,
 		// so the panel does not stack two labels on top of each other.
-		uikit.SettingsRow(c, locales.UseSystemProxy(), func() ui.Element {
+		settingsCardBlock(c, locales.UseSystemProxy(), func() ui.Element {
 			return ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 				// One switch, not a pair of buttons that has to be read
 				// to tell which way is left: the switch shows what the OS
 				// holds, and turning it over is the change.
 				on := s.check.Status == system.ProxyMatches
-				toggle := ui.Switch(c, &on).Label(locales.UseThisAppsProxy()).Disabled(!running || busy)
+				toggle := uikit.SettingsSwitch(c, &on, locales.UseThisAppsProxy()).Disabled(!running || busy)
 				if !running {
 					uikit.Tip(c, toggle, locales.StartCaptureFirst())
 				}
@@ -472,7 +472,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 				}
 			})
 		}, systemProxyHint(detail, running), systemProxyHint(detailTip, running))
-		uikit.SettingsRowMultiline(c, locales.BypassList(), func() ui.Element {
+		settingsCardBlock(c, locales.BypassList(), func() ui.Element {
 			return ui.Column(c).Gap(t.Space(2)).Children(func() {
 				ui.Checkbox(c, &a.systemProxyBypassSet, "Replace the system bypass list")
 				uikit.TextArea(c, &a.systemProxyBypassText).Label(locales.SystemProxyBypassList()).Placeholder("localhost, *.internal.test, 10.0.0.0/8").Height(64).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(!a.systemProxyBypassSet)

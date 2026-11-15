@@ -154,7 +154,19 @@ func actionMenu(m *ui.Menu, actions []action) {
 			m.Submenu(x.label, func(m *ui.Menu) { actionMenu(m, x.items) })
 			continue
 		}
-		item := m.Item(x.label).Shortcut(x.shortcut.mods, x.shortcut.key).Disabled(!x.enabled)
+		item := m.Item(x.label).Disabled(!x.enabled)
+		if key := x.shortcut.keycap(); key != "" {
+			// Draw the shortcut as a keycap in the item's label column.
+			// MyGo's own Shortcut would print plain text after it, so the
+			// keycap replaces that text; the app still owns the keys.
+			item.Content(func(content ui.MenuItemContent) {
+				ctx := content.Context
+				ui.Row(ctx).FillWidth().Gap(ctx.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
+					ui.Text(ctx, x.label).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(content.Text).Grow(1).SingleLine()
+					uikit.Kbd(ctx, key)
+				})
+			})
+		}
 		if x.group == "danger" {
 			item.Danger()
 		}
@@ -284,4 +296,20 @@ func (s shortcut) String() string {
 		modifier = "Cmd"
 	}
 	return strings.ReplaceAll(s.accelerator(), "CmdOrCtrl", modifier)
+}
+
+// keycap spells the shortcut as a keycap: symbols on macOS, words elsewhere.
+func (s shortcut) keycap() string {
+	text := s.String()
+	if runtime.GOOS != "darwin" {
+		return text
+	}
+	return strings.NewReplacer(
+		"Cmd+", "⌘",
+		"Ctrl+", "⌃",
+		"Alt+", "⌥",
+		"Shift+", "⇧",
+		"Enter", "↩",
+		"Tab", "⇥",
+	).Replace(text)
 }

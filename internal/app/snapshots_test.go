@@ -1895,7 +1895,7 @@ func snapshotStates(t *testing.T) []snapshot {
 		{name: "dialog-rename", setup: func(a *app) { draft(a); a.renameOpen = true }, want: "Rename request"},
 		{name: "dialog-header-warning", setup: func(a *app) { draft(a); a.requestDocument.headerWarn = true }, want: "Bulk edit shows credentials"},
 		{name: "commands", setup: func(a *app) { a.workbench.openPalette() }, want: "Find command"},
-		{name: "commands-unavailable", setup: func(a *app) { a.workbench.openPalette(); a.workbench.query = "Send request" }, want: "unavailable"},
+		{name: "commands-unavailable", setup: func(a *app) { a.workbench.openPalette(); a.workbench.query = "Send request" }, want: "HTTP sends require capture running"},
 		{name: "active-tools", setup: snapshotActiveTools, want: "Disable Scenario: Offline"},
 		{name: "active-tools-upstream-error", setup: func(a *app) {
 			snapshotActiveTools(a)

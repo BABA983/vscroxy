@@ -20,6 +20,19 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// settingsCardRow keeps the Settings pages' label, control, hint order while
+// the kit's row takes the title, description and control. It is used across
+// all seven pages, so a page reads the same as the card it is built from.
+func settingsCardRow(c *ui.Context, label string, control func() ui.Element, hint string, tip ...string) ui.Element {
+	return uikit.SettingsCardRow(c, label, hint, func() { control() }, tip...)
+}
+
+// settingsCardBlock is settingsCardRow for content that needs the card's full
+// width: a multiline field, a list of editors or certificate details.
+func settingsCardBlock(c *ui.Context, label string, control func() ui.Element, hint string, tip ...string) ui.Element {
+	return uikit.SettingsCardBlock(c, label, hint, func() { control() }, tip...)
+}
+
 // restartPending marks a saved setting the running app does not use yet.
 func restartPending(c *ui.Context, pending bool) {
 	if pending {
@@ -28,12 +41,12 @@ func restartPending(c *ui.Context, pending bool) {
 }
 
 func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
-	uikit.SettingsPage(c, locales.General(), locales.RulesConfigurationFilesAndHelp(), func() {
-		uikit.SettingsGroup(c, locales.Language(), func() {
+	uikit.SettingsCardPage(c, locales.General(), locales.RulesConfigurationFilesAndHelp(), func() {
+		uikit.SettingsCard(c, locales.Language(), func() {
 			a.languageSettings(c)
 		})
-		uikit.SettingsGroup(c, locales.Collections(), func() {
-			uikit.SettingsRow(c, locales.ProjectFolder(), func() ui.Element {
+		uikit.SettingsCard(c, locales.Collections(), func() {
+			settingsCardBlock(c, locales.ProjectFolder(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(1)).Children(func() {
 					ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 						uikit.Input(c, &a.projectInput).Label(locales.ProjectFolder()).Placeholder(locales.Automatic()).Width(260)
@@ -47,8 +60,8 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, locales.ProjectFolderHint())
 		})
-		uikit.SettingsGroup(c, locales.RulesAndConfiguration(), func() {
-			uikit.SettingsRow(c, locales.DebuggingRules(), func() ui.Element {
+		uikit.SettingsCard(c, locales.RulesAndConfiguration(), func() {
+			settingsCardRow(c, locales.DebuggingRules(), func() ui.Element {
 				return ui.Row(c).Children(func() {
 					if uikit.SecondaryButton(c, locales.ManageRules()).Clicked() {
 						a.leaveSettings()
@@ -56,14 +69,14 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			}, locales.MapRewriteBlockOrDelay())
-			uikit.SettingsRow(c, locales.Configuration(), func() ui.Element {
+			settingsCardRow(c, locales.Configuration(), func() ui.Element {
 				return ui.Row(c).Children(func() {
 					if uikit.SecondaryButton(c, locales.ReloadConfiguration()).Clicked() {
 						a.reloadConfig()
 					}
 				})
 			}, locales.ReadRulesScriptsHostProfiles())
-			uikit.SettingsRow(c, locales.BackUpAndShare(), func() ui.Element {
+			settingsCardRow(c, locales.BackUpAndShare(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(2)).Children(func() {
 					if uikit.SecondaryButton(c, locales.Export()).Clicked() {
 						a.chooseConfigExport()
@@ -75,23 +88,23 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, locales.OneFileWithTheSettings())
 		})
-		uikit.SettingsGroup(c, locales.LocalAutomation(), func() {
-			uikit.SettingsRow(c, locales.EnableLocalAutomation(), func() ui.Element {
+		uikit.SettingsCard(c, locales.LocalAutomation(), func() {
+			settingsCardRow(c, locales.EnableLocalAutomation(), func() ui.Element {
 				on := a.controlRunning()
-				toggle := ui.Switch(c, &on)
+				toggle := uikit.SettingsSwitch(c, &on, locales.EnableLocalAutomation())
 				if toggle.Changed() {
 					a.setLocalControl(on)
 				}
 				return toggle
 			}, locales.LocalAutomationAbout())
 			if a.controlRunning() {
-				uikit.SettingsRow(c, locales.DiscoveryFile(), func() ui.Element {
+				settingsCardRow(c, locales.DiscoveryFile(), func() ui.Element {
 					return uikit.Mono(c, shortenHome(a.controlPath)).Selectable()
 				}, "")
 			}
 		})
-		uikit.SettingsGroup(c, locales.Help(), func() {
-			uikit.SettingsRow(c, locales.SetupGuide(), func() ui.Element {
+		uikit.SettingsCard(c, locales.Help(), func() {
+			settingsCardRow(c, locales.SetupGuide(), func() ui.Element {
 				return ui.Row(c).Children(func() {
 					if uikit.SecondaryButton(c, locales.ShowSetupGuide()).Disabled(a.guide).Clicked() {
 						a.leaveSettings()
@@ -100,10 +113,10 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, locales.CapturingTrustingTheCertificateAnd())
 		})
-		uikit.SettingsGroup(c, locales.Updates(), func() {
-			uikit.SettingsRow(c, locales.CheckForUpdates(), func() ui.Element {
+		uikit.SettingsCard(c, locales.Updates(), func() {
+			settingsCardRow(c, locales.CheckForUpdates(), func() ui.Element {
 				on := a.updateCheck
-				toggle := ui.Switch(c, &on)
+				toggle := uikit.SettingsSwitch(c, &on, locales.CheckForUpdates())
 				if toggle.Changed() {
 					a.updateCheck = on
 					a.persistSettings()
@@ -111,8 +124,8 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 				return toggle
 			}, locales.CheckForUpdatesHint())
 		})
-		uikit.SettingsGroup(c, locales.AboutVscroxy(), func() {
-			uikit.SettingsRow(c, locales.Version(), func() ui.Element {
+		uikit.SettingsCard(c, locales.AboutVscroxy(), func() {
+			settingsCardRow(c, locales.Version(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					uikit.Meta(c, version.String())
 					if uikit.SecondaryButton(c, locales.AboutVscroxy()).Clicked() {
@@ -126,9 +139,9 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 }
 
 func (a *app) appearanceSettings(c *ui.Context, t *ui.Theme) {
-	uikit.SettingsPage(c, locales.Appearance(), locales.HowVscroxyLooks(), func() {
-		uikit.SettingsGroup(c, locales.Theme(), func() {
-			uikit.SettingsRow(c, locales.Appearance(), func() ui.Element {
+	uikit.SettingsCardPage(c, locales.Appearance(), locales.HowVscroxyLooks(), func() {
+		uikit.SettingsCard(c, locales.Theme(), func() {
+			settingsCardRow(c, locales.Appearance(), func() ui.Element {
 				return ui.Row(c).Children(func() { // as wide as its segments
 					modes := []string{"", "light", "dark"}
 					if !a.appearanceChoiceSet {
@@ -147,15 +160,15 @@ func (a *app) appearanceSettings(c *ui.Context, t *ui.Theme) {
 }
 
 func (a *app) proxySettings(c *ui.Context, t *ui.Theme) {
-	uikit.SettingsPage(c, locales.Proxy(), locales.WhereVscroxyListensAndWhere(), func() {
-		uikit.SettingsGroup(c, locales.Listener(), func() {
-			uikit.SettingsRow(c, locales.Address(), func() ui.Element {
+	uikit.SettingsCardPage(c, locales.Proxy(), locales.WhereVscroxyListensAndWhere(), func() {
+		uikit.SettingsCard(c, locales.Listener(), func() {
+			settingsCardRow(c, locales.Address(), func() ui.Element {
 				if a.srv != nil && a.srv.Running() {
 					return uikit.Mono(c, a.srv.Addr()).Selectable()
 				}
 				return ui.Text(c, locales.CaptureIsNotRunning()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
 			}, "")
-			uikit.SettingsRow(c, locales.Port(), func() ui.Element {
+			settingsCardBlock(c, locales.Port(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(1)).Children(func() {
 					ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 						uikit.Input(c, &a.proxyPortInput).Label(locales.ProxyPort()).Placeholder(locales.Automatic()).Width(100).
@@ -181,7 +194,7 @@ func (a *app) proxySettings(c *ui.Context, t *ui.Theme) {
 func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 	// list is a field of a host or app list: its editor and how many it has.
 	list := func(label, text, unit, about string, open *bool) ui.Element {
-		return uikit.SettingsRow(c, label, func() ui.Element {
+		return settingsCardRow(c, label, func() ui.Element {
 			return ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 				if uikit.SecondaryButton(c, label+"…").Clicked() {
 					a.leaveSettings()
@@ -196,26 +209,26 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 			})
 		}, about)
 	}
-	uikit.SettingsPage(c, locales.Capture(), locales.WhatCaptureChangesOnThe(), func() {
-		uikit.SettingsGroup(c, locales.Responses(), func() {
-			uikit.SettingsRow(c, locales.Caching(), func() ui.Element {
+	uikit.SettingsCardPage(c, locales.Capture(), locales.WhatCaptureChangesOnThe(), func() {
+		uikit.SettingsCard(c, locales.Responses(), func() {
+			settingsCardRow(c, locales.Caching(), func() ui.Element {
 				on := a.srv != nil && a.srv.NoCaching()
-				toggle := ui.Switch(c, &on).Label(locales.NoCaching()).Disabled(a.srv == nil)
+				toggle := uikit.SettingsSwitch(c, &on, locales.NoCaching()).Disabled(a.srv == nil)
 				if toggle.Changed() && a.srv != nil {
 					a.srv.SetNoCaching(on)
 				}
 				return toggle
 			}, locales.StripCachingHeadersBothWays())
 		})
-		uikit.SettingsGroup(c, locales.AllowList(), func() {
+		uikit.SettingsCard(c, locales.AllowList(), func() {
 			empty := len(splitHosts(a.allowText))+len(splitHosts(a.allowAppsText)) == 0
 			problem := ""
 			if a.allowOn && empty {
 				problem = "Nothing is shown until you add a host or an app."
 			}
-			uikit.SettingsRow(c, locales.AllowList(), func() ui.Element {
+			settingsCardBlock(c, locales.AllowList(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(1)).Children(func() {
-					if ui.Switch(c, &a.allowOn).Label(locales.OnlyShowAllowedTraffic()).Changed() {
+					if uikit.SettingsSwitch(c, &a.allowOn, locales.OnlyShowAllowedTraffic()).Changed() {
 						a.applyAllow()
 					}
 					if problem != "" {
@@ -226,14 +239,14 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 			list("Allowed hosts", a.allowText, "host", "Each host with its subdomains.", &a.allowOpen)
 			list("Allowed apps", a.allowAppsText, "app", "As the sidebar's Apps names them.", &a.allowAppsOpen)
 		})
-		uikit.SettingsGroup(c, locales.Ignored(), func() {
+		uikit.SettingsCard(c, locales.Ignored(), func() {
 			list("Ignored hosts", a.ignoreText, "host", "Still proxied, but not shown in the table, even when allowed.", &a.ignoreOpen)
 			list("Ignored apps", a.ignoreAppsText, "app", "The same by app.", &a.ignoreAppsOpen)
 		})
-		uikit.SettingsGroup(c, locales.Memory(), func() {
+		uikit.SettingsCard(c, locales.Memory(), func() {
 			// limit is a field choosing one of options, labelled by label.
 			limit := func(name string, value *int, fallback int, options []int, label func(int) string, hint string) ui.Element {
-				return uikit.SettingsRow(c, name, func() ui.Element {
+				return settingsCardRow(c, name, func() ui.Element {
 					labels := make([]string, len(options))
 					for i, n := range options {
 						labels[i] = label(n)
@@ -271,7 +284,7 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 				return fmt.Sprintf("%d MB", mb)
 			}, locales.HistorySizeHelp())
 			a.applyHistoryLimits()
-			uikit.SettingsRow(c, locales.InUse(), func() ui.Element {
+			settingsCardRow(c, locales.InUse(), func() ui.Element {
 				memory, disk := a.retainedTotal()
 				return uikit.Body(c, locales.InUseSummary(humanBytes(int(memory)), humanBytes(int(disk)), len(a.flows))).FontFeatures("tnum")
 			}, "")
@@ -296,9 +309,9 @@ func (a *app) applyAllow() {
 }
 
 func (a *app) deviceSettings(c *ui.Context, t *ui.Theme) {
-	uikit.SettingsPage(c, locales.Devices(), locales.SendTrafficFromOtherDevices(), func() {
-		uikit.SettingsGroup(c, locales.Access(), func() {
-			uikit.SettingsRow(c, locales.OtherDevices(), func() ui.Element {
+	uikit.SettingsCardPage(c, locales.Devices(), locales.SendTrafficFromOtherDevices(), func() {
+		uikit.SettingsCard(c, locales.Access(), func() {
+			settingsCardRow(c, locales.OtherDevices(), func() ui.Element {
 				return ui.Row(c).Children(func() {
 					if uikit.SecondaryButton(c, locales.ConnectADevice()).Clicked() {
 						a.leaveSettings()
@@ -306,7 +319,7 @@ func (a *app) deviceSettings(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			}, locales.PhonesAndComputersOnYour())
-			uikit.SettingsRow(c, locales.ThisComputer(), func() ui.Element {
+			settingsCardRow(c, locales.ThisComputer(), func() ui.Element {
 				return ui.Row(c).Children(func() {
 					if uikit.SecondaryButton(c, locales.SetUpALocalClient()).Clicked() {
 						a.leaveSettings()

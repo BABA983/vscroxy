@@ -419,47 +419,51 @@ func (a *app) clearUpstream() {
 func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 	u := &a.upstreamUI
 	u.load(a)
-	uikit.SettingsGroup(c, locales.Upstream2(), func() {
+	uikit.SettingsCard(c, locales.Upstream2(), func() {
 		if a.upstreamProblem != "" {
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, a.upstreamProblem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable().Grow(1)
-				if !a.upstreamLoading && uikit.SecondaryButton(c, locales.Retry()).Clicked() {
-					a.retryUpstreamNow()
-				}
-			})
+			settingsCardBlock(c, "", func() ui.Element {
+				return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, a.upstreamProblem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable().Grow(1)
+					if !a.upstreamLoading && uikit.SecondaryButton(c, locales.Retry()).Clicked() {
+						a.retryUpstreamNow()
+					}
+				})
+			}, "")
 		}
 		if u.problem != "" {
-			ui.Text(c, u.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
+			settingsCardBlock(c, "", func() ui.Element {
+				return ui.Text(c, u.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
+			}, "")
 		}
-		uikit.SettingsRow(c, locales.DefaultText2(), func() ui.Element {
+		settingsCardRow(c, locales.DefaultText2(), func() ui.Element {
 			in := uikit.Input(c, &u.defaultAddr).Label(locales.DefaultUpstream()).Placeholder(locales.DirectConnection()).Grow(1).MinWidth(160)
 			if in.Changed() {
 				u.dirty = true
 			}
 			return in
 		}, locales.EmptyConnectsDirectlyAHost())
-		uikit.SettingsRowMultiline(c, locales.HostRules(), func() ui.Element {
+		settingsCardBlock(c, locales.HostRules(), func() ui.Element {
 			area := uikit.TextArea(c, &u.rules).Label(locales.HostRules()).Placeholder("*.internal.test socks5://127.0.0.1:1080\napi.example.com:443 direct").Height(60).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 			if area.Changed() {
 				u.dirty = true
 			}
 			return area
 		}, locales.OnePerLineHostPattern())
-		uikit.SettingsRowMultiline(c, locales.Bypass(), func() ui.Element {
+		settingsCardBlock(c, locales.Bypass(), func() ui.Element {
 			area := uikit.TextArea(c, &u.bypass).Label(locales.BypassList()).Placeholder("localhost\n*.internal.test\n10.0.0.0/8").Height(50).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 			if area.Changed() {
 				u.dirty = true
 			}
 			return area
 		}, locales.HostsExampleComCidrLocalhost())
-		uikit.SettingsRow(c, locales.Pac(), func() ui.Element {
+		settingsCardRow(c, locales.Pac(), func() ui.Element {
 			in := uikit.Input(c, &u.pac).Label(locales.PacFileOrUrl()).Placeholder("https://example.com/proxy.pac").Grow(1).MinWidth(200)
 			if in.Changed() {
 				u.dirty = true
 			}
 			return in
 		}, locales.ALocalPacFileOr())
-		uikit.SettingsRowMultiline(c, locales.Credentials(), func() ui.Element {
+		settingsCardBlock(c, locales.Credentials(), func() ui.Element {
 			return ui.Column(c).Gap(t.Space(1)).Children(func() {
 				remove := -1
 				for i := range u.credentials {
@@ -506,7 +510,7 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 				}
 			})
 		}, locales.UsernameAndPasswordForOne())
-		uikit.SettingsRow(c, "", func() ui.Element {
+		settingsCardBlock(c, "", func() ui.Element {
 			return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				save := uikit.PrimaryButton(c, locales.SaveUpstream()).Disabled(u.saving)
 				if save.Clicked() {
