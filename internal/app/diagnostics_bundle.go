@@ -151,6 +151,8 @@ func (a *app) diagnosticsReport(t *ui.Theme, target *url.URL) []byte {
 		switch check.state {
 		case checkPass:
 			state = "pass"
+		case checkWarn:
+			state = "warning"
 		case checkFail:
 			state = "fail"
 		}

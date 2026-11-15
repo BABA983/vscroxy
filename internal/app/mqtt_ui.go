@@ -369,7 +369,7 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 			}, "")
 			uikit.SettingsRow(c, locales.Tls(), func() ui.Element {
 				verify := a.inheritance(d.composeCollection).InheritSettings(d.settings).Verifies()
-				sw := ui.Switch(c, &verify).Label(locales.VerifyBrokerCertificate())
+				sw := uikit.Switch(c, &verify).Label(locales.VerifyBrokerCertificate())
 				uikit.Tip(c, sw, locales.MqttsAndWssVerifyThe())
 				if sw.Changed() {
 					d.setVerify(verify)

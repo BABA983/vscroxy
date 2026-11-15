@@ -753,7 +753,7 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview [
 				ui.Box(c).Width(float32(entry.depth) * 16)
 			}
 			on := !r.Disabled
-			if ui.Switch(c, &on).Label(locales.EnableRule(i + 1)).Changed() {
+			if uikit.Switch(c, &on).Label(locales.EnableRule(i + 1)).Changed() {
 				a.switchRule(i, on)
 			}
 			icon, kind := ruleIcons[max(slices.Index(ruleTypes, r.Type), 0)], ruleLabel(r.Type)
@@ -819,7 +819,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		uikit.Input(c, &e.draft.Name).Label(locales.RuleName()).Placeholder(cmp.Or(e.draft.Match, "Untitled rule")).Grow(1).MaxWidth(360).FontSize(uikit.Scaled(uikit.TextTitle)).Height(uikit.HeightLarge)
 		on := !e.draft.Disabled
-		if ui.Switch(c, &on).Label(locales.RuleEnabled()).Changed() {
+		if uikit.Switch(c, &on).Label(locales.RuleEnabled()).Changed() {
 			e.draft.Disabled = !on
 		}
 		ui.Spacer(c)

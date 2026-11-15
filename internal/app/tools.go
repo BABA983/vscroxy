@@ -231,23 +231,12 @@ func (a *app) profileList(c *ui.Context, t *ui.Theme) {
 	h.list.Key = func(i int) any { return h.set.Profiles[i].Name }
 	h.list.Label = func(i int) string { return h.set.Profiles[i].Name }
 	h.list.Reorder = a.moveProfiles
-	// A pick list: the rows draw the rounded selection themselves, as in a
-	// source list, so the list's own fill is clear.
-	pick := *t
-	pick.Accent, pick.AccentText = ui.Color{}, t.Text
-	c.SetTheme(&pick)
-	list := ui.List(c, &h.list, len(h.set.Profiles)).Label(locales.HostProfiles()).Grow(1).MinHeight(0).Gap(t.Space(0.5))
-	list.Rows(func(row ui.ListRow) {
-		c := row.Context
-		c.SetTheme(t)
+	uikit.DataList(c, &h.list, len(h.set.Profiles), func(row ui.ListRow) {
 		p := h.set.Profiles[row.Index]
-		r := ui.Row(c).Height(uikit.HeightLarge+4).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
-		if row.Selected() {
-			uikit.Selected(c, r, true)
-		}
+		r := ui.Row(c).Height(uikit.HeightLarge+4).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center)
 		r.Children(func() {
 			on := p.On
-			if ui.Switch(c, &on).Label(locales.HostProfileNamed(p.Name)).Changed() {
+			if uikit.Switch(c, &on).Label(locales.HostProfileNamed(p.Name)).Changed() {
 				a.switchProfile(row.Index, on)
 			}
 			if p.URL != "" {
@@ -265,8 +254,7 @@ func (a *app) profileList(c *ui.Context, t *ui.Theme) {
 			}
 			uikit.Tip(c, uikit.Meta(c, fmt.Sprint(profileHosts(p))).Font(uikit.FontMono).FontFeatures("tnum"), locales.HostsMapped())
 		})
-	})
-	c.SetTheme(t)
+	}).Label(locales.HostProfiles()).Grow(1).MinHeight(0).Gap(t.Space(0.5))
 }
 
 // profileFreshness says when a subscription was last fetched.
@@ -315,17 +303,21 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 		h.editors[p.Name] = st
 	}
 	st.ReadOnly = p.URL != ""
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		name := uikit.Input(c, &h.name).Label(locales.ProfileName()).Grow(1).MaxWidth(320).FontSize(uikit.Scaled(uikit.TextTitle)).Height(uikit.HeightLarge)
-		if name.Submitted() {
-			a.renameProfile(i, strings.TrimSpace(h.name))
-		}
-		on := p.On
-		if ui.Switch(c, &on).Label(locales.ProfileOn()).Changed() {
-			a.switchProfile(i, on)
-		}
-		ui.Spacer(c)
+	uikit.FormRow(c, locales.ProfileName(), "", "", func() {
+		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			name := uikit.Input(c, &h.name).Label(locales.ProfileName()).Grow(1).MaxWidth(320).FontSize(uikit.Scaled(uikit.TextTitle)).Height(uikit.HeightLarge)
+			if name.Submitted() {
+				a.renameProfile(i, strings.TrimSpace(h.name))
+			}
+			on := p.On
+			if uikit.Switch(c, &on).Label(locales.ProfileOn()).Changed() {
+				a.switchProfile(i, on)
+			}
+		})
+	})
+	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Start).Children(func() {
 		a.hostTest(c, t)
+		ui.Spacer(c)
 		uikit.MoreMenu(c, locales.ProfileActions(), func(m *ui.Menu) {
 			actions := []action{
 				do("hosts.rename", locales.Rename(), func() { a.renameProfile(i, strings.TrimSpace(h.name)) }).
@@ -339,18 +331,19 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 		})
 	})
 	if p.URL != "" {
-		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Glyph(c, subscribeIcon)
-			in := uikit.Input(c, &h.url).Label(locales.SubscriptionUrl()).Placeholder("https://example.com/hosts").Font(uikit.FontMono).Grow(1)
-			refresh := uikit.SecondaryButton(c, locales.Refresh()).Disabled(h.fetching[p.Name])
-			if in.Submitted() || refresh.Clicked() {
-				url := strings.TrimSpace(h.url)
-				if url != p.URL && a.changeHosts(func(s *hosts.Set) { s.Profiles[i].URL, s.Profiles[i].Updated = url, time.Time{} }) {
-					p.URL = url
+		uikit.FormRow(c, locales.SubscriptionUrl(), "", "", func() {
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				in := uikit.Input(c, &h.url).Label(locales.SubscriptionUrl()).Placeholder("https://example.com/hosts").Font(uikit.FontMono).Grow(1)
+				refresh := uikit.SecondaryButton(c, locales.Refresh()).Disabled(h.fetching[p.Name])
+				if in.Submitted() || refresh.Clicked() {
+					url := strings.TrimSpace(h.url)
+					if url != p.URL && a.changeHosts(func(s *hosts.Set) { s.Profiles[i].URL, s.Profiles[i].Updated = url, time.Time{} }) {
+						p.URL = url
+					}
+					a.refreshProfile(i)
 				}
-				a.refreshProfile(i)
-			}
-			uikit.Meta(c, profileFreshness(p, h.fetching[p.Name])).SingleLine()
+				uikit.Meta(c, profileFreshness(p, h.fetching[p.Name])).SingleLine()
+			})
 		})
 	}
 	a.profileDiagnostics(st, i)
@@ -363,6 +356,22 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 	ui.Box(c).Grow(1).MinHeight(0).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
 		editor.View(c, st).Grow(1).FillWidth().FocusRing(true)
 	})
+	if len(h.diag) > 0 {
+		ui.Column(c).Gap(t.Space(1)).Children(func() {
+			for _, d := range h.diag {
+				color, icon := t.Warning, checkWarnIcon
+				if d.Severity == editor.SeverityError {
+					color, icon = t.Danger, checkFailIcon
+				}
+				line := st.Buffer.Pos(d.Start).Line + 1
+				message := fmt.Sprintf("Line %d · %s", line, d.Message)
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Start).Children(func() {
+					ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline).TextColor(color)
+					uikit.Tip(c, ui.Text(c, message).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color).MaxLines(2), message)
+				})
+			}
+		})
+	}
 	_, modified := a.profileToSave()
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		note := "Changes apply to new connections."
@@ -435,19 +444,10 @@ func (a *app) profileDiagnostics(st *editor.State, i int) {
 		return start, start + len(st.Buffer.Line(n-1))
 	}
 	var ds []editor.Diagnostic
-	var inlays []editor.Inlay
-	said := map[int]bool{} // one note at the end of a line
-	note := func(line, end int, message string) {
-		if !said[line] {
-			said[line] = true
-			inlays = append(inlays, editor.Inlay{Offset: end, Text: "   " + message})
-		}
-	}
 	_, problems := hosts.Parse(text)
 	for _, problem := range problems {
 		start, end := lineRange(problem.Line)
 		ds = append(ds, editor.Diagnostic{Start: start, End: end, Severity: editor.SeverityError, Message: problem.Message})
-		note(problem.Line, end, problem.Message)
 	}
 	if p.On {
 		// The draft as it would apply, against the others as saved.
@@ -469,11 +469,10 @@ func (a *app) profileDiagnostics(st *editor.State, i int) {
 			}
 			start, end := lineRange(mine.Line)
 			ds = append(ds, editor.Diagnostic{Start: start, End: end, Severity: editor.SeverityWarning, Message: message})
-			note(mine.Line, end, message)
 		}
 	}
 	st.SetDiagnostics(version, ds)
-	st.SetInlays(inlays)
+	st.SetInlays(nil)
 	h.diag = ds
 }
 

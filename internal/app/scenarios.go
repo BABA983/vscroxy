@@ -118,7 +118,7 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 			}
 			r.Children(func() {
 				on := name == current
-				if ui.Switch(c, &on).Label("Scenario active: " + name).Changed() {
+				if uikit.Switch(c, &on).Label("Scenario active: " + name).Changed() {
 					a.selectRuleScenario(map[bool]string{true: name}[on])
 				}
 				ui.Text(c, name).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Grow(1).SingleLine()
@@ -164,7 +164,7 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 			a.renameScenario(name, strings.TrimSpace(s.name))
 		}
 		on := name == current
-		if ui.Switch(c, &on).Label(locales.ScenarioActive()).Changed() {
+		if uikit.Switch(c, &on).Label(locales.ScenarioActive()).Changed() {
 			a.selectRuleScenario(map[bool]string{true: name}[on])
 		}
 		ui.Spacer(c)
@@ -197,7 +197,7 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 			}
 			row.Children(func() {
 				on := !r.Disabled
-				if ui.Switch(c, &on).Label(locales.EnableRule(i + 1)).Changed() {
+				if uikit.Switch(c, &on).Label(locales.EnableRule(i + 1)).Changed() {
 					a.switchRule(i, on)
 				}
 				uikit.Tip(c, uikit.Glyph(c, ruleIcons[max(slices.Index(ruleTypes, r.Type), 0)]), ruleLabel(r.Type))

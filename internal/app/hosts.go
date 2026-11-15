@@ -239,7 +239,7 @@ func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 	for i, p := range h.set.Profiles {
 		ui.Row(c.Key("hosts-menu-"+p.Name)).Height(uikit.HeightLarge).Gap(t.Space(2)).AlignItems(ui.Center).Padding(0, t.Space(2)).Children(func() {
 			on := p.On
-			if ui.Switch(c, &on).Label("Host profile: " + p.Name).Changed() {
+			if uikit.Switch(c, &on).Label("Host profile: " + p.Name).Changed() {
 				a.switchProfile(i, on)
 			}
 			ui.Text(c, p.Name).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine().MinWidth(0)

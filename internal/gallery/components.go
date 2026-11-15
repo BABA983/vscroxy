@@ -66,7 +66,7 @@ type components struct {
 // window shows them as the pointer crosses them, and the export puts the
 // tester's pointer on the named sample.
 func (g *Gallery) components() *Group {
-	k := &components{host: "api.example.com", bypass: "localhost\n*.internal.test\n10.0.0.0/8", format: "Pretty", pick: "all", labels: "Pretty", query: "", flow: "20000", sidebar: "projects", range_: uikit.ActivityRange{From: 22, To: 34}}
+	k := &components{host: "api.example.com", bypass: "localhost\n*.internal.test\n10.0.0.0/8", format: "Pretty", pick: "all", labels: "Pretty", query: "", flow: "20000", on: true, sidebar: "projects", range_: uikit.ActivityRange{From: 22, To: 34}}
 	k.icon = iconBitmap()
 	return &Group{ID: "components", Title: "Components", Entries: []*Entry{
 		{ID: "text", Title: "Text", Note: "Seven roles; a text has no states", Height: 420, build: k.textPlate},
@@ -712,7 +712,7 @@ func (k *components) settingsPlate(c *ui.Context) {
 		})
 		uikit.SettingsGroup(c, "Behavior", func() {
 			uikit.SettingsRow(c, "Keep traffic", func() ui.Element {
-				return ui.Switch(c, &k.on).Label("Keep traffic")
+				return uikit.Switch(c, &k.on).Label("Keep traffic")
 			}, "")
 			uikit.SettingsRowMultiline(c, "Bypass list", func() ui.Element {
 				return ui.Column(c).Gap(c.Theme().Space(2)).Children(func() {

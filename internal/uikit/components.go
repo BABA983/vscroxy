@@ -1254,9 +1254,38 @@ func SettingsCard(c *ui.Context, legend string, rows func()) ui.Element {
 	})
 }
 
+// Switch is the kit's 36-by-20 switch. MyGo's own switch fills its track
+// with the accent; in Dark that is almost white, so the white thumb has no
+// edge. The kit paints the track from SwitchOn instead, keeping the on state
+// distinct from off and from a disabled switch in both themes.
+func Switch(c *ui.Context, on *bool) ui.Element {
+	t, p := c.Theme(), Colors(c.Theme())
+	sw := ui.SwitchBase(c, on).Size(SettingsControlHeight, 20).Radius(10)
+	target := float32(0)
+	if *on {
+		target = 1
+	}
+	pos := sw.Animate("knob", target, MotionFast)
+	off := t.Border.Mix(t.Text, 0.15)
+	track := off.Mix(p.SwitchOn, pos)
+	sw.Draw(func(painter *ui.Painter, r ui.Rect) {
+		in := t.Space(0.5)
+		d := r.H - 2*in
+		painter.Fill(r, track, r.H/2)
+		at := pos
+		if c.Direction() == ui.RightToLeft {
+			at = 1 - pos
+		}
+		knob := ui.Rect{X: r.X + in + at*(r.W-r.H), Y: r.Y + in, W: d, H: d}
+		painter.Shadow(knob, d/2, 0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.25))
+		painter.Fill(knob, ui.RGB(255, 255, 255), d/2)
+	})
+	return sw
+}
+
 // SettingsSwitch is the 36-by-20 switch of the looser Settings skeleton.
 func SettingsSwitch(c *ui.Context, on *bool, label string) ui.Element {
-	return ui.Switch(c, on).Label(label).Size(SettingsControlHeight, 20).Radius(10)
+	return Switch(c, on).Label(label)
 }
 
 // SettingsCardRow is one row of a SettingsCard. The title is body text, the

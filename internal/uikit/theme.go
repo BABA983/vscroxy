@@ -24,6 +24,11 @@ type Palette struct {
 	// distinct from the ink accent, so a focused control and the screen's one
 	// primary action never look like the same thing.
 	Ring ui.Color
+	// SwitchOn is the track of an on switch. In Light it is the ink accent;
+	// in Dark the ink is nearly white, so it would disappear under the white
+	// thumb. The Dark value keeps a 3:1 edge against the thumb and still
+	// separates clearly from the disabled half-opacity face.
+	SwitchOn ui.Color
 	// Success is green and nothing else is: a check that passed, a capture
 	// that is recording. The accent is ink, so "selected", "primary" and
 	// "on" are drawn in the text color and green never has to mean two
@@ -56,9 +61,10 @@ var Light = fills(Palette{
 	Text:     ui.Hex("#0b0d0b"), TextMuted: ui.Hex("#595959"), TextFaint: ui.Hex("#8a8f88"),
 	Accent: ui.Hex("#141614"), AccentHover: ui.Hex("#2a2d2a"), AccentPressed: ui.Hex("#3d413d"),
 	AccentText: ui.Hex("#f9fdf6"), AccentTint: ui.Hex("#d6dcd6"),
-	Ring:    ui.Hex("#636e61"),
-	Success: ui.Hex("#2c784d"),
-	Info:    ui.Hex("#2f6ea5"), Warning: ui.Hex("#86600f"), Danger: ui.Hex("#b9423c"),
+	Ring:     ui.Hex("#636e61"),
+	SwitchOn: ui.Hex("#141614"),
+	Success:  ui.Hex("#2c784d"),
+	Info:     ui.Hex("#2f6ea5"), Warning: ui.Hex("#86600f"), Danger: ui.Hex("#b9423c"),
 	MethodGet: ui.Hex("#2f6ea5"), MethodPost: ui.Hex("#5b6b1c"), MethodPatch: ui.Hex("#7a3e6d"),
 	Socket:  ui.Hex("#2b6868"),
 	Inverse: ui.Hex("#0b0d0b"), InverseText: ui.Hex("#f9fdf6"),
@@ -78,9 +84,10 @@ var Dark = fills(Palette{
 	Text:     ui.Hex("#f6fff5"), TextMuted: ui.Hex("#9ca49c"), TextFaint: ui.Hex("#6d766e"),
 	Accent: ui.Hex("#eaf3e9"), AccentHover: ui.Hex("#ffffff"), AccentPressed: ui.Hex("#cfd8ce"),
 	AccentText: ui.Hex("#0c1516"), AccentTint: ui.Hex("#2f372f"),
-	Ring:    ui.Hex("#9aa89a"),
-	Success: ui.Hex("#54b879"),
-	Info:    ui.Hex("#8fb3d1"), Warning: ui.Hex("#d6a038"), Danger: ui.Hex("#d67670"),
+	Ring:     ui.Hex("#9aa89a"),
+	SwitchOn: ui.Hex("#8a998a"),
+	Success:  ui.Hex("#54b879"),
+	Info:     ui.Hex("#8fb3d1"), Warning: ui.Hex("#d6a038"), Danger: ui.Hex("#d67670"),
 	MethodGet: ui.Hex("#8fb3d1"), MethodPost: ui.Hex("#b5c27a"), MethodPatch: ui.Hex("#c99abd"),
 	Socket:  ui.Hex("#6fc3d6"),
 	Inverse: ui.Hex("#f6fff5"), InverseText: ui.Hex("#0c1516"),

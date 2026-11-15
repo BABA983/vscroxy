@@ -26,7 +26,7 @@ func (g *Gallery) screensGroup() *Group {
 		{"settings-appearance", "Settings · Appearance", "The Appearance page: system, light or dark", 760, 560},
 		{"settings-capture", "Settings · Capture", "The Capture page: what the proxy keeps", 760, 560},
 		{"settings-devices", "Settings · Devices", "The Devices page: LAN devices and the gateway", 760, 560},
-		{"settings-certificates", "Settings · Certificates", "The Certificates page: client certificates and roots", 760, 560},
+		{"settings-certificates", "Settings · Certificates", "The Certificates page: signing CA, client certificates and roots", 760, 900},
 		{"command-palette", "Command palette", "The palette open over the capture screen, no query yet", 1280, 800},
 		{"sidebar-collapsed", "Sidebar collapsed", "The capture screen with the sidebar hidden: the content takes the window", 1280, 800},
 
@@ -36,7 +36,8 @@ func (g *Gallery) screensGroup() *Group {
 		{"tools-mocks", "Tools · Mocks", "The Mocks page: Map Local rules and the files they answer from", 1280, 800},
 		{"tools-scenarios", "Tools · Scenarios", "Scenarios with their rule counts and the active one switched on", 1280, 800},
 		{"client-setup", "Client setup", "One-click client setup for a local terminal, capture stopped", 1280, 800},
-		{"diagnostics", "Diagnostics", "The connection checks from listener to actual traffic, first failure open", 1280, 800},
+		{"diagnostics", "Diagnostics · listener stopped", "A stale system proxy points at a stopped listener; certificate and decryption pass, traffic waits", 1280, 800},
+		{"diagnostics-pass", "Diagnostics · all pass", "The same checks with a healthy listener and live traffic", 1280, 800},
 		{"https-rules", "HTTPS rules", "The decryption list and its per-app rules", 1280, 800},
 		{"api-endpoints", "API · endpoints", "An OpenAPI contract with its endpoint list and operation schema", 1280, 800},
 		{"runs-records", "Runs · records", "The retained run records with a baseline and one result open", 1280, 800},

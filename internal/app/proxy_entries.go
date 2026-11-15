@@ -463,7 +463,7 @@ func (a *app) reverseProxyModal(c *ui.Context, t *ui.Theme) {
 				})
 				uikit.Meta(c, locales.RemoteHostSendsTheTarget())
 				ui.Field(c, locales.RemoteCertificate(), func() {
-					ui.Switch(c, &d.insecure).Label(locales.AllowSelfSignedCertificates())
+					uikit.Switch(c, &d.insecure).Label(locales.AllowSelfSignedCertificates())
 				}).Description(locales.OffByDefaultTheApp())
 			})
 			uikit.DialogFooter(c).Children(func() {
