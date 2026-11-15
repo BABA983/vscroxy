@@ -625,9 +625,13 @@ func TestOneClickContainerShowsProxyAndCaMount(t *testing.T) {
 	a.clientUI.target = clientTargetContainer
 	a.clientUI.container = "my-app"
 	tt := ui.NewTester(a.view, 960, 600)
+	host := "host.docker.internal"
+	if runtime.GOOS == "linux" {
+		host = "127.0.0.1 (host network)"
+	}
 	for _, want := range []string{
 		"Docker container", "Intercept container", "Container",
-		"host.docker.internal", "/vscroxy/ca.pem", "Volumes, published ports",
+		host, "/vscroxy/ca.pem", "Volumes, published ports",
 	} {
 		if !tt.HasText(want) {
 			t.Fatalf("container setup lacks %q: %v", want, tt.Texts())
