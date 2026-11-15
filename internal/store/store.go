@@ -1,10 +1,8 @@
 // Package store keeps the app's local files safe: every write replaces a file
-// whole and privately, and a file someone changed on disk since the app read
-// it is never overwritten behind their back. It depends only on the standard
-// library, so the capture engine and the UI share it.
-//
-// There are no format versions or migrations yet: while the app is a
-// prototype, formats change directly (see AGENTS.md).
+// whole and privately, a file someone changed on disk since the app read it is
+// never overwritten behind their back, and every file carries the version of
+// the format it was written in (see version.go). It depends only on the
+// standard library, so the capture engine and the UI share it.
 package store
 
 import (
@@ -62,14 +60,21 @@ func Write(path string, write func(io.Writer) error) error {
 // A File is not safe for concurrent use; its owner uses it from one goroutine.
 type File struct {
 	Path string
+	// Format is the file's format version, or nil for a file with no format.
+	// Read upgrades an older file and writes the upgrade back; Write stamps
+	// the current version. A newer file is ErrNewer and is left untouched.
+	Format Formatter
+	// BackupDir keeps copies of the file before it is replaced or migrated,
+	// or "" for a file not worth keeping.
+	BackupDir string
 
 	exists  bool
 	sum     [sha256.Size]byte
 	problem error
 }
 
-// Read returns the file's contents, nil for a file that does not exist yet,
-// and remembers them for the next Write.
+// Read returns the file's contents at the current format version, nil for a
+// file that does not exist yet, and remembers them for the next Write.
 func (f *File) Read() ([]byte, error) {
 	data, err := os.ReadFile(f.Path)
 	switch {
@@ -80,8 +85,32 @@ func (f *File) Read() ([]byte, error) {
 		f.problem = err
 		return nil, err
 	}
+	var upgraded []byte
+	if f.Format != nil {
+		var err error
+		upgraded, err = f.Format.Read(data)
+		if err != nil {
+			f.problem = err
+			return nil, err
+		}
+		// Only a migration step is written back now; a file that merely lacks
+		// its version marker is stamped when it next changes.
+		if f.Format.Upgraded(data) && !bytes.Equal(upgraded, data) {
+			if f.BackupDir != "" {
+				_ = Backup(f.BackupDir, f.Path)
+			}
+			// A file that cannot be rewritten still reads this session; the
+			// migration is made again next time.
+			if writeErr := WriteFile(f.Path, upgraded); writeErr == nil {
+				data = upgraded
+			}
+		}
+	}
 	f.remember(data, true)
-	return data, nil
+	if upgraded == nil {
+		return data, nil
+	}
+	return upgraded, nil
 }
 
 // Fail marks the file read-only: it was read but its contents are unusable,
@@ -102,16 +131,32 @@ func (f *File) Write(data []byte) error {
 	if f.problem != nil {
 		return f.problem
 	}
+	if f.Format != nil {
+		var err error
+		if data, err = f.Format.Write(data); err != nil {
+			return err
+		}
+	}
 	disk, err := os.ReadFile(f.Path)
 	exists := err == nil
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
+	}
+	if exists && f.Format != nil {
+		if _, err := f.Format.Read(disk); err != nil {
+			return err
+		}
 	}
 	if f.changedFrom(disk, exists) {
 		return ErrChanged
 	}
 	if exists && bytes.Equal(disk, data) {
 		return nil
+	}
+	if exists && f.BackupDir != "" {
+		if err := Backup(f.BackupDir, f.Path); err != nil {
+			return err
+		}
 	}
 	if err := WriteFile(f.Path, data); err != nil {
 		return err
