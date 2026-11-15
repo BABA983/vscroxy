@@ -1494,6 +1494,16 @@ func (msgs Messages) Baseline() string {
 	return Catalog.Format(msgs.locale, "baseline", nil)
 }
 
+// BaselineNumber says "baseline #{id}"
+// in the language the app shows.
+func BaselineNumber(id string) string { return In(i18n.Locale()).BaselineNumber(id) }
+
+// BaselineNumber says "baseline #{id}"
+// in the language of msgs.
+func (msgs Messages) BaselineNumber(id string) string {
+	return Catalog.Format(msgs.locale, "baselineNumber", map[string]any{"id": id})
+}
+
 // BasicBecomesTheMqttUsername says "Basic becomes the MQTT username and password; Inherit uses a Basic parent only."
 // in the language the app shows.
 func BasicBecomesTheMqttUsername() string { return In(i18n.Locale()).BasicBecomesTheMqttUsername() }
@@ -18446,6 +18456,16 @@ func (msgs Messages) RunTheSelectedRequestsTo() string {
 	return Catalog.Format(msgs.locale, "runTheSelectedRequestsTo", nil)
 }
 
+// Run says "run"
+// in the language the app shows.
+func Run() string { return In(i18n.Locale()).Run() }
+
+// Run says "run"
+// in the language of msgs.
+func (msgs Messages) Run() string {
+	return Catalog.Format(msgs.locale, "run", nil)
+}
+
 // Runner says "Runner…"
 // in the language the app shows.
 func Runner() string { return In(i18n.Locale()).Runner() }
@@ -18556,6 +18576,16 @@ func RunningCollection() string { return In(i18n.Locale()).RunningCollection() }
 // in the language of msgs.
 func (msgs Messages) RunningCollection() string {
 	return Catalog.Format(msgs.locale, "runningCollection", nil)
+}
+
+// Runs says "runs"
+// in the language the app shows.
+func Runs() string { return In(i18n.Locale()).Runs() }
+
+// Runs says "runs"
+// in the language of msgs.
+func (msgs Messages) Runs() string {
+	return Catalog.Format(msgs.locale, "runs", nil)
 }
 
 // RunsBeforeTheRequestS says "Runs before the request's own script, after any parent collection's."

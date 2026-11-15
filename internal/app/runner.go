@@ -381,16 +381,24 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 		ui.Column(c).Width(min(840, width-80)).Height(min(560, height-100)).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, locales.CollectionRunner())
 			uikit.Meta(c, locales.RunsSavedRequestsInOrder())
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				names := runnableCollections(a.requests)
-				if len(names) == 0 {
-					names = []string{""}
-				}
-				if uikit.Select(c, &r.collection, names).Label(locales.RunnerCollection()).Grow(1).Disabled(r.running).Changed() {
-					r.load(a.requests)
-				}
-				uikit.Input(c, &r.iterations).Width(86).Label(locales.Iterations()).Disabled(r.running)
-				uikit.Tip(c, uikit.Input(c, &r.delay).Width(110).Label(locales.RunnerDelay()).Disabled(r.running), locales.RunnerDelay())
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Start).Children(func() {
+				uikit.FormRow(c, locales.RunnerCollection(), "", "", func() {
+					names := runnableCollections(a.requests)
+					if len(names) == 0 {
+						names = []string{""}
+					}
+					if uikit.Select(c, &r.collection, names).Label(locales.RunnerCollection()).FillWidth().Disabled(r.running).Changed() {
+						r.load(a.requests)
+					}
+				}).Grow(1)
+				uikit.FormRow(c, locales.Iterations(), "", "", func() {
+					uikit.Input(c, &r.iterations).FillWidth().Disabled(r.running)
+				}).Width(120)
+				uikit.FormRow(c, locales.RunnerDelay(), "", "", func() {
+					uikit.Tip(c, uikit.Input(c, &r.delay).FillWidth().Disabled(r.running), locales.RunnerDelay())
+				}).Width(170)
+			})
+			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 				ui.Checkbox(c, &r.stopOnFailure, "Stop on failure").FontSize(uikit.Scaled(uikit.TextBody)).Disabled(r.running)
 				keep := !r.discardVars
 				ui.Checkbox(c, &keep, locales.KeepVariableValues()).FontSize(uikit.Scaled(uikit.TextBody)).Disabled(r.running)
@@ -481,49 +489,60 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						}
 					})
 					ui.Divider(c)
-					ui.Scroll(c).Height(125).Padding(t.Space(2)).Gap(t.Space(1)).Children(func() {
-						ui.Row(c).Gap(t.Space(2)).Children(func() {
-							disabled := r.running || r.report.StartedAt.IsZero()
-							if uikit.SecondaryButton(c, locales.ExportRunJSON()).Disabled(disabled).Clicked() {
-								a.exportRunReport(false)
-							}
-							if uikit.SecondaryButton(c, locales.ExportRunJUnit()).Disabled(disabled).Clicked() {
-								a.exportRunReport(true)
-							}
-						})
-						if r.picked >= 0 && r.picked < len(r.rows) {
-							row := r.rows[r.picked]
+					if r.picked >= 0 && r.picked < len(r.rows) {
+						row := r.rows[r.picked]
+						color := t.Success
+						if row.failed {
+							color = t.Danger
+						}
+						ui.Row(c).Padding(t.Space(2), t.Space(2), 0).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+							uikit.Label(c, fmt.Sprintf("%d · %s", row.iteration, row.name)).FontFeatures("tnum").Grow(1).SingleLine()
 							if uikit.SecondaryButton(c, locales.InspectRetainedRun()).Disabled(row.recordID == 0).Clicked() {
 								a.experiments.scope, a.experiments.draftKey = nil, ""
 								a.experiments.pick(row.recordID)
 								a.experiments.open, r.open = true, false
 							}
-							for _, test := range r.rows[r.picked].tests {
+						})
+						uikit.Meta(c, row.summary).TextColor(color).Padding(0, t.Space(2)).SingleLine()
+						ui.Scroll(c).MaxHeight(150).Padding(0, t.Space(2)).Gap(t.Space(1)).Children(func() {
+							for _, test := range row.tests {
 								testResultRow(c, test)
 							}
 							for _, entry := range row.console {
 								uikit.Body(c, entry.Phase+" · "+entry.Kind+" · "+entry.Text).Selectable()
 							}
+						})
+					}
+					ui.Row(c).Padding(t.Space(2)).Gap(t.Space(2)).Children(func() {
+						disabled := r.running || r.report.StartedAt.IsZero()
+						if uikit.SecondaryButton(c, locales.ExportRunJSON()).Disabled(disabled).Clicked() {
+							a.exportRunReport(false)
+						}
+						if uikit.SecondaryButton(c, locales.ExportRunJUnit()).Disabled(disabled).Clicked() {
+							a.exportRunReport(true)
 						}
 					})
 				})
 			})
-			footer := "Displaying latest 1000 results; closing keeps a run active"
-			if r.status != "" {
-				footer = r.status + " · displaying latest 1000 results; closing keeps a run active"
+			status := r.status
+			if status == "" {
+				status = locales.CollectionRunner()
 			}
-			uikit.Meta(c, footer)
+			uikit.Tip(c, uikit.Meta(c, status), "Displaying latest 1000 results; closing keeps a run active")
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
 				uikit.SecondaryButton(c, locales.LoadTest()).Disabled(r.running || a.remoteRunActive()).OnClick(a.openLoadRunner)
 				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					r.open = false
 				}
-				if uikit.SecondaryButton(c, locales.CancelRun()).Disabled(!r.running).Clicked() {
-					r.cancelled = true
-					r.cancel()
-					r.status = "Stopping…"
+				if r.running {
+					if uikit.PrimaryButton(c, locales.CancelRun()).Clicked() {
+						r.cancelled = true
+						r.cancel()
+						r.status = "Stopping…"
+					}
+					return
 				}
-				if uikit.PrimaryButton(c, locales.RunCollection()).Disabled(r.running || a.loadRunner.running || a.remoteRunActive() || len(r.steps) == 0).Clicked() {
+				if uikit.PrimaryButton(c, locales.RunCollection()).Disabled(a.loadRunner.running || a.remoteRunActive() || len(r.steps) == 0).Clicked() {
 					a.startRunner()
 				}
 			})

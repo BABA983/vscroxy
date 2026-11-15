@@ -214,14 +214,22 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 	if uikit.Input(c, &item.data.Notes).Label(locales.SessionNotes2()).Placeholder(locales.SessionNotes()).Margin(0, t.Space(2), t.Space(2)).Changed() {
 		item.persist(a.invalidate)
 	}
-	ui.Row(c).Padding(0, t.Space(2)).Gap(t.Space(2)).Children(func() {
-		if uikit.Segmented(c, &item.side, locales.Request(), locales.Response()).Changed() {
-			item.reader = nil
-		}
-		headers := locales.RequestHeadersLabel()
-		if item.side == 1 {
-			headers = locales.ResponseHeadersLabel()
-		}
+	// The exchange is the outer choice, as a request's own tabs are: Tabs
+	// choose which side of the exchange is shown, and the Segmented control
+	// inside it chooses the part of that side.
+	side := item.side
+	uikit.TabStrip(c, func() {
+		uikit.Tabs(c, &item.side, "", locales.Request(), locales.Response())
+	}).FillWidth().Padding(0, t.Space(2))
+	if item.side != side {
+		item.reader = nil
+	}
+	ui.Divider(c)
+	headers := locales.RequestHeadersLabel()
+	if item.side == 1 {
+		headers = locales.ResponseHeadersLabel()
+	}
+	ui.Row(c).Padding(t.Space(2), t.Space(2), t.Space(2)).Gap(t.Space(2)).Children(func() {
 		if uikit.Segmented(c, &item.tab, headers, locales.Body(), locales.MessagesTab(), locales.Connection()).Changed() {
 			item.reader = nil
 		}

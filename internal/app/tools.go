@@ -353,7 +353,12 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 	theme.Tokens[editor.TokenKeyword] = editor.TokenStyle{Color: pal.MethodPatch}
 	st.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
 	st.Theme = theme
-	ui.Box(c).Grow(1).MinHeight(0).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
+	// The editor is as tall as its hosts, up to a point: a short file leaves
+	// its annotations right below it instead of at the bottom of a large
+	// empty box, and a long one still scrolls inside the cap.
+	lines := max(1, st.Buffer.LineCount())
+	height := min(float32(lines)*uikit.Scaled(uikit.TextBody)*1.5+16, 320)
+	ui.Box(c).Height(height).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
 		editor.View(c, st).Grow(1).FillWidth().FocusRing(true)
 	})
 	if len(h.diag) > 0 {
@@ -372,6 +377,7 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 			}
 		})
 	}
+	ui.Spacer(c)
 	_, modified := a.profileToSave()
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		note := "Changes apply to new connections."

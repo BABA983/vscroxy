@@ -36,6 +36,7 @@ type experimentWorkbench struct {
 	assetID, status, sourceFilter    string
 	wire                             int
 	revealVars                       bool
+	records                          ui.ListState
 	changed                          time.Time
 	jobs                             chan experimentLog
 	results                          chan error
@@ -298,6 +299,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				title += " · Draft"
 			}
 			uikit.DialogTitle(c, title).Grow(1)
+			uikit.Tip(c, uikit.Glyph(c, infoIcon).TextColor(t.TextMuted), locales.PrivateLocalSnapshotsMayContain())
 			if uikit.SecondaryButton(c, locales.ClearHistory()).Disabled(s.readOnly || len(s.log.Records) == 0).Clicked() {
 				s.clearing = true
 			}
@@ -308,34 +310,47 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				}
 			}
 		})
-		uikit.Meta(c, locales.PrivateLocalSnapshotsMayContain())
 		if s.problem != "" {
 			ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 		}
 		ui.Row(c).Gap(t.Space(2)).Children(func() {
 			historyFilters(c, &s.status, &s.sourceFilter)
 		})
+		visible := make([]experimentRecord, 0, len(s.log.Records))
+		for _, r := range s.log.Records {
+			if s.includes(r) {
+				visible = append(visible, r)
+			}
+		}
+		selected := 0
+		for i, r := range visible {
+			if r.ID == s.picked {
+				selected = i
+				break
+			}
+		}
+		s.records.Selected = &selected
+		s.records.Key = func(i int) any { return visible[i].ID }
+		s.records.Label = func(i int) string { return locales.ExperimentNumber(visible[i].ID) }
 		ui.Row(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).AlignItems(ui.Stretch).Children(func() {
 			ui.Scroll(c).Width(220).Padding(t.Space(1)).Children(func() {
 				a.debugDrafts(c)
-				if len(s.log.Records) == 0 {
+				if len(visible) == 0 {
 					uikit.Hint(c, locales.SendARequestToRecord()).Padding(t.Space(2))
 				}
-				for _, r := range s.log.Records {
-					if !s.includes(r) {
-						continue
-					}
+				uikit.DataList(c, &s.records, len(visible), func(row ui.ListRow) {
+					r := visible[row.Index]
 					label := fmt.Sprintf("#%d · %s", r.ID, r.At.Local().Format("01-02 15:04:05"))
 					if r.ID == s.log.Baseline {
-						label += " · Baseline"
+						label += " · " + locales.Baseline()
 					}
-					button := uikit.ToolbarButton(c, locales.ExperimentNumber(r.ID), r.Draft.Method+" "+r.Draft.URL+"\n"+r.Summary, r.ID == s.picked).
-						FillWidth().FontFeatures("tnum").Children(func() {
+					uikit.Tip(c, ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
 						ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").SingleLine()
-					})
-					if button.Clicked() {
-						s.pick(r.ID)
-					}
+						uikit.Meta(c, r.Summary).SingleLine()
+					}), r.Draft.Method+" "+r.Draft.URL+"\n"+r.Summary)
+				}).FillWidth()
+				if selected >= 0 && selected < len(visible) && visible[selected].ID != s.picked {
+					s.pick(visible[selected].ID)
 				}
 			})
 			ui.Divider(c)

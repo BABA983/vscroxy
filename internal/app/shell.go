@@ -2,10 +2,11 @@ package app
 
 import (
 	"fmt"
-	"github.com/baba983/vscroxy/internal/uikit"
 	"runtime"
+	"strconv"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -346,6 +347,22 @@ func (a *app) footerCountsText() string {
 		return fmt.Sprintf("%d captures · session overview", len(a.flows))
 	case pageSession:
 		return fmt.Sprintf("%d saved sessions · read-only evidence", len(a.sessions.items))
+	case pageRuns:
+		n := 0
+		for _, r := range a.experiments.log.Records {
+			if a.experiments.includes(r) {
+				n++
+			}
+		}
+		word := locales.Runs()
+		if n == 1 {
+			word = locales.Run()
+		}
+		count := fmt.Sprintf("%d %s", n, word)
+		if id := a.experiments.log.Baseline; id != 0 {
+			count += " · " + locales.BaselineNumber(strconv.Itoa(id))
+		}
+		return count
 	case pageAPI:
 		if len(a.apis) == 1 {
 			return "1 contract"
