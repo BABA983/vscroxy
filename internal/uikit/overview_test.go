@@ -196,8 +196,8 @@ func (o *overview) view(c *ui.Context, dark bool) {
 				row(func() {
 					ui.Checkbox(c, &o.check, "Rule enabled")
 					ui.Checkbox(c, &o.off, "Stop on failure")
-					ui.Switch(c, &o.on).Label("System proxy")
-					ui.Switch(c, &o.off).Label("LAN devices")
+					Switch(c, &o.on).Label("System proxy")
+					Switch(c, &o.off).Label("LAN devices")
 					Segmented(c, &o.segment, "All", "HTTP", "HTTPS", "WS", "SSE", "JSON")
 				})
 				row(func() {

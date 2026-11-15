@@ -237,6 +237,8 @@ func (g *Gallery) setup(screen string) bool {
 		galleryClientSetup(a)
 	case "diagnostics":
 		galleryDiagnostics(a)
+	case "diagnostics-pass":
+		galleryDiagnosticsPass(a)
 	case "https-rules":
 		galleryHTTPSRules(a)
 	case "api-endpoints":
@@ -476,8 +478,9 @@ func galleryClientSetup(a *app) {
 		addr: "127.0.0.1:7890", caPath: a.caPath}
 }
 
-// galleryDiagnostics is the check page after a launch: the OS proxy, the
-// certificate and the decryption rule pass, while the listener is stopped.
+// galleryDiagnostics is the check page after a crash: the listener is
+// stopped, but the OS proxy still points at its port. Certificate and
+// decryption pass; actual traffic waits because capture is not running.
 // Nothing here reads this machine or starts a listener.
 func galleryDiagnostics(a *app) {
 	a.flows[0].live = true
@@ -495,6 +498,14 @@ func galleryDiagnostics(a *app) {
 	a.diagnostics.target = "https://api.example.com/projects"
 	a.diagnostics.client = diagnoseMac
 	a.page, a.sidebarChoice = pageDiagnostics, "diagnostics"
+}
+
+// galleryDiagnosticsPass is the same page with a healthy run: the listener,
+// system proxy, certificate, decryption and actual traffic all pass.
+func galleryDiagnosticsPass(a *app) {
+	galleryDiagnostics(a)
+	a.diagnostics.demoRunning = true
+	a.diagnostics.demoAddr = "127.0.0.1:7890"
 }
 
 // galleryHTTPSRules is the decryption editor: three domains and two app

@@ -323,7 +323,7 @@ func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 			uikit.Hint(c, locales.TheAddressBarIsThe())
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				verify := a.inheritance(d.composeCollection).InheritSettings(d.settings).Verifies()
-				if ui.Switch(c, &verify).Label(locales.VerifyTlsCertificate()).Changed() {
+				if uikit.Switch(c, &verify).Label(locales.VerifyTlsCertificate()).Changed() {
 					d.setVerify(verify)
 				}
 				uikit.Meta(c, locales.SystemRootsPlusSettingsCertificates()).Grow(1).SingleLine()

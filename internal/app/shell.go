@@ -171,7 +171,7 @@ func (a *app) layoutToggle(c *ui.Context) {
 // dot to mistake for one.
 func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	pal := uikit.Colors(t)
-	running := a.srv != nil && a.srv.Running()
+	running := a.srv != nil && a.srv.Running() || a.diagnostics.demoRunning
 	state, dot := locales.Stopped(), t.Danger
 	switch {
 	case running && a.recordingPaused:
@@ -208,7 +208,10 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 		if !running {
 			return
 		}
-		addr := a.srv.Addr()
+		addr := a.diagnostics.demoAddr
+		if addr == "" && a.srv != nil {
+			addr = a.srv.Addr()
+		}
 		if a.deviceUI.gateway != nil {
 			addr += " · LAN"
 		}
@@ -315,8 +318,11 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		}
 		ui.Spacer(c)
 		ui.Row(c).Shrink(1).MinWidth(0).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Meta(c, a.footerCountsText()).FontFeatures("tnum").SingleLine().
-				ContentTransition(ui.ContentTransition{Numeric: true})
+			counts := uikit.Meta(c, a.footerCountsText()).FontFeatures("tnum").SingleLine()
+			if a.page == pageDiagnostics {
+				counts = uikit.Tip(c, counts, locales.EvidenceFromThisLiveSession())
+			}
+			counts.ContentTransition(ui.ContentTransition{Numeric: true})
 			if a.dropped > 0 {
 				ui.Text(c, locales.DroppedCount(int(a.dropped))).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 			}

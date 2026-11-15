@@ -2494,11 +2494,11 @@ func (msgs Messages) Checks() string {
 	return Catalog.Format(msgs.locale, "checks", nil)
 }
 
-// ChecksWhatLiesBetweenA says "Checks what lies between a client and this app, in order. Nothing changes until you press a fix."
+// ChecksWhatLiesBetweenA says "Checks what lies between a client and this app, in order."
 // in the language the app shows.
 func ChecksWhatLiesBetweenA() string { return In(i18n.Locale()).ChecksWhatLiesBetweenA() }
 
-// ChecksWhatLiesBetweenA says "Checks what lies between a client and this app, in order. Nothing changes until you press a fix."
+// ChecksWhatLiesBetweenA says "Checks what lies between a client and this app, in order."
 // in the language of msgs.
 func (msgs Messages) ChecksWhatLiesBetweenA() string {
 	return Catalog.Format(msgs.locale, "checksWhatLiesBetweenA", nil)
@@ -15974,14 +15974,24 @@ func (msgs Messages) ReadOnlySnapshot1Mib() string {
 	return Catalog.Format(msgs.locale, "readOnlySnapshot1Mib", nil)
 }
 
-// ReadOnlyUntilYouPress says "Read-only until you press a fix. Evidence comes from this live session; imported and cleared records do not count."
+// ReadOnlyUntilYouPress says "Read-only until you press a fix."
 // in the language the app shows.
 func ReadOnlyUntilYouPress() string { return In(i18n.Locale()).ReadOnlyUntilYouPress() }
 
-// ReadOnlyUntilYouPress says "Read-only until you press a fix. Evidence comes from this live session; imported and cleared records do not count."
+// ReadOnlyUntilYouPress says "Read-only until you press a fix."
 // in the language of msgs.
 func (msgs Messages) ReadOnlyUntilYouPress() string {
 	return Catalog.Format(msgs.locale, "readOnlyUntilYouPress", nil)
+}
+
+// EvidenceFromThisLiveSession says "Evidence comes from this live session; imported and cleared records do not count."
+// in the language the app shows.
+func EvidenceFromThisLiveSession() string { return In(i18n.Locale()).EvidenceFromThisLiveSession() }
+
+// EvidenceFromThisLiveSession says "Evidence comes from this live session; imported and cleared records do not count."
+// in the language of msgs.
+func (msgs Messages) EvidenceFromThisLiveSession() string {
+	return Catalog.Format(msgs.locale, "evidenceFromThisLiveSession", nil)
 }
 
 // ReadRulesScriptsHostProfiles says "Read rules, scripts, Host profiles and ignore lists from disk again."

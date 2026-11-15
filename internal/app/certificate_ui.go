@@ -88,25 +88,29 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			}, locales.SigningCaKeyHint())
-			settingsCardBlock(c, "", func() ui.Element {
-				return ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-					if !e.signingClear && (e.signingSaved || e.signingCert != "" || e.signingKey != "") {
-						if uikit.SecondaryButton(c, locales.UseGeneratedCa()).Clicked() {
-							e.signingClear, e.signingSaved = true, false
-							e.signingCert, e.signingKey, e.signingSubject = "", "", ""
-							e.dirty = true
+			showActions := !e.signingClear && (e.signingSaved || e.signingCert != "" || e.signingKey != "") ||
+				e.signingClear && a.certificates.SigningCA != nil
+			if showActions {
+				settingsCardBlock(c, "", func() ui.Element {
+					return ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+						if !e.signingClear && (e.signingSaved || e.signingCert != "" || e.signingKey != "") {
+							if uikit.SecondaryButton(c, locales.UseGeneratedCa()).Clicked() {
+								e.signingClear, e.signingSaved = true, false
+								e.signingCert, e.signingKey, e.signingSubject = "", "", ""
+								e.dirty = true
+							}
 						}
-					}
-					if e.signingClear && a.certificates.SigningCA != nil {
-						if uikit.SecondaryButton(c, locales.KeepCustomCa()).Clicked() {
-							e.signingClear, e.signingSaved = false, true
-							e.signingCert = a.certificates.SigningCA.CertFile
-							e.signingSubject = certs.CertificateSubject(e.signingCert)
-							e.dirty = true
+						if e.signingClear && a.certificates.SigningCA != nil {
+							if uikit.SecondaryButton(c, locales.KeepCustomCa()).Clicked() {
+								e.signingClear, e.signingSaved = false, true
+								e.signingCert = a.certificates.SigningCA.CertFile
+								e.signingSubject = certs.CertificateSubject(e.signingCert)
+								e.dirty = true
+							}
 						}
-					}
-				})
-			}, "")
+					})
+				}, "")
+			}
 		})
 		uikit.SettingsCard(c, locales.ClientCertificates(), func() {
 			settingsCardBlock(c, "", func() ui.Element {
@@ -188,12 +192,13 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 				e.dirty = true
 			}
 			settingsCardBlock(c, "", func() ui.Element {
-				b := uikit.SecondaryButton(c, locales.AddClientCertificate())
-				if b.Clicked() {
-					e.rows = append(e.rows, certificateRow{ID: uuid.NewString(), Format: certs.FormatPEM})
-					e.dirty = true
-				}
-				return b
+				return ui.Row(c).Children(func() {
+					b := uikit.SecondaryButton(c, locales.AddClientCertificate())
+					if b.Clicked() {
+						e.rows = append(e.rows, certificateRow{ID: uuid.NewString(), Format: certs.FormatPEM})
+						e.dirty = true
+					}
+				})
 			}, "")
 		})
 		uikit.SettingsCard(c, locales.TrustedRoots(), func() {
@@ -226,12 +231,13 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 				e.dirty = true
 			}
 			settingsCardBlock(c, "", func() ui.Element {
-				b := uikit.SecondaryButton(c, locales.AddCaFile())
-				if b.Clicked() {
-					e.roots = append(e.roots, certificateRoot{})
-					e.dirty = true
-				}
-				return b
+				return ui.Row(c).Children(func() {
+					b := uikit.SecondaryButton(c, locales.AddCaFile())
+					if b.Clicked() {
+						e.roots = append(e.roots, certificateRoot{})
+						e.dirty = true
+					}
+				})
 			}, "")
 		})
 		settingsCardBlock(c, "", func() ui.Element {

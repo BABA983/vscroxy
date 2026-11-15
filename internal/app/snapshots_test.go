@@ -1888,6 +1888,7 @@ func snapshotStates(t *testing.T) []snapshot {
 		{name: "secondary-diagnostics-device", setup: func(a *app) {
 			snapshotSettings(a, 0)
 			a.settingsOpen = false
+			a.diagnostics.demoRunning, a.diagnostics.demoAddr = true, "127.0.0.1:7890"
 			a.diagnostics.target = "https://api.example.com/projects"
 			a.openDiagnostics(nil, diagnoseDevice)
 		}, want: "Device access is off"},

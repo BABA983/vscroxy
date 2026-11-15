@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/system"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
@@ -22,8 +23,12 @@ type captureDiagnostics struct {
 	target string
 	client int  // diagnoseMac, diagnoseDevice or diagnoseProcess
 	flowID int  // the exchange Explain was opened from; 0 uses the latest match
-	open   int  // the expanded step; diagnoseAuto follows the first failing one
+	open   int  // the step whose failure evidence is open; diagnoseAuto follows the first failing one
 	reveal bool // scroll the expanded step into view next frame, once
+	// demoRunning and demoAddr let the gallery draw the all-pass plate
+	// without starting a listener. The app always uses a.srv.
+	demoRunning bool
+	demoAddr    string
 }
 
 // open values besides a step index.
@@ -43,6 +48,7 @@ var (
 	diagnosticsIcon = lucide.Stethoscope()
 	checkPassIcon   = lucide.CircleCheck()
 	checkFailIcon   = lucide.CircleX()
+	checkWarnIcon   = lucide.TriangleAlert()
 	checkWaitIcon   = lucide.CircleMinus()
 )
 
@@ -51,6 +57,7 @@ type checkState int
 const (
 	checkWait checkState = iota // not checked, not reached, or not verifiable here
 	checkPass
+	checkWarn // a real problem that is not a plain failure, such as a stale system proxy
 	checkFail
 )
 
@@ -106,18 +113,25 @@ func diagnosticOrigin(u *url.URL) string {
 
 func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 	d := &a.diagnostics
-	running := a.srv != nil && a.srv.Running()
+	running := a.diagnostics.demoRunning || a.srv != nil && a.srv.Running()
+	addr := a.diagnostics.demoAddr
+	if addr == "" && a.srv != nil {
+		addr = a.srv.Addr()
+	}
 	checks := make([]diagnosticCheck, 0, 5)
 
 	listener := diagnosticCheck{title: "Listener", fix: "Proxy settings…", run: func(*ui.Context) { a.openSettings(1) }}
 	switch {
 	case running:
-		listener.state, listener.result, listener.fix = checkPass, "Listening at "+a.srv.Addr(), ""
+		listener.state, listener.result, listener.fix = checkPass, "Listening at "+cmp.Or(addr, "this app"), ""
 	case a.errText != "":
 		listener.state, listener.result = checkFail, a.errText
+		listener.detail = []string{"A fixed port that another program holds keeps capture stopped; choose another port or clear it."}
 	default:
 		listener.state, listener.result = checkFail, "Capture is stopped"
-		listener.detail = []string{"A fixed port that another program holds keeps capture stopped; choose another port or clear it."}
+		listener.fix = "Start capture"
+		listener.run = func(*ui.Context) { go a.startCapture() }
+		listener.detail = []string{"Start capture to listen again, or open Proxy settings to change the port."}
 	}
 	checks = append(checks, listener)
 
@@ -130,7 +144,21 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 		proxy.result, proxy.detail = status, []string{line, "Apps may ignore the system proxy or use their own; a matching OS setting does not prove their traffic reaches this app."}
 		switch s := &a.systemProxy; {
 		case s.checking || s.applying || !s.checked:
-		case status == "HTTP and HTTPS point at this app":
+			proxy.state = checkWait
+		case !running:
+			// The OS setting can outlive the listener after a crash. Do
+			// not call that a pass: traffic would go to a closed port.
+			if s.check.Status == system.ProxyMatches {
+				proxy.state = checkWarn
+				proxy.result = "Points at this app, but capture is stopped"
+				proxy.detail = append([]string{"Traffic is sent to a closed port until capture starts or the system proxy is turned off."}, proxy.detail...)
+				proxy.fix = "Turn off system proxy"
+				proxy.run = func(*ui.Context) { a.setSystemProxy(false) }
+			} else {
+				proxy.state = checkWait
+				proxy.detail = append(proxy.detail, "The system proxy is not changed while capture is stopped.")
+			}
+		case s.check.Status == system.ProxyMatches:
 			proxy.state = checkPass
 		default:
 			proxy.state, proxy.fix = checkFail, "Turn on system proxy"
@@ -138,7 +166,11 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 		}
 	case diagnoseDevice:
 		proxy.title, proxy.fix, proxy.run = "Device access", "Device setup…", func(*ui.Context) { a.openDevices() }
-		if g := a.deviceUI.gateway; g == nil {
+		if !running {
+			proxy.state = checkWait
+			proxy.result = "Waiting for capture to start"
+			proxy.detail = []string{"Device access is checked while capture is running."}
+		} else if g := a.deviceUI.gateway; g == nil {
 			proxy.state, proxy.result = checkFail, "Device access is off"
 		} else {
 			status := g.Status()
@@ -211,6 +243,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 // the exchange Explain came from, or the latest one.
 func (a *app) trafficCheck(target *url.URL, https bool) diagnosticCheck {
 	check := diagnosticCheck{title: "Actual traffic"}
+	running := a.diagnostics.demoRunning || a.srv != nil && a.srv.Running()
 	var latest, decrypted *flow
 	matched := 0
 	for i := range a.flows {
@@ -237,6 +270,18 @@ func (a *app) trafficCheck(target *url.URL, https bool) diagnosticCheck {
 	inspect := func(f *flow) {
 		id := f.id
 		check.fix, check.run = fmt.Sprintf("Inspect #%d", id), func(*ui.Context) { a.inspectCapture(id) }
+	}
+	if !running {
+		// The count belongs to this run, but a failure that Explain was
+		// opened from is still the recorded evidence for the target.
+		check.state = checkWait
+		check.result = "Waiting for capture to start"
+		check.detail = []string{"Actual traffic is counted only while capture is running in this session; imported and cleared records do not count."}
+		if latest != nil && latest.conn.error != "" {
+			check.failure = latest
+			inspect(latest)
+		}
+		return check
 	}
 	switch {
 	case latest == nil:
@@ -272,106 +317,115 @@ func (a *app) trafficCheck(target *url.URL, https bool) diagnosticCheck {
 
 func (a *app) diagnosticsView(c *ui.Context, t *ui.Theme) {
 	d := &a.diagnostics
-	ui.Scroll(c).Fill().Padding(t.Space(5), t.Space(6)).Gap(t.Space(3)).Children(func() {
-		uikit.Heading(c, locales.ConnectionDiagnostics())
-		uikit.Hint(c, locales.ChecksWhatLiesBetweenA())
-		ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Wrap().Children(func() {
-			if uikit.Segmented(c, &d.client, locales.ThisMac(), locales.PhoneOrTablet(), locales.OneProcess()).Changed() {
-				d.open = diagnoseAuto
+	ui.Scroll(c).Fill().Padding(t.Space(6)).Children(func() {
+		ui.Column(c).FillWidth().MaxWidth(uikit.SettingsWidth).Gap(t.Space(4)).Children(func() {
+			ui.Column(c).Gap(t.Space(1)).Children(func() {
+				uikit.Display(c, locales.ConnectionDiagnostics())
+				uikit.Hint(c, locales.ChecksWhatLiesBetweenA())
+			})
+			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Wrap().Children(func() {
+				if uikit.Segmented(c, &d.client, locales.ThisMac(), locales.PhoneOrTablet(), locales.OneProcess()).Changed() {
+					d.open = diagnoseAuto
+				}
+			})
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				if uikit.Input(c, &d.target).Label(locales.TargetUrl()).Placeholder("https://api.example.com/").Grow(1).MinWidth(200).Changed() {
+					d.flowID, d.open = 0, diagnoseAuto
+				}
+				if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(a.systemProxy.checking || a.systemProxy.applying || a.certificate.checking).Clicked() {
+					a.refreshDiagnostics()
+				}
+				if uikit.SecondaryButton(c, locales.ExportDiagnostics()).Clicked() {
+					if u, err := url.Parse(strings.TrimSpace(d.target)); err == nil {
+						a.chooseDiagnosticsExport(t, u)
+					}
+				}
+			})
+			u, err := url.Parse(strings.TrimSpace(d.target))
+			if err != nil || u.Hostname() == "" || u.User != nil || (u.Scheme != "http" && u.Scheme != "https") {
+				ui.Text(c, locales.EnterAnHttpOrHttps()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
+				return
 			}
-			if uikit.Input(c, &d.target).Label(locales.TargetUrl()).Placeholder("https://api.example.com/").Grow(1).MinWidth(240).Changed() {
-				d.flowID, d.open = 0, diagnoseAuto
+			checks := a.diagnosticChecks(t, u)
+			first := -1 // the first problem step: its fix is the one to press
+			for i, check := range checks {
+				if check.state == checkFail || check.state == checkWarn {
+					first = i
+					break
+				}
 			}
-			if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(a.systemProxy.checking || a.systemProxy.applying || a.certificate.checking).Clicked() {
-				a.refreshDiagnostics()
+			open := d.open
+			if open == diagnoseAuto {
+				open = first
+			}
+			for i, check := range checks {
+				a.diagnosticRow(c, t, i, check, i == first, i == open)
 			}
 		})
-		u, err := url.Parse(strings.TrimSpace(d.target))
-		if err != nil || u.Hostname() == "" || u.User != nil || (u.Scheme != "http" && u.Scheme != "https") {
-			ui.Text(c, locales.EnterAnHttpOrHttps()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
-			return
-		}
-		if uikit.SecondaryButton(c, locales.ExportDiagnostics()).Clicked() {
-			a.chooseDiagnosticsExport(t, u)
-		}
-		ui.Divider(c)
-		checks := a.diagnosticChecks(t, u)
-		first := -1 // the first failing step: its fix is the one to press
-		for i, check := range checks {
-			if check.state == checkFail {
-				first = i
-				break
-			}
-		}
-		open := d.open
-		if open == diagnoseAuto {
-			open = first
-		}
-		for i, check := range checks {
-			a.diagnosticRow(c, t, i, check, i == open, i == first)
-		}
-		uikit.Meta(c, locales.ReadOnlyUntilYouPress())
 	})
 }
 
-func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticCheck, expanded, primary bool) {
+func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticCheck, primary, expanded bool) {
 	d := &a.diagnostics
 	icon, color := checkWaitIcon, t.TextMuted
 	switch check.state {
 	case checkPass:
 		icon, color = checkPassIcon, t.Success
+	case checkWarn:
+		icon, color = checkWarnIcon, t.Warning
 	case checkFail:
 		icon, color = checkFailIcon, t.Danger
 	}
-	ui.Column(c.Key(check.title)).Gap(t.Space(2)).Children(func() {
-		ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+	var tipParts []string
+	if len(check.detail) > 0 {
+		tipParts = append(tipParts, strings.Join(check.detail, "\n"))
+	}
+	if f := check.failure; f != nil {
+		e := f.conn.explanation()
+		tipParts = append(tipParts, e.title, e.summary, "Possible causes: "+e.causes, "What to try: "+e.steps, f.conn.error)
+	}
+	tip := strings.Join(tipParts, "\n\n")
+	uikit.SettingsCard(c, "", func() {
+		row := uikit.RowButton(c, check.title).FillWidth().Height(uikit.SettingsRowHeight).Padding(0, t.Space(4)).Gap(t.Space(3))
+		row.Children(func() {
 			ui.Icon(c, icon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(color)
-			row := uikit.Tip(c, uikit.RowButton(c, check.title).Grow(1).MinWidth(0), locales.ShowDetails())
-			row.Children(func() {
-				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-					ui.Text(c, strconv.Itoa(i+1)+".  "+check.title).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
-					resultColor := t.TextMuted
-					if check.state == checkFail {
-						resultColor = t.Danger
-					}
-					uikit.Tip(c, ui.Text(c, check.result).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(resultColor).SingleLine(), check.result)
-				})
-			})
-			if row.Clicked() {
-				d.open, d.reveal = i, true
-				if expanded {
-					d.open = diagnoseNone
+			ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
+				ui.Text(c, strconv.Itoa(i+1)+".  "+check.title).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
+				status := uikit.Small(c, check.result).TextColor(color).SingleLine()
+				if tip != "" {
+					uikit.Tip(c, status, tip)
 				}
-			}
+			})
 			if check.fix != "" {
 				button := uikit.SecondaryButton
 				if primary {
 					button = uikit.PrimaryButton
 				}
-				if button(c, check.fix).Clicked() {
+				if button(c, check.fix).Clicked() && check.run != nil {
 					check.run(c)
 				}
 			}
 		})
-		if !expanded || len(check.detail) == 0 && check.failure == nil {
+		if row.Clicked() && check.failure != nil {
+			if expanded {
+				d.open = diagnoseNone
+			} else {
+				d.open, d.reveal = i, true
+			}
+		}
+		if !expanded || check.failure == nil {
 			return
 		}
-		details := ui.Column(c).Margin(0, 0, 0, 20+t.Space(3)).Gap(t.Space(2))
+		details := ui.Column(c).Padding(0, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(2))
 		if d.reveal {
 			c.CloseToast("") // an earlier toast would cover the fix buttons
 			details.ScrollIntoView()
 			d.reveal = false
 		}
 		details.Children(func() {
-			for _, line := range check.detail {
-				uikit.Hint(c, line).Selectable()
-			}
-			if f := check.failure; f != nil {
-				a.explainFailure(c, t, *f)
-			}
+			a.explainFailure(c, t, *check.failure)
 		})
 	})
-	ui.Divider(c)
 }
 
 // explainFailure is a recorded connection failure in words. Causes are

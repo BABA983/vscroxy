@@ -4497,7 +4497,7 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Meta(c, locales.EnableADomainOrA())
 				ui.Row(c).Gap(t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
-					ui.Switch(c, &draft.All).Label(locales.DecryptEveryDomain())
+					uikit.Switch(c, &draft.All).Label(locales.DecryptEveryDomain())
 					ui.Text(c, locales.DecryptEveryDomain()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
 				})
 				ui.Text(c, locales.DomainsAndSubdomains()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)

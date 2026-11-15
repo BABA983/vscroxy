@@ -5939,6 +5939,7 @@ func TestQueryAutocompleteCompletesKeysAndValuesWithoutTakingEnterOrDown(t *test
 func TestConnectionDiagnosticsMatchTheTargetOriginAndKeepFilters(t *testing.T) {
 	fake := &fakeSystemProxy{check: system.ProxyCheck{Status: system.ProxyMatches}}
 	a := proxyTestApp(t, fake)
+	a.diagnostics.demoRunning, a.diagnostics.demoAddr = true, "127.0.0.1:7890"
 	a.flows = []flow{
 		{id: 1, live: true, method: "CONNECT", scheme: "https", url: "https://API.example.com:443/", kind: "connect", status: 200},
 		{id: 2, live: true, method: "GET", scheme: "https", url: "https://api.example.com/items", kind: "http", status: 502, reqHeaders: "Accept: */*", conn: conn{errorStage: "TCP", error: "fixture connection refused"}},
@@ -5968,8 +5969,15 @@ func TestConnectionDiagnosticsMatchTheTargetOriginAndKeepFilters(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame() // the step scrolls into view
-	if !tt.HasText("fixture connection refused") || !tt.HasText("Possible causes · not confirmed") || !tt.HasText("2 live records for this origin, from any client.") {
+	if !tt.HasText("fixture connection refused") || !tt.HasText("Possible causes · not confirmed") {
 		t.Fatalf("failure not explained in place: %q", tt.Texts())
+	}
+	if status, ok := tt.Find("#2 · TCP failed"); ok {
+		tt.Move(status.X+status.W/2, status.Y+status.H/2)
+		tt.Advance(time.Second)
+	}
+	if !tt.HasText("2 live records for this origin, from any client.") {
+		t.Fatalf("the status tip lost the origin count: %q", tt.Texts())
 	}
 	if fake.writes != 0 || a.deviceUI.gateway != nil {
 		t.Fatal("opening diagnostics changed the proxy or exposed a device gateway")
@@ -5996,7 +6004,7 @@ func TestConnectionDiagnosticsEmptyAndInvalidTargetsDoNotClaimProxyFailure(t *te
 		t.Fatal(err)
 	}
 	settleProxy(t, a, tt)
-	if !tt.HasText("No system proxy is set") || !tt.HasText("Waiting for a request to example.com") {
+	if !tt.HasText("No system proxy is set") || !tt.HasText("Waiting for capture to start") {
 		t.Fatalf("no-traffic state not explained: %q", tt.Texts())
 	}
 	for _, target := range []string{"not a URL", "ftp://example.com", "https://user:secret@example.com"} {

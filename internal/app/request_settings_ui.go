@@ -54,7 +54,7 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 			})
 			ui.Field(c, locales.Redirects(), func() {
 				follow := effective.Follows()
-				if ui.Switch(c, &follow).Label(locales.FollowRedirects()).Changed() {
+				if uikit.Switch(c, &follow).Label(locales.FollowRedirects()).Changed() {
 					d.setFollow(follow)
 				}
 				uikit.Meta(c, locales.N3xxResponsesAreFollowedUnless())
@@ -72,7 +72,7 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 			}
 			ui.Field(c, locales.Tls(), func() {
 				verify := effective.Verifies()
-				if ui.Switch(c, &verify).Label(locales.VerifyTlsCertificate()).Changed() {
+				if uikit.Switch(c, &verify).Label(locales.VerifyTlsCertificate()).Changed() {
 					d.setVerify(verify)
 				}
 				uikit.Meta(c, locales.UsesTheSystemRootsAnd())
@@ -86,14 +86,14 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 			})
 			ui.Field(c, locales.EncodeUrlAutomatically(), func() {
 				encode := effective.EncodesURL()
-				if ui.Switch(c, &encode).Label(locales.EncodeUrlAutomatically()).Changed() {
+				if uikit.Switch(c, &encode).Label(locales.EncodeUrlAutomatically()).Changed() {
 					d.setURLEncoding(encode)
 				}
 				uikit.Meta(c, locales.EncodeUrlAutomaticallyHint())
 			})
 			ui.Field(c, locales.SendCookiesFromTheJar(), func() {
 				use := effective.UsesCookies()
-				if ui.Switch(c, &use).Label(locales.SendCookiesFromTheJar()).Changed() {
+				if uikit.Switch(c, &use).Label(locales.SendCookiesFromTheJar()).Changed() {
 					d.setCookies(use)
 				}
 				uikit.Meta(c, locales.SendCookiesFromTheJarHint())
@@ -203,7 +203,7 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 			})
 			ui.Field(c, locales.Redirects(), func() {
 				follow := effective.Follows()
-				if ui.Switch(c, &follow).Label(locales.FollowRedirects()).Changed() {
+				if uikit.Switch(c, &follow).Label(locales.FollowRedirects()).Changed() {
 					f.setFollow(follow)
 				}
 			})
@@ -220,7 +220,7 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 			}
 			ui.Field(c, locales.Tls(), func() {
 				verify := effective.Verifies()
-				if ui.Switch(c, &verify).Label(locales.VerifyTlsCertificate()).Changed() {
+				if uikit.Switch(c, &verify).Label(locales.VerifyTlsCertificate()).Changed() {
 					value := verify
 					f.settings.VerifyTLS = &value
 				}
@@ -234,7 +234,7 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 			})
 			ui.Field(c, locales.EncodeUrlAutomatically(), func() {
 				encode := effective.EncodesURL()
-				if ui.Switch(c, &encode).Label(locales.EncodeUrlAutomatically()).Changed() {
+				if uikit.Switch(c, &encode).Label(locales.EncodeUrlAutomatically()).Changed() {
 					value := !encode
 					f.settings.DisableURLEncoding = &value
 				}
@@ -242,7 +242,7 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 			})
 			ui.Field(c, locales.SendCookiesFromTheJar(), func() {
 				use := effective.UsesCookies()
-				if ui.Switch(c, &use).Label(locales.SendCookiesFromTheJar()).Changed() {
+				if uikit.Switch(c, &use).Label(locales.SendCookiesFromTheJar()).Changed() {
 					value := !use
 					f.settings.DisableCookies = &value
 				}
