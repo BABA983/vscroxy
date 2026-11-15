@@ -411,6 +411,23 @@ func ValidateRules(rules []Rule) error {
 		if r.Color != "" && !slices.Contains(MarkColorNames, r.Color) {
 			return fail("mark color must be one of " + strings.Join(MarkColorNames, ", "))
 		}
+		if r.Folder != "" {
+			if r.Folder != strings.TrimSpace(r.Folder) || !utf8.ValidString(r.Folder) || strings.ContainsFunc(r.Folder, unicode.IsControl) {
+				return fail("folder names must be trimmed text without control characters")
+			}
+			levels := strings.Split(r.Folder, "/")
+			if len(levels) > 8 {
+				return fail("folders nest at most 8 levels")
+			}
+			for _, level := range levels {
+				if level != strings.TrimSpace(level) || level == "" {
+					return fail("folder levels must be trimmed and non-empty")
+				}
+				if len(level) > 64 {
+					return fail("each folder level is at most 64 bytes")
+				}
+			}
+		}
 		switch r.Type {
 		case RuleNetwork:
 			if r.Network == nil {

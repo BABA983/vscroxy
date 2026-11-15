@@ -684,6 +684,12 @@ mismatch, breakpoints off). Clearing the field brings the list back. Testing
 uses saved rules and the current Breakpoints switch, sends nothing and does not
 read response files or run scripts.
 
+**Folder** on a rule puts it in a tree, as `API` or `API/Auth`; typing a new
+path creates the folder. Folder rows collapse and show how many rules they
+hold, and dragging still moves rules in the saved order. A folder only
+organizes the list: it never changes matching, and the step numbers from a
+test, not the folder, say a rule's place in the order.
+
 Rules live in `~/.vscroxy/rules.json`. Enabled Map Local, Map Remote and Block
 rules apply in order, first match wins. Breakpoints match independently at their
 request/response phase and also require the toolbar's **Break** switch. A rule

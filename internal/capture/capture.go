@@ -299,6 +299,9 @@ type Rule struct {
 	DelayMS int64 `json:"delayMS,omitempty"`
 	// Color marks every row this rule acts on, from MarkColorNames.
 	Color string `json:"color,omitempty"`
+	// Folder organizes the rule in the editor's tree as "a/b". It never
+	// changes matching or the order the proxy tries rules in.
+	Folder string `json:"folder,omitempty"`
 	// Scenario groups response-affecting rules; empty is always global.
 	// Every member of a group has the same ScenarioActive value, and at most
 	// one group is active. Disabled remains an independent per-rule choice.

@@ -25093,3 +25093,23 @@ func SendCookiesFromTheJarHint() string { return In(i18n.Locale()).SendCookiesFr
 func (msgs Messages) SendCookiesFromTheJarHint() string {
 	return Catalog.Format(msgs.locale, "sendCookiesFromTheJarHint", nil)
 }
+
+// FolderHelp says "Use / to nest folders. Folders organize the list; a rule's step number, not its folder, is its place in the order."
+// in the language the app shows.
+func FolderHelp() string { return In(i18n.Locale()).FolderHelp() }
+
+// FolderHelp says "Use / to nest folders. Folders organize the list; a rule's step number, not its folder, is its place in the order."
+// in the language of msgs.
+func (msgs Messages) FolderHelp() string {
+	return Catalog.Format(msgs.locale, "folderHelp", nil)
+}
+
+// FolderPlaceholder says "API / Auth"
+// in the language the app shows.
+func FolderPlaceholder() string { return In(i18n.Locale()).FolderPlaceholder() }
+
+// FolderPlaceholder says "API / Auth"
+// in the language of msgs.
+func (msgs Messages) FolderPlaceholder() string {
+	return Catalog.Format(msgs.locale, "folderPlaceholder", nil)
+}

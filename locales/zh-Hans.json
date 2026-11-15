@@ -2569,5 +2569,6 @@
   "encodeUrlAutomatically": "自动编码 URL",
   "encodeUrlAutomaticallyHint": "关闭后，查询参数按输入内容发送，不再转义。",
   "sendCookiesFromTheJar": "发送 Cookie jar 中的 Cookie",
-  "sendCookiesFromTheJarHint": "关闭后，请求不发送 Cookie jar 中的 Cookie，也不保存响应中的 Cookie；显式的 Cookie 头仍会发送。"
-}
+  "sendCookiesFromTheJarHint": "关闭后，请求不发送 Cookie jar 中的 Cookie，也不保存响应中的 Cookie；显式的 Cookie 头仍会发送。",
+  "folderHelp": "用 / 嵌套文件夹。文件夹只用于整理列表；规则的执行顺序仍以测试时的步骤编号为准。",
+  "folderPlaceholder": "API / 鉴权"}

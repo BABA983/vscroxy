@@ -58,6 +58,7 @@ type ruleEditor struct {
 	bodyNote           string
 	bodyDir, bodyFresh bool // bodyFresh: the file does not exist yet
 	list               ui.ListState
+	collapsed          map[string]bool // folder paths closed in the list
 }
 
 var ruleTypes = []capture.RuleType{capture.RuleMapLocal, capture.RuleMapRemote, capture.RuleBlock, capture.RuleScript, capture.RuleCodeMock, capture.RuleBreak, capture.RuleBreakResponse, capture.RuleBreakMessage, capture.RuleNetwork}
@@ -98,6 +99,9 @@ func (a *app) editRule(index int, r capture.Rule) {
 		e.draft.Network = new(*r.Network)
 	}
 	e.body, e.bodyFor = nil, ""
+	if e.collapsed == nil {
+		e.collapsed = map[string]bool{}
+	}
 }
 
 // loadRuleBody reads the draft's Map Local file into the body editor when
@@ -530,7 +534,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 			}
 		}
 		a.ruleScenario(c)
-		a.ruleList(c, t, rows, preview, active)
+		a.ruleList(c, t, a.ruleListRows(), preview, active)
 	})
 	ui.Divider(c)
 	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(3)).Children(func() {
@@ -590,26 +594,115 @@ func (a *app) ruleScenario(c *ui.Context) {
 	}).Label(locales.ActiveScenario()), locales.OnlyTheActiveScenarioS()).FillWidth()
 }
 
+// ruleListRow is one line of the rules list: a folder header or a rule.
+type ruleListRow struct {
+	folder string // the full path for a folder header
+	depth  int
+	index  int // the rule's index in a.rules, or -1 for a folder
+}
+
+type ruleFolder struct {
+	name, path string
+	depth      int
+	rules      []int
+	children   []*ruleFolder
+}
+
+// ruleListRows groups the rules under their folders in first-appearance order.
+// A folder is created by naming it on a rule; it never changes a rule's index,
+// so the order the proxy tries rules in is still the slice's order.
+func (a *app) ruleListRows() []ruleListRow {
+	root := &ruleFolder{}
+	byPath := map[string]*ruleFolder{"": root}
+	var ensure func(string) *ruleFolder
+	ensure = func(path string) *ruleFolder {
+		if f, ok := byPath[path]; ok {
+			return f
+		}
+		parentPath, name := "", path
+		if i := strings.LastIndex(path, "/"); i >= 0 {
+			parentPath, name = path[:i], path[i+1:]
+		}
+		parent := ensure(parentPath)
+		f := &ruleFolder{name: name, path: path, depth: parent.depth + 1}
+		parent.children = append(parent.children, f)
+		byPath[path] = f
+		return f
+	}
+	for _, i := range a.ruleRows() {
+		f := ensure(a.rules[i].Folder)
+		f.rules = append(f.rules, i)
+	}
+	var rows []ruleListRow
+	var walk func(*ruleFolder)
+	walk = func(f *ruleFolder) {
+		for _, i := range f.rules {
+			rows = append(rows, ruleListRow{depth: f.depth, index: i})
+		}
+		for _, child := range f.children {
+			rows = append(rows, ruleListRow{folder: child.path, depth: child.depth, index: -1})
+			if !a.ruleUI.collapsed[child.path] {
+				walk(child)
+			}
+		}
+	}
+	walk(root)
+	return rows
+}
+
+// folderCount counts the rules at and below a folder.
+func (a *app) folderCount(path string) int {
+	n := 0
+	for _, r := range a.rules {
+		if r.Folder == path || strings.HasPrefix(r.Folder, path+"/") {
+			n++
+		}
+	}
+	return n
+}
+
 // ruleList is the rules with their switches, in the order they are tried;
 // dragging a row moves it.
-func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture.RulePreview, active bool) {
+func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview []capture.RulePreview, active bool) {
 	e := &a.ruleUI
-	choice := slices.Index(rows, e.index)
+	choice := -1
+	for i, row := range rows {
+		if row.index == e.index && row.index >= 0 {
+			choice = i
+		}
+	}
 	e.list.Selected = &choice
-	e.list.Key = func(row int) any { return rows[row] }
+	e.list.Key = func(row int) any {
+		if rows[row].index < 0 {
+			return "folder:" + rows[row].folder
+		}
+		return rows[row].index
+	}
 	e.list.Label = func(row int) string {
-		i := rows[row]
+		if rows[row].index < 0 {
+			return "Folder " + rows[row].folder
+		}
+		i := rows[row].index
 		return fmt.Sprintf("Rule %d: %s", i+1, cmp.Or(a.rules[i].Name, a.rules[i].Match))
 	}
 	e.list.Reorder = func(moved []int, to int) {
+		var indices []int
+		for _, row := range moved {
+			if rows[row].index >= 0 {
+				indices = append(indices, rows[row].index)
+			}
+		}
+		if len(indices) == 0 {
+			return
+		}
 		at := len(a.rules)
-		if to < len(rows) {
-			at = rows[to]
+		for ; to < len(rows); to++ {
+			if rows[to].index >= 0 {
+				at = rows[to].index
+				break
+			}
 		}
-		for k, row := range moved {
-			moved[k] = rows[row]
-		}
-		a.moveRules(moved, at)
+		a.moveRules(indices, at)
 	}
 	// A pick list, as the Host profiles: the rows draw the rounded selection.
 	pick := *t
@@ -618,7 +711,28 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture
 	ui.List(c, &e.list, len(rows)).Label(locales.Rules()).Grow(1).MinHeight(0).Gap(t.Space(0.5)).Rows(func(row ui.ListRow) {
 		c := row.Context
 		c.SetTheme(t)
-		i := rows[row.Index]
+		entry := rows[row.Index]
+		if entry.index < 0 {
+			collapsed := a.ruleUI.collapsed[entry.folder]
+			line := ui.Row(c).MinHeight(uikit.HeightLarge+4).Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+			line.Children(func() {
+				ui.Box(c).Width(float32(entry.depth-1) * 16)
+				icon, action := chevronIcon, "Collapse"
+				if collapsed {
+					icon, action = statusMoreIcon, "Expand"
+				}
+				label := action + " folder " + entry.folder
+				if uikit.IconButton(c, label, label, icon).Clicked() {
+					a.ruleUI.collapsed[entry.folder] = !collapsed
+				}
+				uikit.Glyph(c, lucide.Folder()).Size(uikit.IconInline, uikit.IconInline)
+				name := entry.folder[strings.LastIndex(entry.folder, "/")+1:]
+				uikit.Tip(c, ui.Text(c, name).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Text).Grow(1).SingleLine(), entry.folder)
+				uikit.Meta(c, strconv.Itoa(a.folderCount(entry.folder))).FontFeatures("tnum")
+			})
+			return
+		}
+		i := entry.index
 		r := a.rules[i]
 		line := ui.Row(c).MinHeight(uikit.HeightLarge+12).Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 		if row.Selected() {
@@ -635,6 +749,9 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture
 			}
 		}
 		line.Children(func() {
+			if entry.depth > 0 {
+				ui.Box(c).Width(float32(entry.depth) * 16)
+			}
 			on := !r.Disabled
 			if ui.Switch(c, &on).Label(locales.EnableRule(i + 1)).Changed() {
 				a.switchRule(i, on)
@@ -677,8 +794,9 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture
 		})
 	})
 	c.SetTheme(t)
-	if choice >= 0 && choice < len(rows) && rows[choice] != e.index {
-		a.editRule(rows[choice], a.rules[rows[choice]])
+	if choice >= 0 && choice < len(rows) && rows[choice].index >= 0 && rows[choice].index != e.index {
+		i := rows[choice].index
+		a.editRule(i, a.rules[i])
 	}
 }
 
@@ -852,6 +970,9 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 			}
 			uikit.FormRow(c, locales.GraphqlOperation(), locales.ExactSelectedOperationNameCase(), "", func() {
 				uikit.Input(c, &e.draft.Operation).Label(locales.MatchGraphqlOperation()).Placeholder(locales.Any()).Font(uikit.FontMono).FillWidth()
+			})
+			uikit.FormRow(c, locales.FolderNoun(), locales.FolderHelp(), "", func() {
+				uikit.Input(c, &e.draft.Folder).Label(locales.FolderNoun()).Placeholder(locales.FolderPlaceholder()).Width(260)
 			})
 		})
 	})

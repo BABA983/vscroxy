@@ -121,6 +121,7 @@
 | Map Remote：换 scheme 和 host | 已有 | | |
 | Map Remote：换端口和路径、是否保留原 Host header、WebSocket | 已有 | 端口写在目标 URL 里；路径前缀改写；WebSocket（含解密的 wss）跟随第一条匹配的 Map Remote。原主机连不上、且有启用的 Map Remote 可能匹配它时，改用生成的证书 | M4 |
 | Scenario（规则分组切换） | 已有 | | |
+| 规则嵌套文件夹 | 已有 | 每条规则可填 `folder`（如 `API/Auth`），规则列表按文件夹折叠分组；文件夹只整理列表，不改变匹配或执行顺序 | M4 |
 | 脚本：挂在规则上、app 内编辑、`pm` 风格 API | 部分 | Script 规则运行 `tools/scripts/*.js` 的 onRequest／onResponse；Tools → Scripts 编辑，带 Console；全局 `script.js` 已删除；每个钩子 10 秒 CPU 预算（等待网络／定时器不计），正文可读 8 MiB，二进制正文用 `bodyBase64()`。无文件 I/O，不能用 npm 包；单条 WebSocket 消息 1 MiB | M4 |
 | 脚本：异步发请求、规则间共享状态、读系统环境变量 | 部分 | `pm.sendRequest` 直连服务器；`pm.variables` 跨同一请求的脚本，`pm.globals` 跨规则并保存；`process.env`；`pm.execution.runRequest` 按 ID（或唯一名称）运行集合内的请求，桌面 Send／Runner、MCP 运行与 `vscroxy-cli run` 可用，`vscroxy-cli load` 不可用 | M4 |
 | 脚本：内置库（lodash、crypto-js、moment 等）、代码片段库、自定义 addon | 部分 | lodash 4.18.1、crypto-js 4.2.0、moment 2.31.0、chai 和 Insert snippet 与请求脚本共用；规则脚本和 addon 是 ES 模块（esbuild 转成 CommonJS 后由 goja 运行，source map 指回原行号，不支持顶层 await），addon 在 `tools/addons/*.js`，规则脚本 `import`、请求脚本 `require` 加载，Tools → Scripts → Addons 编辑，CLI 用 `--addons` | M4 |
