@@ -225,6 +225,21 @@ collection with no saved examples is refused. Desktop control exposes
 `errorStatus`, `errorBody`, and `confirm:true`) and `mock.stop`; there is no MCP
 tool for mock servers.
 
+## OpenAPI lint
+
+`vscroxy-cli openapi lint` loads an OpenAPI 3.0/3.1 file with its local `$ref`
+files (confined to the root's folder, at most 64 files and 32 MiB; remote refs
+are refused), validates it, and prints lint findings with a stable code:
+
+```sh copy Copy OpenAPI Lint
+bin/vscroxy-cli openapi lint --json ./api/openapi.yaml
+```
+
+Error-severity findings exit 1; warnings do not. `--json` prints the resolved
+files and issues. The desktop control exposes `openapi.lint` (validated document
+ID) and `openapi.sync` (dry-run diff by default; `write:true` with
+`confirm:true` applies `to-collection` or `to-spec`).
+
 ## Control a running desktop
 
 Desktop control is **off by default**. Turn on **Settings → General → Local
@@ -298,6 +313,8 @@ mutation on transport timeout: its outcome may be unknown.
 | `mock.get` | Running mock servers: collection, HTTP/gRPC URLs and configured rate/error behavior |
 | `mock.start` | Required `collection` and `confirm:true`; optional `rateLimit` (0–100000 requests/s), `errorRate` (0–1), `errorStatus` (400–599) and `errorBody`; returns the running URLs |
 | `mock.stop` | Required running `collection` and `confirm:true`; stops its HTTP and gRPC listeners |
+| `openapi.lint` | Validated API document `id`; returns lint issues and endpoint count |
+| `openapi.sync` | API document `id` or source `collection`; `direction` (`to-collection`/`to-spec`); dry run returns the diff unless `write:true` and `confirm:true` |
 | `token-links.analyze` | Required `ids` (1–200 unique positive HTTP IDs); returns analysis `id` and `done` |
 | `token-links.get` | Analysis `id`; returns `done`, masked source/path/consumer evidence, `skipped` and controlled `problem` |
 | `token-links.prepare` | Analysis `id`, zero-based `index`, required `collection` (explicit `""` = root), existing `environment`, new `variable`; returns a proposal |

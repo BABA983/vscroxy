@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -202,5 +203,34 @@ func TestMockServesUnaryGRPCExamples(t *testing.T) {
 		if !check.Pass {
 			t.Errorf("check %q failed", check.Name)
 		}
+	}
+}
+
+func TestOpenAPILintLoadsLocalRefs(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "api.yaml")
+	write(t, filepath.Join(dir, "schemas.yaml"), map[string]any{"Item": map[string]any{"type": "object"}})
+	if err := os.WriteFile(root, []byte(`openapi: 3.0.3
+info: {title: Shop, version: 1.0.0}
+paths:
+  /items:
+    get:
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/Item'
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	code := cli.Run(t.Context(), []string{"openapi", "lint", "--json", root}, &out, &errOut)
+	if code != 0 {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, &out, &errOut)
+	}
+	if !strings.Contains(out.String(), "operation-id-missing") || !strings.Contains(out.String(), "schemas.yaml") {
+		t.Fatalf("lint output = %s", out.String())
 	}
 }

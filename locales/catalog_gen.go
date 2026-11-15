@@ -21712,6 +21712,66 @@ func (msgs Messages) Summary() string {
 	return Catalog.Format(msgs.locale, "summary", nil)
 }
 
+// Sync says "Sync"
+// in the language the app shows.
+func Sync() string { return In(i18n.Locale()).Sync() }
+
+// Sync says "Sync"
+// in the language of msgs.
+func (msgs Messages) Sync() string {
+	return Catalog.Format(msgs.locale, "sync", nil)
+}
+
+// SyncDiff says "Sync diff"
+// in the language the app shows.
+func SyncDiff() string { return In(i18n.Locale()).SyncDiff() }
+
+// SyncDiff says "Sync diff"
+// in the language of msgs.
+func (msgs Messages) SyncDiff() string {
+	return Catalog.Format(msgs.locale, "syncDiff", nil)
+}
+
+// SyncWithCollection says "Sync with collection"
+// in the language the app shows.
+func SyncWithCollection() string { return In(i18n.Locale()).SyncWithCollection() }
+
+// SyncWithCollection says "Sync with collection"
+// in the language of msgs.
+func (msgs Messages) SyncWithCollection() string {
+	return Catalog.Format(msgs.locale, "syncWithCollection", nil)
+}
+
+// SpecToCollection says "Spec → collection"
+// in the language the app shows.
+func SpecToCollection() string { return In(i18n.Locale()).SpecToCollection() }
+
+// SpecToCollection says "Spec → collection"
+// in the language of msgs.
+func (msgs Messages) SpecToCollection() string {
+	return Catalog.Format(msgs.locale, "specToCollection", nil)
+}
+
+// CollectionToSpec says "Collection → spec"
+// in the language the app shows.
+func CollectionToSpec() string { return In(i18n.Locale()).CollectionToSpec() }
+
+// CollectionToSpec says "Collection → spec"
+// in the language of msgs.
+func (msgs Messages) CollectionToSpec() string {
+	return Catalog.Format(msgs.locale, "collectionToSpec", nil)
+}
+
+// SyncApplied says "Synced the spec and its collection"
+// in the language the app shows.
+func SyncApplied() string { return In(i18n.Locale()).SyncApplied() }
+
+// SyncApplied says "Synced the spec and its collection"
+// in the language of msgs.
+func (msgs Messages) SyncApplied() string {
+	return Catalog.Format(msgs.locale, "syncApplied", nil)
+}
+
 // SwapSides says "Swap sides"
 // in the language the app shows.
 func SwapSides() string { return In(i18n.Locale()).SwapSides() }

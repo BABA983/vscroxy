@@ -3529,9 +3529,14 @@ still need human review: a captured example is not a complete API contract.
 **Review notes** explains these limits beside the draft.
 
 **New** creates a standalone specification; **Import…** opens OpenAPI 3.0/3.1
-JSON or YAML, including internal `#/` references and 3.1 schemas. External files
-and URLs are not fetched. Documents are limited to 16 MiB. **OpenAPI** is a native
-syntax-highlighted editor; **Validate** checks the structure with kin-openapi.
+JSON or YAML, including internal `#/` references and 3.1 schemas. A spec imported
+from a file may use local `$ref` files beside it: those are resolved only inside
+the spec's own folder, at most 64 files and 32 MiB together, and symbolic links
+or `..` paths out of the folder are refused. Remote refs are never fetched.
+**OpenAPI** is a native syntax-highlighted editor; **Validate** checks the
+structure with kin-openapi and adds basic lint findings (missing or duplicate
+operation IDs, missing summaries, path parameters, insecure servers, undefined
+tags, unused components and undocumented success responses) in **Review notes**.
 Edited source must be validated before its endpoints can be used or exported.
 **Save API** validates and persists only that specification, leaving other
 unsaved editors untouched. Invalid source or a failed save never replaces the
@@ -3548,10 +3553,16 @@ payloads. Review authentication, parameter serialization and the body before
 sending; no runtime authentication or scripts are inferred from the specification.
 
 Specifications live in `~/.vscroxy/apis.json`. Saving requests does not update
-them. A generated specification tracks its source collection and shows a warning
-when saved requests change; **Generate new draft** creates another specification,
-never overwriting hand edits. There is no automatic/bidirectional sync, multi-file
-bundling, Swagger 2 import in the API editor or schema inference yet; the
+them automatically. A generated specification tracks its source collection and
+shows a warning when saved requests change; **Generate new draft** creates
+another specification, never overwriting hand edits. **Sync…** on a spec with a
+source collection reviews a diff before writing: **Spec → collection** updates
+matching requests by method and normalized path, adds operations the collection
+lacks, keeps each request's own host/base variable when the spec declares no
+server, and leaves requests the spec does not describe untouched;
+**Collection → spec** regenerates the draft from the collection and leaves it
+as an unsaved, validated draft. Apply is disabled when nothing would change.
+There is no Swagger 2 import in the API editor or schema inference; the
 collection importer reads Swagger 2 and converts it to OpenAPI 3.0. Unsaved API
 editors and source links are session-local; saved contracts are restored after
 restart. **API contracts** in Commands opens the first one.

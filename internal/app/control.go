@@ -300,6 +300,8 @@ func (a *app) controlValue(command control.Command) (any, error) {
 		return a.controlCollectionRecording(command)
 	case "mock.get", "mock.start", "mock.stop":
 		return a.controlMocks(command)
+	case "openapi.lint", "openapi.sync":
+		return a.controlOpenAPI(command)
 	case "token-links.analyze", "token-links.get", "token-links.prepare", "token-links.apply":
 		return a.controlTokenLinks(command)
 	case "capture.recording":

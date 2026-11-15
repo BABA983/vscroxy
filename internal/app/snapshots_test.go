@@ -1210,6 +1210,13 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.activeAPI().tab = 1
 		}, want: "Validation failed"},
 		{name: "secondary-api-notes", setup: func(a *app) { snapshotAPI(a); a.activeAPI().tab = 2 }, want: "Review before publishing"},
+		{name: "secondary-api-sync", setup: func(a *app) {
+			a.addAPI(apiSpec{ID: "snapshot-sync", Collection: "Workspace", Source: `{"openapi":"3.0.3","info":{"title":"Workspace","version":"1"},"paths":{` +
+				`"/projects":{"get":{"summary":"List projects","responses":{"200":{"description":"ok","content":{"application/json":{"schema":{"type":"object"}}}}}}},` +
+				`"/orders":{"post":{"summary":"Create order","responses":{"201":{"description":"created"}}}}}}`}, true)
+			a.page = pageAPI
+			a.openAPISync(a.activeAPI())
+		}, want: "Sync with collection"},
 		{name: "settings", setup: func(a *app) { a.settingsOpen = true }, want: "Settings"},
 		{name: "dialog-settings-proxy", setup: func(a *app) { snapshotSettings(a, 1) }, want: "Save for next launch", short: true},
 		{name: "dialog-settings-proxy-upstream", setup: func(a *app) {

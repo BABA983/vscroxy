@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/openapi"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/yamlguard"
@@ -26,8 +27,11 @@ import (
 // apiSpec is an independent contract, not another encoding of a collection.
 // Source stays verbatim, including YAML, comments and vendor extensions.
 type apiSpec struct {
-	ID          string   `json:"id"`
-	Source      string   `json:"source"`
+	ID     string `json:"id"`
+	Source string `json:"source"`
+	// Path is the spec file a multi-file document was imported from. Its
+	// folder bounds local $ref resolution; empty means standalone text.
+	Path        string   `json:"path,omitempty"`
 	Collection  string   `json:"collection,omitempty"`
 	Fingerprint string   `json:"fingerprint,omitempty"`
 	Notes       []string `json:"notes,omitempty"`
@@ -65,6 +69,23 @@ func saveAPIs(file *store.File, specs []apiSpec) error {
 
 // Parsing a standalone contract must never follow a ref onto the network or
 // into another local file. Validation also rejects Swagger 2 and unknown versions.
+// parseOpenAPIAt validates source, resolving local $ref files against path
+// when the document was imported from a file. It returns lint findings too.
+func parseOpenAPIAt(path, source string) (*openapi3.T, []openapi.Issue, error) {
+	if path != "" {
+		spec, err := openapi.LoadSource(path, []byte(source))
+		if err != nil {
+			return nil, nil, err
+		}
+		return spec.Doc, openapi.Lint(spec.Doc), nil
+	}
+	doc, err := parseOpenAPI(source)
+	if err != nil {
+		return nil, nil, err
+	}
+	return doc, openapi.Lint(doc), nil
+}
+
 func parseOpenAPI(source string) (*openapi3.T, error) {
 	if len(source) > 16<<20 {
 		return nil, errors.New("OpenAPI documents are limited to 16 MiB")

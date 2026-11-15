@@ -11,6 +11,7 @@ import (
 	"os"
 	"slices"
 
+	"github.com/baba983/vscroxy/internal/openapi"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
@@ -28,12 +29,14 @@ type apiDocument struct {
 	code       *editor.State
 	checked    string
 	parsed     *openapi3.T
+	lint       []openapi.Issue
 	name       string
 	problem    string
 	tab        int
 	endpoint   string
 	details    *editor.State
 	detailsFor string
+	sync       apiSyncState
 }
 
 func (d *apiDocument) title() string {
@@ -52,12 +55,12 @@ func (d *apiDocument) validate() bool {
 	} else {
 		d.code.Buffer.SetLanguage(editor.LanguageNamed("yaml"))
 	}
-	doc, err := parseOpenAPI(d.checked)
+	doc, lint, err := parseOpenAPIAt(d.spec.Path, d.checked)
 	if err != nil {
 		d.problem = err.Error()
 		return false
 	}
-	d.parsed = doc
+	d.parsed, d.lint = doc, lint
 	d.name = doc.Info.Title
 	return true
 }
@@ -169,6 +172,11 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			if uikit.SecondaryButton(c, locales.Validate()).Clicked() {
 				d.validate()
 			}
+			if d.spec.Collection != "" {
+				if uikit.SecondaryButton(c, locales.Sync()).Clicked() {
+					a.openAPISync(d)
+				}
+			}
 			if uikit.SecondaryButton(c, locales.Export()).Label(locales.ExportOpenapi()).Disabled(!valid).Clicked() {
 				a.exportOpenAPI(d)
 			}
@@ -188,6 +196,9 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 				state = "Unsaved draft"
 			}
 			status = fmt.Sprintf("%s  ·  OpenAPI %s  ·  Endpoints: %d", state, d.parsed.OpenAPI, len(apiOperations(d.parsed)))
+			if len(d.lint) > 0 {
+				status += fmt.Sprintf("  ·  Lint: %d", len(d.lint))
+			}
 		}
 		ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").TextColor(color).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 		if d.spec.Fingerprint != "" {
@@ -239,6 +250,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 				uikit.Hint(c, locales.OnlyStandaloneJsonYamlIs())
 			})
 		}
+		a.apiSyncModal(c, t, d)
 	})
 }
 
@@ -375,7 +387,7 @@ func (a *app) importOpenAPI() {
 			return
 		}
 		a.win.Update(func() {
-			a.addAPI(apiSpec{Source: string(data)}, false)
+			a.addAPI(apiSpec{Source: string(data), Path: paths[0]}, false)
 			a.page = pageAPI
 		})
 	}()

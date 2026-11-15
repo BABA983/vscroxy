@@ -622,3 +622,26 @@ func TestControlMocksStartServeAndStop(t *testing.T) {
 		t.Fatal("unconfirmed start accepted")
 	}
 }
+
+func TestControlOpenAPILintAndSync(t *testing.T) {
+	a := workspaceApp()
+	a.requests = []savedRequest{{Request: request.Request{ID: "one", Name: "List", Collection: "Shop", Method: "GET", URL: "http://api.test/items"}}}
+	source := `{"openapi":"3.0.3","info":{"title":"Shop","version":"1"},"paths":{` +
+		`"/items":{"get":{"responses":{"200":{"description":"ok","content":{"application/json":{"schema":{"type":"object"}}}}}}},` +
+		`"/orders":{"post":{"responses":{"201":{"description":"created"}}}}}}`
+	a.addAPI(apiSpec{Source: source, Collection: "Shop"}, true)
+	id := a.activeAPI().spec.ID
+	client := desktopClient(t, a)
+	lint := desktopCall(t, client, "openapi.lint", map[string]any{"id": id})
+	if !strings.Contains(string(lint), "operation-id-missing") {
+		t.Fatalf("lint = %s", lint)
+	}
+	dry := desktopCall(t, client, "openapi.sync", map[string]any{"id": id, "direction": "to-collection"})
+	if !strings.Contains(string(dry), `"added":1`) || len(a.requests) != 1 {
+		t.Fatalf("dry run = %s, requests = %d", dry, len(a.requests))
+	}
+	applied := desktopCall(t, client, "openapi.sync", map[string]any{"id": id, "direction": "to-collection", "write": true, "confirm": true})
+	if !strings.Contains(string(applied), `"written":true`) || len(a.requests) != 2 {
+		t.Fatalf("apply = %s, requests = %d", applied, len(a.requests))
+	}
+}
