@@ -205,25 +205,13 @@ func TestRequestCertificateVerification(t *testing.T) {
 				}
 				got := execute()
 				switch {
-				case verify && intercept:
-					// The proxy finishes the client handshake and answers 502
-					// with the certificate reason, so a browser sees the body.
-					if got.Err != nil || got.Response == nil || got.Response.Status != http.StatusBadGateway {
-						t.Fatalf("self-signed intercepted server = %+v, want 502", got)
-					}
-					reason := got.Response.ResponseBody
-					for _, f := range drainFlows(srv) {
-						reason += " " + f.Conn.Error
-					}
-					if !strings.Contains(strings.ToLower(reason), "unknown authority") {
-						t.Fatalf("verification failed for the wrong reason: %v", reason)
-					}
 				case verify:
 					if got.Err == nil || got.Response != nil {
 						t.Fatalf("self-signed server was accepted with verification on: %+v", got)
 					}
-					// A tunneled handshake fails in the client, before an HTTP
-					// response exists. The capture still records the reason.
+					// An intercepted handshake fails before an HTTP response
+					// exists, so the replay sees EOF. The capture still records
+					// the certificate error that caused it.
 					reason := got.Err.Error()
 					for _, f := range drainFlows(srv) {
 						reason += " " + f.Conn.Error
@@ -233,9 +221,8 @@ func TestRequestCertificateVerification(t *testing.T) {
 					}
 				case intercept:
 					// A request's verification-off setting does not weaken
-					// the decrypted proxy: it still verifies the upstream and
-					// returns the same 502.
-					if got.Err != nil || got.Response == nil || got.Response.Status != http.StatusBadGateway {
+					// the decrypted proxy: it still verifies the upstream.
+					if got.Err == nil {
 						t.Fatalf("verification off bypassed the proxy's default verification: %+v", got)
 					}
 					// The explicit per-domain exception accepts it.
@@ -289,10 +276,10 @@ func TestRequestCertificateVerificationAfterMapRemote(t *testing.T) {
 	verify := true
 	got := (Request{Method: "GET", URL: "https://localhost:1/x", Settings: Settings{VerifyTLS: &verify}}).
 		Execute(t.Context(), srv, Context{}, nil, nil)
-	if got.Err != nil || got.Response == nil || got.Response.Status != 502 {
-		t.Fatalf("Map Remote with a self-signed server = %+v, want a 502", got)
+	if got.Err == nil || !strings.Contains(strings.ToLower(got.Err.Error()), "certificate") {
+		t.Fatalf("Map Remote with a self-signed server = %+v, want a certificate error", got)
 	}
-	reason := ""
+	reason := got.Err.Error()
 	for _, f := range drainFlows(srv) {
 		reason += " " + f.Conn.Error
 	}
@@ -305,8 +292,8 @@ func TestRequestCertificateVerificationAfterMapRemote(t *testing.T) {
 	verify = false
 	got = (Request{Method: "GET", URL: "https://localhost:1/x", Settings: Settings{VerifyTLS: &verify}}).
 		Execute(t.Context(), srv, Context{}, nil, nil)
-	if got.Err != nil || got.Response == nil || got.Response.Status != 502 {
-		t.Fatalf("verification off after Map Remote = %+v, want a 502", got)
+	if got.Err == nil || !strings.Contains(strings.ToLower(got.Err.Error()), "certificate") {
+		t.Fatalf("verification off after Map Remote = %+v, want a certificate error", got)
 	}
 	// The explicit per-domain exception accepts the rewritten target.
 	srv.SetSSL(capture.SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})

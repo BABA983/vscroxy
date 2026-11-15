@@ -5,9 +5,33 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
+
+// A load session sees the proxy's synthetic gateway response as a transport
+// error, not as an origin's 502, so a failed certificate stays a network error.
+func TestReplaySessionTurnsProxyGenerated502IntoError(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "untrusted")
+	}))
+	defer upstream.Close()
+	srv, _ := startServer(t)
+	srv.SetSSL(SSLConfig{All: true})
+	session, err := srv.ReplaySession(t.Context(), Flow{DebugRun: "load"}, TransferPolicy{TLS: TLSVerify})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	req, err := http.NewRequestWithContext(t.Context(), "GET", upstream.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := session.RoundTrip(req); err == nil || !strings.Contains(strings.ToLower(err.Error()), "certificate") {
+		t.Fatalf("load session response error = %v, want the certificate failure", err)
+	}
+}
 
 // A load run's session keeps its socket link until the proxy sees the
 // connection close, exactly as ReplayWithPolicy does, so canceling the run

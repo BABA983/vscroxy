@@ -1793,6 +1793,24 @@ func (p TransferPolicy) validate() error {
 	return nil
 }
 
+// proxyResponseError turns a proxy-generated gateway response back into the
+// transport error an authored send expects. Without this, a failed upstream
+// certificate would look like the origin answered 502 and Checks and scripts
+// would run against it.
+func proxyResponseError(host string, resp *http.Response, body []byte) error {
+	reason := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(body)), "vscroxy:"))
+	if rest, ok := strings.CutPrefix(reason, "TLS upstream failed for "); ok {
+		if _, detail, found := strings.Cut(rest, ": "); found {
+			reason = detail
+		}
+		return fmt.Errorf("upstream certificate for %s: %s", host, reason)
+	}
+	if reason == "" {
+		reason = resp.Status
+	}
+	return fmt.Errorf("upstream request for %s failed: %s", host, reason)
+}
+
 // ReplayWithPolicy applies an authored transfer policy. cURL modes follow at
 // most 50 HTTP(S) hops unless Max says otherwise; -X keeps the method, not a
 // body dropped by 301/302/303. TLSVerify asks the proxy to verify an
@@ -1877,6 +1895,14 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 	resp, err := client.Do(req)
 	if err != nil {
 		return Flow{}, err
+	}
+	if resp.Header.Get(proxy.HeaderProxyError) != "" {
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+		resp.Body.Close()
+		if readErr != nil {
+			return Flow{}, readErr
+		}
+		return Flow{}, proxyResponseError(req.URL.Host, resp, body)
 	}
 	if policy.HTTPVersion == "2" && resp.ProtoMajor != 2 {
 		resp.Body.Close()
@@ -3001,6 +3027,10 @@ func (s *Server) takeID(f *proxy.Flow) int {
 func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status int, bodies ...*streamBodies) int {
 	if f.Request == nil {
 		return 0
+	}
+	if f.Response != nil && f.Response.Header != nil {
+		// The marker is for replay clients, not the published exchange.
+		f.Response.Header.Del(proxy.HeaderProxyError)
 	}
 	noCacheResponse(f)
 	if recordingSuppressed(f) {

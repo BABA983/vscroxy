@@ -20,6 +20,7 @@ import (
 	"github.com/baba983/vscroxy/internal/testcert"
 	upstreamcfg "github.com/baba983/vscroxy/internal/upstream"
 	"github.com/gorilla/websocket"
+	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
 
 // mtlsServer starts a TLS server that requires a client certificate signed by
@@ -124,10 +125,8 @@ func TestCapturedUpstreamCustomRootsVerify(t *testing.T) {
 
 	// Verify without the custom root fails: the server certificate is private.
 	flow := Flow{Method: "GET", URL: upstream.URL}
-	if got, err := s.ReplayWithPolicy(t.Context(), flow, nil, TransferPolicy{TLS: TLSVerify}); err != nil {
-		t.Fatalf("replay reported a transport error instead of a 502: %v", err)
-	} else if got.Status != http.StatusBadGateway || !strings.Contains(strings.ToLower(got.ResponseBody), "certificate") {
-		t.Fatalf("private upstream = %d %q, want a certificate 502", got.Status, got.ResponseBody)
+	if _, err := s.ReplayWithPolicy(t.Context(), flow, nil, TransferPolicy{TLS: TLSVerify}); err == nil || !strings.Contains(strings.ToLower(err.Error()), "certificate") {
+		t.Fatalf("a private upstream verified without its root: %v", err)
 	}
 
 	// Adding the root makes the same verified send succeed.
@@ -146,10 +145,8 @@ func TestCapturedUpstreamCustomRootsVerify(t *testing.T) {
 	// still fails without its root.
 	settings.RootCAs = nil
 	s.SetCertificates(settings)
-	if got, err := s.ReplayWithPolicy(t.Context(), flow, nil, TransferPolicy{TLS: TLSInsecure}); err != nil {
-		t.Fatalf("verification-off replay: %v", err)
-	} else if got.Status != http.StatusBadGateway || !strings.Contains(strings.ToLower(got.ResponseBody), "certificate") {
-		t.Fatalf("verification-off private upstream = %d %q, want a certificate 502", got.Status, got.ResponseBody)
+	if _, err := s.ReplayWithPolicy(t.Context(), flow, nil, TransferPolicy{TLS: TLSInsecure}); err == nil || !strings.Contains(strings.ToLower(err.Error()), "certificate") {
+		t.Fatalf("a request's verification-off setting bypassed the proxy's default verification: %v", err)
 	}
 
 	// The explicit per-domain exception accepts it, while still presenting
@@ -528,6 +525,9 @@ func TestPlainDecryptedConnectShowsUpstreamCertificateError(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(f.Conn.Log), "certificate") {
 		t.Fatalf("connection log = %q, want the certificate error", f.Conn.Log)
+	}
+	if f.ResponseHeader.Get(proxy.HeaderProxyError) != "" {
+		t.Fatal("the internal proxy-error header reached the published flow")
 	}
 
 	s.SetSSL(SSLConfig{All: true, AllowUntrusted: []string{"127.0.0.1"}})

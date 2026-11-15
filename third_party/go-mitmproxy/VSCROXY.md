@@ -491,6 +491,14 @@ client that pins the upstream certificate, or rejects our leaf, still fails the
 client handshake; that is expected. `TestPlainDecryptedConnectShowsUpstreamCertificateError`
 covers the 502 and the allow-list success.
 
+`writeGatewayStatus` marks every gateway response with the internal
+`HeaderProxyError` header. `ReplayWithPolicy` and `ReplaySession.RoundTrip`
+read that marker and turn the response back into an error carrying the body's
+reason, so an authored send stays a network error instead of looking like an
+origin's 502. `publishFlow` removes the marker before publishing the capture.
+`TestReplaySessionTurnsProxyGenerated502IntoError` covers the load-session
+transport.
+
 `internal/capture.ReplayWithPolicy` sends the header for an authored request
 whose TLS setting verifies the certificate, and sets `InsecureSkipVerify` on the
 replay client for the tunneled leg when verification is off. A reverse proxy

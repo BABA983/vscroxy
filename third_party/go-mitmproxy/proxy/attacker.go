@@ -425,6 +425,7 @@ func writeGatewayStatus(res http.ResponseWriter, f *Flow, status int, err error)
 		}
 	}
 	res.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	res.Header().Set(HeaderProxyError, "1")
 	res.WriteHeader(status)
 	fmt.Fprintf(res, "vscroxy: %v\n", err)
 }

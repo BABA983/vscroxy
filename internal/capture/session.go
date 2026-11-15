@@ -3,6 +3,7 @@ package capture
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -59,7 +60,19 @@ func (rs *ReplaySession) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return transport.RoundTrip(req)
+	resp, err := transport.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Header.Get(proxy.HeaderProxyError) != "" {
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+		resp.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		return nil, proxyResponseError(req.URL.Host, resp, body)
+	}
+	return resp, nil
 }
 
 // transport returns the connection to one origin, dialing it on first use.

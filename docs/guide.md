@@ -1450,7 +1450,10 @@ CONNECT host or SNI, then answers the request with 502. That 502 names the host
 and the TLS error in its body and points to **Settings → HTTPS → Allow untrusted
 upstream certificates**. A client that pins the upstream certificate, or rejects
 the proxy's certificate, still sees a handshake failure; either way the
-connection detail names the TLS error.
+connection detail names the TLS error. Authored sends from the editor, Runner
+and `vscroxy-cli run` turn that proxy-generated 502 back into a network error
+carrying the certificate reason, so Checks and scripts do not run against a
+synthetic response.
 For a local development server with a self-signed certificate, list its host
 under **Settings → HTTPS → Allow untrusted upstream certificates** (one host
 per line; `*` and `?` wildcards work, and a host without a port matches every

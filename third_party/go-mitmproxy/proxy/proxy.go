@@ -61,6 +61,11 @@ type Options struct {
 // inspection proxy stricter, never weaker; the header is not forwarded.
 const HeaderVerifyUpstream = "X-Vscroxy-Verify-TLS"
 
+// HeaderProxyError marks a response the proxy generated because an exchange
+// failed before an origin answered. Replay clients turn it back into a
+// transport error; capture removes it before publishing the flow.
+const HeaderProxyError = "X-Vscroxy-Proxy-Error"
+
 // UpstreamProxy is one place a request can go, in preference order. A nil URL
 // is a direct connection. Reason is a user-facing explanation that is recorded
 // in the connection log and never contains credentials.

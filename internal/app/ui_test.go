@@ -6398,7 +6398,7 @@ func TestSendResultsSeparateFailuresAndLinkTheExactAttempt(t *testing.T) {
 			if tc.name == "http" && tt.HasText("Network error") || tc.name == "network" && tt.HasText("HTTP error response") {
 				t.Fatalf("network and upstream HTTP502 mixed: %q", tt.Texts())
 			}
-			if tc.name == "network" && !tt.HasText("502 · proxy response") || tc.name == "http" && !tt.HasText("502 Bad Gateway") {
+			if tc.name == "network" && tt.HasText("502 · proxy response") || tc.name == "http" && !tt.HasText("502 Bad Gateway") {
 				t.Fatalf("response origin is ambiguous: %q", tt.Texts())
 			}
 			if err := tt.Click("Open request History"); err != nil {
