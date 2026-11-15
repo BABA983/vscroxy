@@ -3,10 +3,8 @@ package app
 import (
 	"cmp"
 	"encoding/json/v2"
-	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -89,7 +87,7 @@ type experimentDraft struct {
 }
 
 type experimentLog struct {
-	Version int
+	Version int `json:"version"`
 	// NextID is the highest assigned ID; zero starts a new log.
 	NextID int
 	// Baseline is a record ID, not an index in Records (newest first).
@@ -309,17 +307,16 @@ func loadExperiments(path string, limits experimentLimits) (experimentLog, error
 	if path == "" {
 		return empty, nil
 	}
-	f, err := os.Open(path)
-	if errors.Is(err, fs.ErrNotExist) {
+	if info, err := os.Stat(path); err == nil && info.Size() > limits.Bytes {
+		return empty, fmt.Errorf("experiment log exceeds %d bytes", limits.Bytes)
+	}
+	f := &store.File{Path: path, Format: store.Experiments, BackupDir: store.BackupDirFor(path)}
+	data, err := f.Read()
+	if err != nil {
+		return empty, err
+	}
+	if data == nil {
 		return empty, nil
-	}
-	if err != nil {
-		return empty, err
-	}
-	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, limits.Bytes+1))
-	if err != nil {
-		return empty, err
 	}
 	if int64(len(data)) > limits.Bytes {
 		return empty, fmt.Errorf("experiment log exceeds %d bytes", limits.Bytes)
@@ -339,7 +336,11 @@ func saveExperiments(path string, log experimentLog, limits experimentLimits) er
 	if err != nil {
 		return err
 	}
-	return store.WriteFile(path, data)
+	f := &store.File{Path: path, Format: store.Experiments, BackupDir: store.BackupDirFor(path)}
+	if _, err := f.Read(); err != nil {
+		return err
+	}
+	return f.Write(data)
 }
 
 func encodeExperiments(log experimentLog, limits experimentLimits) ([]byte, error) {
@@ -417,7 +418,9 @@ func (a *app) experimentLimits() experimentLimits {
 	size := int64(cmp.Or(a.historySizeMB, defaultExperimentSizeMB)) << 20
 	limits := experimentLimits{Records: cmp.Or(a.historyLimit, defaultExperimentRecords), Bytes: size, SpillBytes: size}
 	if a.experiments.path != "" {
-		limits.SpillDir = filepath.Join(filepath.Dir(a.experiments.path), "experiments-spill")
+		// The directory name carries the history format version, so a newer
+		// app never reads bodies written for another format.
+		limits.SpillDir = filepath.Join(filepath.Dir(a.experiments.path), fmt.Sprintf("experiments-spill-v%d", experimentVersion))
 	}
 	return limits.normalized()
 }

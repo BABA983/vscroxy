@@ -318,6 +318,15 @@ func WriteFileVersioned(path string, f Formatter, data []byte, backupDir string)
 // backupsKept is how many copies of one file Backup keeps.
 const backupsKept = 10
 
+// BackupDirFor is the backup directory beside a file's own directory:
+// <dir>/backups. Files under ~/.vscroxy therefore share ~/.vscroxy/backups.
+func BackupDirFor(path string) string {
+	if path == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(path), "backups")
+}
+
 // Backup copies path into dir under a name that sorts by time, then removes
 // the oldest copies so each file keeps backupsKept. A missing file is nothing
 // to back up. The copy is private (0600), like the files it keeps.

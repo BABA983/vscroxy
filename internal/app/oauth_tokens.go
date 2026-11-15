@@ -2,9 +2,6 @@ package app
 
 import (
 	"encoding/json/v2"
-	"errors"
-	"io/fs"
-	"os"
 	"sync"
 
 	"github.com/baba983/vscroxy/internal/request"
@@ -40,14 +37,15 @@ func (a *app) ensureOAuthTokens() error {
 		s.problem = err.Error()
 		return err
 	}
-	data, err := os.ReadFile(s.path)
-	if errors.Is(err, fs.ErrNotExist) {
-		s.loaded, s.problem = true, ""
-		return nil
-	}
+	f := &store.File{Path: s.path, Format: store.OAuthTokens, BackupDir: store.BackupDirFor(s.path)}
+	data, err := f.Read()
 	if err != nil {
 		s.problem = err.Error()
 		return err
+	}
+	if data == nil {
+		s.loaded, s.problem = true, ""
+		return nil
 	}
 	plain, err := vault.OpenData(a.vault.key, data)
 	if err == nil {
@@ -79,7 +77,10 @@ func (a *app) saveOAuthTokens(list []request.Token) {
 	if err == nil {
 		var sealed []byte
 		if sealed, err = vault.SealData(a.vault.key, plain); err == nil {
-			err = store.WriteFile(s.path, sealed)
+			f := &store.File{Path: s.path, Format: store.OAuthTokens, BackupDir: store.BackupDirFor(s.path)}
+			if _, err = f.Read(); err == nil {
+				err = f.Write(sealed)
+			}
 		}
 	}
 	if err != nil {

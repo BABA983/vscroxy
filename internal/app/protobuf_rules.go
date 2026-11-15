@@ -2,9 +2,7 @@ package app
 
 import (
 	"encoding/json/v2"
-	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -23,7 +21,8 @@ type protoTypeRule struct {
 }
 
 type protoTypeFile struct {
-	Rules []protoTypeRule `json:"rules"`
+	Version int             `json:"version,omitempty"`
+	Rules   []protoTypeRule `json:"rules"`
 }
 
 var protoTypeName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]*$`)
@@ -49,12 +48,13 @@ func (a *app) loadProtoTypeRules() {
 	if a.protoTypesPath == "" {
 		return
 	}
-	data, err := os.ReadFile(a.protoTypesPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return
-	}
+	f := &store.File{Path: a.protoTypesPath, Format: store.ProtobufTypes, BackupDir: store.BackupDirFor(a.protoTypesPath)}
+	data, err := f.Read()
 	if err != nil {
 		a.protoTypesProblem = err.Error()
+		return
+	}
+	if data == nil {
 		return
 	}
 	var file protoTypeFile
@@ -79,9 +79,12 @@ func (a *app) saveProtoTypeRules(rules []protoTypeRule) bool {
 		a.protoTypesProblem = "Protobuf message rules location is unavailable"
 		return false
 	}
-	data, err := json.Marshal(protoTypeFile{Rules: rules})
+	data, err := json.Marshal(protoTypeFile{Version: store.Version, Rules: rules})
 	if err == nil {
-		err = store.WriteFile(a.protoTypesPath, append(data, '\n'))
+		f := &store.File{Path: a.protoTypesPath, Format: store.ProtobufTypes, BackupDir: store.BackupDirFor(a.protoTypesPath)}
+		if _, err = f.Read(); err == nil {
+			err = f.Write(append(data, '\n'))
+		}
 	}
 	if err != nil {
 		a.protoTypesProblem = err.Error()

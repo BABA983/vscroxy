@@ -64,12 +64,13 @@ func loadMCPConsents(path string) (map[string]mcpConsentApproval, error) {
 	if path == "" {
 		return map[string]mcpConsentApproval{}, nil
 	}
-	data, err := os.ReadFile(path)
+	f := &store.File{Path: path, Format: store.MCPConsents, BackupDir: store.BackupDirFor(path)}
+	data, err := f.Read()
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return map[string]mcpConsentApproval{}, nil
-		}
 		return map[string]mcpConsentApproval{}, err
+	}
+	if data == nil {
+		return map[string]mcpConsentApproval{}, nil
 	}
 	var file mcpConsentFile
 	if err := json.Unmarshal(data, &file); err != nil || file.Format != mcpConsentFormat || file.Version != mcpConsentVersion {
@@ -101,7 +102,11 @@ func saveMCPConsents(path string, consents map[string]mcpConsentApproval) error 
 	if err != nil {
 		return err
 	}
-	return store.WriteFile(path, data)
+	f := &store.File{Path: path, Format: store.MCPConsents, BackupDir: store.BackupDirFor(path)}
+	if _, err := f.Read(); err != nil {
+		return err
+	}
+	return f.Write(data)
 }
 
 // pruneMCPConsents keeps the most recently used approvals. The cap applies

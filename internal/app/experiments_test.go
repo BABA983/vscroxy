@@ -190,7 +190,7 @@ func TestExperimentsStorage(t *testing.T) {
 	r.At, r.Note = time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC), "important baseline"
 	want := experimentLog{Version: 1, NextID: 9, Baseline: 9, Records: []experimentRecord{r}, Active: 1,
 		Drafts: []experimentDraft{{Value: draft, Baseline: savedRequest{Body: "saved original"}, SavedKey: "collection/name"}, {Value: savedRequest{URL: "https://another.test"}}}}
-	if err := os.WriteFile(path, []byte("old public file"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(`{"version":1,"Records":[]}`), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if err := saveExperiments(path, want, experimentLimits{}); err != nil {
@@ -229,7 +229,7 @@ func TestExperimentsRejectInvalidInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i, data := range []string{"", "{", "null", "{}", `{"Version":2}`, `{"Version":1} trailing`, `{"Version":1,"Version":1}`, string(tooMany), strings.Repeat(" ", (32<<20)+1)} {
+	for i, data := range []string{"", "{", "null", `{"version":1,"Records":"not a list"}`, `{"version":2}`, `{"version":1} trailing`, `{"version":1,"version":1}`, string(tooMany), strings.Repeat(" ", (32<<20)+1)} {
 		path := filepath.Join(t.TempDir(), "invalid.json")
 		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
 			t.Fatal(err)

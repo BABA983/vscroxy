@@ -38,12 +38,13 @@ func (s SecretStore) Load() (map[string]string, error) {
 	if s.Path == "" {
 		return nil, nil
 	}
-	data, err := os.ReadFile(s.Path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
+	f := &store.File{Path: s.Path, Format: store.UpstreamSecrets, BackupDir: store.BackupDirFor(s.Path)}
+	data, err := f.Read()
 	if err != nil {
 		return nil, fmt.Errorf("read upstream proxy passwords %s: %w", filepath.Clean(s.Path), err)
+	}
+	if data == nil {
+		return nil, nil
 	}
 	key, err := os.ReadFile(s.KeyPath)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -111,7 +112,11 @@ func (s SecretStore) Save(secrets map[string]string) error {
 	if err != nil {
 		return fmt.Errorf("seal upstream proxy passwords: %w", err)
 	}
-	if err := store.WriteFile(s.Path, data); err != nil {
+	f := &store.File{Path: s.Path, Format: store.UpstreamSecrets, BackupDir: store.BackupDirFor(s.Path)}
+	if _, err := f.Read(); err != nil {
+		return fmt.Errorf("refusing to replace upstream proxy passwords: %w", err)
+	}
+	if err := f.Write(data); err != nil {
 		return fmt.Errorf("write upstream proxy passwords %s: %w", filepath.Clean(s.Path), err)
 	}
 	return nil

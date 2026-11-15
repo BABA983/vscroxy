@@ -12,8 +12,9 @@ import (
 // shares it, so a save knows what the app last read there and refuses to
 // replace a change made on disk since. Used on the UI thread only.
 //
-// settings.json, sessions and the experiment log are not guarded: the app
-// saves them as it goes, so they are its own, written with store.WriteFile.
+// settings.json and sessions are not guarded: the app saves them as it goes,
+// so they are its own; settings are written with store.WriteFileVersioned and
+// sessions carry their version in the file itself.
 func (a *app) file(path string) *store.File {
 	if a.files == nil {
 		a.files = map[string]*store.File{}
@@ -37,6 +38,8 @@ func formatFor(path string) store.Formatter {
 		return store.Rules
 	case "ssl.json":
 		return store.SSL
+	case "vault.json":
+		return store.Vault
 	case "env.json":
 		return store.Env
 	case "environments.json":

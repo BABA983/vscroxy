@@ -9,35 +9,46 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/baba983/vscroxy/internal/vault"
 )
 
 // testFormats pairs every format with the version 1 test data that goes with
 // it. A new format adds its file here.
 func testFormats(t *testing.T) map[string]struct {
-	format Formatter
-	file   string
-	member string
+	format  Formatter
+	file    string
+	member  string
+	version int
 } {
 	t.Helper()
 	return map[string]struct {
-		format Formatter
-		file   string
-		member string
+		format  Formatter
+		file    string
+		member  string
+		version int
 	}{
-		"settings":           {Settings, "settings.json", ""},
-		"rules":              {Rules, "rules.json", "rules"},
-		"ssl":                {SSL, "ssl.json", ""},
-		"env":                {Env, "env.json", ""},
-		"project env":        {ProjectEnv, "environments.json", ""},
-		"views":              {Views, "views.json", "filters"},
-		"apis":               {APIs, "apis.json", "apis"},
-		"breakpoints":        {Breakpoints, "breakpoint-templates.json", "templates"},
-		"network presets":    {NetworkPresets, "network-presets.json", ""},
-		"host profiles":      {HostsProfiles, "profiles.json", ""},
-		"cookies":            {Cookies, "cookies.json", ""},
-		"android proxy":      {AndroidProxy, "android-proxy.json", "records"},
-		"collection request": {Collection, "collection.request.json", ""},
-		"folder":             {Collection, "folder.json", ""},
+		"settings":            {Settings, "settings.json", "", 0},
+		"rules":               {Rules, "rules.json", "rules", 0},
+		"ssl":                 {SSL, "ssl.json", "", 0},
+		"env":                 {Env, "env.json", "", 0},
+		"project env":         {ProjectEnv, "environments.json", "", 0},
+		"views":               {Views, "views.json", "filters", 0},
+		"apis":                {APIs, "apis.json", "apis", 0},
+		"breakpoints":         {Breakpoints, "breakpoint-templates.json", "templates", 0},
+		"network presets":     {NetworkPresets, "network-presets.json", "", 0},
+		"host profiles":       {HostsProfiles, "profiles.json", "", 0},
+		"cookies":             {Cookies, "cookies.json", "", 0},
+		"android proxy":       {AndroidProxy, "android-proxy.json", "records", 0},
+		"collection request":  {Collection, "collection.request.json", "", 0},
+		"folder":              {Collection, "folder.json", "", 0},
+		"vault":               {Vault, "vault.json", "", 1},
+		"certificate secrets": {CertificateSecrets, "certificates-secrets.json", "", 1},
+		"upstream secrets":    {UpstreamSecrets, "upstream-secrets.json", "", 1},
+		"oauth tokens":        {OAuthTokens, "oauth-tokens.json", "", 1},
+		"experiments":         {Experiments, "experiments.json", "", 1},
+		"protobuf types":      {ProtobufTypes, "protobuf-types.json", "", 1},
+		"MCP consents":        {MCPConsents, "mcp-consents.json", "approvals", 2},
 	}
 }
 
@@ -56,8 +67,12 @@ func TestUnversionedTestDataReadsAsVersionOne(t *testing.T) {
 			if err := json.Unmarshal(got, &doc); err != nil {
 				t.Fatalf("upgraded file is not a JSON object: %v\n%s", err, got)
 			}
-			if fmt.Sprint(doc["version"]) != "1" {
-				t.Fatalf("version = %v, want 1", doc["version"])
+			want := tc.version
+			if want == 0 {
+				want = 1
+			}
+			if fmt.Sprint(doc["version"]) != fmt.Sprint(want) {
+				t.Fatalf("version = %v, want %d", doc["version"], want)
 			}
 			if tc.member != "" {
 				if _, ok := doc[tc.member]; !ok {
@@ -77,7 +92,8 @@ func TestEveryFormatRefusesANewerFile(t *testing.T) {
 	for name, tc := range testFormats(t) {
 		t.Run(name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "file.json")
-			newer := []byte(`{"version":2,"from":"the future"}`)
+			current := currentVersion(tc.format)
+			newer := []byte(fmt.Sprintf(`{"version":%d,"from":"the future"}`, current+1))
 			if err := os.WriteFile(path, newer, 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -88,7 +104,7 @@ func TestEveryFormatRefusesANewerFile(t *testing.T) {
 			if got, _ := os.ReadFile(path); !bytes.Equal(got, newer) {
 				t.Fatalf("a newer file was changed: %s", got)
 			}
-			if err := f.Write([]byte(`{"version":1}`)); !errors.Is(err, ErrNewer) {
+			if err := f.Write([]byte(fmt.Sprintf(`{"version":%d}`, current))); !errors.Is(err, ErrNewer) {
 				t.Fatalf("write = %v, want ErrNewer", err)
 			}
 			if got, _ := os.ReadFile(path); !bytes.Equal(got, newer) {
@@ -268,5 +284,75 @@ func TestStampVersionKeepsFormatting(t *testing.T) {
 		if got := string(stampVersion([]byte(tc.in), 1)); got != tc.want {
 			t.Errorf("stampVersion(%q) = %q, want %q", tc.in, got, tc.want)
 		}
+	}
+}
+
+func currentVersion(f Formatter) int {
+	switch v := f.(type) {
+	case *Format:
+		if v.Current != 0 {
+			return v.Current
+		}
+	case *ListFormat:
+		if v.Current != 0 {
+			return v.Current
+		}
+	}
+	return Version
+}
+
+// A backup of a sealed file is a private, opaque copy: it stays 0600 and
+// never contains the plaintext the vault encrypted. Every sealed file uses the
+// same outer, unencrypted format object.
+func TestSealedBackupStaysPrivateAndOpaque(t *testing.T) {
+	for name, format := range map[string]Formatter{
+		"vault":               Vault,
+		"certificate secrets": CertificateSecrets,
+		"upstream secrets":    UpstreamSecrets,
+		"oauth tokens":        OAuthTokens,
+	} {
+		t.Run(name, func(t *testing.T) {
+			key := vault.NewKey()
+			plain := []byte(`[{"name":"token","value":"plaintext-marker"}]`)
+			sealed, err := vault.SealData(key, plain)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := t.TempDir()
+			path := filepath.Join(dir, "secrets.json")
+			f := &File{Path: path, Format: format, BackupDir: filepath.Join(dir, "backups")}
+			if _, err := f.Read(); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.Write(sealed); err != nil {
+				t.Fatal(err)
+			}
+			second, err := vault.SealData(key, plain)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.Write(second); err != nil {
+				t.Fatal(err)
+			}
+			entries, err := os.ReadDir(filepath.Join(dir, "backups"))
+			if err != nil || len(entries) == 0 {
+				t.Fatalf("backups = %v, %v", entries, err)
+			}
+			backup := filepath.Join(dir, "backups", entries[0].Name())
+			data, err := os.ReadFile(backup)
+			if err != nil {
+				t.Fatal(err)
+			}
+			info, err := os.Stat(backup)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode().Perm() != 0o600 {
+				t.Fatalf("backup mode = %o, want 600", info.Mode().Perm())
+			}
+			if bytes.Contains(data, []byte("plaintext-marker")) {
+				t.Fatal("the backup contains plaintext")
+			}
+		})
 	}
 }
