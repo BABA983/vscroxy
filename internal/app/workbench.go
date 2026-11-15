@@ -554,7 +554,7 @@ func (a *app) actions(c *ui.Context) []action {
 		do("capture.saved-filters", locales.ManageSavedFilters(), func() { a.views.openSaved(a) }).when(capturing, ""),
 		do("capture.new-view", locales.NewCaptureView(), func() { a.views.capture(a); a.views.newView(a) }).when(capturing, ""),
 		do("capture.reset-filters", locales.ResetAllCaptureConditions(), func() { a.views.resetFilters(a) }).when(capturing, ""),
-		do("capture.break", fmt.Sprintf("Break requests · %t", a.breakOn), func() {
+		do("capture.break", a.breakActionLabel(), func() {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
 		}).when(a.srv != nil, ""),
@@ -660,6 +660,15 @@ func (a *app) actions(c *ui.Context) []action {
 	actions = append(actions, a.mqttActions(d, editing)...)
 	actions = append(actions, a.mcpActions(d, editing)...)
 	return actions
+}
+
+// breakActionLabel names what pressing the break command will do, not the
+// current state: the palette and menus read as actions.
+func (a *app) breakActionLabel() string {
+	if a.breakOn {
+		return locales.StopPausingRequests()
+	}
+	return locales.PauseOnMatchingRequests()
 }
 
 func (a *app) focusTraffic(c *ui.Context) {
@@ -803,15 +812,37 @@ func (a *app) commandPalette(c *ui.Context) {
 					uikit.Meta(c, locales.MoreResults(assets.more)).SingleLine()
 				})
 			}
+			context := ""
+			if w.command >= 0 && w.command < len(matches) {
+				item := matches[w.command]
+				switch {
+				case !item.enabled:
+					context = item.why
+				case !item.action:
+					context = item.detail
+				case a.page.capture():
+					if a.chosen.Len() > 1 {
+						context = fmt.Sprintf("Capture · %d selected requests", a.chosen.Len())
+					} else if f, ok := a.current(); ok {
+						context = fmt.Sprintf("Capture #%d · %s %s", f.id, f.method, f.path)
+					}
+				case !a.page.capture() && a.requestDocument != nil:
+					context = "Draft · " + a.title()
+				}
+			}
 			ui.Divider(c)
 			enter := "Enter"
 			if runtime.GOOS == "darwin" {
 				enter = "↩"
 			}
 			ui.Row(c).Height(40).Padding(0, t.Space(4)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				if context != "" {
+					uikit.Meta(c, context).SingleLine().MinWidth(0).Shrink(1)
+				}
+				ui.Spacer(c)
 				uikit.Kbd(c, "↑")
 				uikit.Kbd(c, "↓")
-				uikit.Small(c, locales.Choose())
+				uikit.Small(c, locales.ChooseCommand())
 				uikit.Kbd(c, enter)
 				uikit.Small(c, locales.Open())
 				uikit.Kbd(c, "esc")

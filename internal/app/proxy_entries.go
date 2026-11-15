@@ -152,22 +152,29 @@ func (a *app) saveSOCKS() {
 
 func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
 	uikit.SettingsCard(c, locales.Socks5(), func() {
-		settingsCardBlock(c, locales.Enable(), func() ui.Element {
-			return ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+		ui.Row(c).FillWidth().MinHeight(uikit.SettingsRowHeight).Padding(t.Space(1), t.Space(4)).
+			Gap(t.Space(4)).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).
+			Children(func() {
+				left := ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1))
+				left.Children(func() {
+					uikit.Body(c, locales.Enable())
+					uikit.Small(c, locales.ASecondEntryForClients()).TextColor(t.TextMuted)
+					err := a.srvError()
+					switch {
+					case a.srv != nil && a.srv.SOCKSAddr() != "":
+						uikit.Mono(c, a.srv.SOCKSAddr()).Selectable().TextColor(t.TextMuted)
+					case err != nil:
+						uikit.Hint(c, err.Error()).TextColor(t.Danger)
+					case a.socksDraft() != a.socksEntry():
+						uikit.Hint(c, locales.NotSaved())
+					case a.socksEntry() != a.launchSOCKS:
+						uikit.Hint(c, locales.RestartToApply())
+					default:
+						uikit.Hint(c, locales.Off())
+					}
+				})
 				uikit.SettingsSwitch(c, &a.socksOnDraft, locales.EnableSocks5Proxy())
-				if a.srv != nil && a.srv.SOCKSAddr() != "" {
-					uikit.Mono(c, a.srv.SOCKSAddr()).Selectable().TextColor(t.TextMuted)
-				} else if err := a.srvError(); err != nil {
-					uikit.Hint(c, err.Error()).TextColor(t.Danger)
-				} else if a.socksDraft() != a.socksEntry() {
-					uikit.Hint(c, locales.NotSaved())
-				} else if a.socksEntry() != a.launchSOCKS {
-					uikit.Hint(c, locales.RestartToApply())
-				} else {
-					uikit.Hint(c, locales.Off())
-				}
 			})
-		}, locales.ASecondEntryForClients())
 		if a.socksOnDraft {
 			settingsCardBlock(c, locales.Port(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(1)).Children(func() {

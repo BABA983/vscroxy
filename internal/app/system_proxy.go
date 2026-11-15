@@ -444,14 +444,32 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 	}
 	running := a.srv != nil && a.srv.Running()
 	busy := s.checking || s.applying || s.quitting
-	status, _ := a.systemProxyStatus(t)
+	status, statusColor := a.systemProxyStatus(t)
 	detail, detailTip := a.systemProxyDetail(target)
 	uikit.SettingsCard(c, locales.SystemProxy(), func() {
-		// One row: the name, the switch that changes the OS, what the OS
-		// says, and the check. The scope and the sentence read beneath it,
-		// so the panel does not stack two labels on top of each other.
-		settingsCardBlock(c, locales.UseSystemProxy(), func() ui.Element {
-			return ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+		// The switch stays at the row's trailing edge like every other
+		// card row. The status and its check share the second line; the
+		// OS's own summary follows as the quiet third line.
+		ui.Row(c).FillWidth().MinHeight(uikit.SettingsRowHeight).Padding(t.Space(1), t.Space(4)).
+			Gap(t.Space(4)).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).
+			Children(func() {
+				left := ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1))
+				left.Children(func() {
+					uikit.Body(c, locales.UseSystemProxy())
+					ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+						uikit.Small(c, status).TextColor(statusColor)
+						if busy {
+							ui.Spinner(c).Label(locales.SystemProxy())
+						}
+						if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(busy).Clicked() {
+							a.checkSystemProxy(true)
+						}
+					})
+					detailLine := uikit.Small(c, systemProxyHint(detail, running)).TextColor(t.TextMuted)
+					if detailTip != "" {
+						uikit.Tip(c, detailLine, systemProxyHint(detailTip, running))
+					}
+				})
 				// One switch, not a pair of buttons that has to be read
 				// to tell which way is left: the switch shows what the OS
 				// holds, and turning it over is the change.
@@ -463,15 +481,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 				if toggle.Changed() {
 					a.setSystemProxy(on)
 				}
-				ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.TextMuted)
-				if busy {
-					ui.Spinner(c).Label(locales.SystemProxy())
-				}
-				if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(busy).Clicked() {
-					a.checkSystemProxy(true)
-				}
 			})
-		}, systemProxyHint(detail, running), systemProxyHint(detailTip, running))
 		settingsCardBlock(c, locales.BypassList(), func() ui.Element {
 			return ui.Column(c).Gap(t.Space(2)).Children(func() {
 				ui.Checkbox(c, &a.systemProxyBypassSet, "Replace the system bypass list")

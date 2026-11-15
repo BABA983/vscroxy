@@ -5345,6 +5345,42 @@ func TestCommandPaletteKeyboardAndDisabledActions(t *testing.T) {
 	}
 }
 
+func TestCommandPaletteBreakActionAndCaptureContext(t *testing.T) {
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	a := workspaceApp()
+	a.srv = srv
+	a.picked, a.pickedID = 0, a.flows[0].id
+	a.restoreSelection()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("Pause")
+	a.workbench.command = 0
+	tt.Frame()
+	if !tt.HasText(locales.PauseOnMatchingRequests()) || tt.HasText("Break requests") {
+		t.Fatalf("the palette did not name the break action: %q", tt.Texts())
+	}
+	if !tt.HasText("Capture #") || !tt.HasText("GET /projects") {
+		t.Fatalf("the palette footer lost its capture context: %q", tt.Texts())
+	}
+	if !tt.HasText("Choose") || tt.HasText("Choose…") {
+		t.Fatalf("the palette footer still reads like a menu item: %q", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEscape)
+	a.breakOn = true
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("Stop")
+	if !tt.HasText(locales.StopPausingRequests()) {
+		t.Fatalf("the palette did not name the next break action: %q", tt.Texts())
+	}
+}
+
 func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *testing.T) {
 	var sends atomic.Int32
 	started, release := make(chan string, 2), make(chan struct{})

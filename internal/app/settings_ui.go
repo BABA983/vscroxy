@@ -226,16 +226,18 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 			if a.allowOn && empty {
 				problem = "Nothing is shown until you add a host or an app."
 			}
-			settingsCardBlock(c, locales.AllowList(), func() ui.Element {
-				return ui.Column(c).Gap(t.Space(1)).Children(func() {
-					if uikit.SettingsSwitch(c, &a.allowOn, locales.OnlyShowAllowedTraffic()).Changed() {
-						a.applyAllow()
-					}
-					if problem != "" {
-						ui.Text(c, problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
-					}
-				})
+			settingsCardRow(c, locales.AllowList(), func() ui.Element {
+				toggle := uikit.SettingsSwitch(c, &a.allowOn, locales.OnlyShowAllowedTraffic())
+				if toggle.Changed() {
+					a.applyAllow()
+				}
+				return toggle
 			}, locales.ShowOnlyTheHostsAnd())
+			if problem != "" {
+				settingsCardBlock(c, "", func() ui.Element {
+					return uikit.Hint(c, problem).TextColor(t.Danger)
+				}, "")
+			}
 			list("Allowed hosts", a.allowText, "host", "Each host with its subdomains.", &a.allowOpen)
 			list("Allowed apps", a.allowAppsText, "app", "As the sidebar's Apps names them.", &a.allowAppsOpen)
 		})
