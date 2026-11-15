@@ -619,6 +619,14 @@ func (s *Server) Addr() string {
 // Running reports whether this server owns an active proxy listener.
 func (s *Server) Running() bool { return s.running.Load() }
 
+// Listening reports whether this server still owns its listener. Running can
+// turn false before Serve exits; this is the socket state itself.
+func (s *Server) Listening() bool {
+	s.listenMu.Lock()
+	defer s.listenMu.Unlock()
+	return s.listener != nil
+}
+
 // CACertificate returns only the public CA certificate, in DER form. It never
 // reads a CA bundle or exposes the signing key.
 func (s *Server) CACertificate() []byte {

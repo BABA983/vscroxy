@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -24,13 +23,10 @@ import (
 
 func requestProxy(t *testing.T) *capture.Server {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	addr := ln.Addr().String()
-	ln.Close()
-	srv, err := capture.New(addr, t.TempDir())
+	// Port zero lets Start bind an ephemeral port. Reserving a port, closing
+	// it and asking the server to bind the same number leaves a window for
+	// another process to take it.
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
