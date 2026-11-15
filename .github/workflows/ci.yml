@@ -87,6 +87,9 @@ jobs:
       - name: Test Windows executable icons
         if: runner.os == 'Windows'
         run: go test ./internal/appicon
+      - name: Test named pipes
+        if: runner.os == 'Windows'
+        run: go test ./internal/request -run 'NamedPipe'
       - name: Test every package
         if: runner.os == 'macOS'
         run: go test ./...
