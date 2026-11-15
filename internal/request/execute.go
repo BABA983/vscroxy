@@ -274,9 +274,13 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			return out
 		}
 		start := time.Now()
-		out.WebSocket, out.Replies, out.Err = graphqlSubscribe(ctx, srv.Addr(), req, r.GraphQL, effective, r.GraphQL.Wait(), srv.CACertificate(), in.Certificates, jar)
+		var truncated bool
+		out.WebSocket, out.Replies, truncated, out.Err = graphqlSubscribe(ctx, srv.Addr(), req, r.GraphQL, effective, r.GraphQL.Wait(), srv.CACertificate(), in.Certificates, jar)
 		if out.Err == nil {
 			flow := sessionFlow(req, repliesJSON(out.Replies), len(out.WebSocket), len(out.Replies), int(time.Since(start).Milliseconds()))
+			if truncated {
+				flow.ResponseHeader.Set("X-Vscroxy-Truncated", "true")
+			}
 			out.Response = &flow
 			run.tests = append(run.tests, r.Checks.Evaluate(flow)...)
 			run.target = func() string { return req.URL }

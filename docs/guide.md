@@ -2555,7 +2555,10 @@ A document whose selected operation is a **subscription** also offers
 The two WebSocket transports perform the protocol's connection handshake,
 send the subscription with the expanded query, variables and operation name,
 and collect `next`/`data` payloads until the server completes it or the wait
-ends. The result appears as a 101 session whose body is the payload array, so
+ends. Replies stop at the WebSocket client's limits (200 messages or 1 MiB);
+the result then carries `X-Vscroxy-Truncated: true`. Legacy `ka` keep-alives
+are ignored, while only `graphql-transport-ws` pings are answered with
+`pong`. The result appears as a 101 session whose body is the payload array, so
 Checks and post-response scripts can inspect it like a WebSocket exchange.
 Postman has no subscription transport field, so an exported request keeps its
 document but falls back to HTTP POST when imported.
