@@ -4,6 +4,55 @@ A native desktop application for capturing, inspecting and replaying HTTP(S),
 built with Go and [MyGo](https://github.com/egoist/mygo). No Electron or webview;
 Node.js and a JavaScript package manager are not required to build or run it.
 
+## Download and install
+
+Releases are on [GitHub](https://github.com/BABA983/vscroxy/releases). A
+release carries:
+
+- macOS: `vscroxy-<version>-arm64.dmg` and `vscroxy-<version>-amd64.dmg`. Open
+  the disk image and drag vscroxy to Applications.
+- Windows: `vscroxy-setup-<version>-<arch>.exe`.
+- Linux: `vscroxy-<version>-linux-<arch>.tar.gz` (with `install.sh`), plus
+  `.deb` and `.rpm` packages.
+- `vscroxy-cli-<os>-<arch>` and `vscroxy-mcp-<os>-<arch>`: the headless
+  binaries, separate from the app package.
+
+The packages are not code signed yet.
+
+**macOS (Gatekeeper).** The first open is blocked with "cannot be opened
+because Apple cannot check it for malicious software". Open it once from Finder
+with right-click → **Open** → **Open**, or allow it in **System Settings →
+Privacy & Security → Open Anyway**. If macOS says the app is damaged, remove
+the quarantine flag:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/vscroxy.app
+```
+
+**Windows (SmartScreen).** The first run shows "Windows protected your PC".
+Choose **More info** → **Run anyway**. A downloaded `.exe` can also be blocked
+by **Properties → Unblock**.
+
+**Linux.** The `.deb` and `.rpm` install the app and its desktop entry; the
+tar.gz's `install.sh` installs it for the current user in `~/.local`.
+
+### First run and the CA
+
+1. Start vscroxy. It listens on `127.0.0.1:7890`, or the port shown in the
+   title bar when that one is taken.
+2. Follow the setup guide: it turns on the system proxy, installs the vscroxy
+   CA and checks that the first HTTPS request is decrypted.
+3. Or do it by hand: **Settings → HTTPS → Install and trust CA**, then point a
+   client at the proxy. On Linux, add the CA certificate the app exports to the
+   system or browser trust store.
+
+The CA private key stays on this computer. The [user guide](docs/guide.md)
+covers Firefox, Java, Node.js, phones, simulators and the command line.
+
+`vscroxy --version`, `vscroxy-cli --version` and `vscroxy-mcp --version` print
+the version and commit; **Settings → General → About** shows them with the
+license and third-party notices.
+
 ## Build and run
 
 Use Go 1.27.3 or later. Linux needs GTK 3 and OpenGL runtime libraries; on Debian
@@ -170,6 +219,12 @@ behavior. See the guide for credential and request-body boundaries.
   [patch notes](third_party/go-mitmproxy/VSCROXY.md) explain why it is retained.
 - `mygo.json` configures development and packaging; `.agents/setup` prepares an
   Amp orb with the Go toolchain and Linux runtime libraries.
+
+## Privacy
+
+vscroxy has no accounts, no telemetry and no analytics. The only connection it
+starts on its own is the update check, which can be turned off. See
+[PRIVACY.md](PRIVACY.md) for every outbound connection.
 
 ## License
 

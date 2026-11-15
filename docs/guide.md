@@ -3693,6 +3693,16 @@ control this running app. It is off by default; the switch stays on across
 launches and is never exported. See [automation](automation.md#control-a-running-desktop)
 for what the clients can do and the security model.
 
+**Settings → General → Updates** asks GitHub once per launch for the latest
+release number and shows a notice when a newer version exists; turn it off
+here. vscroxy never downloads or installs an update. **Settings → General →
+About** shows the version, commit and platform, the MIT license and the
+third-party notices the package ships.
+
+**Diagnostics → Export diagnostics…** saves a zip for a bug report: the
+version and platform, settings that are safe to share, the recent log and the
+connection checks. It never includes request contents or secrets.
+
 ### Desktop workbench
 
 The default is **Side by side**: requests on the left, the inspector on the
@@ -3908,9 +3918,14 @@ Tools and the menu bar. The choice is kept for the next launch.
 
 ## Next
 
-- Structured query/auth/form-data editors, cookie management, collection folders
-  and a runner with per-request assertions.
-- Named capture filters and independent traffic views; complete-body search
-  rather than searching only the in-memory capture head.
-- WebSocket/SSE message search and detail views, correct upgraded request paths,
-  and spill-backed message retention instead of silent truncation.
+What this version leaves for later, in rough order:
+
+- Breakpoints without the 1 MiB read limit, and Protobuf message types saved per URL.
+- Network conditions with real packet loss and more presets.
+- WebSocket streams with more than 200 messages, search and independent
+  inspector windows.
+- Replacing the MITM signing CA, per-host server certificates, GraphQL
+  subscriptions, and gRPC streaming in scripts and the Runner.
+- More MCP tools (settings, sessions, certificates) and filters in
+  `flows.list`; npm packages in scripts.
+- Transparent or per-process capture for apps that ignore the proxy.

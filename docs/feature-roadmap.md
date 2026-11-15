@@ -33,7 +33,7 @@
 | 导航结构 | 只有一个工作区：抓到的请求和保存的请求是同一种可编辑文档，侧栏分 LIVE、COLLECTIONS、SESSIONS（UI 设计规范 v2，2026-10-31 修订，原为保留 Capture / Requests 两个工作区）；规则、Host、脚本、Mock 集中到一个 **Tools** 管理窗口（标题栏和命令面板进入） | 去掉两个工作区之间的搬运动作；工具类功能高频开关，不适合塞进设置 |
 | 设置结构 | Settings 只放配置：通用、外观、代理（端口、系统代理、上游、绕过）、HTTPS（CA、解密名单）、抓包（白名单、忽略、No Caching、内存上限）、设备 | 和 Tools 分开：配置很少改，工具经常开关 |
 | 反向代理入口 | Settings → Proxy | 监听端口和上游一样属于代理配置，设一次很少改；Tools 留给经常开关的规则、脚本和 Host 方案 |
-| 界面语言 | 加中文界面，在 UI 改版完成后做（M9 之前任何时候都可以插入） | 改版后文字集中在共用组件里，翻译成本最低 |
+| 界面语言 | 已完成：英文和简体中文，全部消息已翻译，默认跟随系统 | 改版后文字集中在共用组件里，翻译成本最低 |
 
 ## 3. 现有功能的收敛
 
@@ -61,10 +61,10 @@
 
 | 功能 | 状态 | 说明 | 里程碑 |
 | --- | --- | --- | --- |
-| HTTP / HTTPS 抓包，按域名、按 App 解密 | 已有 | | |
+| HTTP / HTTPS 抓包，按域名、按 App 解密 | 部分 | 解密名单支持 host 和 App，但没有排除名单，也没有 `?` 通配 | |
 | HTTP/2（TLS） | 已有 | 底层引擎协商 h2；h2c 不支持 | |
 | WebSocket、SSE | 已有 | | |
-| gRPC / Protobuf 检查 | 已有 | 只限 HTTP body | |
+| gRPC / Protobuf 检查 | 已有 | HTTP body 和 WebSocket 消息都能用 Protobuf 查看；消息类型按视图选，不能保存成按 URL 的规则 | |
 | **录制开关（Record / Pause）** | 已有 | 标题栏录制 pill 的暂停按钮，命令面板 Pause／Resume recording | M1 |
 | 清空会话 | 已有 | | |
 | **只抓指定 host / App（Allow list）** | 已有 | Settings → Capture，按 host 和 App；忽略名单优先 | M1 |
@@ -74,7 +74,7 @@
 | SOCKS5 代理入口 | 已有 | RFC 1928 CONNECT，可选 RFC 1929 用户名／密码；域名、IPv4、IPv6；与 HTTP 代理同一条抓包流水线：解密名单内 MITM 并抓取明文 HTTP，名单外 400 ms 嗅探首字节，HTTP 请求行交给 HTTP 前端并抓取，TLS／其他字节原样透传，服务器先发协议窗口后透传；规则、Host 方案、网络条件、Allow／Block、录制生效；10 s peek 超时；嵌套 CONNECT 返回 400；Settings → Proxy 开关和固定端口（1024–65535，冲突不回退，空为自动）；设备接入的 IP 白名单经 LAN 网关同样生效 | M7 |
 | 反向代理（本地端口直接转发到远端） | 已有 | Settings → Proxy：多条本地端口 → http／https 远端 URL，增删改、启停，Host 头改写或保留；经同一规则和抓包，HTTPS 远端由 app 发起 TLS 并默认校验证书（可按条目允许自签名）；Remote host 时只接受回环 Host；端口冲突逐条提示 | M7 |
 | 设备接入访问控制（IP 白名单） | 已有 | | |
-| 自定义证书：上游客户端证书（mTLS）、导入自定义根证书 | 已有 | Settings → Certificates 的同一份配置：按 host（可带端口、`*.` 通配，IDN 转 punycode）出示 PEM cert+key 或 PKCS#12/PFX，可选口令；上游校验和反向代理 https 远端额外信任导入的 PEM 根证书并保留系统根开关。证书文件每次连接读取，读取或解析失败明确报错；口令密封在本机，不进设置文件、配置导出或日志。盲隧道（未解密）仍由客户端自己完成 TLS | M6 |
+| 自定义证书：上游客户端证书（mTLS）、导入自定义根证书 | 部分 | Settings → Certificates 的同一份配置：按 host（可带端口、`*.` 通配，IDN 转 punycode）出示 PEM cert+key 或 PKCS#12/PFX，可选口令；上游校验和反向代理 https 远端额外信任导入的 PEM 根证书并保留系统根开关。证书文件每次连接读取，读取或解析失败明确报错；口令密封在本机，不进设置文件、配置导出或日志。盲隧道（未解密）仍由客户端自己完成 TLS。不能替换 MITM 签名 CA，也不能按 host 出示服务器证书；生成的证书没有 IP SAN | M6 |
 | TLS key 记录（SSLKEYLOGFILE） | 已有 | | |
 | 连接日志 | 已有 | | |
 | 来源 App 识别和图标 | 已有 | Windows 没有图标 | |
@@ -94,7 +94,7 @@
 | 搜索支持通配符和正则 | 已有 | 显式 Text／Wildcard／Regex 模式，匹配 host＋路径（含查询串）；错误模式不回退，随视图／保存筛选保留 | M5 |
 | Body 全文搜索 | 已有 | | |
 | Body 查看：Pretty、JSON 树、Hex、图片、HTML、Protobuf | 已有 | | |
-| Body 查看：multipart 分段、表单字段表、MessagePack、XML 格式化 | 已有 | 后台只读解析，保留重名/整数/二进制证据；见使用指南限制 | M5 |
+| Body 查看：multipart 分段、表单字段表、MessagePack、XML 格式化 | 已有 | 后台只读解析，保留重名/整数/二进制证据；见使用指南限制。延迟按交换一次性加，不是真正的 TCP/IP 丢包 | M5 |
 | JSON 筛选：JSONPath、jq | 已有 | 后台只读有界子集，支持取消；详见使用指南 | M5 |
 | 快速解码：选中文字解 Base64、JWT、URL 编码、时间戳 | 已有 | 本地只读预览；JWT 不验证签名或 claims | M5 |
 | Cookies 标签（解析 Cookie 和 Set-Cookie） | 已有 | 抓包两侧和已发送响应；保留重名，默认遮罩 | M5 |
@@ -113,7 +113,7 @@
 | --- | --- | --- | --- |
 | 规则匹配：通配符、正则、method、App、header | 已有 | URL 可选包含／通配符／正则；App 用和忽略名单相同的模式；header 支持存在、等于、包含、正则 | M4 |
 | 规则测试（输入 URL 看命中哪条） | 已有 | | |
-| Breakpoint：请求、响应 | 已有 | 原始报文（Raw）视图；query 与 form 按行编辑；断开连接（真正关闭客户端连接，不回应）；超时后继续的时间可选 30 秒至 10 分钟，默认 2 分钟；对话框正文 1 MiB 只读上限（脚本可读 8 MiB） | |
+| Breakpoint：请求、响应 | 部分 | 原始报文（Raw）视图；query 与 form 按行编辑；断开连接（真正关闭客户端连接，不回应）；超时后继续的时间可选 30 秒至 10 分钟，默认 2 分钟；对话框正文 1 MiB 只读上限（脚本可读 8 MiB）；Protobuf 消息类型不能按 URL 保存 | |
 | Breakpoint 模板（保存常用报文一键套用） | 已有 | 断点对话框里 Save as template… 和模板菜单；按请求／响应分开，不改暂停时的 URL | M4 |
 | Map Local：文件 | 已有 | | |
 | Map Local：在 app 内直接编辑响应 | 已有 | Tools 规则编辑器里的 Body，保存写回文件；没有文件时建在 mocks 里；二进制和超过 8 MiB 的除外 | M4 |
@@ -121,12 +121,12 @@
 | Map Remote：换 scheme 和 host | 已有 | | |
 | Map Remote：换端口和路径、是否保留原 Host header、WebSocket | 已有 | 端口写在目标 URL 里；路径前缀改写；WebSocket（含解密的 wss）跟随第一条匹配的 Map Remote。原主机连不上、且有启用的 Map Remote 可能匹配它时，改用生成的证书 | M4 |
 | Scenario（规则分组切换） | 已有 | | |
-| 脚本：挂在规则上、app 内编辑、`pm` 风格 API | 已有 | Script 规则运行 `tools/scripts/*.js` 的 onRequest／onResponse；Tools → Scripts 编辑，带 Console；全局 `script.js` 已删除；每个钩子 10 秒 CPU 预算（等待网络／定时器不计），正文可读 8 MiB，二进制正文用 `bodyBase64()` | M4 |
-| 脚本：异步发请求、规则间共享状态、读系统环境变量 | 已有 | `pm.sendRequest` 直连服务器；`pm.variables` 跨同一请求的脚本，`pm.globals` 跨规则并保存；`process.env`；`pm.execution.runRequest` 按 ID（或唯一名称）运行集合内的请求，桌面 Send／Runner、MCP 运行与 `vscroxy-cli run` 可用，`vscroxy-cli load` 不可用 | M4 |
-| 脚本：内置库（lodash、crypto-js、moment 等）、代码片段库、自定义 addon | 已有 | lodash 4.18.1、crypto-js 4.2.0、moment 2.31.0、chai 和 Insert snippet 与请求脚本共用；规则脚本和 addon 是 ES 模块（esbuild 转成 CommonJS 后由 goja 运行，source map 指回原行号，不支持顶层 await），addon 在 `tools/addons/*.js`，规则脚本 `import`、请求脚本 `require` 加载，Tools → Scripts → Addons 编辑，CLI 用 `--addons` | M4 |
-| 脚本：WebSocket 消息钩子 | 已有 | `onMessage(message)` 双向文本／二进制编辑、单条 drop；`pm.websocket.send`／`sendBase64` 向服务器注入消息（单条 1 MiB）、`pm.websocket.close` 带状态码和原因关闭；连接级 locals 串行执行；WS／解密 WSS | M8 |
-| 网络条件：全局预设 | 已有 | Off / 2G / 3G / DSL / 4G / Wi-Fi / 5G / 100% loss；WebSocket 消息也按握手时选定的条件延迟、按方向限速并丢消息 | |
-| 网络条件：自定义预设、请求断连、按 host/规则生效 | 已有 | 自定义预设与规则作用域；HTTP 失败率是请求断连，WebSocket 是逐条丢消息，都不是 TCP/IP 丢包；见使用指南限制 | M5 |
+| 脚本：挂在规则上、app 内编辑、`pm` 风格 API | 部分 | Script 规则运行 `tools/scripts/*.js` 的 onRequest／onResponse；Tools → Scripts 编辑，带 Console；全局 `script.js` 已删除；每个钩子 10 秒 CPU 预算（等待网络／定时器不计），正文可读 8 MiB，二进制正文用 `bodyBase64()`。无文件 I/O，不能用 npm 包；单条 WebSocket 消息 1 MiB | M4 |
+| 脚本：异步发请求、规则间共享状态、读系统环境变量 | 部分 | `pm.sendRequest` 直连服务器；`pm.variables` 跨同一请求的脚本，`pm.globals` 跨规则并保存；`process.env`；`pm.execution.runRequest` 按 ID（或唯一名称）运行集合内的请求，桌面 Send／Runner、MCP 运行与 `vscroxy-cli run` 可用，`vscroxy-cli load` 不可用 | M4 |
+| 脚本：内置库（lodash、crypto-js、moment 等）、代码片段库、自定义 addon | 部分 | lodash 4.18.1、crypto-js 4.2.0、moment 2.31.0、chai 和 Insert snippet 与请求脚本共用；规则脚本和 addon 是 ES 模块（esbuild 转成 CommonJS 后由 goja 运行，source map 指回原行号，不支持顶层 await），addon 在 `tools/addons/*.js`，规则脚本 `import`、请求脚本 `require` 加载，Tools → Scripts → Addons 编辑，CLI 用 `--addons` | M4 |
+| 脚本：WebSocket 消息钩子 | 部分 | `onMessage(message)` 双向文本／二进制编辑、单条 drop；`pm.websocket.send`／`sendBase64` 向服务器注入消息（单条 1 MiB）、`pm.websocket.close` 带状态码和原因关闭；连接级 locals 串行执行；WS／解密 WSS | M8 |
+| 网络条件：全局预设 | 部分 | Off / 2G / 3G / DSL / 4G / Wi-Fi / 5G / 100% loss；WebSocket 消息也按握手时选定的条件延迟、按方向限速并丢消息 | |
+| 网络条件：自定义预设、请求断连、按 host/规则生效 | 部分 | 自定义预设与规则作用域；HTTP 失败率是请求断连，WebSocket 是逐条丢消息，都不是 TCP/IP 丢包；见使用指南限制 | M5 |
 | No Caching | 已有 | | |
 | DNS 映射（可按 App） | 已有 | 已升级为 Host 方案 | M2 |
 | 上游代理：HTTP、SOCKS5 | 已有 | 默认一个；另可按 host 规则、PAC 和绕过名单选择多个，见下一行 | M7 |
@@ -158,7 +158,7 @@
 | 本地客户端配置示例 | 已有 | | |
 | 一键打开已配好代理的终端（设置 `HTTP_PROXY`／`HTTPS_PROXY` 及小写、`NO_PROXY`（只含监听地址，localhost 也走代理）、`NODE_USE_ENV_PROXY=1`、`NODE_EXTRA_CA_CERTS`、`REQUESTS_CA_BUNDLE`、`SSL_CERT_FILE`、`CURL_CA_BUNDLE` 等） | 已有 | 独立窗口；替换型信任变量（`DENO_CERT` 为追加）指向系统根证书 + app CA 的 0600 bundle；只影响该窗口；Node 24+ 的内置 `fetch` 走代理，更早的 Node 忽略 `NODE_USE_ENV_PROXY` | M7 |
 | 一键打开已配好代理的 Chrome/Firefox（独立配置） | 已有 | 临时 profile；Chrome `--proxy-server`／`--user-data-dir`／`--proxy-bypass-list=<-loopback>`，Firefox `user.js`（不设 no_proxies_on）；localhost 也走代理；不关闭 TLS 校验 | M7 |
-| Android 模拟器自动配置（adb 设代理、装证书） | 已有 | `adb reverse` + 可撤销的 global proxy；Undo 恢复原值并移除对应 reverse，reverse 已消失时警告并清除记录；Forget saved proxy 清除过期记录；CA 可复制到 Downloads 走用户证书，也可经 `adb root` 装进系统存储（Android 13 及以前写 `/system/etc/security/cacerts`，需 `-writable-system`；Android 14+ 在 zygote 命名空间给只读的 Conscrypt APEX 挂 tmpfs，保留原有证书），重启后失效、已运行的 App 需重启；另给调试版本的 `network_security_config.xml` 片段；Chrome 115+ 用自带根证书库，不受系统证书影响 | M7 |
+| Android 模拟器自动配置（adb 设代理、装证书） | 部分 | `adb reverse` + 可撤销的 global proxy；Undo 恢复原值并移除对应 reverse，reverse 已消失时警告并清除记录；Forget saved proxy 清除过期记录；CA 可复制到 Downloads 走用户证书，也可经 `adb root` 装进系统存储（Android 13 及以前写 `/system/etc/security/cacerts`，需 `-writable-system`；Android 14+ 在 zygote 命名空间给只读的 Conscrypt APEX 挂 tmpfs，保留原有证书），重启后失效、已运行的 App 需重启；另给调试版本的 `network_security_config.xml` 片段；Chrome 115+ 用自带根证书库，不受系统证书影响。≤13 的系统证书只有单测；重启后失效，已运行的 App 需重启 | M7 |
 | iOS 模拟器自动装证书（macOS，simctl） | 已有 | 仅已启动的模拟器，不配置真机 | M7 |
 | Java keystore 导入证书 | 已有 | app 自有 PKCS#12 truststore；先从 JDK cacerts 复制系统根证书，再加 app CA；JVM 选项含代理 host／port；先审阅命令再确认 | M7 |
 | Electron App 带代理参数启动 | 已有 | `--proxy-server`、`--proxy-bypass-list=<-loopback>`（localhost 也走代理）；不传 `--ignore-certificate-errors`；信任取决于系统／NSS 或应用自身 | M7 |
@@ -183,20 +183,20 @@
 | 脚本沙箱库（Postman sandbox） | 已有 | 请求脚本 `require`，规则脚本、addon 和 Code Mock `import`，首次使用才加载，按脚本隔离（moment 的 locale、updateLocale、defaultFormat 不跨脚本）；内嵌 Ajv 6.12.6、Chai 4.5.0、Lodash 4.18.1、CryptoJS 4.2.0、Moment 2.31.0、tv4 1.3.0、cheerio 0.22.0、xml2js 0.6.2、csv-parse/lib/sync 1.2.4、uuid 3.4.0、postman-collection 5.3.1、liquid-json（`json`）和 Backbone 1.6.0，以及 Postman 暴露的 Node 内建 shim（buffer、url、util、path、querystring、punycode、string_decoder、events、stream、timers、assert、fs、os、process）；全局 `Buffer`、`xml2Json`、`_`、`CryptoJS`、`tv4`、`cheerio`、`Backbone`、`atob`/`btoa`；定时器是脚本内队列，回调在正文后按到期顺序执行，延迟真实等待（单钩子总计最多 10 秒），等待不计入 10 秒 CPU 预算；`fs` 为空，无网络/文件 I/O，`path.parse`、`querystring.escape` 等旧 shim 缺口见使用指南 | M6 |
 | `have.jsonSchema` | 已有 | 响应和 `pm.expect(data)` 共用 Ajv 6.12.6，默认 Draft-07，支持选项和取反；不下载外部引用，不支持异步 schema | M6 |
 | `pm.visualizer`（响应可视化） | 缺少 | | M9 |
-| 可复用脚本库（Postman Packages） | 缺少 | | M9 |
+| 可复用脚本库（Postman Packages） | 部分 | addon 已覆盖一部分：`tools/addons/*.js` 可在规则脚本和请求脚本里复用；Postman Packages（npm 包解析）未做 | M9 |
 | Checks（无代码断言） | 已有 | 导出 Postman 时转成 `pm.test`，结果与 Checks 一致；无效的 Checks 跳过并警告 | M1 |
 | 集合、文件夹、设置、落盘为目录 | 已有 | | |
 | Git 面板：项目文件夹的状态、diff、提交 | 已有 | Tools → Git：分支、更改列表（前 500 个）、单文件 diff（1 MiB 截断）、勾选文件并提交（只提交所选路径，其他暂存内容保留）；不是仓库时可 `git init`；使用本机 `git` 命令，不推送／拉取／切分支 | M9 |
 | 请求描述、集合文档视图 | 已有 | 请求、文件夹、集合的 Markdown 描述随资产落盘，在请求 Docs 页和层级设置里编辑；集合菜单的 View documentation… 只读渲染描述并列出请求的 method、URL 和描述；Postman 导入导出保留 | M6 |
 | 单个请求的设置：超时、跟随重定向、证书校验 | 已有 | 请求 Settings 页和文件夹/集合的 Request defaults；Send 和 Runner 生效；跟随与最大次数分别继承，`maxRedirects: 0` 视为不跟随；Postman `protocolProfileBehavior` 的 `followRedirects`、`maxRedirects`、`strictSSL` 往返，cURL（Bash/CMD/PowerShell）的 `-L`、`--max-redirs`、`-k`、`--max-time` 与 PowerShell 对应参数往返；Postman 没有请求超时字段；关闭校验有明确警告，仍接受任意证书，自定义 CA 只在校验开启时作为额外信任，二者互不影响 | M6 |
-| 客户端证书（按域名）、自定义 CA | 已有 | Settings → Certificates 按 host（可带端口、`*.` 通配，IDN 转 punycode）配置客户端证书和额外根证书；Send、Runner、CLI/MCP 运行集合、WebSocket、SSE、gRPC、Socket.IO、MCP 生效；PEM cert+key 或 PKCS#12/PFX，口令密封保存，文件每次发送读取；重定向按每一跳的目标 host 重新选证书和根，明文跳不读证书文件；关闭证书校验仍接受任意证书，与自定义 CA 互不影响 | M6 |
-| Examples | 已有 | Examples 标签可手写：New example 新建（200、空正文、继承请求的 Content-Type），Duplicate 复制当前示例（如加一个 404 用例），状态码、名称、正文和响应头都可编辑，下一次 Save 保存；请求视图只读 | |
-| Examples 作为 Mock 响应（本地 mock） | 已有 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples；`vscroxy-cli mock` 在回环地址按集合 Examples 提供 mock（见[自动化](automation.md#mock-server)），未提供 MCP 工具和桌面启动控制 | M4 |
+| 客户端证书（按域名）、自定义 CA | 部分 | Settings → Certificates 按 host（可带端口、`*.` 通配，IDN 转 punycode）配置客户端证书和额外根证书；Send、Runner、CLI/MCP 运行集合、WebSocket、SSE、gRPC、Socket.IO、MCP 生效；PEM cert+key 或 PKCS#12/PFX，口令密封保存，文件每次发送读取；重定向按每一跳的目标 host 重新选证书和根，明文跳不读证书文件；关闭证书校验仍接受任意证书，与自定义 CA 互不影响。不能替换 MITM 签名 CA，也不能按 host 出示服务器证书 | M6 |
+| Examples | 部分 | Examples 标签可手写：New example 新建（200、空正文、继承请求的 Content-Type），Duplicate 复制当前示例（如加一个 404 用例），状态码、名称、正文和响应头都可编辑，下一次 Save 保存；请求视图只读。mock 不按 Example 设置延迟 | |
+| Examples 作为 Mock 响应（本地 mock） | 部分 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples；`vscroxy-cli mock` 在回环地址按集合 Examples 提供 mock（见[自动化](automation.md#mock-server)），未提供 MCP 工具和桌面启动控制；修改 Example 后需重启 mock | M4 |
 | 集合 mock 服务（独立端口） | 已有首版 | 集合菜单 Start mock server 在 127.0.0.1 随机端口提供集合 Examples，不经过代理；按 `X-Mock-Response-Name`、`X-Mock-Response-Code`、`x-mock-match-request-body` 选择；启动后的 Example 修改需重启；不支持每个 Example 的延迟；`vscroxy-cli` 子命令另行接入（internal/mockserver） | M6 |
 | 代码 Mock（脚本生成本地响应） | 首版已有 | Code Mock 规则运行 `onMock`，读取 `pm.request`、生成 `pm.response`；复用编辑器／Scenario／配置导出，失败返回本地错误而不穿透原站；不是 Postman Node.js／`pm.mock` 服务兼容层 | M9 |
-| Runner：数据文件、迭代、setNextRequest | 已有 | 请求间隔（毫秒）、保留变量值开关、本次会话最近 10 次运行的历史、导出 JSON／JUnit／自包含 HTML（默认不含断言名和错误文本）；CLI 为 `run --delay-request`，另可 `--export-environment`／`--export-globals`／`--export-cookie-jar` 写回运行结束状态，`-i` 等同 `--folder` | |
+| Runner：数据文件、迭代、setNextRequest | 部分 | 请求间隔（毫秒）、保留变量值开关、本次会话最近 10 次运行的历史、导出 JSON／JUnit／自包含 HTML（默认不含断言名和错误文本）；CLI 为 `run --delay-request`，另可 `--export-environment`／`--export-globals`／`--export-cookie-jar` 写回运行结束状态，`-i` 等同 `--folder`。gRPC 流式、MQTT、MCP、Socket.IO 不能进 Runner；CLI 起的是全新代理，不带桌面的 mock | |
 | Runner：性能测试（虚拟用户、时长、指标） | 已有首版 | 内置固定并发集合负载；复用 Runner、HdrHistogram 执行耗时；原生／CLI／MCP。无固定 RPS、爬坡或分布式压测 | M9 |
-| 命令行运行集合（CI，JUnit/JSON/HTML 报告） | 已有 | 独立无 UI CLI；本地集合、Postman v2.1 文件或 Postman v3 YAML 目录、环境/数据文件、超时/取消/执行预算、私有 JSON／JUnit／HTML 报告，运行后可导出环境、全局变量和 cookie jar | M9 |
+| 命令行运行集合（CI，JUnit/JSON/HTML 报告） | 部分 | 独立无 UI CLI；本地集合、Postman v2.1 文件或 Postman v3 YAML 目录、环境/数据文件、超时/取消/执行预算、私有 JSON／JUnit／HTML 报告，运行后可导出环境、全局变量和 cookie jar。协议客户端只支持 gRPC 一元方法；不连桌面的 mock | M9 |
 | Cookies 管理 | 已有 | 按域名分组，值默认遮罩；可按域名或全部清除 | |
 | Cookies 可选持久化 | 已有 | 默认关闭；持久 Cookie 落盘到 `~/.vscroxy/cookies.json`（0600），约 500 ms 防抖写入并在退出时 flush，Session Cookie 永不落盘；不进集合、导出或配置导入导出 | M6 |
 | 响应：Pretty、Raw、Hex、预览、测试结果、耗时 | 已有 | | |
@@ -209,8 +209,8 @@
 | 导入导出：JetBrains／VS Code REST Client `.http` | 已有 | 一个 `.http`／`.rest` 文件导入为一个集合；`###`／`# @name` 命名请求，文件级 `@name = value` 变集合 Initial 变量，`# @timeout`／`# @no-redirect` 变请求设置；导出集合或当前请求，写入变量、auth 和 body；二进制／multipart body、协议请求、继承的文件夹 auth 和文件夹层级不导出并报告；响应处理器、文件 body 和 WEBSOCKET／GRPC 等协议请求导入时报告 | M9 |
 | 导入：Swagger 2、Insomnia、Bruno、Hoppscotch | 已有 | Swagger 2 转 OpenAPI 3 后复用集合导入；Insomnia v4 JSON／v5 YAML（集合与环境）；Bruno `.bru` 目录；Hoppscotch 集合／环境 JSON。文件夹、变量、auth、body 类型和描述尽量保留，无法表达的部分在导入报告中列出 | M7 |
 | 导入：PowerShell / CMD 风格的 cURL | 已有 | Chrome Copy as cURL (cmd) 与 Copy as PowerShell (Invoke-WebRequest)；复用 cURL 导入入口和请求模型，未支持的参数明确报错 | M7 |
-| WebSocket 客户端（文本） | 已有 | | |
-| WebSocket 客户端：二进制消息、子协议、保存的消息列表 | 已有 | Hex／Base64 发送、原样二进制回显；WS／WSS 双侧握手协商和实际子协议显示；请求文档的 Body 标签页保存多条消息，按顺序发送并保留每条消息的回复（回复等待默认 2 s、每条最多 200 条回复／1 MiB；无消息时只监听推送），实时会话可重放已保存列表并把已发送消息存回请求；Runner／CLI 发送同一列表，Checks 与后置脚本读取合成 101 响应（JSON 回复数组、`X-Vscroxy-Sent`／`X-Vscroxy-Received`） | M8 |
+| WebSocket 客户端（文本） | 部分 | 每条流最多保留 200 条消息；交互客户端不记录 History | |
+| WebSocket 客户端：二进制消息、子协议、保存的消息列表 | 部分 | Hex／Base64 发送、原样二进制回显；WS／WSS 双侧握手协商和实际子协议显示；请求文档的 Body 标签页保存多条消息，按顺序发送并保留每条消息的回复（回复等待默认 2 s、每条最多 200 条回复／1 MiB；无消息时只监听推送），实时会话可重放已保存列表并把已发送消息存回请求；Runner／CLI 发送同一列表，Checks 与后置脚本读取合成 101 响应（JSON 回复数组、`X-Vscroxy-Sent`／`X-Vscroxy-Received`）；每条流仍只保留 200 条消息 | M8 |
 | SSE 客户端（持续接收事件） | 首版已有 | HTTP(S) 实时 GET、事件类型／ID／数据、搜索复制、显式可选重连与 Last-Event-ID、取消及有界时间线 | M8 |
 | gRPC 客户端（导入 proto 或服务端反射） | 已有 | 请求文档、proto／descriptor set、v1／v1alpha 反射、四种调用、metadata／trailers／最终状态、取消和 deadline；一元与流式方法走同一条执行路径：前置／后置脚本、Checks（`Grpc-Status`／`Grpc-Message`／`Grpc-Trailer-*`，流式另有 `Grpc-Sent`／`Grpc-Received`）、Examples 和 Runner／`vscroxy-cli run`；客户端／双向流保存消息列表（Message 标签添加当前／保存已发送），Runner 按序发送后半关闭；多响应为 JSON 数组；Postman v2.1 导出仍跳过 gRPC 文档 | M8 |
 | Socket.IO 客户端 | 首版已有 | 请求文档、EIO4／WebSocket、namespace／auth、JSON／二进制附件、双向 ACK、有界实时消息、取消；保存的事件列表（添加当前、按顺序发送已保存、把已发送存回请求）；Runner／CLI 重放列表并运行脚本／Checks（合成 101 响应、`X-Vscroxy-Sent`／`X-Vscroxy-Received`，`WaitMS` 回复窗口）；无轮询／重连／重发 | M8 |
@@ -234,10 +234,10 @@
 
 | 功能 | 状态 | 里程碑 |
 | --- | --- | --- |
-| 本地控制接口（供命令行和 MCP 共用） | 已有：设置里的“本地自动化”开关（默认关闭，重启保留，不随配置导出），或 `VSCROXY_CONTROL_FILE` 指定路径；回环鉴权、主线程动作、异步任务／取消 | M9 |
-| 命令行：开关工具、开关系统代理、导出流量、导入规则、运行集合 | 已有：查询、录制／规则开关、系统代理异步修改与回读、受控 HAR 导出、追加规则导入、运行集合 | M9 |
-| MCP server：让 AI 工具读取流量、解释请求、创建规则、运行请求 | 已有：stdio、查询／请求执行、独立写入／敏感权限、受控 HAR 导出，流量按 host／方法／状态／时间筛选，规则增删改，清空、标记、断点继续／中止、SSL 域名、会话保存／打开；`--disable-tool` 逐个关闭工具 | M9 |
-| 中文界面 | 缺少 | M9 之前插入 |
+| 本地控制接口（供命令行和 MCP 共用） | 部分：设置里的“本地自动化”开关（默认关闭，重启保留，不随配置导出），或 `VSCROXY_CONTROL_FILE` 指定路径；回环鉴权、主线程动作、异步任务／取消；控制接口要启动时用环境变量或设置开启 | M9 |
+| 命令行：开关工具、开关系统代理、导出流量、导入规则、运行集合 | 部分：查询、录制／规则开关、系统代理异步修改与回读、受控 HAR 导出、追加规则导入、运行集合；没有设置、会话和证书子命令 | M9 |
+| MCP server：让 AI 工具读取流量、解释请求、创建规则、运行请求 | 部分：stdio、查询／请求执行、独立写入／敏感权限、受控 HAR 导出，流量按 host／方法／状态／时间筛选，规则增删改，清空、标记、断点继续／中止、SSL 域名、会话保存／打开；`--disable-tool` 逐个关闭工具；仍没有设置、会话、证书工具，`flows.list` 不能按 host／method／状态筛选 | M9 |
+| 中文界面 | 已有 | Settings → Appearance → Language；英文和简体中文，全部消息已翻译，默认跟随系统 | |
 | 第三方主题（Tokyo Night、Dracula 等） | 缺少 | M9 |
 
 ## 5. 里程碑

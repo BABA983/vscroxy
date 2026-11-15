@@ -138,7 +138,7 @@ type action struct {
 ### 3.7 日志和诊断
 
 - 用 `log/slog` 写到 `~/.vscroxy/logs/vscroxy.log`，按大小轮转，保留 5 份。不记录请求内容和凭据。（已完成：`internal/applog`，5 MiB 轮转；go-mitmproxy 的 logrus 输出含完整 URL，仍只打到标准输出。）
-- "导出诊断包"：版本信息、平台、脱敏后的设置、最近的日志、连接诊断结果，打成一个 zip，用于提交问题。
+- "导出诊断包"（已完成：Diagnostics → Export diagnostics…）：版本信息、平台、脱敏后的设置（显式白名单，不含路径、主机名、用户名和密钥）、最近的日志、连接诊断结果，打成一个 zip，用于提交问题。不包含请求内容和密钥，测试覆盖这一点。
 
 ### 3.8 国际化
 
@@ -171,9 +171,9 @@ type action struct {
 
 ### 3.12 发布
 
-- 用 `go tool mygo build` 打包三个平台；打 tag 时由 GitHub Actions 构建并发布到 GitHub Releases。
-- app 内"检查更新"：启动时（可关闭）查询 GitHub Releases，有新版本时提示，不自动安装。
-- 有证书后再加 macOS 签名和公证、Windows 签名；在那之前文档说明如何放行未签名的构建。
+- 用 `go tool mygo build` 打包三个平台；打 tag 时由 GitHub Actions 构建并发布到 GitHub Releases（已完成 `.github/workflows/release.yml`：`v*` tag 建 draft release，构建 macOS、Windows、Linux 包和 `vscroxy-cli`／`vscroxy-mcp` 二进制，上传到 draft；发布仍由人确认）。
+- app 内"检查更新"（已完成：启动时查询 GitHub Releases 的 latest，有新版本时提示；Settings → General → Updates 可关闭；只读版本号和页面 URL，不下载、不安装）。
+- 有证书后再加 macOS 签名和公证、Windows 签名；在那之前 README 说明如何放行未签名的构建（Gatekeeper、SmartScreen）。
 
 ### 3.13 本地控制接口（M9）
 
@@ -188,7 +188,7 @@ type action struct {
 | CI（3.10） | M0 | 之后每一步都要靠它兜底 |
 | 动作层（3.2） | M1 | 已启用工具栏、对象动作、撤销都依赖它 |
 | 通知（3.6） | M1 | 撤销 toast 依赖它 |
-| 存储层（3.3） | M1 | 原子写、外部修改检测；迁移从第一个公开版本开始 |
+| 存储层（3.3） | M1 | 原子写、外部修改检测；格式版本、迁移和备份从 0.1.0 起启用 |
 | 日志（3.7） | M1 | 出问题时需要排查 |
 | 状态和导航（3.1） | 跟随 UI 改版逐步完成 | 改到哪里拆到哪里 |
 | 后台任务（3.5） | 跟随 UI 改版逐步完成 | 同上 |
