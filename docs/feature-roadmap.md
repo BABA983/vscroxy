@@ -374,7 +374,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 分享到 GitHub Gist。
 - 外部密钥库：1Password、AWS Secrets Manager、Azure Key Vault、HashiCorp Vault。
 - LLM 请求、Kafka 请求。
-- 透明代理 / WireGuard 模式：WireGuard 方案已出（[WireGuard 模式方案](https://ampcode.com/artifacts/8-wireguard-b54a1649-a4c6-42f8-8bbe-2a0b456b6134)），0.1.0 后重新评估；透明代理的 Linux nftables、Windows WinDivert、macOS Network Extension 同样留到之后。
+- 透明代理 / WireGuard 模式：WireGuard 方案是用户态 WireGuard 服务端，手机用官方 WireGuard app 扫码加入，0.1.0 后重新评估；透明代理的 Linux nftables、Windows WinDivert、macOS Network Extension 同样留到之后。
 
 ### 远期研究
 
