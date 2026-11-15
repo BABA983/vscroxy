@@ -64,8 +64,9 @@ const (
 	maxScriptBody = 8 << 20
 	// maxBreakpointBody bounds the body a breakpoint shows and edits.
 	maxBreakpointBody = 1 << 20
-	// maxFrames bounds the messages kept for one WebSocket or SSE flow, and
-	// maxFrameBytes what one message keeps in memory.
+	// maxFrames bounds a batch of messages published with one flow; live
+	// messages are published one by one, and the app keeps a longer window.
+	// maxFrameBytes is what one message keeps in memory.
 	maxFrames     = 200
 	maxFrameBytes = 4 << 10
 	// maxFrameSpill bounds what one message keeps on disk: a larger message
@@ -1262,6 +1263,16 @@ func (s *Server) ReserveIDs(n int) int {
 
 // Frames is the stream of WebSocket messages and SSE events, by flow.
 func (s *Server) Frames() <-chan FrameEvent { return s.frames }
+
+// BodyDir is the directory the capture spills large bodies and long messages
+// to; empty when the process had no writable temp directory. The directory is
+// removed when the server closes.
+func (s *Server) BodyDir() string {
+	if s == nil {
+		return ""
+	}
+	return s.bodyDir
+}
 
 // FrameDropped counts the messages a full queue took, which the sequence
 // numbers of the frames that did arrive also show as gaps.

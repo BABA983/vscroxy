@@ -1635,12 +1635,15 @@ session format's lossless base64 payload field when they are not valid UTF-8.
 The file records query, direction, pause state and window/loss counts; it is not
 an export of the entire conversation. File reads run off the UI thread.
 
-The last 200 messages per flow are retained: at most 4 KiB each inline, with
-longer payloads spilled to disk up to 256 KiB each. Larger messages explicitly
-show retained/original lengths. Sequence gaps report dropped/evicted messages;
-global queue losses appear in the status bar, including a loss at stream end.
-Spill files are temporary and removed when capture closes, or earlier when
-their request leaves the table (see Memory limits).
+The newest 200 messages per flow stay inline, and up to 2000 are retained in
+all: older messages keep their metadata and a short preview while their
+payloads spill to the capture's disk directory, within the session's disk
+limit. Each message keeps at most 4 KiB inline, with longer payloads spilled to
+disk up to 256 KiB each. Larger messages explicitly show retained/original
+lengths. Sequence gaps report dropped/evicted messages; global queue losses
+appear in the status bar, including a loss at stream end. Spill files are
+temporary and removed when capture closes, or earlier when their request
+leaves the table (see Memory limits).
 Sessions save retained payloads and metadata, not temporary spill paths, and
 older session files still load.
 
@@ -4184,8 +4187,7 @@ What this version leaves for later, in rough order:
 
 - Breakpoints without the 1 MiB read limit.
 - Network conditions with real packet loss.
-- WebSocket streams with more than 200 messages, search and independent
-  inspector windows.
+- Independent inspector windows for WebSocket messages.
 - Per-host server certificates, GraphQL subscriptions, and gRPC
   streaming in scripts and the Runner.
 - More MCP tools (settings, sessions, certificates) and filters in

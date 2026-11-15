@@ -217,8 +217,8 @@
 | 复现包 | 已有 | Sessions 的 **Repro bundle…** 导出一个本地 JSON：脱敏后的 HTTP flow（方法、URL、请求/响应头与正文、状态、耗时、Timing、备注/颜色/Pin）＋内嵌 Postman 集合；`vscroxy-cli run bundle.json` 可直接执行（`--folder` 等参数照常）；凭据头、查询值和凭据命名的 JSON／表单字段替换为 `••••`，不加密，运行前需补回；流式会话仍保留在脱敏证据列表 | M6 |
 | 导入：Swagger 2、Insomnia、Bruno、Hoppscotch | 已有 | Swagger 2 转 OpenAPI 3 后复用集合导入；Insomnia v4 JSON／v5 YAML（集合与环境）；Bruno `.bru` 目录；Hoppscotch 集合／环境 JSON。文件夹、变量、auth、body 类型和描述尽量保留，无法表达的部分在导入报告中列出 | M7 |
 | 导入：PowerShell / CMD 风格的 cURL | 已有 | Chrome Copy as cURL (cmd) 与 Copy as PowerShell (Invoke-WebRequest)；复用 cURL 导入入口和请求模型，未支持的参数明确报错 | M7 |
-| WebSocket 客户端（文本） | 部分 | 每条流最多保留 200 条消息；交互客户端不记录 History | |
-| WebSocket 客户端：二进制消息、子协议、保存的消息列表 | 部分 | Hex／Base64 发送、原样二进制回显；WS／WSS 双侧握手协商和实际子协议显示；请求文档的 Body 标签页保存多条消息，按顺序发送并保留每条消息的回复（回复等待默认 2 s、每条最多 200 条回复／1 MiB；无消息时只监听推送），实时会话可重放已保存列表并把已发送消息存回请求；Runner／CLI 发送同一列表，Checks 与后置脚本读取合成 101 响应（JSON 回复数组、`X-Vscroxy-Sent`／`X-Vscroxy-Received`）；每条流仍只保留 200 条消息 | M8 |
+| WebSocket 客户端（文本） | 部分 | 每条流最近 200 条完整消息留在内存，较早消息落盘，最多保留 2000 条；交互客户端不记录 History | |
+| WebSocket 客户端：二进制消息、子协议、保存的消息列表 | 部分 | Hex／Base64 发送、原样二进制回显；WS／WSS 双侧握手协商和实际子协议显示；请求文档的 Body 标签页保存多条消息，按顺序发送并保留每条消息的回复（回复等待默认 2 s、每条最多 200 条回复／1 MiB；无消息时只监听推送），实时会话可重放已保存列表并把已发送消息存回请求；Runner／CLI 发送同一列表，Checks 与后置脚本读取合成 101 响应（JSON 回复数组、`X-Vscroxy-Sent`／`X-Vscroxy-Received`）；每条流最近 200 条完整消息留在内存，较早消息落盘，最多保留 2000 条，受会话磁盘上限约束 | M8 |
 | SSE 客户端（持续接收事件） | 首版已有 | HTTP(S) 实时 GET、事件类型／ID／数据、搜索复制、显式可选重连与 Last-Event-ID、取消及有界时间线 | M8 |
 | gRPC 客户端（导入 proto 或服务端反射） | 已有 | 请求文档、proto／descriptor set、v1／v1alpha 反射、四种调用、metadata／trailers／最终状态、取消和 deadline；一元与流式方法走同一条执行路径：前置／后置脚本、Checks（`Grpc-Status`／`Grpc-Message`／`Grpc-Trailer-*`，流式另有 `Grpc-Sent`／`Grpc-Received`）、Examples 和 Runner／`vscroxy-cli run`；客户端／双向流保存消息列表（Message 标签添加当前／保存已发送），Runner 按序发送后半关闭；多响应为 JSON 数组；Postman v2.1 导出仍跳过 gRPC 文档 | M8 |
 | Socket.IO 客户端 | 首版已有 | 请求文档、EIO4／WebSocket、namespace／auth、JSON／二进制附件、双向 ACK、有界实时消息、取消；保存的事件列表（添加当前、按顺序发送已保存、把已发送存回请求）；Runner／CLI 重放列表并运行脚本／Checks（合成 101 响应、`X-Vscroxy-Sent`／`X-Vscroxy-Received`，`WaitMS` 回复窗口）；无轮询／重连／重发 | M8 |

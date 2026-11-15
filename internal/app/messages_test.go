@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -69,31 +70,31 @@ func TestMessagesKeepTheWholeOfLongOnes(t *testing.T) {
 // arrived because the capture's queue was full, stays counted.
 func TestMessageWindowKeepsTheNewestAndCountsTheDropped(t *testing.T) {
 	var list []messageView
-	for i := 1; i <= maxMessages+12; i++ {
+	for i := 1; i <= maxMessagesKept+12; i++ {
 		list = appendMessage(list, capture.FrameEvent{FlowID: 9, Frame: capture.Frame{
 			Seq: i, Direction: "in", Kind: "text", Data: fmt.Sprintf("message %d", i),
 		}})
 	}
-	if len(list) != maxMessages {
-		t.Fatalf("messages = %d, want the window of %d", len(list), maxMessages)
+	if len(list) != maxMessagesKept {
+		t.Fatalf("messages = %d, want the window of %d", len(list), maxMessagesKept)
 	}
-	if list[0].data != "message 13" || list[len(list)-1].data != fmt.Sprintf("message %d", maxMessages+12) {
-		t.Fatalf("window = %q…%q, want the newest %d", list[0].data, list[len(list)-1].data, maxMessages)
+	if list[0].data != "message 13" || list[len(list)-1].data != fmt.Sprintf("message %d", maxMessagesKept+12) {
+		t.Fatalf("window = %q…%q, want the newest %d", list[0].data, list[len(list)-1].data, maxMessagesKept)
 	}
 	if got := messagesDropped(list); got != 12 {
 		t.Errorf("dropped = %d, want the 12 that left the window", got)
 	}
-	if note := messagesNote(list); note != fmt.Sprintf("%d messages · 12 dropped", maxMessages) {
+	if note := messagesNote(list); note != fmt.Sprintf("%d messages · 12 dropped", maxMessagesKept) {
 		t.Errorf("note = %q, want the window and the loss", note)
 	}
 
 	// A message the capture's queue could not take leaves a gap, which counts
 	// as dropped even though the window never held it.
-	seq := maxMessages + 12 + 6
+	seq := maxMessagesKept + 12 + 6
 	list = appendMessage(list, capture.FrameEvent{FlowID: 9, Frame: capture.Frame{
 		Seq: seq, Direction: "in", Kind: "text", Data: "after the gap",
 	}})
-	// 218 messages came, 200 are here: 13 left the window for the one that
+	// 2018 messages came, 2000 are here: 13 left the window for the one that
 	// arrived and 5 never arrived at all.
 	if got := messagesDropped(list); got != 18 {
 		t.Errorf("dropped = %d, want 18", got)
@@ -338,13 +339,13 @@ func TestMessagesPauseSurvivesLiveWindowEviction(t *testing.T) {
 	}
 	// More than a full window: appendMessage compacts the backing array, so
 	// retaining the old slice instead of cloning it corrupts the paused view.
-	for i := 2; i <= 205; i++ {
+	for i := 2; i <= maxMessagesKept+5; i++ {
 		a.addFrame(capture.FrameEvent{FlowID: 1, Frame: capture.Frame{
 			Seq: i, Kind: "text", Direction: "in", Data: fmt.Sprintf("new payload %d", i), Size: 15, Kept: 15,
 		}})
 	}
 	tt.Frame()
-	if !tt.HasText("204 newer messages") || !tt.HasText("original payload") || tt.HasText("new payload 205") {
+	if !tt.HasText(locales.PausedViewNote(maxMessagesKept+4)) || !tt.HasText("original payload") || tt.HasText(fmt.Sprintf("new payload %d", maxMessagesKept+5)) {
 		t.Fatalf("paused view changed while capture continued: %q", tt.Texts())
 	}
 	if err := tt.Click("Copy"); err != nil {
@@ -365,7 +366,7 @@ func TestMessagesPauseSurvivesLiveWindowEviction(t *testing.T) {
 	if err := tt.Click("Resume"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("new payload 205") || !tt.HasText("200 messages · 5 dropped") || tt.HasText("original payload") {
+	if !tt.HasText(fmt.Sprintf("new payload %d", maxMessagesKept+5)) || !tt.HasText(fmt.Sprintf("%d messages · 5 dropped", maxMessagesKept)) || tt.HasText("original payload") {
 		t.Fatalf("resume did not return to the newest retained messages: %q", tt.Texts())
 	}
 }
@@ -402,5 +403,46 @@ func TestMessageExportKeepsBinarySpillAndMissingPayloadEvidence(t *testing.T) {
 	}
 	if m := saved.Messages[2]; m.Data != "head" || m.Kept != 4 || m.Size != 300 || m.Error == "" {
 		t.Fatal("missing spill file silently exported as a complete payload")
+	}
+}
+
+func TestMessagesSpillBeyondTheInlineWindow(t *testing.T) {
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+	a := workspaceApp()
+	a.srv = srv
+	a.frames = map[int][]frame{}
+	a.tally.known = map[int]struct{}{9: {}}
+	for i := 1; i <= maxMessages+10; i++ {
+		data := fmt.Sprintf("message %d", i)
+		a.addFrame(capture.FrameEvent{FlowID: 9, Frame: capture.Frame{
+			Seq: i, Direction: "in", Kind: "text", Data: data, Size: len(data), Kept: len(data),
+		}})
+	}
+	list := a.frames[9]
+	if len(list) != maxMessages+10 {
+		t.Fatalf("messages = %d, want %d kept", len(list), maxMessages+10)
+	}
+	if list[0].file == "" {
+		t.Fatal("the oldest message stayed inline")
+	}
+	if got := list[0].payload(); got != "message 1" {
+		t.Fatalf("spilled payload = %q", got)
+	}
+	if len(list[0].data) > maxPreview {
+		t.Fatalf("spilled preview = %d bytes", len(list[0].data))
+	}
+	if list[len(list)-1].file != "" {
+		t.Fatal("the newest message was spilled")
+	}
+	var spilled int64
+	for i := 1; i <= 10; i++ {
+		spilled += int64(len(fmt.Sprintf("message %d", i)))
+	}
+	if a.tally.disk != spilled {
+		t.Fatalf("spilled bytes = %d, want %d", a.tally.disk, spilled)
 	}
 }

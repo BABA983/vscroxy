@@ -18,6 +18,7 @@ import (
 	"github.com/baba983/vscroxy/internal/uikit"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -31,11 +32,15 @@ import (
 )
 
 const (
-	// maxMessages bounds what the app keeps for one flow, as the capture
-	// bounds what one stream keeps: the messages past it leave the window and
-	// stay counted, so a long stream stays bounded in memory without hiding
-	// what it lost.
+	// maxMessages is the newest messages a flow keeps inline. Older messages
+	// stay in the list with their payloads spilled to the capture's disk
+	// directory, so a long stream keeps more than a screenful without growing
+	// memory without limit.
 	maxMessages = 200
+	// maxMessagesKept bounds one flow's list, inline and spilled together.
+	// Past it the oldest messages leave the list and their files are removed;
+	// the gap in sequence numbers still shows the loss.
+	maxMessagesKept = 2000
 	// maxPreview is how many characters of a message a row of the list shows.
 	maxPreview = 160
 	// maxMessageText bounds what the detail lays out as text: a message longer
@@ -91,10 +96,68 @@ func (a *app) addFrame(ev capture.FrameEvent) {
 	}
 	old := a.frames[ev.FlowID]
 	memory, disk := messagesRetained(old), messagesSpilled(old) // appendMessage may reuse old
-	a.frames[ev.FlowID] = appendMessage(old, ev)
+	if drop := len(old) + 1 - maxMessagesKept; drop > 0 {
+		for _, m := range old[:min(drop, len(old))] {
+			removeMessageFile(m.file)
+		}
+	}
+	list := a.spillMessages(ev.FlowID, appendMessage(old, ev))
+	a.frames[ev.FlowID] = list
 	if _, ok := a.tally.known[ev.FlowID]; ok {
-		a.tally.memory += messagesRetained(a.frames[ev.FlowID]) - memory
-		a.tally.disk += messagesSpilled(a.frames[ev.FlowID]) - disk
+		a.tally.memory += messagesRetained(list) - memory
+		a.tally.disk += messagesSpilled(list) - disk
+		maxDisk := int64(cmp.Or(a.diskLimit, defaultDiskLimit)) << 30
+		maxMemory := int64(cmp.Or(a.memoryLimit, defaultMemoryLimit)) << 20
+		if a.tally.disk > maxDisk || a.tally.memory > maxMemory {
+			a.trimFlows()
+		}
+	}
+}
+
+// spillMessages writes the payloads of messages older than the inline window
+// to the capture's spill directory. The list keeps their metadata and a short
+// preview, so a long stream stays searchable and its older messages readable
+// without holding every payload in memory. A message the capture already
+// spilled keeps its file; only its inline head is shortened.
+func (a *app) spillMessages(flowID int, list []messageView) []messageView {
+	if a.srv == nil || a.srv.BodyDir() == "" || len(list) <= maxMessages {
+		return list
+	}
+	maxDisk := int64(cmp.Or(a.diskLimit, defaultDiskLimit)) << 30
+	// Messages arrive one at a time, so only the one that just left the
+	// inline window needs a file; earlier ones were handled on their turn.
+	first := max(0, len(list)-maxMessages-1)
+	for i := first; i < len(list)-maxMessages; i++ {
+		m := &list[i]
+		if m.file != "" {
+			if len(m.data) > maxPreview {
+				m.data = m.data[:maxPreview]
+			}
+			continue
+		}
+		if m.data == "" || m.size == 0 {
+			continue
+		}
+		// Do not push the session past its disk budget; the flow trimmer
+		// makes room by dropping the oldest flows.
+		if a.tally.disk+int64(len(m.data)) > maxDisk {
+			continue
+		}
+		path := filepath.Join(a.srv.BodyDir(), fmt.Sprintf("message-%d-%d.bin", flowID, m.seq))
+		if err := os.WriteFile(path, []byte(m.data), 0o600); err != nil {
+			continue
+		}
+		m.file, m.kept = path, len(m.data)
+		if len(m.data) > maxPreview {
+			m.data = m.data[:maxPreview]
+		}
+	}
+	return list
+}
+
+func removeMessageFile(file string) {
+	if file != "" {
+		_ = os.Remove(file)
 	}
 }
 
@@ -103,7 +166,7 @@ func (a *app) addFrame(ev capture.FrameEvent) {
 // are gone from the list and the gap says how many.
 func appendMessage(list []messageView, ev capture.FrameEvent) []messageView {
 	list = append(list, messageViewOf(ev.Frame))
-	if over := len(list) - maxMessages; over > 0 {
+	if over := len(list) - maxMessagesKept; over > 0 {
 		list = slices.Delete(list, 0, over)
 	}
 	return list
