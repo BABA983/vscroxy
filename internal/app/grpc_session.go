@@ -3,12 +3,9 @@ package app
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"errors"
-	"fmt"
 	"io"
 	"maps"
-	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -71,24 +68,6 @@ func (s *grpcSession) snapshot() grpcSnapshot {
 		events: slices.Clone(s.events), evicted: s.evicted, header: s.header.Copy(), trailer: s.trailer.Copy()}
 }
 
-func grpcMetadata(header http.Header) (metadata.MD, error) {
-	md := metadata.MD{}
-	for key, values := range header {
-		key = strings.ToLower(key)
-		for _, value := range values {
-			if strings.HasSuffix(key, "-bin") {
-				data, err := base64.StdEncoding.DecodeString(value)
-				if err != nil {
-					return nil, fmt.Errorf("metadata %s requires padded base64", key)
-				}
-				value = string(data)
-			}
-			md.Append(key, value)
-		}
-	}
-	return md, nil
-}
-
 func openGRPCSession(ctx context.Context, cancel context.CancelFunc, input request.Request, scope request.Context, vars map[string]string,
 	req *request.Prepared, schema *protoSchema, method protoreflect.MethodDescriptor, proxy string, tlsConfig *tls.Config, notify func()) *grpcSession {
 	s := &grpcSession{cancel: cancel, done: make(chan struct{}), notify: notify, state: "Connecting", sending: true,
@@ -120,7 +99,7 @@ func openGRPCSession(ctx context.Context, cancel context.CancelFunc, input reque
 			return
 		}
 		defer conn.Close()
-		md, err := grpcMetadata(req.Header)
+		md, err := grpcclient.Metadata(req.Header)
 		if err != nil {
 			final = err
 			return

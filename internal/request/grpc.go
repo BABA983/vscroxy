@@ -6,21 +6,23 @@ import (
 )
 
 // PrepareGRPC expands the document's JSON and metadata using the same variable,
-// inherited auth and host-restricted Vault scopes as HTTP. HTTP-only features
-// are rejected, never silently skipped. Scripts/Checks/Runner are not gRPC APIs.
+// inherited auth and host-restricted Vault scopes as HTTP. Execute runs its
+// scripts, Checks and examples; this only prepares the call.
 func (r Request) PrepareGRPC(in Context, vars map[string]string) (*Prepared, error) {
 	if r.Protocol != "gRPC" {
 		return nil, fmt.Errorf("not a gRPC document")
 	}
-	if r.Pre != "" || r.Post != "" || r.Checks != (Checks{}) || len(r.TokenSources) != 0 {
-		return nil, fmt.Errorf("gRPC does not run HTTP scripts, Checks or token bindings; remove them first")
-	}
-	for _, f := range in.Folders {
-		if f.Pre != "" || f.Post != "" {
-			return nil, fmt.Errorf("gRPC does not run inherited HTTP scripts; use a collection without scripts")
-		}
-	}
 	r.Auth, _ = in.InheritAuth(r.Auth)
+	values := in.Values(vars)
+	if err := in.unlock(r, values); err != nil {
+		return nil, err
+	}
+	return r.prepareGRPC(values)
+}
+
+// prepareGRPC expands a gRPC document with values that already merged every
+// variable scope, and validates what a call cannot express.
+func (r Request) prepareGRPC(values map[string]string) (*Prepared, error) {
 	switch r.Auth.Type {
 	case "", "None", "Bearer", "Basic":
 	case "API key":
@@ -31,11 +33,7 @@ func (r Request) PrepareGRPC(in Context, vars map[string]string) (*Prepared, err
 		return nil, fmt.Errorf("gRPC supports None, Bearer, Basic or API key metadata auth")
 	}
 	r.Protocol, r.Method, r.BodyMode = "", "POST", "Raw"
-	values := in.Values(vars)
 	r = r.withDynamic(values)
-	if err := in.unlock(r, values); err != nil {
-		return nil, err
-	}
 	for _, name := range r.Variables() {
 		if _, ok := values[name]; !ok {
 			return nil, fmt.Errorf("set variable {{%s}} before calling gRPC", name)

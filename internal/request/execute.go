@@ -24,7 +24,9 @@ type Execution struct {
 	Replies  []string
 	// WebSocket are the exchanges a ws/wss send made, in order. Replies holds
 	// every reply flattened, including pushes a request with no messages heard.
-	WebSocket      []WebSocketExchange
+	WebSocket []WebSocketExchange
+	// GRPC is a unary gRPC call's status and metadata; its message is Response.
+	GRPC           *GRPCResult
 	Tests          []TestResult
 	Vars           map[string]string
 	Err            error
@@ -71,8 +73,8 @@ func WithRunKey(ctx context.Context, key string) context.Context {
 // vars are the environment's values; Execution.Vars returns them with the
 // scripts' writes, never the inherited, dynamic or vault values.
 func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, vars map[string]string, jar http.CookieJar) (out Execution) {
-	if r.Protocol != "" {
-		return Execution{Stage: "Request setup failed", Vars: vars, Err: fmt.Errorf("%s documents must be opened in their interactive protocol client; Runner supports HTTP and WebSocket sends", r.Protocol)}
+	if r.Protocol != "" && r.Protocol != "gRPC" {
+		return Execution{Stage: "Request setup failed", Vars: vars, Err: fmt.Errorf("%s documents must be opened in their interactive protocol client; Runner supports HTTP, WebSocket and unary gRPC sends", r.Protocol)}
 	}
 	run := in.scriptRun(r, vars)
 	runKey, _ := ctx.Value(debugRunKey{}).(string)
@@ -185,6 +187,9 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	if err := in.unlock(r, effective); err != nil {
 		out.Err = err
 		return out
+	}
+	if r.Protocol == "gRPC" {
+		return r.executeGRPC(ctx, srv, in, effective, run, out)
 	}
 	req, err := r.Prepare(effective)
 	if err != nil {

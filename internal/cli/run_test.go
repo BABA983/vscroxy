@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/cli"
+	"github.com/baba983/vscroxy/internal/grpctest"
 	"github.com/baba983/vscroxy/internal/ntlmtest"
 	"github.com/baba983/vscroxy/internal/postman"
 	"github.com/baba983/vscroxy/internal/request"
@@ -334,5 +335,31 @@ func TestRunNTLM(t *testing.T) {
 	}
 	if auth.Connections() != 1 || len(auth.Requests()) != 3 {
 		t.Errorf("connections=%d requests=%+v, want one connection with three steps", auth.Connections(), auth.Requests())
+	}
+}
+
+func TestRunNativeGRPCCollection(t *testing.T) {
+	endpoint, schema := grpctest.Echo(t)
+	root := t.TempDir()
+	input := filepath.Join(root, "collections")
+	write(t, filepath.Join(input, "Shop", "Echo.request.json"), request.Request{
+		ID: "echo", Name: "Echo", Collection: "Shop", Protocol: "gRPC", URL: endpoint, Body: `"hello"`,
+		GRPC:    request.GRPCConfig{Schema: schema, Method: "/grpctest.Echo/Unary"},
+		Headers: "x-token: " + grpctest.Token,
+		Checks:  request.Checks{Headers: "Grpc-Status: 0", JSON: ` = "reply:hello"`},
+	})
+	reportPath := filepath.Join(root, "reports", "run.json")
+	var out, errOut bytes.Buffer
+	code := cli.Run(t.Context(), []string{"run", "--report-json", reportPath, input}, &out, &errOut)
+	if code != 0 || !strings.Contains(out.String(), "1 completed · 0 failed") {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, &out, &errOut)
+	}
+	data, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report runner.Report
+	if err := json.Unmarshal(data, &report); err != nil || report.Completed != 1 || report.Failed != 0 || report.Results[0].Status != 200 {
+		t.Fatalf("report: %+v %v", report, err)
 	}
 }

@@ -1194,6 +1194,10 @@ func (a *app) drain() {
 		d.composeReplies = result.replies
 		d.composeExchanges = result.exchanges
 		d.console = result.console
+		if result.grpc != nil {
+			g := d.grpcState()
+			g.session, g.unary = result.grpc, false
+		}
 		if result.outcome == "Cancelled" {
 			d.responseTab = resViewBody
 		} else if result.response == nil && len(result.console) > 0 {

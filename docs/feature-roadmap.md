@@ -210,7 +210,7 @@
 | WebSocket 客户端（文本） | 已有 | | |
 | WebSocket 客户端：二进制消息、子协议、保存的消息列表 | 已有 | Hex／Base64 发送、原样二进制回显；WS／WSS 双侧握手协商和实际子协议显示；请求文档的 Body 标签页保存多条消息，按顺序发送并保留每条消息的回复（回复等待默认 2 s、每条最多 200 条回复／1 MiB；无消息时只监听推送），实时会话可重放已保存列表并把已发送消息存回请求 | M8 |
 | SSE 客户端（持续接收事件） | 首版已有 | HTTP(S) 实时 GET、事件类型／ID／数据、搜索复制、显式可选重连与 Last-Event-ID、取消及有界时间线 | M8 |
-| gRPC 客户端（导入 proto 或服务端反射） | 首版已有 | 请求文档、proto／descriptor set、v1／v1alpha 反射、四种调用、metadata／trailers／最终状态、取消和 deadline；HTTP Runner／脚本暂不支持 | M8 |
+| gRPC 客户端（导入 proto 或服务端反射） | 已有 | 请求文档、proto／descriptor set、v1／v1alpha 反射、四种调用、metadata／trailers／最终状态、取消和 deadline；一元方法走与 HTTP 相同的执行路径：前置／后置脚本、Checks（`Grpc-Status`／`Grpc-Message`／`Grpc-Trailer-*` 作为响应头）、Examples 和 Runner／`vscroxy-cli run`；流式方法仍用交互客户端且拒绝脚本／Checks；Postman v2.1 导出仍跳过 gRPC 文档 | M8 |
 | Socket.IO 客户端 | 首版已有 | 请求文档、EIO4／WebSocket、namespace／auth、JSON／二进制附件、双向 ACK、有界实时消息、取消；保存的事件列表（添加当前、按顺序发送已保存、把已发送存回请求）；无轮询／重连／重发 | M8 |
 | MCP 客户端（调试 MCP server） | 首版已有 | 请求文档；Streamable HTTP／旧版 HTTP+SSE／stdio（命令、参数、环境、工作目录，显式连接才启动，首次及命令形状／环境变化时确认）、headers／auth／变量／证书设置、initialize 的服务器信息／协议版本／能力、工具／资源／模板／提示词目录与调用、结构化／图片／文本块和 isError、真实 JSON-RPC／通知／进度／服务器日志时间线、取消和断开；有界帧／时间线／目录／结果，图片后台解码与像素上限；GET 流按退避长期重连但不重放 POST，重连只保留一条实时状态行，关闭标签异步停止、退出统一等待；不接 HTTP 脚本／Checks／Runner／History | M8 |
 | MQTT 客户端 | 首版已有 | 请求文档与独立会话；MQTT 3.1.1／5.0 over TCP／TLS／WebSocket、QoS 0／1／2、retain、通配符订阅、last will、MQTT 5 属性、有界时间线；mqtt／mqtts 直连，ws／wss 经抓包代理；无脚本／Runner／History | M8 |
@@ -333,7 +333,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 ### M8：协议扩展
 
-- gRPC 客户端首版已完成（[使用指南](guide.md#interactive-grpc-requests)）：独立引擎与请求文档两个提交阶段；proto／descriptor set 导入、v1／v1alpha 反射、四种调用方式、双向实时收发、metadata／trailers／结构化错误状态、deadline／取消，schema 随请求保存。TLS 校验；HTTPS 通过运行中的抓包代理，h2c 明确直连不抓包。暂不接 HTTP 脚本／Checks／Runner／History；无自动重连或重发。
+- gRPC 客户端已完成（[使用指南](guide.md#interactive-grpc-requests)）：独立引擎与请求文档两个提交阶段；proto／descriptor set 导入、v1／v1alpha 反射、四种调用方式、双向实时收发、metadata／trailers／结构化错误状态、deadline／取消，schema 随请求保存。一元方法经 `request.Execute`：脚本、Checks、Examples、Runner 和 CLI 都走同一条路径，响应体是消息 JSON，`grpc-status`／`grpc-message` 与 trailer 以响应头形式提供给 Checks；流式方法保持交互客户端并拒绝脚本／Checks。TLS 校验；HTTPS 通过运行中的抓包代理，h2c 明确直连不抓包。无自动重连或重发；Postman v2.1 导出仍跳过 gRPC，CLI 从原生集合目录读取。
 - WebSocket 三阶段已完成：① 二进制与子协议（Hex／Base64 发送、WS／WSS 双侧协商）；② 实时会话与抓包消息的显式 Protobuf 解码（复用 schema，拒绝截断消息）；③ 双向消息断点（文本／Base64 编辑、原样放行、单条丢弃）与 `onMessage(message)` 脚本钩子。WS／解密 WSS，脚本先于消息断点；不拦截握手和控制帧。脚本／编辑上限 1 MiB；断开、代理关闭、断点关闭或超时释放暂停，详见[使用指南](guide.md#websocket-message-interception)。
 - SSE 客户端首版已完成（[使用指南](guide.md#interactive-sse-sessions)）：独立接收引擎与原生会话面板两个提交阶段；HTTP(S) 经运行中的抓包代理、TLS 校验、UTF-8／多行／空事件／ID 重置、响应头与事件搜索复制、有界时间线。自动重连默认关闭；显式启用后支持 Last-Event-ID／retry，HTTP 204 停止；停止／关闭取消连接及重连等待。GET-only，暂不接请求脚本／Checks／Runner／History，不保存或恢复会话。
 - Socket.IO 客户端首版已完成（[使用指南](guide.md#interactive-socketio-requests)）：协议引擎与请求文档两个提交阶段；EIO4／Socket.IO protocol 5、WebSocket-only、namespace／auth、JSON 与二进制附件、双向 ACK、搜索复制、有界时间线和取消。WS／解密 WSS 经抓包代理、TLS 校验、原作用域变量／Vault；官方 Socket.IO 4.8.4 服务端互通。无 polling／自动重连／重试／离线重放，不接 HTTP 脚本／Checks／Runner／History；配置保存，会话不恢复。

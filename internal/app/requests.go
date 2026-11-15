@@ -178,6 +178,7 @@ type requestResult struct {
 	tests       []request.TestResult
 	replies     []string
 	exchanges   []request.WebSocketExchange
+	grpc        *grpcSession
 	console     []request.ConsoleMessage
 	environment string
 	varsBefore  map[string]string

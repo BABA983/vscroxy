@@ -191,8 +191,15 @@ func TestGRPCDocumentImportReflectionCallsAndPersistence(t *testing.T) {
 			d.grpcConfig.Method, d.composeBody = "/demo.Echo/"+name, `"first"`
 			d.grpcUI.tab = 0
 			tt.Frame()
+			before := d.grpcUI.session
 			click("Send")
+			// Unary methods run through Execute, so their session appears with
+			// the result; streams open the interactive session first.
+			unary := name == "Unary" || name == "Fail"
 			waitGRPC(t, tt, func() bool {
+				if unary {
+					return !d.composeWaiting && d.grpcUI.session != nil && d.grpcUI.session != before
+				}
 				s := d.grpcUI.session.snapshot()
 				return s.finished || !s.sending && len(s.events) > 0
 			})

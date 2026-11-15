@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/grpctest"
 	"github.com/baba983/vscroxy/internal/ntlmtest"
 	"github.com/baba983/vscroxy/internal/request"
 )
@@ -218,5 +219,34 @@ func TestRequestDelayStopsWhenRunIsCancelled(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed > 10*time.Second {
 		t.Fatalf("cancelled run took %v; the delay ignored cancellation", elapsed)
+	}
+}
+
+func TestRunnerRunsAUnaryGRPCStep(t *testing.T) {
+	endpoint, schema := grpctest.Echo(t)
+	srv := runnerProxy(t)
+	step := Step{Request: request.Request{
+		Protocol: "gRPC", URL: endpoint, Body: `"hello"`,
+		GRPC:    request.GRPCConfig{Schema: schema, Method: "/grpctest.Echo/Unary"},
+		Headers: "x-token: " + grpctest.Token,
+		Checks:  request.Checks{Headers: "Grpc-Status: 0", JSON: ` = "reply:hello"`},
+	}}
+	var results []Result
+	summary, err := Run(t.Context(), srv, []Step{step}, Options{Iterations: 1}, func(result Result) error {
+		results = append(results, result)
+		return nil
+	})
+	if err != nil || summary.Completed != 1 || summary.Failed != 0 {
+		t.Fatalf("run = %+v, %v", summary, err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("results: %+v", results)
+	}
+	got := results[0].Execution
+	if got.Err != nil || got.Response == nil || got.Response.ResponseBody != `"reply:hello"` {
+		t.Fatalf("execution: %+v", got)
+	}
+	if len(got.Tests) != 2 || !got.Tests[0].Pass || !got.Tests[1].Pass {
+		t.Fatalf("checks: %+v", got.Tests)
 	}
 }

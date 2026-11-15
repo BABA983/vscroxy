@@ -1893,12 +1893,18 @@ load keeps the previous schema. Compiled descriptors and the selected method
 are saved with this document, independent of the capture inspector's registry.
 
 Select a service/method and enter its protobuf JSON under **Message**. **Send**
-starts unary, server-streaming, client-streaming or bidirectional calls according
-to the descriptor. For client/bidirectional streams, the first message is sent
-immediately; **Send message** sends the current editor contents again, and
-**Finish sending** half-closes the send side without cancelling received replies.
-Bidirectional replies appear before finishing. **Cancel send** cancels the RPC;
-it cannot undo work already performed by the server. The default deadline is
+runs a unary method through the same execution path as an HTTP request, so
+**Checks**, **Examples**, pre-request/post-response scripts and the Runner apply;
+the response message is the response body, and `grpc-status`/`grpc-message`
+appear as response headers (`Grpc-Status`, `Grpc-Message`) with final trailers
+under `Grpc-Trailer-*`, so a Check can assert `Grpc-Status: 0` or `Grpc-Status: 7`.
+Streaming methods (server, client and bidirectional) keep the interactive client:
+the first message is sent immediately; **Send message** sends the current editor
+contents again, and **Finish sending** half-closes the send side without
+cancelling received replies. Bidirectional replies appear before finishing.
+Scripts and Checks run with unary methods only; the streaming client refuses a
+document that has them rather than skipping them. **Cancel send** cancels the
+RPC; it cannot undo work already performed by the server. The default deadline is
 30 seconds, selectable up to one hour. Closing/reloading the document or quitting
 cancels its discovery and calls. No automatic reconnect or replay occurs.
 
@@ -1911,10 +1917,15 @@ gRPC code, message and structured error details, including trailers-only errors.
 
 Metadata and JSON support the existing variables and host-restricted Vault.
 Auth supports inherited/explicit None, Basic, Bearer and header API keys.
-HTTP scripts (including inherited scripts), Checks and token bindings must be
-removed before calling: they are not silently skipped. Runner/CLI HTTP execution
-and HTTP code generation reject gRPC documents; Postman v2.1 export skips them
-with a warning. Calls/timelines are session-local, not HTTP History or Examples.
+A unary call runs pre-request scripts, the call, Checks and post-response
+scripts, in that order, like HTTP; token bindings still apply only to HTTP.
+The Runner and `vscroxy-cli run` execute unary gRPC documents and report the
+same Checks, while streaming methods need the interactive client. **Save as
+example** keeps a unary response with the request, and the **Examples** tab
+edits it like an HTTP example. HTTP code generation rejects gRPC documents, and
+Postman v2.1 export skips them with a warning; `vscroxy-cli run` reads them from
+a native collection directory. Streaming calls and their timelines are
+session-local, not HTTP History.
 
 TLS verifies certificates using system roots, the configured custom roots and
 the running proxy's CA, and presents a matching client certificate from

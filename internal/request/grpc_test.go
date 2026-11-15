@@ -33,10 +33,11 @@ func TestPrepareGRPCScopesVaultAndHTTPBoundaries(t *testing.T) {
 	if _, err := r.Prepare(vars); err == nil {
 		t.Fatal("HTTP Prepare accepted a gRPC document")
 	}
+	// Scripts run for a gRPC document, so the script's own error is reported.
 	r.Pre = `throw new Error("must not run");`
 	out := r.Execute(t.Context(), nil, in, vars, nil)
-	if out.Err == nil || !strings.Contains(out.Err.Error(), "interactive protocol client") || out.Stage != "Request setup failed" {
-		t.Fatalf("Runner executed HTTP code on a gRPC document: %+v", out)
+	if out.Err == nil || !strings.Contains(out.Err.Error(), "must not run") || out.Stage != "Pre-request script failed" {
+		t.Fatalf("the pre-request script did not run: %+v", out)
 	}
 	for _, tc := range []struct {
 		name string
@@ -44,7 +45,6 @@ func TestPrepareGRPCScopesVaultAndHTTPBoundaries(t *testing.T) {
 		in   Context
 	}{
 		{"missing", Request{Protocol: "gRPC", URL: "https://example", Body: `"{{missing}}"`}, Context{}},
-		{"inherited scripts", Request{Protocol: "gRPC", URL: "https://example"}, Context{Folders: []Folder{{Pre: "console.log(1)"}}}},
 		{"query auth", Request{Protocol: "gRPC", URL: "https://example", Auth: Auth{Type: "API key", Location: "Query"}}, Context{}},
 		{"bad metadata", Request{Protocol: "gRPC", URL: "https://example", Headers: "ignored-secret"}, Context{}},
 	} {

@@ -25,12 +25,15 @@ import (
 )
 
 type grpcDocument struct {
-	schema                     *protoSchema
-	loaded                     bool
-	source, roots, problem     string
-	loading                    chan grpcSchemaResult
-	cancelImport               context.CancelFunc
-	session                    *grpcSession
+	schema                 *protoSchema
+	loaded                 bool
+	source, roots, problem string
+	loading                chan grpcSchemaResult
+	cancelImport           context.CancelFunc
+	session                *grpcSession
+	// unary marks a call running through Execute; its result clears
+	// composeWaiting, not an older finished session.
+	unary                      bool
 	tab, responseTab, selected int
 	reader                     *editor.State
 	readerKey                  string
@@ -55,7 +58,7 @@ func (g *grpcDocument) stop() {
 	if g.cancelImport != nil {
 		g.cancelImport()
 	}
-	if g.session != nil {
+	if g.session != nil && g.session.cancel != nil {
 		g.session.cancel()
 	}
 	g.loading = nil
@@ -80,7 +83,7 @@ func (a *app) drainGRPC() {
 			}
 		default:
 		}
-		if g.session != nil && g.session.snapshot().finished {
+		if !g.unary && g.session != nil && g.session.snapshot().finished {
 			d.composeWaiting, d.sendCancel, d.sendCancelling = false, nil, false
 		}
 	}
@@ -134,7 +137,7 @@ func (a *app) loadGRPCSchema(d *requestDocument, reflect, saved bool) {
 			err = dialErr
 			if err == nil {
 				defer conn.Close()
-				md, mdErr := grpcMetadata(prepared.Header)
+				md, mdErr := grpcclient.Metadata(prepared.Header)
 				err = mdErr
 				if err == nil {
 					data, err = grpcclient.Reflect(ctx, conn, md)
@@ -185,6 +188,14 @@ func (a *app) sendGRPC(d *requestDocument) {
 	method, err := g.schema.method(d.grpcConfig.Method)
 	if err != nil {
 		g.problem = err.Error()
+		return
+	}
+	if !method.IsStreamingClient() && !method.IsStreamingServer() {
+		a.sendUnaryGRPC(d)
+		return
+	}
+	if d.composePre != "" || d.composePost != "" || d.checks != (request.Checks{}) {
+		g.problem = "Scripts and Checks run with unary methods; the streaming client runs without them"
 		return
 	}
 	r := d.value().Request
@@ -253,7 +264,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
-			uikit.Tabs(c, &g.tab, locales.GrpcEditorTabPrefix(), locales.Message(), locales.Metadata(), locales.Auth(), locales.Schema2()).Grow(1)
+			uikit.Tabs(c, &g.tab, locales.GrpcEditorTabPrefix(), locales.Message(), locales.Metadata(), locales.Auth(), locales.Schema2(), locales.Checks(), locales.Examples()).Grow(1)
 		})
 		ui.Column(c).Padding(t.Space(2), t.Space(3)).Children(func() {
 			uikit.SettingsGroup(c, locales.Call(), func() {
@@ -329,6 +340,10 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 						uikit.Meta(c, locales.GrpcMethods(n))
 					}
 				})
+			case 4:
+				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.checksEditor(c, d, t) })
+			case 5:
+				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.examplesEditor(c, d, t) })
 			}
 		})
 	})
@@ -366,6 +381,11 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
 			uikit.Tabs(c, &g.responseTab, locales.GrpcResponse(), locales.MessagesTab(), locales.Metadata(), locales.Status()).Grow(1)
+			if d.response != nil {
+				if uikit.SecondaryButton(c, locales.SaveAsExample()).Clicked() {
+					a.saveExample(d)
+				}
+			}
 			if g.session != nil {
 				uikit.Meta(c, stateLabel(s.state)).SingleLine()
 			}
@@ -423,4 +443,76 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			})
 		}).Grow(1)
 	})
+}
+
+// sendUnaryGRPC runs a unary method through Execute, so scripts, Checks,
+// examples and the Runner all share one call path. The result is shown in the
+// same Messages/Metadata/Status panes the streaming client uses.
+func (a *app) sendUnaryGRPC(d *requestDocument) {
+	g := d.grpcState()
+	seconds := cmp.Or(d.grpcConfig.TimeoutSeconds, 30)
+	if seconds < 1 || seconds > 3600 {
+		g.problem = "Set a deadline between 1 and 3600 seconds"
+		return
+	}
+	d.composeTests, d.composeReplies, d.console, d.composeExchanges = nil, nil, nil, nil
+	d.composeWaiting, d.composeResult, d.sendOutcome = true, "Sending…", ""
+	r, env, vars, srv, jar := d.draft(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
+	in := a.sendContext(r.Request)
+	d.sent, d.sentAt, d.sentSet = r, time.Now(), true
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(seconds)*time.Second)
+	d.sendCancel = cancel
+	g.problem, g.unary = "", true
+	go func() {
+		defer cancel()
+		got := r.Execute(ctx, srv, in, vars, jar)
+		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: executionOutcome(got),
+			response: got.Response, tests: got.Tests, console: got.Console, varsBefore: vars, vars: got.Vars, writes: got.Writes,
+			grpc: grpcSessionFromExecution(got)}
+		a.mu.Lock()
+		a.requestResults = append(a.requestResults, result)
+		a.mu.Unlock()
+		a.invalidate()
+	}()
+}
+
+// grpcSessionFromExecution turns a unary Execution into the session snapshot
+// the gRPC panes draw: the sent message, the reply, metadata, status details
+// and Checks.
+func grpcSessionFromExecution(got request.Execution) *grpcSession {
+	s := &grpcSession{finished: true, state: "gRPC failed"}
+	if got.GRPC != nil {
+		s.state = "gRPC " + got.GRPC.Code.String()
+		s.header, s.trailer = got.GRPC.Header, got.GRPC.Trailer
+	}
+	if got.Response != nil {
+		at := time.Now()
+		if body := got.Response.RequestBody; body != "" {
+			s.events = append(s.events, grpcEvent{seq: 1, at: at, direction: "Out", text: body, size: len(body)})
+		}
+		if body := got.Response.ResponseBody; body != "" {
+			s.events = append(s.events, grpcEvent{seq: len(s.events) + 1, at: at, direction: "In", text: body, size: len(body)})
+		}
+		s.seq = len(s.events)
+	}
+	if got.Err != nil {
+		s.problem = got.Err.Error()
+	}
+	var sections []string
+	if got.GRPC != nil && got.GRPC.Details != "" {
+		sections = append(sections, got.GRPC.Details)
+	}
+	if len(got.Tests) > 0 {
+		var checks strings.Builder
+		for _, test := range got.Tests {
+			status := "PASS"
+			if !test.Pass {
+				status = "FAIL"
+			}
+			fmt.Fprintf(&checks, "%s %s\n", status, test.Name)
+		}
+		sections = append(sections, "Checks\n"+strings.TrimSpace(checks.String()))
+	}
+	s.details = strings.Join(sections, "\n\n")
+	return s
 }

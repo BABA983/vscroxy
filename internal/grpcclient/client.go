@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -182,6 +183,27 @@ type Call struct {
 	sent   int
 	closed bool
 	recv   int
+}
+
+// Metadata converts request headers to call metadata, decoding -bin values
+// from padded base64. It is the one conversion the interactive client and a
+// Runner call share.
+func Metadata(header http.Header) (metadata.MD, error) {
+	md := metadata.MD{}
+	for key, values := range header {
+		key = strings.ToLower(key)
+		for _, value := range values {
+			if strings.HasSuffix(key, "-bin") {
+				data, err := base64.StdEncoding.DecodeString(value)
+				if err != nil {
+					return nil, fmt.Errorf("metadata %s requires padded base64", key)
+				}
+				value = string(data)
+			}
+			md.Append(key, value)
+		}
+	}
+	return md, nil
 }
 
 func validateMetadata(md metadata.MD) error {

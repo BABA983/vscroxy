@@ -34,6 +34,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/gorilla/websocket"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -453,6 +454,18 @@ func snapshotStates(t *testing.T) []snapshot {
 		{name: "requests-grpc-schema", setup: func(a *app) { grpcDraft(a); a.grpcState().tab = 3 }, want: "1 method · descriptors saved with this request"},
 		{name: "requests-grpc-stream", setup: grpcStream, want: "gRPC OK"},
 		{name: "requests-grpc-metadata", setup: func(a *app) { grpcStream(a); a.grpcState().responseTab = 1 }, want: "Final trailers"},
+		{name: "requests-grpc-unary", setup: func(a *app) {
+			grpcDraft(a)
+			got := request.Execution{
+				Response: &capture.Flow{Status: 200, ResponseBody: "{\n  \"title\": \"Studio headphones\"\n}", ResponseBodySize: 38,
+					ResponseHeader: http.Header{"Grpc-Status": {"0"}, "X-Trace": {"catalog-73"}}},
+				GRPC:  &request.GRPCResult{Completed: true, Code: codes.OK},
+				Tests: []request.TestResult{{Name: "Header Grpc-Status equals expected value", Pass: true}},
+			}
+			a.requestDocument.sent, a.requestDocument.sentSet = a.requestDocument.value(), true
+			a.requestDocument.response = got.Response
+			a.grpcState().session = grpcSessionFromExecution(got)
+		}, want: "Save as example"},
 		{name: "requests-grpc-error", setup: func(a *app) {
 			grpcDraft(a)
 			a.grpcState().session = &grpcSession{state: "gRPC PermissionDenied", problem: "rpc error: code = PermissionDenied desc = Access to catalog denied", finished: true}

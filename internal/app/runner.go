@@ -20,6 +20,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/icons/lucide"
+	"google.golang.org/grpc/codes"
 )
 
 // runSummary is one line for a run: its error, or status, size, time and checks.
@@ -27,10 +28,10 @@ func runSummary(r request.Execution) string {
 	if r.Skipped {
 		return "Skipped by its pre-request script"
 	}
-	if r.Err != nil {
-		return ntlmErrorText(r.Err)
-	}
 	if r.Response == nil {
+		if r.Err != nil {
+			return ntlmErrorText(r.Err)
+		}
 		return fmt.Sprintf("WebSocket: %d replies", len(r.Replies))
 	}
 	passed := 0
@@ -39,7 +40,28 @@ func runSummary(r request.Execution) string {
 			passed++
 		}
 	}
+	// A gRPC call carries its result in grpc-status, not the HTTP status.
+	if code := r.Response.ResponseHeader.Get("Grpc-Status"); code != "" {
+		name := grpcCodeName(code)
+		if r.Err != nil {
+			return "gRPC " + name + " · " + ntlmErrorText(r.Err)
+		}
+		return fmt.Sprintf("gRPC %s · %d ms · %d/%d tests", name, r.Response.Millis, passed, len(r.Tests))
+	}
+	if r.Err != nil {
+		return ntlmErrorText(r.Err)
+	}
 	return fmt.Sprintf("%d · %s · %d ms · %d/%d tests", r.Response.Status, humanBytes(r.Response.Bytes), r.Response.Millis, passed, len(r.Tests))
+}
+
+// grpcCodeName names a grpc-status value, or keeps the text when it is not a
+// known code.
+func grpcCodeName(text string) string {
+	code, err := strconv.Atoi(text)
+	if err != nil {
+		return text
+	}
+	return codes.Code(code).String()
 }
 
 type runnerStep struct {

@@ -686,7 +686,7 @@ func (a *app) webSocketMessagesEditor(c *ui.Context, d *requestDocument, t *ui.T
 					uikit.TextArea(c, &message.Payload).Label(locales.WebSocketMessageOf(i + 1)).
 						Placeholder(locales.TextHexBytesOrPadded()).Height(54).Font(uikit.FontMono).
 						FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(0)
-					label := locales.RemoveWebSocketMessage(i + 1)
+					label := locales.RemoveMessage(i + 1)
 					if uikit.IconButton(c, label, label, closeIcon).Clicked() {
 						remove = i
 					}
