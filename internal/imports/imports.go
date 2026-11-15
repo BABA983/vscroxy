@@ -30,6 +30,9 @@ const (
 	HoppscotchCollection
 	HoppscotchEnvironment
 	Swagger2
+	ThunderClient
+	SoapUI
+	JMeter
 )
 
 // Collection is one imported collection: its requests, the settings of the

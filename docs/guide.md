@@ -3086,6 +3086,26 @@ descriptions have no field, and saved examples are not imported; each is listed
 after the import. Environment exports (one object or an array) merge into
 environments of the same name.
 
+A **Thunder Client** export (one collection object or an array) keeps nested
+folders, collection variables, headers, query parameters, JSON/text/XML,
+form-urlencoded, multipart and GraphQL bodies, pre/post scripts, status checks
+and the common auth types. A binary body, an environment-setting test and an
+auth type without a mapping are listed in the import report.
+
+A **SoapUI** project's REST services become one collection: base paths, nested
+REST resources, methods, query/header/template parameters and request bodies
+are kept. SOAP interfaces, auth profiles and scripts are listed as not
+imported. A **JMeter** `.jmx` plan imports its HTTP samplers: domain, port,
+protocol, path, method, headers, raw or form arguments, redirect behavior and
+response timeout. Other JMeter elements, multipart POSTs and assertions are
+listed.
+
+**Import cURL…** accepts several commands pasted at once; each becomes an
+unsent request, and a command that cannot be read is listed while the rest
+still import. **Import from URL…** fetches a Postman, Thunder Client, SoapUI,
+JMeter, HAR or OpenAPI document over HTTP(S), up to 32 MiB; a non-2xx answer,
+a larger body or a non-HTTP URL is refused with the reason.
+
 A **Postman Collection v3** is a directory, not one JSON export: the
 collection and each folder may have `.resources/definition.yaml`, requests are
 `*.request.yaml`, and examples and saved messages live under

@@ -1007,7 +1007,7 @@
   "importHoppscotchCollection": "导入 Hoppscotch 集合",
   "importHoppscotchEnvironment": "导入 Hoppscotch 环境",
   "importInsomnia": "导入 Insomnia",
-  "importNotASupportedFile": "导入：不支持的文件（Postman、Insomnia、Hoppscotch、Swagger 2、HAR、OpenAPI 3.0/3.1）；Postman v3 或 Bruno 集合请选择「导入集合文件夹…」",
+  "importNotASupportedFile": "导入：不支持的文件（Postman、Insomnia、Hoppscotch、Thunder Client、SoapUI、JMeter、Swagger 2、HAR、OpenAPI 3.0/3.1）；Postman v3 或 Bruno 集合请选择「导入集合文件夹…」，或使用「从 URL 导入…」",
   "importOpenapi": "导入 OpenAPI…",
   "importOpenapi2": "导入 OpenAPI",
   "importPostmanCollection": "导入 Postman 集合",
@@ -2624,5 +2624,10 @@
   "queryName": "查询名称",
   "runningQuery": "正在运行查询…",
   "runToPreviewResults": "运行后在下方预览结果。",
-  "queryPlaceholder": "例如 $[?(@.price < 10)]"
-}
+  "queryPlaceholder": "例如 $[?(@.price < 10)]",
+  "importFromUrl": "从 URL 导入…",
+  "importFromUrl2": "从 URL 导入",
+  "importUrlHint": "通过 HTTP(S) 读取 Postman、Thunder Client、SoapUI、JMeter、HAR 或 OpenAPI 文档，最大 32 MiB。",
+  "importUrlNeedsHttp": "请输入 http:// 或 https:// URL。",
+  "importUrlTooLarge": "文档超过 32 MiB。",
+  "importAction": "导入"}

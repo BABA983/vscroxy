@@ -9868,11 +9868,11 @@ func (msgs Messages) ImportInsomnia() string {
 	return Catalog.Format(msgs.locale, "importInsomnia", nil)
 }
 
-// ImportNotASupportedFile says "Import: not a supported file (Postman, Insomnia, Hoppscotch, Swagger 2, HAR, OpenAPI 3.0/3.1); for a Postman v3 or Br…"
+// ImportNotASupportedFile says "Import: not a supported file (Postman, Insomnia, Hoppscotch, Thunder Client, SoapUI, JMeter, Swagger 2, HAR, OpenAPI …"
 // in the language the app shows.
 func ImportNotASupportedFile() string { return In(i18n.Locale()).ImportNotASupportedFile() }
 
-// ImportNotASupportedFile says "Import: not a supported file (Postman, Insomnia, Hoppscotch, Swagger 2, HAR, OpenAPI 3.0/3.1); for a Postman v3 or Br…"
+// ImportNotASupportedFile says "Import: not a supported file (Postman, Insomnia, Hoppscotch, Thunder Client, SoapUI, JMeter, Swagger 2, HAR, OpenAPI …"
 // in the language of msgs.
 func (msgs Messages) ImportNotASupportedFile() string {
 	return Catalog.Format(msgs.locale, "importNotASupportedFile", nil)
@@ -25646,4 +25646,64 @@ func QueryPlaceholder() string { return In(i18n.Locale()).QueryPlaceholder() }
 // in the language of msgs.
 func (msgs Messages) QueryPlaceholder() string {
 	return Catalog.Format(msgs.locale, "queryPlaceholder", nil)
+}
+
+// ImportFromUrl says "Import from URL…"
+// in the language the app shows.
+func ImportFromUrl() string { return In(i18n.Locale()).ImportFromUrl() }
+
+// ImportFromUrl says "Import from URL…"
+// in the language of msgs.
+func (msgs Messages) ImportFromUrl() string {
+	return Catalog.Format(msgs.locale, "importFromUrl", nil)
+}
+
+// ImportFromUrl2 says "Import from URL"
+// in the language the app shows.
+func ImportFromUrl2() string { return In(i18n.Locale()).ImportFromUrl2() }
+
+// ImportFromUrl2 says "Import from URL"
+// in the language of msgs.
+func (msgs Messages) ImportFromUrl2() string {
+	return Catalog.Format(msgs.locale, "importFromUrl2", nil)
+}
+
+// ImportUrlHint says "Fetches a Postman, Thunder Client, SoapUI, JMeter, HAR or OpenAPI document over HTTP(S), up to 32 MiB."
+// in the language the app shows.
+func ImportUrlHint() string { return In(i18n.Locale()).ImportUrlHint() }
+
+// ImportUrlHint says "Fetches a Postman, Thunder Client, SoapUI, JMeter, HAR or OpenAPI document over HTTP(S), up to 32 MiB."
+// in the language of msgs.
+func (msgs Messages) ImportUrlHint() string {
+	return Catalog.Format(msgs.locale, "importUrlHint", nil)
+}
+
+// ImportUrlNeedsHttp says "Enter an http:// or https:// URL."
+// in the language the app shows.
+func ImportUrlNeedsHttp() string { return In(i18n.Locale()).ImportUrlNeedsHttp() }
+
+// ImportUrlNeedsHttp says "Enter an http:// or https:// URL."
+// in the language of msgs.
+func (msgs Messages) ImportUrlNeedsHttp() string {
+	return Catalog.Format(msgs.locale, "importUrlNeedsHttp", nil)
+}
+
+// ImportUrlTooLarge says "The document is larger than 32 MiB."
+// in the language the app shows.
+func ImportUrlTooLarge() string { return In(i18n.Locale()).ImportUrlTooLarge() }
+
+// ImportUrlTooLarge says "The document is larger than 32 MiB."
+// in the language of msgs.
+func (msgs Messages) ImportUrlTooLarge() string {
+	return Catalog.Format(msgs.locale, "importUrlTooLarge", nil)
+}
+
+// ImportAction says "Import"
+// in the language the app shows.
+func ImportAction() string { return In(i18n.Locale()).ImportAction() }
+
+// ImportAction says "Import"
+// in the language of msgs.
+func (msgs Messages) ImportAction() string {
+	return Catalog.Format(msgs.locale, "importAction", nil)
 }

@@ -126,11 +126,15 @@ type app struct {
 	toolsMenuAction string
 	// launchPort and launchKeyLog are the saved settings this run started
 	// with: a different saved value waits for a restart.
-	launchPort   int
-	launchKeyLog string
-	curlOpen     bool
-	curlInput    string
-	curlProblem  string
+	launchPort       int
+	launchKeyLog     string
+	curlOpen         bool
+	curlInput        string
+	curlProblem      string
+	urlImportOpen    bool
+	urlImportText    string
+	urlImportProblem string
+	urlImportBusy    bool
 	// docsOpen shows a collection's or folder's read-only documentation;
 	// docsPath is what it covers. docsMarkdown keeps the view's parse.
 	docsOpen       bool
@@ -1935,6 +1939,7 @@ func (a *app) view(c *ui.Context) {
 	a.closeRequestModal(c, t)
 	a.apiGenerationModal(c, t)
 	a.curlImportModal(c, t)
+	a.urlImportModal(c, t)
 	a.devicesModal(c, t)
 	a.clientSetupModal(c, t)
 	a.experimentsModal(c, t)
@@ -2636,6 +2641,7 @@ func (a *app) collectionsMenu(m *ui.Menu) { actionMenu(m, a.collectionsActions()
 func (a *app) collectionsActions() []action {
 	return []action{
 		do("collection.import", locales.ImportText(), a.importRequests),
+		do("collection.import-url", locales.ImportFromUrl(), a.openImportURL),
 		do("collection.import-folder", locales.ImportCollectionFolder(), a.importCollectionFolder),
 		do("request.import-curl", locales.ImportCurl(), a.openCurlImport),
 		do("collection.record", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", "") }).in("run"),

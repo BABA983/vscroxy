@@ -2354,7 +2354,7 @@
   "importHoppscotchCollection": "Import Hoppscotch collection",
   "importHoppscotchEnvironment": "Import Hoppscotch environment",
   "importInsomnia": "Import Insomnia",
-  "importNotASupportedFile": "Import: not a supported file (Postman, Insomnia, Hoppscotch, Swagger 2, HAR, OpenAPI 3.0/3.1); for a Postman v3 or Bruno collection choose Import collection folder…",
+  "importNotASupportedFile": "Import: not a supported file (Postman, Insomnia, Hoppscotch, Thunder Client, SoapUI, JMeter, Swagger 2, HAR, OpenAPI 3.0/3.1); for a Postman v3 or Bruno collection choose Import collection folder…, or use Import from URL…",
   "importOpenapi": "Import OpenAPI…",
   "importOpenapi2": "Import OpenAPI",
   "importPostmanCollection": "Import Postman collection",
@@ -3971,5 +3971,10 @@
   "queryName": "Query name",
   "runningQuery": "Running query…",
   "runToPreviewResults": "Run to preview results.",
-  "queryPlaceholder": "$[?(@.price < 10)]"
-}
+  "queryPlaceholder": "$[?(@.price < 10)]",
+  "importFromUrl": "Import from URL…",
+  "importFromUrl2": "Import from URL",
+  "importUrlHint": "Fetches a Postman, Thunder Client, SoapUI, JMeter, HAR or OpenAPI document over HTTP(S), up to 32 MiB.",
+  "importUrlNeedsHttp": "Enter an http:// or https:// URL.",
+  "importUrlTooLarge": "The document is larger than 32 MiB.",
+  "importAction": "Import"}

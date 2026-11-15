@@ -1067,3 +1067,64 @@ func powerShellCookie(statement string) (name, value, path, domain string, err e
 	}
 	return name, value, path, domain, nil
 }
+
+// ParseCurlCommands reads several cURL or PowerShell commands pasted at once.
+// A line that starts a command at column zero begins a new one; continuation
+// lines stay with their command. A command that fails is reported and the
+// rest still import.
+func ParseCurlCommands(source string) ([]request.Request, []string, error) {
+	var out []request.Request
+	var warnings []string
+	for i, command := range splitCurlCommands(source) {
+		r, w, err := ParseCurl(command)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("command %d: %v", i+1, err))
+			continue
+		}
+		if strings.TrimSpace(r.Name) == "" {
+			r.Name = fmt.Sprintf("cURL %d", i+1)
+		}
+		out = append(out, r)
+		warnings = append(warnings, w...)
+	}
+	if len(out) == 0 {
+		return nil, warnings, fmt.Errorf("no cURL commands could be imported")
+	}
+	return out, warnings, nil
+}
+
+func splitCurlCommands(source string) []string {
+	source = strings.TrimSpace(strings.TrimPrefix(source, "\ufeff"))
+	if source == "" {
+		return nil
+	}
+	starts := func(line string) bool {
+		lower := strings.ToLower(strings.TrimSpace(line))
+		return strings.HasPrefix(lower, "curl ") || strings.HasPrefix(lower, "curl.exe ") ||
+			strings.HasPrefix(lower, "invoke-webrequest ") || strings.HasPrefix(lower, "invoke-restmethod ")
+	}
+	var commands []string
+	var current strings.Builder
+	flush := func() {
+		if text := strings.TrimSpace(current.String()); text != "" {
+			commands = append(commands, text)
+		}
+		current.Reset()
+	}
+	previousBlank := true
+	for _, line := range strings.Split(source, "\n") {
+		trimmed := strings.TrimSpace(line)
+		indented := len(line) > 0 && (line[0] == ' ' || line[0] == '\t')
+		if starts(line) && current.Len() > 0 && (!indented || previousBlank) {
+			lower := strings.ToLower(current.String())
+			if !strings.HasPrefix(lower, "$session") || strings.Contains(lower, "invoke-webrequest") || strings.Contains(lower, "invoke-restmethod") {
+				flush()
+			}
+		}
+		current.WriteString(line)
+		current.WriteByte('\n')
+		previousBlank = trimmed == ""
+	}
+	flush()
+	return commands
+}

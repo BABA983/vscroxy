@@ -302,18 +302,20 @@ func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
 					a.curlOpen, a.curlInput = false, ""
 				}
 				if uikit.PrimaryButton(c, locales.ImportRequest()).Disabled(strings.TrimSpace(a.curlInput) == "").Clicked() {
-					r, warnings, err := parseCurlImport(a.curlInput)
+					requests, warnings, err := imports.ParseCurlCommands(a.curlInput)
 					if err != nil {
-						a.curlProblem = err.Error()
+						a.curlProblem = strings.Join(append([]string{err.Error()}, warnings...), "; ")
 						return
 					}
-					a.addDocument(r, "")
+					for _, r := range requests {
+						a.addDocument(savedRequest{Request: r}, "")
+					}
 					a.curlOpen, a.curlInput = false, ""
-					if len(warnings) > 0 {
-						a.warn(locales.ImportedCurlWarnings(strings.Join(warnings, "; ")))
+					if len(requests) == 1 && len(warnings) == 0 {
+						a.done(locales.ImportedCurlAsAnUnsent())
 						return
 					}
-					a.done(locales.ImportedCurlAsAnUnsent())
+					a.reportImport(fmt.Sprintf("Imported %d %s", len(requests), plural(len(requests), "cURL request", "cURL requests")), warnings)
 				}
 			})
 		})

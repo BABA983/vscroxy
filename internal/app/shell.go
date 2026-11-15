@@ -681,7 +681,8 @@ func (a *app) moreActions(c *ui.Context) []action {
 		do("capture.import-session", locales.ImportCaptureSession(), a.importCaptureSession).in("import"),
 		do("capture.import-proxyman-folder", locales.ImportProxymanLogFolder(), a.importCaptureFolder).in("import"),
 		do("rules.import-charles", locales.ImportCharlesSettings(), a.importCharlesSettings).in("import"),
-		do("collection.import", locales.ImportText(), a.importRequests).in("import"),
+		do("collection.import", locales.ImportText(), a.importRequests),
+		do("collection.import-url", locales.ImportFromUrl(), a.openImportURL).in("import"),
 		do("collection.import-folder", locales.ImportCollectionFolder(), a.importCollectionFolder).in("import"),
 		do("request.import-curl", locales.ImportCurl(), a.openCurlImport).in("import"),
 		do("api.generate", locales.GenerateOpenapi(), a.openAPIGeneration).

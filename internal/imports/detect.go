@@ -1,6 +1,7 @@
 package imports
 
 import (
+	"bytes"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -22,6 +23,15 @@ func Detect(data []byte) Format {
 // lost. Malformed YAML stays Unknown without an error, as before; only a
 // guard limit is surfaced, because that is the failure a user needs to see.
 func DetectWithError(data []byte) (Format, error) {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) > 0 && trimmed[0] == '<' {
+		switch {
+		case bytes.Contains(trimmed, []byte("soapui-project")):
+			return SoapUI, nil
+		case bytes.Contains(trimmed, []byte("jmeterTestPlan")):
+			return JMeter, nil
+		}
+	}
 	jsonData := data
 	if !jsontext.Value(data).IsValid() {
 		var err error
@@ -41,23 +51,27 @@ func DetectWithError(data []byte) (Format, error) {
 		jsonData = list[0]
 	}
 	var top struct {
-		Type        string         `json:"type"`
-		Swagger     jsontext.Value `json:"swagger"`
-		ExportType  string         `json:"_type"`
-		Export      jsontext.Value `json:"__export_format"`
-		Resources   jsontext.Value `json:"resources"`
-		V           jsontext.Value `json:"v"`
-		Name        string         `json:"name"`
-		Folders     jsontext.Value `json:"folders"`
-		Requests    jsontext.Value `json:"requests"`
-		Variables   jsontext.Value `json:"variables"`
-		Info        jsontext.Value `json:"info"`
-		Collections jsontext.Value `json:"collection"`
+		Type           string         `json:"type"`
+		Swagger        jsontext.Value `json:"swagger"`
+		ExportType     string         `json:"_type"`
+		Export         jsontext.Value `json:"__export_format"`
+		Resources      jsontext.Value `json:"resources"`
+		V              jsontext.Value `json:"v"`
+		Name           string         `json:"name"`
+		Folders        jsontext.Value `json:"folders"`
+		Requests       jsontext.Value `json:"requests"`
+		Variables      jsontext.Value `json:"variables"`
+		Info           jsontext.Value `json:"info"`
+		Collections    jsontext.Value `json:"collection"`
+		Client         string         `json:"client"`
+		CollectionName string         `json:"collectionName"`
 	}
 	if json.Unmarshal(jsonData, &top) != nil {
 		return Unknown, nil
 	}
 	switch {
+	case top.Client == "Thunder Client" && (top.CollectionName != "" || top.Requests.Kind() == '[' || top.Folders.Kind() == '['):
+		return ThunderClient, nil
 	case top.ExportType == "export" && string(top.Export) == "4" && top.Resources.Kind() == '[':
 		return InsomniaV4, nil
 	case strings.HasPrefix(top.Type, "collection.insomnia.rest/5.0"), strings.HasPrefix(top.Type, "spec.insomnia.rest/5.0"), strings.HasPrefix(top.Type, "environment.insomnia.rest/5.0"):

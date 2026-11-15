@@ -1667,6 +1667,10 @@ func snapshotStates(t *testing.T) []snapshot {
 		{name: "dialog-curl-error", setup: func(a *app) {
 			a.curlOpen, a.curlInput, a.curlProblem = true, "curl $(unsafe-command)", "shell substitutions are not supported; paste literal values instead"
 		}, want: "Import cURL", short: true},
+		{name: "dialog-import-url", setup: func(a *app) {
+			a.openImportURL()
+			a.urlImportText = "https://example.com/collection.json"
+		}, want: "Import from URL", short: true},
 		{name: "dialog-import-report", setup: func(a *app) {
 			a.importReport = importReport{open: true, title: "Import review", intro: "Imported requests; review unsupported fields before sending."}
 			for i := range 16 {

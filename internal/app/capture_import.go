@@ -140,6 +140,17 @@ func (a *app) importDropped(paths []string) {
 		switch droppedImportKind(path, info.IsDir()) {
 		case droppedHAR:
 			a.importHARPath(path)
+		case droppedData:
+			if info.Size() > 32<<20 {
+				a.warn(locales.ImportUrlTooLarge())
+				return
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				a.fail(locales.ImportText2(), err)
+				return
+			}
+			a.win.Update(func() { a.importData(data, path) })
 		case droppedCapture:
 			a.importCaptureFile(path)
 		case droppedCaptureDir:
@@ -160,6 +171,7 @@ const (
 	droppedCapture
 	droppedCaptureDir
 	droppedCollectionDir
+	droppedData
 )
 
 // droppedImportKind decides which importer owns a dropped path. HAR files keep
@@ -177,8 +189,10 @@ func droppedImportKind(path string, isDir bool) droppedKind {
 		return droppedUnknown
 	}
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".har", ".json":
+	case ".har":
 		return droppedHAR
+	case ".json", ".yaml", ".yml", ".xml", ".jmx", ".http", ".rest":
+		return droppedData
 	case ".chlsj", ".chlsx", ".chlz", ".chls", ".proxymanlogv2", ".proxymanlog":
 		return droppedCapture
 	default:

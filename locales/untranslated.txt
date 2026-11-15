@@ -70,3 +70,4 @@ us-east-1
 {{vault:oauth1_secret}}
 -----BEGIN PRIVATE KEY----- … or {{vault:asap_key}}
 {"custom": "{{value}}"}
+https://example.com/collection.json

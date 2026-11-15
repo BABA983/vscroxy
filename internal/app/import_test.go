@@ -177,7 +177,7 @@ func TestImportOpenAPIWithoutServerAddsBaseURLVariable(t *testing.T) {
 func TestImportRejectsUnknownFilesListingEveryKind(t *testing.T) {
 	a := libraryApp(t)
 	a.importData([]byte(`{"foo":"bar"}`), "unknown.json")
-	if !strings.HasPrefix(a.message, "Import: not a supported file (Postman, Insomnia, Hoppscotch, Swagger 2, HAR, OpenAPI 3.0/3.1)") || len(a.requests) != 0 {
+	if !strings.HasPrefix(a.message, "Import: not a supported file (Postman, Insomnia, Hoppscotch, Thunder Client, SoapUI, JMeter, Swagger 2, HAR, OpenAPI 3.0/3.1)") || len(a.requests) != 0 {
 		t.Errorf("message %q, requests %d", a.message, len(a.requests))
 	}
 }
@@ -573,7 +573,10 @@ func TestDroppedImportKindRoutesByFormat(t *testing.T) {
 	}{
 		{"traffic.har", false, droppedHAR},
 		{"traffic.HAR", false, droppedHAR},
-		{"traffic.json", false, droppedHAR},
+		{"traffic.json", false, droppedData},
+		{"thunder.json", false, droppedData},
+		{"project.xml", false, droppedData},
+		{"plan.jmx", false, droppedData},
 		{"session.chlsj", false, droppedCapture},
 		{"session.chlsx", false, droppedCapture},
 		{"session.chlz", false, droppedCapture},
@@ -779,5 +782,44 @@ func TestHTTPExportRedaction(t *testing.T) {
 	same, err := redactHTTPFile(data, exportOptions{})
 	if err != nil || !bytes.Equal(same, data) {
 		t.Fatalf("unredacted export changed: %v, %q", err, same)
+	}
+}
+
+func TestImportThunderSoapUIAndJMeter(t *testing.T) {
+	for _, tc := range []struct {
+		name, file, data string
+	}{
+		{"thunder", "thunder.json", `{"client":"Thunder Client","collectionName":"Thunder","requests":[{"_id":"t1","name":"List","url":"https://api.example.com/items","method":"GET"}]}`},
+		{"soapui", "shop.xml", `<con:soapui-project xmlns:con="http://eviware.com/soapui/config" name="Soap"><con:restService name="API"><con:basePath>https://api.example.com</con:basePath><con:restResource name="Items" path="/items"><con:restMethod name="GET"><con:request id="s1" name="List" mediaType="application/json"><con:requestContent/></con:request></con:restMethod></con:restResource></con:restService></con:soapui-project>`},
+		{"jmeter", "plan.jmx", `<jmeterTestPlan><hashTree><HTTPSamplerProxy testname="List"><stringProp name="HTTPSampler.domain">api.example.com</stringProp><stringProp name="HTTPSampler.path">/items</stringProp><stringProp name="HTTPSampler.method">GET</stringProp></HTTPSamplerProxy></hashTree></jmeterTestPlan>`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := libraryApp(t)
+			a.importData([]byte(tc.data), tc.file)
+			if len(a.requests) != 1 || a.requests[0].Method != "GET" || a.requests[0].URL == "" {
+				t.Fatalf("requests = %+v, message %q", importedRequests(t, a.requests), a.message)
+			}
+		})
+	}
+}
+
+func TestDownloadImportURL(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/missing" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Write([]byte(`{"client":"Thunder Client","collectionName":"Remote","requests":[]}`))
+	}))
+	defer upstream.Close()
+	data, name, err := downloadImportURL(upstream.Client(), upstream.URL+"/collection.json")
+	if err != nil || name != "collection.json" || !strings.Contains(string(data), "Thunder Client") {
+		t.Fatalf("data=%q name=%q err=%v", data, name, err)
+	}
+	if _, _, err := downloadImportURL(upstream.Client(), "file:///tmp/x.json"); err == nil || !strings.Contains(err.Error(), "http") {
+		t.Fatalf("non-HTTP URL error = %v", err)
+	}
+	if _, _, err := downloadImportURL(upstream.Client(), upstream.URL+"/missing"); err == nil || !strings.Contains(err.Error(), "404") {
+		t.Fatalf("404 error = %v", err)
 	}
 }

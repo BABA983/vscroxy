@@ -31,7 +31,7 @@ func (a *app) importRequests() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Title:   locales.ImportText2(),
-			Filters: []mygo.FileFilter{{Name: "Postman, HAR, OpenAPI or .http", Extensions: []string{"json", "har", "yaml", "yml", "http", "rest"}}},
+			Filters: []mygo.FileFilter{{Name: "API exports", Extensions: []string{"json", "har", "yaml", "yml", "xml", "jmx", "http", "rest"}}},
 		})
 		if err != nil || len(paths) == 0 {
 			return
@@ -182,6 +182,30 @@ func (a *app) importData(data []byte, path string) {
 				return
 			}
 			a.importThirdParty(imports.Result{Environments: envs}, "Import Hoppscotch environment")
+			return
+		case imports.ThunderClient:
+			result, err := imports.ReadThunder(data)
+			if err != nil {
+				a.fail(locales.ImportText2(), err)
+				return
+			}
+			a.importThirdParty(result, "Import Thunder Client collection")
+			return
+		case imports.SoapUI:
+			result, err := imports.ReadSoapUI(data)
+			if err != nil {
+				a.fail(locales.ImportText2(), err)
+				return
+			}
+			a.importThirdParty(result, "Import SoapUI project")
+			return
+		case imports.JMeter:
+			result, err := imports.ReadJMeter(data)
+			if err != nil {
+				a.fail(locales.ImportText2(), err)
+				return
+			}
+			a.importThirdParty(result, "Import JMeter test plan")
 			return
 		}
 		if format == imports.Swagger2 {
