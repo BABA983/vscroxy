@@ -473,6 +473,13 @@
       }
     }
   },
+  "@reproBundleSavedTo": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "@requestBytes": {
     "placeholders": {
       "bytes": {
@@ -3118,6 +3125,11 @@
   "replayTimeout": "Replay timeout",
   "replaysCount": "Replays ({count})",
   "replySocketIoAck": "Reply Socket.IO ACK",
+  "reproBundle": "Repro bundle…",
+  "reproCollectionDescription": "Redacted by vscroxy. Replace •••• values before sending.",
+  "reproBundleSavedTo": "Repro bundle saved to {path}",
+  "reproBundleTip": "One file with redacted flows, notes, timing and a runnable collection",
+  "exportReproBundle": "Export repro bundle…",
   "request": "Request",
   "requestActions": "Request actions",
   "requestActionsPrefix": "Request actions: {name}",

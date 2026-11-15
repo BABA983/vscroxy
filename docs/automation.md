@@ -133,6 +133,18 @@ captured host; `--keep-credentials` opts in. `--header-a` and `--header-b`
 (repeatable `Name: Value`) add per-side headers, and each side keeps its own
 Cookie jar.
 
+## Reproduction bundles
+
+**Repro bundle…** in a saved session writes one local JSON file with the
+session's redacted flows, notes, colors, timing and an embedded Postman
+collection. `vscroxy-cli run ./vscroxy-repro.json` executes that collection like
+any other input; `--folder` and the usual run flags apply. Credential headers
+(`Authorization`, `Cookie`, API keys and similar), URL query values and JSON or
+form fields whose names look like credentials are replaced with `••••`. Replace
+those placeholders before running the collection against a real service; the
+bundle is not encrypted. The collection contains the session's HTTP(S) flows;
+stream flows remain in the redacted evidence list.
+
 ## Long-lived protocols
 
 `run` executes WebSocket, Socket.IO and gRPC documents, not only HTTP(S):

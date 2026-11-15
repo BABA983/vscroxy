@@ -78,6 +78,9 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 			if uikit.CompactButton(c, locales.Delete2()).Clicked() {
 				a.confirmDeleteSession(item)
 			}
+			if uikit.Tip(c, uikit.CompactButton(c, locales.ReproBundle()).Label(locales.ReproBundleTip()), locales.ReproBundleTip()).Clicked() {
+				a.exportReproBundle(item)
+			}
 			if uikit.CompactButton(c, locales.ExportSession()).Clicked() {
 				data, err := json.Marshal(item.data)
 				if err != nil {

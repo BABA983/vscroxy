@@ -4,7 +4,6 @@
 package repro
 
 import (
-	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
 	"time"
@@ -29,31 +28,27 @@ type Bundle struct {
 
 // Flow is one redacted exchange and what a person marked on it.
 type Flow struct {
-	ID              int            `json:"id"`
-	Method          string         `json:"method"`
-	URL             string         `json:"url"`
-	RequestHeaders  string         `json:"requestHeaders,omitempty"`
-	RequestBody     string         `json:"requestBody,omitempty"`
-	RequestBytes    []byte         `json:"requestBytes,omitempty"`
-	ResponseStatus  int            `json:"responseStatus,omitempty"`
-	ResponseHeaders string         `json:"responseHeaders,omitempty"`
-	ResponseBody    string         `json:"responseBody,omitempty"`
-	ResponseBytes   []byte         `json:"responseBytes,omitempty"`
-	Millis          int            `json:"millis,omitempty"`
-	Wait            int            `json:"waitMillis,omitempty"`
-	Download        int            `json:"downloadMillis,omitempty"`
-	Timing          *timing        `json:"timing,omitempty"`
-	At              time.Time      `json:"at,omitzero"`
-	Kind            string         `json:"kind,omitempty"`
-	Note            string         `json:"note,omitempty"`
-	Color           string         `json:"color,omitempty"`
-	Pinned          bool           `json:"pinned,omitzero"`
-	Strike          bool           `json:"strike,omitzero"`
-	Connection      jsontext.Value `json:"connection,omitempty"`
+	ID              int       `json:"id"`
+	Method          string    `json:"method"`
+	URL             string    `json:"url"`
+	RequestHeaders  string    `json:"requestHeaders,omitempty"`
+	RequestBody     string    `json:"requestBody,omitempty"`
+	RequestBytes    []byte    `json:"requestBytes,omitempty"`
+	ResponseStatus  int       `json:"responseStatus,omitempty"`
+	ResponseHeaders string    `json:"responseHeaders,omitempty"`
+	ResponseBody    string    `json:"responseBody,omitempty"`
+	ResponseBytes   []byte    `json:"responseBytes,omitempty"`
+	Millis          int       `json:"millis,omitempty"`
+	Wait            int       `json:"waitMillis,omitempty"`
+	Download        int       `json:"downloadMillis,omitempty"`
+	Timing          any       `json:"timing,omitempty"`
+	At              time.Time `json:"at,omitzero"`
+	Kind            string    `json:"kind,omitempty"`
+	Note            string    `json:"note,omitempty"`
+	Color           string    `json:"color,omitempty"`
+	Pinned          bool      `json:"pinned,omitzero"`
+	Strike          bool      `json:"strike,omitzero"`
 }
-
-// timing is kept opaque so this package does not depend on the capture engine.
-type timing = any
 
 // Parse reads a bundle, rejecting another format or version.
 func Parse(data []byte) (*Bundle, error) {

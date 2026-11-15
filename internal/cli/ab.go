@@ -22,6 +22,7 @@ import (
 	"github.com/baba983/vscroxy/internal/ab"
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/library"
+	"github.com/baba983/vscroxy/internal/repro"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
 	"github.com/baba983/vscroxy/internal/store"
@@ -337,6 +338,9 @@ func readABSession(path string) (*abSession, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
+	}
+	if _, ok := repro.Collection(data); ok {
+		return nil, nil
 	}
 	var probe struct {
 		Flows jsontext.Value `json:"flows"`

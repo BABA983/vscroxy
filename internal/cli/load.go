@@ -12,6 +12,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/library"
 	"github.com/baba983/vscroxy/internal/postman"
+	"github.com/baba983/vscroxy/internal/repro"
 	"github.com/baba983/vscroxy/internal/request"
 )
 
@@ -40,6 +41,9 @@ func loadCollection(name, folder string) ([]request.Request, []request.Folder, [
 		var data []byte
 		data, err = os.ReadFile(name)
 		if err == nil {
+			if collection, ok := repro.Collection(data); ok {
+				data = collection
+			}
 			var collection postman.Collection
 			collection, err = postman.ReadCollection(data)
 			requests, folders, warnings = collection.Requests, collection.Folders, collection.Warnings

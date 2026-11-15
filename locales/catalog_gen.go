@@ -16958,6 +16958,56 @@ func (msgs Messages) ReplySocketIoAck() string {
 	return Catalog.Format(msgs.locale, "replySocketIoAck", nil)
 }
 
+// ReproBundle says "Repro bundle…"
+// in the language the app shows.
+func ReproBundle() string { return In(i18n.Locale()).ReproBundle() }
+
+// ReproBundle says "Repro bundle…"
+// in the language of msgs.
+func (msgs Messages) ReproBundle() string {
+	return Catalog.Format(msgs.locale, "reproBundle", nil)
+}
+
+// ReproCollectionDescription says "Redacted by vscroxy. Replace •••• values before sending."
+// in the language the app shows.
+func ReproCollectionDescription() string { return In(i18n.Locale()).ReproCollectionDescription() }
+
+// ReproCollectionDescription says "Redacted by vscroxy. Replace •••• values before sending."
+// in the language of msgs.
+func (msgs Messages) ReproCollectionDescription() string {
+	return Catalog.Format(msgs.locale, "reproCollectionDescription", nil)
+}
+
+// ReproBundleSavedTo says "Repro bundle saved to {path}"
+// in the language the app shows.
+func ReproBundleSavedTo(path string) string { return In(i18n.Locale()).ReproBundleSavedTo(path) }
+
+// ReproBundleSavedTo says "Repro bundle saved to {path}"
+// in the language of msgs.
+func (msgs Messages) ReproBundleSavedTo(path string) string {
+	return Catalog.Format(msgs.locale, "reproBundleSavedTo", map[string]any{"path": path})
+}
+
+// ReproBundleTip says "One file with redacted flows, notes, timing and a runnable collection"
+// in the language the app shows.
+func ReproBundleTip() string { return In(i18n.Locale()).ReproBundleTip() }
+
+// ReproBundleTip says "One file with redacted flows, notes, timing and a runnable collection"
+// in the language of msgs.
+func (msgs Messages) ReproBundleTip() string {
+	return Catalog.Format(msgs.locale, "reproBundleTip", nil)
+}
+
+// ExportReproBundle says "Export repro bundle…"
+// in the language the app shows.
+func ExportReproBundle() string { return In(i18n.Locale()).ExportReproBundle() }
+
+// ExportReproBundle says "Export repro bundle…"
+// in the language of msgs.
+func (msgs Messages) ExportReproBundle() string {
+	return Catalog.Format(msgs.locale, "exportReproBundle", nil)
+}
+
 // Request says "Request"
 // in the language the app shows.
 func Request() string { return In(i18n.Locale()).Request() }

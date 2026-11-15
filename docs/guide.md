@@ -1562,7 +1562,10 @@ the proxy, and an app that connects to an address it already has.
 The **⋯** menu exports HAR 1.2 (HTTP flows only; HAR has no stream messages) or
 CSV, saves capture to **Sessions**, or opens session files without replacing live
 traffic. **Export session…** exports the current historical session and its
-messages.
+messages. **Repro bundle…** writes one local file with redacted flows, their
+notes and timing, and an embedded collection that `vscroxy-cli run` can execute;
+credential headers, query values and credential-named JSON/form fields are
+replaced with `••••` and must be supplied before running against a real service.
 
 **Export CSV…** (⋯ → Session, the command palette, or the selection bar) writes
 the current view's rows; **Export chosen CSV…** writes the selection. Columns,

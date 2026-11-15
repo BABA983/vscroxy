@@ -26,5 +26,6 @@ func IsSensitiveHeader(name string) bool {
 		return true
 	}
 	lower := strings.ToLower(name)
-	return strings.Contains(lower, "token") || strings.Contains(lower, "secret") || strings.Contains(lower, "password")
+	return strings.Contains(lower, "token") || strings.Contains(lower, "secret") || strings.Contains(lower, "password") ||
+		strings.Contains(lower, "api-key") || strings.Contains(lower, "api_key") || strings.Contains(lower, "apikey")
 }
