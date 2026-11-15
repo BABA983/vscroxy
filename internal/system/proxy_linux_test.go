@@ -437,6 +437,35 @@ func waitRecovery(t *testing.T, condition func() bool) {
 	t.Fatal("timed out waiting for proxy recovery")
 }
 
+func TestLookTrustHelperFindsHelpersOutsideDesktopPath(t *testing.T) {
+	dir := t.TempDir()
+	helper := filepath.Join(dir, "update-ca-certificates")
+	if err := os.WriteFile(helper, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A directory, or a file without an execute bit, is not a usable helper.
+	other := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "update-ca-trust"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(other, "update-ca-trust"), []byte("#!/bin/sh\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := trustHelperDirs
+	trustHelperDirs = []string{dir, other}
+	t.Cleanup(func() { trustHelperDirs = old })
+	// A desktop session's PATH does not hold /usr/sbin, where Debian and
+	// Ubuntu install update-ca-certificates.
+	t.Setenv("PATH", t.TempDir())
+
+	if got, err := lookTrustHelper("update-ca-certificates"); err != nil || got != helper {
+		t.Fatalf("helper outside PATH = %q, %v; want %q", got, err, helper)
+	}
+	if _, err := lookTrustHelper("update-ca-trust"); !errors.Is(err, exec.ErrNotFound) {
+		t.Fatalf("a directory or non-executable file must not count as a helper: %v", err)
+	}
+}
+
 func TestParseGVariantList(t *testing.T) {
 	for _, tc := range []struct {
 		raw  string

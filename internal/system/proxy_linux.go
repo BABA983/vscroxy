@@ -115,6 +115,26 @@ func gvariantList(list []string) string {
 	return "[" + strings.Join(parts, ", ") + "]"
 }
 
+// trustHelperDirs are where distributions keep the trust refresh helpers but
+// desktop sessions leave out of PATH: Debian and Ubuntu install
+// update-ca-certificates in /usr/sbin, which a GUI app's PATH does not hold.
+var trustHelperDirs = []string{"/usr/sbin", "/sbin", "/usr/local/sbin"}
+
+// lookTrustHelper finds a trust refresh helper in PATH or in the system
+// directories a desktop PATH omits.
+func lookTrustHelper(name string) (string, error) {
+	if path, err := exec.LookPath(name); err == nil {
+		return path, nil
+	}
+	for _, dir := range trustHelperDirs {
+		path := filepath.Join(dir, name)
+		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0 {
+			return path, nil
+		}
+	}
+	return "", exec.ErrNotFound
+}
+
 // InstallCA copies the CA into the system trust store and refreshes it.
 func InstallCA(path string) error {
 	cert, err := readCA(path)
@@ -127,7 +147,7 @@ func InstallCA(path string) error {
 		{"update-ca-trust", "/etc/pki/ca-trust/source/anchors"},
 		{"update-ca-trust", "/etc/ca-certificates/trust-source/anchors"},
 	} {
-		bin, err := exec.LookPath(store.command)
+		bin, err := lookTrustHelper(store.command)
 		info, statErr := os.Stat(store.dir)
 		if err == nil && statErr == nil && info.IsDir() {
 			target, update = filepath.Join(store.dir, caName), bin
