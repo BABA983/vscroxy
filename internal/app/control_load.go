@@ -34,12 +34,23 @@ func (a *app) startControlLoad(command control.Command) (any, error) {
 		RequestTimeout *int    `json:"requestTimeoutSeconds"`
 		MaxAttempts    *int    `json:"maxAttempts"`
 		Bail           bool    `json:"bail"`
+		Profile        string  `json:"profile"`
+		RampSeconds    int     `json:"rampSeconds"`
+		SpikeUsers     int     `json:"spikeUsers"`
+		SpikeSeconds   int     `json:"spikeSeconds"`
+		SpikeAtSeconds int     `json:"spikeAtSeconds"`
+		PassIf         string  `json:"passIf"`
 		Confirm        bool    `json:"confirm"`
 	}](command)
 	if err != nil || !p.Confirm || p.Collection == nil || p.Duration < 1 || p.Duration > 600 {
 		return nil, errors.New("collection, users, durationSeconds (1–600) and confirm:true are required")
 	}
-	opts := runner.LoadOptions{Users: p.Users, Duration: time.Duration(p.Duration) * time.Second, Timeout: 30 * time.Second, MaxAttempts: 100000, StopOnFailure: p.Bail}
+	thresholds, err := runner.ParseThresholds(p.PassIf)
+	if err != nil {
+		return nil, err
+	}
+	opts := runner.LoadOptions{Users: p.Users, Duration: time.Duration(p.Duration) * time.Second, Timeout: 30 * time.Second, MaxAttempts: 100000, StopOnFailure: p.Bail,
+		Profile: p.Profile, RampSeconds: p.RampSeconds, SpikeUsers: p.SpikeUsers, SpikeSeconds: p.SpikeSeconds, SpikeAtSeconds: p.SpikeAtSeconds, Thresholds: thresholds}
 	if p.RequestTimeout != nil {
 		if *p.RequestTimeout < 1 || *p.RequestTimeout > 60 {
 			return nil, errors.New("requestTimeoutSeconds must be between 1 and 60")

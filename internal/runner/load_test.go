@@ -220,3 +220,87 @@ func TestLoadValidation(t *testing.T) {
 		t.Fatal("accepted stopped proxy")
 	}
 }
+
+func TestLoadThresholdsParseEvaluateAndCompare(t *testing.T) {
+	thresholds, err := runner.ParseThresholds("p95<500ms, errors<1%, failureRate<2, rps>=10, completed>2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	metrics := runner.LoadMetrics{P95Millis: 123.4, Errors: 1, Completed: 200, FailureRate: 0.005, RequestsPerSec: 20}
+	results := runner.EvaluateThresholds(thresholds, metrics)
+	if len(results) != 5 {
+		t.Fatalf("results = %+v", results)
+	}
+	for _, result := range results {
+		if !result.Pass {
+			t.Errorf("%s failed: got %v want %s%v", result.Text, result.Got, result.Op, result.Want)
+		}
+	}
+	// A slower P95 and a higher error share must fail.
+	results = runner.EvaluateThresholds(thresholds, runner.LoadMetrics{P95Millis: 900, Errors: 5, Completed: 100, FailureRate: 0.05, RequestsPerSec: 5})
+	if results[0].Pass || results[1].Pass || results[2].Pass || results[3].Pass {
+		t.Fatalf("bad metrics passed: %+v", results)
+	}
+	for _, bad := range []string{"p95", "p95<", "p95<soon", "unknown<1", "errors<lots", "p95<-1ms"} {
+		if _, err := runner.ParseThresholds(bad); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+
+	before := runner.LoadReport{Version: 1, StartedAt: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+		Total: runner.LoadMetrics{P95Millis: 100}, Requests: []runner.LoadRequest{{ID: "one", Stats: runner.LoadMetrics{P95Millis: 100, FailureRate: 0.01, RequestsPerSec: 10}}}}
+	after := runner.LoadReport{Version: 1, Total: runner.LoadMetrics{P95Millis: 150}, Requests: []runner.LoadRequest{{ID: "one", Stats: runner.LoadMetrics{P95Millis: 120, FailureRate: 0.02, RequestsPerSec: 8}}}}
+	comparison := runner.CompareLoad(before, after)
+	if comparison.Total.Before != 100 || comparison.Total.After != 150 || comparison.Total.ChangePercent != 50 {
+		t.Fatalf("total comparison = %+v", comparison.Total)
+	}
+	if len(comparison.Requests) != 1 || comparison.Requests[0].P95Millis.ChangePercent != 20 || comparison.Requests[0].FailureRate.ChangePercent != 100 {
+		t.Fatalf("request comparison = %+v", comparison.Requests)
+	}
+}
+
+func TestLoadProfilesAndPerUserData(t *testing.T) {
+	// Plans are deterministic; the run itself only checks the profile is kept.
+	base := runner.LoadOptions{Users: 4, Duration: 10 * time.Second, Profile: runner.LoadProfileRamp, RampSeconds: 8}
+	if err := base.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	spike := runner.LoadOptions{Users: 2, Duration: 10 * time.Second, Profile: runner.LoadProfileSpike, SpikeUsers: 2, SpikeSeconds: 3, SpikeAtSeconds: 4}
+	if err := spike.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []runner.LoadOptions{
+		{Users: 2, Duration: 10 * time.Second, Profile: "wave"},
+		{Users: 2, Duration: 10 * time.Second, Profile: runner.LoadProfileRamp, RampSeconds: 11},
+		{Users: 2, Duration: 10 * time.Second, Profile: runner.LoadProfileSpike, SpikeUsers: 1},
+		{Users: 64, Duration: 10 * time.Second, Profile: runner.LoadProfileSpike, SpikeUsers: 1, SpikeSeconds: 1},
+		{Users: 2, Duration: 10 * time.Second, Profile: runner.LoadProfileSpike, SpikeUsers: 1, SpikeSeconds: 2, SpikeAtSeconds: 9},
+	} {
+		if err := bad.Validate(); err == nil {
+			t.Errorf("invalid profile accepted: %+v", bad)
+		}
+	}
+
+	var mu sync.Mutex
+	var paths []string
+	host := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		paths = append(paths, r.URL.Path)
+		mu.Unlock()
+	}))
+	defer host.Close()
+	steps := []runner.Step{{Request: request.Request{ID: "row", Method: "GET", URL: host.URL + "/{{row}}"}}}
+	rows := []map[string]string{{"row": "a"}, {"row": "b"}}
+	_, err := runner.Run(t.Context(), loadProxy(t), steps, runner.Options{Iterations: 3, Data: rows, CycleData: true}, func(runner.Result) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(paths, []string{"/a", "/b", "/a"}) {
+		t.Fatalf("rows = %v, want the file cycled", paths)
+	}
+
+	report, err := runner.RunLoad(t.Context(), loadProxy(t), steps, runner.LoadOptions{Users: 2, Duration: time.Second, Profile: runner.LoadProfileSpike, SpikeUsers: 1, SpikeSeconds: 1, Data: [][]map[string]string{rows}}, nil)
+	if err != nil || report.Profile != runner.LoadProfileSpike || report.PeakUsers != 3 {
+		t.Fatalf("spike report = %+v, %v", report, err)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -486,5 +487,68 @@ func TestLoadOutputFailures(t *testing.T) {
 	report, _ = readLoadReport(t, output)
 	if report.Reason != "cancelled" {
 		t.Fatalf("output failure lost cancelled report: %+v", report)
+	}
+}
+
+func TestLoadThresholdsComparisonProfilesAndPerUserData(t *testing.T) {
+	var mu sync.Mutex
+	seen := map[string]int{}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		seen[r.URL.Path]++
+		mu.Unlock()
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+	root := t.TempDir()
+	input := filepath.Join(root, "collections")
+	write(t, filepath.Join(input, "One.request.json"), request.Request{ID: "one", Name: "One", Method: "GET", URL: upstream.URL + "/{{row}}"})
+	rowsA := filepath.Join(root, "a.json")
+	rowsB := filepath.Join(root, "b.json")
+	write(t, rowsA, []map[string]string{{"row": "a"}})
+	write(t, rowsB, []map[string]string{{"row": "b"}})
+	first := filepath.Join(root, "first.json")
+	var out, errOut bytes.Buffer
+	code := cli.Run(t.Context(), []string{"load", "--users", "2", "--duration", "1s", "--profile", "ramp", "--ramp", "1",
+		"--data", rowsA, "--data", rowsB, "--pass-if", "p95<5000ms,errors<1%", "--report-json", first, input}, &out, &errOut)
+	if code != 0 {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, &out, &errOut)
+	}
+	report, _ := readLoadReport(t, first)
+	if report.Profile != "ramp" || report.PeakUsers != 2 || len(report.Thresholds) != 2 {
+		t.Fatalf("report = %+v", report)
+	}
+	for _, threshold := range report.Thresholds {
+		if !threshold.Pass {
+			t.Errorf("threshold %q failed", threshold.Text)
+		}
+	}
+	mu.Lock()
+	paths := maps.Clone(seen)
+	mu.Unlock()
+	if paths["/a"] == 0 || paths["/b"] == 0 {
+		t.Fatalf("per-user data paths = %v, want both files used", paths)
+	}
+
+	// An impossible threshold makes the run fail without hiding its report.
+	var failOut bytes.Buffer
+	failed := filepath.Join(root, "failed.json")
+	code = cli.Run(t.Context(), []string{"load", "--users", "1", "--duration", "1s", "--pass-if", "p95<0.001ms", "--report-json", failed, input}, &failOut, &failOut)
+	if code != 1 || !strings.Contains(failOut.String(), "FAIL") {
+		t.Fatalf("threshold failure: exit=%d output=%s", code, failOut.String())
+	}
+	if report, _ := readLoadReport(t, failed); len(report.Thresholds) != 1 || report.Thresholds[0].Pass {
+		t.Fatalf("failed report = %+v", report)
+	}
+
+	// The next run compares with the first report and records the deltas.
+	var compareOut bytes.Buffer
+	compared := filepath.Join(root, "compared.json")
+	code = cli.Run(t.Context(), []string{"load", "--users", "1", "--duration", "1s", "--compare-before", first, "--report-json", compared, input}, &compareOut, &compareOut)
+	if code != 0 || !strings.Contains(compareOut.String(), "Compared with") {
+		t.Fatalf("compare: exit=%d output=%s", code, compareOut.String())
+	}
+	if report, _ := readLoadReport(t, compared); report.Comparison == nil || report.Comparison.PreviousStartedAt.IsZero() {
+		t.Fatalf("comparison = %+v", report.Comparison)
 	}
 }

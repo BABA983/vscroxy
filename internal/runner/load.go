@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"net/http/cookiejar"
 	"slices"
@@ -17,6 +18,15 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
+// Load profiles shape how users join the run. Constant starts every user at
+// once; ramp starts them evenly across RampSeconds; spike adds SpikeUsers for
+// SpikeSeconds starting at SpikeAtSeconds.
+const (
+	LoadProfileConstant = "constant"
+	LoadProfileRamp     = "ramp"
+	LoadProfileSpike    = "spike"
+)
+
 // LoadOptions describes a bounded, closed workload, not an arrival-rate target.
 // Each user repeats the same saved steps, retaining its own state between loops.
 // Zero timeout and attempt budget use 30 seconds and 100,000 respectively.
@@ -27,26 +37,98 @@ type LoadOptions struct {
 	MaxAttempts   int
 	StopOnFailure bool
 	Vars          map[string]string
+	// Profile is constant (the default), ramp or spike.
+	Profile string
+	// RampSeconds is how long a ramp takes to reach Users.
+	RampSeconds int
+	// SpikeUsers join at SpikeAtSeconds and leave after SpikeSeconds.
+	SpikeUsers, SpikeSeconds, SpikeAtSeconds int
+	// Data holds one row list per user, cycled by that user's loop. A user
+	// beyond the list reuses a file; each user still has its own variables.
+	Data [][]map[string]string
+	// Thresholds are pass conditions evaluated against the final totals.
+	Thresholds []LoadThreshold
 }
 
 func (o LoadOptions) Validate() error {
 	if o.Users < 1 || o.Users > 64 || o.Duration < time.Second || o.Duration > 10*time.Minute || o.Timeout < 0 || o.Timeout > time.Minute || o.MaxAttempts < 0 || o.MaxAttempts > 1000000 {
 		return errors.New("use 1–64 users, 1s–10m duration, up to 1m request timeout and 1–1000000 attempts")
 	}
+	switch o.Profile {
+	case "", LoadProfileConstant:
+	case LoadProfileRamp:
+		if o.RampSeconds < 0 || time.Duration(o.RampSeconds)*time.Second > o.Duration {
+			return errors.New("ramp must be between 0s and the duration")
+		}
+	case LoadProfileSpike:
+		if o.SpikeUsers < 1 || o.Users+o.SpikeUsers > 64 || o.SpikeSeconds < 1 || time.Duration(o.SpikeSeconds)*time.Second > o.Duration || o.SpikeAtSeconds < 0 || time.Duration(o.SpikeAtSeconds+o.SpikeSeconds)*time.Second > o.Duration {
+			return errors.New("a spike needs 1+ users, peak 1–64 users, and a 1s+ window inside the duration")
+		}
+	default:
+		return errors.New("profile must be constant, ramp or spike")
+	}
+	for _, rows := range o.Data {
+		if len(rows) > request.MaxDataRows {
+			return fmt.Errorf("a data file may have at most %d rows", request.MaxDataRows)
+		}
+	}
 	return nil
+}
+
+// userPlan is when one user joins and leaves; end zero means the run's end.
+type userPlan struct {
+	start, end time.Duration
+}
+
+// plans lays out the profile's users. Peak users is the largest number
+// running at once.
+func (o LoadOptions) plans() (plans []userPlan, peak int) {
+	switch o.Profile {
+	case LoadProfileRamp:
+		ramp := time.Duration(o.RampSeconds) * time.Second
+		for i := range o.Users {
+			start := time.Duration(0)
+			if o.Users > 1 {
+				start = ramp * time.Duration(i) / time.Duration(o.Users)
+			}
+			plans = append(plans, userPlan{start: start})
+		}
+		return plans, o.Users
+	case LoadProfileSpike:
+		for range o.Users {
+			plans = append(plans, userPlan{})
+		}
+		at := time.Duration(o.SpikeAtSeconds) * time.Second
+		end := at + time.Duration(o.SpikeSeconds)*time.Second
+		for range o.SpikeUsers {
+			plans = append(plans, userPlan{start: at, end: end})
+		}
+		return plans, o.Users + o.SpikeUsers
+	default:
+		for range o.Users {
+			plans = append(plans, userPlan{})
+		}
+		return plans, o.Users
+	}
 }
 
 // LoadReport contains only aggregates and saved request IDs, never execution
 // objects, URLs, scripts, console messages, variables, headers or bodies.
 type LoadReport struct {
-	Version        int           `json:"version"`
-	StartedAt      time.Time     `json:"startedAt"`
-	DurationMillis int64         `json:"durationMillis"`
-	Users          int           `json:"users"`
-	Done           bool          `json:"done"`
-	Reason         string        `json:"reason"`
-	Total          LoadMetrics   `json:"total"`
-	Requests       []LoadRequest `json:"requests"`
+	Version        int       `json:"version"`
+	StartedAt      time.Time `json:"startedAt"`
+	DurationMillis int64     `json:"durationMillis"`
+	Users          int       `json:"users"`
+	// PeakUsers is the most users running at once; Profile is the shape.
+	PeakUsers int           `json:"peakUsers"`
+	Profile   string        `json:"profile"`
+	Done      bool          `json:"done"`
+	Reason    string        `json:"reason"`
+	Total     LoadMetrics   `json:"total"`
+	Requests  []LoadRequest `json:"requests"`
+	// Thresholds and Comparison are added by the caller when configured.
+	Thresholds []ThresholdResult `json:"thresholds,omitempty"`
+	Comparison *LoadComparison   `json:"comparison,omitempty"`
 }
 
 type LoadRequest struct {
@@ -166,6 +248,10 @@ func RunLoad(ctx context.Context, srv *capture.Server, steps []Step, opts LoadOp
 		opts.MaxAttempts = 100000
 	}
 	started := time.Now()
+	plans, peak := opts.plans()
+	if opts.Profile == "" {
+		opts.Profile = LoadProfileConstant
+	}
 	durationCtx, stopDuration := context.WithTimeoutCause(ctx, opts.Duration, errLoadDuration)
 	defer stopDuration()
 	loadCtx, stop := context.WithCancelCause(durationCtx)
@@ -192,7 +278,7 @@ func RunLoad(ctx context.Context, srv *capture.Server, steps []Step, opts LoadOp
 	}
 	snapshot := func(done bool, reason string) LoadReport {
 		elapsed := time.Since(started)
-		r := LoadReport{Version: 1, StartedAt: started.UTC(), DurationMillis: elapsed.Milliseconds(), Users: opts.Users, Done: done, Reason: reason, Total: total.snapshot(elapsed), Requests: make([]LoadRequest, len(steps))}
+		r := LoadReport{Version: 1, StartedAt: started.UTC(), DurationMillis: elapsed.Milliseconds(), Users: opts.Users, PeakUsers: peak, Profile: opts.Profile, Done: done, Reason: reason, Total: total.snapshot(elapsed), Requests: make([]LoadRequest, len(steps))}
 		for i := range steps {
 			r.Requests[i] = LoadRequest{Index: i, ID: steps[i].Request.ID, Stats: meters[i].snapshot(elapsed)}
 		}
@@ -209,19 +295,43 @@ func RunLoad(ctx context.Context, srv *capture.Server, steps []Step, opts LoadOp
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	lastEmit := started
-	for range opts.Users {
+	for i, plan := range plans {
 		wg.Go(func() {
+			if plan.start > 0 {
+				timer := time.NewTimer(plan.start)
+				select {
+				case <-timer.C:
+				case <-loadCtx.Done():
+					timer.Stop()
+					return
+				}
+			}
+			userCtx := loadCtx
+			if plan.end > 0 {
+				var cancel context.CancelFunc
+				userCtx, cancel = context.WithDeadline(loadCtx, started.Add(plan.end))
+				defer cancel()
+			}
 			jar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 			tokens := &request.Tokens{}
 			userSteps := slices.Clone(steps)
-			for i := range userSteps {
-				userSteps[i].Context.Tokens = tokens
-				userSteps[i].Context.ScriptVault = false
-				userSteps[i].Context.HTTPOnly = true
+			for j := range userSteps {
+				userSteps[j].Context.Tokens = tokens
+				userSteps[j].Context.ScriptVault = false
+				userSteps[j].Context.HTTPOnly = true
 			}
-			_, err := run(loadCtx, srv, userSteps, Options{Iterations: 1, Timeout: opts.Timeout, Vars: maps.Clone(opts.Vars), Cookies: jar, StopOnFailure: opts.StopOnFailure}, true, reserve, func(r Result) error {
+			var rows []map[string]string
+			if len(opts.Data) > 0 {
+				rows = opts.Data[i%len(opts.Data)]
+			}
+			_, err := run(userCtx, srv, userSteps, Options{Iterations: 1, Timeout: opts.Timeout, Vars: maps.Clone(opts.Vars), Cookies: jar, StopOnFailure: opts.StopOnFailure, Data: rows, CycleData: true}, true, reserve, func(r Result) error {
 				cause := loadCause()
 				interrupted := cause != nil && (errors.Is(r.Execution.Err, cause) || errors.Is(r.Execution.Err, context.Canceled) || errors.Is(r.Execution.Err, context.DeadlineExceeded))
+				// A spike user leaving on schedule interrupts its own attempt;
+				// that is not a failed request or a whole-run error.
+				if !interrupted && userCtx.Err() != nil && (errors.Is(r.Execution.Err, context.Canceled) || errors.Is(r.Execution.Err, context.DeadlineExceeded)) {
+					interrupted = true
+				}
 				mu.Lock()
 				total.record(r, interrupted)
 				meters[r.Index].record(r, interrupted)
@@ -238,7 +348,7 @@ func RunLoad(ctx context.Context, srv *capture.Server, steps []Step, opts LoadOp
 				}
 				return nil
 			})
-			if err != nil && loadCtx.Err() == nil {
+			if err != nil && loadCtx.Err() == nil && userCtx.Err() == nil {
 				if cause := loadCause(); cause != nil {
 					stop(cause)
 				} else {
@@ -265,6 +375,7 @@ func RunLoad(ctx context.Context, srv *capture.Server, steps []Step, opts LoadOp
 		reason = "execution-error"
 	}
 	report := snapshot(true, reason)
+	report.Thresholds = EvaluateThresholds(opts.Thresholds, report.Total)
 	if emit != nil {
 		emit(report)
 	}

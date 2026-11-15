@@ -131,8 +131,27 @@ The headless equivalent uses the same Runner execution lifecycle:
 
 ```sh copy Copy Collection Load
 bin/vscroxy-cli load --folder Shop --env ./env.json --environment Local \
-  --users 4 --duration 30s --report-json ./reports/load.json ./collections
+  --users 4 --duration 30s --profile ramp --ramp 10 \
+  --data ./users/alice.csv --data ./users/bob.csv \
+  --pass-if p95<500ms,errors<1% --compare-before ./reports/previous.json \
+  --report-json ./reports/load.json ./collections
 ```
+
+`--profile constant` (the default) starts every user at once. `ramp` starts
+`--users` evenly across `--ramp` seconds; `spike` runs the baseline users for the
+whole duration and adds `--spike-users` from `--spike-at` for
+`--spike-seconds` (peak 1–64 users). A spike user leaving on schedule counts its
+in-flight attempt as interrupted, not failed. Each `--data` file belongs to one
+virtual user (repeat it; users beyond the list reuse a file) and that user
+cycles the rows loop by loop; one file therefore gives every user its own copy
+of the same rows. `--pass-if` takes comma-separated conditions over the final
+totals: `mean`, `p50`, `p90`, `p95`, `p99`, `max` (duration or milliseconds),
+`errors` (count, or a share of completed with `%`), `failureRate` (`%`), `rps`,
+`completed`, `failed`, `skipped`. A failed condition exits 1 after the report is
+written; invalid syntax exits 2. `--compare-before` reads a previous load JSON
+report and records P95, failure rate and throughput deltas for the total and per
+saved request (matched by ID, then index) in `comparison`; it is informational,
+and thresholds decide pass/fail.
 
 See the [load CLI flags and exit codes](../README.md#headless-load-runs). Only
 load-test systems you are authorized to exercise: collections, scripts and
@@ -269,7 +288,7 @@ mutation on transport timeout: its outcome may be unknown.
 | `rules.list` | Index, fingerprint `key`, name, type and enabled state |
 | `request.run` | Saved `id`, optional `environment`, `iterations` (1–1000), `bail`; returns job ID |
 | `collection.run` | `collection`, same run options; includes descendants |
-| `collection.load` | Required `collection` (explicit empty = root), `users` (1–64), `durationSeconds` (1–600); optional `environment`, `requestTimeoutSeconds` (1–60, default 30), `maxAttempts` (1–1000000, default 100000), `bail`; returns job ID |
+| `collection.load` | Required `collection` (explicit empty = root), `users` (1–64), `durationSeconds` (1–600); optional `environment`, `requestTimeoutSeconds` (1–60, default 30), `maxAttempts` (1–1000000, default 100000), `bail`, `profile` (`constant`/`ramp`/`spike`), `rampSeconds`, `spikeUsers`, `spikeSeconds`, `spikeAtSeconds`, `passIf`; returns job ID |
 | `runs.get` | Job `id`; returns `done` and a redacted report; load jobs add `kind:"load"` and aggregate `report.total`/`report.requests` |
 | `runs.cancel` | Job `id`; cancellation cannot undo completed external effects |
 | `capture.recording` | Required boolean `enabled`; forwarding remains on |

@@ -31,12 +31,24 @@ func loadCommand(ctx context.Context, args []string, stdout, stderr io.Writer) i
 	envPath := flags.String("env", "", "Explicit native env.json or Postman environment/globals file")
 	envName := flags.String("environment", "", "Environment name in --env; defaults to its active environment")
 	jsonPath := flags.String("report-json", "", "Write a private aggregate-only JSON report (no raw details)")
+	comparePath := flags.String("compare-before", "", "Compare against a previous load JSON report")
+	passIf := flags.String("pass-if", "", "Pass conditions, such as p95<500ms,errors<1% (comma-separated)")
 	opts := runner.LoadOptions{}
 	flags.IntVar(&opts.Users, "users", 1, "Concurrent users (1–64)")
 	flags.DurationVar(&opts.Duration, "duration", 30*time.Second, "Load duration (1s–10m)")
 	flags.DurationVar(&opts.Timeout, "request-timeout", 30*time.Second, "Per-request timeout (positive, up to 1m)")
 	flags.IntVar(&opts.MaxAttempts, "max-attempts", 100000, "Total attempt budget across users (1–1000000)")
 	flags.BoolVar(&opts.StopOnFailure, "bail", false, "Stop all users after a failed attempt")
+	flags.StringVar(&opts.Profile, "profile", "constant", "Load profile: constant, ramp or spike")
+	flags.IntVar(&opts.RampSeconds, "ramp", 0, "Seconds a ramp takes to reach --users")
+	flags.IntVar(&opts.SpikeUsers, "spike-users", 0, "Extra users in a spike")
+	flags.IntVar(&opts.SpikeSeconds, "spike-seconds", 0, "Seconds the spike lasts")
+	flags.IntVar(&opts.SpikeAtSeconds, "spike-at", 0, "Seconds into the run when the spike starts")
+	var dataPaths []string
+	flags.Func("data", "CSV or JSON rows for one virtual user (repeat for each user)", func(s string) error {
+		dataPaths = append(dataPaths, s)
+		return nil
+	})
 	opts.Vars = map[string]string{}
 	flags.Func("var", "Environment override KEY=VALUE (repeatable; use --env for secrets)", func(s string) error {
 		key, value, ok := strings.Cut(s, "=")
@@ -55,8 +67,43 @@ func loadCommand(ctx context.Context, args []string, stdout, stderr io.Writer) i
 	// The engine accepts zero defaults for programmatic callers, but explicit
 	// zero on the command line is almost always a mistaken bound.
 	if flags.NArg() != 1 || opts.Timeout <= 0 || opts.MaxAttempts <= 0 || opts.Validate() != nil {
-		fmt.Fprintln(stderr, "Provide one collection input, 1–64 users, 1s–10m duration, a positive request timeout up to 1m, and 1–1000000 max attempts.")
+		fmt.Fprintln(stderr, "Provide one collection input, 1–64 users, 1s–10m duration, a positive request timeout up to 1m, 1–1000000 max attempts, and a valid profile.")
 		return 2
+	}
+	thresholds, err := runner.ParseThresholds(*passIf)
+	if err != nil {
+		fmt.Fprintln(stderr, "Could not read --pass-if:", err)
+		return 2
+	}
+	opts.Thresholds = thresholds
+	for _, path := range dataPaths {
+		data, readErr := os.ReadFile(path)
+		if readErr == nil {
+			var rows []map[string]string
+			rows, readErr = request.ReadIterationData(path, data)
+			if readErr == nil {
+				opts.Data = append(opts.Data, rows)
+			}
+		}
+		if readErr != nil {
+			fmt.Fprintln(stderr, "Could not load --data:", readErr)
+			return 2
+		}
+	}
+	var previous *runner.LoadReport
+	if *comparePath != "" {
+		data, readErr := os.ReadFile(*comparePath)
+		if readErr == nil {
+			var report runner.LoadReport
+			if readErr = json.Unmarshal(data, &report); readErr == nil && report.Version != 1 {
+				readErr = errors.New("unsupported report version")
+			}
+			previous = &report
+		}
+		if readErr != nil {
+			fmt.Fprintln(stderr, "Could not read the previous load report.")
+			return 2
+		}
 	}
 	requests, folders, warnings, err := loadCollection(flags.Arg(0), *folder)
 	if err != nil {
@@ -136,6 +183,25 @@ func loadCommand(ctx context.Context, args []string, stdout, stderr io.Writer) i
 		code = 2
 	case report.Total.Failed > 0:
 		code = 1
+	}
+	if previous != nil {
+		comparison := runner.CompareLoad(*previous, report)
+		report.Comparison = &comparison
+		if _, err := fmt.Fprintf(stdout, "Compared with %s: P95 %.3f → %.3f ms (%+.1f%%)\n", previous.StartedAt.Format(time.RFC3339), comparison.Total.Before, comparison.Total.After, comparison.Total.ChangePercent); err != nil {
+			return 2
+		}
+	}
+	for _, threshold := range report.Thresholds {
+		state := "PASS"
+		if !threshold.Pass {
+			state = "FAIL"
+		}
+		if _, err := fmt.Fprintf(stdout, "Threshold %s = %.3f (%s)\n", threshold.Text, threshold.Got, state); err != nil {
+			return 2
+		}
+		if !threshold.Pass && code == 0 {
+			code = 1
+		}
 	}
 	if *jsonPath != "" {
 		data, err := json.Marshal(report)

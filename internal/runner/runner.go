@@ -34,8 +34,11 @@ type Options struct {
 	Delay         time.Duration
 	StopOnFailure bool
 	Data          []map[string]string
-	Vars          map[string]string
-	Cookies       http.CookieJar
+	// CycleData repeats the first row after the last, as a load user does,
+	// instead of repeating the last row as the desktop Runner does.
+	CycleData bool
+	Vars      map[string]string
+	Cookies   http.CookieJar
 }
 
 // Result is one completed attempt, including an in-flight attempt cancelled by
@@ -123,7 +126,11 @@ func run(ctx context.Context, srv *capture.Server, steps []Step, opts Options, r
 				in.Iterations = 0 // duration-limited: no predetermined iteration count
 			}
 			if len(opts.Data) > 0 {
-				in.Data = opts.Data[min(iteration, len(opts.Data))-1]
+				row := min(iteration, len(opts.Data)) - 1
+				if opts.CycleData {
+					row = (iteration - 1) % len(opts.Data)
+				}
+				in.Data = opts.Data[row]
 			}
 			before := maps.Clone(vars)
 			// A request's own timeout may exceed the desktop default; leave
