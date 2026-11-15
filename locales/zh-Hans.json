@@ -1269,6 +1269,7 @@
   "newExample": "新建示例",
   "startMockServer": "启动模拟服务",
   "stopMockServerAt": "在 {url} 停止模拟服务",
+  "mockGRPCServerRunning": "“{path}” 的 gRPC 模拟服务监听于 {url}",
   "mockServerRunning": "“{path}” 的模拟服务监听于 {url}",
   "mockServerStopped": "已停止 “{path}” 的模拟服务",
   "newLocalCurrentVariable": "新建本地当前变量",

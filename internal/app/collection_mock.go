@@ -1,55 +1,124 @@
 package app
 
 import (
+	"errors"
+	"maps"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/control"
 	"github.com/baba983/vscroxy/internal/mockserver"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/locales"
+	"google.golang.org/grpc"
 )
 
-// collectionMock is a collection's mock server, listening on a loopback port
-// until it is stopped or the app quits.
+// collectionMock is a collection's mock server, listening on loopback ports
+// until it is stopped or the app quits. The gRPC server exists only when the
+// collection has gRPC examples.
 type collectionMock struct {
-	server *http.Server
-	url    string
+	server     *http.Server
+	grpcServer *grpc.Server
+	url        string
+	grpcURL    string
+	options    mockserver.Options
 }
 
-// collectionExamples are the examples of the requests under path, in order.
+// collectionExamples are the HTTP examples of the requests under path, in
+// order. A gRPC example is served by the gRPC mock instead.
 func (a *app) collectionExamples(path string) []request.Example {
 	var examples []request.Example
 	for _, r := range a.requests {
-		if r.Collection == path || strings.HasPrefix(r.Collection, path+"/") {
+		if (r.Collection == path || strings.HasPrefix(r.Collection, path+"/")) && r.Protocol == "" {
 			examples = append(examples, r.Examples...)
 		}
 	}
 	return examples
 }
 
-// startCollectionMock serves path's examples on a free loopback port. The
-// server answers from the examples and variables it started with, so an edit
-// to an example needs a restart to show.
+// collectionGRPCExamples are the unary gRPC examples under path.
+func (a *app) collectionGRPCExamples(path string) []mockserver.GRPCExample {
+	var examples []mockserver.GRPCExample
+	for _, r := range a.requests {
+		if (r.Collection != path && !strings.HasPrefix(r.Collection, path+"/")) || r.Protocol != "gRPC" {
+			continue
+		}
+		for _, e := range r.Examples {
+			examples = append(examples, mockserver.GRPCExample{
+				Method: r.GRPC.Method, Schema: r.GRPC.Schema, Body: e.Body,
+				Headers: e.Headers, Status: e.Status,
+				Delay: time.Duration(e.DelayMS) * time.Millisecond,
+			})
+		}
+	}
+	return examples
+}
+
+// startCollectionMock serves path's examples on free loopback ports with the
+// default behaviors. The server answers from the examples and variables it
+// started with, so an edit needs a restart to show.
 func (a *app) startCollectionMock(path string) {
-	if a.mocks[path] != nil {
-		return
-	}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
+	if _, err := a.startCollectionMockWithOptions(path, mockserver.Options{}); err != nil {
 		a.fail(locales.MockNamed(path), err)
-		return
 	}
-	handler := mockserver.New(a.collectionExamples(path), a.inheritance(path).Values(a.activeVars()))
-	srv := &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
-	go srv.Serve(ln)
+}
+
+// startCollectionMockWithOptions starts the HTTP and gRPC mock servers and
+// returns the running one. A second start for the same collection returns the
+// first, unchanged.
+func (a *app) startCollectionMockWithOptions(path string, opts mockserver.Options) (*collectionMock, error) {
+	if m := a.mocks[path]; m != nil {
+		return m, nil
+	}
+	examples := a.collectionExamples(path)
+	grpcExamples := a.collectionGRPCExamples(path)
+	if len(examples) == 0 && len(grpcExamples) == 0 {
+		return nil, errors.New("no saved examples under this collection")
+	}
+	m := &collectionMock{options: opts}
+	if len(examples) > 0 {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		handler := mockserver.NewWithOptions(examples, a.inheritance(path).Values(a.activeVars()), opts)
+		m.server = &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+		go m.server.Serve(ln)
+		m.url = "http://" + ln.Addr().String()
+	}
+	if len(grpcExamples) > 0 {
+		server, err := mockserver.NewGRPC(grpcExamples)
+		if err != nil {
+			if m.server != nil {
+				m.server.Close()
+			}
+			return nil, err
+		}
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			if m.server != nil {
+				m.server.Close()
+			}
+			return nil, err
+		}
+		m.grpcServer = server
+		go server.Serve(ln)
+		m.grpcURL = "http://" + ln.Addr().String()
+	}
 	if a.mocks == nil {
 		a.mocks = map[string]*collectionMock{}
 	}
-	url := "http://" + ln.Addr().String()
-	a.mocks[path] = &collectionMock{server: srv, url: url}
-	a.done(locales.MockServerRunning(path, url))
+	a.mocks[path] = m
+	if m.url != "" {
+		a.done(locales.MockServerRunning(path, m.url))
+	}
+	if m.grpcURL != "" {
+		a.done(locales.MockGRPCServerRunning(path, m.grpcURL))
+	}
+	return m, nil
 }
 
 func (a *app) stopCollectionMock(path string) {
@@ -58,14 +127,88 @@ func (a *app) stopCollectionMock(path string) {
 		return
 	}
 	delete(a.mocks, path)
-	m.server.Close()
+	if m.server != nil {
+		m.server.Close()
+	}
+	if m.grpcServer != nil {
+		m.grpcServer.Stop()
+	}
 	a.inform(locales.MockServerStopped(path))
 }
 
 // stopCollectionMocks is an App Quit hook; it closes quietly.
 func (a *app) stopCollectionMocks() {
 	for path, m := range a.mocks {
-		m.server.Close()
+		if m.server != nil {
+			m.server.Close()
+		}
+		if m.grpcServer != nil {
+			m.grpcServer.Stop()
+		}
 		delete(a.mocks, path)
 	}
+}
+
+// mockSummary is what the desktop control reports for a running mock.
+type mockSummary struct {
+	Collection  string  `json:"collection"`
+	URL         string  `json:"url,omitempty"`
+	GRPCURL     string  `json:"grpcUrl,omitempty"`
+	RateLimit   int     `json:"rateLimit,omitempty"`
+	ErrorRate   float64 `json:"errorRate,omitempty"`
+	ErrorStatus int     `json:"errorStatus,omitempty"`
+}
+
+func (m *collectionMock) summary(path string) mockSummary {
+	return mockSummary{Collection: path, URL: m.url, GRPCURL: m.grpcURL,
+		RateLimit: m.options.RatePerSecond, ErrorRate: m.options.ErrorRate, ErrorStatus: m.options.ErrorStatus}
+}
+
+// controlMocks serves the desktop control's mock actions. Starting a listener
+// changes shared state, so it requires confirm:true.
+func (a *app) controlMocks(command control.Command) (any, error) {
+	switch command.Action {
+	case "mock.get":
+		if _, err := controlParams[struct{}](command); err != nil {
+			return nil, err
+		}
+		summaries := make([]mockSummary, 0, len(a.mocks))
+		for _, path := range slices.Sorted(maps.Keys(a.mocks)) {
+			summaries = append(summaries, a.mocks[path].summary(path))
+		}
+		return map[string]any{"mocks": summaries}, nil
+	case "mock.start":
+		p, err := controlParams[struct {
+			Collection  string  `json:"collection"`
+			RateLimit   int     `json:"rateLimit"`
+			ErrorRate   float64 `json:"errorRate"`
+			ErrorStatus int     `json:"errorStatus"`
+			ErrorBody   string  `json:"errorBody"`
+			Confirm     bool    `json:"confirm"`
+		}](command)
+		if err != nil || !p.Confirm || strings.TrimSpace(p.Collection) == "" {
+			return nil, errors.New("collection and confirm:true are required")
+		}
+		if p.RateLimit < 0 || p.RateLimit > 100000 || p.ErrorRate < 0 || p.ErrorRate > 1 || p.ErrorStatus != 0 && (p.ErrorStatus < 400 || p.ErrorStatus > 599) {
+			return nil, errors.New("rateLimit must be 0–100000, errorRate 0–1, and errorStatus 400–599 or 0")
+		}
+		m, err := a.startCollectionMockWithOptions(p.Collection, mockserver.Options{
+			RatePerSecond: p.RateLimit, ErrorRate: p.ErrorRate, ErrorStatus: p.ErrorStatus, ErrorBody: p.ErrorBody,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return m.summary(p.Collection), nil
+	case "mock.stop":
+		p, err := controlParams[struct {
+			Collection string `json:"collection"`
+			Confirm    bool   `json:"confirm"`
+		}](command)
+		if err != nil || !p.Confirm || a.mocks[p.Collection] == nil {
+			return nil, errors.New("running collection and confirm:true are required")
+		}
+		a.stopCollectionMock(p.Collection)
+		return map[string]bool{"stopped": true}, nil
+	}
+	return nil, errors.New("unknown mock action")
 }

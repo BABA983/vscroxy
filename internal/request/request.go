@@ -107,6 +107,9 @@ type Example struct {
 	Name    string         `json:"name"`
 	Request ExampleRequest `json:"request"`
 	Status  int            `json:"status"`
+	// DelayMS waits before a mock server answers with this example. Zero
+	// answers immediately; mock servers cap it at one minute.
+	DelayMS int `json:"delayMs,omitzero"`
 	// Headers is the response's Key: Value block.
 	Headers string `json:"headers,omitempty"`
 	Body    string `json:"body,omitempty"`

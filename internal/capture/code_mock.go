@@ -36,9 +36,14 @@ func (s *Server) codeMock(f *proxy.Flow, r Rule) *proxy.Response {
 	if d.locals == nil {
 		d.locals = map[string]string{}
 	}
+	// A Code Mock's state belongs to its rule, not to one exchange, so a
+	// counter or token set by one request is visible to the next.
+	state := s.mockStateFor(scriptRuleName(r) + "\x00" + r.Match + "\x00" + r.Method + "\x00" + r.Target)
+	state.mu.Lock()
+	defer state.mu.Unlock()
 	x := &ScriptExchange{Phase: "mock", Rule: scriptRuleName(r), App: s.clientProcess(f).Name,
 		Method: f.Request.Method, URL: f.Request.URL.String(), Header: f.Request.Header.Clone(),
-		Body: f.Request.Body, Locals: d.locals}
+		Body: f.Request.Body, Locals: d.locals, State: state.values}
 	if err := runner.Run(scriptContext(f), r.Target, x); err != nil {
 		// Script errors may include request/response secrets. The script
 		// Console owns diagnostics; never echo an exception to the client.

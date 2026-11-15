@@ -180,9 +180,16 @@ bin/vscroxy-cli mock --folder Shop --env ./env.json --environment Local \
   --port 8080 ./collections
 ```
 
-It prints the address it listens on. `--addr` defaults to `127.0.0.1:0`, a
-free loopback port; `--port` replaces the port in `--addr`. Each example answers
-at the method and URL it was saved with. A `:name` or `{{name}}` path segment
+It prints the addresses it listens on. `--addr` defaults to `127.0.0.1:0`, a
+free loopback port; `--port` replaces the port in `--addr`. Unary gRPC examples
+are served on `--grpc-addr` (default `127.0.0.1:0`) and printed separately: the
+example body is the response message, and its status is the gRPC code (0 or an
+HTTP 2xx is OK, 1–16 is the code, 404 becomes NotFound, 503 Unavailable). Each
+example's saved **Delay** waits up to one minute before answering.
+`--rate-limit N` starts at most N requests per second (429 with `Retry-After`
+beyond that), and `--error-rate 0–1` with `--error-status`/`--error-body`
+injects that share of responses before any example is chosen. Each example
+answers at the method and URL it was saved with. A `:name` or `{{name}}` path segment
 matches any one segment, the scheme, host and query are ignored, and
 `{{variables}}` are filled from globals, the environment and `--var`, in that
 order. The route's first example answers unless the request chooses another:
@@ -194,8 +201,10 @@ variables are filled in, and a request with no such example gets 404. A route
 that matches nothing returns 404. Ctrl-C stops
 the server with exit code 130. An address other than loopback prints a warning,
 because anyone who can reach it gets the examples without authentication. A
-collection with no saved examples is refused. There is no MCP tool for mock
-servers yet; the desktop start control is separate.
+collection with no saved examples is refused. Desktop control exposes
+`mock.get`, `mock.start` (collection, optional `rateLimit`, `errorRate`,
+`errorStatus`, `errorBody`, and `confirm:true`) and `mock.stop`; there is no MCP
+tool for mock servers.
 
 ## Control a running desktop
 
@@ -267,6 +276,9 @@ mutation on transport timeout: its outcome may be unknown.
 | `collection-recording.get` | Recording configuration, active/busy state, added/updated/skipped/discarded counts and controlled problem |
 | `collection-recording.start` | Required `collection` and existing `environment`; optional exact `hosts` and `apps` lists (up to 32 each) |
 | `collection-recording.stop` | Stop accepting traffic and discard queued/in-flight conversions; already saved requests remain |
+| `mock.get` | Running mock servers: collection, HTTP/gRPC URLs and configured rate/error behavior |
+| `mock.start` | Required `collection` and `confirm:true`; optional `rateLimit` (0–100000 requests/s), `errorRate` (0–1), `errorStatus` (400–599) and `errorBody`; returns the running URLs |
+| `mock.stop` | Required running `collection` and `confirm:true`; stops its HTTP and gRPC listeners |
 | `token-links.analyze` | Required `ids` (1–200 unique positive HTTP IDs); returns analysis `id` and `done` |
 | `token-links.get` | Analysis `id`; returns `done`, masked source/path/consumer evidence, `skipped` and controlled `problem` |
 | `token-links.prepare` | Analysis `id`, zero-based `index`, required `collection` (explicit `""` = root), existing `environment`, new `variable`; returns a proposal |

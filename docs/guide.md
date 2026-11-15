@@ -831,7 +831,13 @@ the mock files they used, in the same place in the list, keeping it on or off.
 **Start mock server** in a collection's menu serves the collection's examples on
 `http://127.0.0.1:<port>`, a free loopback port; the menu then offers **Stop mock
 server at** that URL, and a notice shows it. The server does not go through the
-proxy, so a front end only changes its base URL. Each example answers at the
+proxy, so a front end only changes its base URL. Unary gRPC examples under the
+same collection are served on a second loopback address, shown in a notice; each
+example's body is the response message and its status is the gRPC code (0 or an
+HTTP 2xx is OK, 1–16 is used as the code, 404 becomes NotFound, 503 Unavailable).
+An example's **Delay** field waits that many milliseconds before answering, up
+to one minute. Desktop control can start a mock with a per-second rate limit and
+an injected error share/status/body (`mock.start`). Each example answers at the
 method and URL it was saved from: `{{variables}}` in the URL are filled from the
 collection's environment, a `:name` or `{{name}}` path segment matches any one
 segment, and the query is ignored. A request with no matching route gets 404.
@@ -1067,7 +1073,10 @@ export function onMock() {
 - Scripts live in `tools/scripts/*.js`; rules, scenarios, renames, reload and
   configuration export/import use existing storage. Environment variables
   are read-only; globals retain the existing saved-write behavior. Each
-  exchange has a fresh JS runtime, not a persistent in-memory mock server.
+  exchange has a fresh JS runtime, but a Code Mock rule's `pm.mock.state`
+  (get/set/unset/clear/toObject/replaceIn) persists in memory across requests
+  for as long as the app runs. It is not shared with other rules or saved to
+  disk, and the JS runtime is still not a Postman mock-server runtime.
 
 This is vscroxy's native proxy-rule API, **not** Postman's Node.js mock-server
 runtime or its `pm.mock.matchRequest`/`sendExample`, `pm.state` or datasets APIs.

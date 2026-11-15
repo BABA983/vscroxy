@@ -113,8 +113,10 @@ type requestDocument struct {
 	// exampleShown is the text exampleEditor was built from, so an edit is
 	// the difference from it, not the display's formatting.
 	exampleShown string
-	// exampleStatusText is the Examples tab's status field as typed.
+	// exampleStatusText and exampleDelayText are the Examples tab's status
+	// and mock delay fields as typed.
 	exampleStatusText string
+	exampleDelayText  string
 	composeTab        int
 	scriptTab         int
 	composeResult     string

@@ -298,6 +298,8 @@ func (a *app) controlValue(command control.Command) (any, error) {
 		return a.controlSystemProxy(command)
 	case "collection-recording.get", "collection-recording.start", "collection-recording.stop":
 		return a.controlCollectionRecording(command)
+	case "mock.get", "mock.start", "mock.stop":
+		return a.controlMocks(command)
 	case "token-links.analyze", "token-links.get", "token-links.prepare", "token-links.apply":
 		return a.controlTokenLinks(command)
 	case "capture.recording":

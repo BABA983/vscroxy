@@ -2582,6 +2582,7 @@
   "newExample": "New example",
   "startMockServer": "Start mock server",
   "stopMockServerAt": "Stop mock server at {url}",
+  "mockGRPCServerRunning": "gRPC mock server for “{path}” listens at {url}",
   "mockServerRunning": "Mock server for “{path}” listens at {url}",
   "mockServerStopped": "Stopped the mock server for “{path}”",
   "newLocalCurrentVariable": "New local Current variable",

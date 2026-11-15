@@ -12552,6 +12552,18 @@ func (msgs Messages) StopMockServerAt(url string) string {
 	return Catalog.Format(msgs.locale, "stopMockServerAt", map[string]any{"url": url})
 }
 
+// MockGRPCServerRunning says "gRPC mock server for “{path}” listens at {url}"
+// in the language the app shows.
+func MockGRPCServerRunning(path string, url string) string {
+	return In(i18n.Locale()).MockGRPCServerRunning(path, url)
+}
+
+// MockGRPCServerRunning says "gRPC mock server for “{path}” listens at {url}"
+// in the language of msgs.
+func (msgs Messages) MockGRPCServerRunning(path string, url string) string {
+	return Catalog.Format(msgs.locale, "mockGRPCServerRunning", map[string]any{"path": path, "url": url})
+}
+
 // MockServerRunning says "Mock server for “{path}” listens at {url}"
 // in the language the app shows.
 func MockServerRunning(path string, url string) string {

@@ -533,6 +533,21 @@
 	}
 	if (host.response) pm.response = makeResponse(host.response);
 	if (host.websocket) pm.websocket = makeWebSocket(host.websocket);
+	if (host.mockState) {
+		pm.mock = { state: {
+			get: function (key) { return host.mockState.get(text(key)); },
+			set: function (key, value) { host.mockState.set(text(key), text(value)); },
+			unset: function (key) { host.mockState.unset(text(key)); },
+			clear: function () { host.mockState.clear(); },
+			toObject: function () { return host.mockState.object(); },
+			replaceIn: function (template) {
+				return text(template).replace(/\{\{([^{}]+)\}\}/g, function (whole, name) {
+					var value = host.mockState.get(text(name).trim());
+					return value === undefined ? whole : text(value);
+				});
+			}
+		} };
+	}
 	global.pm = pm;
 
 	global.console = {

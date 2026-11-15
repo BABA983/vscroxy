@@ -373,6 +373,12 @@ type Server struct {
 	// until their flow is published or done.
 	streams map[uuid.UUID]*streamBodies
 
+	// mockStates are Code Mock values that persist across requests, one map
+	// per rule. mockStatesMu guards the map of maps; each state's own mutex
+	// serializes the scripts that share it.
+	mockStatesMu sync.Mutex
+	mockStates   map[string]*mockState
+
 	// trailers holds the trailer block each side of a flow ended with,
 	// until the flow is published.
 	trailers map[uuid.UUID]*flowTrailers
@@ -3401,4 +3407,25 @@ func (s *Server) dnsMapped(f *proxy.Flow) (mapped, profile string) {
 		return "", ""
 	}
 	return hit.Name + " → " + hit.IP.String(), fmt.Sprintf("%s:%d", hit.Profile, hit.Line)
+}
+
+// mockState is one Code Mock rule's cross-request state.
+type mockState struct {
+	mu     sync.Mutex
+	values map[string]string
+}
+
+// mockStateFor returns the state a Code Mock rule shares between requests.
+func (s *Server) mockStateFor(key string) *mockState {
+	s.mockStatesMu.Lock()
+	defer s.mockStatesMu.Unlock()
+	if s.mockStates == nil {
+		s.mockStates = map[string]*mockState{}
+	}
+	state := s.mockStates[key]
+	if state == nil {
+		state = &mockState{values: map[string]string{}}
+		s.mockStates[key] = state
+	}
+	return state
 }

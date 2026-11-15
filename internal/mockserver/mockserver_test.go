@@ -1,11 +1,14 @@
 package mockserver
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/baba983/vscroxy/internal/grpctest"
 	"github.com/baba983/vscroxy/internal/request"
 )
 
@@ -113,5 +116,80 @@ func TestMockChoosesByCodeAndRequestBody(t *testing.T) {
 				t.Fatalf("got %d %q, want %d containing %q", rec.Code, rec.Body.String(), c.status, c.answer)
 			}
 		})
+	}
+}
+
+func TestMockPerExampleDelay(t *testing.T) {
+	s := New([]request.Example{{Name: "Slow", Status: 200, Body: "late", DelayMS: 150,
+		Request: request.ExampleRequest{Method: "GET", URL: "http://h/slow"}}}, nil)
+	start := time.Now()
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/slow", nil))
+	if elapsed := time.Since(start); elapsed < 150*time.Millisecond {
+		t.Fatalf("answered after %v, want at least the example's 150 ms delay", elapsed)
+	}
+	if rec.Code != 200 || rec.Body.String() != "late" {
+		t.Fatalf("got %d %q", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMockRateLimitAndErrorInjection(t *testing.T) {
+	examples := []request.Example{{Name: "OK", Status: 200, Body: "ok", Request: request.ExampleRequest{Method: "GET", URL: "http://h/x"}}}
+	limited := NewWithOptions(examples, nil, Options{RatePerSecond: 1, Burst: 1})
+	first := httptest.NewRecorder()
+	limited.ServeHTTP(first, httptest.NewRequest(http.MethodGet, "/x", nil))
+	second := httptest.NewRecorder()
+	limited.ServeHTTP(second, httptest.NewRequest(http.MethodGet, "/x", nil))
+	if first.Code != 200 || second.Code != http.StatusTooManyRequests || second.Header().Get("Retry-After") == "" {
+		t.Fatalf("rate limit: first %d, second %d %q", first.Code, second.Code, second.Header())
+	}
+
+	failing := NewWithOptions(examples, nil, Options{ErrorRate: 1, ErrorStatus: 418, ErrorBody: `{"error":"teapot"}`})
+	rec := httptest.NewRecorder()
+	failing.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
+	if rec.Code != 418 || rec.Body.String() != `{"error":"teapot"}` {
+		t.Fatalf("injected error: %d %q", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGRPCUnaryMockServesExamples(t *testing.T) {
+	_, schema := grpctest.Echo(t)
+	srv, err := NewGRPC([]GRPCExample{
+		{Method: "/grpctest.Echo/Unary", Schema: schema, Body: `"mocked"`},
+		{Method: "/grpctest.Echo/Fail", Schema: schema, Status: 404, Body: "no such item"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go srv.Serve(ln)
+	defer srv.Stop()
+	endpoint := "http://" + ln.Addr().String()
+
+	got := request.Request{Protocol: "gRPC", URL: endpoint, Body: `"hello"`,
+		GRPC:    request.GRPCConfig{Schema: schema, Method: "/grpctest.Echo/Unary"},
+		Headers: "x-token: t-1", Checks: request.Checks{Headers: "Grpc-Status: 0", JSON: ` = "mocked"`},
+	}.Execute(t.Context(), nil, request.Context{}, nil, nil)
+	if got.Err != nil || got.Response == nil || !strings.Contains(got.Response.ResponseBody, "mocked") {
+		t.Fatalf("unary mock: %+v err=%v", got.Response, got.Err)
+	}
+	for _, check := range got.Tests {
+		if !check.Pass {
+			t.Errorf("check %q failed", check.Name)
+		}
+	}
+
+	failed := request.Request{Protocol: "gRPC", URL: endpoint, Body: `"hello"`,
+		GRPC:    request.GRPCConfig{Schema: schema, Method: "/grpctest.Echo/Fail"},
+		Headers: "x-token: t-1", Checks: request.Checks{Headers: "Grpc-Status: 5"},
+	}.Execute(t.Context(), nil, request.Context{}, nil, nil)
+	if failed.Err == nil || !strings.Contains(failed.Err.Error(), "NotFound") || failed.Response == nil || failed.Response.ResponseHeader.Get("Grpc-Status") != "5" {
+		t.Fatalf("error mock: %+v err=%v", failed.Response, failed.Err)
+	}
+	if len(failed.Tests) != 1 || !failed.Tests[0].Pass {
+		t.Fatalf("error mock checks: %+v", failed.Tests)
 	}
 }

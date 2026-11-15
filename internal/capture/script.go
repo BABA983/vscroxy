@@ -50,6 +50,9 @@ type ScriptExchange struct {
 	// Locals are pm.variables, which the scripts of one exchange share from
 	// its request to its response.
 	Locals map[string]string
+	// State is a Code Mock's values that persist across requests, exposed as
+	// pm.mock.state. Only the mock phase has one.
+	State map[string]string
 }
 
 // ScriptClose is a message script's request to end the WebSocket connection.

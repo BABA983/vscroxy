@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/cli"
+	"github.com/baba983/vscroxy/internal/grpctest"
 	"github.com/baba983/vscroxy/internal/mockserver"
 	"github.com/baba983/vscroxy/internal/request"
 )
@@ -51,7 +52,7 @@ func (s *syncText) String() string {
 // startMock runs vscroxy-cli mock in the background. It returns the base URL
 // printed on start, the stderr so far, and stop, which cancels the command the
 // way Ctrl-C does and returns its exit code.
-func startMock(t *testing.T, args ...string) (string, *syncText, func() int) {
+func startMock(t *testing.T, args ...string) (string, *syncText, *syncText, func() int) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
@@ -79,7 +80,7 @@ func startMock(t *testing.T, args ...string) (string, *syncText, func() int) {
 			return 0
 		}
 	}
-	return base, stderr, stop
+	return base, &stdout, stderr, stop
 }
 
 // mockGet sends one request; header holds name, value pairs.
@@ -103,7 +104,7 @@ func mockGet(t *testing.T, method, url string, header ...string) (int, string) {
 }
 
 func TestMockServesSavedExamplesUntilInterrupted(t *testing.T) {
-	base, _, stop := startMock(t, mockCollection(t))
+	base, _, _, stop := startMock(t, mockCollection(t))
 	if code, body := mockGet(t, "GET", base+"/items/42?x=1"); code != 200 || body != `{"from":"first"}` {
 		t.Errorf("default example: %d %q; want the first example", code, body)
 	}
@@ -127,7 +128,7 @@ func TestMockServesSavedExamplesUntilInterrupted(t *testing.T) {
 func TestMockPortAndNonLoopbackWarning(t *testing.T) {
 	// --port 0 replaces the port in --addr with an OS-assigned one, so the
 	// fixed :9 is never bound and no port is picked twice.
-	base, stderr, stop := startMock(t, "--addr", "127.0.0.1:9", "--port", "0", mockCollection(t))
+	base, _, stderr, stop := startMock(t, "--addr", "127.0.0.1:9", "--port", "0", mockCollection(t))
 	if !strings.HasPrefix(base, "http://127.0.0.1:") || base == "http://127.0.0.1:9" {
 		t.Errorf("base = %q; want an OS-assigned port on 127.0.0.1", base)
 	}
@@ -136,7 +137,7 @@ func TestMockPortAndNonLoopbackWarning(t *testing.T) {
 	}
 	stop()
 
-	_, stderr, stop = startMock(t, "--addr", "0.0.0.0:0", mockCollection(t))
+	_, _, stderr, stop = startMock(t, "--addr", "0.0.0.0:0", mockCollection(t))
 	if !strings.Contains(stderr.String(), "not a loopback") {
 		t.Errorf("0.0.0.0 did not warn: %q", stderr.String())
 	}
@@ -150,5 +151,56 @@ func TestMockRefusesCollectionWithoutExamples(t *testing.T) {
 	code := cli.Run(t.Context(), []string{"mock", filepath.Join(root, "collections")}, &out, &errOut)
 	if code != 2 || !strings.Contains(errOut.String(), "No saved examples") {
 		t.Errorf("exit=%d stderr=%q; want 2 and the no-examples message", code, errOut.String())
+	}
+}
+
+func TestMockRateLimitAndErrorInjection(t *testing.T) {
+	base, _, _, stop := startMock(t, "--rate-limit", "1", mockCollection(t))
+	if code, _ := mockGet(t, "GET", base+"/items/1"); code != 200 {
+		t.Fatalf("first request = %d, want 200", code)
+	}
+	if code, _ := mockGet(t, "GET", base+"/items/1"); code != http.StatusTooManyRequests {
+		t.Fatalf("second request = %d, want 429", code)
+	}
+	stop()
+
+	base, _, _, stop = startMock(t, "--error-rate", "1", "--error-status", "418", "--error-body", "teapot", mockCollection(t))
+	if code, body := mockGet(t, "GET", base+"/items/1"); code != 418 || body != "teapot" {
+		t.Fatalf("injected response = %d %q, want 418 teapot", code, body)
+	}
+	stop()
+}
+
+func TestMockServesUnaryGRPCExamples(t *testing.T) {
+	_, schema := grpctest.Echo(t)
+	root := t.TempDir()
+	write(t, filepath.Join(root, "collections", "Shop", "Items.request.json"), request.Request{
+		ID: "items", Name: "Items", Collection: "Shop", Method: "GET", URL: "http://api.example.test/items",
+		Examples: []request.Example{{ID: "ok", Name: "ok", Request: request.ExampleRequest{Method: "GET", URL: "http://api.example.test/items"}, Status: 200, Body: "ok"}},
+	})
+	write(t, filepath.Join(root, "collections", "Shop", "Echo.request.json"), request.Request{
+		ID: "echo", Name: "Echo", Collection: "Shop", Protocol: "gRPC", URL: "http://unused", GRPC: request.GRPCConfig{Schema: schema, Method: "/grpctest.Echo/Unary"},
+		Examples: []request.Example{{ID: "mocked", Name: "mocked", Status: 200, Body: `"mocked"`}},
+	})
+	_, stdout, stderr, stop := startMock(t, filepath.Join(root, "collections"))
+	defer stop()
+	text := stdout.String()
+	marker := "gRPC examples at "
+	i := strings.Index(text, marker)
+	if i < 0 {
+		t.Fatalf("no gRPC address: stdout=%q stderr=%q", text, stderr.String())
+	}
+	addr := strings.Fields(text[i+len(marker):])[0]
+	got := request.Request{Protocol: "gRPC", URL: "http://" + addr, Body: `"hello"`,
+		GRPC:   request.GRPCConfig{Schema: schema, Method: "/grpctest.Echo/Unary"},
+		Checks: request.Checks{Headers: "Grpc-Status: 0", JSON: ` = "mocked"`},
+	}.Execute(t.Context(), nil, request.Context{}, nil, nil)
+	if got.Err != nil || got.Response == nil || !strings.Contains(got.Response.ResponseBody, "mocked") {
+		t.Fatalf("gRPC mock: %+v err=%v", got.Response, got.Err)
+	}
+	for _, check := range got.Tests {
+		if !check.Pass {
+			t.Errorf("check %q failed", check.Name)
+		}
 	}
 }

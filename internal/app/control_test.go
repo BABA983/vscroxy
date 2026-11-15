@@ -7,6 +7,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/control"
+	"github.com/baba983/vscroxy/internal/grpctest"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
 )
@@ -569,5 +571,54 @@ func TestLocalControlSettingStartsAndStopsEndpoint(t *testing.T) {
 	}
 	if saved, err := loadSettings(a.settingsPath); err != nil || saved.LocalControl {
 		t.Fatalf("off not saved: %+v %v", saved, err)
+	}
+}
+
+func TestControlMocksStartServeAndStop(t *testing.T) {
+	_, schema := grpctest.Echo(t)
+	a := workspaceApp()
+	a.requests = []savedRequest{
+		{Request: request.Request{ID: "one", Name: "One", Collection: "Shop", Method: "GET", URL: "http://api.test/x",
+			Examples: []request.Example{{ID: "ok", Name: "ok", Request: request.ExampleRequest{Method: "GET", URL: "http://api.test/x"}, Status: 200, Body: "mocked"}}}},
+		{Request: request.Request{ID: "echo", Name: "Echo", Collection: "Shop", Protocol: "gRPC", URL: "http://unused",
+			GRPC:     request.GRPCConfig{Schema: schema, Method: "/grpctest.Echo/Unary"},
+			Examples: []request.Example{{ID: "grpc", Name: "grpc", Status: 200, Body: `"grpc-mocked"`}}}},
+	}
+	client := desktopClient(t, a)
+	start := desktopCall(t, client, "mock.start", map[string]any{"collection": "Shop", "confirm": true, "rateLimit": 5, "errorRate": 0})
+	var running mockSummary
+	if err := json.Unmarshal(start, &running); err != nil || running.URL == "" || running.GRPCURL == "" || running.RateLimit != 5 {
+		t.Fatalf("start = %s, %v", start, err)
+	}
+	resp, err := http.Get(running.URL + "/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || string(body) != "mocked" {
+		t.Fatalf("mock answered %d %q", resp.StatusCode, body)
+	}
+	grpc := request.Request{Protocol: "gRPC", URL: running.GRPCURL, Body: `"hello"`,
+		GRPC: request.GRPCConfig{Schema: schema, Method: "/grpctest.Echo/Unary"}}.Execute(t.Context(), nil, request.Context{}, nil, nil)
+	if grpc.Err != nil || grpc.Response == nil || !strings.Contains(grpc.Response.ResponseBody, "grpc-mocked") {
+		t.Fatalf("gRPC mock: %+v err=%v", grpc.Response, grpc.Err)
+	}
+	list := desktopCall(t, client, "mock.get", map[string]any{})
+	var mocks struct {
+		Mocks []mockSummary `json:"mocks"`
+	}
+	if err := json.Unmarshal(list, &mocks); err != nil || len(mocks.Mocks) != 1 || mocks.Mocks[0].Collection != "Shop" {
+		t.Fatalf("get = %s, %v", list, err)
+	}
+	if stop := desktopCall(t, client, "mock.stop", map[string]any{"collection": "Shop", "confirm": true}); !strings.Contains(string(stop), "true") {
+		t.Fatalf("stop = %s", stop)
+	}
+	if _, err := http.Get(running.URL + "/x"); err == nil {
+		t.Fatal("mock still answers after stop")
+	}
+	// A start without confirmation is refused and creates nothing.
+	if _, err := a.controlMocks(control.Command{Action: "mock.start", Params: jsontext.Value(`{"collection":"Shop"}`)}); err == nil {
+		t.Fatal("unconfirmed start accepted")
 	}
 }

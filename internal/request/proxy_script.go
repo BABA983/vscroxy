@@ -127,6 +127,7 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 		vars: maps.Clone(env.Environment), locals: x.Locals, globals: maps.Clone(env.Globals), env: env.OS,
 		readOnly: map[string]bool{"environment": true}, phase: x.Phase, addons: env.Addons,
 		info: scriptInfo{RequestName: x.Rule}, file: s.file, sourceMap: s.module.sourceMap,
+		mockState: x.State,
 	}
 	run.target = func() string { return x.URL }
 	if x.Phase != "mock" {

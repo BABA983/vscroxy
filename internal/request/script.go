@@ -287,6 +287,8 @@ type scriptRun struct {
 	// process.env, which only rule scripts have.
 	readOnly map[string]bool
 	env      map[string]string
+	// mockState is a Code Mock rule's cross-request state.
+	mockState map[string]string
 	// addons are the user's modules require loads by name, as source.
 	addons map[string]string
 	// file names the script in errors, by its phase when empty; sourceMap
@@ -839,6 +841,20 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	})
 	if run.env != nil {
 		set("env", object(run.env))
+	}
+	if run.mockState != nil {
+		set("mockState", map[string]any{
+			"get": func(name string) goja.Value {
+				if value, ok := run.mockState[name]; ok {
+					return vm.ToValue(value)
+				}
+				return goja.Undefined()
+			},
+			"set":    func(name, value string) { run.mockState[name] = value },
+			"unset":  func(name string) { delete(run.mockState, name) },
+			"clear":  func() { clear(run.mockState) },
+			"object": func() goja.Value { return object(run.mockState) },
+		})
 	}
 	// addon compiles an addon, an ES or CommonJS module, as a function of
 	// module, exports and require; pm.js runs it once per script and caches

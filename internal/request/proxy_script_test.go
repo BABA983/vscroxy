@@ -744,3 +744,36 @@ func TestProxyScriptReadsBinaryAndLargeBodies(t *testing.T) {
 		t.Fatalf("binary response: text %q b64 %q", x.Locals["text"], x.Locals["b64"])
 	}
 }
+
+// A Code Mock's state belongs to the rule, so a later request sees what an
+// earlier one set.
+func TestMockStatePersistsAcrossRuns(t *testing.T) {
+	s, err := ParseProxyScript("counter.js", `export function onMock() {
+	const n = Number(pm.mock.state.get("n") || 0) + 1;
+	pm.mock.state.set("n", String(n));
+	pm.response.setBody(JSON.stringify({ n: n, name: pm.mock.state.get("name") }));
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := map[string]string{"name": "shop"}
+	for i := 1; i <= 2; i++ {
+		x := &capture.ScriptExchange{Phase: "mock", URL: "https://api.test/counter", Header: http.Header{}, State: state}
+		if _, err := s.Run(t.Context(), x, ProxyEnv{}); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(x.ResponseBody), `"n":`+strconv.Itoa(i)) || !strings.Contains(string(x.ResponseBody), `"name":"shop"`) {
+			t.Fatalf("run %d body = %s", i, x.ResponseBody)
+		}
+	}
+	if state["n"] != "2" {
+		t.Fatalf("state = %v", state)
+	}
+	// The API is only on a mock exchange; an ordinary rule script has no
+	// pm.mock.
+	other, _ := ParseProxyScript("plain.js", `export function onRequest() { pm.request.headers.upsert("X-Mock", String(typeof pm.mock)); }`)
+	req := &capture.ScriptExchange{Phase: "request", URL: "https://api.test/", Header: http.Header{}}
+	if _, err := other.Run(t.Context(), req, ProxyEnv{}); err != nil || req.Header.Get("X-Mock") != "undefined" {
+		t.Fatalf("pm.mock outside a mock: %q, %v", req.Header.Get("X-Mock"), err)
+	}
+}
