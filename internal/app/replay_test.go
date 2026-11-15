@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -288,22 +289,44 @@ func TestReplaySettingsRejectsHugeIntervalBeforeDurationConversion(t *testing.T)
 }
 
 func TestAdvancedReplayIntervalSpacesStarts(t *testing.T) {
-	times := make(chan time.Time, 3)
+	const (
+		interval = 250 * time.Millisecond
+		// Server arrival time includes scheduling and network jitter, so a
+		// gap can land below the dispatch interval on a loaded machine.
+		arrivalSlack = 50 * time.Millisecond
+	)
+	var mu sync.Mutex
+	var starts []time.Time
 	a, flows := replayTestApp(t, func(w http.ResponseWriter, r *http.Request) {
-		times <- time.Now()
+		mu.Lock()
+		starts = append(starts, time.Now())
+		mu.Unlock()
 		io.WriteString(w, "ok")
 	})
 	a.openReplay(flows[:1])
 	a.replayUI.timeout, a.replayUI.repeat = "0", "3"
-	a.replayUI.concurrency, a.replayUI.interval = "1", "80"
+	a.replayUI.concurrency, a.replayUI.interval = "1", "250"
 	tt := ui.NewTester(a.view, 960, 600)
 	if err := tt.Click("Send replays"); err != nil {
 		t.Fatal(err)
 	}
 	waitReplay(t, a, tt)
-	first, second, third := <-times, <-times, <-times
-	if second.Sub(first) < 60*time.Millisecond || third.Sub(second) < 60*time.Millisecond {
-		t.Fatalf("starts %v apart, want about 80 ms", []time.Duration{second.Sub(first), third.Sub(second)})
+	mu.Lock()
+	got := append([]time.Time(nil), starts...)
+	mu.Unlock()
+	if len(got) != 3 {
+		t.Fatalf("server saw %d attempts, want 3", len(got))
+	}
+	// A slow machine stretches a gap, so only a floor plus generous slack
+	// keeps this reliable.
+	for i := 1; i < len(got); i++ {
+		gap := got[i].Sub(got[i-1])
+		if gap < interval-arrivalSlack {
+			t.Errorf("attempt %d started %v after the previous one; want at least %v", i+1, gap, interval)
+		}
+		if gap > interval+5*time.Second {
+			t.Errorf("attempt %d started %v after the previous one; want about %v", i+1, gap, interval)
+		}
 	}
 	if a.replayUI.done != 3 {
 		t.Fatalf("done=%d, want 3", a.replayUI.done)
