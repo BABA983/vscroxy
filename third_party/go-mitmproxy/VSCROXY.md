@@ -196,6 +196,10 @@ and `TestCloseImmediatelyAfterStartReleasesThePort`.
   including Authorization and Cookie, was discarded for plain WS.
 - Replace the CONNECT envelope's `f.Request` with the actual upgrade request,
   preserving the escaped path/query and headers for capture addons.
+- Clear the CONNECT envelope's 200 response before addons see the upgrade, and
+  write a response an addon sets during `Requestheaders` to the client instead
+  of dialing and upgrading. Capture's Block rules use this to refuse, drop or
+  hide a plain or tunneled WebSocket handshake.
 
 Upstream v1.9.4's `handleWSS` fix did not cover `handle`; there is no addon hook
 before this plain-WS dial, and the original request is otherwise private.

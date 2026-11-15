@@ -1604,6 +1604,16 @@ func (msgs Messages) BlockAction() string {
 	return Catalog.Format(msgs.locale, "blockAction", nil)
 }
 
+// BlockAndHide says "Block and hide"
+// in the language the app shows.
+func BlockAndHide() string { return In(i18n.Locale()).BlockAndHide() }
+
+// BlockAndHide says "Block and hide"
+// in the language of msgs.
+func (msgs Messages) BlockAndHide() string {
+	return Catalog.Format(msgs.locale, "blockAndHide", nil)
+}
+
 // BlockData says "{kind} data · {bytes} bytes (shown as base64)"
 // in the language the app shows.
 func BlockData(kind string, bytes int) string { return In(i18n.Locale()).BlockData(kind, bytes) }

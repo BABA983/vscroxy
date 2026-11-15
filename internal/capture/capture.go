@@ -242,13 +242,14 @@ const (
 
 // What a Block rule does.
 const (
-	BlockRefuse = ""     // answer 403 without contacting the server
-	BlockDrop   = "drop" // close the client's connection without an answer
-	BlockHide   = "hide" // proxy it as usual, but keep it out of the table
+	BlockRefuse     = ""            // answer 403 without contacting the server
+	BlockDrop       = "drop"        // close the client's connection without an answer
+	BlockHide       = "hide"        // proxy it as usual, but keep it out of the table
+	BlockRefuseHide = "refuse_hide" // answer 403 and keep it out of the table
 )
 
 // BlockActions are the Block actions, in the order an editor offers them.
-var BlockActions = []string{BlockRefuse, BlockDrop, BlockHide}
+var BlockActions = []string{BlockRefuse, BlockDrop, BlockHide, BlockRefuseHide}
 
 // errDropped is the failure a Block rule that drops the connection records.
 var errDropped = errors.New("connection dropped by a Block rule")
@@ -2143,9 +2144,7 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 		case RuleBlock:
 			switch r.Block {
 			case BlockHide:
-				if d := debugOf(f); d != nil {
-					d.hidden = true
-				}
+				hideFlow(f)
 				return nil
 			case BlockDrop:
 				recordAction(f, "Block · drop connection · "+r.Match)
@@ -2163,6 +2162,8 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 					Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
 					Body:       []byte("vscroxy: " + errDropped.Error() + "\n"),
 				}
+			case BlockRefuseHide:
+				hideFlow(f)
 			}
 			recordAction(f, "Block · "+r.Match)
 			return &proxy.Response{
@@ -2252,16 +2253,73 @@ func (s *Server) mapRemote(f *proxy.Flow, r Rule) {
 	f.Request.URL = u
 }
 
-// applyWebSocketRules sends a WebSocket handshake, whose URL is ws or wss,
-// where the first matching Map Remote rule says, and fixes the network
-// conditions its messages use.
+// applyWebSocketRules acts on a WebSocket handshake, whose URL is ws or wss:
+// the first matching Map Remote rule sends it elsewhere, and the first
+// matching Block rule answers it, drops it or hides it. It also fixes the
+// network conditions its messages use.
 func (s *Server) applyWebSocketRules(f *proxy.Flow) {
 	s.selectWebSocketNetwork(f)
 	s.rulesMu.RLock()
 	list := s.rules
 	s.rulesMu.RUnlock()
-	if i := firstResponseRule(list, s.ruleRequest(f)); i >= 0 {
-		s.mapRemote(f, list[i])
+	i := firstResponseRule(list, s.ruleRequest(f))
+	if i < 0 {
+		return
+	}
+	r := list[i]
+	if r.Type == RuleMapRemote {
+		s.mapRemote(f, r)
+		return
+	}
+	if r.Scenario != "" {
+		recordAction(f, "Scenario · "+r.Scenario)
+	}
+	s.hit(r)
+	switch r.Block {
+	case BlockHide:
+		hideFlow(f)
+	case BlockDrop:
+		recordAction(f, "Block · drop connection · "+r.Match)
+		f.Error = errDropped
+		if d := debugOf(f); d != nil {
+			d.drop = true
+		}
+		if f.ConnContext != nil {
+			f.ConnContext.RecordEvent("Rule", "Dropping the client connection", errDropped)
+		}
+		s.answerWebSocket(f, &proxy.Response{
+			StatusCode: http.StatusBadGateway,
+			Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+			Body:       []byte("vscroxy: " + errDropped.Error() + "\n"),
+		})
+	case BlockRefuseHide:
+		hideFlow(f)
+		fallthrough
+	default:
+		recordAction(f, "Block · "+r.Match)
+		s.answerWebSocket(f, &proxy.Response{
+			StatusCode: http.StatusForbidden,
+			Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+			Body:       []byte("blocked by vscroxy\n"),
+		})
+	}
+}
+
+// answerWebSocket publishes a Block rule's answer to a WebSocket handshake as
+// the WebSocket row it refused, and closes the connection when the rule drops
+// it. The engine writes the response after the hook returns.
+func (s *Server) answerWebSocket(f *proxy.Flow, resp *proxy.Response) {
+	f.Response = resp
+	s.publishFlow(f, "ws", nil, resp.StatusCode)
+	if d := debugOf(f); d != nil && d.drop && f.ConnContext != nil && f.ConnContext.ClientConn != nil && f.ConnContext.ClientConn.Conn != nil {
+		_ = f.ConnContext.ClientConn.Conn.Close()
+	}
+}
+
+// hideFlow keeps an exchange out of the table without changing its traffic.
+func hideFlow(f *proxy.Flow) {
+	if d := debugOf(f); d != nil {
+		d.hidden = true
 	}
 }
 

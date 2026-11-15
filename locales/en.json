@@ -1478,6 +1478,7 @@
   "blankIsAutomaticAnOs": "Blank is automatic (an OS-assigned loopback port shown above). A fixed port (1024–65535) never falls back.",
   "blankIsAutomaticPrefers7890": "Blank is automatic (prefers 7890). A fixed port (1024–65535) never falls back. Applies after a restart.",
   "blockAction": "Block action",
+  "blockAndHide": "Block and hide",
   "blockData": "{kind} data · {bytes} bytes (shown as base64)",
   "bodiesPast64KbAre": "Bodies past 64 KB are kept in temporary files. Past any limit the oldest requests go first, with their files; pinned ones stay.",
   "body": "Body",

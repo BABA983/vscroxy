@@ -165,6 +165,7 @@
   "blankIsAutomaticAnOs": "留空为自动（由系统分配的回环端口，显示在上方）。固定端口（1024–65535）不会回退。",
   "blankIsAutomaticPrefers7890": "留空为自动（优先 7890）。固定端口（1024–65535）不会回退。重启后生效。",
   "blockAction": "阻止操作",
+  "blockAndHide": "拦截并隐藏",
   "blockData": "{kind} 数据 · {bytes} 字节（以 Base64 显示）",
   "bodiesPast64KbAre": "超过 64 KB 的正文保存在临时文件中。超过任一上限时，最早的请求连同其文件先被移除；固定的请求保留。",
   "body": "正文",

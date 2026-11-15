@@ -3053,7 +3053,7 @@ func TestMapRemoteRewritesPathHostAndWebSockets(t *testing.T) {
 	s, caPath := startServerWithRules(t,
 		Rule{Type: RuleMapRemote, Match: "keep.invalid", Target: upstream.URL + "/base", PathFrom: "/v1/", PathTo: "/api/v2/", KeepHost: true},
 		Rule{Type: RuleMapRemote, Match: "plain.invalid", Target: upstream.URL},
-		Rule{Type: RuleBlock, Match: "/v1/"}, // does not act on a WebSocket
+		Rule{Type: RuleBlock, Match: "/v1/users"}, // matches the plain GET, not the WebSocket
 		Rule{Type: RuleMapRemote, MatchMode: "wildcard", Match: "*/v1/*", Target: ws.URL, PathFrom: "/v1/", PathTo: "/v2/"},
 	)
 	s.SetSSL(SSLConfig{All: true})

@@ -64,12 +64,12 @@ func firstNetworkRule(list []Rule, req rules.Request) int {
 }
 
 // firstResponseRule is the Map or Block rule that acts on req: the first
-// that matches, or for a WebSocket handshake the first Map Remote rule, since
-// the others do not act on WebSockets.
+// that matches, or for a WebSocket handshake the first Map Remote or Block
+// rule, since the others do not act on WebSockets.
 func firstResponseRule(list []Rule, req rules.Request) int {
 	ws := webSocketURL(req.URL)
 	return slices.IndexFunc(list, func(r Rule) bool {
-		return responseRule(r.Type) && (!ws || r.Type == RuleMapRemote) && r.matches(req)
+		return responseRule(r.Type) && (!ws || r.Type == RuleMapRemote || r.Type == RuleBlock) && r.matches(req)
 	})
 }
 
@@ -243,7 +243,7 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 		}
 		if ws {
 			switch r.Type {
-			case RuleMapRemote:
+			case RuleMapRemote, RuleBlock:
 				return 0
 			case RuleScript:
 				return 1
@@ -275,7 +275,7 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 			}
 			reason := r.matchReason(at)
 			switch {
-			case ws && r.Type != RuleMapRemote && r.Type != RuleScript && r.Type != RuleBreakMessage:
+			case ws && r.Type != RuleMapRemote && r.Type != RuleBlock && r.Type != RuleScript && r.Type != RuleBreakMessage:
 				reason = "does not act on WebSockets"
 			case !ws && r.Type == RuleBreakMessage:
 				reason = "requires a WebSocket message"

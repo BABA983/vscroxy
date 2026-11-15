@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -103,9 +105,18 @@ func (h *webSocketHandler) handle(serverConn, clientConn net.Conn, f *Flow) erro
 	wsURL.Scheme, wsURL.Host = "ws", clientReq.Host
 	clientReq.URL = &wsURL
 	f.Request = newRequest(clientReq)
-	// Addons may point the WebSocket elsewhere, as for a decrypted one.
+	// The CONNECT envelope's own 200 response is not this handshake's: clear
+	// it before addons see the upgrade, so a response they set is the only
+	// one written instead of dialing and upgrading.
+	f.Response = nil
+	// Addons may point the WebSocket elsewhere, as for a decrypted one, or
+	// answer the handshake themselves: a Block rule's response is written to
+	// the client instead of dialing and upgrading.
 	for _, addon := range h.proxy.Addons {
 		addon.Requestheaders(f)
+	}
+	if f.Response != nil {
+		return writeHandshakeResponse(clientConn, f.Response)
 	}
 	target := f.Request.URL
 	if serverConn == nil || target.Host != clientReq.Host || target.Scheme != "ws" {
@@ -326,6 +337,32 @@ func webSocketDialRequest(req *http.Request, target *url.URL) *http.Request {
 	dial := req.Clone(req.Context())
 	dial.URL, dial.Host = &u, u.Host
 	return dial
+}
+
+// writeHandshakeResponse writes a response an addon gave a WebSocket handshake
+// in place of an upgrade, then leaves the client's connection for it to read.
+func writeHandshakeResponse(w io.Writer, resp *Response) error {
+	header := resp.Header.Clone()
+	if header == nil {
+		header = make(http.Header)
+	}
+	if header.Get("Content-Length") == "" && header.Get("Transfer-Encoding") == "" {
+		header.Set("Content-Length", strconv.Itoa(len(resp.Body)))
+	}
+	header.Set("Connection", "close")
+	var b []byte
+	b = fmt.Appendf(b, "HTTP/1.1 %d %s\r\n", resp.StatusCode, http.StatusText(resp.StatusCode))
+	var headerText []byte
+	for name, values := range header {
+		for _, value := range values {
+			headerText = fmt.Appendf(headerText, "%s: %s\r\n", name, value)
+		}
+	}
+	b = append(b, headerText...)
+	b = append(b, "\r\n"...)
+	b = append(b, resp.Body...)
+	_, err := w.Write(b)
+	return err
 }
 
 // handleWSS proxies a decrypted WebSocket whose handshake f holds, to the

@@ -628,6 +628,8 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture
 			switch r.Block {
 			case capture.BlockHide:
 				icon, kind = hideIcon, "Block · hide"
+			case capture.BlockRefuseHide:
+				icon, kind = hideIcon, "Block · refuse and hide"
 			case capture.BlockDrop:
 				kind = "Block · drop connection"
 			}
@@ -803,7 +805,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 				uikit.FormRow(c, locales.Action(), blockHelp[max(slices.Index(capture.BlockActions, e.draft.Block), 0)], "", func() {
 					ui.Row(c).Children(func() {
 						choice := max(slices.Index(capture.BlockActions, e.draft.Block), 0)
-						uikit.Segmented(c, &choice, locales.Refuse(), locales.DropConnection(), locales.Hide()).Label(locales.BlockAction())
+						uikit.Segmented(c, &choice, locales.Refuse(), locales.DropConnection(), locales.Hide(), locales.BlockAndHide()).Label(locales.BlockAction())
 						e.draft.Block = capture.BlockActions[choice]
 					})
 				})
@@ -943,4 +945,5 @@ var blockHelp = []string{
 	"Answers 403 without contacting the server.",
 	"Closes the client’s connection without an answer, as a network failure would. Clients may retry GET.",
 	"Proxies it as usual but keeps it out of the table. Rules below it do not act on it.",
+	"Answers 403 without contacting the server and keeps the blocked request out of the table.",
 }

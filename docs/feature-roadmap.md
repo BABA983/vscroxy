@@ -69,7 +69,7 @@
 | 清空会话 | 已有 | | |
 | **只抓指定 host / App（Allow list）** | 已有 | Settings → Capture，按 host 和 App；忽略名单优先 | M1 |
 | 长时间抓包的内存和磁盘上限、自动清理 | 已有 | Settings → Capture → Memory：条数、内存和磁盘上限，超出先删最旧的（Pin 的保留），连同落盘文件 | M1 |
-| Block list：通配符、正则、按 App、"隐藏"或"拦截"、断开连接 | 已有 | Block 规则的动作：拒绝（403）、断开连接、隐藏（照常代理但不进表格）；匹配用规则的通配符／正则／App／header | M4 |
+| Block list：通配符、正则、按 App、"隐藏"或"拦截"、断开连接、拦截并隐藏 | 已有 | Block 规则的动作：拒绝（403）、断开连接、隐藏（照常代理但不进表格）、拦截并隐藏（403 且不进表格）；WebSocket 握手同样适用；匹配用规则的通配符／正则／App／header | M4 |
 | 系统代理绕过名单（Bypass list） | 已有 | Settings → Proxy → System proxy：开关「Replace the system bypass list」后写入 macOS `networksetup -setproxybypassdomains`、Windows WinINet 每连接 bypass、Linux GNOME `ignore-hosts`；关闭或崩溃恢复时还原原值，替换成别的程序的名单时不覆盖；不配置时三个平台都保留系统原值；`<local>` 仅 Windows 识别 | M7 |
 | SOCKS5 代理入口 | 已有 | RFC 1928 CONNECT，可选 RFC 1929 用户名／密码；域名、IPv4、IPv6；与 HTTP 代理同一条抓包流水线：解密名单内 MITM 并抓取明文 HTTP，名单外 400 ms 嗅探首字节，HTTP 请求行交给 HTTP 前端并抓取，TLS／其他字节原样透传，服务器先发协议窗口后透传；规则、Host 方案、网络条件、Allow／Block、录制生效；10 s peek 超时；嵌套 CONNECT 返回 400；Settings → Proxy 开关和固定端口（1024–65535，冲突不回退，空为自动）；设备接入的 IP 白名单经 LAN 网关同样生效 | M7 |
 | 反向代理（本地端口直接转发到远端） | 已有 | Settings → Proxy：多条本地端口 → http／https 远端 URL，增删改、启停，Host 头改写或保留；经同一规则和抓包，HTTPS 远端由 app 发起 TLS 并默认校验证书（可按条目允许自签名）；Remote host 时只接受回环 Host；端口冲突逐条提示 | M7 |
@@ -288,7 +288,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 规则匹配：通配符、正则、method、App、header。（已完成）
 - Map Local：app 内编辑响应、目录映射。（已完成）
 - Map Remote：端口、路径、Host header、WebSocket。（已完成，含原主机不可达时的 HTTPS 映射）
-- Block：隐藏或拦截、断开连接、按 App。（已完成）
+- Block：隐藏或拦截、断开连接、拦截并隐藏、按 App，WebSocket 握手也适用。（已完成）
 - Breakpoint 模板。（已完成）
 - 规则脚本：`pm` 风格 API、编辑器、异步请求、共享状态、环境变量、内置库、代码片段；`script.js` 迁移。（已完成，`script.js` 按原型规则直接删除不迁移；含自定义 addon）
 - Example → Mock 规则、集合 → Scenario。（已完成：URL 填入当前变量后转成正则，`:id` 和未知变量匹配一段，查询串不限；同一请求的其他 Example 用 `X-Mock-Response-Name` 选择；主机不可达时 Map Local 也用生成的证书）

@@ -765,8 +765,8 @@ rules alone; a new rule there is a Map Local rule.
   query in `target` replaces the request's. `keepHost: true` sends the client's
   Host header instead of the target's, for servers that serve several sites
   by name. WebSocket handshakes follow the first matching Map Remote rule too,
-  as `ws` or `wss` to match the target; Map Local, Block and HTTP breakpoints do
-  not act on WebSockets. Message scripts and `break_message` run after mapping.
+  as `ws` or `wss` to match the target; Map Local and HTTP breakpoints do not
+  act on WebSockets. Message scripts and `break_message` run after mapping.
   Inside a CONNECT tunnel (HTTPS and most WebSockets) the
   proxy first connects to the original host to copy its certificate. When that
   host cannot be reached and an active Map Remote or Map Local rule could
@@ -779,10 +779,17 @@ rules alone; a new rule there is a Map Local rule.
   `403` without contacting the server; `"drop"` closes the client's connection
   without an answer, as a network failure would, and the row shows it failed
   (clients may retry a GET); `"hide"` proxies the request as usual but keeps it
-  out of the table, and no rule below it acts on it. With `apps`, wildcards and
-  regular expressions this is also the place for a block list that the ignore
-  lists, which match only hosts and apps, cannot express. Block rules do not
-  act on WebSockets.
+  out of the table, and no rule below it acts on it; `"refuse_hide"` is
+  **Block and hide**: it answers `403` and also keeps the row out of the table.
+  With `apps`, wildcards and regular expressions this is also the place for a
+  block list that the ignore lists, which match only hosts and apps, cannot
+  express.
+
+  A Block rule also acts on a WebSocket handshake. Refuse answers `403` before
+  the upgrade, so the client's `Dial` fails; drop closes the connection; hide
+  lets the connection upgrade and exchange messages but publishes no row; block
+  and hide does the same as refuse and leaves no row. A blocked handshake that
+  is shown appears as a `WS` row with the status the rule answered.
 - `break` pauses the request until you decide, and `break_response` pauses
   the response (see below). `break_message` pauses complete WebSocket data
   messages, with `direction` empty for both, `"in"` for server → client, or

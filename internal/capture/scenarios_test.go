@@ -458,10 +458,11 @@ func TestPreviewRulesFollowsTheProxysOrder(t *testing.T) {
 	if got := steps(capture.PreviewRules(hide, previewRequest("GET", "https://example.com/item"), true)); !slices.Equal(got, []int{1, 2}) {
 		t.Fatalf("hide: %v", got)
 	}
-	// Only Map Remote acts on a WebSocket: the Block above it does not shadow it.
+	// A Block and a Map Remote act on a WebSocket handshake in first-match
+	// order, so the Block above the Map Remote answers it.
 	rules[5] = capture.Rule{Type: capture.RuleMapRemote, Match: "/item", Target: "http://remote.test"}
 	p = capture.PreviewRules(rules, previewRequest("GET", "wss://example.com/item"), true)
-	if got := steps(p); !slices.Equal(got, []int{0, 0, 0, 0, 0, 1}) || p[3].Reason != "does not act on WebSockets" || p[1].Reason != "does not act on WebSockets" {
+	if got := steps(p); !slices.Equal(got, []int{0, 0, 0, 1, 0, 0}) || p[1].Reason != "does not act on WebSockets" || p[5].Reason != "shadowed by rule 4" {
 		t.Fatalf("WebSocket: %+v", p)
 	}
 	// Message hooks match the mapped URL; breakpoints win separately per
