@@ -34,6 +34,10 @@ type Settings struct {
 	DisableURLEncoding *bool `json:"disableUrlEncoding,omitempty"`
 	// DisableCookies keeps the send from reading or writing the cookie jar.
 	DisableCookies *bool `json:"disableCookies,omitempty"`
+	// SocketPath sends HTTP(S) directly to a Unix domain socket on macOS and
+	// Linux, or to a named pipe such as \\.\pipe\app on Windows, instead of
+	// through the capture proxy. Empty uses the network.
+	SocketPath string `json:"socketPath,omitempty"`
 }
 
 // Clone returns settings that can be edited without changing s.
@@ -174,6 +178,9 @@ func (c Context) InheritSettings(s Settings) Settings {
 		if v.DisableCookies != nil {
 			value := *v.DisableCookies
 			out.DisableCookies = &value
+		}
+		if v.SocketPath != "" {
+			out.SocketPath = v.SocketPath
 		}
 	}
 	for _, f := range c.Folders {

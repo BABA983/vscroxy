@@ -101,6 +101,11 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			out.Console = append(out.Console, ConsoleMessage{run.phase, "error", out.Err.Error()})
 		}
 	}()
+	socket := strings.TrimSpace(settings.SocketPath)
+	if socket != "" && (r.Protocol != "" || IsWebSocket(r.URL)) {
+		out.Err = errors.New("a Unix socket or named pipe carries HTTP(S) requests; protocol clients use their own connection")
+		return out
+	}
 	// A source attempt invalidates old tokens even when declarative checks,
 	// inherited scripts, or compilation of its own script fail before Pre.
 	// Clear every available matching slot before reporting a missing one.
@@ -255,6 +260,10 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 		out.Stage, out.Err = "Request setup failed", errors.New("NTLM auth needs an HTTP(S) request, not a WebSocket exchange")
 		return out
 	}
+	if socket != "" && (IsWebSocket(req.URL) || r.Protocol != "") {
+		out.Stage, out.Err = "Request setup failed", errors.New("a Unix socket or named pipe carries HTTP(S) requests; protocol clients use their own connection")
+		return out
+	}
 	out.Stage, run.phase = "Network error", "network"
 	// Load the configured client certificate and roots before the request
 	// reaches the proxy, so a missing file or bad passphrase is reported here
@@ -330,7 +339,36 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			return got, err
 		}
 		var got capture.Flow
-		if r.Auth.Type == AuthNTLM {
+		switch {
+		case socket != "":
+			if r.Auth.Type == AuthNTLM {
+				out.Stage, out.Err = "Request setup failed", errors.New("NTLM auth needs a TCP connection; a Unix socket or named pipe cannot complete its handshake")
+				out.Tests, out.Vars = run.tests, run.vars
+				return out
+			}
+			sendSocket := func() (capture.Flow, error) {
+				attemptCtx, cancel := sendContext(ctx, settings.Timeout())
+				defer cancel()
+				got, err := socketSend(attemptCtx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body}, policy, jar, in.Certificates, srv.CACertificate(), socket)
+				if err != nil && errors.Is(context.Cause(attemptCtx), errRequestTimeout) {
+					err = fmt.Errorf("no response within %s: %w", settings.Timeout(), context.DeadlineExceeded)
+				}
+				return got, err
+			}
+			got, err = sendSocket()
+			if err == nil && r.Auth.Type == AuthDigest {
+				answer, failed := digestAnswer(got, req, ExpandVars(r.Auth.Username, effective), ExpandVars(r.Auth.Password, effective))
+				if failed != nil {
+					out.Response, out.Stage, out.Err = &got, "Digest authentication failed", failed
+					out.Tests, out.Vars = run.tests, run.vars
+					return out
+				}
+				if answer != "" {
+					req.Header.Set("Authorization", answer)
+					got, err = sendSocket()
+				}
+			}
+		case r.Auth.Type == AuthNTLM:
 			// The challenge and its answer must share one connection, which
 			// the ordinary replay transport does not keep; the whole exchange
 			// gets the request's timeout.
@@ -345,7 +383,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			if errors.Is(err, ErrNTLM) {
 				out.Stage = "NTLM authentication failed"
 			}
-		} else {
+		default:
 			got, err = send()
 			if err == nil && r.Auth.Type == AuthDigest {
 				// The challenge is answered once; the answer's response is the result.

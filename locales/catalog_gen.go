@@ -26491,3 +26491,23 @@ func Deny() string { return In(i18n.Locale()).Deny() }
 func (msgs Messages) Deny() string {
 	return Catalog.Format(msgs.locale, "deny", nil)
 }
+
+// SocketPath says "Unix socket or named pipe"
+// in the language the app shows.
+func SocketPath() string { return In(i18n.Locale()).SocketPath() }
+
+// SocketPath says "Unix socket or named pipe"
+// in the language of msgs.
+func (msgs Messages) SocketPath() string {
+	return Catalog.Format(msgs.locale, "socketPath", nil)
+}
+
+// SocketPathHint says "Send HTTP(S) directly to this local socket or named pipe, bypassing the capture proxy. The URL host is sent as the Ho…"
+// in the language the app shows.
+func SocketPathHint() string { return In(i18n.Locale()).SocketPathHint() }
+
+// SocketPathHint says "Send HTTP(S) directly to this local socket or named pipe, bypassing the capture proxy. The URL host is sent as the Ho…"
+// in the language of msgs.
+func (msgs Messages) SocketPathHint() string {
+	return Catalog.Format(msgs.locale, "socketPathHint", nil)
+}

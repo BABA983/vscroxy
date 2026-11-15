@@ -346,17 +346,18 @@ func TestHTTPVersionAndRequestSwitchesInherit(t *testing.T) {
 	disable, enable := true, false
 	in := Context{Folders: []Folder{{Path: "Shop", Settings: Settings{
 		HTTPVersion: "2", DisableCookies: &disable, DisableURLEncoding: &disable,
+		SocketPath: "/var/run/folder.sock",
 	}}}}
 	got := in.InheritSettings(Settings{})
-	if got.HTTPVersion != "2" || got.UsesCookies() || got.EncodesURL() {
-		t.Fatalf("inherited = %+v, want HTTP/2, no cookies and no URL encoding", got)
+	if got.HTTPVersion != "2" || got.UsesCookies() || got.EncodesURL() || got.SocketPath != "/var/run/folder.sock" {
+		t.Fatalf("inherited = %+v, want HTTP/2, no cookies, no URL encoding and the folder socket", got)
 	}
 	if p := got.Transfer(); p.HTTPVersion != "2" {
 		t.Fatalf("transfer HTTP version = %q, want 2", p.HTTPVersion)
 	}
-	got = in.InheritSettings(Settings{HTTPVersion: "1.1", DisableCookies: &enable, DisableURLEncoding: &enable})
-	if got.HTTPVersion != "1.1" || !got.UsesCookies() || !got.EncodesURL() {
-		t.Fatalf("request overrides = %+v, want HTTP/1.1, cookies and URL encoding", got)
+	got = in.InheritSettings(Settings{HTTPVersion: "1.1", DisableCookies: &enable, DisableURLEncoding: &enable, SocketPath: "/var/run/own.sock"})
+	if got.HTTPVersion != "1.1" || !got.UsesCookies() || !got.EncodesURL() || got.SocketPath != "/var/run/own.sock" {
+		t.Fatalf("request overrides = %+v, want HTTP/1.1, cookies, URL encoding and the request socket", got)
 	}
 	if p := got.Transfer(); p.HTTPVersion != "1.1" {
 		t.Fatalf("transfer HTTP version = %q, want 1.1", p.HTTPVersion)

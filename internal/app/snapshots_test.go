@@ -1135,6 +1135,11 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.openSaved(a.requests[0].key())
 			a.composeTab = composeTabSettings
 		}, want: "Follow redirects"},
+		{name: "requests-settings-socket", setup: func(a *app) {
+			a.openSaved(a.requests[0].key())
+			a.composeTab = composeTabSettings
+			a.requestDocument.settings.SocketPath = "/var/run/app.sock"
+		}, want: "Unix socket or named pipe"},
 		{name: "requests-settings-insecure", setup: func(a *app) {
 			a.openSaved(a.requests[0].key())
 			a.composeTab = composeTabSettings

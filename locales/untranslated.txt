@@ -71,3 +71,4 @@ us-east-1
 -----BEGIN PRIVATE KEY----- … or {{vault:asap_key}}
 {"custom": "{{value}}"}
 https://example.com/collection.json
+/var/run/app.sock

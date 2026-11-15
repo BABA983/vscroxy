@@ -1,6 +1,8 @@
 package app
 
 import (
+	"strings"
+
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
@@ -95,6 +97,13 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 					d.setCookies(use)
 				}
 				uikit.Meta(c, locales.SendCookiesFromTheJarHint())
+			})
+			ui.Field(c, locales.SocketPath(), func() {
+				socket := effective.SocketPath
+				if uikit.Input(c, &socket).Label(locales.SocketPath()).Placeholder("/var/run/app.sock").Grow(1).Changed() {
+					d.settings.SocketPath = strings.TrimSpace(socket)
+				}
+				uikit.Meta(c, locales.SocketPathHint())
 			})
 		})
 		if !effective.Verifies() {

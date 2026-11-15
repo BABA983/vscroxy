@@ -2420,7 +2420,11 @@ encoded automatically, whether to use the cookie jar, whether to follow
 redirects and how many, and whether to verify the TLS certificate. Turning
 **Encode URL automatically** off sends Params rows as typed. Turning **Send
 cookies from the jar** off sends no jar cookies and stores none from the
-response; an explicit `Cookie` header still goes out. Unset values inherit the
+response; an explicit `Cookie` header still goes out. A **Unix socket or
+named pipe** path sends an HTTP(S) request directly to that local endpoint
+instead of through the capture proxy; the URL's host becomes the `Host`
+header. WebSocket and the interactive protocol clients reject the setting
+because they keep their own connection. Unset values inherit the
 collection's and folder's **Request defaults**; the panel says when it is
 using them and offers **Use collection defaults** to go back. Turning
 certificate verification off accepts any certificate, including an impostor's:

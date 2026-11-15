@@ -4132,5 +4132,7 @@
   "deviceNotAllowed": "{addr} is not in the allowed list. Allow it to use this proxy for this LAN session?",
   "deviceAskTimeout": "Closing it or 60 seconds without an answer refuses only this connection.",
   "allow": "Allow",
-  "deny": "Deny"
+  "deny": "Deny",
+  "socketPath": "Unix socket or named pipe",
+  "socketPathHint": "Send HTTP(S) directly to this local socket or named pipe, bypassing the capture proxy. The URL host is sent as the Host header."
 }
