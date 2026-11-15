@@ -639,6 +639,23 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 		uikit.Hint(c, locales.NoMatches()).Padding(t.Space(4))
 		return
 	}
+	if a.paneWidth(c) < 620 {
+		ui.Column(c).Grow(1).Children(func() {
+			ui.Column(c).Grow(1).MinHeight(80).Children(func() { a.jsonTree(c, side, rows, keyColor, t) })
+			ui.Box(c).Height(200).FillWidth().Children(func() { a.jsonQueryPanel(c, side) })
+		})
+		return
+	}
+	ui.Row(c).Grow(1).Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			a.jsonTree(c, side, rows, keyColor, t)
+		})
+		a.jsonQueryPanel(c, side)
+	})
+}
+
+// jsonTree draws the visible JSON rows.
+func (a *app) jsonTree(c *ui.Context, side int, rows []jsonRow, keyColor ui.Color, t *ui.Theme) {
 	ui.List(c, &a.jsonScroll[side], len(rows), func(i int) {
 		row := rows[i]
 		ui.Row(c).Gap(t.Space(2)).Padding(0, t.Space(3)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {

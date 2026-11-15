@@ -1,10 +1,12 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/inspect"
@@ -124,6 +126,7 @@ type jsonQueryInspector struct {
 	expressionEditor          *editor.State
 	source                    inspectionBody
 	job                       bodyInspection
+	saved, name               string
 }
 
 func (a *app) openJSONQuery(source inspectionBody) {
@@ -208,4 +211,101 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 	if !u.open {
 		u.job.stop()
 	}
+}
+
+// jsonQueryPanel is the query bar beside the JSON tree: the expression, its
+// results and saved queries, without leaving the tree.
+func (a *app) jsonQueryPanel(c *ui.Context, side int) {
+	f, ok := a.current()
+	if !ok {
+		return
+	}
+	u := &a.treeQuery
+	source := capturedInspectionBody(f, side)
+	if u.source != source {
+		u.job.stop()
+		u.source = source
+		u.job.result, u.job.problem = nil, ""
+	}
+	u.job.poll(c)
+	t := c.Theme()
+	panel := ui.Column(c).MinHeight(0).Gap(t.Space(1)).Padding(t.Space(1), t.Space(2)).Background(uikit.Colors(t).Chrome)
+	if a.paneWidth(c) >= 620 {
+		panel.Width(300)
+	} else {
+		panel.FillWidth()
+	}
+	panel.Children(func() {
+		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
+			before := u.dialect
+			uikit.Select(c, &u.dialect, []string{"JSONPath", "jq"}).Label(locales.QueryDialect()).Width(120)
+			if before != u.dialect {
+				u.job.stop()
+				u.job.result, u.job.problem = nil, ""
+			}
+			ui.Spacer(c)
+			if uikit.PrimaryButton(c, locales.RunQuery()).Clicked() {
+				a.runTreeQuery(c)
+			}
+		})
+		before := u.expression
+		uikit.Input(c, &u.expression).Label(locales.Query()).Placeholder(locales.QueryPlaceholder()).Font(uikit.FontMono).FillWidth()
+		if before != u.expression {
+			u.job.stop()
+			u.job.result, u.job.problem = nil, ""
+		}
+		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
+			uikit.MenuSelect(c, cmp.Or(u.saved, locales.SavedQuery()), func(m *ui.Menu) {
+				for _, q := range a.queries {
+					if m.Item(q.Name).Radio(q.Name == u.saved).Chosen() {
+						u.saved, u.dialect, u.expression = q.Name, q.Dialect, q.Expression
+						u.job.stop()
+						u.job.result, u.job.problem = nil, ""
+					}
+				}
+			}).Grow(1)
+			if uikit.SecondaryButton(c, locales.Delete()).Disabled(u.saved == "").Clicked() {
+				a.deleteQuery(u.saved)
+				u.saved = ""
+			}
+		})
+		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
+			uikit.Input(c, &u.name).Label(locales.QueryName()).Placeholder(locales.Name()).Width(140)
+			if uikit.SecondaryButton(c, locales.Save()).Disabled(u.name == "" || u.expression == "").Clicked() {
+				if a.saveQuery(u.name, u.dialect, u.expression) {
+					u.saved, u.name = strings.TrimSpace(u.name), ""
+				}
+			}
+		})
+		if a.queriesProblem != "" {
+			ui.Text(c, a.queriesProblem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(3)
+		}
+		if u.job.problem != "" {
+			ui.Text(c, u.job.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(3)
+		}
+		if u.job.result != nil {
+			ui.Box(c).Grow(1).MinHeight(80).FillWidth().Children(func() { requestCodeEditor(c, u.job.result) })
+		} else if u.job.answers != nil {
+			uikit.Hint(c, locales.RunningQuery())
+		} else {
+			uikit.Hint(c, locales.RunToPreviewResults())
+		}
+	})
+}
+
+// runTreeQuery runs the inline panel's expression on its immutable body.
+func (a *app) runTreeQuery(c *ui.Context) {
+	u := &a.treeQuery
+	if u.source.text == "" && u.source.file == "" && u.source.size == 0 {
+		return
+	}
+	source, dialect, expression := u.source, u.dialect, u.expression
+	u.job.start(c.Services(), func(ctx context.Context) inspectionResult {
+		input, err := source.read(ctx)
+		if err != nil {
+			return inspectionResult{err: err}
+		}
+		text, err := inspect.Query(ctx, dialect, expression, input)
+		return inspectionResult{text: text, err: err}
+	})
 }

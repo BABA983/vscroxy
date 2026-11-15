@@ -3955,5 +3955,10 @@
   "mergedStream": "Merged stream",
   "noMergeableStream": "This body is not an SSE or OpenAI-style chunk stream.",
   "savePart": "Save part…",
-  "savedPart": "Saved the part"
+  "savedPart": "Saved the part",
+  "savedQuery": "Saved query",
+  "queryName": "Query name",
+  "runningQuery": "Running query…",
+  "runToPreviewResults": "Run to preview results.",
+  "queryPlaceholder": "$[?(@.price < 10)]"
 }

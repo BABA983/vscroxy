@@ -98,7 +98,6 @@ func TestQueryRejects(t *testing.T) {
 		{"JSONPath", `$[?(@[*] == 1)]`, "[]"},
 		{"JSONPath", `$[?(@.n > $.limit)]`, "[]"},
 		{"JSONPath", `$[?(@.n + 1 > 3)]`, "[]"},
-		{"JSONPath", `$[?(length(@.n) == 3)]`, "[]"},
 		{"JSONPath", `$[?true]`, "[]"},
 		{"JSONPath", `$[?(@ == 1)]`, "[123456789012345678901234567890]"},
 		{"JSONPath", `$[?(@ > 9007199254740992.0)]`, "[9007199254740993]"},
@@ -112,6 +111,23 @@ func TestQueryRejects(t *testing.T) {
 				t.Fatalf("Query(%q, %q) = %q, %v; want empty output and error", tt.dialect, tt.expression, got, err)
 			}
 		})
+	}
+}
+
+func TestJSONPathFiltersUseRegexInAndLength(t *testing.T) {
+	input := `[{"name":"alpha","role":"admin","tags":[1,2]},{"name":"beta","role":"viewer","tags":[1]}]`
+	for _, tc := range []struct{ expression, want, absent string }{
+		{`$[?(@.name =~ /^a/)]`, "alpha", "beta"},
+		{`$[?(@.role in ["admin","owner"])]`, "alpha", "beta"},
+		{`$[?(length(@.tags) > 1)]`, "alpha", "beta"},
+	} {
+		got, err := Query(t.Context(), "JSONPath", tc.expression, input)
+		if err != nil || !strings.Contains(got, tc.want) || strings.Contains(got, tc.absent) {
+			t.Fatalf("%s = %q, %v", tc.expression, got, err)
+		}
+	}
+	if _, err := Query(t.Context(), "JSONPath", `$[?(size(@.tags) > 1)]`, input); err == nil {
+		t.Fatal("size() was accepted; OjG has no size function")
 	}
 }
 

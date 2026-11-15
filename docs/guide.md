@@ -1169,16 +1169,23 @@ headers are counted with a warning; Raw/Headers retains the original evidence.
 
 **Query JSON…** in either captured Body pane's options or a sent response's
 format menu opens a read-only JSONPath/jq query over the complete retained body,
-including a spill file, not just its preview. Run/Cancel work off the UI thread;
-closing or replacing the query discards old answers. Editing a query clears its
-previous results. Copy results never modifies or sends the source.
+including a spill file, not just its preview. The JSON tree also carries an
+inline query bar beside it (below it in a narrow inspector) with the same
+expression and results, so a query can be tried without leaving the tree.
+Run/Cancel work off the UI thread; closing or replacing the query discards old
+answers. Editing a query clears its previous results. **Save** stores the name,
+dialect and expression in `~/.vscroxy/queries.json` (versioned, at most 200,
+unique names); the menu loads a saved query and **Delete** removes the selected
+one. Copy results never modifies or sends the source.
 
 - **JSONPath** uses a bounded OjG/Goessner dialect, not RFC 9535. Supports `$`,
   property/index selection, slices/unions, wildcards, one recursive descent,
-  and boolean/comparison filters on singular `@` paths. Returns an array of
-  matches, including `[]`. Filter arithmetic/functions/root references are
-  disabled. Selections preserve large integers; filters require signed 64-bit
-  integers and reject mixing floats with integers outside ±2^53 (use jq).
+  and boolean/comparison filters on singular `@` paths, including `=~` regular
+  expressions, `in` lists and `length()`. `size()` is not available; use
+  `length()`. Returns an array of matches, including `[]`. Filter arithmetic,
+  other functions and root references are disabled. Selections preserve large
+  integers; filters require signed 64-bit integers and reject mixing floats
+  with integers outside ±2^53 (use jq).
 - **jq** uses gojq with selection, pipes, constructors, comparisons, `select`,
   `map`, `length`, `keys`, sorting/grouping, common type filters and bounded
   streams. Results are newline-separated JSON values; an empty stream is

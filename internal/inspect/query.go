@@ -11,6 +11,7 @@ import (
 	"math"
 	"math/big"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -37,8 +38,9 @@ const (
 //
 // JSONPath is a deliberately restricted OjG/Goessner dialect, NOT RFC 9535:
 // root $, names, indexes, slices, unions, wildcards, one recursive descent,
-// and boolean/comparison filters on singular @ paths. Filter arithmetic,
-// functions, nested queries and root references are rejected. Filters require
+// and boolean/comparison filters on singular @ paths, including =~ regular
+// expressions, in lists and length(). Filter arithmetic, other functions,
+// nested queries and root references are rejected; OjG has no size(). Filters require
 // signed 64-bit integers; larger integers remain lossless in selections but
 // require jq for filtering. Mixed floats and integers outside ±2^53 are rejected
 // in JSONPath filters rather than compared imprecisely.
@@ -446,7 +448,7 @@ func checkPathFilter(v any, wide, floating *bool) error {
 	switch v := v.(type) {
 	case *jp.Form:
 		switch v.Op {
-		case "==", "!=", "<", ">", "<=", ">=", "&&", "||", "!", "exists", "get", "(":
+		case "==", "!=", "<", ">", "<=", ">=", "&&", "||", "!", "exists", "get", "(", "~=", "in", "length":
 		default:
 			return errors.New("JSONPath filter arithmetic and functions are disabled")
 		}
@@ -468,6 +470,13 @@ func checkPathFilter(v any, wide, floating *bool) error {
 			case jp.Child, jp.Nth, jp.Bracket:
 			default:
 				return errors.New("JSONPath filters allow only singular @ paths")
+			}
+		}
+	case *regexp.Regexp:
+	case []any:
+		for _, value := range v {
+			if err := checkPathFilter(value, wide, floating); err != nil {
+				return err
 			}
 		}
 	case float64:

@@ -52,6 +52,8 @@ func formatFor(path string) store.Formatter {
 		return store.Breakpoints
 	case "network-presets.json":
 		return store.NetworkPresets
+	case "queries.json":
+		return store.Queries
 	case "profiles.json":
 		return store.HostsProfiles
 	case "ignore.txt", "ignore-apps.txt", "allow.txt", "allow-apps.txt":

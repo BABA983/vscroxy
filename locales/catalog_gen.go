@@ -25585,3 +25585,53 @@ func SavedPart() string { return In(i18n.Locale()).SavedPart() }
 func (msgs Messages) SavedPart() string {
 	return Catalog.Format(msgs.locale, "savedPart", nil)
 }
+
+// SavedQuery says "Saved query"
+// in the language the app shows.
+func SavedQuery() string { return In(i18n.Locale()).SavedQuery() }
+
+// SavedQuery says "Saved query"
+// in the language of msgs.
+func (msgs Messages) SavedQuery() string {
+	return Catalog.Format(msgs.locale, "savedQuery", nil)
+}
+
+// QueryName says "Query name"
+// in the language the app shows.
+func QueryName() string { return In(i18n.Locale()).QueryName() }
+
+// QueryName says "Query name"
+// in the language of msgs.
+func (msgs Messages) QueryName() string {
+	return Catalog.Format(msgs.locale, "queryName", nil)
+}
+
+// RunningQuery says "Running query…"
+// in the language the app shows.
+func RunningQuery() string { return In(i18n.Locale()).RunningQuery() }
+
+// RunningQuery says "Running query…"
+// in the language of msgs.
+func (msgs Messages) RunningQuery() string {
+	return Catalog.Format(msgs.locale, "runningQuery", nil)
+}
+
+// RunToPreviewResults says "Run to preview results."
+// in the language the app shows.
+func RunToPreviewResults() string { return In(i18n.Locale()).RunToPreviewResults() }
+
+// RunToPreviewResults says "Run to preview results."
+// in the language of msgs.
+func (msgs Messages) RunToPreviewResults() string {
+	return Catalog.Format(msgs.locale, "runToPreviewResults", nil)
+}
+
+// QueryPlaceholder says "$[?(@.price < 10)]"
+// in the language the app shows.
+func QueryPlaceholder() string { return In(i18n.Locale()).QueryPlaceholder() }
+
+// QueryPlaceholder says "$[?(@.price < 10)]"
+// in the language of msgs.
+func (msgs Messages) QueryPlaceholder() string {
+	return Catalog.Format(msgs.locale, "queryPlaceholder", nil)
+}

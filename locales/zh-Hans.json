@@ -2618,5 +2618,10 @@
   "mergedStream": "合并后的流",
   "noMergeableStream": "此正文不是 SSE 或 OpenAI 风格的流式分块。",
   "savePart": "保存分段…",
-  "savedPart": "已保存分段"
+  "savedPart": "已保存分段",
+  "savedQuery": "已保存查询",
+  "queryName": "查询名称",
+  "runningQuery": "正在运行查询…",
+  "runToPreviewResults": "运行后在下方预览结果。",
+  "queryPlaceholder": "例如 $[?(@.price < 10)]"
 }

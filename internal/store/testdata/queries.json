@@ -1,0 +1,1 @@
+[{"name": "Cheap items", "dialect": "JSONPath", "expression": "$[?(@.price < 10)]"}]

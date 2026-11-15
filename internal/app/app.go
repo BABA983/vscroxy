@@ -241,9 +241,12 @@ type app struct {
 	// inspect is the inspector's own view, so the request and the response
 	// keep independent tabs and body representations while both are on
 	// screen, and the exchange-wide views stay one click away.
-	inspect   inspectorState
-	decoder   quickDecoder
-	jsonQuery jsonQueryInspector
+	inspect                     inspectorState
+	decoder                     quickDecoder
+	jsonQuery                   jsonQueryInspector
+	treeQuery                   jsonQueryInspector
+	queries                     []savedQuery
+	queriesPath, queriesProblem string
 
 	// The body panes are indexed the way the rest of the inspector is: 0 is
 	// the response, 1 the request. Readers survive leaving Capture to edit or
@@ -843,6 +846,8 @@ func newApp() *app {
 		a.protobuf.init(filepath.Join(home, ".vscroxy", "protobuf.pb"))
 		a.protoTypesPath = filepath.Join(home, ".vscroxy", "protobuf-types.json")
 		a.loadProtoTypeRules()
+		a.queriesPath = queryPath(home)
+		a.loadQueries()
 		a.loadExperiments(filepath.Join(home, ".vscroxy", "experiments.json"))
 		if err := a.sessions.load(filepath.Join(home, ".vscroxy", "sessions")); err != nil {
 			a.sessions.problem = err.Error()

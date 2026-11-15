@@ -43,6 +43,7 @@ var (
 			return []byte(`{"format":"vscroxy-mcp-consents","version":2,"approvals":{}}`), nil
 		},
 	}}
+	Queries = &Format{Name: "saved JSON queries", Member: "queries"}
 
 	Lists = &ListFormat{Name: "host and app lists"}
 )
