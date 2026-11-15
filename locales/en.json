@@ -3897,5 +3897,11 @@
   "folderPlaceholder": "API / Auth",
   "saveForThisUrl": "Save for this URL",
   "savedProtobufTypeForUrl": "Saved the message type for this URL",
-  "forgetUrlRule": "Forget URL rule"
-}
+  "forgetUrlRule": "Forget URL rule",
+  "issuer": "Issuer",
+  "audience": "Audience",
+  "keyId": "Key ID",
+  "subject": "Subject",
+  "additionalClaims": "Additional claims",
+  "optionalDefaultsToTheIssuer": "Optional; defaults to the issuer",
+  "asapExpiryHint": "Token lifetime in seconds; a claim named exp overrides it."}

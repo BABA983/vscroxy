@@ -2258,8 +2258,8 @@ the table. Disabled rows stay in the request file
 (`headerList`) but never in the block that is sent, copied or exported. Params
 edits the URL's query the same way, and only enabled rows reach it. Auth supports
 **Inherit**, Bearer, Basic, API keys in a header or query parameter, OAuth
-2.0, OAuth 1.0, Digest, NTLM, AWS Signature, JWT Bearer, Hawk and Akamai
-EdgeGrid;
+2.0, OAuth 1.0, Digest, NTLM, AWS Signature, JWT Bearer, Hawk, Akamai
+EdgeGrid and Atlassian ASAP;
 explicit auth replaces that header unless the pre-script explicitly sets or
 removes it. **Digest** sends once, and
 when the answer is a 401 with a Digest challenge (MD5, SHA-256 or their -sess
@@ -2297,6 +2297,12 @@ list of header names; POST bodies are hashed automatically. Timestamp and
 nonce are generated per send when empty. Copied cURL and code carry the signed
 header, query or body as they carry AWS and JWT signatures, so an OAuth 1.0
 signature is only valid for the timestamp and nonce it was made with.
+**Atlassian ASAP** signs a short-lived JWT with RS, PS or ES 256/384/512 and
+sends it as `Authorization: Bearer`. Issuer, audience and key ID are required;
+subject defaults to the issuer, `jti` and `iat` are generated, and `exp` is
+the expiry in seconds (3600 by default) unless the additional claims object
+sets an absolute `exp`. The claims object overrides the fields, including
+`kid`; the private key accepts PEM, Postman's PKCS #8 data URI or base64 DER.
 **NTLM** sends once without credentials, then answers the server's Type 1/2/3
 challenge on one connection through the running capture proxy, so the
 exchange is captured and upstream rules still apply. HTTPS works the same
@@ -2597,7 +2603,7 @@ on `pm.sendRequest` or a timer does not count).
   In a pre-request script, `pm.request.auth` is the auth the request sends,
   inherited auth included. `type` reads and sets any Postman auth name
   (`bearer`, `basic`, `apikey`, `digest`, `noauth`, `oauth2`, `oauth1`, `jwt`,
-  `awsv4`, `hawk`, `edgegrid`, `ntlm`). `get(field)` and `set(field, value)`
+  `awsv4`, `hawk`, `edgegrid`, `asap`, `ntlm`). `get(field)` and `set(field, value)`
   use the same names as Postman's import and export: `token` for bearer;
   `username` and `password` for basic and digest; `key`, `value` and `in` for
   apikey; oauth2 `grant_type`, `authUrl`, `accessTokenUrl`, `clientId`,
@@ -2613,7 +2619,8 @@ on `pm.sendRequest` or a timer does not count).
   `disableRetryRequest`; jwt `algorithm`, `secret`, `isSecretBase64Encoded`,
   `privateKey`, `payload`, `header`, `addTokenTo`, `headerPrefix` and
   `queryParamKey`; edgegrid `accessToken`, `clientToken`, `clientSecret`,
-  `baseURL`, `nonce`, `timestamp` and `headersToSign`. Switches read as
+  `baseURL`, `nonce`, `timestamp` and `headersToSign`; asap `alg`, `iss`,
+  `aud`, `kid`, `sub`, `exp`, `privateKey` and `claims`. Switches read as
   booleans and accept `true`/`false`. Values the app always uses, such as
   signing in headers rather than the query, read their fixed value and refuse
   to change. Edits change only the request that is sent; the saved request
@@ -3119,8 +3126,8 @@ independently, so a request that turns following on keeps a folder's hop limit;
 part of a collection, so it is neither imported nor exported; vscroxy keeps its
 own timeout in the request file and warns when exporting one. What has no
 equivalent is listed after the import: auth other than Bearer, Basic, API key,
-OAuth 2.0, OAuth 1.0, Digest, NTLM, AWS Signature, JWT Bearer, Hawk and Akamai
-EdgeGrid (imported as no auth), disabled query parameters, and protocol
+OAuth 2.0, OAuth 1.0, Digest, NTLM, AWS Signature, JWT Bearer, Hawk, Akamai
+EdgeGrid and Atlassian ASAP (imported as no auth), disabled query parameters, and protocol
 profile keys the app does not send, such as body pruning. Digest keeps only
 the username and password: the rest comes from the server's challenge. NTLM
 keeps the username, password, domain, workstation and Postman's

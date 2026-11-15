@@ -1155,12 +1155,12 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 // export write them; pm.request.auth reads the type by its name.
 var authTypeNames = map[string]string{"None": "noauth", "Bearer": "bearer", "Basic": "basic",
 	"API key": "apikey", AuthDigest: "digest", AuthOAuth2: "oauth2", AuthOAuth1: "oauth1", AuthJWT: "jwt",
-	AuthAWS: "awsv4", AuthHawk: "hawk", AuthEdgeGrid: "edgegrid", AuthNTLM: "ntlm"}
+	AuthAWS: "awsv4", AuthHawk: "hawk", AuthEdgeGrid: "edgegrid", AuthASAP: "asap", AuthNTLM: "ntlm"}
 
 // authSettable maps the Postman names a script may set to the stored types.
 var authSettable = map[string]string{"noauth": "None", "bearer": "Bearer", "basic": "Basic",
 	"apikey": "API key", "digest": AuthDigest, "oauth2": AuthOAuth2, "oauth1": AuthOAuth1,
-	"hawk": AuthHawk, "awsv4": AuthAWS, "ntlm": AuthNTLM, "jwt": AuthJWT, "edgegrid": AuthEdgeGrid}
+	"hawk": AuthHawk, "awsv4": AuthAWS, "ntlm": AuthNTLM, "jwt": AuthJWT, "edgegrid": AuthEdgeGrid, "asap": AuthASAP}
 
 // authAccess is pm.request.auth: the type, and the fields of the simple auth
 // types by name. Nil when there is no auth to edit.
@@ -1472,6 +1472,33 @@ func authField(a *Auth, name string) (authFieldAccess, error) {
 					j.AddTo = ""
 				}
 			}, "header", "queryParam"), nil
+		}
+	case AuthASAP:
+		a := &a.ASAP
+		switch name {
+		case "alg":
+			return textAuthField(&a.Algorithm), nil
+		case "iss":
+			return textAuthField(&a.Issuer), nil
+		case "aud":
+			return textAuthField(&a.Audience), nil
+		case "kid":
+			return textAuthField(&a.KeyID), nil
+		case "sub":
+			return textAuthField(&a.Subject), nil
+		case "privateKey":
+			return textAuthField(&a.PrivateKey), nil
+		case "claims":
+			return textAuthField(&a.Claims), nil
+		case "exp":
+			return authFieldAccess{get: func() any { return strconv.Itoa(a.Expiry) }, set: func(v string) error {
+				expiry, err := strconv.Atoi(strings.TrimSpace(v))
+				if err != nil || expiry < 0 {
+					return fmt.Errorf("pm.request.auth: %q is not a positive number of seconds", v)
+				}
+				a.Expiry = expiry
+				return nil
+			}}, nil
 		}
 	case AuthEdgeGrid:
 		e := &a.EdgeGrid

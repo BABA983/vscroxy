@@ -50,20 +50,24 @@ func TestRequestAuthFieldsUsePostmanNames(t *testing.T) {
 		"accessToken": "x", "clientToken": "x", "clientSecret": "x", "baseURL": "x",
 		"nonce": "x", "timestamp": "x", "headersToSign": "x",
 	})
+	check(t, &Auth{Type: AuthASAP}, map[string]any{
+		"alg": "x", "iss": "x", "aud": "x", "kid": "x", "sub": "x", "privateKey": "x", "claims": "x",
+	})
 }
 
 func TestRequestAuthSwitchesAndBooleanFields(t *testing.T) {
 	a := Auth{Type: "Bearer"}
 	acc := authAccess(&a).(map[string]any)
 	setType := acc["setType"].(func(string) error)
-	for _, name := range []string{"oauth2", "oauth1", "hawk", "awsv4", "ntlm", "jwt", "edgegrid"} {
+	for _, name := range []string{"oauth2", "oauth1", "hawk", "awsv4", "ntlm", "jwt", "edgegrid", "asap"} {
 		if err := setType(name); err != nil {
 			t.Fatalf("setType(%q): %v", name, err)
 		}
 	}
-	if a.Type != AuthEdgeGrid {
+	if a.Type != AuthASAP {
 		t.Fatalf("type = %q", a.Type)
 	}
+	a.Type = AuthEdgeGrid
 	acc = authAccess(&a).(map[string]any)
 	set := acc["set"].(func(string, string) error)
 	get := acc["get"].(func(string) (any, error))
@@ -72,6 +76,17 @@ func TestRequestAuthSwitchesAndBooleanFields(t *testing.T) {
 	}
 	if got, _ := get("headersToSign"); got != "x-akamai" {
 		t.Fatalf("headersToSign = %v", got)
+	}
+
+	asap := &Auth{Type: AuthASAP}
+	acc = authAccess(asap).(map[string]any)
+	set = acc["set"].(func(string, string) error)
+	get = acc["get"].(func(string) (any, error))
+	if err := set("exp", "120"); err != nil || asap.ASAP.Expiry != 120 {
+		t.Fatalf("exp: %v, %+v", err, asap.ASAP)
+	}
+	if got, _ := get("exp"); got != "120" {
+		t.Fatalf("exp = %v", got)
 	}
 
 	ntlm := &Auth{Type: AuthNTLM}

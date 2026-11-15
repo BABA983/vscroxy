@@ -27,6 +27,7 @@ func TestAuthTypesVariables(t *testing.T) {
 		OAuth1:   OAuth1Auth{ConsumerKey: "{{o1}}", ConsumerSecret: "{{vault:o2}}", PrivateKey: "{{o3}}", Callback: "{{o4}}"},
 		Hawk:     HawkAuth{AuthID: "{{h1}}", AuthKey: "{{vault:h2}}", ExtraData: "{{h3}}"},
 		EdgeGrid: EdgeGridAuth{AccessToken: "{{e1}}", ClientSecret: "{{vault:e2}}", HeadersToSign: "{{e3}}"},
+		ASAP:     ASAPAuth{Issuer: "{{s1}}", Audience: "{{s2}}", KeyID: "{{s3}}", PrivateKey: "{{vault:s4}}", Subject: "{{s5}}", Claims: "{{s6}}"},
 		NTLM:     NTLMAuth{Username: "{{u}}", Password: "{{vault:p}}", Domain: "{{n1}}", Workstation: "{{n2}}"}}
 	for typ, want := range map[string][]string{
 		AuthDigest:   {"u", "vault:p"},
@@ -35,6 +36,7 @@ func TestAuthTypesVariables(t *testing.T) {
 		AuthOAuth1:   {"o1", "o3", "o4", "vault:o2"},
 		AuthHawk:     {"h1", "h3", "vault:h2"},
 		AuthEdgeGrid: {"e1", "e3", "vault:e2"},
+		AuthASAP:     {"s1", "s2", "s3", "s5", "s6", "vault:s4"},
 		AuthNTLM:     {"n1", "n2", "u", "vault:p"},
 	} {
 		auth.Type = typ

@@ -405,7 +405,7 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 
 // authTypes are the auth a request or folder sets itself.
 var authTypes = []string{"None", "Bearer", "Basic", "API key", request.AuthOAuth2, request.AuthOAuth1,
-	request.AuthDigest, request.AuthNTLM, request.AuthAWS, request.AuthJWT, request.AuthHawk, request.AuthEdgeGrid}
+	request.AuthDigest, request.AuthNTLM, request.AuthAWS, request.AuthJWT, request.AuthHawk, request.AuthEdgeGrid, request.AuthASAP}
 
 // authFields edits one Auth, a request's or a folder's; collection is where
 // it is used, for the variables an OAuth 2.0 token request expands.
@@ -583,6 +583,29 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 				ui.Field(c, locales.User(), func() { input(&h.User, "User") }).
 					Description(locales.KeptForPostmanTheRequest())
 			}
+		case request.AuthASAP:
+			s := &auth.ASAP
+			if s.Algorithm == "" {
+				s.Algorithm = request.ASAPAlgorithms[0]
+			}
+			ui.Field(c, locales.Algorithm(), func() { uikit.Select(c, &s.Algorithm, request.ASAPAlgorithms).Width(160) })
+			ui.Field(c, locales.Issuer(), func() { input(&s.Issuer, "Issuer") })
+			ui.Field(c, locales.Audience(), func() { input(&s.Audience, "Audience") })
+			ui.Field(c, locales.KeyId(), func() { input(&s.KeyID, "Key ID") })
+			ui.Field(c, locales.PrivateKey(), func() {
+				sensitiveArea(&s.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:asap_key}}")
+			})
+			ui.Field(c, locales.Subject(), func() { input(&s.Subject, "Subject").Placeholder(locales.OptionalDefaultsToTheIssuer()) })
+			ui.Field(c, locales.AdditionalClaims(), func() {
+				area(&s.Claims, "Additional claims").Height(72).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Placeholder(`{"custom": "{{value}}"}`)
+			})
+			ui.Field(c, locales.Expiry(), func() {
+				expiry := float64(cmp.Or(s.Expiry, 3600))
+				if ui.NumberInput(c, &expiry, 1, 86400, 1).Label(locales.Expiry()).Changed() {
+					s.Expiry = int(expiry)
+				}
+				uikit.Meta(c, locales.AsapExpiryHint())
+			})
 		case request.AuthEdgeGrid:
 			e := &auth.EdgeGrid
 			ui.Field(c, locales.AccessToken(), func() { input(&e.AccessToken, "Access token") })

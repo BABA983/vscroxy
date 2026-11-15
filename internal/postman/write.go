@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"uuid"
 
@@ -147,6 +148,7 @@ type outAuth struct {
 	OAuth1   []outKV `json:"oauth1,omitempty"`
 	Hawk     []outKV `json:"hawk,omitempty"`
 	EdgeGrid []outKV `json:"edgegrid,omitempty"`
+	ASAP     []outKV `json:"asap,omitempty"`
 	NTLM     []outKV `json:"ntlm,omitempty"`
 }
 
@@ -457,6 +459,17 @@ func writeAuth(a request.Auth) *outAuth {
 			{"clientSecret", a.EdgeGrid.ClientSecret, "string"}, {"baseURL", a.EdgeGrid.BaseURL, "string"},
 			{"nonce", a.EdgeGrid.Nonce, "string"}, {"timestamp", a.EdgeGrid.Timestamp, "string"},
 			{"headersToSign", a.EdgeGrid.HeadersToSign, "string"},
+		}}
+	case request.AuthASAP:
+		claims := strings.TrimSpace(a.ASAP.Claims)
+		if claims == "" {
+			claims = "{}"
+		}
+		return &outAuth{Type: "asap", ASAP: []outKV{
+			{"alg", cmp.Or(a.ASAP.Algorithm, "RS256"), "string"}, {"kid", a.ASAP.KeyID, "string"},
+			{"iss", a.ASAP.Issuer, "string"}, {"aud", a.ASAP.Audience, "string"},
+			{"sub", a.ASAP.Subject, "string"}, {"exp", strconv.Itoa(cmp.Or(a.ASAP.Expiry, 3600)), "string"},
+			{"privateKey", a.ASAP.PrivateKey, "string"}, {"claims", claims, "string"},
 		}}
 	case request.AuthNTLM:
 		return &outAuth{Type: "ntlm", NTLM: []outKV{

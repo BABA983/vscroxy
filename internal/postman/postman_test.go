@@ -1363,3 +1363,36 @@ func TestPostmanCookieAndURLEncodingProfileRoundTrip(t *testing.T) {
 		t.Fatalf("round trip settings = %+v, want both switches on", s)
 	}
 }
+
+// Atlassian ASAP auth keeps Postman's alg/kid/iss/aud/sub/exp/privateKey/
+// claims parameters through export and import.
+func TestPostmanASAPAuthRoundTrip(t *testing.T) {
+	requests := []request.Request{{ID: "asap", Name: "ASAP", Collection: "Shop", Method: "GET", URL: "https://api.example.com/",
+		Auth: request.Auth{Type: request.AuthASAP, ASAP: request.ASAPAuth{
+			Algorithm: "PS256", Issuer: "svc", Audience: "api", KeyID: "key-1",
+			PrivateKey: "-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----",
+			Subject:    "user-1", Claims: `{"scope":"read"}`, Expiry: 120,
+		}}}}
+	data, warnings, err := postman.WriteCollection("Shop", requests, nil)
+	if err != nil || len(warnings) != 0 {
+		t.Fatalf("%v, warnings %q", err, warnings)
+	}
+	compact := strings.Join(strings.Fields(string(data)), "")
+	for _, want := range []string{`"type":"asap"`, `"key":"alg","value":"PS256"`, `"key":"kid","value":"key-1"`, `"key":"exp","value":"120"`, `"key":"claims","value":"{\"scope\":\"read\"}"`} {
+		if !strings.Contains(compact, want) {
+			t.Errorf("export lacks %s:\n%s", want, data)
+		}
+	}
+	got, err := postman.ReadCollection(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Requests) != 1 {
+		t.Fatalf("requests: %+v", got.Requests)
+	}
+	a := got.Requests[0].Auth
+	if a.Type != request.AuthASAP || a.ASAP.Algorithm != "PS256" || a.ASAP.Issuer != "svc" || a.ASAP.Audience != "api" ||
+		a.ASAP.KeyID != "key-1" || a.ASAP.Subject != "user-1" || a.ASAP.Expiry != 120 || a.ASAP.Claims != `{"scope":"read"}` {
+		t.Fatalf("round trip auth = %+v", a)
+	}
+}

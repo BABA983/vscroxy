@@ -1926,7 +1926,7 @@ func snapshotStates(t *testing.T) []snapshot {
 		}, menu: "Edit request"},
 	}
 	for _, auth := range []string{"Bearer", "Basic", "API key", request.AuthOAuth2, request.AuthOAuth1,
-		request.AuthDigest, request.AuthNTLM, request.AuthAWS, request.AuthJWT, request.AuthHawk, request.AuthEdgeGrid} {
+		request.AuthDigest, request.AuthNTLM, request.AuthAWS, request.AuthJWT, request.AuthHawk, request.AuthEdgeGrid, request.AuthASAP} {
 		states = append(states, snapshot{name: "requests-auth-" + auth, setup: func(a *app) {
 			draft(a)
 			a.composeTab, a.auth.Type = composeTabAuth, auth
@@ -1948,6 +1948,14 @@ func snapshotStates(t *testing.T) []snapshot {
 		a.composeTab, a.auth.Type = composeTabAuth, request.AuthOAuth1
 		a.auth.OAuth1.SignatureMethod, a.auth.OAuth1.PrivateKey = "RSA-SHA256", "-----BEGIN PRIVATE KEY-----"
 	}, want: "Authorization type"})
+	states = append(states, snapshot{name: "requests-auth-asap-filled", setup: func(a *app) {
+		draft(a)
+		a.composeTab, a.auth.Type = composeTabAuth, request.AuthASAP
+		a.auth.ASAP = request.ASAPAuth{
+			Algorithm: "RS256", Issuer: "svc.example.com", Audience: "api.example.com", KeyID: "key-1",
+			PrivateKey: "-----BEGIN PRIVATE KEY-----", Subject: "user-1", Claims: `{"scope":"read"}`, Expiry: 3600,
+		}
+	}, want: "Additional claims"})
 	states = append(states, snapshot{name: "requests-auth-ntlm-filled", setup: func(a *app) {
 		draft(a)
 		a.composeTab, a.auth.Type = composeTabAuth, request.AuthNTLM

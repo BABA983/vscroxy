@@ -234,6 +234,11 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			out.Err = err
 			return out
 		}
+	case AuthASAP:
+		if err := r.Auth.ASAP.expand(effective).apply(req, now()); err != nil {
+			out.Err = err
+			return out
+		}
 	}
 	out.Request = req
 	u, err := url.Parse(req.URL)

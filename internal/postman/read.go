@@ -592,6 +592,25 @@ func (r *reader) auth(v jsontext.Value, unsupported string) (auth request.Auth, 
 			AccessToken: params["accessToken"], ClientToken: params["clientToken"], ClientSecret: params["clientSecret"],
 			BaseURL: params["baseURL"], Nonce: params["nonce"], Timestamp: params["timestamp"], HeadersToSign: params["headersToSign"],
 		}}, true
+	case "asap":
+		alg := cmp.Or(strings.TrimSpace(params["alg"]), "RS256")
+		if !slices.Contains(request.ASAPAlgorithms, alg) {
+			r.warn.add(unsupported, "ASAP with "+alg+" signatures", 1)
+			return request.Auth{Type: "None"}, true
+		}
+		expiry := 0
+		if raw := strings.TrimSpace(params["exp"]); raw != "" {
+			value, err := strconv.Atoi(raw)
+			if err != nil || value < 0 {
+				r.warn.add("asap expiry", "", 1)
+			} else {
+				expiry = value
+			}
+		}
+		return request.Auth{Type: request.AuthASAP, ASAP: request.ASAPAuth{
+			Algorithm: alg, Issuer: params["iss"], Audience: params["aud"], KeyID: params["kid"],
+			PrivateKey: params["privateKey"], Subject: params["sub"], Claims: params["claims"], Expiry: expiry,
+		}}, true
 	case "ntlm":
 		return request.Auth{Type: request.AuthNTLM, NTLM: request.NTLMAuth{
 			Username: params["username"], Password: params["password"],

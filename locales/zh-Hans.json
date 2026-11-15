@@ -2584,5 +2584,11 @@
   "folderPlaceholder": "API / 鉴权",
   "saveForThisUrl": "保存为此 URL 的规则",
   "savedProtobufTypeForUrl": "已保存此 URL 的消息类型",
-  "forgetUrlRule": "删除此 URL 规则"
-}
+  "forgetUrlRule": "删除此 URL 规则",
+  "issuer": "签发者",
+  "audience": "受众",
+  "keyId": "密钥 ID",
+  "subject": "主题",
+  "additionalClaims": "附加声明",
+  "optionalDefaultsToTheIssuer": "可选；默认使用签发者",
+  "asapExpiryHint": "令牌有效期（秒）；名为 exp 的声明会覆盖它。"}

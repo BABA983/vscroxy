@@ -22,6 +22,7 @@ func TestAuthHeadersReachTheServer(t *testing.T) {
 	}))
 	t.Cleanup(upstream.Close)
 	srv := testProxy(t)
+	_, asapKey := asapTestKey(t)
 	for _, tt := range []struct {
 		name string
 		auth Auth
@@ -39,6 +40,9 @@ func TestAuthHeadersReachTheServer(t *testing.T) {
 			AccessToken: "at", ClientToken: "ct", ClientSecret: "cs",
 			Timestamp: "20160804T07:00:00+0000", Nonce: "ec9d20ee-1e9b-4c1f-925a-f0017754f86c",
 		}}, `EG1-HMAC-SHA256 client_token=ct;access_token=at`},
+		{"asap", Auth{Type: AuthASAP, ASAP: ASAPAuth{
+			Issuer: "svc", Audience: "api", KeyID: "key-1", PrivateKey: asapKey,
+		}}, `Bearer `},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			r := Request{Method: "GET", URL: upstream.URL + "/me?x=1", Auth: tt.auth}

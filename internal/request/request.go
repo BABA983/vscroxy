@@ -137,9 +137,10 @@ type Auth struct {
 	Value    string `json:"value,omitempty"`
 	Location string `json:"location,omitempty"`
 	OAuth2   OAuth2 `json:"oauth2,omitzero"`
-	// AWS, JWT, OAuth 1.0, Hawk, EdgeGrid and NTLM configure the auth types
-	// of those names; Digest uses Username and Password.
+	// AWS, JWT, OAuth 1.0, Hawk, EdgeGrid, ASAP and NTLM configure the auth
+	// types of those names; Digest uses Username and Password.
 	AWS      AWSAuth      `json:"aws,omitzero"`
+	ASAP     ASAPAuth     `json:"asap,omitzero"`
 	JWT      JWTAuth      `json:"jwt,omitzero"`
 	OAuth1   OAuth1Auth   `json:"oauth1,omitzero"`
 	Hawk     HawkAuth     `json:"hawk,omitzero"`
@@ -260,7 +261,7 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 			req.Set(key, value)
 		}
 	case AuthDigest, AuthNTLM: // Execute answers the server's challenge; there is none yet.
-	case AuthAWS, AuthOAuth1, AuthHawk, AuthEdgeGrid: // Signed below, after the body.
+	case AuthAWS, AuthOAuth1, AuthHawk, AuthEdgeGrid, AuthASAP: // Signed below, after the body.
 	case AuthJWT:
 		if err := r.Auth.JWT.expand(vars).apply(req); err != nil {
 			return nil, err
@@ -403,6 +404,10 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 		}
 	case AuthEdgeGrid:
 		if err := r.Auth.EdgeGrid.expand(vars).sign(req); err != nil {
+			return nil, err
+		}
+	case AuthASAP:
+		if err := r.Auth.ASAP.expand(vars).apply(req, now()); err != nil {
 			return nil, err
 		}
 	}

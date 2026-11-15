@@ -25243,3 +25243,73 @@ func ForgetUrlRule() string { return In(i18n.Locale()).ForgetUrlRule() }
 func (msgs Messages) ForgetUrlRule() string {
 	return Catalog.Format(msgs.locale, "forgetUrlRule", nil)
 }
+
+// Issuer says "Issuer"
+// in the language the app shows.
+func Issuer() string { return In(i18n.Locale()).Issuer() }
+
+// Issuer says "Issuer"
+// in the language of msgs.
+func (msgs Messages) Issuer() string {
+	return Catalog.Format(msgs.locale, "issuer", nil)
+}
+
+// Audience says "Audience"
+// in the language the app shows.
+func Audience() string { return In(i18n.Locale()).Audience() }
+
+// Audience says "Audience"
+// in the language of msgs.
+func (msgs Messages) Audience() string {
+	return Catalog.Format(msgs.locale, "audience", nil)
+}
+
+// KeyId says "Key ID"
+// in the language the app shows.
+func KeyId() string { return In(i18n.Locale()).KeyId() }
+
+// KeyId says "Key ID"
+// in the language of msgs.
+func (msgs Messages) KeyId() string {
+	return Catalog.Format(msgs.locale, "keyId", nil)
+}
+
+// Subject says "Subject"
+// in the language the app shows.
+func Subject() string { return In(i18n.Locale()).Subject() }
+
+// Subject says "Subject"
+// in the language of msgs.
+func (msgs Messages) Subject() string {
+	return Catalog.Format(msgs.locale, "subject", nil)
+}
+
+// AdditionalClaims says "Additional claims"
+// in the language the app shows.
+func AdditionalClaims() string { return In(i18n.Locale()).AdditionalClaims() }
+
+// AdditionalClaims says "Additional claims"
+// in the language of msgs.
+func (msgs Messages) AdditionalClaims() string {
+	return Catalog.Format(msgs.locale, "additionalClaims", nil)
+}
+
+// OptionalDefaultsToTheIssuer says "Optional; defaults to the issuer"
+// in the language the app shows.
+func OptionalDefaultsToTheIssuer() string { return In(i18n.Locale()).OptionalDefaultsToTheIssuer() }
+
+// OptionalDefaultsToTheIssuer says "Optional; defaults to the issuer"
+// in the language of msgs.
+func (msgs Messages) OptionalDefaultsToTheIssuer() string {
+	return Catalog.Format(msgs.locale, "optionalDefaultsToTheIssuer", nil)
+}
+
+// AsapExpiryHint says "Token lifetime in seconds; a claim named exp overrides it."
+// in the language the app shows.
+func AsapExpiryHint() string { return In(i18n.Locale()).AsapExpiryHint() }
+
+// AsapExpiryHint says "Token lifetime in seconds; a claim named exp overrides it."
+// in the language of msgs.
+func (msgs Messages) AsapExpiryHint() string {
+	return Catalog.Format(msgs.locale, "asapExpiryHint", nil)
+}
