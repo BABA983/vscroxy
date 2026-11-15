@@ -204,7 +204,7 @@
 | 响应保存到文件 | 已有 | Requests 保存按钮／Capture Body 菜单；原样保存已解压正文，流式读取完整落盘内容，拒绝不完整正文 | M6 |
 | 全局搜索（集合、请求、环境） | 已有 | 并进命令面板；搜索集合、文件夹、请求名称／method／URL、环境名和变量名，不搜索变量值；请求索引随集合变化更新，宽泛查询最多显示 50 条并提示剩余数量 | M6 |
 | 代码生成：cURL、fetch、axios、Python、Go、HTTPie | 已有 | 补齐 Bash／CMD cURL、PowerShell 7+、浏览器／Node fetch；抓包／草稿共用复制入口，另有脱敏／原样 HAR 复制 | M9 |
-| 代码生成：Swift、Kotlin、Java、C#、PHP、Ruby、Rust | 已有 | Swift URLSession、Kotlin OkHttp、Java 11+ java.net.http、C# HttpClient、PHP cURL、Ruby Net::HTTP、Rust reqwest；抓包／草稿共用 Generate code… 与 Copy as… 入口；Binary body 引用源文件，其他文本 body 内联；非 UTF-8 抓包 body 仍用 cURL | M9 |
+| 代码生成：Swift、Kotlin、Java、C#、PHP、Ruby、Rust、Dart、C、Objective-C、wget、Guzzle、RestSharp | 已有 | Swift URLSession、Kotlin OkHttp、Java 11+ java.net.http、C# HttpClient／RestSharp、PHP cURL／Guzzle、Ruby Net::HTTP、Rust reqwest、Dart http、C libcurl、Objective-C NSURLSession、wget；抓包／草稿共用 Generate code… 与 Copy as… 入口；Binary body 引用源文件，其他文本 body 内联；非 UTF-8 抓包 body 仍用 cURL | M9 |
 | 导入：Postman v2.0/2.1、环境、OpenAPI 3.x、cURL、HAR | 已有 | | |
 | 导入：Postman Collection v3 | 已有 | Postman v12 的本地／Native Git 格式：多文件 YAML 目录（`.resources/definition.yaml`、`*.request.yaml`、examples/messages）；复用 v2.1 的 auth、body、脚本、变量、设置和 examples 转换，无法表达的部分进导入报告。Postman 的 Export collection 仍写 v2.1 JSON，所以导出继续 v2.1 | M6 |
 | 导入导出：JetBrains／VS Code REST Client `.http` | 已有 | 一个 `.http`／`.rest` 文件导入为一个集合；`###`／`# @name` 命名请求，文件级 `@name = value` 变集合 Initial 变量，`# @timeout`／`# @no-redirect` 变请求设置；导出集合或当前请求，写入变量、auth 和 body；二进制／multipart body、协议请求、继承的文件夹 auth 和文件夹层级不导出并报告；响应处理器、文件 body 和 WEBSOCKET／GRPC 等协议请求导入时报告 | M9 |
@@ -351,7 +351,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 录制到集合及首版 token 链路识别已完成：原生入口、CLI／MCP 共用动作、Host／App 过滤、Current 凭据引用和 Example 归并；JSON token → 同源 Bearer 的脱敏证据、显式审阅应用和失败关闭。Cookie／refresh／多跳链路暂不覆盖。
 - DevTools 式常用复制格式已完成：Bash／CMD cURL、原生 PowerShell、浏览器／Node fetch 和受限 HAR（默认脱敏、明确选择敏感内容）。生成器不增加运行时依赖；cURL 导入选项仍独立待做。
 - 首版代码 Mock 已完成（见[使用指南](guide.md#code-mocks)）：Code Mock 规则、`onMock` 动态本地响应、脚本编辑器与 Scenario；HTTP／已解密 HTTPS 不连接原站，失败关闭。Postman Node.js Mock／`pm.state` 等不在首版范围。
-- 更多代码生成语言已完成（见[使用指南](guide.md#curl)）：Swift URLSession、Kotlin OkHttp、Java java.net.http、C# HttpClient、PHP cURL、Ruby Net::HTTP、Rust reqwest；method、query、重复／空 header、raw／urlencoded／multipart／GraphQL body 和已展开的 auth header 原样输出，Binary body 引用本地文件。生成器本身不增加运行时依赖；OkHttp／reqwest 由目标项目提供，非 UTF-8 的抓包 body 仍只支持 cURL。
+- 更多代码生成语言已完成（见[使用指南](guide.md#curl)）：Swift URLSession、Kotlin OkHttp、Java java.net.http、C# HttpClient／RestSharp、PHP cURL／Guzzle、Ruby Net::HTTP、Rust reqwest、Dart http、C libcurl、Objective-C NSURLSession、wget；method、query、重复／空 header、raw／urlencoded／multipart／GraphQL body 和已展开的 auth header 原样输出，Binary body 引用本地文件。生成器本身不增加运行时依赖；OkHttp／reqwest 由目标项目提供，非 UTF-8 的抓包 body 仍只支持 cURL。
 - `pm.visualizer`、可复用脚本库。
 - 第三方主题导入。
 - 左右分屏、检查器独立窗口、分享到 Gist。

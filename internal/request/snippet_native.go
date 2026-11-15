@@ -11,7 +11,9 @@ import (
 func snippetReadsFile(language string) bool {
 	switch language {
 	case "Swift (URLSession)", "Kotlin (OkHttp)", "Java (java.net.http)",
-		"C# (HttpClient)", "PHP (cURL)", "Ruby (Net::HTTP)", "Rust (reqwest)":
+		"C# (HttpClient)", "PHP (cURL)", "Ruby (Net::HTTP)", "Rust (reqwest)",
+		"Dart (http)", "C (libcurl)", "Objective-C (NSURLSession)", "wget",
+		"PHP (Guzzle)", "C# (RestSharp)":
 		return true
 	}
 	return false

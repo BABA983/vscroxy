@@ -144,7 +144,8 @@ func TestRequestCopyHAR(t *testing.T) {
 func TestRequestCopyCodeDialog(t *testing.T) {
 	for _, language := range []string{"cURL (CMD)", "PowerShell", "Node.js (fetch)", "JavaScript (fetch)",
 		"Swift (URLSession)", "Kotlin (OkHttp)", "Java (java.net.http)", "C# (HttpClient)",
-		"PHP (cURL)", "Ruby (Net::HTTP)", "Rust (reqwest)"} {
+		"PHP (cURL)", "Ruby (Net::HTTP)", "Rust (reqwest)", "Dart (http)", "C (libcurl)",
+		"Objective-C (NSURLSession)", "wget", "PHP (Guzzle)", "C# (RestSharp)"} {
 		t.Run(language, func(t *testing.T) {
 			a := workspaceApp()
 			f := a.flows[0]
@@ -202,7 +203,7 @@ func TestGeneratedCodeCarriesAuthAndEncodedBodies(t *testing.T) {
 				d.composeBody = `{"name":"hello"}`
 			}
 			d.composeHeaders, d.headerRows, d.headerFor = "", nil, ""
-			for _, language := range []string{"Swift (URLSession)", "Kotlin (OkHttp)", "Java (java.net.http)", "C# (HttpClient)", "PHP (cURL)", "Ruby (Net::HTTP)", "Rust (reqwest)"} {
+			for _, language := range []string{"Swift (URLSession)", "Kotlin (OkHttp)", "Java (java.net.http)", "C# (HttpClient)", "PHP (cURL)", "Ruby (Net::HTTP)", "Rust (reqwest)", "Dart (http)", "C (libcurl)", "Objective-C (NSURLSession)", "wget", "PHP (Guzzle)", "C# (RestSharp)"} {
 				a.code.language = language
 				code, err := a.codeText(d)
 				if err != nil {

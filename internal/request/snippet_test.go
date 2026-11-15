@@ -200,6 +200,13 @@ func TestSnippetDropsComputedHeaders(t *testing.T) {
 	}}
 	for _, language := range SnippetLanguages {
 		got, err := Snippet(language, req)
+		if language == "C# (RestSharp)" {
+			// RestSharp's Method enum has no custom verbs.
+			if err == nil || !strings.Contains(err.Error(), "cannot send PURGE") {
+				t.Errorf("RestSharp: %v, want a custom-method error", err)
+			}
+			continue
+		}
 		if err != nil {
 			t.Fatalf("%s: %v", language, err)
 		}
@@ -213,6 +220,9 @@ func TestSnippetDropsComputedHeaders(t *testing.T) {
 		}
 		// No body means no body argument.
 		for _, arg := range []string{"body:", "data:", "data=", "strings.NewReader", "--raw", "printf"} {
+			if language == "C (libcurl)" && arg == "printf" {
+				continue // C prints the status line with printf.
+			}
 			if strings.Contains(got, arg) {
 				t.Errorf("%s has %s without a body:\n%s", language, arg, got)
 			}

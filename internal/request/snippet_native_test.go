@@ -266,6 +266,12 @@ func TestSnippetNativeBinaryFile(t *testing.T) {
 		{"PHP (cURL)", `file_get_contents("` + path + `")`},
 		{"Ruby (Net::HTTP)", `File.binread("` + path + `")`},
 		{"Rust (reqwest)", `std::fs::read("` + path + `")`},
+		{"Dart (http)", `File("` + path + `").readAsBytes()`},
+		{"C (libcurl)", `fopen("` + path + `", "rb")`},
+		{"Objective-C (NSURLSession)", `dataWithContentsOfFile:@"` + path + `"`},
+		{"wget", `--body-file='` + path + `'`},
+		{"PHP (Guzzle)", `fopen("` + path + `", 'rb')`},
+		{"C# (RestSharp)", `File.ReadAllBytes("` + path + `")`},
 	} {
 		req := &Prepared{Method: "PUT", URL: "https://api.example.com/upload", Body: string(body), BodyFile: path,
 			Header: http.Header{"Content-Type": {"application/octet-stream"}}}

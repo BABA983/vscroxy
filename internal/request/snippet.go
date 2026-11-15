@@ -21,6 +21,8 @@ var SnippetLanguages = []string{
 	"Python (requests)", "Go (net/http)", "HTTPie",
 	"Swift (URLSession)", "Kotlin (OkHttp)", "Java (java.net.http)",
 	"C# (HttpClient)", "PHP (cURL)", "Ruby (Net::HTTP)", "Rust (reqwest)",
+	"Dart (http)", "C (libcurl)", "Objective-C (NSURLSession)", "wget",
+	"PHP (Guzzle)", "C# (RestSharp)",
 }
 
 // errBinarySnippet is returned when a language cannot carry a body without
@@ -104,6 +106,18 @@ func Snippet(language string, req *Prepared) (string, error) {
 		return rubySnippet(method, req, headers)
 	case "Rust (reqwest)":
 		return rustSnippet(method, req, headers)
+	case "Dart (http)":
+		return dartSnippet(method, req, headers)
+	case "C (libcurl)":
+		return cSnippet(method, req, headers)
+	case "Objective-C (NSURLSession)":
+		return objcSnippet(method, req, headers)
+	case "wget":
+		return wgetSnippet(method, req, headers)
+	case "PHP (Guzzle)":
+		return guzzleSnippet(method, req, headers)
+	case "C# (RestSharp)":
+		return restsharpSnippet(method, req, headers)
 	}
 	return "", fmt.Errorf("no code snippet for %q", language)
 }

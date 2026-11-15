@@ -3479,10 +3479,13 @@ limited to 16 MiB.
 **Generate code…** (request **⋯** menu or command palette) shows the draft as
 cURL, JavaScript `fetch`, Node.js `fetch`/axios, PowerShell, Python requests,
 Go `net/http`, HTTPie, Swift `URLSession`, Kotlin OkHttp, Java `java.net.http`,
-C# `HttpClient`, PHP cURL, Ruby `Net::HTTP` or Rust `reqwest`, with its auth and
-encoded body, and copies it. The **Copy as…** menu offers cURL, PowerShell,
-fetch and the seven native-language snippets; **Generate code…** also has
-axios, Python requests, Go and HTTPie. Captured requests use the original
+C# `HttpClient` and RestSharp, PHP cURL and Guzzle, Ruby `Net::HTTP`, Rust
+`reqwest`, Dart `http`, C libcurl, Objective-C `NSURLSession` and wget, with
+its auth and encoded body, and copies it. The **Copy as…** menu offers cURL,
+PowerShell, fetch and the native-language snippets; **Generate code…** also
+has axios, Python requests, Go and HTTPie. RestSharp cannot send a custom
+verb, and generators that cannot set the Host header say so instead of
+silently dropping it. Captured requests use the original
 exchange; a captured request is already a request document, so selecting it
 makes the action available without saving or editing it first. Like cURL, it leaves `{{variables}}` as written and runs no script.
 NTLM auth is not emitted: every generator, cURL included, sends the request
