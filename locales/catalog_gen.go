@@ -26671,3 +26671,83 @@ func ContainerPlaceholder() string { return In(i18n.Locale()).ContainerPlacehold
 func (msgs Messages) ContainerPlaceholder() string {
 	return Catalog.Format(msgs.locale, "containerPlaceholder", nil)
 }
+
+// Parameters says "Parameters"
+// in the language the app shows.
+func Parameters() string { return In(i18n.Locale()).Parameters() }
+
+// Parameters says "Parameters"
+// in the language of msgs.
+func (msgs Messages) Parameters() string {
+	return Catalog.Format(msgs.locale, "parameters", nil)
+}
+
+// HeaderParameters says "Header parameters"
+// in the language the app shows.
+func HeaderParameters() string { return In(i18n.Locale()).HeaderParameters() }
+
+// HeaderParameters says "Header parameters"
+// in the language of msgs.
+func (msgs Messages) HeaderParameters() string {
+	return Catalog.Format(msgs.locale, "headerParameters", nil)
+}
+
+// CookieParameters says "Cookie parameters"
+// in the language the app shows.
+func CookieParameters() string { return In(i18n.Locale()).CookieParameters() }
+
+// CookieParameters says "Cookie parameters"
+// in the language of msgs.
+func (msgs Messages) CookieParameters() string {
+	return Catalog.Format(msgs.locale, "cookieParameters", nil)
+}
+
+// Required says "Required"
+// in the language the app shows.
+func Required() string { return In(i18n.Locale()).Required() }
+
+// Required says "Required"
+// in the language of msgs.
+func (msgs Messages) Required() string {
+	return Catalog.Format(msgs.locale, "required", nil)
+}
+
+// NoParameters says "No parameters"
+// in the language the app shows.
+func NoParameters() string { return In(i18n.Locale()).NoParameters() }
+
+// NoParameters says "No parameters"
+// in the language of msgs.
+func (msgs Messages) NoParameters() string {
+	return Catalog.Format(msgs.locale, "noParameters", nil)
+}
+
+// NoRequestBody says "No request body"
+// in the language the app shows.
+func NoRequestBody() string { return In(i18n.Locale()).NoRequestBody() }
+
+// NoRequestBody says "No request body"
+// in the language of msgs.
+func (msgs Messages) NoRequestBody() string {
+	return Catalog.Format(msgs.locale, "noRequestBody", nil)
+}
+
+// NoResponses says "No responses"
+// in the language the app shows.
+func NoResponses() string { return In(i18n.Locale()).NoResponses() }
+
+// NoResponses says "No responses"
+// in the language of msgs.
+func (msgs Messages) NoResponses() string {
+	return Catalog.Format(msgs.locale, "noResponses", nil)
+}
+
+// EnvironmentName says "Environment name"
+// in the language the app shows.
+func EnvironmentName() string { return In(i18n.Locale()).EnvironmentName() }
+
+// EnvironmentName says "Environment name"
+// in the language of msgs.
+func (msgs Messages) EnvironmentName() string {
+	return Catalog.Format(msgs.locale, "environmentName", nil)
+}

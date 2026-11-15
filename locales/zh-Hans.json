@@ -2727,5 +2727,13 @@
   "containerCaMounted": "CA 证书包以只读方式挂载到 /vscroxy/ca.pem。",
   "containerLimitations": "不会复制原容器的卷、端口、网络设置和环境变量；代理与信任相关变量会被替换。",
   "interceptContainer": "拦截容器",
-  "containerPlaceholder": "例如 my-app"
+  "containerPlaceholder": "例如 my-app",
+  "parameters": "参数",
+  "headerParameters": "Header 参数",
+  "cookieParameters": "Cookie 参数",
+  "required": "必填",
+  "noParameters": "没有参数",
+  "noRequestBody": "没有请求体",
+  "noResponses": "没有响应",
+  "environmentName": "环境名称"
 }

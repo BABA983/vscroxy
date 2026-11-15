@@ -39,7 +39,7 @@ func (g *Gallery) screensGroup() *Group {
 		{"diagnostics", "Diagnostics · listener stopped", "A stale system proxy points at a stopped listener; certificate and decryption pass, traffic waits", 1280, 800},
 		{"diagnostics-pass", "Diagnostics · all pass", "The same checks with a healthy listener and live traffic", 1280, 800},
 		{"https-rules", "HTTPS rules", "The decryption list and its per-app rules", 1280, 800},
-		{"api-endpoints", "API · endpoints", "An OpenAPI contract with its endpoint list and operation schema", 1280, 800},
+		{"api-endpoints", "API · endpoints", "An OpenAPI contract with its endpoint list, parameters, body and responses", 1280, 1000},
 		{"runs-records", "Runs · records", "The retained run records with a baseline and one result open", 1280, 800},
 		{"runs-running", "Runs · running", "The collection runner mid-run: one result in, Cancel available", 1280, 800},
 		{"runs-results", "Runs · results", "The collection runner finished with one failed check", 1280, 800},

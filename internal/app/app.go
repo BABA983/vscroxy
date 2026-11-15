@@ -3867,17 +3867,23 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 				uikit.Meta(c, locales.EveryRequestReadsTheseWhatever())
 			} else {
 				uikit.Meta(c, locales.UseNameInRequestsEnvironment())
-				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					if names := a.envNames(); len(names) > 0 {
-						if uikit.Select(c, &a.varsChoice, names).Label(locales.EditEnvironment()).Grow(1).MinWidth(0).Changed() {
-							a.editEnvironment(a.varsChoice)
-						}
-					}
-					if uikit.SecondaryButton(c, locales.NewEnvironment()).Clicked() {
-						a.editEnvironment("")
-					}
-				})
-				uikit.Input(c, &a.varsName).Label(locales.Environment())
+				ui.Form(c, func() {
+					uikit.FormRow(c, locales.Environment(), "", "", func() {
+						ui.Row(c).Gap(t.Space(2)).Children(func() {
+							if names := a.envNames(); len(names) > 0 {
+								if uikit.Select(c, &a.varsChoice, names).Grow(1).MinWidth(0).Changed() {
+									a.editEnvironment(a.varsChoice)
+								}
+							}
+							if uikit.SecondaryButton(c, locales.NewEnvironment()).Clicked() {
+								a.editEnvironment("")
+							}
+						})
+					})
+					uikit.FormRow(c, locales.EnvironmentName(), "", "", func() {
+						uikit.Input(c, &a.varsName).FillWidth()
+					})
+				}).Gap(t.Space(2))
 			}
 			uikit.Hint(c, locales.InitialValuesAreSharedAnd())
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {

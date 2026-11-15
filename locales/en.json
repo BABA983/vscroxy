@@ -4150,5 +4150,13 @@
   "containerCaMounted": "The CA bundle is mounted read-only at /vscroxy/ca.pem.",
   "containerLimitations": "Volumes, published ports, network settings and the original environment are not copied; proxy and trust variables are replaced.",
   "interceptContainer": "Intercept container",
-  "containerPlaceholder": "my-app"
+  "containerPlaceholder": "my-app",
+  "parameters": "Parameters",
+  "headerParameters": "Header parameters",
+  "cookieParameters": "Cookie parameters",
+  "required": "Required",
+  "noParameters": "No parameters",
+  "noRequestBody": "No request body",
+  "noResponses": "No responses",
+  "environmentName": "Environment name"
 }
