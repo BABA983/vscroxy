@@ -607,3 +607,15 @@ func TestOneClickAndroidInstallsTheSystemCA(t *testing.T) {
 		t.Fatalf("the install did not mount the APEX store:\n%s", log)
 	}
 }
+
+func TestMissingAndroidProxyRecordsIsNotDamage(t *testing.T) {
+	a := workspaceApp()
+	a.androidProxyPath = filepath.Join(t.TempDir(), "android-proxy.json")
+	a.loadAndroidProxyRecords()
+	if len(a.notices) != 0 {
+		t.Fatalf("a missing file was reported: %+v", a.notices)
+	}
+	if a.androidProxyPath == "" {
+		t.Fatal("a missing file disabled the records path")
+	}
+}

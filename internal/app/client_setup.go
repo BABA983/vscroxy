@@ -659,6 +659,9 @@ func (a *app) loadAndroidProxyRecords() {
 		a.fail(locales.AndroidProxyRecords(), err)
 		return
 	}
+	if data == nil && err == nil {
+		return // no file yet: there is nothing to restore
+	}
 	var doc struct {
 		Records map[string]androidProxyState `json:"records"`
 	}

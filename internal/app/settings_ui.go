@@ -116,6 +116,7 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 				return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					uikit.Meta(c, version.String())
 					if uikit.SecondaryButton(c, locales.AboutVscroxy()).Clicked() {
+						a.leaveSettings()
 						a.openAbout()
 					}
 				})

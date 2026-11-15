@@ -651,8 +651,9 @@ func newApp() *app {
 		a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
 		a.androidProxyPath = filepath.Join(home, ".vscroxy", "android-proxy.json")
 		a.backupDir = filepath.Join(home, ".vscroxy", "backups")
-		// A first launch, before anything below creates the directory.
-		if _, err := os.Stat(filepath.Dir(a.settingsPath)); errors.Is(err, fs.ErrNotExist) {
+		// A first launch. The log opened before this already made the
+		// directory, so the settings file is what tells the two apart.
+		if firstLaunch(a.settingsPath) {
 			a.guide = true
 		}
 		a.caPath = capture.CACertPath(home)
@@ -3328,6 +3329,13 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 // messages lists the WebSocket messages or SSE events of a flow.
 func (a *app) messages(c *ui.Context, f flow) {
 	a.messageUI.view(c, a, f, a.frames[f.id])
+}
+
+// firstLaunch reports whether this is the first start: no settings file has
+// been written yet, though the log directory above it may exist already.
+func firstLaunch(settingsPath string) bool {
+	_, err := os.Stat(settingsPath)
+	return errors.Is(err, fs.ErrNotExist)
 }
 
 func shortenHome(path string) string {

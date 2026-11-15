@@ -101,3 +101,22 @@ func TestANewerFileIsRefusedAndLeftUntouched(t *testing.T) {
 		t.Fatalf("newer rules were replaced: %s", got)
 	}
 }
+
+func TestFirstLaunchNeedsTheSettingsFileNotTheDirectory(t *testing.T) {
+	dir := t.TempDir()
+	// The log is opened before the app reads settings, so the directory
+	// exists on a first launch.
+	if err := os.MkdirAll(filepath.Join(dir, ".vscroxy", "logs"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, ".vscroxy", "settings.json")
+	if !firstLaunch(path) {
+		t.Fatal("a first launch with only the log directory was not detected")
+	}
+	if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if firstLaunch(path) {
+		t.Fatal("a later launch was treated as the first")
+	}
+}
