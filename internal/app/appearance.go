@@ -195,7 +195,7 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 				{"0", lucide.SlidersHorizontal(), locales.General()},
 				{"3", lucide.SunMoon(), locales.Appearance()},
 				{"1", upstreamIcon, locales.Proxy()},
-				{"2", lockIcon, locales.Https()},
+				{"2", lockIcon, locales.HttpsDecryption()},
 				{"4", captureIcon, locales.Capture()},
 				{"5", lucide.MonitorSmartphone(), locales.Devices()},
 				{"6", lucide.KeyRound(), locales.Certificates()},

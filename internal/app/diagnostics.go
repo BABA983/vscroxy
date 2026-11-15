@@ -221,7 +221,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 	}
 	checks = append(checks, cert)
 
-	decrypt := diagnosticCheck{title: "HTTPS decryption"}
+	decrypt := diagnosticCheck{title: locales.HttpsDecryption()}
 	switch {
 	case !https:
 		decrypt.result = "Not needed for HTTP"

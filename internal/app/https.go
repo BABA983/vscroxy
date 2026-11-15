@@ -137,7 +137,7 @@ func (a *app) certificateBanner(c *ui.Context, t *ui.Theme) {
 func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 	status, color := a.certificateStatus(t)
 	s := &a.certificate
-	uikit.SettingsCardPage(c, locales.Https(), locales.TrustingTheCaMakesDecryption(), func() {
+	uikit.SettingsCardPage(c, locales.HttpsDecryption(), locales.TrustingTheCaMakesDecryption(), func() {
 		uikit.SettingsCard(c, locales.Certificate(), func() {
 			settingsCardBlock(c, locales.Trust(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(1)).Children(func() {

@@ -406,7 +406,12 @@ func apiParameterGroup(in string) string {
 // declares. It does not synthesize a payload when the contract only names a
 // schema; Open in Requests is where a draft is made.
 func apiRequestBodySection(c *ui.Context, t *ui.Theme, body *openapi3.RequestBodyRef) {
-	uikit.Heading(c, locales.RequestBody())
+	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		uikit.Heading(c, locales.RequestBody())
+		if body != nil && body.Value != nil && body.Value.Required {
+			uikit.Label(c, locales.Required())
+		}
+	})
 	if body == nil || body.Value == nil || len(body.Value.Content) == 0 {
 		uikit.Hint(c, locales.NoRequestBody())
 		return
@@ -414,13 +419,9 @@ func apiRequestBodySection(c *ui.Context, t *ui.Theme, body *openapi3.RequestBod
 	if body.Value.Description != "" {
 		uikit.Hint(c, body.Value.Description)
 	}
-	if body.Value.Required {
-		uikit.Label(c, locales.Required())
-	}
 	for _, media := range slices.Sorted(maps.Keys(body.Value.Content)) {
-		uikit.Label(c, media)
 		if mt := body.Value.Content[media]; mt != nil {
-			apiSchemaLabel(c, mt.Schema)
+			apiSchemaLine(c, media, mt.Schema)
 			apiSchemaTree(c, t, mt.Schema, 0, map[string]bool{})
 		}
 	}
@@ -449,23 +450,28 @@ func apiResponsesSection(c *ui.Context, t *ui.Theme, responses *openapi3.Respons
 			uikit.Hint(c, description).Grow(1)
 		})
 		for _, media := range slices.Sorted(maps.Keys(ref.Value.Content)) {
-			uikit.Label(c, media)
 			if mt := ref.Value.Content[media]; mt != nil {
 				// The status code and its schema name answer the reader's
 				// question; the request body above already shows the shared
 				// Project fields, and Raw has every response schema.
-				uikit.Label(c, apiTypeName(mt.Schema))
+				apiSchemaLine(c, media, mt.Schema)
 			}
 		}
 	}
 }
 
-// apiSchemaLabel names a referenced schema above its fields, so a reader can
-// tell a Project payload from an inline object with the same properties.
-func apiSchemaLabel(c *ui.Context, ref *openapi3.SchemaRef) {
-	if ref != nil && ref.Ref != "" {
-		uikit.Label(c, apiTypeName(ref))
+// apiSchemaLine names the media type and its schema together, so a line reads
+// "application/json · Project" rather than a bare schema name under a media
+// type the reader has to connect back to it.
+func apiSchemaLine(c *ui.Context, media string, ref *openapi3.SchemaRef) {
+	value := media
+	if typ := apiTypeName(ref); typ != "—" {
+		value += " · " + typ
 	}
+	ui.Row(c).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
+		uikit.Label(c, locales.Schema2())
+		uikit.Mono(c, value).Grow(1).MinWidth(0)
+	})
 }
 
 func apiStatus(code string) int {

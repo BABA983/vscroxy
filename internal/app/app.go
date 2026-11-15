@@ -381,6 +381,7 @@ type app struct {
 	sslDraftHosts     string
 	sslDraftExclude   string
 	sslDraftUntrusted string
+	sslList           ui.ListState
 
 	// appearance is "light", "dark", or empty to follow the system; dark is
 	// what it resolved to for this frame.
@@ -2622,7 +2623,7 @@ func (a *app) sidebarFooter(c *ui.Context, t *ui.Theme) {
 		if uikit.SidebarButton(c, locales.ClientSetup(), locales.CopyAProcessScopedProxy(), monitorIcon, false).Clicked() {
 			a.openClientSetup()
 		}
-		if uikit.SidebarButton(c, locales.HttpsRules(), locales.HttpsInspectionRules(), lockIcon, false).
+		if uikit.SidebarButton(c, locales.HttpsDecryption(), locales.HttpsInspectionRules(), lockIcon, false).
 			Label(locales.ManageHttpsRules()).Clicked() {
 			a.sslOpen = true
 		}
@@ -3708,7 +3709,7 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	}
 	tools = append(tools,
 		do("flow.map-host", locales.MapThisHost(), func() { a.openDNSRule(hostOnly(f.host), f.process) }).in("host"),
-		submenu(locales.HttpsInspection(), append(a.appInspectionActions(capture.SSLApp{Name: f.process, Path: f.processPath}),
+		submenu(locales.HttpsDecryption(), append(a.appInspectionActions(capture.SSLApp{Name: f.process, Path: f.processPath}),
 			do("https.rules", locales.ViewHttpsRules(), func() { a.sslOpen = true }))...).in("host"),
 	)
 	var saveChosen action
@@ -3845,9 +3846,8 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 	if !a.varsOpen {
 		return
 	}
-	_, height := c.Size()
 	uikit.Modal(c, &a.varsOpen, locales.Variables(), func() {
-		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(600, height-80)).Children(func() {
+		uikit.DialogColumn(c, uikit.DialogLarge).Children(func() {
 			uikit.DialogTitle(c, locales.Variables())
 			if a.envsProblem != "" {
 				ui.Text(c, locales.VariablesAreReadOnlyClose()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
@@ -4508,46 +4508,50 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 	}
 	draft := a.sslDraft
 	_, height := c.Size()
-	uikit.Modal(c, &a.sslOpen, locales.SslProxying(), func() {
-		uikit.DialogColumn(c, uikit.DialogMedium).Height(min(680, height-80)).Children(func() {
-			uikit.DialogTitle(c, locales.SslProxying())
-			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
-				uikit.Meta(c, locales.EnableADomainOrA())
-				ui.Row(c).Gap(t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
-					uikit.Switch(c, &draft.All).Label(locales.DecryptEveryDomain())
-					ui.Text(c, locales.DecryptEveryDomain()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
-				})
-				ui.Text(c, locales.DomainsAndSubdomains()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
-				uikit.TextArea(c, &a.sslDraftHosts).Height(100).Label(locales.DecryptionDomains()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
-				ui.Divider(c)
-				ui.Text(c, locales.NeverDecrypt()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
-				uikit.Meta(c, locales.NeverDecryptHint())
-				uikit.TextArea(c, &a.sslDraftExclude).Height(80).Label(locales.ExcludedHosts()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
-				ui.Divider(c)
-				ui.Text(c, locales.AllowUntrustedUpstream()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
-				uikit.Meta(c, locales.AllowUntrustedUpstreamHint())
-				uikit.TextArea(c, &a.sslDraftUntrusted).Height(80).Label(locales.UpstreamExceptions()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
-				ui.Divider(c)
-				ui.Text(c, locales.LocalApps()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
-				uikit.Meta(c, locales.ExactExecutablePathsNotApp())
-				if len(draft.Apps) == 0 {
-					uikit.Hint(c, locales.NoAppRulesEnabled())
-				}
-				remove := -1
-				for i, app := range draft.Apps {
-					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-						ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
-							uikit.Body(c, app.Name)
-							uikit.Tip(c, uikit.Meta(c, app.Path).SingleLine(), app.Path)
-						})
-						if uikit.SecondaryButton(c, locales.Remove()).Label(locales.RemoveHttpsApp(app.Path)).Clicked() {
-							remove = i
-						}
+	uikit.Modal(c, &a.sslOpen, locales.HttpsDecryption(), func() {
+		uikit.DialogColumn(c, uikit.SettingsWidth).Height(min(720, height-80)).Children(func() {
+			uikit.DialogTitle(c, locales.HttpsDecryption())
+			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Children(func() {
+				uikit.SettingsCard(c, "", func() {
+					uikit.SettingsCardRow(c, locales.DecryptEveryDomain(), locales.DecryptEveryNewHttpsConnection(), func() {
+						uikit.Switch(c, &draft.All)
 					})
-				}
-				if remove >= 0 {
-					draft.Apps = slices.Delete(draft.Apps, remove, remove+1)
-				}
+				})
+				uikit.FormRow(c, locales.DecryptionDomains(), locales.DomainsAndSubdomains(), "", func() {
+					uikit.TextArea(c, &a.sslDraftHosts).Height(80).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FillWidth()
+				})
+				uikit.FormRow(c, locales.NeverDecrypt(), locales.NeverDecryptHint(), "", func() {
+					uikit.TextArea(c, &a.sslDraftExclude).Height(64).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FillWidth()
+				})
+				uikit.FormRow(c, locales.AllowUntrustedUpstream(), locales.AllowUntrustedUpstreamHint(), "", func() {
+					uikit.TextArea(c, &a.sslDraftUntrusted).Height(64).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FillWidth()
+				})
+				uikit.SettingsCard(c, locales.LocalApps(), func() {
+					if len(draft.Apps) == 0 {
+						uikit.Hint(c, locales.NoAppRulesEnabled())
+						return
+					}
+					remove := -1
+					listHeight := min(float32(180), float32(len(draft.Apps))*uikit.SettingsRowHeight+2)
+					ui.Column(c).Height(listHeight).Children(func() {
+						uikit.DataListIndexed(c, &a.sslList, len(draft.Apps), func(i int) {
+							app := draft.Apps[i]
+							ui.Row(c).Height(uikit.SettingsRowHeight).Padding(t.Space(1), t.Space(3)).Gap(t.Space(3)).AlignItems(ui.Center).
+								BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+								ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
+									uikit.Body(c, app.Name).SingleLine()
+									uikit.Tip(c, uikit.Meta(c, app.Path).SingleLine(), app.Path)
+								})
+								if uikit.Tip(c, uikit.IconButton(c, locales.RemoveHttpsApp(app.Path), locales.RemoveHttpsApp(app.Path), closeIcon), app.Path).Clicked() {
+									remove = i
+								}
+							})
+						})
+					})
+					if remove >= 0 {
+						draft.Apps = slices.Delete(draft.Apps, remove, remove+1)
+					}
+				})
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
@@ -4572,11 +4576,11 @@ func (a *app) saveSSL(cfg capture.SSLConfig) bool {
 	if a.sslPath != "" {
 		data, err := json.Marshal(cfg)
 		if err != nil {
-			a.fail(locales.SslProxying(), err)
+			a.fail(locales.HttpsDecryption(), err)
 			return false
 		}
 		if err := a.file(a.sslPath).Write(append(data, '\n')); err != nil {
-			a.fail(locales.SslProxying(), err)
+			a.fail(locales.HttpsDecryption(), err)
 			return false
 		}
 	}

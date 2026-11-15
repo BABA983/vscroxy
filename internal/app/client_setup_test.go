@@ -59,6 +59,27 @@ func TestOneClickTerminalShowsTheEnvironmentAndOnlyThatWindow(t *testing.T) {
 	}
 }
 
+func TestClientSetupMakesStartCaptureTheStoppedPrimary(t *testing.T) {
+	a := workspaceApp()
+	a.srv = &capture.Server{}
+	a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetTerminal}
+	tt := ui.NewTester(a.view, 960, 600)
+	if !tt.HasText("Start capture") {
+		t.Fatal("a stopped client setup has no Start capture action")
+	}
+}
+
+func TestClientSetupHandsThePrimaryToTheRunningPanel(t *testing.T) {
+	a := oneClickApp(t)
+	tt := ui.NewTester(a.view, 960, 600)
+	if tt.HasText("Start capture") {
+		t.Fatal("a running client setup still offers Start capture")
+	}
+	if !tt.HasText("Open terminal") {
+		t.Fatal("a running terminal panel lost its action")
+	}
+}
+
 func TestOneClickChromeAndFirefoxUseSeparateProfiles(t *testing.T) {
 	a := oneClickApp(t)
 	a.clientUI.target = clientTargetChrome

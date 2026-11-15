@@ -32,9 +32,9 @@
 | 位置 | 放什么 |
 | --- | --- |
 | 标题栏 | 品牌（非 macOS）、录制状态（含暂停按钮、监听地址和速率曲线）、Host 方案 chip、已启用的工具 chip、命令按钮（`⌘K`，点开命令面板）、侧栏开关（`⌘B`）、左右／上下布局切换、Tools、Settings、`⋯` |
-| 工作区（只有一个） | 侧栏两个固定区域、各自滚动：上区 Traffic（流量分类、保存的视图和筛选）和 Sources（Apps｜Domains 开关，只列前五项，超过时末尾一行 Show all）；下区 Collections（搜索框、集合树、树末尾可折叠的 Sessions）；页脚是 Client setup、HTTPS rules、Diagnostics。中间栏：流量列表（查询栏、活动柱状图），或选中已保存请求时的发送历史；详情：请求文档（抓到的和保存的是同一种）和响应。环境、APIs、Runner 从集合菜单和命令面板进入。见 [UI 设计规范](ui-redesign.md) 第 3 节 |
+| 工作区（只有一个） | 侧栏两个固定区域、各自滚动：上区 Traffic（流量分类、保存的视图和筛选）和 Sources（Apps｜Domains 开关，只列前五项，超过时末尾一行 Show all）；下区 Collections（搜索框、集合树、树末尾可折叠的 Sessions）；页脚是 Client setup、HTTPS decryption、Diagnostics。中间栏：流量列表（查询栏、活动柱状图），或选中已保存请求时的发送历史；详情：请求文档（抓到的和保存的是同一种）和响应。环境、APIs、Runner 从集合菜单和命令面板进入。见 [UI 设计规范](ui-redesign.md) 第 3 节 |
 | Tools 窗口 | 规则（Map Local、Map Remote、Block、断点）、Scenario、规则脚本、Host 方案、Mock。经常开关的东西 |
-| Settings | 很少改的配置：通用、外观、代理、HTTPS、抓包、设备、证书 |
+| Settings | 很少改的配置：通用、外观、代理、HTTPS decryption、抓包、设备、证书 |
 | 命令面板 | 所有动作，包括上面每个位置里的动作 |
 
 判断一个新功能放哪里：
@@ -102,7 +102,7 @@
 1. 下一步：Replay、Edit request、Save as request、Add to collection…
 2. 复制：Copy URL、Copy as cURL、Copy response body、Copy as…
 3. 整理：Pin、Mark…、Add note
-4. 工具：Breakpoint、Map Local、Map Remote、Block、Map this host…、HTTPS inspection
+4. 工具：Breakpoint、Map Local、Map Remote、Block、Map this host…、HTTPS decryption
 5. 视图：Filter by this host、Filter by this app、Open in browser
 6. 危险：Remove from list
 
@@ -171,7 +171,7 @@
 | 原样再发一次 | Replay | 重放 | Repeat、Resend |
 | 编辑抓到的请求 | Edit request | 编辑请求 | Edit & replay、Edit & resend |
 | 暂停记录 | Pause recording | 暂停录制 | |
-| HTTPS 解密 | HTTPS inspection | HTTPS 解密 | SSL proxying（只在兼容说明里出现） |
+| HTTPS 解密 | HTTPS decryption | HTTPS 解密 | 旧名 SSL proxying / HTTPS inspection 不再用 |
 | 已保存的请求 | request | 请求 | saved request、asset |
 | 请求的集合 | collection | 集合 | |
 | 环境 | environment | 环境 | |

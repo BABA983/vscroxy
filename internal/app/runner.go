@@ -526,7 +526,13 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 			})
 			status := r.status
 			if status == "" {
-				status = locales.CollectionRunner()
+				selected := 0
+				for _, step := range r.steps {
+					if step.enabled {
+						selected++
+					}
+				}
+				status = locales.RequestsSelected(selected)
 			}
 			uikit.Tip(c, uikit.Meta(c, status), "Displaying latest 1000 results; closing keeps a run active")
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {

@@ -226,7 +226,7 @@ Device access is **off on every launch**; consent and listeners are not persiste
    apps need a debug Network Security Configuration that trusts user CAs, and a
    rooted device or emulator can take it as a system certificate from
    **Set up a local client** → **Android emulator** instead.
-7. Enable **Configure HTTPS inspection** for the desired hosts, then make an
+7. Enable **Configure HTTPS decryption** for the desired hosts, then make an
    HTTPS request from the device and inspect its decrypted path/body in Capture.
 
 **Diagnose…** opens Connection diagnostics for a phone or tablet: the last
@@ -600,7 +600,7 @@ stays for the record. Colors are Red, Orange, Yellow, Green, Blue and Purple;
 a saved session keeps the color, note and strikethrough. **Tools** creates a
 rule from the request
 (breakpoints, Mock this response, Map Remote, Block), maps its host in DNS or
-changes its HTTPS inspection. Investigation and regression actions come last.
+changes its HTTPS decryption. Investigation and regression actions come last.
 
 **Copy as…** in a row, the inspector or the native menu adds **Markdown table**,
 **CSV** and **Raw HTTP** to the cURL and HAR formats. The Markdown table and CSV
@@ -1433,7 +1433,7 @@ still evaluated once per scheme/host/port. Changing the PAC file requires saving
 the setting again. `alert` messages are discarded, not logged, because they may
 contain request data.
 
-## SSL proxying
+## HTTPS decryption
 
 HTTPS is tunnelled untouched until a domain or app rule enables inspection:
 the table shows its CONNECT as a `Tunnel` row. The detail pane keeps
@@ -1478,7 +1478,7 @@ do not grant permission. Remote devices, non-loopback proxy connections and
 unreadable or ambiguous process owners cannot use app rules. Domain/global rules
 still apply independently. Client CA trust is still required.
 
-**HTTPS rules** at the bottom of the sidebar manages domain and executable rules.
+**HTTPS decryption** at the bottom of the sidebar manages domain and executable rules.
 Removing an app rule takes effect only on Save; Cancel discards rule edits.
 An enabled rule is not evidence that TLS succeeded, and old CONNECT records
 never become decrypted requests retroactively.
@@ -1876,7 +1876,7 @@ failure without changing that code. JSON sessions preserve both trailer blocks
 The inspected TLS/HTTP/2 path forwards unary, server-streaming, client-streaming
 and interactive bidirectional gRPC, including gzip, metadata, trailers-only
 errors, deadlines and cancellation. The client must use the HTTP proxy and trust
-its CA; enable HTTPS inspection for the target host. Messages are forwarded as
+its CA; enable HTTPS decryption for the target host. Messages are forwarded as
 they arrive, but the capture's Body inspector receives the completed exchange,
 not a live RPC timeline. This is an inspector, not a reflection-driven RPC client.
 gRPC-Web, h2c and HTTP/3/QUIC are not supported inspection modes; compressed
@@ -2092,7 +2092,7 @@ session-local, not HTTP History.
 TLS verifies certificates using system roots, the configured custom roots and
 the running proxy's CA, and presents a matching client certificate from
 **Settings → Certificates**.
-HTTPS uses capture while the proxy is running; enable HTTPS inspection for the
+HTTPS uses capture while the proxy is running; enable HTTPS decryption for the
 target host to inspect it. Without capture it connects directly with verified
 TLS. Plaintext h2c always connects directly and is explicitly marked **not
 captured**, because the capture engine does not support h2c. This client uses
@@ -2118,7 +2118,7 @@ document's normalized origin (default ports and a trailing root label are
 equivalent). A request to another origin, including a cross-origin SSE
 endpoint, gets no document headers and the timeline says they were withheld. **Settings → Certificates** and the request's certificate
 verification setting apply on every hop; HTTPS goes through the running capture
-proxy (enable HTTPS inspection for the target to see it in Capture) and connects
+proxy (enable HTTPS decryption for the target to see it in Capture) and connects
 directly when the proxy is stopped. A POST is never replayed. A standalone GET
 stream reconnects after the server closes it with the SDK's exponential
 backoff, effectively without a retry ceiling; the timeline keeps one live
@@ -2516,7 +2516,7 @@ token; do that after changing a secret or password, which are not part of what
 identifies a token. Every field takes `{{variables}}`; a `{{vault:name}}` there
 is unlocked for the access token URL's host, the one that receives it. Token
 requests go through the proxy, so they are in Capture like any other exchange
-(decrypted only when SSL proxying covers the host). **Copy as cURL** includes
+(decrypted only when HTTPS decryption covers the host). **Copy as cURL** includes
 the token the app holds.
 
 Body supports a raw editor with line numbers, JSON highlighting, undo and
@@ -3120,7 +3120,7 @@ decoded. An archive that contains a native `.chls` is refused with the same
 
 **Session → Import Charles settings…** reads a Charles settings export (Charles'
 Tools → Import/Export Settings, an `.xml` file). It maps Map Local, Map Remote,
-Block List (action 0 drops the connection, action 1 answers 403), SSL proxying
+Block List (action 0 drops the connection, action 1 answers 403), HTTPS decryption
 locations and No Caching onto this app. Imported rules are added after the rules
 you already have; SSL hosts are added to the existing list. Breakpoints, Rewrite,
 DNS Spoofing and every other Charles tool are not imported and are listed in the
@@ -3866,7 +3866,7 @@ menu bar.
   store without changing it. The page also shows the CA name, validity dates
   and SHA-256 fingerprint. macOS uses `security verify-cert`, Windows uses the
   native system verifier, and Linux requires `openssl` for a fresh check.
-- **Manage domains…** opens the SSL proxying editor. Trusting the CA and
+- **Manage domains…** opens the HTTPS decryption editor. Trusting the CA and
   enabling domain decryption are separate steps; neither enables the other.
 
 Each helper runs off the UI thread because the platform may prompt for a

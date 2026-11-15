@@ -17,8 +17,9 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 	if !s.open {
 		return
 	}
+	_, height := c.Size()
 	uikit.Modal(c, &s.open, locales.SetUpALocalClient2(), func() {
-		uikit.DialogColumn(c, uikit.DialogLarge).Children(func() {
+		uikit.DialogColumn(c, uikit.SettingsWidth).Height(min(700, height-80)).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 				uikit.DialogTitle(c, locales.SetUpALocalClient2())
 				ui.Spacer(c)
@@ -34,6 +35,17 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 				uikit.Tip(c, ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).MaxLines(2), s.problem)
 			}
 			uikit.DialogFooter(c).Children(func() {
+				if s.tab == 0 && s.target == clientTargetJava && s.javaConfirm {
+					uikit.Hint(c, locales.ReplaceOnlyThisAppS()).Grow(1)
+					if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
+						s.javaConfirm = false
+					}
+					if clientActionButton(c, locales.ImportCa(), a.srv != nil && a.srv.Running()).Clicked() {
+						s.javaConfirm = false
+						a.importJavaCA()
+					}
+					return
+				}
 				if uikit.SecondaryButton(c, locales.PhoneTabletSetup()).Clicked() {
 					s.open = false
 					a.openDevices()
@@ -46,9 +58,24 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					s.open = false
 				}
+				if a.srv == nil || !a.srv.Running() {
+					if uikit.PrimaryButton(c, locales.StartCapture()).Disabled(a.srv == nil).Clicked() {
+						go a.startCapture()
+					}
+				}
 			})
 		})
 	})
+}
+
+// clientActionButton is the one action a panel offers while capture runs. With
+// capture stopped the footer's Start capture owns the primary face, so a
+// panel action is secondary and disabled until the listener exists.
+func clientActionButton(c *ui.Context, label string, running bool) ui.Element {
+	if running {
+		return uikit.PrimaryButton(c, label)
+	}
+	return uikit.SecondaryButton(c, label)
 }
 
 func (a *app) clientSetupBadge(c *ui.Context, t *ui.Theme) {
@@ -64,42 +91,43 @@ func (a *app) clientSetupOneClick(c *ui.Context, t *ui.Theme) {
 	s := &a.clientUI
 	p := a.clientProxy()
 	running := a.srv != nil && a.srv.Running()
-	_, height := c.Size()
-	scrollHeight := max(float32(120), min(float32(320), height-220))
-	ui.Form(c, func() {
-		ui.Field(c, locales.Client(), func() {
-			uikit.Select(c, &s.target, clientTargets).Label(locales.Client()).Width(200)
-		})
-	})
-	if !running && (s.target != clientTargetIOS || runtime.GOOS == "darwin") {
-		uikit.Meta(c, locales.StartCaptureFirstTheseActions())
-	}
 	if s.target == clientTargetAndroid && !s.androidLoaded && !s.androidLoading {
 		a.loadAndroidDevices()
 	}
-	ui.Scroll(c).MaxHeight(scrollHeight).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(2), 0, 0).Children(func() {
-		switch s.target {
-		case clientTargetChrome:
-			a.clientChromePanel(c, t, p, running)
-		case clientTargetFirefox:
-			a.clientFirefoxPanel(c, t, p, running)
-		case clientTargetAndroid:
-			a.clientAndroidPanel(c, t, p, running)
-		case clientTargetIOS:
-			a.clientIOSPanel(c, t, p, running)
-		case clientTargetJava:
-			a.clientJavaPanel(c, t, p, running)
-		case clientTargetElectron:
-			a.clientElectronPanel(c, t, p, running)
-		case clientTargetContainer:
-			a.clientContainerPanel(c, t, p, running)
-		default:
-			a.clientTerminalPanel(c, t, p, running)
-		}
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
+		uikit.SettingsCard(c, "", func() {
+			uikit.SettingsCardRow(c, locales.Client(), "", func() {
+				uikit.Select(c, &s.target, clientTargets).Label(locales.Client()).Width(220)
+			})
+		})
+		uikit.SettingsCard(c, "", func() {
+			uikit.SettingsCardBlock(c, "", "", func() {
+				switch s.target {
+				case clientTargetChrome:
+					a.clientChromePanel(c, t, p, running)
+				case clientTargetFirefox:
+					a.clientFirefoxPanel(c, t, p, running)
+				case clientTargetAndroid:
+					a.clientAndroidPanel(c, t, p, running)
+				case clientTargetIOS:
+					a.clientIOSPanel(c, t, p, running)
+				case clientTargetJava:
+					a.clientJavaPanel(c, t, p, running)
+				case clientTargetElectron:
+					a.clientElectronPanel(c, t, p, running)
+				case clientTargetContainer:
+					a.clientContainerPanel(c, t, p, running)
+				default:
+					a.clientTerminalPanel(c, t, p, running)
+				}
+			})
+		})
 		if s.last != "" {
-			ui.Divider(c)
-			uikit.Hint(c, locales.LastCommand())
-			ui.Text(c, s.last).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(3)
+			uikit.SettingsCard(c, "", func() {
+				uikit.SettingsCardBlock(c, locales.LastCommand(), "", func() {
+					ui.Text(c, s.last).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(3)
+				})
+			})
 		}
 	})
 }
@@ -122,7 +150,7 @@ func (a *app) clientTerminalPanel(c *ui.Context, t *ui.Theme, p clientsetup.Prox
 	} else {
 		uikit.Meta(c, "SSL_CERT_FILE, REQUESTS_CA_BUNDLE, CURL_CA_BUNDLE, GIT_SSL_CAINFO, PIP_CERT and DENO_CERT point at "+p.BundlePath+", a 0600 bundle of the system roots plus the vscroxy CA. Undecrypted hosts keep working.")
 	}
-	if uikit.PrimaryButton(c, locales.OpenTerminal()).Disabled(!running).Clicked() {
+	if clientActionButton(c, locales.OpenTerminal(), running).Disabled(!running).Clicked() {
 		a.openProxiedTerminal()
 	}
 	uikit.Meta(c, locales.NodeExtraCaCertsAdds())
@@ -131,10 +159,8 @@ func (a *app) clientTerminalPanel(c *ui.Context, t *ui.Theme, p clientsetup.Prox
 func (a *app) clientContainerPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, running bool) {
 	s := &a.clientUI
 	uikit.Hint(c, locales.RunsANewContainerFrom())
-	ui.Form(c, func() {
-		ui.Field(c, locales.Container(), func() {
-			uikit.Input(c, &s.container).Label(locales.Container()).Placeholder(locales.ContainerPlaceholder())
-		})
+	uikit.FormRow(c, locales.Container(), "", "", func() {
+		uikit.Input(c, &s.container).Label(locales.Container()).Placeholder(locales.ContainerPlaceholder()).FillWidth()
 	})
 	host := "host.docker.internal"
 	if runtime.GOOS == "linux" {
@@ -147,7 +173,7 @@ func (a *app) clientContainerPanel(c *ui.Context, t *ui.Theme, p clientsetup.Pro
 	} else {
 		uikit.Meta(c, locales.ContainerCaMounted())
 	}
-	if uikit.PrimaryButton(c, locales.InterceptContainer()).
+	if clientActionButton(c, locales.InterceptContainer(), running).
 		Disabled(!running || strings.TrimSpace(s.container) == "").Clicked() {
 		a.openInterceptContainer()
 	}
@@ -159,7 +185,7 @@ func (a *app) clientChromePanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy,
 	uikit.Hint(c, locales.OpensChromeWithATemporary())
 	ui.Text(c, "--user-data-dir=<temporary profile>\n--proxy-server=http://"+addr).
 		Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(2)
-	if uikit.PrimaryButton(c, locales.OpenChrome()).Disabled(!running).Clicked() {
+	if clientActionButton(c, locales.OpenChrome(), running).Disabled(!running).Clicked() {
 		a.openProxiedChrome()
 	}
 	switch runtime.GOOS {
@@ -175,7 +201,7 @@ func (a *app) clientFirefoxPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy
 	uikit.Hint(c, locales.OpensFirefoxWithATemporary())
 	ui.Text(c, "network.proxy.type=1 · HTTP/SSL "+addr+"\nsecurity.enterprise_roots.enabled=true").
 		Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(2)
-	if uikit.PrimaryButton(c, locales.OpenFirefox()).Disabled(!running).Clicked() {
+	if clientActionButton(c, locales.OpenFirefox(), running).Disabled(!running).Clicked() {
 		a.openProxiedFirefox()
 	}
 	if runtime.GOOS == "windows" {
@@ -210,7 +236,7 @@ func (a *app) clientAndroidPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy
 	}
 	_, applied := s.androidApplied[s.androidSerial]
 	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-		if uikit.PrimaryButton(c, locales.SetProxy()).Disabled(!running || s.androidSerial == "" || applied || s.androidPending).Clicked() {
+		if clientActionButton(c, locales.SetProxy(), running).Disabled(!running || s.androidSerial == "" || applied || s.androidPending).Clicked() {
 			a.applyAndroidProxy()
 		}
 		if uikit.SecondaryButton(c, locales.UndoProxy()).Disabled(s.androidSerial == "" || (!applied && p.Addr == "")).Clicked() {
@@ -253,7 +279,7 @@ func (a *app) clientIOSPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, ru
 	uikit.Hint(c, locales.AddsThePublicCaTo())
 	ui.Text(c, "xcrun simctl keychain booted add-root-cert "+cmp.Or(p.CAPath, "<CA>")).
 		Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(2)
-	if uikit.PrimaryButton(c, locales.InstallCaInBootedSimulator()).Disabled(!running).Clicked() {
+	if clientActionButton(c, locales.InstallCaInBootedSimulator(), running).Disabled(!running).Clicked() {
 		a.installSimulatorCA()
 	}
 }
@@ -292,22 +318,10 @@ func (a *app) clientJavaPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, r
 			c.Services().WriteClipboard(command)
 			a.done(locales.CopiedKeytoolCommands())
 		}
-		if uikit.PrimaryButton(c, locales.ImportText()).Disabled(!running).Clicked() {
+		if clientActionButton(c, locales.ImportText(), running).Disabled(!running).Clicked() {
 			s.javaConfirm = true
 		}
 	})
-	if s.javaConfirm {
-		uikit.Hint(c, locales.ReplaceOnlyThisAppS())
-		ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-			if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
-				s.javaConfirm = false
-			}
-			if uikit.PrimaryButton(c, locales.ImportCa()).Clicked() {
-				s.javaConfirm = false
-				a.importJavaCA()
-			}
-		})
-	}
 	uikit.Meta(c, locales.TheTruststoreStartsAsA())
 	args, err := clientsetup.JVMArgs(p, keystore)
 	if err == nil {
@@ -321,7 +335,7 @@ func (a *app) clientJavaPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, r
 
 func (a *app) clientElectronPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, running bool) {
 	s := &a.clientUI
-	ui.Field(c, locales.App(), func() {
+	uikit.FormRow(c, locales.App(), "", "", func() {
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			uikit.Input(c, &s.electronPath).Label(locales.ElectronApp()).Placeholder("/Applications/Slack.app or /usr/bin/app").Font(uikit.FontMono).Grow(1).MinWidth(160)
 			if uikit.SecondaryButton(c, locales.ChooseApp()).Clicked() && a.win != nil {
@@ -345,7 +359,7 @@ func (a *app) clientElectronPanel(c *ui.Context, t *ui.Theme, p clientsetup.Prox
 	})
 	addr := cmp.Or(p.Addr, "127.0.0.1:7890")
 	ui.Text(c, "--proxy-server=http://"+addr).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(1)
-	if uikit.PrimaryButton(c, locales.LaunchWithProxy()).Disabled(!running || strings.TrimSpace(s.electronPath) == "").Clicked() {
+	if clientActionButton(c, locales.LaunchWithProxy(), running).Disabled(!running || strings.TrimSpace(s.electronPath) == "").Clicked() {
 		a.launchElectronApp()
 	}
 	uikit.Meta(c, locales.NeverDisablesCertificateVerificationCertificate())
@@ -354,26 +368,33 @@ func (a *app) clientElectronPanel(c *ui.Context, t *ui.Theme, p clientsetup.Prox
 func (a *app) clientSetupExamples(c *ui.Context, t *ui.Theme) {
 	s := &a.clientUI
 	p := a.clientProxy()
-	_, height := c.Size()
-	scrollHeight := max(float32(120), min(float32(320), height-220))
-	ui.Form(c, func() {
-		ui.Field(c, locales.ClientRuntime(), func() {
-			uikit.Select(c, &s.runtime, []string{"cURL", "Node.js", "Python", "Go"}).Label(locales.ClientRuntime()).Width(150)
+	running := a.srv != nil && a.srv.Running()
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
+		uikit.SettingsCard(c, "", func() {
+			uikit.SettingsCardBlock(c, "", "", func() {
+				ui.Form(c, func() {
+					uikit.FormRow(c, locales.ClientRuntime(), "", "", func() {
+						uikit.Select(c, &s.runtime, []string{"cURL", "Node.js", "Python", "Go"}).Label(locales.ClientRuntime()).Width(160)
+					})
+					uikit.FormRow(c, locales.SetupHttpsUrl(), "", "", func() {
+						uikit.Input(c, &s.url).Label(locales.SetupHttpsUrl()).FillWidth()
+					})
+				})
+			})
 		})
-		ui.Field(c, locales.SetupHttpsUrl(), func() {
-			uikit.Input(c, &s.url).Label(locales.SetupHttpsUrl())
+		uikit.SettingsCard(c, "", func() {
+			uikit.SettingsCardBlock(c, "", "", func() {
+				addr := p.Addr
+				uikit.Body(c, locales.ProxyListener(cmp.Or(addr, locales.NotRunning())))
+				uikit.Meta(c, locales.TheExampleTrustsOnlyThe())
+				example := clientExample(s.runtime, addr, p.CAPath, s.url)
+				if clientActionButton(c, locales.CopyClientExample(), running).Disabled(addr == "" || p.CAPath == "").Clicked() {
+					c.Services().WriteClipboard(example)
+					a.done(locales.CopiedClientSetup(s.runtime))
+				}
+				ui.Text(c, example).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable()
+				uikit.Meta(c, locales.RunItThenUseDiagnose())
+			})
 		})
-	})
-	ui.Scroll(c).MaxHeight(scrollHeight).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(2), 0, 0).Children(func() {
-		addr := p.Addr
-		uikit.Body(c, locales.ProxyListener(cmp.Or(addr, locales.NotRunning())))
-		uikit.Meta(c, locales.TheExampleTrustsOnlyThe())
-		example := clientExample(s.runtime, addr, p.CAPath, s.url)
-		if uikit.SecondaryButton(c, locales.CopyClientExample()).Disabled(addr == "" || p.CAPath == "").Clicked() {
-			c.Services().WriteClipboard(example)
-			a.done(locales.CopiedClientSetup(s.runtime))
-		}
-		ui.Text(c, example).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable()
-		uikit.Meta(c, locales.RunItThenUseDiagnose())
 	})
 }

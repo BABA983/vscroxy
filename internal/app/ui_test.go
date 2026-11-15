@@ -1205,7 +1205,7 @@ func TestSettingsSwitchesApplyAtOnce(t *testing.T) {
 	if a.srv.NoCaching() {
 		t.Fatal("No Caching did not turn off")
 	}
-	click("Settings category: HTTPS")
+	click("Settings category: HTTPS decryption")
 	click("Decrypt every domain")
 	if !a.sslAll || !a.inspectionConfig().All {
 		t.Fatal("every domain was not enabled")
@@ -1500,7 +1500,7 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 		t.Fatalf("checking again must refresh trust without hiding an unresolved installation error: %q", tt.Texts())
 	}
 	click("Manage domains…")
-	if !tt.HasText("SSL proxying") {
+	if !tt.HasText("HTTPS decryption") {
 		t.Fatal("HTTPS settings did not open the domain editor")
 	}
 	click("Decryption domains")
@@ -1557,7 +1557,7 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	if !tt.HasText("Encrypted, not decrypted — not individual requests") {
 		t.Fatalf("enabling an app claimed this historical tunnel was decrypted: %q", tt.Texts())
 	}
-	click("Manage HTTPS rules")
+	click("Manage HTTPS decryption")
 	click("Decryption domains")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("edited.test")
@@ -1566,7 +1566,7 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	if !cfg.Decrypts("edited.test") || cfg.Decrypts("existing.test") || len(cfg.Apps) != 1 || cfg.Apps[0].Path != path {
 		t.Fatalf("editing domains lost the independent app rule: %+v", cfg)
 	}
-	click("Manage HTTPS rules")
+	click("Manage HTTPS decryption")
 	box, ok := tt.Find("Decryption domains")
 	if !ok {
 		t.Fatal("rule editor did not open")
@@ -1574,7 +1574,7 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	tt.Scroll(box.X+10, box.Y+10, 0, 1e6)
 	click("Remove HTTPS app: " + path)
 	click("Cancel")
-	click("Manage HTTPS rules")
+	click("Manage HTTPS decryption")
 	tt.Scroll(box.X+10, box.Y+10, 0, 1e6)
 	if !tt.HasText(path) || len(load().Apps) != 1 {
 		t.Fatal("cancelling a removal changed the enabled app rule")

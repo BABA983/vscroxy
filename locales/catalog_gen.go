@@ -3800,11 +3800,11 @@ func (msgs Messages) ConfigurationForNewConnectionsA() string {
 	return Catalog.Format(msgs.locale, "configurationForNewConnectionsA", nil)
 }
 
-// ConfigureHttpsInspection says "Configure HTTPS inspection…"
+// ConfigureHttpsInspection says "Configure HTTPS decryption…"
 // in the language the app shows.
 func ConfigureHttpsInspection() string { return In(i18n.Locale()).ConfigureHttpsInspection() }
 
-// ConfigureHttpsInspection says "Configure HTTPS inspection…"
+// ConfigureHttpsInspection says "Configure HTTPS decryption…"
 // in the language of msgs.
 func (msgs Messages) ConfigureHttpsInspection() string {
 	return Catalog.Format(msgs.locale, "configureHttpsInspection", nil)
@@ -8980,11 +8980,11 @@ func (msgs Messages) Headers() string {
 	return Catalog.Format(msgs.locale, "headers", nil)
 }
 
-// HeadersCookiesAndBodiesOf says "Headers, cookies and bodies of these become readable. More rules in HTTPS rules."
+// HeadersCookiesAndBodiesOf says "Headers, cookies and bodies of these become readable. More rules in HTTPS decryption."
 // in the language the app shows.
 func HeadersCookiesAndBodiesOf() string { return In(i18n.Locale()).HeadersCookiesAndBodiesOf() }
 
-// HeadersCookiesAndBodiesOf says "Headers, cookies and bodies of these become readable. More rules in HTTPS rules."
+// HeadersCookiesAndBodiesOf says "Headers, cookies and bodies of these become readable. More rules in HTTPS decryption."
 // in the language of msgs.
 func (msgs Messages) HeadersCookiesAndBodiesOf() string {
 	return Catalog.Format(msgs.locale, "headersCookiesAndBodiesOf", nil)
@@ -9494,23 +9494,33 @@ func (msgs Messages) Https() string {
 	return Catalog.Format(msgs.locale, "https", nil)
 }
 
-// HttpsAppRuleUnavailableA says "HTTPS app rule unavailable: a local executable path is required"
+// HttpsDecryption says "HTTPS decryption"
+// in the language the app shows.
+func HttpsDecryption() string { return In(i18n.Locale()).HttpsDecryption() }
+
+// HttpsDecryption says "HTTPS decryption"
+// in the language of msgs.
+func (msgs Messages) HttpsDecryption() string {
+	return Catalog.Format(msgs.locale, "httpsDecryption", nil)
+}
+
+// HttpsAppRuleUnavailableA says "HTTPS decryption app rule unavailable: a local executable path is required"
 // in the language the app shows.
 func HttpsAppRuleUnavailableA() string { return In(i18n.Locale()).HttpsAppRuleUnavailableA() }
 
-// HttpsAppRuleUnavailableA says "HTTPS app rule unavailable: a local executable path is required"
+// HttpsAppRuleUnavailableA says "HTTPS decryption app rule unavailable: a local executable path is required"
 // in the language of msgs.
 func (msgs Messages) HttpsAppRuleUnavailableA() string {
 	return Catalog.Format(msgs.locale, "httpsAppRuleUnavailableA", nil)
 }
 
-// HttpsCertificateDecryptionSetup says "HTTPS certificate & decryption setup…"
+// HttpsCertificateDecryptionSetup says "HTTPS decryption settings…"
 // in the language the app shows.
 func HttpsCertificateDecryptionSetup() string {
 	return In(i18n.Locale()).HttpsCertificateDecryptionSetup()
 }
 
-// HttpsCertificateDecryptionSetup says "HTTPS certificate & decryption setup…"
+// HttpsCertificateDecryptionSetup says "HTTPS decryption settings…"
 // in the language of msgs.
 func (msgs Messages) HttpsCertificateDecryptionSetup() string {
 	return Catalog.Format(msgs.locale, "httpsCertificateDecryptionSetup", nil)
@@ -9526,41 +9536,41 @@ func (msgs Messages) HttpsContentIsNotDecrypted() string {
 	return Catalog.Format(msgs.locale, "httpsContentIsNotDecrypted", nil)
 }
 
-// HttpsInspection says "HTTPS inspection"
+// HttpsInspection says "HTTPS decryption"
 // in the language the app shows.
 func HttpsInspection() string { return In(i18n.Locale()).HttpsInspection() }
 
-// HttpsInspection says "HTTPS inspection"
+// HttpsInspection says "HTTPS decryption"
 // in the language of msgs.
 func (msgs Messages) HttpsInspection() string {
 	return Catalog.Format(msgs.locale, "httpsInspection", nil)
 }
 
-// HttpsInspectionByExecutable says "HTTPS inspection by executable"
+// HttpsInspectionByExecutable says "HTTPS decryption by executable"
 // in the language the app shows.
 func HttpsInspectionByExecutable() string { return In(i18n.Locale()).HttpsInspectionByExecutable() }
 
-// HttpsInspectionByExecutable says "HTTPS inspection by executable"
+// HttpsInspectionByExecutable says "HTTPS decryption by executable"
 // in the language of msgs.
 func (msgs Messages) HttpsInspectionByExecutable() string {
 	return Catalog.Format(msgs.locale, "httpsInspectionByExecutable", nil)
 }
 
-// HttpsInspectionRules says "HTTPS inspection rules"
+// HttpsInspectionRules says "HTTPS decryption rules"
 // in the language the app shows.
 func HttpsInspectionRules() string { return In(i18n.Locale()).HttpsInspectionRules() }
 
-// HttpsInspectionRules says "HTTPS inspection rules"
+// HttpsInspectionRules says "HTTPS decryption rules"
 // in the language of msgs.
 func (msgs Messages) HttpsInspectionRules() string {
 	return Catalog.Format(msgs.locale, "httpsInspectionRules", nil)
 }
 
-// HttpsRules says "HTTPS rules"
+// HttpsRules says "HTTPS decryption"
 // in the language the app shows.
 func HttpsRules() string { return In(i18n.Locale()).HttpsRules() }
 
-// HttpsRules says "HTTPS rules"
+// HttpsRules says "HTTPS decryption"
 // in the language of msgs.
 func (msgs Messages) HttpsRules() string {
 	return Catalog.Format(msgs.locale, "httpsRules", nil)
@@ -11430,11 +11440,11 @@ func (msgs Messages) ManageHostProfiles() string {
 	return Catalog.Format(msgs.locale, "manageHostProfiles", nil)
 }
 
-// ManageHttpsRules says "Manage HTTPS rules"
+// ManageHttpsRules says "Manage HTTPS decryption"
 // in the language the app shows.
 func ManageHttpsRules() string { return In(i18n.Locale()).ManageHttpsRules() }
 
-// ManageHttpsRules says "Manage HTTPS rules"
+// ManageHttpsRules says "Manage HTTPS decryption"
 // in the language of msgs.
 func (msgs Messages) ManageHttpsRules() string {
 	return Catalog.Format(msgs.locale, "manageHttpsRules", nil)
@@ -12476,11 +12486,11 @@ func (msgs Messages) N2OpenTheCertificateUrl() string {
 	return Catalog.Format(msgs.locale, "n2OpenTheCertificateUrl", nil)
 }
 
-// N3EnableSslProxyingFor says "3. Enable SSL proxying for your hosts and open an HTTPS page. For your own debug app, opt in to user CAs with Network…"
+// N3EnableSslProxyingFor says "3. Enable HTTPS decryption for your hosts and open an HTTPS page. For your own debug app, opt in to user CAs with Net…"
 // in the language the app shows.
 func N3EnableSslProxyingFor() string { return In(i18n.Locale()).N3EnableSslProxyingFor() }
 
-// N3EnableSslProxyingFor says "3. Enable SSL proxying for your hosts and open an HTTPS page. For your own debug app, opt in to user CAs with Network…"
+// N3EnableSslProxyingFor says "3. Enable HTTPS decryption for your hosts and open an HTTPS page. For your own debug app, opt in to user CAs with Net…"
 // in the language of msgs.
 func (msgs Messages) N3EnableSslProxyingFor() string {
 	return Catalog.Format(msgs.locale, "n3EnableSslProxyingFor", nil)
@@ -12510,11 +12520,11 @@ func (msgs Messages) N3xxResponsesAreFollowedUnless() string {
 	return Catalog.Format(msgs.locale, "n3xxResponsesAreFollowedUnless", nil)
 }
 
-// N4EnableSslProxyingFor says "4. Enable SSL proxying for the hosts you inspect, then open an HTTPS page and check Capture."
+// N4EnableSslProxyingFor says "4. Enable HTTPS decryption for the hosts you inspect, then open an HTTPS page and check Capture."
 // in the language the app shows.
 func N4EnableSslProxyingFor() string { return In(i18n.Locale()).N4EnableSslProxyingFor() }
 
-// N4EnableSslProxyingFor says "4. Enable SSL proxying for the hosts you inspect, then open an HTTPS page and check Capture."
+// N4EnableSslProxyingFor says "4. Enable HTTPS decryption for the hosts you inspect, then open an HTTPS page and check Capture."
 // in the language of msgs.
 func (msgs Messages) N4EnableSslProxyingFor() string {
 	return Catalog.Format(msgs.locale, "n4EnableSslProxyingFor", nil)
@@ -21728,41 +21738,41 @@ func (msgs Messages) Ssl() string {
 	return Catalog.Format(msgs.locale, "ssl", nil)
 }
 
-// SslProxying says "SSL proxying"
+// SslProxying says "HTTPS decryption"
 // in the language the app shows.
 func SslProxying() string { return In(i18n.Locale()).SslProxying() }
 
-// SslProxying says "SSL proxying"
+// SslProxying says "HTTPS decryption"
 // in the language of msgs.
 func (msgs Messages) SslProxying() string {
 	return Catalog.Format(msgs.locale, "sslProxying", nil)
 }
 
-// SslProxying2 says "SSL proxying…"
+// SslProxying2 says "HTTPS decryption…"
 // in the language the app shows.
 func SslProxying2() string { return In(i18n.Locale()).SslProxying2() }
 
-// SslProxying2 says "SSL proxying…"
+// SslProxying2 says "HTTPS decryption…"
 // in the language of msgs.
 func (msgs Messages) SslProxying2() string {
 	return Catalog.Format(msgs.locale, "sslProxying2", nil)
 }
 
-// SslProxyingEveryDomain says "SSL proxying: every domain"
+// SslProxyingEveryDomain says "HTTPS decryption: every domain"
 // in the language the app shows.
 func SslProxyingEveryDomain() string { return In(i18n.Locale()).SslProxyingEveryDomain() }
 
-// SslProxyingEveryDomain says "SSL proxying: every domain"
+// SslProxyingEveryDomain says "HTTPS decryption: every domain"
 // in the language of msgs.
 func (msgs Messages) SslProxyingEveryDomain() string {
 	return Catalog.Format(msgs.locale, "sslProxyingEveryDomain", nil)
 }
 
-// SslSummary says "SSL proxying: {domains} domains, {apps} local apps · new connections only"
+// SslSummary says "HTTPS decryption: {domains} domains, {apps} local apps · new connections only"
 // in the language the app shows.
 func SslSummary(domains int, apps int) string { return In(i18n.Locale()).SslSummary(domains, apps) }
 
-// SslSummary says "SSL proxying: {domains} domains, {apps} local apps · new connections only"
+// SslSummary says "HTTPS decryption: {domains} domains, {apps} local apps · new connections only"
 // in the language of msgs.
 func (msgs Messages) SslSummary(domains int, apps int) string {
 	return Catalog.Format(msgs.locale, "sslSummary", map[string]any{"domains": domains, "apps": apps})
@@ -24228,11 +24238,11 @@ func (msgs Messages) ViewDocumentation() string {
 	return Catalog.Format(msgs.locale, "viewDocumentation", nil)
 }
 
-// ViewHttpsRules says "View HTTPS rules…"
+// ViewHttpsRules says "Open HTTPS decryption…"
 // in the language the app shows.
 func ViewHttpsRules() string { return In(i18n.Locale()).ViewHttpsRules() }
 
-// ViewHttpsRules says "View HTTPS rules…"
+// ViewHttpsRules says "Open HTTPS decryption…"
 // in the language of msgs.
 func (msgs Messages) ViewHttpsRules() string {
 	return Catalog.Format(msgs.locale, "viewHttpsRules", nil)

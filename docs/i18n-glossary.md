@@ -43,8 +43,7 @@ GraphQL, OpenAPI, Protobuf, JSON, HAR, cURL, App) keep their spelling.
 | Bypass | 绕过 | |
 | Allow list | 允许列表 | |
 | Ignore list | 忽略列表 | |
-| SSL proxying | SSL 代理 | |
-| HTTPS inspection | HTTPS 检查 | |
+| HTTPS decryption | HTTPS 解密 | 旧名 SSL proxying / HTTPS inspection 不再用 |
 | Certificate | 证书 | |
 | CA certificate | CA 证书 | |
 | Client certificate | 客户端证书 | |

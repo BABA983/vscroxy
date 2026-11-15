@@ -45,7 +45,7 @@ done
 
 画廊不启动抓包服务器，所以抓包页标题栏的 pill 读作 Proxy stopped，表格里是假数据。屏幕条目在画廊里占满整个窗口（目录收进左上角的 Catalog 抽屉），因为 `internal/app` 的视图按窗口尺寸排版，不能放进比窗口窄的一栏。
 
-Screens 组现在覆盖：抓包（空、流量、错误、隧道、刷选）、请求编辑器（HTTP、MQTT、gRPC、WebSocket、Socket.IO）、Settings 的七个分类和证书编辑状态、命令面板、收起侧栏、Tools 的五个分类（规则、场景、脚本、Host 方案、Mock）、Client setup、Diagnostics（Listener 失败和全部通过）、HTTPS rules、API 的端点页、Runs（记录、运行中、结果）、Sessions、集合向导、Postman 导入报告、环境变量、Protobuf 检查器、SSE 会话、调查板、首次启动引导和 MCP 目录。画廊里的入口都构造自假数据，不启动代理、不读写设置、不发请求；需要文件的检查器（Protobuf schema）写进临时目录，关闭时删除。
+Screens 组现在覆盖：抓包（空、流量、错误、隧道、刷选）、请求编辑器（HTTP、MQTT、gRPC、WebSocket、Socket.IO）、Settings 的七个分类和证书编辑状态、命令面板、收起侧栏、Tools 的五个分类（规则、场景、脚本、Host 方案、Mock）、Client setup、Diagnostics（Listener 失败和全部通过）、HTTPS decryption、API 的端点页、Runs（记录、运行中、结果）、Sessions、集合向导、Postman 导入报告、环境变量、Protobuf 检查器、SSE 会话、调查板、首次启动引导和 MCP 目录。画廊里的入口都构造自假数据，不启动代理、不读写设置、不发请求；需要文件的检查器（Protobuf schema）写进临时目录，关闭时删除。
 
 v3 的设计稿是一份可切换的 artifact，含 Capture／Request editor／System 三屏和 Light／Dark 两套：<https://ampcode.com/artifacts/visuals/vscroxy-design-system-v3-302b0099-8f58-4b2f-abe7-53ca7710b330>。**颜色、表面、尺寸和组件以它为准**，本文第 5、6 节是它的落地记录；屏幕的布局和结构仍按第 3 节。
 
@@ -94,7 +94,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 ## 3. 信息架构：一个工作区
 
 - **去掉 Capture／Requests 切换。** 抓到的请求就是"还没保存的请求"：点开是可编辑的文档，顶部有来源标记（`Captured · 12:03:42 · Safari`），可以直接 Send，或者 Save to collection。Edit & replay、Save as request 这类搬运动作并入这个文档，不再是跨工作区的跳转。
-- **侧栏两个固定区域，各自滚动，中间一条细线：** 上区是流量——Traffic（All requests、Errors、Slow、Pinned，各带计数，0 不显示）、保存的视图和快速筛选、Sources（标题右侧 Apps｜Domains 开关，只列前五项，超过时末尾一行 Show all）；下区是 Collections——标题行右端是 `⋯` 和加号，下面是无边框的搜索框（`ChromeFieldFace`）、集合树（请求行带 method 标签）和树末尾可折叠的 Sessions。三个分区标题都可以点击折叠，悬停时显示箭头，状态记在 settings 里。流量再多也不会把集合推出屏幕。侧栏本身可以隐藏（标题栏的按钮、`⌘B`、命令面板），窗口窄于 860 时自动让开、变宽后回到原来的选择。环境、APIs、Runner 从集合的 `⋯` 菜单和命令面板进入，不再占一条资源栏；Diagnostics 在页脚（Client setup、HTTPS rules 旁边）。
+- **侧栏两个固定区域，各自滚动，中间一条细线：** 上区是流量——Traffic（All requests、Errors、Slow、Pinned，各带计数，0 不显示）、保存的视图和快速筛选、Sources（标题右侧 Apps｜Domains 开关，只列前五项，超过时末尾一行 Show all）；下区是 Collections——标题行右端是 `⋯` 和加号，下面是无边框的搜索框（`ChromeFieldFace`）、集合树（请求行带 method 标签）和树末尾可折叠的 Sessions。三个分区标题都可以点击折叠，悬停时显示箭头，状态记在 settings 里。流量再多也不会把集合推出屏幕。侧栏本身可以隐藏（标题栏的按钮、`⌘B`、命令面板），窗口窄于 860 时自动让开、变宽后回到原来的选择。环境、APIs、Runner 从集合的 `⋯` 菜单和命令面板进入，不再占一条资源栏；Diagnostics 在页脚（Client setup、HTTPS decryption 旁边）。
 - **侧栏只有一个选中项，** 表示"现在看的是什么"。视图、快速筛选这类开关不是第二个选中项：开着时图标用强调色、文字用正文色，不画选中底和标记线。
 - **中间栏随侧栏选择变化：** 选 LIVE 或 SESSIONS 时是流量表格；选一个已保存的请求时，是这个请求的发送历史（History／Examples 切换），可以标基线、对比。
 - **两种布局，** 用标题栏右侧的两个图标切换，各自记住分隔线比例，双击分隔线恢复默认：
@@ -385,7 +385,7 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
      - 请求头的右键筛选菜单从读取器搬到了编辑器表格的 Key 单元格，功能不变。
      - 请求侧的读取器（结构化／Protobuf／表单视图、每侧独立的 body 格式、响应头的右键菜单）只在只读抓包（流、隧道、带 trailer、落盘 body）和响应侧可用：编辑器把请求体当字节编辑。这是这一步已知的功能缺口，见 7.3。
    - 7.3 侧栏（完成，2026-11-11）：
-     - 侧栏在 chrome 面上分成两个固定区域，中间一条细线，各自滚动：上区 Traffic＋Sources，下区 Collections（搜索框、集合树、树末尾的 Sessions）；页脚是 Client setup、HTTPS rules、Diagnostics。上区最高占侧栏的 55%，下区吃掉剩下的高度，所以 20 个域名加一棵长树时两边都还在屏幕上、各自滚动。
+     - 侧栏在 chrome 面上分成两个固定区域，中间一条细线，各自滚动：上区 Traffic＋Sources，下区 Collections（搜索框、集合树、树末尾的 Sessions）；页脚是 Client setup、HTTPS decryption、Diagnostics。上区最高占侧栏的 55%，下区吃掉剩下的高度，所以 20 个域名加一棵长树时两边都还在屏幕上、各自滚动。
      - 行：24 高，左右内缩 6，圆角 6，左边一个固定宽度的图标槽（16，MyGo 的 source list 条目按字号画图标），所以带图标、带圆点、带箭头的行文字都对齐在同一条线上；树在图标槽之前按层级缩进 12。分区标题 11 号、次要色、500，右端可以放开关或加号。
      - Sources：Apps｜Domains 是一个小号 `Segmented`（20 高，字 11），默认 Domains；只列前五项（按请求数），超过时末尾一行 Show all／Show fewer。主机名、App 名和所有标签用界面字体，方法标签仍是等宽（`MethodLabel`）。
      - 选中仍是强调浅底，窗口在后台时换成中性 `Fill`，形状不变。
@@ -435,7 +435,7 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
 | --- | --- | --- |
 | 首次启动引导 | 嵌在流量列表空状态里的 4 步引导（UX 规范第 9 节）；每步一个主按钮，完成的步骤打勾，可跳过 | M1 |
 | 录制 pill 和暂停 | 三种状态（录制中、已暂停、代理停止），暂停按钮在 pill 内 | M1 |
-| Settings 窗口 | 独立窗口，左侧分类（通用、外观、代理、HTTPS、抓包、设备），右侧 FormRow；改动立即生效，需要重启的项目标明 | M1 |
+| Settings 窗口 | 独立窗口，左侧分类（通用、外观、代理、HTTPS decryption、抓包、设备），右侧 FormRow；改动立即生效，需要重启的项目标明 | M1 |
 | Sessions（已完成） | 侧栏集合树末尾可折叠的 Sessions 行和多会话 tab；payload 只读并标记历史，Pin／颜色／备注可保存，跨会话 Diff；启动只读标题，打开时才加载，可删除 | M1 |
 | History（已完成） | 请求的 History／Examples 中间栏；状态／来源筛选，Run details… 进入基线、备注和 Diff；各入口共用 experiments.json | M1 |
 | 连接诊断（已完成） | 一个页面：上方输入目标 URL，下方按"监听 → 系统代理 → 证书 → 解密规则 → 实际流量"逐项打勾或打叉，每项一个修复按钮 | M1 |
