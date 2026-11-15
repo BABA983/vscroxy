@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"runtime"
 
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
@@ -51,7 +52,7 @@ type components struct {
 	invalid                           string
 	bypass                            string
 	format, pick, labels              string
-	query                             string
+	query, flow                       string
 	tab, counted, sub, segment        int
 	sidebar                           string
 	range_                            uikit.ActivityRange
@@ -65,7 +66,7 @@ type components struct {
 // window shows them as the pointer crosses them, and the export puts the
 // tester's pointer on the named sample.
 func (g *Gallery) components() *Group {
-	k := &components{host: "api.example.com", bypass: "localhost\n*.internal.test\n10.0.0.0/8", format: "Pretty", pick: "all", labels: "Pretty", sidebar: "projects", range_: uikit.ActivityRange{From: 22, To: 34}}
+	k := &components{host: "api.example.com", bypass: "localhost\n*.internal.test\n10.0.0.0/8", format: "Pretty", pick: "all", labels: "Pretty", query: "", flow: "20000", sidebar: "projects", range_: uikit.ActivityRange{From: 22, To: 34}}
 	k.icon = iconBitmap()
 	return &Group{ID: "components", Title: "Components", Entries: []*Entry{
 		{ID: "text", Title: "Text", Note: "Seven roles; a text has no states", Height: 420, build: k.textPlate},
@@ -618,6 +619,16 @@ func (k *components) dialogPlate(c *ui.Context) {
 
 func (k *components) commandPalettePlate(c *ui.Context) {
 	t, p := c.Theme(), uikit.Colors(c.Theme())
+	key := func(key string) string {
+		if runtime.GOOS == "darwin" {
+			return "⌘" + key
+		}
+		return "Ctrl+" + key
+	}
+	enter, open := "Ctrl+Enter", "Enter"
+	if runtime.GOOS == "darwin" {
+		enter, open = "⌘↩", "↩"
+	}
 	ui.Row(c).Children(func() {
 		uikit.PopoverPanel(c, ui.Column(c)).Width(uikit.CommandPaletteWidth).Padding(0).Gap(0).Children(func() {
 			ui.Row(c).Height(uikit.CommandPaletteInputRow).Padding(0, t.Space(4)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
@@ -632,10 +643,10 @@ func (k *components) commandPalettePlate(c *ui.Context) {
 				for i, item := range []struct {
 					label, detail, key string
 				}{
-					{"Send the draft", "Request editor · ⌘↩", "⌘↩"},
-					{"Open Settings", "Appearance, proxy, certificates", "⌘,"},
-					{"Copy as cURL", "The chosen capture, with its headers", "⌘C"},
-					{"Replay 3 requests", "The selection in the capture table", "⌘R"},
+					{"Send the draft", "Request editor", enter},
+					{"Open Settings", "Appearance, proxy, certificates", key(",")},
+					{"Copy as cURL", "The chosen capture, with its headers", key("C")},
+					{"Replay 3 requests", "The selection in the capture table", key("R")},
 				} {
 					row := ui.Row(c).Height(uikit.CommandPaletteRow).FillWidth().Padding(0, t.Space(3)).Gap(t.Space(2)).
 						Radius(uikit.RadiusControl).AlignItems(ui.Center)
@@ -653,10 +664,14 @@ func (k *components) commandPalettePlate(c *ui.Context) {
 				}
 			})
 			ui.Divider(c)
-			ui.Row(c).Padding(t.Space(2), t.Space(4)).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-				uikit.Meta(c, "↑↓ Choose")
-				uikit.Meta(c, "↩ Run")
-				uikit.Meta(c, "esc Close")
+			ui.Row(c).Height(40).Padding(0, t.Space(4)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				uikit.Kbd(c, "↑")
+				uikit.Kbd(c, "↓")
+				uikit.Small(c, "Choose")
+				uikit.Kbd(c, open)
+				uikit.Small(c, "Open")
+				uikit.Kbd(c, "esc")
+				uikit.Small(c, "Close")
 			})
 		})
 	})
@@ -667,7 +682,7 @@ func (k *components) settingsCardPlate(c *ui.Context) {
 	uikit.SettingsCardPage(c, "Capture", "What the proxy keeps and what it drops.", func() {
 		uikit.SettingsCard(c, "Storage", func() {
 			uikit.SettingsCardRow(c, "Flow limit", "Rows kept before the oldest spill to disk.", func() {
-				uikit.Input(c, &k.host).Placeholder("20000").Width(160)
+				uikit.Input(c, &k.flow).Placeholder("20000").Width(160)
 			})
 			uikit.SettingsCardRow(c, "Memory limit", "Bodies above this are read from disk.", func() {
 				uikit.Input(c, &k.empty).Placeholder("512 MB").Width(160)
@@ -689,7 +704,7 @@ func (k *components) settingsPlate(c *ui.Context) {
 	uikit.SettingsPage(c, "Capture", "What the proxy keeps and what it drops.", func() {
 		uikit.SettingsGroup(c, "Storage", func() {
 			uikit.SettingsRow(c, "Flow limit", func() ui.Element {
-				return labelled(uikit.Input(c, &k.host).Placeholder("20000").Width(160), hoverSettings)
+				return labelled(uikit.Input(c, &k.flow).Placeholder("20000").Width(160), hoverSettings)
 			}, "Rows kept before the oldest spill to disk.")
 			uikit.SettingsRow(c, "Memory limit", func() ui.Element {
 				return uikit.Input(c, &k.empty).Placeholder("512 MB").Width(160)

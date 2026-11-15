@@ -612,6 +612,13 @@ func MenuPanel(c *ui.Context, panel ui.Element) ui.Element {
 		InsetShadow(0, 0, 0, 1, p.Hairline), c.Theme().Dark)
 }
 
+// MenuButtonOptions gives a PopoverMenuButton the kit's menu face. Use it
+// for a menu the app opens from its own button; MyGo's ContextMenu and
+// PopoverMenu have no panel option of their own.
+func MenuButtonOptions(c *ui.Context) ui.PopoverMenuButtonOptions {
+	return ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { MenuPanel(c, panel) }}
+}
+
 // StatusPill prints a status in its signal color. Status and method colors
 // never fill a background: only the slow-duration pill is tinted.
 func StatusPill(c *ui.Context, label string, foreground ui.Color) ui.Element {
@@ -797,6 +804,32 @@ func Toasts(c *ui.Context) {
 	})
 }
 
+// ModalFlush is a modal with no inset: its content owns the whole panel.
+// It is for a command palette, whose input and rows run to the panel's edge;
+// the title still names the dialog for assistive technology.
+func ModalFlush(c *ui.Context, open *bool, title string, content func()) ui.Element {
+	t, p := c.Theme(), Colors(c.Theme())
+	width, height := c.Size()
+	dialog := ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
+		backdrop.Background(p.Scrim)
+		panel.Label(title).Padding(0).Radius(RadiusCard).Background(p.Canvas).Clip().
+			InsetShadow(0, 0, 0, 1, p.Hairline).
+			MaxWidth(max(0, width-32)).MaxHeight(max(0, height-32))
+		ShadowPopover.Apply(panel, t.Dark)
+		seen := ui.Local(panel, "modal-in", func() bool { return false })
+		if !*seen {
+			panel.Jump("modal-in", 0)
+			*seen = true
+		}
+		panel.Opacity(panel.AnimateTo("modal-in", 1, ui.Animation{Duration: MotionBase, Ease: MotionEase, NonMotion: true}))
+		content()
+	})
+	if dialog.Dismissed() {
+		c.Invalidate()
+	}
+	return dialog
+}
+
 // DialogBase retains the library's modal focus and dismissal rules; only
 // the shared desktop chrome is ours.
 func Modal(c *ui.Context, open *bool, title string, content func()) ui.Element {
@@ -926,7 +959,7 @@ func EdgeFade(c *ui.Context, from bool, fill ui.Color) ui.Element {
 // MoreButton is the "⋯" that opens a menu: an icon button with the menu on it
 // and no chevron, since the three dots already say one opens.
 func MoreButton(c *ui.Context, label, tip string, menu func(*ui.Menu)) ui.Element {
-	b := IconButton(c, label, tip, lucide.Ellipsis()).PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { popoverFace(c, panel) }})
+	b := IconButton(c, label, tip, lucide.Ellipsis()).PopoverMenuButton(menu, MenuButtonOptions(c))
 	return b
 }
 
@@ -942,7 +975,7 @@ func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
 	// A button of our own with a menu on it, not the library's menu button:
 	// that one draws a chevron after its label, and a ⋯ already says a menu
 	// opens. The menu itself is the library's, panel and motion included.
-	b := ui.ButtonBase(c).Label("⋯").PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { popoverFace(c, panel) }})
+	b := ui.ButtonBase(c).Label("⋯").PopoverMenuButton(menu, MenuButtonOptions(c))
 	// ButtonBase is a row with no look: the glyph has to be a child, or the
 	// pane's menu is an empty strip with nothing to click.
 	b.Children(func() { ui.Text(c, "⋯").FontSize(Scaled(TextBody)).SingleLine() })
@@ -963,7 +996,7 @@ func TabMenu(c *ui.Context, label, name string, menu func(*ui.Menu)) ui.Element 
 	ghost.Surface, ghost.SurfaceHover, ghost.SurfacePressed = ui.Color{}, p.FillHover, p.FillPressed
 	ghost.Border = ui.Color{}
 	c.SetTheme(&ghost)
-	b := ui.ButtonBase(c).Label(label).PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { popoverFace(c, panel) }})
+	b := ui.ButtonBase(c).Label(label).PopoverMenuButton(menu, MenuButtonOptions(c))
 	// ButtonBase paints nothing of its own: the tab's words are its child.
 	b.Children(func() { ui.Text(c, label).FontSize(Scaled(TextBody)).SingleLine() })
 	c.SetTheme(t)
@@ -1228,23 +1261,57 @@ func SettingsSwitch(c *ui.Context, on *bool, label string) ui.Element {
 
 // SettingsCardRow is one row of a SettingsCard. The title is body text, the
 // description one small muted line, and the control stays at the trailing
-// edge, vertically centered.
-func SettingsCardRow(c *ui.Context, title, description string, control func()) ui.Element {
+// edge, vertically centered. A longer tip can explain the description.
+func SettingsCardRow(c *ui.Context, title, description string, control func(), tip ...string) ui.Element {
 	t := c.Theme()
-	row := ui.Row(c).FillWidth().MinHeight(SettingsRowHeight).Padding(t.Space(2), t.Space(4)).
+	row := ui.Row(c).FillWidth().MinHeight(SettingsRowHeight).Padding(t.Space(1), t.Space(4)).
 		Gap(t.Space(4)).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
 	row.Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
+		head := ui.Column(c).Grow(1).MinWidth(0).Gap(0)
+		head.Children(func() {
 			Body(c, title)
 			if description != "" {
 				Small(c, description).TextColor(t.TextMuted)
 			}
 		})
+		if len(tip) > 0 && tip[0] != "" {
+			Tip(c, head, tip[0])
+		}
 		if control != nil {
 			control()
 		}
 	})
 	return row
+}
+
+// SettingsCardBlock is a row of a SettingsCard for content that does not fit
+// beside its title: a multiline field, a list of editors or certificate
+// details. The title and one description line sit above the content, and the
+// block keeps the card's full width.
+func SettingsCardBlock(c *ui.Context, title, description string, content func(), tip ...string) ui.Element {
+	t := c.Theme()
+	block := ui.Column(c).FillWidth().Padding(t.Space(3), t.Space(4)).Gap(t.Space(2)).
+		BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+	block.Children(func() {
+		if title != "" || description != "" {
+			head := ui.Column(c).Gap(0)
+			head.Children(func() {
+				if title != "" {
+					Body(c, title)
+				}
+				if description != "" {
+					Small(c, description).TextColor(t.TextMuted)
+				}
+			})
+			if len(tip) > 0 && tip[0] != "" {
+				Tip(c, head, tip[0])
+			}
+		}
+		if content != nil {
+			content()
+		}
+	})
+	return block
 }
 
 // settingsGroups and settingsWidths remember the current group and the widest
