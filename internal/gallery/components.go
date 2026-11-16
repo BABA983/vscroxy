@@ -424,6 +424,8 @@ func (k *components) hoverCardPlate(c *ui.Context) {
 			},
 		}), hoverCard)
 	})
+	// The card hangs below the row; leave it room so the caption stays clear.
+	ui.Box(c).Height(c.Theme().Space(40)).Shrink(0)
 	caption(c, "A rich card adds a title, one meta line and key/value rows to the same surface. It is for what a row's width cannot show: the full URL, method, status and client of a captured request, or a saved request's address.")
 }
 
