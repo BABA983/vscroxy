@@ -46,35 +46,61 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 	}
 	state, finished, events, evicted := s.session.snapshot()
 	_, h := c.Size()
-	if uikit.Modal(c, &s.open, locales.SseSessionState(stateLabel(state)), func() {
+	start := func(reconnect bool) {
+		u, err := url.Parse(s.url)
+		if err != nil || u.Hostname() == "" || u.Scheme != "http" && u.Scheme != "https" || u.User != nil {
+			s.problem = "Enter an absolute HTTP(S) URL without embedded credentials"
+			return
+		}
+		s.session = openSSESession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.certificates, a.requestCookies(), reconnect || s.reconnect, a.invalidate)
+		s.problem, s.query, s.picked, s.reader = "", "", 0, nil
+		s.scroll = ui.ScrollState{}
+	}
+	stateColor := t.TextMuted
+	switch state {
+	case "Connected":
+		stateColor = t.Success
+	case "Connecting", "Reconnecting":
+		stateColor = t.Warning
+	case "Failed":
+		stateColor = t.Danger
+	}
+	connected := !finished
+	if uikit.Modal(c, &s.open, locales.SseSessionTitle(), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(h - 100).Children(func() {
-			uikit.DialogTitle(c, locales.SseSessionState(stateLabel(state)))
-			ui.Scroll(c).MaxHeight(240).MinHeight(0).Shrink(1).Gap(t.Space(2)).Padding(0, t.Space(1)).Children(func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+				uikit.DialogTitle(c, locales.SseSessionTitle())
+				uikit.StatusPill(c, stateLabel(state), stateColor)
+			})
+			// The connection form is fixed above the stream: its URL, headers
+			// and search stay in reach while the event list and payload take
+			// the room the window has.
+			ui.Column(c).Shrink(0).Gap(t.Space(2)).Children(func() {
 				uikit.Hint(c, locales.GetEventStreamsThroughThe())
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					uikit.Input(c, &s.url).Label(locales.SseUrl()).Placeholder("https://api.example.com/events").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(!finished)
-					if uikit.PrimaryButton(c, locales.ConnectSse()).Disabled(!finished || a.srv == nil || !a.srv.Running() || strings.TrimSpace(s.url) == "").Clicked() {
-						u, err := url.Parse(s.url)
-						if err != nil || u.Hostname() == "" || u.Scheme != "http" && u.Scheme != "https" || u.User != nil {
-							s.problem = "Enter an absolute HTTP(S) URL without embedded credentials"
-						} else {
-							s.session = openSSESession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.certificates, a.requestCookies(), s.reconnect, a.invalidate)
-							s.problem, s.query, s.picked, s.reader = "", "", 0, nil
-							s.scroll = ui.ScrollState{}
+					uikit.Input(c, &s.url).Label(locales.SseUrl()).Placeholder("https://api.example.com/events").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(connected)
+					if finished {
+						if uikit.PrimaryButton(c, locales.ConnectSse()).Disabled(a.srv == nil || !a.srv.Running() || strings.TrimSpace(s.url) == "").Clicked() {
+							start(false)
+						}
+					} else {
+						if uikit.PrimaryButton(c, locales.Reconnect()).Clicked() {
+							s.session.stop()
+							start(true)
+						}
+						if uikit.SecondaryButton(c, locales.StopSse()).Clicked() {
+							s.session.stop()
 						}
 					}
-					if uikit.SecondaryButton(c, locales.StopSse()).Disabled(finished).Clicked() {
-						s.session.stop()
-					}
 				})
-				uikit.TextArea(c, &s.headers).Label(locales.SseRequestHeaders()).Placeholder("Authorization: Bearer …\nLast-Event-ID: …").Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(!finished)
-				ui.Checkbox(c, &s.reconnect, "Reconnect on EOF / network failure").Disabled(!finished)
+				uikit.TextArea(c, &s.headers).Label(locales.SseRequestHeaders()).Placeholder("Authorization: Bearer …\nLast-Event-ID: …").Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(connected)
+				ui.Checkbox(c, &s.reconnect, "Reconnect on EOF / network failure").Disabled(connected)
 				if s.problem != "" {
 					ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 				}
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					uikit.Input(c, &s.query).Label(locales.SearchSseEvents()).Placeholder(locales.SearchTypeIdPayloadAnd()).Grow(1).MinWidth(0)
-					ui.Text(c, locales.RetainedEvicted(len(events), evicted)).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum")
+					uikit.Tip(c, uikit.Meta(c, locales.RetainedEvicted(len(events), evicted)).FontFeatures("tnum"), locales.Latest200Events64Kib())
 					if uikit.SecondaryButton(c, locales.LatestEvent()).Clicked() {
 						s.scroll.Y = math.MaxFloat32
 					}
@@ -117,10 +143,12 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 						text := e.detail
 						if e.detail == "" {
 							text = e.data
-							uikit.Meta(c, "Type: "+clamp(e.eventType, 80)+" · ID: "+clamp(e.id, 80))
-							if uikit.SecondaryButton(c, locales.CopyEventId()).Clicked() {
-								c.Services().WriteClipboard(e.id)
-							}
+							ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+								uikit.Meta(c, "Type: "+clamp(e.eventType, 80)+" · ID: "+clamp(e.id, 80)).Grow(1).MinWidth(0)
+								if uikit.IconButton(c, locales.CopyEventId(), locales.CopyEventId(), copyIcon).Clicked() {
+									c.Services().WriteClipboard(e.id)
+								}
+							})
 						}
 						if s.reader == nil {
 							s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, SoftWrap: true, NoScrollPastEnd: true, Label: locales.SseEventPayload()}
@@ -136,8 +164,9 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			})
-			uikit.Meta(c, locales.Latest200Events64Kib())
 			uikit.DialogFooter(c).Children(func() {
+				uikit.Tip(c, ui.Icon(c, infoIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted), locales.Latest200Events64Kib())
+				ui.Spacer(c)
 				if uikit.SecondaryButton(c, locales.CopyShownSseData()).Disabled(s.reader == nil).Clicked() {
 					c.Services().WriteClipboard(s.reader.Buffer.String())
 				}

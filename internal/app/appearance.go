@@ -204,26 +204,31 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 			}
 		}).Width(188).Padding(t.Space(2)).Gap(t.Space(0.5)).Background(uikit.Colors(t).Chrome)
 		ui.Divider(c)
-		top := t.Space(2)
-		if a.settingsWin != nil {
-			top = t.Space(6) // no dialog title above it
-		}
-		ui.Scroll(c).Grow(1).MinWidth(0).Padding(top, t.Space(6), t.Space(6), t.Space(6)).Children(func() {
-			switch a.settingsTab {
-			case 0:
-				a.generalSettings(c, t)
-			case 1:
-				a.proxySettings(c, t)
-			case 2:
-				a.httpsSettings(c, t)
-			case 3:
-				a.appearanceSettings(c, t)
-			case 4:
-				a.captureSettings(c, t)
-			case 5:
-				a.deviceSettings(c, t)
-			case 6:
-				a.certificateSettings(c, t)
+		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
+			top := t.Space(2)
+			if a.settingsWin != nil {
+				top = t.Space(6) // no dialog title above it
+			}
+			ui.Scroll(c).Grow(1).MinHeight(0).MinWidth(0).Padding(top, t.Space(6), t.Space(6), t.Space(6)).Children(func() {
+				switch a.settingsTab {
+				case 0:
+					a.generalSettings(c, t)
+				case 1:
+					a.proxySettings(c, t)
+				case 2:
+					a.httpsSettings(c, t)
+				case 3:
+					a.appearanceSettings(c, t)
+				case 4:
+					a.captureSettings(c, t)
+				case 5:
+					a.deviceSettings(c, t)
+				case 6:
+					a.certificateSettings(c, t)
+				}
+			})
+			if a.settingsTab == 6 {
+				a.certificateFooter(c, t)
 			}
 		})
 	})

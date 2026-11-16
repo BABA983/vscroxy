@@ -62,7 +62,7 @@ func TestSSESessionUILiveSearchCopyAndStop(t *testing.T) {
 	}
 	click("Connect SSE")
 	wait(func() bool { _, _, events, _ := a.sse.session.snapshot(); return len(events) == 3 })
-	if !tt.HasText("SSE session · Connected") {
+	if !tt.HasText("SSE session") || !tt.HasText("Connected") {
 		t.Fatal("live events did not arrive while upstream remains open")
 	}
 	click("SSE event 1")
@@ -86,7 +86,7 @@ func TestSSESessionUILiveSearchCopyAndStop(t *testing.T) {
 	}
 	click("Stop SSE")
 	wait(func() bool { _, done, _, _ := a.sse.session.snapshot(); return done })
-	if !tt.HasText("SSE session · Stopped") || calls.Load() != 1 {
+	if !tt.HasText("SSE session") || !tt.HasText("Stopped") || calls.Load() != 1 {
 		t.Fatal("stop did not end receiving without reconnecting")
 	}
 	click("Stop & close")

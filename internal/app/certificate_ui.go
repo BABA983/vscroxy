@@ -240,16 +240,21 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, "")
 		})
-		settingsCardBlock(c, "", func() ui.Element {
-			return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				if uikit.PrimaryButton(c, locales.SaveCertificates()).Clicked() {
-					a.saveCertificates()
-				}
-				if e.dirty && uikit.SecondaryButton(c, locales.DiscardChanges()).Clicked() {
-					e.loaded, e.dirty, e.problem = false, false, ""
-				}
-				uikit.Meta(c, locales.PassphrasesAreSealedInA())
-			})
-		}, "")
+	})
+}
+
+// certificateFooter keeps the editor's one primary action in view while the
+// page scrolls: the Save stays under the list rather than below Trusted
+// roots, where a 560-point Settings window cut it off.
+func (a *app) certificateFooter(c *ui.Context, t *ui.Theme) {
+	e := &a.certificateUI
+	uikit.DialogFooter(c).Shrink(0).Padding(t.Space(2), t.Space(6)).Children(func() {
+		uikit.Meta(c, locales.PassphrasesAreSealedInA()).Grow(1).MinWidth(0)
+		if e.dirty && uikit.SecondaryButton(c, locales.DiscardChanges()).Clicked() {
+			e.loaded, e.dirty, e.problem = false, false, ""
+		}
+		if uikit.PrimaryButton(c, locales.SaveCertificates()).Clicked() {
+			a.saveCertificates()
+		}
 	})
 }

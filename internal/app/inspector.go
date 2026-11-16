@@ -25,9 +25,13 @@ type inspectorState struct {
 	tab     [2]int // request, response
 	pane    int
 	percent float32 // width share of the request side
-	ready   bool    // the response tab has taken its first default
-	focus   int     // side that owns shared readers: 0 response, 1 request
-	reveal  [2]bool // credentials are masked until the reader asks
+	// protobufPercent is the request side's share when a protobuf response
+	// has no request body: one header does not need half the pane, and the
+	// decoded message needs the room.
+	protobufPercent float32
+	ready           bool    // the response tab has taken its first default
+	focus           int     // side that owns shared readers: 0 response, 1 request
+	reveal          [2]bool // credentials are masked until the reader asks
 }
 
 // splitShare is where the request side ends when the two panes sit side by
@@ -277,11 +281,18 @@ func (a *app) splitInspector(c *ui.Context, f flow) {
 	a.protoOwner = a.protobufOwner(f)
 	request := func() { a.requestPane(c, f) }
 	response := func() { a.responsePane(c, f) }
+	percent, reset := &a.inspect.percent, float32(splitShare)
+	if a.bodyMode[0] == 5 && a.inspect.tab[0] != composeTabBody {
+		if a.inspect.protobufPercent == 0 {
+			a.inspect.protobufPercent = 25
+		}
+		percent, reset = &a.inspect.protobufPercent, 25
+	}
 	if a.sidesStacked(c) {
-		ui.SplitVerticalPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(splitShare).Grow(1)
+		ui.SplitVerticalPercent(c.Key("inspector-sides"), percent, request, response).SplitReset(reset).Grow(1).MinHeight(0)
 		return
 	}
-	ui.SplitPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(splitShare).Grow(1)
+	ui.SplitPercent(c.Key("inspector-sides"), percent, request, response).SplitReset(reset).Grow(1).MinHeight(0)
 }
 
 // requestPane is the request of a capture the editor cannot take: its parts
@@ -289,7 +300,7 @@ func (a *app) splitInspector(c *ui.Context, f flow) {
 func (a *app) requestPane(c *ui.Context, f flow) {
 	t := c.Theme()
 	width := a.paneWidthAt(c, &a.inspectorReqPane)
-	ui.Column(c).Fill().Background(t.Background).Bind(&a.inspectorReqPane).Children(func() {
+	ui.Column(c).Fill().MinHeight(0).Background(t.Background).Bind(&a.inspectorReqPane).Children(func() {
 		tools := paneTools{format: -1, width: width}
 		if a.inspect.tab[0] == composeTabBody {
 			tools.format = 1
@@ -313,7 +324,7 @@ func (a *app) requestPane(c *ui.Context, f flow) {
 func (a *app) responsePane(c *ui.Context, f flow) {
 	t := c.Theme()
 	width := a.paneWidthAt(c, &a.inspectorRespPane)
-	ui.Column(c).Fill().Background(t.Background).Bind(&a.inspectorRespPane).Children(func() {
+	ui.Column(c).Fill().MinHeight(0).Background(t.Background).Bind(&a.inspectorRespPane).Children(func() {
 		more := a.responseViews(&a.inspect.tab[1], true, "", false)
 		tools := paneTools{format: -1, width: width}
 		if a.inspect.tab[1] == resViewBody {

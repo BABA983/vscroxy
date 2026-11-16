@@ -98,7 +98,7 @@ func (a *app) clientSetupOneClick(c *ui.Context, t *ui.Theme) {
 	if s.target == clientTargetAndroid && !s.androidLoaded && !s.androidLoading {
 		a.loadAndroidDevices()
 	}
-	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
+	ui.Scroll(c).Shrink(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
 		uikit.SettingsCard(c, "", func() {
 			uikit.SettingsCardRow(c, locales.Client(), "", func() {
 				uikit.Select(c, &s.target, clientTargets).Label(locales.Client()).Width(220)
@@ -373,7 +373,7 @@ func (a *app) clientSetupExamples(c *ui.Context, t *ui.Theme) {
 	s := &a.clientUI
 	p := a.clientProxy()
 	running := a.srv != nil && a.srv.Running()
-	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
+	ui.Scroll(c).Shrink(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
 		uikit.SettingsCard(c, "", func() {
 			uikit.SettingsCardBlock(c, "", "", func() {
 				ui.Form(c, func() {

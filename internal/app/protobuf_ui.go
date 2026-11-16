@@ -32,6 +32,11 @@ type protoInspector struct {
 	ruleFor  string // the URL whose saved rule was applied
 	list     ui.ListState
 	split    float32
+	// readerHeight is the reader's viewport as the last frame laid it out:
+	// the pane fills it, and scrolls only when its controls and messages
+	// need more than it has.
+	readerHeight float32
+	readerAsked  bool
 
 	open    bool
 	source  string
@@ -228,11 +233,11 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 		// away, and the detail says so rather than showing the oldest one.
 		settleEvent(&p.selected, len(visible))
 		message := p.result.messages[visible[p.selected]]
-		ui.Column(c).Fill().Children(func() {
-			ui.Row(c).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {
-				detail := fmt.Sprintf("Message %d · %s decoded", visible[p.selected]+1, humanBytes(message.size))
+		ui.Column(c).Fill().MinHeight(0).Children(func() {
+			detail := fmt.Sprintf("Message %d · %s", visible[p.selected]+1, humanBytes(message.size))
+			ui.Row(c).Padding(0, t.Space(3), t.Space(1), t.Space(3)).AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 				uikit.Tip(c, uikit.Meta(c, detail).Grow(1).MinWidth(0).SingleLine(), detail)
-				if uikit.SecondaryButton(c, locales.CopyDecoded()).Shrink(0).Clicked() {
+				if uikit.IconButton(c, locales.CopyDecoded(), locales.CopyDecoded(), copyIcon).Clicked() {
 					c.Services().WriteClipboard(message.text)
 					a.done(locales.CopiedDecodedProtobufMessage())
 				}
@@ -241,11 +246,14 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 			if len(text) > maxMessageText {
 				text = text[:maxMessageText] + "\n\n… Text preview limited to 64 KiB; Copy decoded keeps the full text."
 			}
-			ui.Scroll(c).Grow(1).Padding(t.Space(3)).Children(func() {
-				ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
+			ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(3)).Children(func() {
+				ui.Column(c).Padding(0, 0, t.Space(2), 0).Children(func() {
+					ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
+				})
 			})
+
 		})
-	}).Grow(1)
+	}).Grow(1).MinHeight(0)
 }
 
 // Schema loading is explicit and transactional: errors keep the previous

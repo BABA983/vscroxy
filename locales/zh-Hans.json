@@ -788,6 +788,8 @@
   "queryKeyBody": "任一正文中的文本",
   "queryKeyColor": "行颜色",
   "queryKeyNote": "备注中的文本",
+  "reconnect": "重新连接",
+  "sseSessionTitle": "SSE 会话",
   "textConditionNeedsValue": "{condition} 需要一个值，例如 =value 或 /pattern/",
   "@textConditionNeedsValue": {
     "placeholders": {

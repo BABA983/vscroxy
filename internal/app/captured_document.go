@@ -239,11 +239,20 @@ func (a *app) capturedDocument(c *ui.Context, t *ui.Theme, f flow, d *requestDoc
 		}
 		a.responsePane(c, f)
 	}
+	percent, reset := &a.inspect.percent, float32(splitShare)
+	if a.bodyMode[0] == 5 && a.inspect.tab[0] != composeTabBody {
+		// The request's headers need one table, not half the inspector; the
+		// decoded protobuf message needs the room.
+		if a.inspect.protobufPercent == 0 {
+			a.inspect.protobufPercent = 25
+		}
+		percent, reset = &a.inspect.protobufPercent, 25
+	}
 	if a.sidesStacked(c) {
-		ui.SplitVerticalPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(splitShare).Grow(1)
+		ui.SplitVerticalPercent(c.Key("inspector-sides"), percent, request, response).SplitReset(reset).Grow(1).MinHeight(0)
 		return
 	}
-	ui.SplitPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(splitShare).Grow(1)
+	ui.SplitPercent(c.Key("inspector-sides"), percent, request, response).SplitReset(reset).Grow(1).MinHeight(0)
 }
 
 // capturedReadOnly says why a captured HTTP request shows only its readers,

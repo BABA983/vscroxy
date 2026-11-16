@@ -2211,6 +2211,8 @@
   "queryKeyBody": "Text in either body",
   "queryKeyColor": "Row color",
   "queryKeyNote": "Text in the note",
+  "reconnect": "Reconnect",
+  "sseSessionTitle": "SSE session",
   "textConditionNeedsValue": "{condition} needs a value, such as =value or /pattern/",
   "@textConditionNeedsValue": {
     "placeholders": {

@@ -7966,6 +7966,26 @@ func (msgs Messages) QueryKeyNote() string {
 	return Catalog.Format(msgs.locale, "queryKeyNote", nil)
 }
 
+// Reconnect says "Reconnect"
+// in the language the app shows.
+func Reconnect() string { return In(i18n.Locale()).Reconnect() }
+
+// Reconnect says "Reconnect"
+// in the language of msgs.
+func (msgs Messages) Reconnect() string {
+	return Catalog.Format(msgs.locale, "reconnect", nil)
+}
+
+// SseSessionTitle says "SSE session"
+// in the language the app shows.
+func SseSessionTitle() string { return In(i18n.Locale()).SseSessionTitle() }
+
+// SseSessionTitle says "SSE session"
+// in the language of msgs.
+func (msgs Messages) SseSessionTitle() string {
+	return Catalog.Format(msgs.locale, "sseSessionTitle", nil)
+}
+
 // TextConditionNeedsValue says "{condition} needs a value, such as =value or /pattern/"
 // in the language the app shows.
 func TextConditionNeedsValue(condition string) string {

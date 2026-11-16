@@ -362,9 +362,27 @@ func (a *app) autoBodyMode(f flow, side int, body string) int {
 // action stay reachable even when the pane leaves little height beneath the
 // pane tabs, and a long body scrolls instead of clipping its messages.
 func (a *app) protobufReader(c *ui.Context, f flow, side int) {
-	ui.Scroll(c).Label(locales.ProtobufReader()).Grow(1).FillWidth().Children(func() {
-		ui.Column(c).Fill().MinHeight(320).Children(func() { a.protobuf.view(c, a, f, side) })
+	// The reader's content is as tall as the pane's viewport, so its split
+	// and copy footer end at the pane's bottom edge rather than under the
+	// window. A pane too short for the controls and messages still scrolls
+	// the whole reader.
+	p := &a.protobuf
+	h := p.readerHeight
+	scroll := ui.Scroll(c).Label(locales.ProtobufReader()).Grow(1).MinHeight(0).FillWidth()
+	scroll.Children(func() {
+		ui.Column(c).Height(max(h, 320)).Padding(0, 0, c.Theme().Space(2), 0).Children(func() {
+			a.protobuf.view(c, a, f, side)
+		})
 	})
+	if bh := scroll.Bounds().H; bh > 0 {
+		if bh != h {
+			p.readerHeight = bh
+			c.Invalidate()
+		}
+	} else if h == 0 && !p.readerAsked {
+		p.readerAsked = true
+		c.Invalidate()
+	}
 }
 
 func (a *app) bodySideView(c *ui.Context, f flow, side int) {
