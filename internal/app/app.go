@@ -214,9 +214,10 @@ type app struct {
 	// windowWidth is the window's width in the last frame: the sidebar gives
 	// way when there is no room beside it.
 	windowWidth float32
-	// trafficScroll is where the sidebar's traffic list is scrolled to; it
-	// scrolls on its own only in a window too short for its rows.
-	trafficScroll ui.ScrollState
+	// paneViewport is the middle's height as the last frame laid it out:
+	// the pane stack fills it, and scrolls once its minimums do not fit.
+	paneViewport      float32
+	paneViewportAsked bool
 	// The four panes remember the width they were laid out at, so a pane's
 	// row can decide what fits instead of guessing a share of the window.
 	inspectorReqPane, inspectorRespPane ui.Handle
@@ -2421,7 +2422,7 @@ func (a *app) sidebar(c *ui.Context) {
 			a.brandBar(c, t)
 		}
 		a.trafficRegion(c, t)
-		ui.Divider(c)
+		ui.Divider(c).Shrink(0)
 		a.sidebarPanes(c, t)
 		// No rule above the sidebar's footer: the shell is one surface from
 		// the title bar to the window's bottom edge.
@@ -2435,30 +2436,24 @@ func (a *app) sidebar(c *ui.Context) {
 // regions below, and its heading folds it to one row.
 func (a *app) trafficRegion(c *ui.Context, t *ui.Theme) {
 	traffic := a.regionOpen("traffic")
-	// The traffic stays above the scrolling middle. In a window too short
-	// for it, its own list scrolls rather than pushing the collections out
-	// of the sidebar; at the usual heights it fits and never scrolls.
-	_, windowHeight := c.Size()
-	room := max(float32(72), windowHeight-520)
-	ui.Scroll(c).MaxHeight(room).MinHeight(0).Padding(t.Space(1), 0).TrackScroll(&a.trafficScroll).Children(func() {
-		uikit.SidebarList(c, "traffic-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
-			// The heading carries the way to a new view, so it stays reachable
-			// when the scopes under it scroll.
-			uikit.SidebarHeading(c, locales.Traffic(), traffic, func() {
-				if uikit.IconButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon).Clicked() {
-					a.views.capture(a)
-					a.views.newView(a)
-				}
-			})
-
-			if *traffic {
-				ui.Column(c.Key("traffic-region")).Gap(0).Shrink(0).Children(func() {
-					a.trafficRows(c)
-					a.views.sidebar(c, t, a)
-				})
+	// Traffic is fixed chrome: every scope and view stays in place, and a
+	// short window takes its room from the middle rather than cutting the
+	// scopes or scrolling them away.
+	uikit.SidebarList(c, "traffic-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
+		uikit.SidebarHeading(c, locales.Traffic(), traffic, func() {
+			if uikit.IconButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon).Clicked() {
+				a.views.capture(a)
+				a.views.newView(a)
 			}
 		})
-	})
+
+		if *traffic {
+			ui.Column(c.Key("traffic-region")).Gap(0).Shrink(0).Children(func() {
+				a.trafficRows(c)
+				a.views.sidebar(c, t, a)
+			})
+		}
+	}).Padding(t.Space(1), 0)
 }
 
 // sidebarCollectionsBody is the room the collections ask for when they are
@@ -2474,25 +2469,38 @@ const sidebarCollectionsBody = 144
 func (a *app) sidebarPanes(c *ui.Context, t *ui.Theme) {
 	_, windowHeight := c.Size()
 	sources, sessions := a.sourcesBodyHeight(windowHeight), a.sessionsBodyHeight(windowHeight)
-	uikit.SidebarPanes(c, "sidebar-panes", []uikit.SidebarPane{
+	stack := uikit.SidebarPanes(c, "sidebar-panes", a.paneViewport, []uikit.SidebarPane{
 		{
 			ID: "sources", Title: locales.Sources(), Open: a.regionOpen("sources"),
-			Height: a.paneHeight("sources", sources), Default: sources, Min: uikit.HeightControl * 2,
+			Height: a.paneHeight("sources", sources), Default: sources, Min: uikit.HeightControl,
 			Trailing: func() { a.sourcesSwitch(c, t) },
 			Body:     func() { a.sourcesPane(c, t) },
 		},
 		{
 			ID: "sessions", Title: locales.Sessions(), Open: a.regionOpen("sessions"),
-			Height: a.paneHeight("sessions", sessions), Default: sessions, Min: uikit.HeightControl * 2,
+			Height: a.paneHeight("sessions", sessions), Default: sessions, Min: uikit.HeightControl,
 			Body: func() { a.sessionsPane(c, t) },
 		},
 		{
 			ID: "collections", Title: locales.Collections(), Open: a.regionOpen("collections"),
-			Height: a.paneHeight("collections", sidebarCollectionsBody), Default: sidebarCollectionsBody, Min: uikit.HeightControl * 4,
+			Height: a.paneHeight("collections", sidebarCollectionsBody), Default: sidebarCollectionsBody, Min: uikit.HeightControl * 5,
 			Trailing: func() { a.collectionsHeadingActions(c) },
 			Body:     func() { a.collectionsPane(c, t) },
 		},
 	})
+	// The scroll is the middle's viewport: its height is what the fixed
+	// traffic and footer leave. Read it once the frame has laid it out, and
+	// build the next frame with it, so the last open region fills exactly
+	// the room there is.
+	if h := stack.Bounds().H; h > 0 {
+		if h-a.paneViewport > 0.5 || a.paneViewport-h > 0.5 {
+			a.paneViewport = h
+			c.Invalidate()
+		}
+	} else if a.paneViewport == 0 && !a.paneViewportAsked {
+		a.paneViewportAsked = true
+		c.Invalidate()
+	}
 }
 
 // sourcesPane is the Sources list inside its region. The list scrolls within
@@ -2611,7 +2619,7 @@ func (a *app) sourcesRows(c *ui.Context, t *ui.Theme) {
 		rows = a.clients
 	}
 	if len(rows) == 0 {
-		uikit.Hint(c, locales.AppsAndDomainsShowHere()).FontSize(uikit.Scaled(uikit.TextMeta)).LineHeight(uikit.LineMeta).
+		uikit.Hint(c, locales.AppsAndDomainsShowHere()).FontSize(uikit.Scaled(uikit.TextMeta)).LineHeight(uikit.LineMeta).MaxLines(1).
 			Padding(t.Space(1), t.Space(3))
 		return
 	}
@@ -2707,7 +2715,7 @@ func (a *app) sourcesAllRow(c *ui.Context, t *ui.Theme, apps bool) {
 // and the connection's diagnostics. They open a window or a page rather than
 // choose a place in the list above, so they carry no selection.
 func (a *app) sidebarFooter(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Padding(t.Space(1), 0).Gap(0).Children(func() {
+	ui.Column(c).Shrink(0).Padding(t.Space(1), 0).Gap(0).Children(func() {
 		if uikit.SidebarButton(c, locales.ClientSetup(), locales.CopyAProcessScopedProxy(), monitorIcon, false).Clicked() {
 			a.openClientSetup()
 		}
@@ -2808,6 +2816,9 @@ func captureCard(f flow) uikit.HoverCard {
 	}
 	if f.process != "" {
 		rows = append(rows, uikit.HoverCardRow{Key: "Client", Value: f.process})
+	}
+	if f.conn.error != "" {
+		rows = append(rows, uikit.HoverCardRow{Key: "Error", Value: f.conn.errorStage + ": " + f.conn.error})
 	}
 	return uikit.HoverCard{Title: title, Meta: strings.Join(meta, " · "), Rows: rows}
 }
@@ -3045,10 +3056,10 @@ func (a *app) table(c *ui.Context) {
 			if f.method == "CONNECT" {
 				ink = t.TextMuted
 			}
-			uikit.Tip(c, uikit.Body(c, f.method).FontSize(uikit.Scaled(uikit.TextData)).FontWeight(500).Height(15).FixedLineHeight(15).
-				TextColor(ink).SingleLine(), f.method).PopoverMenu(a.rowMenu(c, f))
+			uikit.CardTip(c, uikit.Body(c, f.method).FontSize(uikit.Scaled(uikit.TextData)).FontWeight(500).Height(15).FixedLineHeight(15).
+				TextColor(ink).SingleLine(), captureCard(f)).PopoverMenu(a.rowMenu(c, f))
 		case "host":
-			uikit.Tip(c, plain(f.host), f.url).PopoverMenu(a.rowMenu(c, f))
+			uikit.CardTip(c, plain(f.host), captureCard(f)).PopoverMenu(a.rowMenu(c, f))
 		case "remote":
 			a.remoteCell(c, t, f, quiet)
 		case "url":
@@ -3091,15 +3102,15 @@ func (a *app) table(c *ui.Context) {
 			})
 		case "status":
 			if f.conn.error != "" {
-				uikit.Tip(c, text("Failed").TextColor(t.Danger), f.conn.errorStage+": "+f.conn.error).PopoverMenu(a.rowMenu(c, f))
+				uikit.CardTip(c, text("Failed").TextColor(t.Danger), captureCard(f)).PopoverMenu(a.rowMenu(c, f))
 			} else if f.kind == "connect" && f.status < 400 {
 				// A tunnel that opened has no status of its own: the lock
-				// says what the row is, and the tooltip says how the setup
+				// says what the row is, and the card says how the setup
 				// went. One that never opened keeps its number, so a refused
 				// tunnel does not read as a working one.
-				uikit.Tip(c, ui.Row(c).Grow(1).AlignItems(ui.Center).Children(func() {
+				uikit.CardTip(c, ui.Row(c).Grow(1).AlignItems(ui.Center).Children(func() {
 					uikit.Glyph(c, lockIcon)
-				}), locales.TunnelTooltip(f.status)).Label(locales.TunnelTooltip(f.status)).PopoverMenu(a.rowMenu(c, f))
+				}), captureCard(f)).Label(locales.TunnelTooltip(f.status)).PopoverMenu(a.rowMenu(c, f))
 			} else {
 				// Only a client or server error is colored: a normal answer is
 				// its number in the secondary ink, with nothing beside it.
@@ -3107,7 +3118,7 @@ func (a *app) table(c *ui.Context) {
 				if f.status >= 400 {
 					ink = uikit.StatusColor(f.status, t)
 				}
-				text(fmt.Sprint(f.status)).TextColor(ink).PopoverMenu(a.rowMenu(c, f))
+				uikit.CardTip(c, text(fmt.Sprint(f.status)).TextColor(ink), captureCard(f)).PopoverMenu(a.rowMenu(c, f))
 			}
 		case "client":
 			if src, ok := a.clientIcon(f.process, f.processPath); ok {

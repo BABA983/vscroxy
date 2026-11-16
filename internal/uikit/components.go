@@ -836,9 +836,13 @@ var SidebarDot = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg"
 // that says which way is drawn under the pointer, or while the region is shut.
 // trailing draws what the heading itself offers at the far end, as the switch
 // between two lists of the same thing does.
-func SidebarHeading(c *ui.Context, title string, open *bool, trailing func()) ui.Element {
+func SidebarHeading(c *ui.Context, title string, open *bool, trailing func(), compact ...bool) ui.Element {
 	t := c.Theme()
-	head := ui.Row(c).Height(HeightStatus).Margin(t.Space(2), 0, 0, 0).
+	top := t.Space(2)
+	if len(compact) > 0 && compact[0] {
+		top = 0
+	}
+	head := ui.Row(c).Height(HeightStatus).Shrink(0).Margin(top, 0, 0, 0).
 		Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Label(title)
 	if open != nil {
 		head.OnClick(func() { *open = !*open })

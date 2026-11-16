@@ -82,3 +82,41 @@ func TestSidebarPanesGiveFoldedRoomToCollections(t *testing.T) {
 		t.Fatalf("an unfolded region is still remembered: %v", a.closedRegions())
 	}
 }
+
+// A short window takes its room from the middle, not from Traffic: every
+// scope and view in the fixed top stays visible, as do the tools at the
+// bottom, while Sources, Sessions and Collections give way first.
+func TestSidebarTrafficStaysVisibleInShortWindow(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Frame()
+	tt.Frame()
+	for _, label := range []string{"All requests", "Errors", "Slow", "Pinned", "Overview"} {
+		row, ok := tt.Find(label)
+		if !ok || row.H == 0 || row.Y < 0 || row.Y+row.H > 600 {
+			t.Fatalf("traffic row %q is not visible in a 600-high window: %+v", label, row)
+		}
+	}
+	for _, label := range []string{"Client setup", "HTTPS decryption", "Diagnostics"} {
+		row, ok := tt.Find(label)
+		if !ok || row.H == 0 || row.Y < 0 || row.Y+row.H > 600 {
+			t.Fatalf("footer row %q is not visible in a 600-high window: %+v", label, row)
+		}
+	}
+	// The middle still gives Collections its heading, search and room for
+	// rows; the whole middle scrolls rather than cutting it out of reach.
+	collections, ok := tt.Find("Collections")
+	if !ok || collections.H == 0 {
+		t.Fatalf("Collections heading is not visible: %+v", collections)
+	}
+	search, ok := tt.Find("Search collections")
+	if !ok || search.H == 0 {
+		t.Fatalf("Collections search is not visible: %+v", search)
+	}
+	if search.Y < collections.Y+collections.H {
+		t.Fatalf("search sits above the Collections heading: heading %+v, search %+v", collections, search)
+	}
+	if row, ok := tt.Find("List projects"); !ok || row.H == 0 || row.Y+row.H > 600 {
+		t.Fatalf("Collections has no request row in a 600-high window: %+v", row)
+	}
+}

@@ -258,94 +258,131 @@ type SidebarPane struct {
 // short list does not stretch into blank space. A divider between two open
 // bodies drags: it changes the heights above it in DIPs, and the last open
 // body gives or takes the difference. A double click puts both sides back to
-// their defaults. The stack clips, and each body scrolls inside itself, so a
-// window too short for the minimums cuts the bodies rather than pushing the
-// footer off the window.
-func SidebarPanes(c *ui.Context, key string, panes []SidebarPane) ui.Element {
+// their defaults.
+//
+// available is the height the fixed chrome leaves. The stack fills it while
+// the regions' minimums fit; when they do not, every body goes to its
+// minimum and the whole middle scrolls, rather than a body being cut off by
+// the window. Each body also scrolls inside itself, so a list longer than
+// its region keeps its heading and the regions below it.
+func SidebarPanes(c *ui.Context, key string, available float32, panes []SidebarPane) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	stack := ui.Column(c).Key(key).Grow(1).MinHeight(0).Clip()
 	last := -1
 	for i, pane := range panes {
 		if pane.Open == nil || *pane.Open {
 			last = i
 		}
 	}
-	bodies := make([]ui.Element, len(panes))
-	var handles, lines []ui.Element
-	var gaps [][2]int
-	stack.Children(func() {
-		for i, pane := range panes {
-			open := pane.Open == nil || *pane.Open
-			SidebarHeading(c, pane.Title, pane.Open, pane.Trailing)
-			if !open {
+	// The minimum is every heading plus every open body's least height and
+	// the dividers between open bodies: the point where the middle stops
+	// compressing and starts scrolling.
+	least, compactLeast := float32(0), float32(0)
+	open := 0
+	for _, pane := range panes {
+		least += HeightStatus + t.Space(2)
+		compactLeast += HeightStatus
+		if pane.Open == nil || *pane.Open {
+			least += max(pane.Min, HeightControl)
+			compactLeast += max(pane.Min, HeightControl)
+			if open > 0 {
+				least += 7
+				compactLeast += 7
+			}
+			open++
+		}
+	}
+	// A short middle drops the headings' breathing room before it scrolls:
+	// the regions keep their rows, and Collections keeps its few.
+	compact := available > 0 && available < least
+	minimum := least
+	if compact {
+		minimum = compactLeast
+	}
+	stackH := max(available, minimum)
+	scroll := ui.Scroll(c).Key(key).Grow(1).MinHeight(0)
+	scroll.Children(func() {
+		stack := ui.Column(c).Key(key + "-stack").FillWidth().Height(stackH)
+		var handles, lines []ui.Element
+		var gaps [][2]int
+		bodies := make([]ui.Element, len(panes))
+		stack.Children(func() {
+			previous := -1
+			for i, pane := range panes {
+				open := pane.Open == nil || *pane.Open
+				// A folded region between two open ones keeps its heading,
+				// but the divider belongs to the two bodies it resizes, so
+				// it sits just above the next open heading.
+				if open && previous >= 0 {
+					handle := ui.Column(c).Key("divider:" + panes[previous].ID).Height(7).Shrink(0).FillWidth().
+						Justify(ui.Center).Cursor(ui.CursorResizeNS)
+					var line ui.Element
+					handle.Children(func() {
+						line = ui.Box(c).Height(1).Background(p.Hairline)
+					})
+					handles, lines = append(handles, handle), append(lines, line)
+					gaps = append(gaps, [2]int{previous, i})
+				}
+				SidebarHeading(c, pane.Title, pane.Open, pane.Trailing, compact)
+				if !open {
+					continue
+				}
+				body := ui.Column(c).Key(pane.ID + "-body").MinHeight(max(pane.Min, HeightControl)).Clip()
+				if i == last {
+					body.Grow(1)
+				} else {
+					body.Height(heightOf(pane)).Shrink(1)
+				}
+				body.Children(pane.Body)
+				bodies[i] = body
+				previous = i
+			}
+		})
+		for i, handle := range handles {
+			a, b := panes[gaps[i][0]], panes[gaps[i][1]]
+			_, dy, held := handle.Dragged()
+			if held || handle.Hovered() {
+				lines[i].Background(t.Text.Alpha(0.14))
+			}
+			if handle.DoubleClicked() {
+				if a.Height != nil && a.Default > 0 {
+					*a.Height = a.Default
+				}
+				if b.Height != nil && b.Default > 0 {
+					*b.Height = b.Default
+				}
+				c.Invalidate()
 				continue
 			}
-			body := ui.Column(c).Key(pane.ID + "-body").MinHeight(pane.Min).Clip()
-			if i == last {
-				body.Grow(1)
+			if !held || dy == 0 || !bodies[gaps[i][0]].Valid() || !bodies[gaps[i][1]].Valid() {
+				continue
+			}
+			ha, hb := bodies[gaps[i][0]].Bounds().H, bodies[gaps[i][1]].Bounds().H
+			if ha+hb <= 0 {
+				continue
+			}
+			dy = max(dy, a.Min-ha)
+			dy = min(dy, hb-b.Min)
+			if dy == 0 {
+				continue
+			}
+			if gaps[i][1] == last {
+				// The growing body below takes the difference; only the body
+				// above changes its own height.
+				if a.Height != nil {
+					*a.Height = max(ha+dy, a.Min)
+				}
 			} else {
-				body.Height(heightOf(pane)).Shrink(1)
-			}
-			body.Children(pane.Body)
-			bodies[i] = body
-			if i+1 >= len(panes) || panes[i+1].Open != nil && !*panes[i+1].Open {
-				continue
-			}
-			handle := ui.Column(c).Key("divider:" + pane.ID).Height(7).Shrink(0).FillWidth().
-				Justify(ui.Center).Cursor(ui.CursorResizeNS)
-			var line ui.Element
-			handle.Children(func() {
-				line = ui.Box(c).Height(1).Background(p.Hairline)
-			})
-			handles, lines = append(handles, handle), append(lines, line)
-			gaps = append(gaps, [2]int{i, i + 1})
-		}
-	})
-	for i, handle := range handles {
-		a, b := panes[gaps[i][0]], panes[gaps[i][1]]
-		_, dy, held := handle.Dragged()
-		if held || handle.Hovered() {
-			lines[i].Background(t.Text.Alpha(0.14))
-		}
-		if handle.DoubleClicked() {
-			if a.Height != nil && a.Default > 0 {
-				*a.Height = a.Default
-			}
-			if b.Height != nil && b.Default > 0 {
-				*b.Height = b.Default
+				if a.Height != nil {
+					*a.Height = max(ha+dy, a.Min)
+				}
+				if b.Height != nil {
+					*b.Height = max(hb-dy, b.Min)
+				}
 			}
 			c.Invalidate()
-			continue
 		}
-		if !held || dy == 0 || !bodies[gaps[i][0]].Valid() || !bodies[gaps[i][1]].Valid() {
-			continue
-		}
-		ha, hb := bodies[gaps[i][0]].Bounds().H, bodies[gaps[i][1]].Bounds().H
-		if ha+hb <= 0 {
-			continue
-		}
-		dy = max(dy, a.Min-ha)
-		dy = min(dy, hb-b.Min)
-		if dy == 0 {
-			continue
-		}
-		if gaps[i][1] == last {
-			// The growing body below takes the difference; only the body
-			// above changes its own height.
-			if a.Height != nil {
-				*a.Height = max(ha+dy, a.Min)
-			}
-		} else {
-			if a.Height != nil {
-				*a.Height = max(ha+dy, a.Min)
-			}
-			if b.Height != nil {
-				*b.Height = max(hb-dy, b.Min)
-			}
-		}
-		c.Invalidate()
-	}
-	return stack
+	})
+	return scroll
 }
 
 // heightOf is a pane's body height: what the app kept, its default, or a
