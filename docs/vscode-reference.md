@@ -61,8 +61,8 @@ vscroxy 现在的问题正对着这几条：整个侧栏一个 `Scroll`，`Sourc
 最后一个展开的分区吃掉剩余高度，所以 Collections 会一直长到底；只有相邻两个
 都展开时才有可拖的分隔条；拖动用 `Bounds()` 量当前两段的高度，按像素增量改
 两侧的高度，按最小高度夹住；双击分隔条恢复默认。折叠状态用设置里已有的
-`SidebarClosed`，高度是新增字段，按 AGENTS.md 给 `store.Settings` 加版本步进
-和测试数据。不做：分区拖拽重排（`PaneDraggable`）、横向 PaneView、
+`SidebarClosed`，高度是新增的可选字段；开发阶段直接改格式，不升版本、不写
+迁移（AGENTS.md）。不做：分区拖拽重排（`PaneDraggable`）、横向 PaneView、
 正交分隔条、CSS 动画类。
 
 ## 3. 悬停：延迟、位置、富内容、键盘
@@ -82,9 +82,10 @@ VS Code 的 hover 服务（`platform/hover/browser/hoverService.ts`）：
   让键盘用户读到富内容。
 
 vscroxy 的 `uikit.Tip` 已经建在 MyGo 的 `TooltipBase` 上，而 MyGo 0.9 已经
-实现了这套时序：0.6s 延迟、提示消失后 0.4s 内下一个立即显示（“warm”窗口）、
-键盘焦点立即显示、Escape 关闭、上方不够翻到下方、同时只显示一个、指针穿过
-提示。所以不需要自己写 hover 服务；要改的是**外观**和**内容**：
+实现了这套时序（默认 0.6s 延迟，kit 设成 500ms；提示消失后约 0.33s 内下一个
+立即显示，即“warm”窗口）、键盘焦点立即显示、Escape 关闭、上方不够翻到下方、
+同时只显示一个、指针穿过提示。所以不需要自己写 hover 服务；要改的是**外观**
+和**内容**：
 
 - 外观从“黑底反色、等宽 11、圆角 6”改成浮层表面：`Canvas` 底、1px
   `Hairline`、`ShadowPopover`、`RadiusPanel`（6 与 10 之间）、6×10 内边距、
@@ -121,8 +122,8 @@ vscroxy 这一批按用户的意见走得更彻底：默认没有装饰性过渡
 1. `uikit.Tip` 换面、加 `CardTip` 富卡片、设 `TooltipDelay`；侧栏请求行和
    抓包行接上富卡片。
 2. 删动效：token、helper、所有调用点、测试和文档；录制脉动留下。
-3. 侧栏分区：`uikit` 的纵向分区组件、`app` 接入、`store.Settings` 版本 2
-   与迁移测试、公开界面的折叠／占满测试。
+3. 侧栏分区：`uikit` 的纵向分区组件、`app` 接入、`store.Settings` 的可选
+   `SidebarPaneHeights`（不升版本、不写迁移）、公开界面的折叠／占满测试。
 4. Client setup 与 HTTPS decryption 两处对话框修正。
 5. 画廊导出、快照断言、真实窗口截图。
 
