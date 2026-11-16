@@ -978,6 +978,10 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("https://api.example.com/projects?limit=7")
 	click("Method")
+	if err := chooseMenu(tt, "Custom…"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(0, ui.KeyBackspace)
 	choosePaneView(t, tt, "Request pane", "Scripts")
@@ -3950,7 +3954,7 @@ func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 		t.Fatal(err)
 	}
 	paste(`curl --location --request POST 'https://example.test/api?x=7' -H 'X-Count: 19' --json '{"name":"it'\''s","count":7}'`)
-	if read("Method") != "POST" || read("URL") != "https://example.test/api?x=7" {
+	if a.requestDocument.composeMethod != "POST" || read("URL") != "https://example.test/api?x=7" {
 		t.Fatal("imported request fields were not shown in a new tab")
 	}
 	if s := a.draft().Settings; s.FollowRedirects == nil || !*s.FollowRedirects || s.RedirectMode != capture.RedirectCurl || !s.KeepMethod || a.composeWaiting || a.sentSet {
@@ -4214,8 +4218,13 @@ func TestHeaderRowKeyboardRevealAndCustomMethod(t *testing.T) {
 	if got := readField(t, tt, "header value 1"); got != "Bearer sk_live_123" {
 		t.Fatalf("revealed value changed: %q", got)
 	}
-	// The method is an editable dropdown: a method it lacks still sticks.
+	// The method is a dropdown; Custom… turns it into a short field for a
+	// method the menu lacks, and the method still sticks.
 	click("Method")
+	if err := chooseMenu(tt, "Custom…"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("PURGE")
 	tt.Key(0, ui.KeyEnter)

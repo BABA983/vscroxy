@@ -50,20 +50,24 @@ type requestDocument struct {
 	composeCollection string
 	composeMethod     string
 	composeURL        string
-	protocol          string
-	wsMessages        []request.WebSocketMessage
-	wsWait            float64 // milliseconds between a message and its replies
-	grpcConfig        request.GRPCConfig
-	grpcUI            *grpcDocument
-	graphqlUI         *graphqlDocument
-	socketIOConfig    request.SocketIOConfig
-	socketIOUI        *socketIODocument
-	mqttConfig        request.MQTTConfig
-	mqttUI            *mqttDocument
-	mcpConfig         request.MCPConfig
-	mcpUI             *mcpDocument
-	composeHeaders    string
-	composeBody       string
+	// methodCustom shows the method as its own short field, after Custom… in
+	// its menu; methodFocus hands it the focus once, on the frame it appears.
+	methodCustom   bool
+	methodFocus    bool
+	protocol       string
+	wsMessages     []request.WebSocketMessage
+	wsWait         float64 // milliseconds between a message and its replies
+	grpcConfig     request.GRPCConfig
+	grpcUI         *grpcDocument
+	graphqlUI      *graphqlDocument
+	socketIOConfig request.SocketIOConfig
+	socketIOUI     *socketIODocument
+	mqttConfig     request.MQTTConfig
+	mqttUI         *mqttDocument
+	mcpConfig      request.MCPConfig
+	mcpUI          *mcpDocument
+	composeHeaders string
+	composeBody    string
 	// headerRows is the header table. composeHeaders stays the Key: Value
 	// block for scripts, cURL and the bulk editor, written from the enabled
 	// rows; headerFor is the block the rows were last built from.
@@ -908,6 +912,13 @@ func (a *app) draftShare(c *ui.Context) float32 {
 // requestMethods are the methods the editor offers; any other is typed.
 var requestMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 
+// requestMethodWidth is the room the method dropdown's field takes: its
+// longest method and its own padding, so the chevron sits right after the word
+// as Postman's does. A typed method wider than this scrolls inside the field.
+func requestMethodWidth(c *ui.Context) float32 {
+	return paneTextWidth(c, "OPTIONS", uikit.TextBody, 500) + 2*c.Theme().Space(1.5)
+}
+
 // requestBar is the line a person edits and sends: method, URL, and the one
 // prominent action.
 // requestBar is the method, URL and Send; more adds what follows Send.
@@ -1055,95 +1066,91 @@ func (a *app) switchProtocol(d *requestDocument, protocol string) {
 }
 
 // requestTargetControl is the one dropdown before the URL. An HTTP request
-// shows its method there, typed or chosen, as Postman's bar does; a document
-// that speaks another protocol shows that protocol. The protocols sit at the
-// foot of the same menu, so the bar never needs a second control beside its
-// URL and no protocol is out of reach.
+// shows its method there; a document that speaks another protocol shows that
+// protocol; both are the same button, so the bar reads the same either way.
+// The protocols sit in the method's menu, so no protocol is out of reach.
 func (a *app) requestTargetControl(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	if d.protocol != "" {
+	switch {
+	case d.methodCustom:
+		a.requestMethodInput(c, t, d)
+	case d.protocol != "":
 		a.requestProtocolButton(c, t, d)
-		return
+	default:
+		a.requestMethodButton(c, t, d)
 	}
-	// An editable dropdown: a click lists the common methods, and a method
-	// the list lacks is typed and kept as it is. The chevron and the hover
-	// background say it is a control, not a label.
-	control := ui.Row(c).Gap(t.Space(0.5)).Padding(0, t.Space(1)).AlignItems(ui.Center)
-	if control.Hovered() {
-		control.Background(t.SurfaceHover)
-	}
-	control.Children(func() {
-		method := ui.ComboboxBase(c, &d.composeMethod)
-		method.Input.Width(72).Height(uikit.HeightControl).Padding(0, t.Space(1)).Label(locales.Method()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).
-			TextColor(uikit.MethodColor(d.composeMethod, t)).Border(0, t.Border)
-		if method.Input.Changed() {
-			d.composeMethod = strings.ToUpper(strings.TrimSpace(d.composeMethod))
-		}
-		method.Popup(func(panel ui.Element) {
-			uikit.PopoverPanel(c, panel).Padding(t.Space(1)).MinWidth(148)
-			query := strings.ToUpper(strings.TrimSpace(d.composeMethod))
-			for _, m := range requestMethods {
-				if method.Filtering() && query != "" && !strings.HasPrefix(m, query) {
-					continue
-				}
-				item := method.Item(m).Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
-				if item.Highlighted() {
-					item.Background(t.SurfaceHover).TextColor(t.Text)
-				}
-				item.Children(func() { ui.Text(c, m).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(uikit.MethodColor(m, t)) })
-			}
-			// A typed method narrows the methods only: the protocol is a
-			// choice, never a word to finish.
-			if method.Filtering() {
-				return
-			}
-			ui.Box(c).Height(1).Margin(t.Space(1), 0).Background(t.Border)
-			uikit.Meta(c, locales.Protocol()).Padding(t.Space(1), t.Space(2), t.Space(0.5), t.Space(2))
-			for _, protocol := range requestProtocols {
-				item := ui.ButtonBase(c).Label(locales.RequestProtocol()+" "+protocol).FillWidth().Height(uikit.HeightControl).
-					Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
-				if item.Hovered() {
-					item.Background(t.SurfaceHover)
-				}
-				item.Children(func() {
-					ui.Text(c, protocol).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Grow(1)
-					if protocol == "HTTP" {
-						ui.Icon(c, checkIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
-					}
-				})
-				if item.Clicked() {
-					method.SetOpen(false)
-					a.switchProtocol(d, protocol)
-				}
-			}
-		})
-		if chosen, ok := method.Chosen(); ok {
-			d.composeMethod = chosen
-		}
-		if uikit.IconButton(c, locales.MethodList(), locales.CommonMethods(), chevronIcon).Clicked() {
-			method.SetOpen(!method.Open())
-			method.Input.Focus()
-		}
-	})
 }
 
-// requestProtocolButton is the same control for a document that is not HTTP:
-// it names the protocol it speaks, and its menu switches it, HTTP included.
-func (a *app) requestProtocolButton(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	button := uikit.ToolbarButton(c, locales.RequestProtocol(), locales.RequestProtocol(), false).
-		Height(uikit.HeightControl).Padding(0, t.Space(1)).Gap(t.Space(0.5)).Shrink(0).
-		Disabled(d.composeWaiting || d.grpcUI != nil && d.grpcUI.loading != nil)
-	button.Children(func() {
-		ui.Text(c, d.protocol).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine()
+// requestTargetButton is the button both request targets share: a word, its
+// chevron, and the menu that changes it. It is as wide as its word, so the URL
+// starts right after it, as Postman's method does.
+func requestTargetButton(c *ui.Context, t *ui.Theme, name, tip, word string, ink ui.Color, menu func(*ui.Menu)) ui.Element {
+	b := uikit.ToolbarButton(c, name, tip, false).Height(uikit.HeightControl).
+		Padding(0, t.Space(1)).Gap(t.Space(0.5)).Shrink(0)
+	b.Children(func() {
+		ui.Text(c, word).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(ink).SingleLine()
 		ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
 	})
-	button.PopoverMenuButton(func(m *ui.Menu) {
-		for _, protocol := range requestProtocols {
-			if !m.Item(protocol).Radio(d.protocol == protocol).Chosen() {
-				continue
+	b.PopoverMenuButton(menu, uikit.MenuButtonOptions(c))
+	return b
+}
+
+// requestMethodButton is the method's dropdown: the methods, the protocols
+// under them, and Custom… for a method the list lacks.
+func (a *app) requestMethodButton(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	requestTargetButton(c, t, locales.Method(), locales.CommonMethods(), d.composeMethod,
+		uikit.MethodColor(d.composeMethod, t), func(m *ui.Menu) {
+			for _, method := range requestMethods {
+				if m.Item(method).Radio(d.composeMethod == method).Chosen() {
+					d.composeMethod = method
+				}
 			}
-			a.switchProtocol(d, protocol)
+			m.Separator()
+			m.Submenu(locales.Protocol(), func(m *ui.Menu) {
+				for _, protocol := range requestProtocols {
+					if m.Item(protocol).Radio(cmp.Or(d.protocol, "HTTP") == protocol).Chosen() {
+						a.switchProtocol(d, protocol)
+					}
+				}
+			})
+			m.Separator()
+			if m.Item(locales.CustomMethod()).Chosen() {
+				d.methodCustom, d.methodFocus = true, true
+			}
+		})
+}
+
+// requestMethodInput is the method's own short field, shown only after
+// Custom… is chosen: a method the menu lacks is typed, and Enter or leaving
+// the field puts the button back.
+func (a *app) requestMethodInput(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	in := ui.TextInputBase(c, &d.composeMethod).Width(requestMethodWidth(c)).Height(uikit.HeightControl).
+		Padding(0, t.Space(1)).Label(locales.Method()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).
+		TextColor(uikit.MethodColor(d.composeMethod, t)).Border(0, t.Border)
+	if d.methodFocus {
+		in.Focus()
+		d.methodFocus = false
+	} else if !in.Focused() {
+		d.methodCustom = false
+	}
+	if in.Changed() {
+		d.composeMethod = strings.ToUpper(strings.TrimSpace(d.composeMethod))
+	}
+	if in.Submitted() {
+		d.methodCustom = false
+	}
+}
+
+// requestProtocolButton is the same button for a document that is not HTTP:
+// it names the protocol it speaks, and its menu switches it, HTTP included.
+func (a *app) requestProtocolButton(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	b := requestTargetButton(c, t, locales.RequestProtocol(), locales.RequestProtocol(), d.protocol, t.Text, func(m *ui.Menu) {
+		for _, protocol := range requestProtocols {
+			if m.Item(protocol).Radio(d.protocol == protocol).Chosen() {
+				a.switchProtocol(d, protocol)
+			}
 		}
-	}, uikit.MenuButtonOptions(c))
+	})
+	b.Disabled(d.composeWaiting || d.grpcUI != nil && d.grpcUI.loading != nil)
 }
 
 // urlSpans styles references, never expands them or reads their secret values.

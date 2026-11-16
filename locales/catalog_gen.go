@@ -5350,6 +5350,16 @@ func (msgs Messages) CustomCaSubject(subject string) string {
 	return Catalog.Format(msgs.locale, "customCaSubject", map[string]any{"subject": subject})
 }
 
+// CustomMethod says "Custom…"
+// in the language the app shows.
+func CustomMethod() string { return In(i18n.Locale()).CustomMethod() }
+
+// CustomMethod says "Custom…"
+// in the language of msgs.
+func (msgs Messages) CustomMethod() string {
+	return Catalog.Format(msgs.locale, "customMethod", nil)
+}
+
 // CustomNetworkPresets says "Custom network presets"
 // in the language the app shows.
 func CustomNetworkPresets() string { return In(i18n.Locale()).CustomNetworkPresets() }

@@ -31,15 +31,12 @@ func TestRequestBarKeepsProtocolsInTheMethodMenu(t *testing.T) {
 	d := a.requestDocument
 	tt := ui.NewTester(a.view, 1280, 800)
 	tt.Frame()
-	if err := tt.Click("Method list"); err != nil {
+	if err := tt.Click("Method"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !tt.HasText("Protocol") || !tt.HasText("gRPC") {
-		t.Fatalf("the method menu does not list the protocols: %q", tt.Texts())
-	}
-	if err := tt.Click("Request protocol gRPC"); err != nil {
-		t.Fatal(err)
+	if err := tt.ChooseMenuItem("Protocol", "gRPC"); err != nil {
+		t.Fatalf("the method menu does not list the protocols: %v", err)
 	}
 	tt.Frame()
 	if d.protocol != "gRPC" {

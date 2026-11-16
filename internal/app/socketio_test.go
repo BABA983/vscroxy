@@ -170,12 +170,11 @@ func TestSocketIOProtocolSelectorAndReturnToHTTP(t *testing.T) {
 	a := libraryApp(t)
 	a.addDocument(savedRequest{Name: "Protocol choice", URL: "https://api.example.com"}, "")
 	tt := ui.NewTester(a.view, 960, 600)
-	// The protocol sits at the foot of the method menu, which is the bar's
-	// only dropdown.
-	if err := tt.Click("Method list"); err != nil {
+	// The protocol sits in the method menu, which is the bar's only dropdown.
+	if err := tt.Click("Method"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Request protocol Socket.IO"); err != nil {
+	if err := tt.ChooseMenuItem("Protocol", "Socket.IO"); err != nil {
 		t.Fatal(err)
 	}
 	for range 3 {

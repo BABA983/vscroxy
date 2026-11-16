@@ -928,7 +928,7 @@ func snapshotStates(t *testing.T) []snapshot {
 		{name: "requests-variables", setup: func(a *app) { draft(a); a.openVars() }, want: "Variable name 1"},
 		{name: "requests-environment-menu", setup: draft, act: click("Active environment"), want: "Staging"},
 		{name: "requests-collection-menu", setup: draft, act: click("Collection options"), menu: "Import collection folder…"},
-		{name: "requests-method-menu", setup: draft, act: click("Method list"), want: "PATCH"},
+		{name: "requests-method-menu", setup: draft, act: click("Method"), want: "PATCH"},
 		{name: "requests-url-variables", setup: func(a *app) {
 			draft(a)
 			a.composeURL = "{{baseUrl}}/projects?q={{query}}&page=1"

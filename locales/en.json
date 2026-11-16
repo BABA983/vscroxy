@@ -1954,6 +1954,7 @@
   "currentValuesStayLocalAnd": "Current values stay local and are excluded from environment exports. Vault values are encrypted and host-restricted.",
   "customCaFile": "Custom CA file",
   "customCaSubject": "Custom CA: {subject}",
+  "customMethod": "Custom…",
   "customNetworkPresets": "Custom network presets",
   "customPreset": "Custom preset",
   "customPresets": "Custom presets…",

@@ -531,6 +531,7 @@
   "currentValuesStayLocalAnd": "当前值保留在本地，不包含在环境导出中。保险库中的值会加密并限制到指定主机。",
   "customCaFile": "自定义 CA 文件",
   "customCaSubject": "自定义 CA：{subject}",
+  "customMethod": "自定义…",
   "customNetworkPresets": "自定义网络预设",
   "customPreset": "自定义预设",
   "customPresets": "自定义预设…",
