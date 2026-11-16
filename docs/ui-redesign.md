@@ -585,6 +585,9 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 98. SSE 会话对话框重排（第十七阶段，2026-11-16）：标题固定为 `SSE session`，状态用 `StatusPill`；连接中显示 `Reconnect`／`Stop SSE`，不显示禁用的 `Connect SSE`；`Copy event ID` 是 meta 行尾的图标，技术脚注收进信息图标的 Tip。
 
 99. uikit AD（2026-11-16）：MCP catalog 去掉自己的 Tools/Resources/Prompts 分段，目录跟随请求面板的 tab，只留一套导航；集合向导 Endpoints 预览显示将生成的请求和捕获响应；Postman 导入报告的主操作改成 Review collection，Done 次要；SSE 连接中 Stop 是主操作、Reconnect 次要，事件列表和 payload 放进填满高度的 Panel；Protobuf 在窄 inspector 改成上下布局，宽时仍左右；Certificates 滚动区底部留出 footer 高度。设置格式回到未版本化，开发阶段直接改格式（见 AGENTS.md）。
+
+100. uikit AE（2026-11-16）：调查板先给慢请求列表，方法学收成一行、全文进 Tip；首次启动引导打开时占据整个内容区，不再露出抓包工具栏和列表外框，第一步的 `Start capture` 是主操作，`Skip guide` 收进卡片底部；Scenarios 的名称改成带可见标签的 `FormRow`，状态文案改成 `On: its rules apply. Rules with no scenario also apply.`，规则顺序说明移到标题下；SSE 和 WebSocket 的事件列表改用 `DataList`，文字左对齐，只有选中行有底色和 `RowMarker`。重放结果通知的测试改为等待提示真正出现，不再假定一帧就够。
+
 ## 13. 仍与设计稿不一致的地方
 
 v3 六个阶段落地后，和设计稿仍有这些差别，都是有意保留的：

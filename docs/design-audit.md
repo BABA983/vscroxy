@@ -1,8 +1,9 @@
 # 设计审计：uikit 与画廊页面
 
-状态：**审计完成，2026-11-14；本轮只写审计，不改任何现有页面的布局。**
+状态：**审计完成，2026-11-14；页面层处理状态见 (d)，2026-11-16 结案。**
 
 > 2026-11-15：uikit 的前五条（FormRow／InputState、DataList、Modal 标题、Ring、DestructiveButton）已在 `uikit-q` 实现；下面的“现状”保留审计时的样子，作为改动依据。
+> 2026-11-16：uikit A/B–A/E 按频率重排了页面；每页的状态、对应提交和仍未处理的条目见 (d)。
 基线：`gallery-plates`，已变基到 `origin/feat/mygo-app`（`ecfced7`）。图版见 `docs/design/`，由 `internal/gallery` 从 `internal/app/gallery.go` 的假数据导出；浅色、深色各一张。
 
 参考：
@@ -385,3 +386,45 @@ uikit 前五条已经实现，页面层只重排了 Rules／Scripts／Mocks 三�
 - **页面**：Rules 列表第二行移到整行宽度、可换行并有 Tip；Scripts 代码编辑器 `SoftWrap`、只保留一个选中行；Mocks 增加中间省略的完整路径行和 Tip，Body 标签用 `FormRowTall` 顶部对齐。三页表单都改用 `FormRow`／`NumberField`。
 
 仍未迁的红字类别：连接／协议页的 `problem`（WS、SSE、MQTT、gRPC、Socket.IO、MCP、Protobuf 等），页面级保存或校验错误（Rules、Vault、Certificates、Client setup、API、Sessions、Experiments、Collection wizard 等），列表行错误（Sessions、Scripts 解析错误），以及诊断／日志文本。它们不是某个控件的值错误，硬塞进 `Field.Error` 会把页面错误误读成字段错误。
+
+---
+
+## (d) 页面处理状态（2026-11-16）
+
+按审计顺序逐页结案。`58ab174` 是本轮之前的 uikit-q／AA 基线；`34dbb6c`、`ec78d8c` 是 A/C、A/D 的页面提交；`81aec71` 是 A/E。状态只表示这一页的 P1／P2 是否已经有可用的实现，P3 的保留项写在说明里。
+
+| # | 页面 | 状态 | 提交 | 说明 |
+| --- | --- | --- | --- | --- |
+| 1 | Tools · Rules | 已处理 | `58ab174` | 列表第二行、FormRow、测试框已重排；P3 的三级标题保留。 |
+| 2 | Tools · Host profiles | 已处理 | `58ab174` | 冲突改成行内标记＋Tip，编辑器有下方诊断；P3 的行尾错误文字保留。 |
+| 3 | Tools · Scripts | 已处理 | `58ab174` | 软换行、单一选中行、关键字用 Text／Info；P3 的三级标题保留。 |
+| 4 | Tools · Mocks | 已处理 | `58ab174` | 响应文件路径有中间省略＋Tip，Body 标签顶部对齐。 |
+| 5 | Tools · Scenarios | 已处理 | `81aec71` | 名称是带可见标签的 FormRow；状态文案和规则顺序说明已重写；P3 的每行 Edit 保留。 |
+| 6 | Client setup | 已处理 | `58ab174` | 停止时 Start capture 是主操作，对话框高度跟内容，动作按钮不再整行宽。 |
+| 7 | Diagnostics | 部分 | `58ab174` | P1 的 listener／system proxy 矛盾已修；P2 的展开 chevron 仍未做，见下。 |
+| 8 | HTTPS rules | 已处理 | `58ab174` | 标题统一成 HTTPS decryption，域名说明进标题 Tip；P3 的文本域高度保留。 |
+| 9 | API · endpoints | 已处理 | `58ab174` | Parameters／Request body／Responses 结构化，Raw 进标签页。 |
+| 10 | Runs · records | 部分 | `58ab174` | 行摘要和底栏已修；P1 的 History／Runs 命名仍未统一，见下。 |
+| 11 | Runs · running | 已处理 | `58ab174` | 运行时 Cancel run 是主操作，Iterations 有标签。 |
+| 12 | Runs · results | 已处理 | `58ab174` | 失败详情在结果右侧，Inspect retained run 不再压住原因。 |
+| 13 | Sessions | 部分 | `58ab174` | 两级选择已用 Tabs／Segmented 区分；P2 的顶部四个同权重动作保留，见下。 |
+| 14 | Collection wizard | 已处理 | `34dbb6c` | 预览显示将生成的请求和捕获响应。 |
+| 15 | Postman import | 已处理 | `34dbb6c` | 主操作 Review collection，Done 次要。 |
+| 16 | Variables · environment | 已处理 | `58ab174` | 选择器和名称有标签，Current 只掩码敏感值，动作列留出宽度。 |
+| 17 | Certificates · editor | 部分 | `ec78d8c`, `34dbb6c` | Save 在 sticky footer，滚动区留出 footer 高度；P2 的每个 client 四行布局保留，见下。 |
+| 18 | Protobuf inspector | 已处理 | `ec78d8c`, `34dbb6c` | 窄时上下布局，宽时左右；Copy 是图标，底部裁切已修。 |
+| 19 | SSE session | 已处理 | `ec78d8c`, `34dbb6c`, `81aec71` | 标题／状态分开，连接中 Stop 是主操作，事件列表和 payload 填满高度；列表改 DataList。 |
+| 20 | Investigation board | 部分 | `81aec71` | P1 已修：慢请求在前，方法学一行＋Tip；P2 的顶部视图按钮和批量工具栏保留，见下。 |
+| 21 | Setup guide | 已处理 | `81aec71` | 引导占据内容区，第一步 Start capture，Skip guide 在卡片底部；P3 的标题／状态重复保留。 |
+| 22 | MCP catalog | 已处理 | `34dbb6c` | 只留请求 tab 一套导航，目录跟随 tab；选中行走 DataList。 |
+| 23 | Request editor · Socket.IO | 部分 | `58ab174` | Copy shown message 已改成普通次级按钮；P2 的左栏空白和 P3 的底栏文案保留，见下。 |
+
+### 仍未处理，以及原因
+
+- **Diagnostics 的行首展开箭头（P2）。** 现在整行可点，但只有悬停提示说明；要在行首画 chevron 并随展开旋转，需要给 `diagnosticRow` 一个固定的图标槽和 `Expanded` 状态，属于行布局改动，留给下一次 Diagnostics 专项。
+- **Runs · records 的 History／Runs 命名（P1）。** 页面标题仍是 `History`，入口和底栏叫 `Runs`；统一命名会牵动保留运行的模型、导出文案和文档，A/E 没有扩大到这个范围。
+- **Sessions 顶部四个同权重动作（P2）。** `Unpin`、`Use as left`、`Compare with left`、`Reveal credentials` 仍在同一行；要合成一个主操作＋`⋯`，需要先定义比较流程的主次，留给 Sessions 专项。
+- **Certificates 每个 client 的四行 stacked label（P2）。** P1 的 Save 可见性已经修好；把 Host／Certificate／Key／Passphrase 改成摘要＋展开会改变 `SettingsCardBlock` 的结构，A/D 只做了 footer 留白。
+- **Investigation board 的顶部视图按钮和批量工具栏（P2）。** `Summary`／`Compare two`／`Inspect focused` 仍像三个同级按钮，批量栏仍有四个动作；把它们改成 Tabs＋一个主操作需要同时改检查器状态和快捷键，A/E 只先修 P1 的数据顺序。
+- **Socket.IO 左栏空白和底栏文案（P2/P3）。** Event 表单下面仍是空白，底栏仍显示全局请求计数；补 session metadata／ACK 队列是功能改动，不属于这一轮的重排。
+- **Scenarios 每行的 Edit（P3）。** 行点击打开、Edit 只在悬停出现需要 MyGo 的 hover 回调或自绘行；当前保留常驻 Edit，避免加一个不可靠的悬停层。
