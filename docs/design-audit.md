@@ -434,9 +434,9 @@ uikit 前五条已经实现，页面层只重排了 Rules／Scripts／Mocks 三�
 
 ## (e) 视觉全量检查（2026-11-16）
 
-(a)–(d) 是按页面读代码和图版；这一节是把画廊的每个 Screens 图版按 **1280 和 960 两个宽度 × Light／Dark** 全部导出、逐张看一遍，再把画廊画不出来的状态（菜单、对话框、悬停卡、toast、真实窗口里的请求栏）在实窗口里补看。43 个图版共 172 张 PNG，分 11 张 contact sheet 看完；中文只抽查了 traffic、命令面板、Settings · General、Settings · Certificates、Tools · Scenarios 五页，没有做整页中文复查。
+(a)–(d) 是按页面读代码和图版；这一节把 **43 个 Screens 状态**按 **1280 和 960 两个宽度 × Light／Dark** 全部导出、逐张看一遍（172 张 PNG，分 11 张 contact sheet），同时重导了画廊的 71 个条目（142 张图版，进 `docs/design/`），再把画廊画不出来的状态（菜单、对话框、悬停卡、toast、真实窗口里的请求栏）在实窗口里补看。中文只抽查了 traffic、命令面板、Settings · General、Settings · Certificates、Tools · Scenarios 五页，没有做整页中文复查。
 
-图版的来源和 (b) 一样：`internal/gallery` 从 `internal/app/gallery.go` 的假数据导出，写到 `docs/design/`（每页 Light／Dark 各一张）；本轮的 before／after 对照表在 `.amp/in/artifacts/uikit-af/`。
+图版的来源和 (b) 一样：`internal/gallery` 从 `internal/app/gallery.go` 的假数据导出，写到 `docs/design/`（每页 Light／Dark 各一张）；这一轮实窗口的 History／Examples 和 URL 栏前后对照在 `.amp/in/artifacts/uikit-af/`。
 
 ### e.1 结论
 
