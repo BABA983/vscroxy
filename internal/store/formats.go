@@ -5,8 +5,10 @@ import (
 )
 
 // The app's file formats. Every file the app owns is one of these; a format
-// with no Steps yet is version 1, the first version that shipped. A format
-// change adds a step and the test data that goes with it (see AGENTS.md).
+// with no Steps yet is version 1. While the project is in development, a
+// persisted format changes directly: no version bump, step, or migration test
+// data. Resume that rule only when the user explicitly starts compatibility
+// work (see AGENTS.md).
 //
 // Not listed here because they are content, not app state: request scripts and
 // addons under tools/, hosts text under tools/hosts, response bodies under

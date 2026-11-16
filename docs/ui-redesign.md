@@ -559,7 +559,7 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 
 76. 搜索框是筛选取值的唯一入口，它自己没有模式：普通文字包含、`/…/` 正则、`*`／`?` 通配，都作用于整个 host＋path。原来的「Text／Wildcard／Regex」下拉删掉，因为同一个功能有两个入口（下拉和语法）；漏斗从过滤栏、底栏和侧栏收进搜索框右端，底栏只留 Clear 和 Auto-follow（第十三阶段，2026-11-13）。
 
-77. uikit A/B（2026-11-16）：工具提示换成浮层表面（canvas、hairline、`ShadowPopover`、`RadiusPanel`、6×10、12 号正文、360 宽），快捷键用 `Kbd`，新增 `CardTip` 富卡片（侧栏请求行和抓包行）；延迟设成 500ms。删掉所有装饰性过渡和动效 token（悬停淡出、浮层和 toast 进出、对话框淡入、分区折叠、面板尺寸、数字滚动），只留录制点的脉动和用户自己的拖动／滚动。侧栏改成 PaneView：Traffic 固定，中间 Sources／Sessions／Collections 可折叠、最后一个展开的段占满剩余、分隔条可拖、双击恢复，折叠状态和段高记在 settings（`SidebarPaneHeights`，settings 格式升到 2）。Client setup 对话框高度跟内容、动作按钮不再整行宽；HTTPS decryption 的「Domains and subdomains」进标题的 Tip。菜单关闭后补一帧重绘，让焦点环在 Escape 的那一帧出现。
+77. uikit A/B（2026-11-16）：工具提示换成浮层表面（canvas、hairline、`ShadowPopover`、`RadiusPanel`、6×10、12 号正文、360 宽），快捷键用 `Kbd`，新增 `CardTip` 富卡片（侧栏请求行和抓包行）；延迟设成 500ms。删掉所有装饰性过渡和动效 token（悬停淡出、浮层和 toast 进出、对话框淡入、分区折叠、面板尺寸、数字滚动），只留录制点的脉动和用户自己的拖动／滚动。侧栏改成 PaneView：Traffic 固定，中间 Sources／Sessions／Collections 可折叠、最后一个展开的段占满剩余、分隔条可拖、双击恢复，折叠状态和段高记在 settings（`SidebarPaneHeights`，可选字段；开发阶段不升格式版本）。Client setup 对话框高度跟内容、动作按钮不再整行宽；HTTPS decryption 的「Domains and subdomains」进标题的 Tip。菜单关闭后补一帧重绘，让焦点环在 Escape 的那一帧出现。
 77. MyGo 的表格只按 `ListState.Selection` 画选中行，`Selected` 只是键移动的起点。所以应用自己移动选中行时必须同时把它放进选择集合（`choosePicked`）；「画的时候强行塞进去」会清掉多选，不是解法（第十三阶段，2026-11-13）。
 78. 计数只说一次：侧栏保留计数，活动条只有柱子和结束时间，底栏只在隐藏了行时说「8 of 13」，批量选择时仍报「N of M selected」（第十三阶段，2026-11-13）。
 79. 隧道详情只留一行状态和一个「Decrypt <host>」，其余（域规则、App 规则、信任）进 Connection 标签页；给整个 App 放宽权限的动作进面板头的 `⋯`。表格里隧道行用锁图标表示 Status、Path 留空、CONNECT 用次要色（第十三阶段，2026-11-13）。
