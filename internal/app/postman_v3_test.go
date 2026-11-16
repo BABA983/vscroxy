@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/postman"
+	"github.com/egoist/mygo/ui"
 )
 
 func TestImportPostmanV3Directory(t *testing.T) {
@@ -47,6 +48,9 @@ func TestImportPostmanV3Directory(t *testing.T) {
 	}
 	if !a.importReport.open {
 		t.Errorf("import report did not open: %+v", a.importReport)
+	}
+	if a.importReport.review == "" {
+		t.Error("import report has no way into the imported collection")
 	}
 	for _, line := range a.importReport.lines {
 		if strings.Contains(line, "MQTT") && strings.Contains(line, "Skipped") {
@@ -203,5 +207,23 @@ func TestImportV3DuplicateIDStableAcrossOrder(t *testing.T) {
 		if r.URL == "https://example.com/a" && r.ID != "5d1c" {
 			t.Errorf("path-first request id = %q, want 5d1c", r.ID)
 		}
+	}
+}
+
+// The report's primary action is the way into the collection it wrote, not
+// just an acknowledgement.
+func TestImportReportReviewsTheCollection(t *testing.T) {
+	a := workspaceApp()
+	a.importReport = importReport{open: true, title: "Imported “Workspace API” · 1 request", review: a.requests[0].key()}
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Frame()
+	if err := tt.Click("Review collection"); err != nil {
+		t.Fatal(err)
+	}
+	if a.importReport.open {
+		t.Fatal("Review collection left the report open")
+	}
+	if a.page != pageRequest {
+		t.Fatalf("Review collection did not open the request editor: page %v", a.page)
 	}
 }

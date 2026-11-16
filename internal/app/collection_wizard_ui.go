@@ -110,7 +110,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 					g := w.groups[w.active]
 					uikit.DialogTitle(c, g.method+" "+g.template).Font(uikit.FontMono).SingleLine()
 					uikit.Meta(c, locales.OriginCapturedRequests(g.origin, len(g.flows))).SingleLine()
-					if w.step == 1 || w.step == 4 {
+					if w.step == 4 {
 						ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 							for _, i := range g.flows {
 								f := w.flows[i]
@@ -134,12 +134,20 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 						uikit.Hint(c, err.Error())
 						return
 					}
+					uikit.Meta(c, r.Name+" · "+r.Collection).SingleLine()
 					preview := r.Method + " " + r.URL + "\n\n" + r.Headers
 					// Do not echo credentials even when Leave in requests is selected.
 					for _, credential := range w.credentials {
 						preview = strings.ReplaceAll(preview, credential.value, "••••")
 					}
-					ui.Scroll(c).Grow(1).MinHeight(0).Children(func() { uikit.Mono(c, preview+"\n\n"+r.Body).Selectable() })
+					ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+						uikit.Mono(c, preview+"\n\n"+r.Body).Selectable()
+						if body, notice := f.bodyPreview(true); body != "" {
+							ui.Divider(c)
+							uikit.Meta(c, fmt.Sprintf("Captured response · %d · %s", f.status, cmp.Or(f.contentType(true), "unknown type"))).SingleLine()
+							uikit.Mono(c, body+notice).Selectable().MaxLines(12)
+						}
+					})
 					uikit.Meta(c, "Environment: "+w.environmentLabel())
 				})
 			})

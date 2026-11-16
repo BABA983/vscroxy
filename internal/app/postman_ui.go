@@ -22,6 +22,9 @@ type importReport struct {
 	open         bool
 	title, intro string
 	lines        []string
+	// review is the first imported request, the way into the collection the
+	// report just wrote.
+	review string
 }
 
 // importRequests adds what a file the user picks holds: a Postman
@@ -265,18 +268,29 @@ func (a *app) importPostmanCollection(col postman.Collection) {
 		a.applyImportedFolderCurrent(replaced, importedFolderLocals(col.Folders))
 	}
 	a.page = pageRequest
-	a.reportImport(fmt.Sprintf("Imported “%s” · %d %s", col.Name, len(col.Requests), plural(len(col.Requests), "request", "requests")), col.Warnings)
+	review := ""
+	for _, r := range merged {
+		if strings.HasPrefix(r.Collection, col.Name) {
+			review = r.key()
+			break
+		}
+	}
+	a.reportImport(fmt.Sprintf("Imported “%s” · %d %s", col.Name, len(col.Requests), plural(len(col.Requests), "request", "requests")), col.Warnings, review)
 }
 
 // reportImport says what came in; when something was dropped it opens a
 // dialog that lists it instead of a passing message.
-func (a *app) reportImport(title string, warnings []string) {
+func (a *app) reportImport(title string, warnings []string, review ...string) {
 	if len(warnings) == 0 {
 		a.done(title)
 		return
 	}
-	a.importReport = importReport{open: true, title: title, lines: warnings,
+	r := importReport{open: true, title: title, lines: warnings,
 		intro: "Everything else was imported. These parts have no equivalent here yet:"}
+	if len(review) > 0 {
+		r.review = review[0]
+	}
+	a.importReport = r
 }
 
 func (a *app) importReportModal(c *ui.Context, t *ui.Theme) {
@@ -294,6 +308,16 @@ func (a *app) importReportModal(c *ui.Context, t *ui.Theme) {
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {
+				if r.review != "" {
+					if uikit.PrimaryButton(c, locales.ReviewCollection()).Clicked() {
+						r.open = false
+						a.openSaved(r.review)
+					}
+					if uikit.SecondaryButton(c, locales.Done()).Clicked() {
+						r.open = false
+					}
+					return
+				}
 				if uikit.PrimaryButton(c, locales.Ok()).Clicked() {
 					r.open = false
 				}

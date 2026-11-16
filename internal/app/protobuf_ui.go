@@ -32,6 +32,7 @@ type protoInspector struct {
 	ruleFor  string // the URL whose saved rule was applied
 	list     ui.ListState
 	split    float32
+	splitV   float32
 	// readerHeight is the reader's viewport as the last frame laid it out:
 	// the pane fills it, and scrolls only when its controls and messages
 	// need more than it has.
@@ -210,13 +211,10 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 		uikit.Hint(c, note).Padding(t.Space(3))
 		return
 	}
-	if p.split == 0 {
-		p.split = 180
-	}
 	if p.selected >= len(visible) {
 		p.selected = len(visible) - 1
 	}
-	ui.Split(c, &p.split, func() {
+	list := func() {
 		p.list.Selected = &p.selected
 		p.list.Key = func(i int) any { return visible[i] }
 		p.list.Label = func(i int) string { return fmt.Sprintf("Message %d", visible[i]+1) }
@@ -228,7 +226,8 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 			}
 			ui.Text(c, note).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text).Padding(t.Space(2), t.Space(3)).SingleLine()
 		}).Grow(1)
-	}, func() {
+	}
+	detail := func() {
 		// List maps a selected key it no longer has to -1: the message went
 		// away, and the detail says so rather than showing the oldest one.
 		settleEvent(&p.selected, len(visible))
@@ -251,9 +250,22 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 					ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
 				})
 			})
-
 		})
-	}).Grow(1).MinHeight(0)
+	}
+	// A narrow inspector gives the decoded text the full width: a long field
+	// such as "Studio headphones" should not wrap into a second line. Wide
+	// panes keep the list beside the reader.
+	if a.inspectorWidth(c) < 560 {
+		if p.splitV == 0 {
+			p.splitV = 96
+		}
+		ui.SplitVertical(c, &p.splitV, list, detail).SplitReset(96).Grow(1).MinHeight(0)
+		return
+	}
+	if p.split == 0 {
+		p.split = 180
+	}
+	ui.Split(c, &p.split, list, detail).SplitReset(180).Grow(1).MinHeight(0)
 }
 
 // Schema loading is explicit and transactional: errors keep the previous

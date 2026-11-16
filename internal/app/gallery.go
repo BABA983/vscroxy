@@ -679,6 +679,7 @@ func galleryPostmanImport(a *app) {
 			"Two saved responses on “List projects” were imported as Examples.",
 		},
 	}
+	a.importReport.review = a.requests[0].key()
 }
 
 // galleryVariables is the environment editor with initial, current and
@@ -768,7 +769,7 @@ service Catalog { rpc Fetch(Input) returns (stream Output); }`,
 	a.protobuf.schema, a.protobuf.name = schema, "api.Output"
 	a.protobuf.result = inspectProto(context.Background(), f, true, schema, "api.Output")
 	a.protobuf.key = fmt.Sprintf("%d:%t:%s:%p", f.id, true, "api.Output", schema)
-	a.protobuf.selected, a.protobuf.split = 0, 200
+	a.protobuf.selected = 0
 	return true
 }
 
@@ -889,7 +890,7 @@ func galleryMCP(a *app) {
 	for i := range u.session.events {
 		u.session.events[i].size = len(u.session.events[i].text)
 	}
-	u.tab, u.responseTab, u.catalogTab, u.catalogRow, u.selected = mcpTabTools, 2, 0, 0, 4
+	u.tab, u.responseTab, u.catalogRow, u.selected = mcpTabTools, 2, 0, 4
 	a.composeWaiting, a.sendCancel = true, func() {}
 }
 

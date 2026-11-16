@@ -407,7 +407,7 @@ func snapshotStates(t *testing.T) []snapshot {
 		for i := range u.session.events {
 			u.session.events[i].size = len(u.session.events[i].text)
 		}
-		u.tab, u.responseTab, u.catalogTab, u.selected = mcpTabTools, 2, 0, 4
+		u.tab, u.responseTab, u.selected = mcpTabTools, 2, 4
 		a.composeWaiting, a.sendCancel = true, func() {}
 		return d
 	}

@@ -789,6 +789,7 @@
   "queryKeyColor": "行颜色",
   "queryKeyNote": "备注中的文本",
   "reconnect": "重新连接",
+  "reviewCollection": "查看集合",
   "sseSessionTitle": "SSE 会话",
   "textConditionNeedsValue": "{condition} 需要一个值，例如 =value 或 /pattern/",
   "@textConditionNeedsValue": {

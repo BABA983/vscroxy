@@ -742,6 +742,14 @@ func DialogFooter(c *ui.Context) ui.Element {
 		Padding(t.Space(3), 0, 0, 0).Border(0, t.Border).BorderWidth(1, 0, 0, 0)
 }
 
+// Panel frames one data area on the canvas: the surface behind it, a
+// hairline and RadiusPanel. Use it for a preview, a catalog or a reader that
+// would otherwise float on the dialog's canvas, not for every group.
+func Panel(c *ui.Context) ui.Element {
+	p := Colors(c.Theme())
+	return ui.Column(c).Background(p.Chrome).Border(1, p.Hairline).Radius(RadiusPanel)
+}
+
 // PopoverPanel is the chrome of anything floating above the window short of
 // a menu or a dialog: popovers and timing cards. It is a 12-point canvas
 // panel on the popover shadow. A menu takes MenuPanel; a dialog Modal's own.

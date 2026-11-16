@@ -34,7 +34,6 @@ type mcpDocument struct {
 	recorded     *mcpSession
 	tab          int
 	responseTab  int
-	catalogTab   int
 	catalog      ui.ListState // the catalog's rows, built as they come into view
 	catalogRow   int          // the row the pointer picked
 	toolTab      int
@@ -149,7 +148,7 @@ func (a *app) startMCP(d *requestDocument, plan request.MCPPlan) {
 	u.session = openMCPSession(plan, r, in, vars, a.invalidate)
 	u.problem, u.query, u.readerKey, u.reader, u.selected = "", "", "", nil, 0
 	u.argsEditor, u.argsFor, u.schemaReader, u.schemaFor = nil, "", nil, ""
-	u.responseTab, u.catalogTab, u.toolTab = 0, 0, 0
+	u.responseTab, u.toolTab = 0, 0
 	u.resultFor, u.resultBmp, u.resultErr = "", nil, nil
 	d.composeWaiting, d.sendCancel, d.sendCancelling = true, u.session.disconnect, false
 	d.historyPick, d.comparing = 0, false
@@ -762,13 +761,22 @@ func base64Preview(data []byte) string {
 }
 
 func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpDocument, s mcpSnapshot) {
+	// The request's own Tools/Resources/Prompts tab is the one navigation:
+	// the catalog follows it instead of adding a second segmented control.
+	catalog, title := 0, locales.Tools()
+	switch u.tab {
+	case mcpTabResources:
+		catalog, title = 1, locales.Resources()
+	case mcpTabPrompts:
+		catalog, title = 2, locales.Prompts()
+	}
 	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Segmented(c, &u.catalogTab, locales.Tools(), locales.Resources(), locales.Prompts())
+		uikit.Label(c, title)
 		ui.Spacer(c)
 		uikit.Meta(c, locales.CatalogSummary(len(s.tools), len(s.resources), len(s.templates), len(s.prompts))).SingleLine()
 		a.actionButton(c, "request.mcp-refresh", "Refresh")
 	})
-	switch u.catalogTab {
+	switch catalog {
 	case 0:
 		if len(s.tools) == 0 {
 			uikit.EmptyState(c, locales.NoToolsListed(), locales.TheServerDidNotAdvertise(), nil)

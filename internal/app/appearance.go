@@ -209,7 +209,14 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 			if a.settingsWin != nil {
 				top = t.Space(6) // no dialog title above it
 			}
-			ui.Scroll(c).Grow(1).MinHeight(0).MinWidth(0).Padding(top, t.Space(6), t.Space(6), t.Space(6)).Children(func() {
+			bottom := t.Space(6)
+			if a.settingsTab == 6 {
+				// The certificates footer is fixed under the scroll: leave
+				// its height as content padding so the last client card can
+				// scroll clear of it.
+				bottom += 64
+			}
+			ui.Scroll(c).Grow(1).MinHeight(0).MinWidth(0).Padding(top, t.Space(6), bottom, t.Space(6)).Children(func() {
 				switch a.settingsTab {
 				case 0:
 					a.generalSettings(c, t)

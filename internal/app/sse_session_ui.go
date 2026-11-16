@@ -84,11 +84,14 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 							start(false)
 						}
 					} else {
-						if uikit.PrimaryButton(c, locales.Reconnect()).Clicked() {
+						// A live session has no primary action: Stop is the
+						// way out, Reconnect is the exception. Only a finished
+						// session offers Connect/Reconnect as the main action.
+						if uikit.SecondaryButton(c, locales.Reconnect()).Clicked() {
 							s.session.stop()
 							start(true)
 						}
-						if uikit.SecondaryButton(c, locales.StopSse()).Clicked() {
+						if uikit.PrimaryButton(c, locales.StopSse()).Clicked() {
 							s.session.stop()
 						}
 					}
@@ -110,58 +113,62 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 				if s.scroll.Y >= s.scroll.MaxY {
 					s.scroll.Y = math.MaxFloat32
 				}
-				ui.Scroll(c).TrackScroll(&s.scroll).Width(280).MinWidth(0).Shrink(1).Gap(t.Space(1)).Children(func() {
-					found := 0
-					for _, e := range events {
-						if !strings.Contains(strings.ToLower(e.eventType+"\n"+e.id+"\n"+e.data+"\n"+e.detail), strings.ToLower(s.query)) {
-							continue
+				uikit.Panel(c).Width(280).MinWidth(0).Shrink(1).Grow(1).MinHeight(0).Padding(t.Space(2)).Children(func() {
+					ui.Scroll(c).TrackScroll(&s.scroll).Grow(1).MinHeight(0).Gap(t.Space(1)).Children(func() {
+						found := 0
+						for _, e := range events {
+							if !strings.Contains(strings.ToLower(e.eventType+"\n"+e.id+"\n"+e.data+"\n"+e.detail), strings.ToLower(s.query)) {
+								continue
+							}
+							found++
+							label := fmt.Sprintf("#%d %s · %s · %d B", e.seq, e.at.Format("15:04:05.000"), clamp(e.eventType, 24), e.size)
+							if e.detail != "" {
+								first, _, _ := strings.Cut(e.detail, "\n")
+								label = fmt.Sprintf("#%d %s", e.seq, first)
+							}
+							b := uikit.Tip(c, uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.seq)).Label(locales.SseEventLabel(e.seq)).FillWidth(), label)
+							if e.seq == s.picked {
+								uikit.Selected(c, b, !a.windowBehind)
+							}
+							if b.Clicked() {
+								s.picked = e.seq
+								s.reader = nil
+							}
 						}
-						found++
-						label := fmt.Sprintf("#%d %s · %s · %d B", e.seq, e.at.Format("15:04:05.000"), clamp(e.eventType, 24), e.size)
-						if e.detail != "" {
-							first, _, _ := strings.Cut(e.detail, "\n")
-							label = fmt.Sprintf("#%d %s", e.seq, first)
+						if found == 0 {
+							uikit.Hint(c, locales.NoMatchingEventsYet())
 						}
-						b := uikit.Tip(c, uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.seq)).Label(locales.SseEventLabel(e.seq)).FillWidth(), label)
-						if e.seq == s.picked {
-							uikit.Selected(c, b, !a.windowBehind)
-						}
-						if b.Clicked() {
-							s.picked = e.seq
-							s.reader = nil
-						}
-					}
-					if found == 0 {
-						uikit.Hint(c, locales.NoMatchingEventsYet())
-					}
+					})
 				})
-				ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(2)).Children(func() {
-					for _, e := range events {
-						if e.seq != s.picked {
-							continue
+				uikit.Panel(c).Grow(1).MinWidth(0).MinHeight(0).Padding(t.Space(2)).Children(func() {
+					ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(2)).Children(func() {
+						for _, e := range events {
+							if e.seq != s.picked {
+								continue
+							}
+							text := e.detail
+							if e.detail == "" {
+								text = e.data
+								ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+									uikit.Meta(c, "Type: "+clamp(e.eventType, 80)+" · ID: "+clamp(e.id, 80)).Grow(1).MinWidth(0)
+									if uikit.IconButton(c, locales.CopyEventId(), locales.CopyEventId(), copyIcon).Clicked() {
+										c.Services().WriteClipboard(e.id)
+									}
+								})
+							}
+							if s.reader == nil {
+								s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, SoftWrap: true, NoScrollPastEnd: true, Label: locales.SseEventPayload()}
+							}
+							requestCodeEditor(c, s.reader)
+							return
 						}
-						text := e.detail
-						if e.detail == "" {
-							text = e.data
-							ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
-								uikit.Meta(c, "Type: "+clamp(e.eventType, 80)+" · ID: "+clamp(e.id, 80)).Grow(1).MinWidth(0)
-								if uikit.IconButton(c, locales.CopyEventId(), locales.CopyEventId(), copyIcon).Clicked() {
-									c.Services().WriteClipboard(e.id)
-								}
-							})
+						s.reader = nil
+						if s.picked != 0 {
+							uikit.Hint(c, locales.SelectedEventWasEvictedSelect())
+						} else {
+							uikit.Hint(c, locales.SelectAnEventToInspect())
 						}
-						if s.reader == nil {
-							s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, SoftWrap: true, NoScrollPastEnd: true, Label: locales.SseEventPayload()}
-						}
-						requestCodeEditor(c, s.reader)
-						return
-					}
-					s.reader = nil
-					if s.picked != 0 {
-						uikit.Hint(c, locales.SelectedEventWasEvictedSelect())
-					} else {
-						uikit.Hint(c, locales.SelectAnEventToInspect())
-					}
+					})
 				})
 			})
 			uikit.DialogFooter(c).Children(func() {

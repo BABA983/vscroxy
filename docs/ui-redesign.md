@@ -584,6 +584,7 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 97. Protobuf 读取器按视口高度布局（第十七阶段，2026-11-16）：reader 的高度取上一帧的实际视口，split 和 Copy decoded 图标留在 pane 内；请求面板不在 Body 标签时 split 给响应 75%，不再让解码内容跑到窗口边缘。
 98. SSE 会话对话框重排（第十七阶段，2026-11-16）：标题固定为 `SSE session`，状态用 `StatusPill`；连接中显示 `Reconnect`／`Stop SSE`，不显示禁用的 `Connect SSE`；`Copy event ID` 是 meta 行尾的图标，技术脚注收进信息图标的 Tip。
 
+99. uikit AD（2026-11-16）：MCP catalog 去掉自己的 Tools/Resources/Prompts 分段，目录跟随请求面板的 tab，只留一套导航；集合向导 Endpoints 预览显示将生成的请求和捕获响应；Postman 导入报告的主操作改成 Review collection，Done 次要；SSE 连接中 Stop 是主操作、Reconnect 次要，事件列表和 payload 放进填满高度的 Panel；Protobuf 在窄 inspector 改成上下布局，宽时仍左右；Certificates 滚动区底部留出 footer 高度。设置格式回到未版本化，开发阶段直接改格式（见 AGENTS.md）。
 ## 13. 仍与设计稿不一致的地方
 
 v3 六个阶段落地后，和设计稿仍有这些差别，都是有意保留的：

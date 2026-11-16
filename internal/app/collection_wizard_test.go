@@ -595,3 +595,19 @@ func TestCollectionWizardSidebarScopeIgnoresTableFilters(t *testing.T) {
 		})
 	}
 }
+
+// The Endpoints step previews the request and the response it will create,
+// instead of leaving the right column mostly blank.
+func TestCollectionWizardPreviewShowsTheRequestAndResponse(t *testing.T) {
+	a := libraryApp(t)
+	a.openCollectionWizard(collectionWizardFlows())
+	a.collectionUI.step = 1
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	tt.Frame()
+	for _, want := range []string{"{{api_url}}", "Captured response", `{"ok":true}`} {
+		if !tt.HasText(want) {
+			t.Fatalf("wizard preview is missing %q: %v", want, tt.Texts())
+		}
+	}
+}

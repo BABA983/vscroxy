@@ -7976,6 +7976,16 @@ func (msgs Messages) Reconnect() string {
 	return Catalog.Format(msgs.locale, "reconnect", nil)
 }
 
+// ReviewCollection says "Review collection"
+// in the language the app shows.
+func ReviewCollection() string { return In(i18n.Locale()).ReviewCollection() }
+
+// ReviewCollection says "Review collection"
+// in the language of msgs.
+func (msgs Messages) ReviewCollection() string {
+	return Catalog.Format(msgs.locale, "reviewCollection", nil)
+}
+
 // SseSessionTitle says "SSE session"
 // in the language the app shows.
 func SseSessionTitle() string { return In(i18n.Locale()).SseSessionTitle() }
