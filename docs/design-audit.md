@@ -69,10 +69,9 @@
 
 #### Tabs、Segmented
 
-- 现状：`Tabs` 用 `TabsBase`，选中是 `Fill` 面 + 正文色，高度 22（`internal/uikit/components.go:765-800`）；`SubTabs` 只变文字色；`Segmented` 是凹槽 + 浮起滑块，24 高（`internal/uikit/components.go:927-948`）。
+- 现状：`Tabs` 用 `TabsBase`，选中是 `Fill` 面 + 正文色，高度 22（`internal/uikit/components.go:1030-1080`）；`SubTabs` 是同一行的第二层，纯文字、选中加 2px 强调色下划线；`Segmented` 是凹槽 + 浮起滑块，24 高。
 - shadcn：`TabsList` 是 `h-9 p-[3px] bg-muted rounded-lg`，trigger 选中 `bg-background shadow-sm`；另有 `line` 变体（下划线）。Base UI 的 Tabs 用 `data-active`、`data-disabled`、`data-orientation`，方向键切换、Home/End 到两端。
-- 建议：**保留两套**。Tabs 是“换一个视图”，Segmented 是“换一个互斥模式”，语义不同；我们的 `SubTabs` 已经解决了两级标签页。真正的问题是页面把两个 Segmented 叠在一起（Sessions，见 b 节），不是 kit 缺变体。不加 `line` 变体：面板头已经够密，下划线会增加一条水平线。P3。
-- 值不值得做：不加。
+- 建议：**保留两套**。Tabs 是“换一个视图”，Segmented 是“换一个互斥模式”，语义不同；第二层用 `SubTabs`，纯文字加下划线。面板头不加下划线（它已经够密），但编辑器里和列表头上的第二层加，因为那里没有另一条水平线可抢（2026-11-16 的 AF 复查改了这条：原来写的是“不加 line 变体”）。真正的问题是页面把两个 Segmented 叠在一起（Sessions，见 b 节），不是 kit 缺变体。
 
 #### Table
 
@@ -393,6 +392,8 @@ uikit 前五条已经实现，页面层只重排了 Rules／Scripts／Mocks 三�
 
 按审计顺序逐页结案。`58ab174` 是本轮之前的 uikit-q／AA 基线；`34dbb6c`、`ec78d8c` 是 A/C、A/D 的页面提交；`81aec71` 是 A/E。状态只表示这一页的 P1／P2 是否已经有可用的实现，P3 的保留项写在说明里。
 
+> 2026-11-16 的 AF 复查（见 (e)）修掉了本节“仍未处理”里的六项：Diagnostics 的展开箭头、Runs 的命名、Sessions 的动作主次、Certificates 的折叠行、调查板的视图按钮和批量栏、Socket.IO 的左栏空白。下表的状态保留当时的记录。
+
 | # | 页面 | 状态 | 提交 | 说明 |
 | --- | --- | --- | --- | --- |
 | 1 | Tools · Rules | 已处理 | `58ab174` | 列表第二行、FormRow、测试框已重排；P3 的三级标题保留。 |
@@ -407,7 +408,7 @@ uikit 前五条已经实现，页面层只重排了 Rules／Scripts／Mocks 三�
 | 10 | Runs · records | 部分 | `58ab174` | 行摘要和底栏已修；P1 的 History／Runs 命名仍未统一，见下。 |
 | 11 | Runs · running | 已处理 | `58ab174` | 运行时 Cancel run 是主操作，Iterations 有标签。 |
 | 12 | Runs · results | 已处理 | `58ab174` | 失败详情在结果右侧，Inspect retained run 不再压住原因。 |
-| 13 | Sessions | 部分 | `58ab174` | 两级选择已用 Tabs／Segmented 区分；P2 的顶部四个同权重动作保留，见下。 |
+| 13 | Sessions | 部分 | `58ab174` | 两级选择已用 Tabs／SubTabs 区分；P2 的顶部四个同权重动作保留，见下。 |
 | 14 | Collection wizard | 已处理 | `34dbb6c` | 预览显示将生成的请求和捕获响应。 |
 | 15 | Postman import | 已处理 | `34dbb6c` | 主操作 Review collection，Done 次要。 |
 | 16 | Variables · environment | 已处理 | `58ab174` | 选择器和名称有标签，Current 只掩码敏感值，动作列留出宽度。 |
@@ -428,3 +429,55 @@ uikit 前五条已经实现，页面层只重排了 Rules／Scripts／Mocks 三�
 - **Investigation board 的顶部视图按钮和批量工具栏（P2）。** `Summary`／`Compare two`／`Inspect focused` 仍像三个同级按钮，批量栏仍有四个动作；把它们改成 Tabs＋一个主操作需要同时改检查器状态和快捷键，A/E 只先修 P1 的数据顺序。
 - **Socket.IO 左栏空白和底栏文案（P2/P3）。** Event 表单下面仍是空白，底栏仍显示全局请求计数；补 session metadata／ACK 队列是功能改动，不属于这一轮的重排。
 - **Scenarios 每行的 Edit（P3）。** 行点击打开、Edit 只在悬停出现需要 MyGo 的 hover 回调或自绘行；当前保留常驻 Edit，避免加一个不可靠的悬停层。
+
+---
+
+## (e) 视觉全量检查（2026-11-16）
+
+(a)–(d) 是按页面读代码和图版；这一节是把画廊的每个 Screens 图版按 **1280 和 960 两个宽度 × Light／Dark** 全部导出、逐张看一遍，再把画廊画不出来的状态（菜单、对话框、悬停卡、toast、真实窗口里的请求栏）在实窗口里补看。43 个图版共 172 张 PNG，分 11 张 contact sheet 看完；中文只抽查了 traffic、命令面板、Settings · General、Settings · Certificates、Tools · Scenarios 五页，没有做整页中文复查。
+
+图版的来源和 (b) 一样：`internal/gallery` 从 `internal/app/gallery.go` 的假数据导出，写到 `docs/design/`（每页 Light／Dark 各一张）；本轮的 before／after 对照表在 `.amp/in/artifacts/uikit-af/`。
+
+### e.1 结论
+
+图版层的结论是**页面骨架成立，问题集中在窄窗口（960）和“同级动作没有主次”**：3 个 P1 全部是 960 下内容被裁或同一份数据两个名字；8 个 P2 里有 5 个是“几个同权重按钮 / 同一件事有两种画法”。1280 下没有新的 P1。修完这 11 条之后，剩下的都是内容密度和留白（P3），不是理解或操作的问题。
+
+### e.2 P1（3 条，已修）
+
+| # | 页面 | 宽度／主题 | 问题 | 修法 | 位置 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Request editor · WebSocket（`editor-websocket`） | 960×600，Light／Dark | 连接后的会话对话框比视口高，底部的 `Copy shown payload`／`Disconnect & close` 被裁掉；连接中三个禁用的握手字段仍占满整个表单高度。 | 连接中用一行 `SettingsCardRow` 显示 URL，断开后恢复完整表单。 | `internal/app/ws_session_ui.go` |
+| 2 | Protobuf inspector（`protobuf-inspector`） | 960×600，Light／Dark | 响应面板没有高度：只看到工具条和 `gRPC 0 · OK`，消息列表和详情在窗口下面。 | 底部分栏在 Protobuf 视图用 34%，把高度让给检查器（`protobufTablePercent`）。 | `internal/app/workbench.go`、`internal/app/app.go` |
+| 3 | Runs · records（`runs-records`） | 960×600、1280×800，Light／Dark | 页面和对话框标题写 `History`，侧栏、命令面板、底栏写 `Runs`；同一份数据两个名字。 | 统一为 Runs／运行记录（`runsPage`、`showRuns`），清空对话框改成 `Clear runs?`。 | `internal/app/experiments_ui.go`、`workbench.go`、`app.go`、`locales/*` |
+
+### e.3 P2（8 条，已修）
+
+| # | 页面 | 宽度／主题 | 问题 | 修法 | 位置 |
+| --- | --- | --- | --- | --- | --- |
+| 4 | Sessions（`sessions`） | 960×600，Light／Dark | 顶部四个 `CompactButton` 同权重：Pin／Unpin、Use as left、Compare with left、Reveal credentials；比较是主流程却没有主操作。 | 有左侧时 `Compare with left` 是主操作，否则 `Use as left`；另一个是次级；Pin／Unpin 和 Reveal 收进 `Session actions` 菜单。 | `internal/app/sessions_ui.go` |
+| 5 | Settings · Certificates（`certificates-editor`） | 960×600（Settings 窗口 760×560），Light／Dark | 每个 client 证书占四行（host＋format、证书文件、私钥、口令／状态），960 下第一张卡片被裁，没有摘要。 | 折叠成一行：host、`PEM · client.pem · Sealed passphrase` 摘要、Edit／Done、移除图标；展开才是文件字段。新增 `TestCertificateClientRowsFoldAndExpand`。 | `internal/app/certificate_ui.go`、`certificate_editor.go` |
+| 6 | Investigation board（`analysis-board`） | 960×600、1280×800，Light／Dark | 顶部四个同权重视图按钮（Summary、Compare two、Diff pool、Inspect focused）；批量栏四个同权重动作（Replay…、Export HAR…、Export CSV…、Clear selection）。 | Summary／Compare two／Diff pool 改成 Tabs（选中不可用时回到原 tab 并提示）；`Inspect focused` 是主操作；批量栏 `Replay selected…` 为主、`Export…` 收两种导出、`Clear selection` 是链接。 | `internal/app/analysis.go`、`workbench.go` |
+| 7 | Request editor · Socket.IO（`editor-socketio`） | 960×600，Light／Dark | Event 标签下参数编辑器下面一大片空白；底栏写 `4 requests · Local environment`，不写 Socket.IO 状态。 | 参数编辑器放进填满的 `Panel`，下面加一行会话状态（state、namespace、待 ACK）；底栏改成 `Socket.IO · <state>`。 | `internal/app/socketio_ui.go`、`shell.go` |
+| 8 | Diagnostics（`diagnostics`） | 960×600，Light／Dark | 步骤没有展开提示；只有失败项能展开，通过项的信息只在 Tip 里。 | 有失败或 detail 的步骤行首加右／下 chevron；通过项也能展开看 detail。 | `internal/app/diagnostics.go` |
+| 9 | Postman import（`postman-import`） | 960×600，Light／Dark | 导入检查对话框的标题是状态句（`Imported "X" · 14 requests`），对话框没有稳定名字，状态又像标题。 | 标题是 `Import review`／`导入检查`，状态句降为标题下的 Hint。 | `internal/app/postman_ui.go` |
+| 10 | Tools · Host profiles（`tools-hosts`） | 960×600，Light／Dark | hosts 编辑器太窄，长行右侧被裁；底部 `Changes apply to new connections.` 被省略且没有 Tip。 | 宽度 <1000 时分类栏 180→150、列表 268→220；说明包一层 Tip。 | `internal/app/tools.go` |
+| 11 | Client setup（`client-setup`） | 960×600，Light／Dark | `System CA bundle unavailable` 只说缺什么，不说怎么生成。 | 补 `Start capture to create it.`／`启动抓包后会生成。`，`MaxLines` 2→3。 | `internal/app/client_setup_ui.go`、`locales/*` |
+
+### e.4 本轮新发现（2 条 P2，已修）
+
+这两条不在 (b) 的页面清单里，是实窗口补看请求编辑器时发现的，和用户拿 Postman 对照提的两个问题重合。
+
+- **请求编辑器左栏的 History／Examples 是带框的分段控件（P2）。** 它换的是视图，不是互斥模式，`Segmented` 的凹槽把一行两个词读成了开关；`FillWidth()` 又把它拉到整栏宽，两个段各占一半，像一条空槽。改成 `SubTabs`：纯文字，选中项加 2px 强调色下划线，行高 32 贴住列表顶部。同一轮把编辑器里其他“换视图却用 Segmented”的地方一起改了：GraphQL Query／Variables、Scripts 的 Pre-request／Post-response、Example 的 Body／Headers／Request、MCP 的 Arguments／Input schema、文件夹编辑器的 Pre-request／Post-response、Sessions 的 Headers／Body／Messages／Connection，以及 API endpoint 的 Overview／Raw（它本来就是 `SubTabs`，现在有了下划线）。`Segmented` 只留真正的模式：主题、方向、编码格式、Host 头、筛选范围。`internal/uikit/components.go`、`request_history.go`、`request_fields.go`、`requests.go`、`examples.go`、`mcp_ui.go`、`collections.go`。
+- **URL 栏并排两个下拉：协议和方法（P2）。** `HTTP ▾` 和 `POST ▾` 各占一段，URL 被挤到第三段；Postman 只有一个方法下拉贴在 URL 输入框左边。现在左边只有一个下拉：HTTP 文档显示方法（可输入、可下拉），菜单末尾用一条分隔线和 `Protocol` 小标题列出 HTTP／gRPC／Socket.IO／MQTT／MCP；非 HTTP 文档在同一个位置显示协议名，菜单里换协议（含回到 HTTP）。协议切换仍会停掉旧协议的会话，配置保留。`internal/app/requests.go`。
+
+### e.5 计划不处理的 P3（5 条）
+
+- **Settings → Devices 的大片空白。** 设备列表在设备连上来之前就是空的；加占位内容会和真实的空状态混在一起，读起来像“加载失败”。空就空着，等第一台设备。
+- **引导页卡片下面的空白。** 首次运行的引导从顶部开始读，卡片高度跟内容；把它拉满或垂直居中都只会让第一步离视线更远。
+- **调查板右栏（Slowest requests 下面）的空白。** 右栏是阅读列，不是仪表盘；补一个分布图属于新信息，不是这一轮的重排，而且会和左栏的对比视图抢注意力。
+- **Rules／Scripts 的重复标题。** 外层是 Tools 的分类名，内层是列表／详情的标题，后者跟着选中的对象走；这两个页面的内层标题和其他三个 Tools 页共用同一个组件，去掉会让它们不一致，属于外观重复。
+- **Scenarios 每行的 Edit 按钮。** 行本身是选择目标，不是按钮；常驻 Edit 让动作对键盘和读屏都可达，改成“点行打开、悬停才出 Edit”要改列表的选中语义，为一条 P3 不值得。
+
+### e.6 检查到但没修的（1 条 P2，留给协议编辑器专项）
+
+- **协议编辑器（gRPC／MQTT／MCP／Socket.IO）的标签行在窄面板里被裁。** 它们各自画一排 `Tabs`，没有 HTTP 请求面板那套“按量出来的宽度把放不下的 tab 收进 More”的逻辑；保存过的请求打开历史栏之后，1280 下 gRPC 的 `Examples` 只剩 `Exam`，960 下更早。修法是把 `requestPaneHeader` 的实测溢出搬到这四个编辑器（它们各自还有尾随控件），属于协议编辑器专项，不在这一轮里顺手改。
