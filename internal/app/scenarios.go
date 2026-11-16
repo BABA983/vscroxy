@@ -159,15 +159,25 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 	if s.nameFor != name {
 		s.name, s.nameFor = name, name
 	}
+	// The name is a field like any other page's, with its label above it,
+	// not a title that happens to accept typing.
+	uikit.FormRow(c, locales.ScenarioName(), "", "", func() {
+		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			if uikit.Input(c, &s.name).Label(locales.ScenarioName()).Grow(1).MaxWidth(360).FontSize(uikit.Scaled(uikit.TextTitle)).Height(uikit.HeightLarge).Submitted() {
+				a.renameScenario(name, strings.TrimSpace(s.name))
+			}
+			on := name == current
+			if uikit.Switch(c, &on).Label(locales.ScenarioActive()).Changed() {
+				a.selectRuleScenario(map[bool]string{true: name}[on])
+			}
+		})
+	})
+	status := "Off: its rules do nothing."
+	if name == current {
+		status = "On: its rules apply. Rules with no scenario also apply."
+	}
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if uikit.Input(c, &s.name).Label(locales.ScenarioName()).Grow(1).MaxWidth(360).FontSize(uikit.Scaled(uikit.TextTitle)).Height(uikit.HeightLarge).Submitted() {
-			a.renameScenario(name, strings.TrimSpace(s.name))
-		}
-		on := name == current
-		if uikit.Switch(c, &on).Label(locales.ScenarioActive()).Changed() {
-			a.selectRuleScenario(map[bool]string{true: name}[on])
-		}
-		ui.Spacer(c)
+		uikit.Meta(c, status).Grow(1).SingleLine()
 		uikit.MoreMenu(c, locales.ScenarioActions(), func(m *ui.Menu) {
 			actionMenu(m, []action{
 				do("scenarios.rename", locales.Rename(), func() { a.renameScenario(name, strings.TrimSpace(s.name)) }).
@@ -181,11 +191,7 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 			})
 		})
 	})
-	status := "Off: its rules do nothing."
-	if name == current {
-		status = "On: its rules apply, with the rules in no scenario."
-	}
-	uikit.Meta(c, status)
+	uikit.Meta(c, locales.RulesKeepTheirPlaceIn()).SingleLine()
 	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(0.5)).Children(func() {
 		for i, r := range a.rules {
 			if r.Scenario != name {
@@ -212,5 +218,4 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 			})
 		}
 	})
-	uikit.Meta(c, locales.RulesKeepTheirPlaceIn())
 }

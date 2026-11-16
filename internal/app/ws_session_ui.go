@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"math"
 	"slices"
 	"strings"
 	"time"
@@ -31,12 +30,13 @@ type websocketWorkbench struct {
 	sendingAll bool
 	sentAll    chan error
 	picked     int
+	choice     int
+	list       ui.ListState
 	viewMode   int
 	protobuf   protoInspector
 	reader     *editor.State
 	sent       chan error
 	sending    bool
-	scroll     ui.ScrollState
 	// recorded is the session whose summary History already holds.
 	recorded *wsSession
 }
@@ -101,7 +101,8 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 			}
 			s.session = openWSSession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: header}, a.srv.CACertificate(), a.certificates, a.requestCookies(), a.invalidate)
 			s.problem = ""
-			s.picked = 0
+			s.picked, s.choice = 0, 0
+			s.list = ui.ListState{}
 			s.reader = nil
 		}
 		canConnect := a.srv != nil && a.srv.Running() && request.IsWebSocket(s.url)
@@ -204,47 +205,62 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					retained := uikit.Meta(c, locales.RetainedEvicted(len(events), evicted))
 					uikit.Tip(c, retained, locales.Latest200Events64Kib2())
 					if uikit.SecondaryButton(c, locales.LatestMessage()).Clicked() {
-						s.scroll.Y = math.MaxFloat32
+						s.list.ScrollToEnd()
 					}
 				})
 				if len(events) == 0 {
 					uikit.EmptyState(c, locales.Connected(), locales.WaitingForMessages(), nil)
 				} else {
-					ui.Row(c).Grow(1).MinHeight(84).Gap(t.Space(4)).AlignItems(ui.Stretch).Children(func() {
-						if s.scroll.Y >= s.scroll.MaxY {
-							s.scroll.Y = math.MaxFloat32
+					var shown []wsSessionEvent
+					for _, e := range events {
+						if s.direction != "All" && !(s.direction == e.Direction || s.direction == "Events" && e.Direction == "") {
+							continue
 						}
-						ui.Scroll(c).TrackScroll(&s.scroll).Width(280).MinWidth(0).Shrink(1).Gap(t.Space(1)).Children(func() {
-							for _, e := range events {
-								if s.direction != "All" && !(s.direction == e.Direction || s.direction == "Events" && e.Direction == "") {
-									continue
+						if !strings.Contains(strings.ToLower(string(e.Data)+e.Detail), strings.ToLower(s.query)) {
+							continue
+						}
+						shown = append(shown, e)
+					}
+					ui.Row(c).Grow(1).MinHeight(84).Gap(t.Space(4)).AlignItems(ui.Stretch).Children(func() {
+						ui.Box(c).Width(280).MinWidth(0).Shrink(1).MinHeight(0).Children(func() {
+							if len(shown) == 0 {
+								uikit.Hint(c, locales.NoMatchingWebSocketMessages()).Padding(t.Space(2))
+								return
+							}
+							previous := s.picked
+							s.choice = -1
+							for i, e := range shown {
+								if e.Sequence == s.picked {
+									s.choice = i
+									break
 								}
-								if !strings.Contains(strings.ToLower(string(e.Data)+e.Detail), strings.ToLower(s.query)) {
-									continue
+							}
+							s.list.Selected = &s.choice
+							s.list.Key = func(i int) any { return shown[i].Sequence }
+							s.list.Label = func(i int) string { return locales.SessionMessageLabel(shown[i].Sequence) }
+							uikit.DataListIndexed(c, &s.list, len(shown), func(i int) {
+								e := shown[i]
+								head := fmt.Sprintf("#%d · %s", e.Sequence, e.Direction)
+								if e.Direction == "" {
+									head = fmt.Sprintf("#%d · %s", e.Sequence, e.Detail)
 								}
 								kind := "Text"
 								if e.Kind == websocket.BinaryMessage {
 									kind = "Binary"
 								}
-								label := fmt.Sprintf("#%d %s · %s %s · %d B", e.Sequence, e.At.Format("15:04:05.000"), e.Direction, kind, e.Size)
-								if e.Direction == "" {
-									label = fmt.Sprintf("#%d %s", e.Sequence, e.Detail)
+								ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
+									ui.Text(c, clamp(head, 48)).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine()
+									uikit.Meta(c, fmt.Sprintf("%s · %s · %d B", e.At.Format("15:04:05.000"), kind, e.Size)).SingleLine()
+								})
+							}).Grow(1).MinHeight(0)
+							if s.choice >= 0 && s.choice < len(shown) && shown[s.choice].Sequence != previous {
+								e := shown[s.choice]
+								s.picked = e.Sequence
+								s.viewMode = 0
+								if e.Kind == websocket.BinaryMessage || !utf8.Valid(e.Data) {
+									s.viewMode = 1
 								}
-								b := uikit.Tip(c, uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.Sequence)).Label(locales.SessionMessageLabel(e.Sequence)).FillWidth(), label)
-								if e.Sequence == s.picked {
-									uikit.Selected(c, b, !a.windowBehind)
-								}
-								if b.Clicked() {
-									s.picked = e.Sequence
-									s.viewMode = 0
-									if e.Kind == websocket.BinaryMessage {
-										s.viewMode = 1
-									}
-									if !utf8.Valid(e.Data) {
-										s.viewMode = 1
-									}
-									s.reader = &editor.State{Buffer: editor.NewBuffer(e.Detail), ReadOnly: true, NoScrollPastEnd: true, Label: locales.SessionPayload()}
-								}
+								s.reader = &editor.State{Buffer: editor.NewBuffer(e.Detail), ReadOnly: true, NoScrollPastEnd: true, Label: locales.SessionPayload()}
 							}
 						})
 						ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {

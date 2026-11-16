@@ -292,6 +292,12 @@ func TestWebSocketSessionKeepsConnectionAndRecordsPeerClose(t *testing.T) {
 	a := workspaceApp()
 	a.socket = websocketWorkbench{open: true, session: s}
 	tt := ui.NewTester(a.view, 960, 600)
+	// The list builds only the rows in view; bring the retained tail in
+	// before choosing the message there.
+	if err := tt.Click("Latest message"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	if err := tt.Click(fmt.Sprintf("Session message %d", payload.Sequence)); err != nil {
 		t.Fatal(err)
 	}

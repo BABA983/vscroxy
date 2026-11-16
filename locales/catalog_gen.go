@@ -13290,6 +13290,16 @@ func (msgs Messages) NoMatchingSocketIoMessages() string {
 	return Catalog.Format(msgs.locale, "noMatchingSocketIoMessages", nil)
 }
 
+// NoMatchingWebSocketMessages says "No matching WebSocket messages"
+// in the language the app shows.
+func NoMatchingWebSocketMessages() string { return In(i18n.Locale()).NoMatchingWebSocketMessages() }
+
+// NoMatchingWebSocketMessages says "No matching WebSocket messages"
+// in the language of msgs.
+func (msgs Messages) NoMatchingWebSocketMessages() string {
+	return Catalog.Format(msgs.locale, "noMatchingWebSocketMessages", nil)
+}
+
 // NoMcpResultYet says "No MCP result yet"
 // in the language the app shows.
 func NoMcpResultYet() string { return In(i18n.Locale()).NoMcpResultYet() }

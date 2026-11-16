@@ -5107,6 +5107,47 @@ func TestSetupGuideAdvancesFromWhatTheAppObserves(t *testing.T) {
 	}
 }
 
+func TestSetupGuideHidesTrafficChromeAndStartsCapture(t *testing.T) {
+	a := workspaceApp()
+	a.flows = nil
+	a.applyFilter()
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+	a.srv = srv
+	a.guide = true
+	a.certificate.checked = true
+	a.systemProxy.checked = true
+	a.systemProxy.check = system.ProxyCheck{Status: system.ProxyOff}
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Frame()
+	// The guide is the page, not a card laid over the traffic list.
+	for _, chrome := range []string{"Captured requests", "Protocol and content type", "Search host or path, or status:>=400…"} {
+		if tt.HasText(chrome) {
+			t.Fatalf("the guide still shows the traffic list chrome %q: %v", chrome, tt.Texts())
+		}
+	}
+	if !tt.HasText("Start capture") || !tt.HasText("Diagnose capture…") {
+		t.Fatalf("the stopped first step lacks its actions: %v", tt.Texts())
+	}
+	if err := tt.Click("Start capture"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for !srv.Running() {
+		if time.Now().After(deadline) {
+			t.Fatal("Start capture did not start the listener")
+		}
+		tt.Frame()
+	}
+	tt.Frame()
+	if !tt.HasText("Listening at") {
+		t.Fatalf("the guide did not advance after capture started: %v", tt.Texts())
+	}
+}
+
 func TestSetupGuideTrustStepOffersDiagnosticsUntilTrusted(t *testing.T) {
 	a := workspaceApp()
 	a.flows = []flow{{id: 1, live: true, kind: "connect", method: "CONNECT", host: "api.example.com:443", process: "Browser"}}

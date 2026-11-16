@@ -847,6 +847,9 @@ func galleryGuide(a *app) {
 	a.flows = nil
 	a.requests = nil
 	a.folders = nil
+	// A stopped listener makes Start capture the step's primary action
+	// without starting anything.
+	a.srv = &capture.Server{}
 	a.guide = true
 	a.recount()
 	a.applyFilter()

@@ -172,6 +172,24 @@ func TestRequestConsoleAndRunsAreVisibleWithoutReexecution(t *testing.T) {
 	}
 }
 
+func TestScenarioNameIsALabelledField(t *testing.T) {
+	a := workspaceApp()
+	galleryRules(a)
+	a.openTools("scenarios")
+	tt := ui.NewTester(a.view, 1100, 650)
+	tt.Frame()
+	label, ok := tt.Find("Scenario name")
+	if !ok || label.H == 0 {
+		t.Fatalf("the scenario name has no visible label: %+v", label)
+	}
+	if !tt.HasText("On: its rules apply. Rules with no scenario also apply.") {
+		t.Fatalf("the active scenario status is missing or unclear: %v", tt.Texts())
+	}
+	if !tt.HasText("Offline demo") {
+		t.Fatalf("the scenario name field is missing: %v", tt.Texts())
+	}
+}
+
 func TestScenarioRulesUIControlsSavedAndRunningConfiguration(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "real response")

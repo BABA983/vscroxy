@@ -1342,6 +1342,7 @@
   "noMatchingMcpEvents": "没有匹配的 MCP 事件",
   "noMatchingMqttMessages": "没有匹配的 MQTT 消息",
   "noMatchingSocketIoMessages": "没有匹配的 Socket.IO 消息",
+  "noMatchingWebSocketMessages": "没有匹配的 WebSocket 消息",
   "noMcpResultYet": "还没有 MCP 结果",
   "noMcpSessionYet": "还没有 MCP 会话",
   "noMqttConnectionYet": "还没有 MQTT 连接",

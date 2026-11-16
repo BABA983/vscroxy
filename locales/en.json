@@ -2765,6 +2765,7 @@
   "noMatchingMcpEvents": "No matching MCP events",
   "noMatchingMqttMessages": "No matching MQTT messages",
   "noMatchingSocketIoMessages": "No matching Socket.IO messages",
+  "noMatchingWebSocketMessages": "No matching WebSocket messages",
   "noMcpResultYet": "No MCP result yet",
   "noMcpSessionYet": "No MCP session yet",
   "noMqttConnectionYet": "No MQTT connection yet",

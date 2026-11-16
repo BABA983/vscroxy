@@ -91,6 +91,30 @@ func waitReplay(t *testing.T, a *app, tt *ui.Tester) {
 	}
 }
 
+// waitForText draws frames until the view shows every want. A notice queued
+// after showNotices in one frame is drawn in the next; a fixed number of
+// frames would depend on which frame drained the last replay outcome.
+func waitForText(t *testing.T, tt *ui.Tester, wants ...string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		missing := false
+		for _, want := range wants {
+			if !tt.HasText(want) {
+				missing = true
+				break
+			}
+		}
+		if !missing {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("view never showed %v: %v", wants, tt.Texts())
+		}
+		tt.Frame()
+	}
+}
+
 func TestAdvancedReplayRunsConcurrentlyAndSummarizesStatuses(t *testing.T) {
 	var inFlight, peak atomic.Int32
 	started := make(chan struct{}, 8)
@@ -261,10 +285,7 @@ func TestReplayDialogSingleSendRestoresInspectNotification(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitReplay(t, a, tt)
-	tt.Frame()
-	if !tt.HasText("Replayed Capture #1") || !tt.HasText("Inspect replay") {
-		t.Fatalf("missing replay result notification: %v", tt.Texts())
-	}
+	waitForText(t, tt, "Replayed Capture #1", "Inspect replay")
 	if a.replayUI.done != 1 || a.replayUI.failed != 0 || a.replayUI.canceled != 0 {
 		t.Fatalf("done=%d failed=%d canceled=%d", a.replayUI.done, a.replayUI.failed, a.replayUI.canceled)
 	}

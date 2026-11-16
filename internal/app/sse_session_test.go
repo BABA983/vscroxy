@@ -221,6 +221,12 @@ func TestSSESessionUIRetentionAndEvictedSelection(t *testing.T) {
 	if payload.size != 90000 || !utf8.ValidString(payload.data) || !strings.HasSuffix(payload.data, "Retained 65535 of 90000 bytes") {
 		t.Fatal("large Unicode event was not bounded with explicit truncation")
 	}
+	// The list builds only the rows in view; bring the retained tail in
+	// before choosing the event there.
+	if err := tt.Click("Latest event"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	if err := tt.Click(fmt.Sprintf("SSE event %d", payload.seq)); err != nil {
 		t.Fatal(err)
 	}

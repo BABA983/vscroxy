@@ -147,7 +147,6 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 				uikit.Hint(c, locales.IncompleteBodies(incomplete)).FontFeatures("tnum")
 			})
 			uikit.Body(c, locales.AverageTiming(fmt.Sprintf("%.1f", float64(duration)/float64(len(selected))), times[(len(times)-1)/2], times[len(times)-1])).FontFeatures("tnum")
-			uikit.Meta(c, locales.RecordedPerCaptureDurationsNot())
 			ui.Divider(c)
 			ui.Text(c, locales.SlowestRequests()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
 			slowest := slices.Clone(selected)
@@ -161,6 +160,10 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 					ui.Text(c, locales.Millis(f.millis)).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").FontWeight(500).Width(65)
 				})
 			}
+			// The numbers come first; how they were recorded is one line,
+			// with the full method in its tip.
+			note := locales.RecordedPerCaptureDurationsNot()
+			uikit.Tip(c, uikit.Meta(c, note).SingleLine(), note)
 		})
 	})
 }

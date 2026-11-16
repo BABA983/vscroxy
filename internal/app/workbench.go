@@ -118,6 +118,12 @@ func (a *app) desktopContent(c *ui.Context) {
 					a.detail(c)
 					return
 				}
+				// The guide is the whole page while it is open: no search,
+				// filters or list frame behind it.
+				if a.guide {
+					a.setupGuide(c)
+					return
+				}
 				a.captureToolbar(c, c.Theme())
 				a.certificateBanner(c, c.Theme())
 				table := func() {
@@ -141,9 +147,7 @@ func (a *app) desktopContent(c *ui.Context) {
 				}
 				// Keep the plot and its pointer capture in the same split while
 				// a brush passes through an interval with no matching requests.
-				if a.guide {
-					a.setupGuide(c)
-				} else if len(a.visible) == 0 && !a.activity.active() {
+				if len(a.visible) == 0 && !a.activity.active() {
 					a.syncDetail()
 					// The table's own empty state says why; an inspector
 					// with nothing to show would only repeat it.

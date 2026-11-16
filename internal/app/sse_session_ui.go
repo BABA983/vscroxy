@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"math"
 	"net/url"
 	"strings"
 
@@ -18,9 +17,9 @@ type sseWorkbench struct {
 	url, headers, query, problem string
 	reconnect                    bool
 	session                      *sseSession
-	picked                       int
+	picked, choice               int
+	list                         ui.ListState
 	reader                       *editor.State
-	scroll                       ui.ScrollState
 }
 
 func (a *app) openSSE() {
@@ -54,7 +53,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 		}
 		s.session = openSSESession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.certificates, a.requestCookies(), reconnect || s.reconnect, a.invalidate)
 		s.problem, s.query, s.picked, s.reader = "", "", 0, nil
-		s.scroll = ui.ScrollState{}
+		s.list, s.choice = ui.ListState{}, 0
 	}
 	stateColor := t.TextMuted
 	switch state {
@@ -105,40 +104,55 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 					uikit.Input(c, &s.query).Label(locales.SearchSseEvents()).Placeholder(locales.SearchTypeIdPayloadAnd()).Grow(1).MinWidth(0)
 					uikit.Tip(c, uikit.Meta(c, locales.RetainedEvicted(len(events), evicted)).FontFeatures("tnum"), locales.Latest200Events64Kib())
 					if uikit.SecondaryButton(c, locales.LatestEvent()).Clicked() {
-						s.scroll.Y = math.MaxFloat32
+						s.list.ScrollToEnd()
 					}
 				})
 			})
 			ui.Row(c).Grow(1).MinHeight(84).Gap(t.Space(4)).AlignItems(ui.Stretch).Children(func() {
-				if s.scroll.Y >= s.scroll.MaxY {
-					s.scroll.Y = math.MaxFloat32
+				var shown []sseSessionEvent
+				for _, e := range events {
+					if strings.Contains(strings.ToLower(e.eventType+"\n"+e.id+"\n"+e.data+"\n"+e.detail), strings.ToLower(s.query)) {
+						shown = append(shown, e)
+					}
 				}
 				uikit.Panel(c).Width(280).MinWidth(0).Shrink(1).Grow(1).MinHeight(0).Padding(t.Space(2)).Children(func() {
-					ui.Scroll(c).TrackScroll(&s.scroll).Grow(1).MinHeight(0).Gap(t.Space(1)).Children(func() {
-						found := 0
-						for _, e := range events {
-							if !strings.Contains(strings.ToLower(e.eventType+"\n"+e.id+"\n"+e.data+"\n"+e.detail), strings.ToLower(s.query)) {
-								continue
-							}
-							found++
-							label := fmt.Sprintf("#%d %s · %s · %d B", e.seq, e.at.Format("15:04:05.000"), clamp(e.eventType, 24), e.size)
-							if e.detail != "" {
-								first, _, _ := strings.Cut(e.detail, "\n")
-								label = fmt.Sprintf("#%d %s", e.seq, first)
-							}
-							b := uikit.Tip(c, uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.seq)).Label(locales.SseEventLabel(e.seq)).FillWidth(), label)
-							if e.seq == s.picked {
-								uikit.Selected(c, b, !a.windowBehind)
-							}
-							if b.Clicked() {
-								s.picked = e.seq
-								s.reader = nil
-							}
+					if len(shown) == 0 {
+						uikit.Hint(c, locales.NoMatchingEventsYet())
+						return
+					}
+					// The events are data, not a column of buttons: the
+					// selected row gets the list fill and its marker, and
+					// every row starts at the leading edge.
+					previous := s.picked
+					s.choice = -1
+					for i, e := range shown {
+						if e.seq == s.picked {
+							s.choice = i
+							break
 						}
-						if found == 0 {
-							uikit.Hint(c, locales.NoMatchingEventsYet())
+					}
+					s.list.Selected = &s.choice
+					s.list.Key = func(i int) any { return shown[i].seq }
+					s.list.Label = func(i int) string { return locales.SseEventLabel(shown[i].seq) }
+					uikit.DataListIndexed(c, &s.list, len(shown), func(i int) {
+						e := shown[i]
+						head := e.eventType
+						if e.detail != "" {
+							head, _, _ = strings.Cut(e.detail, "\n")
 						}
-					})
+						if head == "" {
+							head = "Event"
+						}
+						ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
+							ui.Text(c, fmt.Sprintf("#%d · %s", e.seq, clamp(head, 48))).
+								FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine()
+							uikit.Meta(c, fmt.Sprintf("%s · %d B", e.at.Format("15:04:05.000"), e.size)).SingleLine()
+						})
+					}).Grow(1).MinHeight(0)
+					if s.choice >= 0 && s.choice < len(shown) && shown[s.choice].seq != previous {
+						s.picked = shown[s.choice].seq
+						s.reader = nil
+					}
 				})
 				uikit.Panel(c).Grow(1).MinWidth(0).MinHeight(0).Padding(t.Space(2)).Children(func() {
 					ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(2)).Children(func() {

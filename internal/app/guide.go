@@ -100,16 +100,16 @@ func (a *app) setupGuide(c *ui.Context) {
 					open := i == current || i == 2 && current == 3
 					a.guideStep(c, t, i, step.title, step.summary, done[i], i == current, open)
 				}
-			})
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-				if n := len(a.flows); n > 0 {
-					uikit.Meta(c, locales.CapturedSoFar(n))
-				}
-				ui.Spacer(c)
-				if uikit.ToolbarButton(c, locales.SkipGuide(), locales.ShowTheTrafficListReopen(), false).
-					Children(func() { ui.Text(c, locales.SkipGuide()) }).Clicked() {
-					a.closeGuide()
-				}
+				ui.Divider(c)
+				ui.Row(c).FillWidth().Padding(t.Space(1), t.Space(2)).AlignItems(ui.Center).Children(func() {
+					if n := len(a.flows); n > 0 {
+						uikit.Meta(c, locales.CapturedSoFar(n))
+					}
+					ui.Spacer(c)
+					if uikit.LinkButton(c, locales.SkipGuide()).Clicked() {
+						a.closeGuide()
+					}
+				})
 			})
 		})
 	})
@@ -168,7 +168,12 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 func (a *app) guideCapture(c *ui.Context, t *ui.Theme) {
 	if a.srv == nil || !a.srv.Running() {
 		ui.Text(c, locales.CaptureIsStopped()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
-		ui.Row(c).Children(func() {
+		ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+			// The step is called Start capturing, so its main action starts
+			// capture; Diagnostics stays available beside it.
+			if uikit.PrimaryButton(c, locales.StartCapture()).Disabled(a.srv == nil).Clicked() {
+				go a.startCapture()
+			}
 			if uikit.SecondaryButton(c, locales.DiagnoseCapture()).Clicked() {
 				a.openDiagnostics(nil, diagnoseMac)
 			}
