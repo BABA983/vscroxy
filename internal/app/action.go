@@ -117,6 +117,20 @@ func (x action) hint() string {
 	return text
 }
 
+// tip is the action's tooltip without its shortcut, and the shortcut as one
+// keycap: a tip draws the key as a Kbd instead of spelling it in the
+// sentence. A disabled action keeps the reason in the sentence.
+func (x action) tip() (string, []string) {
+	text := x.label
+	if !x.enabled {
+		text += " · " + x.why()
+	}
+	if key := x.shortcut.keycap(); key != "" {
+		return text, []string{key}
+	}
+	return text, nil
+}
+
 // pick finds the action with id, or none.
 func pick(actions []action, id string) action {
 	for _, x := range actions {
@@ -193,7 +207,8 @@ func (a *app) primaryActionButton(c *ui.Context, id, label string) ui.Element {
 	if x.id == "" {
 		return ui.Element{}
 	}
-	b := uikit.Tip(c, uikit.PrimaryButton(c, label).Disabled(!x.enabled), x.hint())
+	text, keys := x.tip()
+	b := uikit.TipKeys(c, uikit.PrimaryButton(c, label).Disabled(!x.enabled), text, keys...)
 	if b.Clicked() {
 		x.run()
 	}
@@ -205,7 +220,8 @@ func (a *app) actionButton(c *ui.Context, id, label string) ui.Element {
 	if x.id == "" {
 		return ui.Element{}
 	}
-	b := uikit.Tip(c, uikit.SecondaryButton(c, label).Disabled(!x.enabled), x.hint())
+	text, keys := x.tip()
+	b := uikit.TipKeys(c, uikit.SecondaryButton(c, label).Disabled(!x.enabled), text, keys...)
 	if b.Clicked() {
 		x.run()
 	}
