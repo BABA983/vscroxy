@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -293,5 +294,42 @@ func TestGRPCImportFailureKeepsSchemaAndCloseDiscardsLateDiscovery(t *testing.T)
 	tt.Frame()
 	if len(a.documents) != 0 || g.problem == "late result" {
 		t.Fatal("closed document accepted late discovery")
+	}
+}
+
+// Beside the history column a protocol editor's row keeps every tab whole:
+// the ones the pane has no room for move into More, and the view chosen there
+// comes back as the row's last chip, so the row always names what it shows.
+func TestGRPCEditorTabsOverflowIntoMore(t *testing.T) {
+	a := libraryApp(t)
+	a.requests = []savedRequest{{
+		Request: request.Request{ID: "catalog", Name: "Catalog fetch", Collection: "API", Protocol: "gRPC",
+			Method: "POST", URL: "https://api.example.com/api.Catalog/Fetch"},
+	}}
+	a.addDocument(a.requests[0], a.requests[0].key())
+	d := a.requestDocument
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if _, ok := tt.Find("gRPC editor: Examples"); ok {
+		t.Fatalf("the row fits every tab at 410 wide: %q", tt.Texts())
+	}
+	if err := tt.Click("gRPC editor: More"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	for _, label := range []string{"Checks", "Examples"} {
+		if !slices.Contains(tt.Menu(), label) {
+			t.Fatalf("More does not list %s: %q", label, tt.Menu())
+		}
+	}
+	if err := chooseMenu(tt, "Examples"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if d.grpcState().tab != 5 {
+		t.Fatalf("choosing Examples from More left the editor on tab %d", d.grpcState().tab)
+	}
+	if _, ok := tt.Find("gRPC editor: Examples"); !ok {
+		t.Fatalf("the chosen view is not named in the row: %q", tt.Texts())
 	}
 }

@@ -280,10 +280,11 @@ func mqttMessageLabel(messages []request.MQTTMessage, i int) string {
 // drafts and the last will.
 func (a *app) mqttEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	u := d.mqttState()
+	width := a.editorPaneWidthAt(c, &a.editorReqPane, draftPercent)
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Children(func() {
-			uikit.Tabs(c, &u.tab, locales.MqttEditorTabPrefix(), locales.Connection(), locales.Subscriptions(), locales.Publish(), locales.LastWill()).Grow(1)
-		})
+		protocolTabRow(c, &u.tab, locales.MqttEditorTabPrefix(), []string{
+			locales.Connection(), locales.Subscriptions(), locales.Publish(), locales.LastWill(),
+		}, width)
 		if u.problem != "" {
 			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(0, t.Space(3))
 		}

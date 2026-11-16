@@ -592,6 +592,58 @@ func settleView(selected *int, views []paneView, shown, before int) {
 	}
 }
 
+// protocolTabRow is the one row above a protocol editor: its tabs, with the
+// ones the pane has no room for in More, from the row's measured width, as the
+// request pane's row does. A tab is always a whole word, and the view on
+// screen stays where the reader put it.
+func protocolTabRow(c *ui.Context, selected *int, prefix string, labels []string, width float32) {
+	t := c.Theme()
+	views := make([]paneView, len(labels))
+	for i, label := range labels {
+		views[i] = paneView{view: i, label: label}
+	}
+	room := width - 2*t.Space(3) - paneMoreWidth(c) - t.Space(2)
+	kept := slices.Clone(views)
+	for len(kept) > 1 && paneTabsWidth(c, paneLabels(kept), nil) > room {
+		at := -1
+		for i := len(kept) - 1; i >= 0; i-- {
+			if kept[i].view != *selected {
+				at = i
+				break
+			}
+		}
+		if at < 0 {
+			break
+		}
+		kept = slices.Delete(kept, at, at+1)
+	}
+	dropped := slices.DeleteFunc(slices.Clone(views), func(v paneView) bool { return slices.Contains(kept, v) })
+	shown := max(0, slices.IndexFunc(kept, func(v paneView) bool { return v.view == *selected }))
+	before := *selected
+	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
+		uikit.Tabs(c, &shown, prefix, paneLabels(kept)...).Grow(1)
+		if len(dropped) > 0 {
+			uikit.TabMenu(c, locales.More(), prefix+": "+locales.More(), func(m *ui.Menu) {
+				for _, v := range dropped {
+					if m.Item(v.label).Chosen() {
+						*selected = v.view
+					}
+				}
+			})
+		}
+	})
+	settleView(selected, kept, shown, before)
+}
+
+// paneLabels are a row's labels, for measuring it.
+func paneLabels(views []paneView) []string {
+	labels := make([]string, len(views))
+	for i, v := range views {
+		labels[i] = v.label
+	}
+	return labels
+}
+
 // requestMoreViews are the request views the row keeps out: the parts of a
 // document read or edited one at a time, and the capture a draft came from.
 func (a *app) requestMoreViews(d *requestDocument, f flow) []paneView {

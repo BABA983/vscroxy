@@ -250,10 +250,11 @@ func mcpSchemaValue(property map[string]any) any {
 func (a *app) mcpEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	u := d.mcpState()
 	s := u.session.snapshot()
+	width := a.editorPaneWidthAt(c, &a.editorReqPane, draftPercent)
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Children(func() {
-			uikit.Tabs(c, &u.tab, locales.McpEditorTabPrefix(), locales.Connection(), locales.Tools(), locales.Resources(), locales.Prompts(), locales.RequestHeadersLabel(), locales.Auth()).Grow(1)
-		})
+		protocolTabRow(c, &u.tab, locales.McpEditorTabPrefix(), []string{
+			locales.Connection(), locales.Tools(), locales.Resources(), locales.Prompts(), locales.RequestHeadersLabel(), locales.Auth(),
+		}, width)
 		if u.problem != "" {
 			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(0, t.Space(3))
 		}

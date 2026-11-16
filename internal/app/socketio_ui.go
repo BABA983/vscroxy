@@ -125,10 +125,11 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	u := d.socketIOState()
 	s := u.session.snapshot()
 	sent := u.session.sentMessages()
+	width := a.editorPaneWidthAt(c, &a.editorReqPane, draftPercent)
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Children(func() {
-			uikit.Tabs(c, &u.tab, locales.SocketIOEditorTabPrefix(), locales.Event(), locales.Attachments(), locales.Connection(), locales.RequestHeadersLabel(), locales.HttpAuth(), locales.Saved()).Grow(1)
-		})
+		protocolTabRow(c, &u.tab, locales.SocketIOEditorTabPrefix(), []string{
+			locales.Event(), locales.Attachments(), locales.Connection(), locales.RequestHeadersLabel(), locales.HttpAuth(), locales.Saved(),
+		}, width)
 		if u.problem != "" {
 			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(0, t.Space(3))
 		}

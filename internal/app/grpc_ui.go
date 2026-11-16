@@ -264,10 +264,11 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			a.loadGRPCSchema(d, false, true)
 		}
 	}
+	width := a.editorPaneWidthAt(c, &a.editorReqPane, draftPercent)
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
-			uikit.Tabs(c, &g.tab, locales.GrpcEditorTabPrefix(), locales.Message(), locales.Metadata(), locales.Auth(), locales.Schema2(), locales.Checks(), locales.Examples()).Grow(1)
-		})
+		protocolTabRow(c, &g.tab, locales.GrpcEditorTabPrefix(), []string{
+			locales.Message(), locales.Metadata(), locales.Auth(), locales.Schema2(), locales.Checks(), locales.Examples(),
+		}, width)
 		ui.Column(c).Padding(t.Space(2), t.Space(3)).Children(func() {
 			uikit.SettingsGroup(c, locales.Call(), func() {
 				uikit.SettingsRow(c, locales.Method(), func() ui.Element {
@@ -385,7 +386,11 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	s := g.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
-			uikit.Tabs(c, &g.responseTab, locales.GrpcResponse(), locales.MessagesTab(), locales.Metadata(), locales.Status()).Grow(1)
+			// The tabs scroll rather than clip when the pane is narrow: the
+			// response pane's own row does the same.
+			uikit.TabStrip(c, func() {
+				uikit.Tabs(c, &g.responseTab, locales.GrpcResponse(), locales.MessagesTab(), locales.Metadata(), locales.Status())
+			}).Grow(1).FillHeight()
 			if d.response != nil {
 				if uikit.SecondaryButton(c, locales.SaveAsExample()).Clicked() {
 					a.saveExample(d)
