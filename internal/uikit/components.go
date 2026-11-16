@@ -1038,8 +1038,10 @@ func CountedTabs(c *ui.Context, selected *int, prefix string, labels, counts []s
 	return tabs(c, selected, prefix, labels, counts, false)
 }
 
-// SubTabs is a row of tabs inside what another tab row chose: the chosen
-// one is only accent text, so the two levels never look alike.
+// SubTabs is a row of tabs inside what another tab row chose, or at the head
+// of a list beside an editor: the words alone carry the choice, and the chosen
+// one is underlined in the accent. It has no chip, so a second level never
+// looks like the row that holds it.
 func SubTabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Element {
 	return tabs(c, selected, prefix, labels, nil, true)
 }
@@ -1060,7 +1062,9 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 				Radius(RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
 			switch {
 			case chosen && sub:
-				tab.TextColor(p.Accent)
+				// A rule, not a chip: the row is one level down from the
+				// tabs that chose it, and the accent says which one.
+				tab.TextColor(t.Text).Radius(0).BorderWidth(0, 0, 2, 0).BorderColor(p.Accent)
 			case chosen:
 				tab.Background(p.Fill).TextColor(t.Text)
 			case sub && (tab.Pressed() || tab.Hovered()):

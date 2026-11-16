@@ -934,44 +934,10 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 		field.Disabled(d.protocol != "" && d.composeWaiting)
 		uikit.FieldFace(c, field, field.FocusWithin()).Children(func() {
 			if !a.page.capture() {
-				proto := uikit.ToolbarButton(c, locales.RequestProtocol(), locales.RequestProtocol(), false).
-					Height(uikit.HeightControl).Padding(0, t.Space(1)).Gap(t.Space(0.5)).Shrink(0).
-					Disabled(d.composeWaiting || d.grpcUI != nil && d.grpcUI.loading != nil)
-				proto.Children(func() {
-					ui.Text(c, cmp.Or(d.protocol, "HTTP")).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.TextMuted).SingleLine()
-					ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
-				})
-				proto.PopoverMenuButton(func(m *ui.Menu) {
-					for _, protocol := range []string{"HTTP", "gRPC", "Socket.IO", "MQTT", "MCP"} {
-						if !m.Item(protocol).Radio(cmp.Or(d.protocol, "HTTP") == protocol).Chosen() {
-							continue
-						}
-						// A completed protocol session must not drain into the next
-						// protocol's job. Config stays saved, runtime state does not.
-						if d.grpcUI != nil {
-							d.grpcUI.stop()
-							d.grpcUI = nil
-						}
-						if d.socketIOUI != nil {
-							d.socketIOUI.stop()
-							d.socketIOUI = nil
-						}
-						if d.mqttUI != nil {
-							d.mqttUI.stop()
-							d.mqttUI = nil
-						}
-						if d.mcpUI != nil {
-							a.stopMCPDocument(d.mcpUI)
-							d.mcpUI = nil
-						}
-						d.protocol = protocol
-						if protocol == "HTTP" {
-							d.protocol = ""
-						}
-						d.composeURL = protocolDefaultURL(protocol, d.composeURL)
-					}
-				}, uikit.MenuButtonOptions(c))
-				ui.Box(c).Width(1).Height(18).Background(t.Border)
+				a.requestTargetControl(c, t, d)
+				// The method and the URL are one field, told apart by a rule
+				// that reads on the well: the panel hairline disappears there.
+				ui.Box(c).Width(1).Height(18).Background(t.TextMuted.Alpha(0.35))
 			}
 			if d.protocol == "MCP" && d.mcpConfig.Transport == request.MCPTransportStdio {
 				ui.Row(c).Grow(1).Height(uikit.HeightControl).AlignItems(ui.Center).Padding(0, t.Space(2)).Children(func() {
@@ -979,43 +945,6 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 				})
 				return
 			}
-			// An editable dropdown: a click lists the common methods, and a method
-			// the list lacks is typed and kept as it is. The chevron and the hover
-			// background say it is a control, not a label.
-			control := ui.Row(c).Gap(t.Space(0.5)).Padding(0, t.Space(1)).AlignItems(ui.Center).Hidden(d.protocol != "")
-			if control.Hovered() {
-				control.Background(t.SurfaceHover)
-			}
-			control.Children(func() {
-				method := ui.ComboboxBase(c, &d.composeMethod)
-				method.Input.Width(72).Height(uikit.HeightControl).Padding(0, t.Space(1)).Label(locales.Method()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).
-					TextColor(uikit.MethodColor(d.composeMethod, t)).Border(0, t.Border)
-				if method.Input.Changed() {
-					d.composeMethod = strings.ToUpper(strings.TrimSpace(d.composeMethod))
-				}
-				method.Popup(func(panel ui.Element) {
-					uikit.PopoverPanel(c, panel).Padding(t.Space(1))
-					query := strings.ToUpper(strings.TrimSpace(d.composeMethod))
-					for _, m := range requestMethods {
-						if method.Filtering() && query != "" && !strings.HasPrefix(m, query) {
-							continue
-						}
-						item := method.Item(m).Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
-						if item.Highlighted() {
-							item.Background(t.SurfaceHover).TextColor(t.Text)
-						}
-						item.Children(func() { ui.Text(c, m).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(uikit.MethodColor(m, t)) })
-					}
-				})
-				if chosen, ok := method.Chosen(); ok {
-					d.composeMethod = chosen
-				}
-				if uikit.IconButton(c, locales.MethodList(), locales.CommonMethods(), chevronIcon).Clicked() {
-					method.SetOpen(!method.Open())
-					method.Input.Focus()
-				}
-			})
-			ui.Box(c).Width(1).Height(18).Background(t.Border)
 			placeholder := "https://api.example.com/v1/resource"
 			if d.protocol == "MQTT" {
 				placeholder = "mqtts://broker.example.com:8883"
@@ -1092,6 +1021,129 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			more()
 		}
 	})
+}
+
+// requestProtocols are the protocols a request document can speak, in the
+// order the control before the URL lists them. HTTP is the empty protocol.
+var requestProtocols = []string{"HTTP", "gRPC", "Socket.IO", "MQTT", "MCP"}
+
+// switchProtocol makes the document speak another protocol. The session the
+// old one owned stops, so a completed protocol job never drains into the next
+// one: config stays saved, runtime state does not.
+func (a *app) switchProtocol(d *requestDocument, protocol string) {
+	if d.grpcUI != nil {
+		d.grpcUI.stop()
+		d.grpcUI = nil
+	}
+	if d.socketIOUI != nil {
+		d.socketIOUI.stop()
+		d.socketIOUI = nil
+	}
+	if d.mqttUI != nil {
+		d.mqttUI.stop()
+		d.mqttUI = nil
+	}
+	if d.mcpUI != nil {
+		a.stopMCPDocument(d.mcpUI)
+		d.mcpUI = nil
+	}
+	d.protocol = protocol
+	if protocol == "HTTP" {
+		d.protocol = ""
+	}
+	d.composeURL = protocolDefaultURL(protocol, d.composeURL)
+}
+
+// requestTargetControl is the one dropdown before the URL. An HTTP request
+// shows its method there, typed or chosen, as Postman's bar does; a document
+// that speaks another protocol shows that protocol. The protocols sit at the
+// foot of the same menu, so the bar never needs a second control beside its
+// URL and no protocol is out of reach.
+func (a *app) requestTargetControl(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	if d.protocol != "" {
+		a.requestProtocolButton(c, t, d)
+		return
+	}
+	// An editable dropdown: a click lists the common methods, and a method
+	// the list lacks is typed and kept as it is. The chevron and the hover
+	// background say it is a control, not a label.
+	control := ui.Row(c).Gap(t.Space(0.5)).Padding(0, t.Space(1)).AlignItems(ui.Center)
+	if control.Hovered() {
+		control.Background(t.SurfaceHover)
+	}
+	control.Children(func() {
+		method := ui.ComboboxBase(c, &d.composeMethod)
+		method.Input.Width(72).Height(uikit.HeightControl).Padding(0, t.Space(1)).Label(locales.Method()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).
+			TextColor(uikit.MethodColor(d.composeMethod, t)).Border(0, t.Border)
+		if method.Input.Changed() {
+			d.composeMethod = strings.ToUpper(strings.TrimSpace(d.composeMethod))
+		}
+		method.Popup(func(panel ui.Element) {
+			uikit.PopoverPanel(c, panel).Padding(t.Space(1)).MinWidth(148)
+			query := strings.ToUpper(strings.TrimSpace(d.composeMethod))
+			for _, m := range requestMethods {
+				if method.Filtering() && query != "" && !strings.HasPrefix(m, query) {
+					continue
+				}
+				item := method.Item(m).Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
+				if item.Highlighted() {
+					item.Background(t.SurfaceHover).TextColor(t.Text)
+				}
+				item.Children(func() { ui.Text(c, m).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(uikit.MethodColor(m, t)) })
+			}
+			// A typed method narrows the methods only: the protocol is a
+			// choice, never a word to finish.
+			if method.Filtering() {
+				return
+			}
+			ui.Box(c).Height(1).Margin(t.Space(1), 0).Background(t.Border)
+			uikit.Meta(c, locales.Protocol()).Padding(t.Space(1), t.Space(2), t.Space(0.5), t.Space(2))
+			for _, protocol := range requestProtocols {
+				item := ui.ButtonBase(c).Label(locales.RequestProtocol()+" "+protocol).FillWidth().Height(uikit.HeightControl).
+					Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
+				if item.Hovered() {
+					item.Background(t.SurfaceHover)
+				}
+				item.Children(func() {
+					ui.Text(c, protocol).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Grow(1)
+					if protocol == "HTTP" {
+						ui.Icon(c, checkIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
+					}
+				})
+				if item.Clicked() {
+					method.SetOpen(false)
+					a.switchProtocol(d, protocol)
+				}
+			}
+		})
+		if chosen, ok := method.Chosen(); ok {
+			d.composeMethod = chosen
+		}
+		if uikit.IconButton(c, locales.MethodList(), locales.CommonMethods(), chevronIcon).Clicked() {
+			method.SetOpen(!method.Open())
+			method.Input.Focus()
+		}
+	})
+}
+
+// requestProtocolButton is the same control for a document that is not HTTP:
+// it names the protocol it speaks, and its menu switches it, HTTP included.
+func (a *app) requestProtocolButton(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	button := uikit.ToolbarButton(c, locales.RequestProtocol(), locales.RequestProtocol(), false).
+		Height(uikit.HeightControl).Padding(0, t.Space(1)).Gap(t.Space(0.5)).Shrink(0).
+		Disabled(d.composeWaiting || d.grpcUI != nil && d.grpcUI.loading != nil)
+	button.Children(func() {
+		ui.Text(c, d.protocol).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine()
+		ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
+	})
+	button.PopoverMenuButton(func(m *ui.Menu) {
+		for _, protocol := range requestProtocols {
+			if !m.Item(protocol).Radio(d.protocol == protocol).Chosen() {
+				continue
+			}
+			a.switchProtocol(d, protocol)
+		}
+	}, uikit.MenuButtonOptions(c))
 }
 
 // urlSpans styles references, never expands them or reads their secret values.
@@ -1223,7 +1275,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 				a.requestBodyEditor(c, d, t)
 			case composeTabScripts:
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					uikit.Segmented(c, &d.scriptTab, locales.PreRequest(), locales.PostResponse())
+					uikit.SubTabs(c, &d.scriptTab, locales.Scripts(), locales.PreRequest(), locales.PostResponse())
 					ui.Spacer(c)
 					if st := map[bool]*editor.State{false: d.preEditor, true: d.postEditor}[d.scriptTab == 1]; st != nil {
 						snippetMenu(c, st, "request")

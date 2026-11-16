@@ -391,7 +391,7 @@ func (a *app) mcpToolsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 		uikit.Tip(c, uikit.Meta(c, tool.Annotations).SingleLine(), locales.ToolAnnotations())
 	}
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Segmented(c, &u.toolTab, locales.Arguments(), locales.InputSchema())
+		uikit.SubTabs(c, &u.toolTab, "MCP tool", locales.Arguments(), locales.InputSchema())
 		ui.Spacer(c)
 		if u.toolTab == 0 {
 			a.actionButton(c, "request.mcp-fill-args", "Fill from schema")

@@ -99,12 +99,12 @@ func TestExampleBodyAndHeadersEditInPlace(t *testing.T) {
 	choosePaneView(t, tt, "Request pane", "Examples")
 	tt.Frame()
 	// focus clicks the example's editor, found by its accessible name.
-	// segment picks the example's Body, Headers or Request view; the request
-	// pane has tabs of the same names, so it is found by its bounds.
+	// segment picks the example's Body, Headers or Request view; the prefix
+	// names the row so it is not confused with the request pane's tabs.
 	segment := func(name string) {
 		t.Helper()
 		for _, n := range tt.AccessAll() {
-			if n.Name == name && n.Bounds.X > 600 {
+			if n.Name == "Examples: "+name {
 				tt.ClickAt(n.Bounds.X+n.Bounds.W/2, n.Bounds.Y+n.Bounds.H/2)
 				tt.Frame()
 				return

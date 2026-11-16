@@ -370,7 +370,7 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 					})
 					uikit.Meta(c, locales.RequestsWhoseAuthIsInherit())
 				case 1:
-					uikit.Segmented(c, &f.script, locales.PreRequest(), locales.PostResponse())
+					uikit.SubTabs(c, &f.script, "Folder script", locales.PreRequest(), locales.PostResponse())
 					uikit.Meta(c, locales.RunsBeforeTheRequestS())
 					if f.script == 0 {
 						authoredText(c, &f.draft.Pre, &f.pre, &f.preFor, kind+" pre-request script", "JavaScript")

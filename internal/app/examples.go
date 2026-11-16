@@ -172,7 +172,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				uikit.Meta(c, http.StatusText(e.Status))
 				uikit.Meta(c, humanBytes(len(e.Body))).FontFeatures("tnum")
 				ui.Spacer(c)
-				if uikit.Segmented(c, &d.exampleView, locales.Body(), locales.RequestHeadersLabel(), locales.Request()).Changed() {
+				if uikit.SubTabs(c, &d.exampleView, locales.Examples(), locales.Body(), locales.RequestHeadersLabel(), locales.Request()).Changed() {
 					d.exampleEditor = nil
 				}
 				if uikit.Tip(c, uikit.SecondaryButton(c, locales.Mock()).Label(locales.MockThisExample()), locales.AnswerMatchingRequestsWithThis()).Clicked() {

@@ -642,7 +642,7 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		a.requestBodyText(c, d)
 	} else if d.bodyMode == "GraphQL" {
 		ui.Row(c).Children(func() {
-			uikit.Segmented(c, &d.graphqlTab, locales.Query(), locales.Variables())
+			uikit.SubTabs(c, &d.graphqlTab, locales.Body(), locales.Query(), locales.Variables())
 		})
 		a.graphqlSchemaRow(c, d)
 		ops, _ := d.graphqlOperations()

@@ -226,8 +226,8 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 		item.persist(a.invalidate)
 	}
 	// The exchange is the outer choice, as a request's own tabs are: Tabs
-	// choose which side of the exchange is shown, and the Segmented control
-	// inside it chooses the part of that side.
+	// choose which side of the exchange is shown, and the sub-tabs inside it
+	// choose the part of that side.
 	side := item.side
 	uikit.TabStrip(c, func() {
 		uikit.Tabs(c, &item.side, "", locales.Request(), locales.Response())
@@ -241,7 +241,7 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 		headers = locales.ResponseHeadersLabel()
 	}
 	ui.Row(c).Padding(t.Space(2), t.Space(2), t.Space(2)).Gap(t.Space(2)).Children(func() {
-		if uikit.Segmented(c, &item.tab, headers, locales.Body(), locales.MessagesTab(), locales.Connection()).Changed() {
+		if uikit.SubTabs(c, &item.tab, "Session exchange", headers, locales.Body(), locales.MessagesTab(), locales.Connection()).Changed() {
 			item.reader = nil
 		}
 	})
