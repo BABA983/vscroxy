@@ -1,6 +1,8 @@
 package uikit
 
 import (
+	"time"
+
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -117,6 +119,10 @@ func Theme(dark bool) *ui.Theme {
 	// recording is the only thing that is ever green.
 	t.Danger, t.Warning, t.Success = p.Danger, p.Warning, p.Success
 	t.Inverse, t.InverseText = p.Inverse, p.InverseText
+	// Tips rest for 500ms, as VS Code's workbench hovers do on Linux and
+	// Windows; MyGo's warm window, within which the next tip shows at once,
+	// is two thirds of it.
+	t.TooltipDelay = 500 * time.Millisecond
 	t.Font, t.FontSize, t.Radius, t.Spacing = FontUI, TextBody, RadiusControl, 4
 	t.Selection, t.Focus = p.Accent.Alpha(0.24), p.Ring
 	return t

@@ -770,7 +770,7 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 		}
 		uikit.Meta(c, note).Grow(1).SingleLine()
 		ui.Row(c).Disabled(!modified).Children(func() {
-			if uikit.Tip(c, uikit.PrimaryButton(c, locales.Save()), locales.SaveCtrlCmdS()).Clicked() {
+			if uikit.TipKeys(c, uikit.PrimaryButton(c, locales.Save()), locales.Save(), saveKeys()...).Clicked() {
 				a.saveScript(name)
 			}
 		})

@@ -147,10 +147,10 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 		if f.process != "" {
 			source += " · " + f.process
 		}
-		// Assistive technology hears the request itself, as the bar below
-		// shows it.
+		// The capture's line carries the whole exchange in its card: the
+		// table's columns cut a long URL, and this one does not.
 		title := f.method + " " + cmp.Or(f.url, f.scheme+"://"+f.host+f.path)
-		uikit.Tip(c, uikit.Meta(c, source).Label(title).FontFeatures("tnum").SingleLine().MinWidth(0), title)
+		uikit.CardTip(c, uikit.Meta(c, source).Label(title).FontFeatures("tnum").SingleLine().MinWidth(0), captureCard(f))
 		a.capturedRequestMatch(c, t, f)
 		if d == nil {
 			// Streams and tunnels read as they were; the path names them.

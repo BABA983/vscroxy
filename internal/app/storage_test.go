@@ -24,7 +24,7 @@ func TestSavedFilesCarryTheirFormatVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(data, []byte(`"version":1`)) {
+	if !bytes.Contains(data, []byte(`"version":2`)) {
 		t.Fatalf("settings = %s", data)
 	}
 	// The second save keeps the file it replaces.
@@ -72,7 +72,7 @@ func TestSavedFilesCarryTheirFormatVersion(t *testing.T) {
 func TestANewerFileIsRefusedAndLeftUntouched(t *testing.T) {
 	dir := t.TempDir()
 	settingsPath := filepath.Join(dir, "settings.json")
-	newer := []byte(`{"version":2,"proxyPort":9000}`)
+	newer := []byte(`{"version":3,"proxyPort":9000}`)
 	if err := os.WriteFile(settingsPath, newer, 0o600); err != nil {
 		t.Fatal(err)
 	}

@@ -392,7 +392,7 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 		})
 		if p.URL == "" {
 			ui.Row(c).Disabled(!modified).Children(func() {
-				save := uikit.Tip(c, uikit.PrimaryButton(c, locales.Save()), locales.SaveCtrlCmdS())
+				save := uikit.TipKeys(c, uikit.PrimaryButton(c, locales.Save()), locales.Save(), saveKeys()...)
 				save.OnClick(func() { a.saveProfile(i) })
 			})
 		}

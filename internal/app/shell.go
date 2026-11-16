@@ -140,8 +140,7 @@ func (a *app) sidebarToggle(c *ui.Context) {
 	if a.workbench.sidebarHidden {
 		label, icon = locales.ShowSidebar(), sidebarOpenIcon
 	}
-	tip := label + " · " + sidebarShortcut()
-	b := uikit.IconButton(c, label, tip, icon)
+	b := uikit.IconButton(c, label, label, icon, sidebarKeys()...)
 	if a.windowWidth < sidebarMinWidth {
 		uikit.Tip(c, b.Disabled(true), locales.WindowTooNarrowForTheSidebar(int(sidebarMinWidth)))
 		return
@@ -248,20 +247,28 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	}, uikit.MenuButtonOptions(c))
 }
 
-// hostsShortcut spells the Host profiles shortcut for its tooltip.
-func hostsShortcut() string {
+// hostsKeys spells the Host profiles shortcut as keycaps for its tip.
+func hostsKeys() []string {
 	if runtime.GOOS == "darwin" {
-		return "⌘⇧H"
+		return []string{"⌘", "⇧", "H"}
 	}
-	return "Ctrl Shift H"
+	return []string{"Ctrl", "Shift", "H"}
 }
 
-// sidebarShortcut spells the sidebar toggle's shortcut for its tooltip.
-func sidebarShortcut() string {
+// sidebarKeys spells the sidebar toggle's shortcut as keycaps for its tip.
+func sidebarKeys() []string {
 	if runtime.GOOS == "darwin" {
-		return "⌘B"
+		return []string{"⌘", "B"}
 	}
-	return "Ctrl B"
+	return []string{"Ctrl", "B"}
+}
+
+// saveKeys spells the Save shortcut as keycaps for its tip.
+func saveKeys() []string {
+	if runtime.GOOS == "darwin" {
+		return []string{"⌘", "S"}
+	}
+	return []string{"Ctrl", "S"}
 }
 
 // commandShortcut spells the palette's shortcut as the title bar's field
@@ -341,7 +348,6 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 			if a.page == pageDiagnostics {
 				counts = uikit.Tip(c, counts, locales.EvidenceFromThisLiveSession())
 			}
-			counts.ContentTransition(ui.ContentTransition{Numeric: true})
 			if a.dropped > 0 {
 				ui.Text(c, locales.DroppedCount(int(a.dropped))).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 			}
@@ -440,8 +446,10 @@ func (a *app) follow() {
 // what it opens, and how it turns off.
 type footerChip struct {
 	id, label, tip string
-	icon           *ui.SVG
-	open, off      func()
+	// keys draws a shortcut as Kbd caps in the chip's tip.
+	keys      []string
+	icon      *ui.SVG
+	open, off func()
 	// openLabel names the button that opens the chip, when the chip's own
 	// words are a status rather than a tool; offLabel and offTip name the
 	// button that turns it off, when "disable" is not what it does. A menu
@@ -523,7 +531,7 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 	// is: a chip that reads "Off" is a switch for a feature nobody turned on.
 	if hostsLabel := a.hostsLabel(); hostsLabel != "" {
 		hosts := footerChip{id: "hosts", label: hostsLabel, openLabel: locales.HostProfiles(),
-			tip: "Switch Host profiles · " + hostsShortcut(), icon: hostsIcon, off: a.hostsOff}
+			tip: "Switch Host profiles", keys: hostsKeys(), icon: hostsIcon, off: a.hostsOff}
 		hosts.open = func() { a.profiles.menuOpen = !a.profiles.menuOpen }
 		hosts.panel = func(anchor ui.Element) {
 			ui.PopoverBase(c, anchor, &a.profiles.menuOpen, func(panel ui.Element) {
@@ -636,7 +644,7 @@ func footerChipRow(c *ui.Context, t *ui.Theme, chip footerChip) {
 		if open == "" {
 			open = locales.ActiveTool(chip.label)
 		}
-		label := uikit.ToolbarButton(c, open, chip.tip, false).Height(uikit.HeightFooterControl).
+		label := uikit.ToolbarButton(c, open, chip.tip, false, chip.keys...).Height(uikit.HeightFooterControl).
 			PaddingStart(t.Space(1.5)).PaddingEnd(t.Space(0.5)).Children(func() {
 			ui.Icon(c, chip.icon).Size(uikit.IconInline, uikit.IconInline)
 			ui.Text(c, chip.label).FontSize(uikit.Scaled(uikit.TextMeta)).MaxWidth(180).SingleLine()

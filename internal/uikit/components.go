@@ -28,10 +28,10 @@ var (
 // ButtonBase keeps native keyboard, focus-ring and accessibility behavior.
 // The face is chosen as the button is built, so disable it through an
 // ancestor (IsDisabled includes one); Disabled on the result comes too late
-// to stop the hover face.
-func ToolbarButton(c *ui.Context, label, tip string, active bool) ui.Element {
+// to stop the hover face. keys draws a shortcut as Kbd caps in its tip.
+func ToolbarButton(c *ui.Context, label, tip string, active bool, keys ...string) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	b := Tip(c, ui.ButtonBase(c).Label(label), tip).Height(ControlHeight).
+	b := TipKeys(c, ui.ButtonBase(c).Label(label), tip, keys...).Height(ControlHeight).
 		Padding(0, Scaled(ControlPaddingX)).Gap(t.Space(2)).Radius(RadiusControl).
 		AlignItems(ui.Center).FontSize(Scaled(TextBody)).TextColor(t.TextMuted)
 	if !b.IsDisabled() {
@@ -50,7 +50,7 @@ func ToolbarButton(c *ui.Context, label, tip string, active bool) ui.Element {
 	// A disabled control keeps its own text color: MyGo already draws disabled
 	// elements at half opacity, and painting the faint color as well dimmed
 	// them twice.
-	return hoverMotion(b, b.Hovered() || b.Pressed())
+	return b
 }
 
 // FooterButton is one action in the footer bar: 20 points high, at rest text
@@ -72,11 +72,11 @@ func FooterButton(c *ui.Context, label, tip string, on bool) ui.Element {
 		// The selected segment's face: raised canvas with its hairline.
 		b.Background(p.Canvas).InsetShadow(0, 0, 0, 1, p.Hairline)
 	}
-	return hoverMotion(b, b.Hovered() || b.Pressed())
+	return b
 }
 
-func IconButton(c *ui.Context, label, tip string, icon *ui.SVG) ui.Element {
-	return ToolbarButton(c, label, tip, false).Size(ControlHeight, ControlHeight).
+func IconButton(c *ui.Context, label, tip string, icon *ui.SVG, keys ...string) ui.Element {
+	return ToolbarButton(c, label, tip, false, keys...).Size(ControlHeight, ControlHeight).
 		Padding(0).Justify(ui.Center).Children(func() {
 		ui.Icon(c, icon).Size(IconInline, IconInline)
 	})
@@ -508,7 +508,6 @@ func Sparkline(c *ui.Context, counts []int, ink ui.Color) ui.Element {
 func MenuSelect(c *ui.Context, current string, menu func(*ui.Menu)) ui.Element {
 	panel := func(panel ui.Element) {
 		popoverFace(c, panel)
-		panel.Transition(popoverMotion())
 	}
 	return faced(c, func() ui.Element {
 		return ui.PopoverMenuButton(c, current, menu, ui.PopoverMenuButtonOptions{Panel: panel})
@@ -522,30 +521,187 @@ func popoverFace(c *ui.Context, panel ui.Element) {
 	MenuPanel(c, panel.NoShadow())
 }
 
-// Tip gives e a tip of the kit's look, as a popover has: the canvas on the
-// shadow, a hairline edge, the panel radius, and the popover's rise. It
-// describes e to assistive technology as MyGo's Tooltip does.
+// overlayShown marks a frame in which a drawn menu or popover was built, so
+// FrameEnd can ask for the frame that paints the opener's restored focus.
+func overlayShown(c *ui.Context) {
+	*ui.Local(c.Root(), "overlay-shown", func() bool { return false }) = true
+}
+
+// FrameEnd closes the frame that builds the window. MyGo gives the focus
+// back to the element that opened a menu or popover after the frame is
+// painted, so the frame that loses an overlay asks for one more: that one
+// paints the opener's focus ring. Without it the ring waits for an unrelated
+// event, and a keyboard user cannot see where the focus went.
+func FrameEnd(c *ui.Context) {
+	shown := ui.Local(c.Root(), "overlay-shown", func() bool { return false })
+	last := ui.Local(c.Root(), "overlay-was-shown", func() bool { return false })
+	if *last && !*shown {
+		c.Invalidate()
+	}
+	*last, *shown = *shown, false
+}
+
+// Tip gives e a tip of the kit's look: the canvas on the popover shadow, a
+// hairline edge, RadiusPanel, 6 by 10 of padding and the small text role at
+// the normal ink. It is the one tip the app draws; nothing styles its own.
+// A URL or another long run breaks after / ? & = - _ . and every 32
+// characters, so a tip never runs off the window.
+//
+// The timing is MyGo's TooltipBase: the pointer rests for the theme's
+// TooltipDelay (500ms in the kit, VS Code's Linux and Windows default), and
+// within two thirds of it after a tip goes the next shows at once, so moving
+// along a row of controls does not wait again. The keyboard focus shows the
+// tip at once, Escape hides it, and the tip goes above e, or below it where
+// there is no room. e is described to assistive technology.
 func Tip(c *ui.Context, e ui.Element, text string) ui.Element {
-	if text == "" {
+	return TipKeys(c, e, text)
+}
+
+// TipKeys is Tip with shortcuts drawn as Kbd caps after the text, rather than
+// spelled inside the sentence: TipKeys(c, b, "Hide sidebar", "⌘", "B").
+func TipKeys(c *ui.Context, e ui.Element, text string, keys ...string) ui.Element {
+	if text == "" && len(keys) == 0 {
 		return e
 	}
-	t, p := c.Theme(), Colors(c.Theme())
+	t := c.Theme()
 	ui.TooltipBase(c, e, func(tip ui.Element) {
-		tip.Background(p.Inverse).TextColor(p.InverseText).Radius(RadiusControl).
-			MaxWidth(Scaled(360)).Padding(t.Space(1.5), t.Space(2.5)).Transition(popoverMotion())
+		tipFace(c, tip)
 		tip.Children(func() {
-			body := text
-			font := FontUI
-			if strings.Contains(text, "://") || strings.Contains(text, " ") && strings.Count(text, " ") < 2 && len(text) > 60 {
-				font = FontMono
-				body = breakLong(text)
-			}
-			ui.Text(c, body).Font(font).FontSize(Scaled(TextMeta)).TextColor(p.InverseText).
-				MaxLines(8).LineHeight(LineProse)
+			ui.Row(c).AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
+				if text != "" {
+					ui.Text(c, breakTip(text)).FontSize(Scaled(TextSmall)).LineHeight(LineSmall).TextColor(t.Text)
+				}
+				for _, key := range keys {
+					Kbd(c, key)
+				}
+			})
 		})
 	})
-	e.Description(text)
+	e.Description(tipDescription(text, keys))
 	return e
+}
+
+// tipDescription is what assistive technology reads for a tip: the sentence,
+// then the keys it names.
+func tipDescription(text string, keys []string) string {
+	if len(keys) == 0 {
+		return text
+	}
+	return strings.TrimSpace(text + " (" + strings.Join(keys, " ") + ")")
+}
+
+// tipFace is the one surface a tip and a hover card share: the canvas on the
+// popover shadow, a hairline edge, and the panel's 8-point corners.
+func tipFace(c *ui.Context, tip ui.Element) {
+	t, p := c.Theme(), Colors(c.Theme())
+	tip.Background(p.Canvas).TextColor(t.Text).Radius(RadiusPanel).MaxWidth(Scaled(360)).
+		Padding(t.Space(1.5), t.Space(2.5)).InsetShadow(0, 0, 0, 1, p.Hairline)
+	ShadowPopover.Apply(tip, t.Dark)
+}
+
+// TipSurface gives a tip built by the caller the kit's one face: the canvas
+// on the popover shadow, a hairline edge and RadiusPanel. It is for a tip
+// whose content is more than text and key/value rows, as a field's list of
+// variables; the timing, placement and dismissal are still TooltipBase's.
+func TipSurface(c *ui.Context, tip ui.Element) {
+	tipFace(c, tip)
+}
+
+// HoverCard is the rich tip of a row: a title, one line of facts under it,
+// and named values. It is for what a row cannot show in its width, as the
+// full URL, method and status of a captured request.
+type HoverCard struct {
+	Title string
+	Meta  string
+	Rows  []HoverCardRow
+}
+
+// HoverCardRow is one named value of a HoverCard.
+type HoverCardRow struct {
+	Key   string
+	Value string
+}
+
+// CardTip gives e a rich tip: a title, one line of meta and key/value rows,
+// on the same surface as Tip. It shows when Tip does and is described to
+// assistive technology by its text, since MyGo's tooltip itself is not read.
+// The card is wider than a one-line tip and keeps clear of the window's
+// edges through TooltipBase's placement.
+func CardTip(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
+	if card.Title == "" && card.Meta == "" && len(card.Rows) == 0 {
+		return e
+	}
+	t := c.Theme()
+	ui.TooltipBase(c, e, func(tip ui.Element) {
+		tipFace(c, tip)
+		tip.Padding(t.Space(2.5), t.Space(3))
+		tip.Children(func() {
+			ui.Column(c).Gap(t.Space(2)).Children(func() {
+				head := ui.Column(c).Gap(t.Space(0.5))
+				head.Children(func() {
+					if card.Title != "" {
+						ui.Text(c, breakTip(card.Title)).FontSize(Scaled(TextBody)).FontWeight(500).
+							LineHeight(LineBody).TextColor(t.Text)
+					}
+					if card.Meta != "" {
+						Meta(c, card.Meta).SingleLine()
+					}
+				})
+				if len(card.Rows) > 0 {
+					ui.Divider(c)
+					for _, row := range card.Rows {
+						if row.Key == "" && row.Value == "" {
+							continue
+						}
+						ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Start).Children(func() {
+							Meta(c, row.Key).Width(Scaled(52)).Shrink(0).Padding(0, 0, 1, 0)
+							if strings.Contains(row.Value, "://") {
+								Mono(c, breakTip(row.Value)).TextColor(t.Text).Grow(1).MinWidth(0)
+							} else {
+								Small(c, breakTip(row.Value)).TextColor(t.Text).Grow(1).MinWidth(0)
+							}
+						})
+					}
+				}
+			})
+		})
+	})
+	parts := make([]string, 0, 2+len(card.Rows))
+	if card.Title != "" {
+		parts = append(parts, card.Title)
+	}
+	if card.Meta != "" {
+		parts = append(parts, card.Meta)
+	}
+	for _, row := range card.Rows {
+		if row.Key != "" || row.Value != "" {
+			parts = append(parts, strings.TrimSpace(row.Key+": "+row.Value))
+		}
+	}
+	e.Description(strings.Join(parts, ". "))
+	return e
+}
+
+// breakTip gives a tip's text places to wrap only where a word cannot fit:
+// a URL, or a run longer than the limit. Prose keeps its own spaces and
+// punctuation, so a sentence is not cut at every dash.
+func breakTip(s string) string {
+	if strings.Contains(s, "://") {
+		return breakLong(s)
+	}
+	run := 0
+	for _, r := range s {
+		switch r {
+		case ' ', '\n', '\t':
+			run = 0
+			continue
+		}
+		run++
+		if run > 32 {
+			return breakLong(s)
+		}
+	}
+	return s
 }
 
 // breakLong gives a long string places to wrap. A URL gets a zero-width
@@ -591,8 +747,8 @@ func DialogFooter(c *ui.Context) ui.Element {
 // panel on the popover shadow. A menu takes MenuPanel; a dialog Modal's own.
 func PopoverPanel(c *ui.Context, panel ui.Element) ui.Element {
 	p := Colors(c.Theme())
-	return ShadowPopover.Apply(panel.Radius(RadiusCard).Background(p.Canvas).InsetShadow(0, 0, 0, 1, p.Hairline), c.Theme().Dark).
-		Transition(popoverMotion())
+	overlayShown(c)
+	return ShadowPopover.Apply(panel.Radius(RadiusCard).Background(p.Canvas).InsetShadow(0, 0, 0, 1, p.Hairline), c.Theme().Dark)
 }
 
 // ToastPanel is the chrome of a toast: the dialog's 16-point corner and the
@@ -600,14 +756,14 @@ func PopoverPanel(c *ui.Context, panel ui.Element) ui.Element {
 // than a second dialog.
 func ToastPanel(c *ui.Context, panel ui.Element) ui.Element {
 	p := Colors(c.Theme())
-	return ShadowPopover.Apply(panel.Radius(RadiusDialog).Background(p.Canvas).InsetShadow(0, 0, 0, 1, p.Hairline), c.Theme().Dark).
-		Transition(popoverMotion())
+	return ShadowPopover.Apply(panel.Radius(RadiusDialog).Background(p.Canvas).InsetShadow(0, 0, 0, 1, p.Hairline), c.Theme().Dark)
 }
 
 // MenuPanel is the chrome of a drawn menu: a 10-point canvas panel on the
 // menu shadow. MyGo builds the items; this is the face they sit on.
 func MenuPanel(c *ui.Context, panel ui.Element) ui.Element {
 	p := Colors(c.Theme())
+	overlayShown(c)
 	return ShadowMenu.Apply(panel.Border(0, ui.Color{}).Radius(RadiusMenu).Background(p.Canvas).
 		InsetShadow(0, 0, 0, 1, p.Hairline), c.Theme().Dark)
 }
@@ -766,7 +922,6 @@ func Toasts(c *ui.Context) {
 			parts := ui.ToastBase(c, toast)
 			ToastPanel(c, parts.Root).Row().Width(min(360, width-32)).Gap(t.Space(2)).Padding(t.Space(2), t.Space(4)).
 				AlignItems(ui.Center).
-				Transition(ui.ElementTransition{Duration: MotionSlow, Ease: MotionEase, Enter: &ui.Motion{Y: 8}, Exit: &ui.Motion{Y: 4}}).
 				Children(func() {
 					ui.Icon(c, icon).Size(IconLarge, IconLarge).TextColor(color)
 					ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(2)).Children(func() {
@@ -821,7 +976,7 @@ func ModalFlush(c *ui.Context, open *bool, title string, content func()) ui.Elem
 			panel.Jump("modal-in", 0)
 			*seen = true
 		}
-		panel.Opacity(panel.AnimateTo("modal-in", 1, ui.Animation{Duration: MotionBase, Ease: MotionEase, NonMotion: true}))
+
 		content()
 	})
 	if dialog.Dismissed() {
@@ -841,18 +996,6 @@ func Modal(c *ui.Context, open *bool, title string, content func()) ui.Element {
 			InsetShadow(0, 0, 0, 1, p.Hairline).
 			MaxWidth(max(0, width-32)).MaxHeight(max(0, height-32))
 		ShadowDialog.Apply(panel, t.Dark)
-		// A dialog is built the frame it opens, so a transition's entrance
-		// has no earlier frame to come from: the panel grows from 97% as a
-		// value that starts at zero the first time this dialog is built.
-		seen := ui.Local(panel, "dialog-in", func() bool { return false })
-		if !*seen {
-			panel.Jump("dialog-in", 0)
-			*seen = true
-		}
-		// Only the fade: a scale moves the panel's painted pixels away from
-		// where the layout puts its controls, and a press in the first
-		// frames would land beside them.
-		panel.Opacity(panel.AnimateTo("dialog-in", 1, ui.Animation{Duration: MotionBase, Ease: MotionEase, NonMotion: true}))
 		content()
 	})
 	if dialog.Dismissed() {
@@ -915,7 +1058,6 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 			case tab.Hovered():
 				tab.Background(p.FillHover)
 			}
-			hoverMotion(tab, tab.Hovered() || tab.Pressed())
 			tab.Children(func() {
 				ui.Text(c, label).FontSize(Scaled(TextBody))
 				if i < len(counts) && counts[i] != "" && counts[i] != "0" {
@@ -1065,9 +1207,6 @@ func Segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 			case s.Pressed() || s.Hovered():
 				s.TextColor(t.Text)
 			}
-			// The segment under the pointer takes its face at once; the one
-			// it leaves fades, as a tab does.
-			hoverMotion(s, s.Hovered() || s.Pressed())
 			s.Children(func() { ui.Text(c, label).SingleLine() })
 		}
 	})
@@ -1177,6 +1316,19 @@ func FormRow(c *ui.Context, label, description, errText string, control func()) 
 	return field
 }
 
+// FormRowTip is FormRow with its explanation as a tip on the label rather
+// than a line under the control: for a tall field whose description would
+// otherwise sit below it, away from the name it explains. The label still
+// names the control for assistive technology.
+func FormRowTip(c *ui.Context, label, tip string, control func() ui.Element) ui.Element {
+	t := c.Theme()
+	return ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+		name := Tip(c, ui.Text(c, label).FontSize(Scaled(TextBody)).TextColor(t.Text), tip)
+		field := control()
+		field.LabelledBy(name)
+	})
+}
+
 // FormRowTall is FormRow for a control taller than one line, such as a code
 // editor: its label sits on the control's top line instead of being centered
 // on the whole box. It names the control, and binds the description and error
@@ -1265,7 +1417,7 @@ func Switch(c *ui.Context, on *bool) ui.Element {
 	if *on {
 		target = 1
 	}
-	pos := sw.Animate("knob", target, MotionFast)
+	pos := target
 	off := t.Border.Mix(t.Text, 0.15)
 	track := off.Mix(p.SwitchOn, pos)
 	sw.Draw(func(painter *ui.Painter, r ui.Rect) {

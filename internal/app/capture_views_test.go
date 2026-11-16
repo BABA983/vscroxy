@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -42,6 +43,12 @@ func captureViewsFrame(a *app, v *captureViews) func(*ui.Context) {
 		v.sync(a)
 		ui.Column(c).Fill().Background(t.Background).Children(func() {
 			v.sidebar(c, t, a)
+			// The app's Traffic heading carries this action; the harness
+			// draws it here so the views model stays testable on its own.
+			if uikit.SidebarButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon, false).Clicked() {
+				v.capture(a)
+				v.newView(a)
+			}
 			ui.Text(c, fmt.Sprintf("rows: %d", len(a.visible)))
 			ui.Text(c, "search: "+a.query)
 			ui.Text(c, "filter: "+a.filter)

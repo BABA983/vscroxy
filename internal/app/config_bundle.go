@@ -84,6 +84,7 @@ func (a *app) currentSettings() settings {
 		DiffSplit:            a.diffSplit,
 		SidebarHidden:        a.workbench.sidebarHidden,
 		SidebarClosed:        a.closedRegions(),
+		SidebarPaneHeights:   a.paneHeightValues(),
 		Columns:              savedLayout(a.columns),
 		CustomColumns:        a.customColumns,
 		HiddenColumns:        a.hiddenColumns,
@@ -465,6 +466,7 @@ func (a *app) applySettingsPrepared(s settings, prepared *upstream.Config) error
 	a.workbench.layout = inspectorLayout(s.InspectorLayout)
 	a.workbench.sidebarHidden = s.SidebarHidden
 	a.regions, a.shutRegions = nil, slices.Clone(s.SidebarClosed)
+	a.paneHeights, a.savedHeights = nil, maps.Clone(s.SidebarPaneHeights)
 	if s.SideTablePercent > 0 {
 		a.workbench.sidePercent = s.SideTablePercent
 	}

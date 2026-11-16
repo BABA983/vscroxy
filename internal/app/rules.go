@@ -982,7 +982,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 		} else {
 			uikit.Meta(c, locales.ChangesApplyToNewRequests()).Grow(1).SingleLine()
 		}
-		if uikit.Tip(c, uikit.PrimaryButton(c, locales.SaveRule()), locales.SaveCtrlCmdS()).Clicked() {
+		if uikit.TipKeys(c, uikit.PrimaryButton(c, locales.SaveRule()), locales.SaveRule(), saveKeys()...).Clicked() {
 			a.saveRule()
 		}
 	})

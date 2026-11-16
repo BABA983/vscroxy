@@ -142,8 +142,8 @@ func TestFloatingScaleTokens(t *testing.T) {
 	if Light.Chrome != ui.Hex("#f2f6ee") || Light.Scrim != ui.RGBA(0, 0, 0, 0.35) {
 		t.Fatalf("Light chrome/scrim = %v/%v", Light.Chrome, Light.Scrim)
 	}
-	if MotionFast != 120*time.Millisecond || MotionBase != 150*time.Millisecond || MotionSlow != 200*time.Millisecond {
-		t.Fatalf("motion = %v/%v/%v", MotionFast, MotionBase, MotionSlow)
+	if got := Theme(false).TooltipDelay; got != 500*time.Millisecond {
+		t.Fatalf("tooltip delay = %v, want 500ms", got)
 	}
 }
 

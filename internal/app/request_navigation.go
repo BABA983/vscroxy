@@ -163,7 +163,13 @@ func (a *app) collectionTree(c *ui.Context) {
 			chosen := a.page == pageRequest && a.requestChoice == r.key()
 			edited := slices.ContainsFunc(a.documents, func(d *requestDocument) bool { return d.savedKey == r.key() && d.dirty() })
 			base := treeRow(c, tree.Item(nil), depth).Label(r.Name).Selected(chosen)
-			row := uikit.Tip(c, base, method+" "+r.URL).
+			// The row shows the name and method; the card carries the whole
+			// address and where the request lives.
+			card := uikit.HoverCard{Title: r.Name, Meta: method, Rows: []uikit.HoverCardRow{{Key: "URL", Value: r.URL}}}
+			if r.Collection != "" {
+				card.Meta = method + " · " + r.Collection
+			}
+			row := uikit.CardTip(c, base, card).
 				OnClick(func() { a.openSaved(r.key()) }).PopoverMenu(menu)
 			if chosen {
 				uikit.Selected(c, row, !a.windowBehind)

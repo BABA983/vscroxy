@@ -19,7 +19,9 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 	}
 	_, height := c.Size()
 	uikit.Modal(c, &s.open, locales.SetUpALocalClient2(), func() {
-		uikit.DialogColumn(c, uikit.SettingsWidth).Height(min(700, height-80)).Children(func() {
+		// The dialog is as tall as its content, up to the window: a short
+		// panel does not leave a block of empty canvas under the last card.
+		uikit.DialogColumn(c, uikit.SettingsWidth).MaxHeight(min(700, height-80)).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 				uikit.DialogTitle(c, locales.SetUpALocalClient2())
 				ui.Spacer(c)
@@ -72,10 +74,12 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 // capture stopped the footer's Start capture owns the primary face, so a
 // panel action is secondary and disabled until the listener exists.
 func clientActionButton(c *ui.Context, label string, running bool) ui.Element {
+	// A panel action hugs its label: a column would otherwise stretch it to
+	// the card's width, which reads as a second full-width field.
 	if running {
-		return uikit.PrimaryButton(c, label)
+		return uikit.PrimaryButton(c, label).AlignSelf(ui.Start)
 	}
-	return uikit.SecondaryButton(c, label)
+	return uikit.SecondaryButton(c, label).AlignSelf(ui.Start)
 }
 
 func (a *app) clientSetupBadge(c *ui.Context, t *ui.Theme) {

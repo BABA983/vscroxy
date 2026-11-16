@@ -95,16 +95,16 @@ func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variable
 	}
 	t := c.Theme()
 	ui.TooltipBase(c, anchor, func(tip ui.Element) {
-		tip.Padding(t.Space(1.5), t.Space(2)).Radius(uikit.RadiusControl).Background(t.Inverse).TextColor(t.InverseText).Width(360)
-		tip.Children(func() {
+		uikit.TipSurface(c, tip)
+		tip.Width(360).Children(func() {
 			for i, mark := range marks {
 				if i > 0 {
-					ui.Box(c).Height(1).FillWidth().Background(t.InverseText.Alpha(0.16))
+					ui.Box(c).Height(1).FillWidth().Background(uikit.Colors(t).Hairline)
 				}
 				ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, "{{"+mark.Ref.Name+"}}").Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.InverseText)
+					ui.Text(c, "{{"+mark.Ref.Name+"}}").Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text)
 					if mark.Defined {
-						ui.Text(c, mark.Hint.source()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.InverseText.Alpha(0.72)).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
+						ui.Text(c, mark.Hint.source()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
 					} else {
 						ui.Text(c, "undefined").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Grow(1)
 					}
@@ -117,7 +117,7 @@ func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variable
 						value = mark.Hint.display()
 					}
 				}
-				ui.Text(c, value).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.InverseText.Alpha(0.86)).SingleLine().Ellipsis("…")
+				ui.Text(c, value).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text).SingleLine().Ellipsis("…")
 			}
 		})
 	})

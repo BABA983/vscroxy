@@ -33,15 +33,15 @@ go run ./cmd/vscroxy-gallery
 VSCROXY_GALLERY_OUT="$PWD/.amp/in/artifacts/gallery" go test ./internal/gallery -run '^TestGallerySnapshots$' -count=1
 ```
 
-测试按 Light 和 Dark 各写一张 PNG；不设置 `VSCROXY_GALLERY_OUT` 时它只检查每个条目都能渲染、不 panic。把导出的图缩到 1600 宽、128 色再放进 `docs/design/`，总量控制在 3 MB 以内：
+测试按 Light 和 Dark 各写一张 PNG；不设置 `VSCROXY_GALLERY_OUT` 时它只检查每个条目都能渲染、不 panic。把导出的图缩到 1600 宽、112 色再放进 `docs/design/`，总量控制在 3 MB 以内：
 
 ```bash
 for f in .amp/in/artifacts/gallery/*.png; do
-  magick "$f" -resize '1600x>' -dither None -colors 128 -depth 8 -define png:compression-level=9 "docs/design/$(basename "$f")"
+  magick "$f" -resize '1600x>' -dither None -colors 112 -depth 8 -strip -define png:compression-level=9 "docs/design/$(basename "$f")"
 done
 ```
 
-`-dither None` 是为平涂界面加的：默认的 Riemersma 抖动会在文字和面板边缘撒一层噪点，既放大文件，也在截图里多出并不存在的颜色。128 色足够容纳两套主题的全部 token。
+`-dither None` 是为平涂界面加的：默认的 Riemersma 抖动会在文字和面板边缘撒一层噪点，既放大文件，也在截图里多出并不存在的颜色。112 色足够容纳两套主题的全部 token；128 色时 142 张图约 3.04 MB，超出总量，112 色约 2.98 MB，肉眼无差。
 
 画廊不启动抓包服务器，所以抓包页标题栏的 pill 读作 Proxy stopped，表格里是假数据。屏幕条目在画廊里占满整个窗口（目录收进左上角的 Catalog 抽屉），因为 `internal/app` 的视图按窗口尺寸排版，不能放进比窗口窄的一栏。
 
@@ -94,7 +94,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 ## 3. 信息架构：一个工作区
 
 - **去掉 Capture／Requests 切换。** 抓到的请求就是"还没保存的请求"：点开是可编辑的文档，顶部有来源标记（`Captured · 12:03:42 · Safari`），可以直接 Send，或者 Save to collection。Edit & replay、Save as request 这类搬运动作并入这个文档，不再是跨工作区的跳转。
-- **侧栏两个固定区域，各自滚动，中间一条细线：** 上区是流量——Traffic（All requests、Errors、Slow、Pinned，各带计数，0 不显示）、保存的视图和快速筛选、Sources（标题右侧 Apps｜Domains 开关，只列前五项，超过时末尾一行 Show all）；下区是 Collections——标题行右端是 `⋯` 和加号，下面是无边框的搜索框（`ChromeFieldFace`）、集合树（请求行带 method 标签）和树末尾可折叠的 Sessions。三个分区标题都可以点击折叠，悬停时显示箭头，状态记在 settings 里。流量再多也不会把集合推出屏幕。侧栏本身可以隐藏（标题栏的按钮、`⌘B`、命令面板），窗口窄于 860 时自动让开、变宽后回到原来的选择。环境、APIs、Runner 从集合的 `⋯` 菜单和命令面板进入，不再占一条资源栏；Diagnostics 在页脚（Client setup、HTTPS decryption 旁边）。
+- **侧栏三段，只有中间滚动：** 顶部是固定的 Traffic——All requests、Errors、Slow、Pinned、Overview 各带计数（0 不显示）、保存的视图和快速筛选，标题右端是新建视图的加号；窗口太矮时这一组在自己的列表里滚动，不挤走下面。中间是可折叠的 Sources（标题右侧 Apps｜Domains 开关，只列前五项，超过时末尾一行 Show all）、Sessions 和 Collections，它们按 PaneView 的方式分配高度：每段保留自己的标题，上面的段保持自己的高度，最后一个展开的段（默认是 Collections）占满剩余空间，分隔条可拖动、双击恢复默认；折叠状态和每段高度记在 settings 里。底部固定的 Client setup、HTTPS decryption、Diagnostics 不滚动。侧栏本身可以隐藏（标题栏的按钮、`⌘B`、命令面板），窗口窄于 860 时自动让开、变宽后回到原来的选择。环境、APIs、Runner 从集合的 `⋯` 菜单和命令面板进入，不再占一条资源栏。
 - **侧栏只有一个选中项，** 表示"现在看的是什么"。视图、快速筛选这类开关不是第二个选中项：开着时图标用强调色、文字用正文色，不画选中底和标记线。
 - **中间栏随侧栏选择变化：** 选 LIVE 或 SESSIONS 时是流量表格；选一个已保存的请求时，是这个请求的发送历史（History／Examples 切换），可以标基线、对比。
 - **两种布局，** 用标题栏右侧的两个图标切换，各自记住分隔线比例，双击分隔线恢复默认：
@@ -120,7 +120,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **三档栏高，两档控件：** 栏 40／32／24，控件 `ControlHeight` 28／`ControlHeightSmall` 22，行 `HeightControl` 24；工作区圆角 4／6／8，浮层再取 10／12／16；间距 4／8／12／16／24，左右边距统一 12。
 - **线只画在区域之间。** 侧栏与内容、列表与检查器、请求面板与响应面板、状态栏上沿；区域内部靠间距和表面区分，面板头、抓包信息行、URL 行都没有底线。流量表表头没有列分隔线，拖动列宽的命中区还在，指针停在那一列边缘时才画出强调色细线。
 - **输入框只有两种：** 在 chrome 上的是 canvas 底加 1px 细线（`ChromeFieldFace`），在 canvas 上的是 well 填充（`FieldFace`）。标题栏的命令入口不是输入框，是一个 24 高的按钮（放大镜加 `⌘K`／`Ctrl K`）。
-- **侧栏退后。** 未选中行的文字用次要色、图标再低一档（faint），悬停和选中时回到正文色；计数为 0 不显示。侧栏的三个分区标题可以点击折叠，折叠状态记在 settings 里。
+- **侧栏退后。** 未选中行的文字用次要色、图标再低一档（faint），悬停和选中时回到正文色；计数为 0 不显示。侧栏的四个分区标题（Traffic、Sources、Sessions、Collections）都可以点击折叠，折叠状态和中间三段的高度记在 settings 里。
 - **常驻的状态信息：** 列表上方一条 24 高的活动柱状图：摘要（`Last 5 min · 138 requests`）在左、柱在右、最右是结束时间（等宽）；最近 5 分钟，按状态码上色（正常中性面，3xx／4xx／5xx 和慢请求用信号色），可拖选时间范围。筛选是查询语法 chip（`status:>=400`、`host:`、`app:`、`slow`），带自动补全；每行带一根耗时条，慢请求是朱红。
 - **选中分两种形状，都是选中浅底（`AccentTint`）、正常文字颜色：**
   - 选位置或选东西的行（侧栏、集合树、各种挑选列表）是离边缘内缩的圆角块，不画标记线，和 macOS 的 source list 一样。侧栏的选中表示"现在在哪"，不是键盘光标，焦点在别处时仍是强调浅底。
@@ -207,10 +207,9 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `ControlHeight`／`ControlHeightSmall`／`HeightControl` | 28／22／24 | 按钮、输入框、tab／chip、行内动作／表格行、侧栏条目和栏内的一行。`HeightLarge` 仍是 28，只在个别历史布局里用；`HeightCompact`（20）已删掉 |
 | `RadiusInner`／`RadiusControl`／`RadiusPanel`／`RadiusMenu`／`RadiusCard`／`RadiusDialog` | 4／6／8／10／12／16 | 控件内的面／控件和 tab／工作区面板／菜单／卡片和弹层／对话框和 toast |
 | `IconInline`／`IconLarge` | 14／16 | 行内和按钮／rail 和空状态 |
-| `MotionFast`／`MotionBase`／`MotionSlow` | 120／150／200ms | 悬停和离开／弹层和对话框进入／toast 和尺寸落定。界面只写 token，不写毫秒 |
-| `MotionEase` | `cubic-bezier(.4, 0, .2, 1)` | 所有浮层、对话框、toast 和悬停共用的缓动 |
+| 动效 | 无 | 界面没有过渡 token：悬停、浮层、toast、对话框、分区折叠和面板尺寸都立即到位。保留的只有录制点的脉动（状态）和用户自己拖动的分隔条、滚动 |
 | 浮层尺寸 | 菜单行 28（MyGo 当前画 24，见第 12 节 93）；弹层圆角 12、内边距 16；对话框圆角 16、内边距 24、间距 16；toast 圆角 16；命令面板 720／输入 48/16／结果 40/14 | |
-| `MotionSpring` | 200ms，无回弹 | 侧栏区域收起展开、面板和分栏改变尺寸时用的唯一弹簧；`RegionMotion` 和 `PaneMotion` 由它组成 |
+| 工具提示 | 圆角 8、内边距 6×10、最大宽 360、12 号正文 | 面是 canvas + hairline + `ShadowPopover`；快捷键用 `Kbd`，富卡片见 6.7 |
 | `DialogSmall`／`DialogMedium`／`DialogLarge` | 480／640／840 | 对话框宽度档，随窗口收缩 |
 
 - 间距用 `t.Space(n)`，网格 4px，只用 4／8／12／16／24（细缝可用 `t.Space(0.5)`），每档有固定用途：
@@ -225,7 +224,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 - 表格行高 24。MyGo 的 `ui.Table` 最小行高是 `t.Space(8)`，所以流量表格在局部主题里设 `Spacing = 3`。
 - 分隔统一 1px `Hairline`，不靠色块分区。只有菜单、弹层、对话框有阴影：1px 边框画边缘，阴影只做柔和的浮起（`ShadowMenu 0 8 24 .14`、`ShadowPopover 0 12 32 .16`、`ShadowDialog 0 16 48 .18`；Dark 透明度 ×2）。工作区不加阴影。
-- 菜单的面由 uikit 接管：`MenuPanel` 给 `MenuSelect` 和所有 `PopoverMenuButton` 用 canvas、hairline、`RadiusMenu` 和 `ShadowMenu`，并挂上 `popoverMotion`；`actionMenu` 用 `Content` 把快捷键画成 `Kbd`。`ContextMenu` 和 `PopoverMenu` 的面板仍是 MyGo 内部固定样式，见第 12 节。
+- 菜单的面由 uikit 接管：`MenuPanel` 给 `MenuSelect` 和所有 `PopoverMenuButton` 用 canvas、hairline、`RadiusMenu` 和 `ShadowMenu`，不挂过渡；`actionMenu` 用 `Content` 把快捷键画成 `Kbd`。`ContextMenu` 和 `PopoverMenu` 的面板仍是 MyGo 内部固定样式，见第 12 节。
 
 ### 6.4 文字角色（`text.go`）
 
@@ -264,6 +263,15 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 只用 Lucide。尺寸只有 14 和 16 两档；颜色跟随文字，不单独上色。例外：开关类条目开着时图标用强调色（第 3 节）。
 
+### 6.7 工具提示
+
+所有提示都走 `uikit.Tip`（带快捷键用 `TipKeys`，富内容用 `CardTip`），没有地方自己画。
+
+- 面：canvas 底、1px `Hairline`、`ShadowPopover`、`RadiusPanel`（8），内边距 6×10，最大宽度 360。
+- 字：`TextSmall` 12，普通文字色；长文本自然换行，URL 和超过 32 字符的连续串按 `/ ? & = - _ .` 断行。快捷键画成 `Kbd`，不拼进句子。
+- 富卡片：标题 13/500、一行 meta 11（muted）、一条分隔线和 key/value 行（key 11 muted、value 12，URL 用等宽 11）。用在侧栏的集合请求行（名字、方法、集合、完整 URL）和抓包行（`GET /path`、状态、耗时、大小、URL、Host、Client）。
+- 时序：指针停留 500ms 显示；提示消失后 333ms 内移到相邻目标立即显示（MyGo 的 warm 窗口）；键盘焦点立即显示，Escape 关闭，上方不够翻到下方。
+
 ## 7. 交互和状态
 
 - **Hover：** 按钮、工具栏按钮、tab 的背景变 Hover（第二层 tab 和分段控件只把文字变成正文色），立即变化，不做过渡。和 macOS 一样，列表、表格、侧栏的行没有 hover；不可点的也没有。
@@ -271,15 +279,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **按下：** 背景变 Pressed。
 - **焦点环：** 键盘焦点显示 2px `Ring` 外框，鼠标点击不显示，所有可交互元素都要有。输入框例外：聚焦时是 `Ring` 细边加 3px 柔和光晕，不再画外框；输入框的聚焦边和主操作不再同色。对话框关闭后焦点回到打开它的控件，`Modal` 会请求一帧重绘让焦点环显示出来。
 - **禁用：** 文字用 TextFaint，不响应 hover；tooltip 说明为什么不可用。
-- **动效：** 只用于说明变化，时长一律用 token（`MotionFast` 120／`MotionBase` 150／`MotionSlow` 200），缓动统一 `MotionEase`（`cubic-bezier(.4,0,.2,1)`）；面板和区域改变尺寸用 `MotionSpring`（200ms，无回弹）。
-  - 悬停和按下的面：进入即时，离开用 120ms 淡回，指针扫过一排按钮时不落后。过渡每一帧都挂着（悬停帧时长 `-1`）：MyGo 只在上一帧也有过渡时才混色，撤掉过渡等于让离开的那一帧当成新元素。
-  - 菜单、弹层、工具提示：淡入加上移 4px，进 150、出 120，缓动 `MotionEase`。
-  - 对话框和命令面板：淡入，150。放大不做：缩放把画出来的像素挪离布局位置，开场那几帧点不到控件。
-  - 侧栏分区折叠、面板和分栏改变尺寸：`RegionMotion`／`PaneMotion`，无回弹弹簧，约 200。
-  - 计数、状态码、耗时这类数字变化：`ContentTransition{Numeric}`，150。
-  - 录制中：有流量经过时状态点轻微脉动（1.2s，55%–100%），没有流量或暂停时静止。脉动画在点自己的 `Draw` 里（30fps），只重绘不重跑视图，流量表不会跟着每秒重建 60 次。
-  - 不做动效的地方（高频或必须即时）：流量表新行进入、行选中和键盘上下移动、输入、自动跟随滚动。流量持续进来时用 `AnimatePose` 一类只重绘不重建的写法，保证列表不掉帧。
-  - 系统要求减少动态效果时 MyGo 自己把值直接送到终态、过渡立即结束；`Loop` 继续（系统转圈也这样）。
+- **动效：没有。** 悬停和按下的面立即变化，菜单、弹层、工具提示、toast 和对话框立即出现／消失，侧栏分区折叠和面板尺寸立即到位，计数、状态码和耗时直接换成新值。保留的只有两处，它们不是过渡：录制中且有流量时监听 pill 的状态点脉动（1.2s，55%–100%，画在 `Draw` 里，只重绘不重跑视图），以及用户自己拖动的分隔条和滚动（MyGo 的滚动惯性、`Split` 的拖动）。系统要求减少动态效果时 MyGo 仍然把滚动直接送到终态；应用没有过渡需要它结束。
 - **拖拽：** 分隔线 hover 时变成强调色细线，指针变成调整大小；双击恢复默认。
 - **右键：** 任何有动作的对象都支持右键，菜单内容见 UX 规范第 6 节。菜单的高亮项是强调色实底、反色文字（MyGo 菜单本来的画法，和 macOS 一致）。
 - **选中：** 单击选中；Cmd／Ctrl 单击加选；Shift 单击连选；Enter 进入检查器；Esc 返回。
@@ -558,6 +558,8 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 75. 图标改成 Icon Composer 文档（`assets/AppIcon.icon`，`macos.icon` 接进去，`actool` 编成 `Assets.car`）：macOS 26 给普通 `.icns` 加浮雕和灰底板，分层文档才按层合成玻璃。`resources/icon.png` 仍是 Windows、Linux 和没有 Xcode 的构建用的图。小尺寸单独画了 `assets/icon-small.svg`，但 `.icon` 格式没有按尺寸的槽位，macOS 26 在 16／32 仍渲染同一套层（第十一阶段，2026-11-13）。
 
 76. 搜索框是筛选取值的唯一入口，它自己没有模式：普通文字包含、`/…/` 正则、`*`／`?` 通配，都作用于整个 host＋path。原来的「Text／Wildcard／Regex」下拉删掉，因为同一个功能有两个入口（下拉和语法）；漏斗从过滤栏、底栏和侧栏收进搜索框右端，底栏只留 Clear 和 Auto-follow（第十三阶段，2026-11-13）。
+
+77. uikit A/B（2026-11-16）：工具提示换成浮层表面（canvas、hairline、`ShadowPopover`、`RadiusPanel`、6×10、12 号正文、360 宽），快捷键用 `Kbd`，新增 `CardTip` 富卡片（侧栏请求行和抓包行）；延迟设成 500ms。删掉所有装饰性过渡和动效 token（悬停淡出、浮层和 toast 进出、对话框淡入、分区折叠、面板尺寸、数字滚动），只留录制点的脉动和用户自己的拖动／滚动。侧栏改成 PaneView：Traffic 固定，中间 Sources／Sessions／Collections 可折叠、最后一个展开的段占满剩余、分隔条可拖、双击恢复，折叠状态和段高记在 settings（`SidebarPaneHeights`，settings 格式升到 2）。Client setup 对话框高度跟内容、动作按钮不再整行宽；HTTPS decryption 的「Domains and subdomains」进标题的 Tip。菜单关闭后补一帧重绘，让焦点环在 Escape 的那一帧出现。
 77. MyGo 的表格只按 `ListState.Selection` 画选中行，`Selected` 只是键移动的起点。所以应用自己移动选中行时必须同时把它放进选择集合（`choosePicked`）；「画的时候强行塞进去」会清掉多选，不是解法（第十三阶段，2026-11-13）。
 78. 计数只说一次：侧栏保留计数，活动条只有柱子和结束时间，底栏只在隐藏了行时说「8 of 13」，批量选择时仍报「N of M selected」（第十三阶段，2026-11-13）。
 79. 隧道详情只留一行状态和一个「Decrypt <host>」，其余（域规则、App 规则、信任）进 Connection 标签页；给整个 App 放宽权限的动作进面板头的 `⋯`。表格里隧道行用锁图标表示 Status、Path 留空、CONNECT 用次要色（第十三阶段，2026-11-13）。
@@ -581,7 +583,7 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 
 v3 六个阶段落地后，和设计稿仍有这些差别，都是有意保留的：
 
-- **悬停只重绘，做不到（2026-11-13）。** 悬停底色要在 `Draw` 里读指针才能只重绘；但 `p.AnimationFrame()` 请求的是只重绘不重建的帧，这种帧里 `Element.Hovered()` 用的还是上一轮构建的元素，MyGo 判它过期并 panic：`ui: element from pass 143 used in pass 146; keep a ui.Handle instead`。`ui.Handle` 只有 `Focused`／`Bounds`，没有 `Hovered`，所以换 handle 也读不到。23 处悬停仍在构建期读，用 `hoverMotion` 保留 120 ms 淡出；等 MyGo 给 painter 级的指针信息或可在重绘帧读的 hover 才能改。
+- **悬停只重绘，做不到（2026-11-13）。** 悬停底色要在 `Draw` 里读指针才能只重绘；但 `p.AnimationFrame()` 请求的是只重绘不重建的帧，这种帧里 `Element.Hovered()` 用的还是上一轮构建的元素，MyGo 判它过期并 panic：`ui: element from pass 143 used in pass 146; keep a ui.Handle instead`。`ui.Handle` 只有 `Focused`／`Bounds`，没有 `Hovered`，所以换 handle 也读不到。23 处悬停仍在构建期读，当时用 `hoverMotion` 保留 120 ms 淡出；这一批把淡出去掉了，悬停面立即变化，不再有构建期的颜色过渡。
 - **表格行不能拖进集合（2026-11-14）。** MyGo 0.9.0 有 `DragRows`／`Drop`，tester 里的合成拖动也能通过，但在真机上按住表格行拖动时，表格从不开始拖动会话（没有幽灵行，集合行也没有 `DragOver`），所以松手不会保存。拖放已整条回退，等 MyGo 提供可在真机工作的拖动源，或改用自绘的拖动层。
 - **Darwin 上第三方进程读不到 TCP 控制块（2026-11-14）。** `/usr/sbin/netstat` 带有 `com.apple.private.network.statistics` 权限，从终端直接运行时能看到每个连接的进程和 pid；但由 Go／C 子进程（甚至 `/bin/sh -c` 子进程）启动时输出 0 字节，`netstat -anv -p tcp` 的 pid 列不会给第三方 responsible process。`sysctl -b net.inet.tcp.pcblist_n` 在终端返回 170064 字节，而 Go 的 `unix.SysctlRaw` 和 C 的 `sysctlbyname` 都只拿到 48 字节的 `xinpgen` 头。M6 的 PCB 读取因此删掉，客户端归属仍走 lsof 批量查询；只有 `lsof` 能在本机实际拿到 socket 的 pid。
 - **侧栏 Apps 的行只能画字形图标，画不了应用自己的图标（2026-11-13）。** `ui.SidebarItem` 的图标槽收 `*ui.SVG`，而我们自己 `.Children(...)` 加的内容会排在文字之后；`mygo.Shell.FileIcon` 能取到 `.app`／exe 的位图，但没有地方把它放进行首。流量表的 Client 列不受影响（那里是我们自己排的行）。
@@ -599,7 +601,7 @@ v3 六个阶段落地后，和设计稿仍有这些差别，都是有意保留�
 4. **Sources 的 Show all 展开后变成 Show fewer**；设计稿只画了未展开的样子。
 5. **Sessions 行带会话数**，`Open session…` 带时钟图标（设计稿没有这两行）。
 6. **树里的请求行没有空图标槽**：method 直接从缩进后开始，所以同一层里文件夹名和请求名不在同一条线上；设计稿的 mock 也是这样（`.slot` 14 + `.mth` 30）。
-7. **上区最高 55%**：设计稿没有这个数，是"两个固定区域、各自滚动"的实现细节。
+7. **很矮的窗口里 Traffic 组自己滚动**：设计稿没有这个数，是"顶部固定、中间滚动"的实现细节。窗口高度减去 520 后至少留 72 给这一组，超出部分在组内滚动，免得把 Collections 挤没；正常窗口高度下它不滚动。
 8. **标题栏比设计稿多几个按钮**（命令按钮、侧栏开关、布局切换的两个、Tools、`⋯`）：这些入口都要能到达；设计稿只画了布局切换和 Settings。
 9. **标题栏的工具 chip 会横向滚动**：设计稿只画了一个 Host chip，实际同时可能有六七个工具开着。
 10. **活动行摘要那一段固定 240 宽**：为了让拖选时柱不在指针下移动，短摘要和柱之间会留一段空白；设计稿是紧挨着的。
@@ -614,8 +616,8 @@ v3 六个阶段落地后，和设计稿仍有这些差别，都是有意保留�
 19. **面板头里少一个按钮是常态**：编辑器的响应面板在 1280 宽（历史列打开时约 530 宽）只放得下状态、标签页、耗时和 `⋯`，格式菜单、Decode 和保存／示例／历史都在 `⋯` 里；960 宽（没有历史列）时格式菜单和动作按钮回到行上，只有 Decode 留在 `⋯` 里。
 20. **编辑器并排时请求面板的 tab 会挤掉历史列**：窗口 1280、历史列打开时请求面板约 270 宽，四个 tab 放不下。第九阶段起历史列像侧栏一样让位：按实测宽度算出请求面板放不下整行的 tab 时，历史列自动收起（Send 历史仍可从响应面板的 `⋯` 打开），窗口变宽后回到用户原来的选择。放不下的 tab 仍从右往左进 More，行上永远是完整的词。
 21. **底栏没有上下行速率**：应用现在只有请求计数（`rateWindow`），没有字节计数，所以设计稿里的 `↑ 27 KB/s ↓ 219 KB/s` 没有画。要显示它需要 `capture.Server` 在读写请求／响应体时累计字节（例如 `up`／`down` 两个 atomic，或按秒的环形桶），由底栏每秒取差值；现在的 `flow.bytes` 是完成后的响应体大小，只能算出「每次请求完成时的突发」，不是实时速率。
-22. **侧栏显隐没有滑入滑出**：侧栏在 MyGo 的 `Split` 里，宽度由用户拖动的分隔条拥有，`Split` 没有开合动画的入口；收起时它整块出现／消失，旁边的内容面板按 `PaneMotion` 弹簧改变尺寸。要做侧栏自身的滑动，得把 `Split` 换成自绘分隔条的 `Row`，属于结构改动。同理，检查器在左右并排与上下堆叠之间切换时，两侧面板的内容是重新挂载的，只有外层面板的尺寸在动。
-23. **库画的部分仍是瞬时**：菜单的面和工具提示现在由 uikit 画（`MenuSelect` 的 `Panel`、`TooltipBase`），进出和弹层一样；剩下的只有菜单项自己的高亮（库画的强调色实底）和 `ui.Segmented` 内置的滑块——应用里没有再用后者，`uikit.Segmented` 是 `SegmentedBase` 自绘的。
+22. **侧栏显隐没有滑入滑出**：侧栏在 MyGo 的 `Split` 里，宽度由用户拖动的分隔条拥有，`Split` 没有开合动画的入口；收起时它整块出现／消失，旁边的内容面板立即改变尺寸。要做侧栏自身的滑动，得把 `Split` 换成自绘分隔条的 `Row`，属于结构改动。同理，检查器在左右并排与上下堆叠之间切换时，两侧面板的内容是重新挂载的，只有外层面板的尺寸在动。
+23. **库画的部分仍是瞬时**：菜单的面和工具提示现在由 uikit 画（`MenuSelect` 的 `Panel`、`TooltipBase`），没有进出动效；剩下的只有菜单项自己的高亮（库画的强调色实底）和 `ui.Segmented` 内置的滑块——应用里没有再用后者，`uikit.Segmented` 是 `SegmentedBase` 自绘的。
 24. **侧栏内部还剩一条线**：Traffic／Sources 与 Collections 之间有一条 `Divider`，设计稿的示意图里没有；它分的是侧栏里两个各自滚动的区域，属于侧栏自己的结构，这一阶段没动。Collections 与页脚之间那条已经去掉——那里现在是侧栏和底栏的交界，外壳是一整块。
 25. **活动条没有摘要文字**：审计要求计数只说一次，所以活动条只剩柱子和结束时间；设计稿第 4.4 节画的「Last 5 min · N requests」没有了。选中时间范围时，范围读在搜索框的 `Time:` chip 上，活动条里只有清除按钮（第十三阶段，2026-11-13）。
 26. **底栏没有计数，除非视图隐藏了行**：设计稿画的是「N captured · N shown」，现在只在隐藏时说「8 of 13」，都显示时什么也不说，因为侧栏已经数过（第十三阶段，2026-11-13）。

@@ -207,16 +207,20 @@ type app struct {
 	// built on first use from shutRegions, which settings carries.
 	regions     map[string]*bool
 	shutRegions []string
+	// paneHeights are the sidebar's middle regions' body heights, built on
+	// first use from savedHeights, which settings carries.
+	paneHeights  map[string]*float32
+	savedHeights map[string]float32
 	// windowWidth is the window's width in the last frame: the sidebar gives
 	// way when there is no room beside it.
 	windowWidth float32
+	// trafficScroll is where the sidebar's traffic list is scrolled to; it
+	// scrolls on its own only in a window too short for its rows.
+	trafficScroll ui.ScrollState
 	// The four panes remember the width they were laid out at, so a pane's
 	// row can decide what fits instead of guessing a share of the window.
 	inspectorReqPane, inspectorRespPane ui.Handle
 	editorReqPane, editorRespPane       ui.Handle
-	// revealGroup scrolls the sidebar to a region in the next build: "live",
-	// "collections" or "sessions".
-	revealGroup string
 	// Captured requests as documents (captured_document.go): the drafts of
 	// edited or sent captures by flow ID, the inspected capture's unchanged
 	// document (or why there is none), and the tab's document to come back
@@ -846,6 +850,7 @@ func newApp() *app {
 		a.workbench.layout = inspectorLayout(saved.InspectorLayout)
 		a.workbench.sidebarHidden = saved.SidebarHidden
 		a.regions, a.shutRegions = nil, slices.Clone(saved.SidebarClosed)
+		a.paneHeights, a.savedHeights = nil, maps.Clone(saved.SidebarPaneHeights)
 		if saved.SideTablePercent > 0 {
 			a.workbench.sidePercent = saved.SideTablePercent
 		}
@@ -1750,6 +1755,7 @@ func (a *app) syncDetail() {
 }
 
 func (a *app) view(c *ui.Context) {
+	defer uikit.FrameEnd(c)
 	if len(a.pendingFlowDelete) > 0 {
 		pending := a.pendingFlowDelete
 		a.pendingFlowDelete = nil
@@ -2035,17 +2041,13 @@ func (a *app) sidebarGrip(c *ui.Context, t *ui.Theme) {
 	case held && dx != 0:
 		a.sidebarWidth = clampSidebar(a.sidebarWidth + dx)
 	}
-	// The color goes in with its own transition every frame: MyGo animates a
-	// property only while the element carried it in the frame before, so the
-	// frame the pointer leaves keeps the hover color and fades from it.
-	lit := held || handle.Hovered()
-	// A zero color would leave the previous frame's line in place; alpha 0
-	// paints the resting state. The resting line does not animate: a
-	// transition that runs on every pointer move costs a frame of its own.
-	if lit {
-		line.Background(p.Text.Alpha(0.12)).Transition(ui.ElementTransition{Colors: true, Duration: -1})
+	// The line lights at once under the pointer or while dragged, and goes
+	// out at once. A zero color would leave the previous frame's line in
+	// place, so the resting line is the text color at alpha 0.
+	if held || handle.Hovered() {
+		line.Background(p.Text.Alpha(0.12))
 	} else {
-		line.Background(p.Text.Alpha(0)).Transition(ui.ElementTransition{})
+		line.Background(p.Text.Alpha(0))
 	}
 }
 
@@ -2066,7 +2068,7 @@ func (a *app) panel(c *ui.Context, t *ui.Theme) {
 	// push it past the edge.
 	// The content is a card on the shell: no edge and no shadow, told apart
 	// by its surface alone, as the sidebar beside it is.
-	ui.Row(c).Grow(1).FillWidth().MinHeight(0).Transition(uikit.PaneMotion).Children(func() {
+	ui.Row(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 		if left > 0 {
 			ui.Box(c).Width(left).Shrink(0).FillHeight()
 		}
@@ -2328,6 +2330,63 @@ func (a *app) closedRegions() []string {
 	return closed
 }
 
+// paneHeight is one middle region's body height, created on first use from
+// what settings kept, or the room its content asks for.
+func (a *app) paneHeight(id string, def float32) *float32 {
+	if a.paneHeights == nil {
+		a.paneHeights = make(map[string]*float32, 3)
+	}
+	if h, ok := a.paneHeights[id]; ok {
+		return h
+	}
+	if saved, ok := a.savedHeights[id]; ok && saved > 0 {
+		def = saved
+	}
+	a.paneHeights[id] = &def
+	return &def
+}
+
+// paneHeightValues are the middle's heights as settings writes them.
+func (a *app) paneHeightValues() map[string]float32 {
+	values := make(map[string]float32, len(a.paneHeights))
+	for id, h := range a.paneHeights {
+		values[id] = *h
+	}
+	return values
+}
+
+// sourcesBodyHeight is the room the Sources list asks for: its rows, up to
+// the five it shows before the rest, and the row that opens them. An empty
+// list asks for its one hint line. A short window asks for three rows at
+// most, so the collections below keep their room.
+func (a *app) sourcesBodyHeight(windowHeight float32) float32 {
+	rows := len(a.domains)
+	if a.sourcesApps {
+		rows = len(a.clients)
+	}
+	if rows == 0 {
+		return uikit.HeightControl * 2
+	}
+	n := min(rows, sourcesShown)
+	if rows > sourcesShown {
+		n++
+	}
+	if windowHeight > 0 && windowHeight < 700 {
+		n = min(n, 3)
+	}
+	return float32(n) * uikit.HeightControl
+}
+
+// sessionsBodyHeight is the room the sessions ask for: up to six rows and
+// the row that opens a session file, or two rows in a short window.
+func (a *app) sessionsBodyHeight(windowHeight float32) float32 {
+	n := min(len(a.sessions.items), 6) + 1
+	if windowHeight > 0 && windowHeight < 700 {
+		n = min(n, 2)
+	}
+	return float32(n) * uikit.HeightControl
+}
+
 // sourcesShown is how many hosts or apps the sidebar's Sources lists before
 // its last row offers the rest.
 const sourcesShown = 5
@@ -2339,11 +2398,12 @@ const (
 	sourcesHost
 )
 
-// sidebar is the window's one source list, in two regions that scroll apart:
-// TRAFFIC above, the traffic and what narrows it; COLLECTIONS below, the saved
-// requests, the API contracts and the sessions. Its one choice is what the
-// content area shows; syncSections keeps it in step. The regions are fixed, so
-// a long list of hosts never pushes the collections off the window.
+// sidebar is the window's one source list: TRAFFIC fixed at the top, the
+// foldable Sources, Sessions and Collections in the middle, and the tools at
+// the bottom. Its one choice is what the content area shows; syncSections
+// keeps it in step. The middle takes the room the fixed parts leave, so a
+// long list of hosts never pushes the collections or the footer off the
+// window.
 func (a *app) sidebar(c *ui.Context) {
 	t := c.Theme()
 	// The sidebar is part of the shell, not a card on it: it paints chrome, the
@@ -2362,54 +2422,131 @@ func (a *app) sidebar(c *ui.Context) {
 		}
 		a.trafficRegion(c, t)
 		ui.Divider(c)
-		a.collectionsRegion(c, t)
+		a.sidebarPanes(c, t)
 		// No rule above the sidebar's footer: the shell is one surface from
 		// the title bar to the window's bottom edge.
 		a.sidebarFooter(c, t)
 	})
 	c.SetTheme(t)
-	a.revealGroup = ""
 }
 
-// trafficRegion is the sidebar's upper region: the scopes the traffic list
-// narrows to, the views saved over them, and the apps or hosts in the capture.
-// It scrolls on its own, so its lists stay inside it however long they grow.
+// trafficRegion is the fixed top of the sidebar: the scopes the traffic list
+// narrows to and the views saved over them. It does not scroll with the
+// regions below, and its heading folds it to one row.
 func (a *app) trafficRegion(c *ui.Context, t *ui.Theme) {
-	traffic, sources := a.regionOpen("traffic"), a.regionOpen("sources")
-	// The region holds the scopes and the Sources list, and scrolls as one:
-	// the collection tree below it scrolls on its own.
-	ui.Scroll(c).MinHeight(0).MaxHeightPercent(70).Padding(t.Space(1), 0).Children(func() {
+	traffic := a.regionOpen("traffic")
+	// The traffic stays above the scrolling middle. In a window too short
+	// for it, its own list scrolls rather than pushing the collections out
+	// of the sidebar; at the usual heights it fits and never scrolls.
+	_, windowHeight := c.Size()
+	room := max(float32(72), windowHeight-520)
+	ui.Scroll(c).MaxHeight(room).MinHeight(0).Padding(t.Space(1), 0).TrackScroll(&a.trafficScroll).Children(func() {
 		uikit.SidebarList(c, "traffic-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
-			head := uikit.SidebarHeading(c, locales.Traffic(), traffic, nil)
-			if a.revealGroup == "live" {
-				head.ScrollIntoView()
-			}
+			// The heading carries the way to a new view, so it stays reachable
+			// when the scopes under it scroll.
+			uikit.SidebarHeading(c, locales.Traffic(), traffic, func() {
+				if uikit.IconButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon).Clicked() {
+					a.views.capture(a)
+					a.views.newView(a)
+				}
+			})
+
 			if *traffic {
-				ui.Column(c.Key("traffic-region")).Gap(0).Transition(uikit.RegionMotion).Children(func() {
+				ui.Column(c.Key("traffic-region")).Gap(0).Shrink(0).Children(func() {
 					a.trafficRows(c)
 					a.views.sidebar(c, t, a)
 				})
 			}
-			uikit.SidebarHeading(c, locales.Sources(), sources, func() { a.sourcesSwitch(c, t) })
-			if *sources {
-				ui.Column(c.Key("sources-region")).Gap(0).Transition(uikit.RegionMotion).Children(func() {
-					a.sourcesRows(c, t)
-				})
-			}
-			// Sessions are the capture's history, not a collection: they sit
-			// with the traffic they came from.
-			sessions := a.regionOpen("sessions")
-			sessionHead := uikit.SidebarHeading(c, locales.Sessions(), sessions, nil)
-			if a.revealGroup == "sessions" {
-				sessionHead.ScrollIntoView()
-			}
-			if *sessions {
-				ui.Column(c.Key("sessions-region")).Gap(0).Transition(uikit.RegionMotion).Children(func() {
-					a.sessionsRows(c, t)
+		})
+	})
+}
+
+// sidebarCollectionsBody is the room the collections ask for when they are
+// not the growing region: enough for the search and two rows before it
+// scrolls.
+const sidebarCollectionsBody = 144
+
+// sidebarPanes are the middle's foldable regions, in the order they read:
+// where the capture came from, the sessions kept from it, and the saved
+// requests. Each keeps the height its content asks for; the last open one
+// takes the room the others leave, so folding the two above Collections
+// gives the tree the whole middle.
+func (a *app) sidebarPanes(c *ui.Context, t *ui.Theme) {
+	_, windowHeight := c.Size()
+	sources, sessions := a.sourcesBodyHeight(windowHeight), a.sessionsBodyHeight(windowHeight)
+	uikit.SidebarPanes(c, "sidebar-panes", []uikit.SidebarPane{
+		{
+			ID: "sources", Title: locales.Sources(), Open: a.regionOpen("sources"),
+			Height: a.paneHeight("sources", sources), Default: sources, Min: uikit.HeightControl * 2,
+			Trailing: func() { a.sourcesSwitch(c, t) },
+			Body:     func() { a.sourcesPane(c, t) },
+		},
+		{
+			ID: "sessions", Title: locales.Sessions(), Open: a.regionOpen("sessions"),
+			Height: a.paneHeight("sessions", sessions), Default: sessions, Min: uikit.HeightControl * 2,
+			Body: func() { a.sessionsPane(c, t) },
+		},
+		{
+			ID: "collections", Title: locales.Collections(), Open: a.regionOpen("collections"),
+			Height: a.paneHeight("collections", sidebarCollectionsBody), Default: sidebarCollectionsBody, Min: uikit.HeightControl * 4,
+			Trailing: func() { a.collectionsHeadingActions(c) },
+			Body:     func() { a.collectionsPane(c, t) },
+		},
+	})
+}
+
+// sourcesPane is the Sources list inside its region. The list scrolls within
+// the region, and the region grows with the room the other regions leave.
+func (a *app) sourcesPane(c *ui.Context, t *ui.Theme) {
+	uikit.SidebarList(c, "sources-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() { a.sourcesRows(c, t) })
+	}).Grow(1).MinHeight(0)
+}
+
+// sessionsPane is the sessions kept beyond live traffic, inside its region.
+func (a *app) sessionsPane(c *ui.Context, t *ui.Theme) {
+	uikit.SidebarList(c, "sessions-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() { a.sessionsRows(c, t) })
+	}).Grow(1).MinHeight(0)
+}
+
+// collectionsHeadingActions are what the Collections heading offers: its menu
+// and, once something is saved, a new request.
+func (a *app) collectionsHeadingActions(c *ui.Context) {
+	uikit.MoreButton(c, locales.CollectionOptions(), locales.CollectionsApisEnvironmentsAndRuns(), a.collectionsMenu)
+	// With nothing saved yet the tree's own row is the way to a request:
+	// one entry rather than two.
+	if len(a.requests) > 0 || len(a.folders) > 0 {
+		if uikit.IconButton(c, locales.NewRequest(), locales.NewRequest(), plusIcon).Clicked() {
+			a.openCompose()
+		}
+	}
+}
+
+// collectionsPane is the saved requests and the API contracts inside their
+// region: the search stays above the tree, and the tree scrolls in the room
+// the region has, which is all of the middle once the two above it fold.
+func (a *app) collectionsPane(c *ui.Context, t *ui.Theme) {
+	uikit.SidebarList(c, "collections-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
+		// The search stays above the tree: what is typed is not scrolled
+		// away with the rows it narrows.
+		uikit.SearchField(c, &a.requestQuery, locales.SearchCollections(), locales.Search(), true).
+			Margin(t.Space(1), t.Space(3), t.Space(2), t.Space(3))
+		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+			a.collectionTree(c)
+			query := strings.ToLower(strings.TrimSpace(a.requestQuery))
+			for _, d := range a.apis {
+				if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
+					continue
+				}
+				uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label(locales.ApiTitle(d.title())).Children(func() {
+					if d.dirty() {
+						ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label(locales.UnsavedApi())
+					}
 				})
 			}
 		})
-	})
+	}).Grow(1).MinHeight(0)
 }
 
 // sessionsRows are the sessions kept beyond live traffic, each opening the
@@ -2566,56 +2703,7 @@ func (a *app) sourcesAllRow(c *ui.Context, t *ui.Theme, apps bool) {
 	}
 }
 
-// collectionsRegion is the sidebar's lower region: the collections' search and
-// tools, the tree of saved requests and API contracts, and the sessions at the
-// tree's end. It scrolls on its own and takes what the traffic above it leaves.
-// Environments, run records and the rest of the library open from its menu and
-// the command palette.
-func (a *app) collectionsRegion(c *ui.Context, t *ui.Theme) {
-	collections := a.regionOpen("collections")
-	// The list is not a scroll: the tree inside it scrolls on its own, so a
-	// long collection never pushes the rows above it out of the sidebar.
-	uikit.SidebarList(c, "collections-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
-		head := uikit.SidebarHeading(c, locales.Collections(), collections, func() {
-			uikit.MoreButton(c, locales.CollectionOptions(), locales.CollectionsApisEnvironmentsAndRuns(), a.collectionsMenu)
-			// With nothing saved yet the tree's own row is the way to a
-			// request: one entry rather than two.
-			if len(a.requests) > 0 || len(a.folders) > 0 {
-				if uikit.IconButton(c, locales.NewRequest(), locales.NewRequest(), plusIcon).Clicked() {
-					a.openCompose()
-				}
-			}
-		})
-		if a.revealGroup == "collections" {
-			head.ScrollIntoView()
-		}
-		if !*collections {
-			return
-		}
-		ui.Column(c.Key("collections-region")).Grow(1).MinHeight(0).Gap(0).Transition(uikit.RegionMotion).Children(func() {
-			// The search stays above the tree: what is typed is not scrolled
-			// away with the rows it narrows.
-			uikit.SearchField(c, &a.requestQuery, locales.SearchCollections(), locales.Search(), true).
-				Margin(t.Space(1), t.Space(3), t.Space(2), t.Space(3))
-			ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
-				a.collectionTree(c)
-				query := strings.ToLower(strings.TrimSpace(a.requestQuery))
-				for _, d := range a.apis {
-					if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
-						continue
-					}
-					uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label(locales.ApiTitle(d.title())).Children(func() {
-						if d.dirty() {
-							ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label(locales.UnsavedApi())
-						}
-					})
-				}
-			})
-		})
-	}).Grow(1).MinHeight(0).Padding(t.Space(1), 0)
-}
-
-// sidebarFooter is under both regions: the setup of a client, the HTTPS rules
+// sidebarFooter is fixed under the middle: the setup of a client, the HTTPS rules
 // and the connection's diagnostics. They open a window or a page rather than
 // choose a place in the list above, so they carry no selection.
 func (a *app) sidebarFooter(c *ui.Context, t *ui.Theme) {
@@ -2689,6 +2777,39 @@ func (a *app) showRunRecords() {
 	a.experiments.scope, a.experiments.draftKey = nil, ""
 	a.experiments.assetID, a.experiments.status, a.experiments.sourceFilter = "", "", ""
 	a.page = pageRuns
+}
+
+// captureCard is the rich tip of a captured row: the request line as its
+// title, what came back as one line of meta, and the full address and the
+// client below it. The table's columns cut a long URL; the card does not.
+func captureCard(f flow) uikit.HoverCard {
+	title := f.method + " " + cmp.Or(f.path, "/")
+	if f.kind == "connect" {
+		title = "CONNECT " + f.host
+	}
+	var meta []string
+	switch {
+	case f.conn.error != "":
+		meta = append(meta, "Failed")
+	case f.kind == "connect" && f.status > 0:
+		meta = append(meta, "Tunnel")
+	case f.status > 0:
+		meta = append(meta, fmt.Sprint(f.status))
+	}
+	if f.millis > 0 {
+		meta = append(meta, fmt.Sprintf("%d ms", f.millis))
+	}
+	if f.bytes > 0 {
+		meta = append(meta, humanBytes(f.bytes))
+	}
+	rows := []uikit.HoverCardRow{{Key: "URL", Value: f.url}}
+	if f.host != "" {
+		rows = append(rows, uikit.HoverCardRow{Key: "Host", Value: f.host})
+	}
+	if f.process != "" {
+		rows = append(rows, uikit.HoverCardRow{Key: "Client", Value: f.process})
+	}
+	return uikit.HoverCard{Title: title, Meta: strings.Join(meta, " · "), Rows: rows}
 }
 
 func (a *app) table(c *ui.Context) {
@@ -2966,7 +3087,7 @@ func (a *app) table(c *ui.Context) {
 				if f.strike {
 					label = label.Strikethrough()
 				}
-				uikit.Tip(c, label, f.url).PopoverMenu(a.rowMenu(c, f))
+				uikit.CardTip(c, label, captureCard(f)).PopoverMenu(a.rowMenu(c, f))
 			})
 		case "status":
 			if f.conn.error != "" {
@@ -4517,8 +4638,8 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 						uikit.Switch(c, &draft.All)
 					})
 				})
-				uikit.FormRow(c, locales.DecryptionDomains(), locales.DomainsAndSubdomains(), "", func() {
-					uikit.TextArea(c, &a.sslDraftHosts).Height(80).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FillWidth()
+				uikit.FormRowTip(c, locales.DecryptionDomains(), locales.DomainsAndSubdomains(), func() ui.Element {
+					return uikit.TextArea(c, &a.sslDraftHosts).Height(80).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FillWidth()
 				})
 				uikit.FormRow(c, locales.NeverDecrypt(), locales.NeverDecryptHint(), "", func() {
 					uikit.TextArea(c, &a.sslDraftExclude).Height(64).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FillWidth()

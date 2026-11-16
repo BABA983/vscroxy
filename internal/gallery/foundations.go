@@ -17,7 +17,7 @@ func (g *Gallery) foundations() *Group {
 		{ID: "space", Title: "Space and corners", Note: "One spacing unit, six radii, the bar and control heights", Height: 700, build: spacePlate},
 		{ID: "elevation", Title: "Elevation", Note: "Three shadows and the dialog scrim, Light and Dark", Height: 520, build: elevationPlate},
 		{ID: "icons", Title: "Icons", Note: "16 inline with a label, 14 inline in text", Height: 420, build: iconPlate},
-		{ID: "motion", Title: "Motion", Note: "Three durations, one curve and the kit's one spring", Height: 400, build: motionPlate},
+		{ID: "motion", Title: "Motion", Note: "No decorative transition; what still moves is state or the user's own drag", Height: 360, build: motionPlate},
 	}}
 }
 
@@ -252,33 +252,18 @@ func iconPlate(c *ui.Context) {
 func motionPlate(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).Gap(t.Space(3)).Children(func() {
-		for _, d := range []struct {
-			name    string
-			millis  float32
-			usedFor string
-		}{
-			{"MotionFast", 120, "something leaving or a face under the pointer"},
-			{"MotionBase", 150, "a panel or dialog arriving"},
-			{"MotionSlow", 200, "a toast or a size settling"},
-		} {
-			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-				uikit.Mono(c, d.name).Width(180)
-				ui.Box(c).Height(10).Width(d.millis * 3).Radius(5).Background(uikit.Colors(t).Accent)
-				uikit.Meta(c, fmt.Sprintf("%g ms", d.millis)).Width(64)
-				uikit.Hint(c, d.usedFor)
-			})
-		}
-	})
-	ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-		uikit.Mono(c, "MotionEase").Width(180)
-		ui.Box(c).Height(10).Width(300).Radius(5).Background(uikit.Colors(t).AccentTint)
-		uikit.Meta(c, "cubic-bezier(.4, 0, .2, 1)")
-		uikit.Hint(c, "the one curve menus, dialogs and toasts share")
-	})
-	ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-		uikit.Mono(c, "MotionSpring").Width(180)
-		ui.Box(c).Height(10).Width(200).Radius(5).Background(uikit.Colors(t).AccentTint)
-		uikit.Meta(c, "200 ms · no bounce")
-		uikit.Hint(c, "panes and regions settle instead of stopping dead")
+		uikit.Heading(c, "No decorative motion")
+		uikit.Prose(c, "A hover face, a tip, a menu, a toast, a dialog and a sidebar region arrive and leave at once. The kit has no transition tokens: a screen cannot name a duration, because there is none to name.")
+		ui.Column(c).Gap(t.Space(2)).Padding(t.Space(3)).Radius(uikit.RadiusPanel).Background(uikit.Colors(t).Canvas).
+			Border(1, uikit.Colors(t).Hairline).Children(func() {
+			for _, line := range []string{
+				"Removed: hover fades, popover rises, toast entrances, dialog fades, region collapse and pane springs.",
+				"Kept: the recording dot's pulse, which reports a state rather than a transition.",
+				"Kept: the user's own drags, splitter moves and scrolling.",
+			} {
+				uikit.Body(c, line)
+			}
+		})
+		uikit.Hint(c, "Reduced motion is still respected by MyGo for the scrolling it animates; the app has no transition left for it to end.")
 	})
 }

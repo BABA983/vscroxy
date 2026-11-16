@@ -5,7 +5,6 @@ package uikit
 
 import (
 	"math"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -112,64 +111,6 @@ func (s Shadow) Color(dark bool) ui.Color {
 // Apply puts the shadow under e.
 func (s Shadow) Apply(e ui.Element, dark bool) ui.Element {
 	return e.Shadow(0, s.Y, s.Blur, 0, s.Color(dark))
-}
-
-// The kit's durations. Screens name these, never milliseconds: something
-// leaving or a face under the pointer takes MotionFast, a panel or dialog
-// arriving takes MotionBase, and a toast or a size settling takes MotionSlow.
-const (
-	MotionFast = 120 * time.Millisecond
-	MotionBase = 150 * time.Millisecond
-	MotionSlow = 200 * time.Millisecond
-)
-
-// MotionEase is the kit's one curve, cubic-bezier(.4, 0, .2, 1): quick to
-// leave, soft to arrive, as a desktop panel moves.
-var MotionEase = ui.CubicBezier(0.4, 0, 0.2, 1)
-
-// MotionSpring is the kit's one spring: no bounce, arriving in about
-// MotionSlow. A panel opening or a pane moving uses it, so a size change
-// settles instead of stopping dead.
-var MotionSpring = ui.Animation{Spring: ui.SpringOptions{Duration: MotionSlow, Bounce: 0}}
-
-// RegionMotion collapses a section away and springs it back, as a sidebar's
-// regions do when their heading is clicked.
-var RegionMotion = ui.ElementTransition{
-	Animation: &MotionSpring,
-	Enter:     &ui.Motion{Collapse: true},
-	Exit:      &ui.Motion{Collapse: true},
-}
-
-// PaneMotion moves a pane to its new size with the same spring, so a pane
-// that gains or loses room settles rather than jumping.
-var PaneMotion = ui.ElementTransition{Size: true, Animation: &MotionSpring}
-
-// hoverMotion fades a control's face back to rest over MotionFast. The
-// face arrives with the pointer at once; only the way back is a fade, so a
-// pointer crossing a row of buttons does not lag behind it. The transition
-// stays on the element every frame: MyGo mixes colors only where the frame
-// before had a transition too, so a face that dropped it would jump back to
-// rest in the frame the pointer left.
-func hoverMotion(b ui.Element, lit bool) ui.Element {
-	d := MotionFast
-	if lit {
-		d = -1 // No time at all: the face under the pointer is its own.
-	}
-	return b.Transition(ui.ElementTransition{Colors: true, Duration: d, Ease: MotionEase})
-}
-
-// popoverMotion is how a menu, a popover or a panel arrives and leaves: it
-// fades in rising 4 points over MotionBase, and leaves the same way in
-// MotionFast.
-func popoverMotion() ui.ElementTransition {
-	return ui.ElementTransition{
-		Duration:     MotionBase,
-		ExitDuration: MotionFast,
-		Ease:         MotionEase,
-		ExitEase:     MotionEase,
-		Enter:        &ui.Motion{Y: 4},
-		Exit:         &ui.Motion{Y: 4},
-	}
 }
 
 // TextScale follows the desktop's text size, as the theme's own font size does:

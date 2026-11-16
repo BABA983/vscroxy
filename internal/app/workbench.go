@@ -642,13 +642,11 @@ func (a *app) actions(c *ui.Context) []action {
 		do("app.settings", locales.OpenSettings(), func() { a.openSettings(-1) }).keys(ui.Cmd, ui.KeyComma),
 		do("go.live", locales.GoToLiveTraffic(), func() {
 			a.page = pageLive
-			a.revealGroup = "live"
 			*a.regionOpen("traffic") = true
 			a.focusTraffic(c)
 		}).keys(ui.Cmd, ui.Key1),
 		do("go.collections", locales.GoToCollections(), func() {
 			a.page = pageRequest
-			a.revealGroup = "collections"
 			*a.regionOpen("collections") = true
 			if a.requestDocument != nil {
 				a.urlInput.Focus(c)
@@ -656,7 +654,7 @@ func (a *app) actions(c *ui.Context) []action {
 		}).keys(ui.Cmd, ui.Key2),
 		do("go.sessions", locales.GoToSessions(), func() {
 			a.page = pageSession
-			a.revealGroup = "sessions"
+			*a.regionOpen("sessions") = true
 		}).keys(ui.Cmd, ui.Key3),
 		do("go.apis", locales.ApiContracts(), func() { a.page = pageAPI }).
 			when(len(a.apis) > 0, "Create or import an API contract first"),

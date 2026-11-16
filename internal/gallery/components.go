@@ -43,6 +43,8 @@ const (
 	hoverToasts    = "Hover Toasts"
 	focusToasts    = "Focus Toasts"
 	hoverLists     = "Hover Lists"
+	hoverTooltip   = "Hover Tooltip"
+	hoverCard      = "Hover Card"
 )
 
 // components is the state every component plate keeps across frames: the
@@ -77,6 +79,8 @@ func (g *Gallery) components() *Group {
 		{ID: "segmented", Title: "Segmented", Note: "A recessed groove and a raised thumb", Height: 280, Hover: hoverSegmented, Focus: focusSegmented, build: k.segmentedPlate},
 		{ID: "menus", Title: "Menus", Note: "A 28-point row, the menu shadow and keycaps", Height: 560, Hover: hoverMenus, Focus: focusMenus, Tip: true, build: k.menuPlate},
 		{ID: "kbd", Title: "Kbd", Note: "Shortcuts as 4-point keycaps on a hairline", Height: 280, build: k.kbdPlate},
+		{ID: "tooltip", Title: "Tooltip", Note: "The one tip face: small text, a shortcut as Kbd, a long URL", Height: 380, Hover: hoverTooltip, Tip: true, build: k.tooltipPlate},
+		{ID: "hover-card", Title: "Hover card", Note: "A title, one meta line and key/value rows over a capture row", Height: 340, Hover: hoverCard, Tip: true, build: k.hoverCardPlate},
 		{ID: "panes", Title: "Pane headers", Note: "A title, its tabs and what the pane reports", Height: 380, Hover: hoverPanes, Focus: focusPanes, Tip: true, build: k.panePlate},
 		{ID: "sidebar", Title: "Sidebar", Note: "Rows, headings, letters and the action row", Height: 600, Hover: hoverSidebar, build: k.sidebarPlate},
 		{ID: "activity", Title: "Activity strip", Note: "Rest and a brushed range; drag the plot to brush", Height: 300, Hover: hoverActivity, Focus: focusActivity, build: k.activityPlate},
@@ -386,6 +390,41 @@ func (k *components) kbdPlate(c *ui.Context) {
 		})
 	})
 	caption(c, "A Kbd is 18 points high with 4-point corners, a 1-point hairline and an 11-point label. It sits at the trailing edge of a menu or command row, never inside prose.")
+}
+
+func (k *components) tooltipPlate(c *ui.Context) {
+	tipRoom(c)
+	stateRow(c, "Text", func() {
+		uikit.Tip(c, uikit.SecondaryButton(c, "Hover for a tip"), "Captured traffic appears here once the proxy is on.").Width(240)
+	})
+	stateRow(c, "Shortcut", func() {
+		labelled(uikit.TipKeys(c, uikit.SecondaryButton(c, "Hide sidebar"), "Hide sidebar", "⌘", "B"), hoverTooltip)
+	})
+	stateRow(c, "Long URL", func() {
+		uikit.Tip(c, uikit.SecondaryButton(c, "Hover a long URL"), "https://api.example.com/v1/projects?include=members&page=2&per_page=50").Width(240)
+	})
+	caption(c, "A tip is the canvas on the popover shadow, a 1-point hairline, 8-point corners and 6×10 of padding: 12-point text at the normal ink, up to 360 wide, with a shortcut as a Kbd cap. It waits 500ms and does not wait again when the pointer moves to its neighbour.")
+}
+
+func (k *components) hoverCardPlate(c *ui.Context) {
+	tipRoom(c)
+	stateRow(c, "Capture row", func() {
+		row := ui.Row(c).Height(uikit.HeightControl).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).
+			Radius(uikit.RadiusControl).Background(uikit.Colors(c.Theme()).Fill).Children(func() {
+			uikit.MethodLabel(c, "GET")
+			uikit.Body(c, "List projects").SingleLine()
+		})
+		labelled(uikit.CardTip(c, row, uikit.HoverCard{
+			Title: "GET /v1/projects",
+			Meta:  "200 · 47 ms · 1.2 KB",
+			Rows: []uikit.HoverCardRow{
+				{Key: "URL", Value: "https://api.example.com/v1/projects?include=members&page=2"},
+				{Key: "Host", Value: "api.example.com"},
+				{Key: "Client", Value: "Safari"},
+			},
+		}), hoverCard)
+	})
+	caption(c, "A rich card adds a title, one meta line and key/value rows to the same surface. It is for what a row's width cannot show: the full URL, method, status and client of a captured request, or a saved request's address.")
 }
 
 func (k *components) panePlate(c *ui.Context) {

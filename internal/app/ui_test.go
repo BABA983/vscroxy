@@ -4961,6 +4961,10 @@ func TestTriageFiltersAndQuickPresetsStayWithTheirView(t *testing.T) {
 	if len(a.visible) != 6 {
 		t.Fatal("new view inherited triage")
 	}
+	// The quick filter is under the views in the traffic list; a short
+	// window scrolls that list rather than growing it over the collections.
+	tt.Scroll(110, 90, 0, 400)
+	tt.Frame()
 	if err := tt.Click("Quick filter: Checkout failures"); err != nil {
 		t.Fatalf("%v; texts %q; filters %+v", err, tt.Texts(), a.views.filters)
 	}
@@ -4968,6 +4972,8 @@ func TestTriageFiltersAndQuickPresetsStayWithTheirView(t *testing.T) {
 	if len(a.visible) != 1 {
 		t.Fatal("one-click filter not applied")
 	}
+	tt.Scroll(110, 90, 0, 400)
+	tt.Frame()
 	tt.Click("Quick filter: Checkout failures")
 	tt.Frame()
 	if len(a.visible) != 6 {

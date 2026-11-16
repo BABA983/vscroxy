@@ -418,6 +418,10 @@ func (v *captureViews) init(a *app, path string) {
 	v.path = path
 	v.load(a)
 	v.newView(a)
+	// The first view's row is at the top of the list: there is nothing to
+	// scroll into view, and revealing it would scroll the scopes away in a
+	// short window.
+	v.views[0].reveal = false
 }
 
 // load reads the saved filters from the file.
@@ -1079,14 +1083,6 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 			}
 		}
 	}
-	// Views and saved conditions live in the sidebar: they never take
-	// vertical space away from the request table and inspector.
-	ui.Row(c).FillWidth().Children(func() {
-		if uikit.SidebarButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon, false).Grow(1).Clicked() {
-			v.capture(a)
-			v.newView(a)
-		}
-	})
 	if len(v.filters) > 0 {
 		uikit.Label(c, locales.SavedFilters2()).Padding(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
 	}

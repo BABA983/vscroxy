@@ -207,7 +207,7 @@ func (a *app) selectSession(key string) {
 		return
 	}
 	item.open = true
-	a.page, a.revealGroup = pageSession, "sessions"
+	a.page = pageSession
 	*a.regionOpen("sessions") = true
 	if item.loaded || item.loading {
 		return

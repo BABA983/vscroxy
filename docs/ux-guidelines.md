@@ -32,7 +32,7 @@
 | 位置 | 放什么 |
 | --- | --- |
 | 标题栏 | 品牌（非 macOS）、录制状态（含暂停按钮、监听地址和速率曲线）、Host 方案 chip、已启用的工具 chip、命令按钮（`⌘K`，点开命令面板）、侧栏开关（`⌘B`）、左右／上下布局切换、Tools、Settings、`⋯` |
-| 工作区（只有一个） | 侧栏两个固定区域、各自滚动：上区 Traffic（流量分类、保存的视图和筛选）和 Sources（Apps｜Domains 开关，只列前五项，超过时末尾一行 Show all）；下区 Collections（搜索框、集合树、树末尾可折叠的 Sessions）；页脚是 Client setup、HTTPS decryption、Diagnostics。中间栏：流量列表（查询栏、活动柱状图），或选中已保存请求时的发送历史；详情：请求文档（抓到的和保存的是同一种）和响应。环境、APIs、Runner 从集合菜单和命令面板进入。见 [UI 设计规范](ui-redesign.md) 第 3 节 |
+| 工作区（只有一个） | 侧栏三段：顶部固定的 Traffic（流量分类、保存的视图和筛选，窗口太矮时在自己的列表里滚动）；中间可折叠的 Sources（Apps｜Domains 开关，只列前五项，超过时末尾一行 Show all）、Sessions 和 Collections（搜索框、集合树），最后一个展开的段占满剩余高度，分隔条可拖动；底部固定的 Client setup、HTTPS decryption、Diagnostics。中间栏：流量列表（查询栏、活动柱状图），或选中已保存请求时的发送历史；详情：请求文档（抓到的和保存的是同一种）和响应。环境、APIs、Runner 从集合菜单和命令面板进入。见 [UI 设计规范](ui-redesign.md) 第 3 节 |
 | Tools 窗口 | 规则（Map Local、Map Remote、Block、断点）、Scenario、规则脚本、Host 方案、Mock。经常开关的东西 |
 | Settings | 很少改的配置：通用、外观、代理、HTTPS decryption、抓包、设备、证书 |
 | 命令面板 | 所有动作，包括上面每个位置里的动作 |
@@ -85,7 +85,7 @@
 
 ### 侧栏
 
-- 三个分区（Traffic、Sources、Collections）的标题可以点击折叠，悬停时显示箭头，折叠状态记在设置里；侧栏本身可以用标题栏的按钮或 `⌘B` 隐藏，窗口窄于 860 时自动让开。
+- 四个分区（Traffic、Sources、Sessions、Collections）的标题可以点击折叠，悬停时显示箭头；折叠状态和中间三段的高度记在设置里。Traffic 固定在顶部，中间三段按 PaneView 分配高度：上面的段保持自己的高度，最后一个展开的段占满剩余，分隔条可拖动、双击恢复默认。侧栏本身可以用标题栏的按钮或 `⌘B` 隐藏，窗口窄于 860 时自动让开。
 - 未选中行的文字是次要色、图标更淡，悬停和选中时回到正文色；计数为 0 不显示。
 - 没有抓到任何请求时，流量表的空状态给两个动作：启动代理（监听没在跑时）和 Client setup。侧栏页脚的 Client setup 仍然在。
 

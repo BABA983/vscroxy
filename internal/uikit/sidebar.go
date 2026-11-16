@@ -228,3 +228,134 @@ func sidebarRow(c *ui.Context, id, label string, chosen, active bool, icon func(
 	}
 	return row
 }
+
+// SidebarPane is one region of a SidebarPanes stack: a heading that stays,
+// a body that folds away, and the body's height while it is not the last
+// open region.
+type SidebarPane struct {
+	ID    string
+	Title string
+	// Open folds the body away. A nil Open is a region that cannot fold.
+	Open *bool
+	// Height is the body's height in DIPs while another open region below
+	// it grows; Default is what a double click on a divider restores. The
+	// app keeps Height across frames and launches.
+	Height  *float32
+	Default float32
+	// Min is the smallest body height while the region is open, in DIPs.
+	Min float32
+	// Trailing draws what the heading offers at its far end, as the Sources
+	// switch or the Collections menu.
+	Trailing func()
+	Body     func()
+}
+
+// SidebarPanes stacks foldable regions under fixed chrome, as VS Code's
+// PaneView does. A heading stays while its body folds away, so a folded
+// region costs one row. The last open region takes the room the others
+// leave, which is why the collections list grows to the bottom once the
+// regions above it fold; the regions above it keep their own heights, so a
+// short list does not stretch into blank space. A divider between two open
+// bodies drags: it changes the heights above it in DIPs, and the last open
+// body gives or takes the difference. A double click puts both sides back to
+// their defaults. The stack clips, and each body scrolls inside itself, so a
+// window too short for the minimums cuts the bodies rather than pushing the
+// footer off the window.
+func SidebarPanes(c *ui.Context, key string, panes []SidebarPane) ui.Element {
+	t, p := c.Theme(), Colors(c.Theme())
+	stack := ui.Column(c).Key(key).Grow(1).MinHeight(0).Clip()
+	last := -1
+	for i, pane := range panes {
+		if pane.Open == nil || *pane.Open {
+			last = i
+		}
+	}
+	bodies := make([]ui.Element, len(panes))
+	var handles, lines []ui.Element
+	var gaps [][2]int
+	stack.Children(func() {
+		for i, pane := range panes {
+			open := pane.Open == nil || *pane.Open
+			SidebarHeading(c, pane.Title, pane.Open, pane.Trailing)
+			if !open {
+				continue
+			}
+			body := ui.Column(c).Key(pane.ID + "-body").MinHeight(pane.Min).Clip()
+			if i == last {
+				body.Grow(1)
+			} else {
+				body.Height(heightOf(pane)).Shrink(1)
+			}
+			body.Children(pane.Body)
+			bodies[i] = body
+			if i+1 >= len(panes) || panes[i+1].Open != nil && !*panes[i+1].Open {
+				continue
+			}
+			handle := ui.Column(c).Key("divider:" + pane.ID).Height(7).Shrink(0).FillWidth().
+				Justify(ui.Center).Cursor(ui.CursorResizeNS)
+			var line ui.Element
+			handle.Children(func() {
+				line = ui.Box(c).Height(1).Background(p.Hairline)
+			})
+			handles, lines = append(handles, handle), append(lines, line)
+			gaps = append(gaps, [2]int{i, i + 1})
+		}
+	})
+	for i, handle := range handles {
+		a, b := panes[gaps[i][0]], panes[gaps[i][1]]
+		_, dy, held := handle.Dragged()
+		if held || handle.Hovered() {
+			lines[i].Background(t.Text.Alpha(0.14))
+		}
+		if handle.DoubleClicked() {
+			if a.Height != nil && a.Default > 0 {
+				*a.Height = a.Default
+			}
+			if b.Height != nil && b.Default > 0 {
+				*b.Height = b.Default
+			}
+			c.Invalidate()
+			continue
+		}
+		if !held || dy == 0 || !bodies[gaps[i][0]].Valid() || !bodies[gaps[i][1]].Valid() {
+			continue
+		}
+		ha, hb := bodies[gaps[i][0]].Bounds().H, bodies[gaps[i][1]].Bounds().H
+		if ha+hb <= 0 {
+			continue
+		}
+		dy = max(dy, a.Min-ha)
+		dy = min(dy, hb-b.Min)
+		if dy == 0 {
+			continue
+		}
+		if gaps[i][1] == last {
+			// The growing body below takes the difference; only the body
+			// above changes its own height.
+			if a.Height != nil {
+				*a.Height = max(ha+dy, a.Min)
+			}
+		} else {
+			if a.Height != nil {
+				*a.Height = max(ha+dy, a.Min)
+			}
+			if b.Height != nil {
+				*b.Height = max(hb-dy, b.Min)
+			}
+		}
+		c.Invalidate()
+	}
+	return stack
+}
+
+// heightOf is a pane's body height: what the app kept, its default, or a
+// control row's room.
+func heightOf(p SidebarPane) float32 {
+	switch {
+	case p.Height != nil && *p.Height > 0:
+		return *p.Height
+	case p.Default > 0:
+		return p.Default
+	}
+	return HeightControl * 3
+}
