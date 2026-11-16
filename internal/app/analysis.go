@@ -101,27 +101,39 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).MinHeight(uikit.HeightLarge).AlignItems(ui.Center).Wrap().Children(func() {
 			ui.Text(c, locales.RequestsSelected(len(selected))).FontSize(uikit.Scaled(uikit.TextBody)).FontFeatures("tnum").FontWeight(500).NoWrap().Grow(1)
-			if uikit.SecondaryButton(c, locales.Summary()).Clicked() {
-				s.tab = 0
+			before := s.tab
+			if uikit.Tabs(c, &s.tab, "", locales.Summary(), locales.CompareTwo(), locales.DiffPool()).Changed() {
+				switch {
+				case s.tab == 1 && len(selected) != 2:
+					s.tab = before
+					a.inform(locales.ChooseExactlyTwoRowsWith())
+				case s.tab == 2 && len(selected) < 2:
+					s.tab = before
+					a.inform(locales.ChooseAtLeastTwoRowsWith())
+				case s.tab == 2:
+					s.openPool(selected)
+				}
 			}
-			if uikit.Tip(c, uikit.SecondaryButton(c, locales.CompareTwo()).Disabled(len(selected) != 2), locales.ChooseExactlyTwoRowsWith()).Clicked() {
-				s.tab = 1
-			}
-			if uikit.Tip(c, uikit.SecondaryButton(c, locales.DiffPool()).Disabled(len(selected) < 2), locales.ChooseAtLeastTwoRowsWith()).Clicked() {
-				s.openPool(selected)
-			}
-			if uikit.SecondaryButton(c, locales.InspectFocused()).Clicked() {
+			if uikit.PrimaryButton(c, locales.InspectFocused()).Disabled(len(selected) == 0).Clicked() {
 				if f, ok := a.current(); ok {
 					a.inspectCapture(f.id)
 				}
 			}
 		})
 		ui.Divider(c)
-		if s.tab == 1 && len(selected) == 2 {
+		if s.tab == 1 {
+			if len(selected) != 2 {
+				uikit.EmptyState(c, locales.CompareTwo(), locales.ChooseExactlyTwoRowsWith(), nil)
+				return
+			}
 			a.compareCaptures(c, selected[0], selected[1])
 			return
 		}
 		if s.tab == 2 {
+			if len(selected) < 2 {
+				uikit.EmptyState(c, locales.DiffPool(), locales.ChooseAtLeastTwoRowsWith(), nil)
+				return
+			}
 			a.diffPool(c, selected)
 			return
 		}

@@ -150,7 +150,7 @@ func (a *app) clientTerminalPanel(c *ui.Context, t *ui.Theme, p clientsetup.Prox
 	ui.Text(c, strings.Join(preview, "\n")).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(7)
 	if p.BundlePath == "" {
 		ui.Text(c, locales.SystemCaBundleUnavailableOnly()).
-			FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).MaxLines(2)
+			FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).MaxLines(3)
 	} else {
 		uikit.Meta(c, "SSL_CERT_FILE, REQUESTS_CA_BUNDLE, CURL_CA_BUNDLE, GIT_SSL_CAINFO, PIP_CERT and DENO_CERT point at "+p.BundlePath+", a 0600 bundle of the system roots plus the vscroxy CA. Undecrypted hosts keep working.")
 	}
@@ -173,7 +173,7 @@ func (a *app) clientContainerPanel(c *ui.Context, t *ui.Theme, p clientsetup.Pro
 	uikit.Meta(c, locales.ContainerProxyHint(host))
 	if p.BundlePath == "" {
 		ui.Text(c, locales.SystemCaBundleUnavailableOnly()).
-			FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).MaxLines(2)
+			FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).MaxLines(3)
 	} else {
 		uikit.Meta(c, locales.ContainerCaMounted())
 	}

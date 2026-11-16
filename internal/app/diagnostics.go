@@ -385,9 +385,17 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 		tipParts = append(tipParts, e.title, e.summary, "Possible causes: "+e.causes, "What to try: "+e.steps, f.conn.error)
 	}
 	tip := strings.Join(tipParts, "\n\n")
+	expandable := check.failure != nil || len(check.detail) > 0
 	uikit.SettingsCard(c, "", func() {
 		row := uikit.RowButton(c, check.title).FillWidth().Height(uikit.SettingsRowHeight).Padding(0, t.Space(4)).Gap(t.Space(3))
 		row.Children(func() {
+			if expandable {
+				arrow := statusMoreIcon
+				if expanded {
+					arrow = chevronIcon
+				}
+				ui.Icon(c, arrow).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
+			}
 			ui.Icon(c, icon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(color)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
 				ui.Text(c, strconv.Itoa(i+1)+".  "+check.title).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
@@ -406,14 +414,14 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 				}
 			}
 		})
-		if row.Clicked() && check.failure != nil {
+		if row.Clicked() && expandable {
 			if expanded {
 				d.open = diagnoseNone
 			} else {
 				d.open, d.reveal = i, true
 			}
 		}
-		if !expanded || check.failure == nil {
+		if !expanded || !expandable {
 			return
 		}
 		details := ui.Column(c).Padding(0, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(2))
@@ -423,7 +431,13 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 			d.reveal = false
 		}
 		details.Children(func() {
-			a.explainFailure(c, t, *check.failure)
+			if check.failure != nil {
+				a.explainFailure(c, t, *check.failure)
+				return
+			}
+			for _, line := range check.detail {
+				uikit.Body(c, line)
+			}
 		})
 	})
 }

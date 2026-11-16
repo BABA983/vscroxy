@@ -21,6 +21,7 @@ type certificateEditor struct {
 	loaded, dirty bool
 	rows          []certificateRow
 	roots         []certificateRoot
+	open          map[string]bool
 	trustSystem   bool
 	// signingCert and signingKey are the imported CA files this session.
 	// signingSaved means a custom signing CA is active; signingClear asks Save

@@ -192,9 +192,10 @@ type app struct {
 	sort        ui.SortOrder
 	sortApplied ui.SortOrder
 
-	sidebarWidth float32
-	tablePercent float32
-	workbench    desktopWorkbench
+	sidebarWidth         float32
+	tablePercent         float32
+	protobufTablePercent float32
+	workbench            desktopWorkbench
 
 	totalBytes int64
 
@@ -2766,7 +2767,7 @@ func (a *app) collectionsActions() []action {
 		do("request.import-curl", locales.ImportCurl(), a.openCurlImport),
 		do("collection.record", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", "") }).in("run"),
 		do("environment.manage", locales.Environments(), a.openVars).in("run"),
-		do("history.show", locales.History(), a.showRunRecords).in("run"),
+		do("history.show", locales.RunsPage(), a.showRunRecords).in("run"),
 		do("runner.open", locales.Runner(), a.openRunner).in("run"),
 		do("api.new", locales.NewApiContract(), func() {
 			a.newAPI()

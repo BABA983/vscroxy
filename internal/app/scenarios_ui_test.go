@@ -158,7 +158,7 @@ func TestRequestConsoleAndRunsAreVisibleWithoutReexecution(t *testing.T) {
 		t.Fatal("visible console lost logs or error location")
 	}
 	click("Collection options")
-	if err := chooseMenu(tt, "History"); err != nil {
+	if err := chooseMenu(tt, "Runs"); err != nil {
 		t.Fatal(err)
 	}
 	click("Variables")

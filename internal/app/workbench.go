@@ -134,10 +134,17 @@ func (a *app) desktopContent(c *ui.Context) {
 						if a.chosen.Len() > 1 {
 							ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
 								ui.Text(c, locales.SelectedCount(a.chosen.Len())).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).Grow(1)
-								a.actionButton(c, "flow.replay", "Replay…")
-								a.actionButton(c, "capture.export-chosen", "Export HAR…")
-								a.actionButton(c, "capture.export-chosen-csv", "Export CSV…")
-								if uikit.CompactButton(c, locales.ClearSelection()).Clicked() {
+								replay := pick(a.actions(c), "flow.replay")
+								if uikit.PrimaryButton(c, locales.ReplaySelected()).Disabled(!replay.enabled).Clicked() {
+									replay.run()
+								}
+								uikit.MoreMenu(c, locales.Export(), func(m *ui.Menu) {
+									actionMenu(m, []action{
+										pick(a.actions(c), "capture.export-chosen"),
+										pick(a.actions(c), "capture.export-chosen-csv"),
+									})
+								})
+								if uikit.LinkButton(c, locales.ClearSelection()).Clicked() {
 									a.chosen.Clear()
 								}
 							})
@@ -161,7 +168,14 @@ func (a *app) desktopContent(c *ui.Context) {
 					// height (Fill), which ran past the footer.
 					ui.SplitPercent(c.Key("right-inspector"), &w.sidePercent, table, func() { a.detail(c) }).SplitReset(64).Grow(1).FillWidth().MinHeight(0)
 				} else {
-					ui.SplitVerticalPercent(c.Key("bottom-inspector"), &a.tablePercent, table, func() { a.detail(c) }).SplitReset(44).Grow(1).FillWidth().MinHeight(0)
+					percent, reset := &a.tablePercent, float32(44)
+					if a.bodyMode[0] == 5 {
+						if a.protobufTablePercent == 0 {
+							a.protobufTablePercent = 34
+						}
+						percent, reset = &a.protobufTablePercent, 34
+					}
+					ui.SplitVerticalPercent(c.Key("bottom-inspector"), percent, table, func() { a.detail(c) }).SplitReset(reset).Grow(1).FillWidth().MinHeight(0)
 				}
 			})
 		}
@@ -667,7 +681,7 @@ func (a *app) actions(c *ui.Context) []action {
 			a.page = pageAPI
 		}),
 		do("api.import-openapi", locales.ImportOpenapi(), a.importOpenAPI),
-		do("history.show", locales.ShowHistory(), a.showRunRecords),
+		do("history.show", locales.ShowRuns(), a.showRunRecords),
 		do("flow.save-evidence", locales.SaveEvidenceToSessions(), func() { a.saveEvidence(f) }).when(capturing && current, ""),
 	}...)
 	actions = append(actions, a.grpcActions(d, editing)...)

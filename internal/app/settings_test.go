@@ -403,3 +403,34 @@ func TestAppearanceSegmentChangesTheApp(t *testing.T) {
 		t.Fatalf("appearance = %q, want dark", a.appearance)
 	}
 }
+
+func TestCertificateClientRowsFoldAndExpand(t *testing.T) {
+	a := workspaceApp()
+	a.certificates.Clients = []certs.Client{{
+		ID: "one", Host: "api.example.com", Format: certs.FormatPEM,
+		CertFile: "/tmp/client.pem", KeyFile: "/tmp/client.key",
+	}}
+	a.settingsOpen, a.settingsTab = true, 6
+	tt := ui.NewTester(a.settingsView, 760, 900)
+	tt.Frame()
+	if !tt.HasText("PEM · client.pem") {
+		t.Fatalf("the folded client row has no summary: %v", tt.Texts())
+	}
+	if tt.HasText("Key file") || tt.HasText("Certificate format") {
+		t.Fatal("the folded client row still shows its file fields")
+	}
+	if err := tt.Click("Edit"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("Key file") || !tt.HasText("Certificate format") {
+		t.Fatalf("expanding the client row did not show its fields: %v", tt.Texts())
+	}
+	if err := tt.Click("Done"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if tt.HasText("Key file") || !tt.HasText("PEM · client.pem") {
+		t.Fatalf("folding the client row did not restore its summary: %v", tt.Texts())
+	}
+}

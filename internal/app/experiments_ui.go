@@ -262,7 +262,7 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 	if !s.open {
 		return
 	}
-	title := "History"
+	title := locales.RunsPage()
 	if s.scope != nil {
 		title += " · Source"
 	} else if s.draftKey != "" {
@@ -292,7 +292,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 	}
 	panel.Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			title := "History"
+			title := locales.RunsPage()
 			if s.scope != nil {
 				title += " · Source"
 			} else if s.draftKey != "" {

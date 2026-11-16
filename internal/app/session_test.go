@@ -362,7 +362,10 @@ func TestSessionsAnnotateCompareAndReopenWithoutChangingLiveTraffic(t *testing.T
 		}
 	}
 	click("Session: Before")
-	click("Pin")
+	click("Session actions")
+	if err := chooseMenu(tt, "Pin"); err != nil {
+		t.Fatal(err)
+	}
 	click("Session exchange note")
 	tt.Type("Observed once")
 	click("Session color")

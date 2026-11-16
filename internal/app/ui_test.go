@@ -1028,7 +1028,7 @@ func TestRequestResourcesPreserveDraftAndTreeExpansion(t *testing.T) {
 	// Other places in the window never replace the draft.
 	tt.Key(ui.Cmd, ui.Key1)
 	click("Collection options")
-	if err := chooseMenu(tt, "History"); err != nil {
+	if err := chooseMenu(tt, "Runs"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Key(ui.Cmd, ui.Key2)
@@ -4879,7 +4879,7 @@ func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
 	if !tt.HasText("2 selected") {
 		t.Fatal("bulk actions are not visible beside the table selection")
 	}
-	if err := tt.Click("Replay…"); err != nil {
+	if err := tt.Click("Replay selected…"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("Replay 2 requests") {
@@ -5640,7 +5640,7 @@ func TestReplayTargetsAndUnavailableActionsAreConsistentAcrossEntries(t *testing
 				t.Fatal(err)
 			}
 		case "toolbar":
-			if err := tt.Click("Replay…"); err != nil {
+			if err := tt.Click("Replay selected…"); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -6163,7 +6163,7 @@ func TestExperimentWorkbenchComparesIndependentRunsAndReopensWithoutSending(t *t
 		return tt.Clipboard()
 	}
 	tt.Key(ui.Cmd, ui.KeyK)
-	tt.Type("History")
+	tt.Type("Runs")
 	tt.Key(0, ui.KeyEnter)
 	click("Experiment #1")
 	click("Set baseline")

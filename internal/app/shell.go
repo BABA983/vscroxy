@@ -371,6 +371,14 @@ func (a *app) footerCountsText() string {
 		return fmt.Sprintf("%d captures · session overview", len(a.flows))
 	case pageSession:
 		return fmt.Sprintf("%d saved sessions · read-only evidence", len(a.sessions.items))
+	case pageRequest:
+		if d := a.requestDocument; d != nil && d.protocol == "Socket.IO" {
+			state := "Not connected"
+			if d.socketIOState().session != nil {
+				state = stateLabel(d.socketIOState().session.snapshot().state)
+			}
+			return "Socket.IO · " + state
+		}
 	case pageRuns:
 		n := 0
 		for _, r := range a.experiments.log.Records {

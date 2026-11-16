@@ -150,7 +150,16 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 						a.actionButton(c, "request.socketio-ack", "Reply ACK")
 					})
 				}
-				authoredText(c, &d.composeBody, &d.bodyEditor, &d.bodyFor, "Socket.IO arguments JSON", "json")
+				uikit.Panel(c).Grow(1).MinHeight(0).Padding(t.Space(2)).Children(func() {
+					authoredText(c, &d.composeBody, &d.bodyEditor, &d.bodyFor, "Socket.IO arguments JSON", "json")
+				})
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					namespace := cmp.Or(d.socketIOConfig.Namespace, "/")
+					uikit.Meta(c, locales.SocketIoSessionLine(stateLabel(s.state), namespace)).Grow(1).SingleLine()
+					if len(s.owed) > 0 {
+						uikit.Meta(c, locales.SocketIoPendingAck(fmt.Sprint(len(s.owed)))).SingleLine()
+					}
+				})
 			case 1:
 				uikit.Tip(c, uikit.Meta(c, locales.AttachmentsHelp()), locales.BinaryAttachmentsJsonArrayOf())
 				authoredText(c, &d.socketIOConfig.Attachments, &u.attachmentEditor, &u.attachmentsFor, "Socket.IO attachments JSON", "json")

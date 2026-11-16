@@ -2342,6 +2342,26 @@ func (msgs Messages) CertificateFormat() string {
 	return Catalog.Format(msgs.locale, "certificateFormat", nil)
 }
 
+// ChooseACertificate says "Choose a certificate…"
+// in the language the app shows.
+func ChooseACertificate() string { return In(i18n.Locale()).ChooseACertificate() }
+
+// ChooseACertificate says "Choose a certificate…"
+// in the language of msgs.
+func (msgs Messages) ChooseACertificate() string {
+	return Catalog.Format(msgs.locale, "chooseACertificate", nil)
+}
+
+// SealedPassphrase says "sealed passphrase"
+// in the language the app shows.
+func SealedPassphrase() string { return In(i18n.Locale()).SealedPassphrase() }
+
+// SealedPassphrase says "sealed passphrase"
+// in the language of msgs.
+func (msgs Messages) SealedPassphrase() string {
+	return Catalog.Format(msgs.locale, "sealedPassphrase", nil)
+}
+
 // CertificateInstallationCancelledSystemTrust says "Certificate installation cancelled; system trust not verified"
 // in the language the app shows.
 func CertificateInstallationCancelledSystemTrust() string {
@@ -2894,21 +2914,21 @@ func (msgs Messages) ClearFilters() string {
 	return Catalog.Format(msgs.locale, "clearFilters", nil)
 }
 
-// ClearHistory says "Clear History…"
+// ClearHistory says "Clear runs…"
 // in the language the app shows.
 func ClearHistory() string { return In(i18n.Locale()).ClearHistory() }
 
-// ClearHistory says "Clear History…"
+// ClearHistory says "Clear runs…"
 // in the language of msgs.
 func (msgs Messages) ClearHistory() string {
 	return Catalog.Format(msgs.locale, "clearHistory", nil)
 }
 
-// ClearHistory2 says "Clear History?"
+// ClearHistory2 says "Clear runs?"
 // in the language the app shows.
 func ClearHistory2() string { return In(i18n.Locale()).ClearHistory2() }
 
-// ClearHistory2 says "Clear History?"
+// ClearHistory2 says "Clear runs?"
 // in the language of msgs.
 func (msgs Messages) ClearHistory2() string {
 	return Catalog.Format(msgs.locale, "clearHistory2", nil)
@@ -9142,21 +9162,21 @@ func (msgs Messages) HistoricalSessionReadOnlyPayloads() string {
 	return Catalog.Format(msgs.locale, "historicalSessionReadOnlyPayloads", nil)
 }
 
-// HistoryEntries says "History entries"
+// HistoryEntries says "Run records"
 // in the language the app shows.
 func HistoryEntries() string { return In(i18n.Locale()).HistoryEntries() }
 
-// HistoryEntries says "History entries"
+// HistoryEntries says "Run records"
 // in the language of msgs.
 func (msgs Messages) HistoryEntries() string {
 	return Catalog.Format(msgs.locale, "historyEntries", nil)
 }
 
-// HistoryEntriesHelp says "How many sends and interactive session summaries History keeps."
+// HistoryEntriesHelp says "How many sends and interactive session summaries Runs keeps."
 // in the language the app shows.
 func HistoryEntriesHelp() string { return In(i18n.Locale()).HistoryEntriesHelp() }
 
-// HistoryEntriesHelp says "How many sends and interactive session summaries History keeps."
+// HistoryEntriesHelp says "How many sends and interactive session summaries Runs keeps."
 // in the language of msgs.
 func (msgs Messages) HistoryEntriesHelp() string {
 	return Catalog.Format(msgs.locale, "historyEntriesHelp", nil)
@@ -9966,6 +9986,16 @@ func ImportPostmanCollection() string { return In(i18n.Locale()).ImportPostmanCo
 // in the language of msgs.
 func (msgs Messages) ImportPostmanCollection() string {
 	return Catalog.Format(msgs.locale, "importPostmanCollection", nil)
+}
+
+// ImportReview says "Import review"
+// in the language the app shows.
+func ImportReview() string { return In(i18n.Locale()).ImportReview() }
+
+// ImportReview says "Import review"
+// in the language of msgs.
+func (msgs Messages) ImportReview() string {
+	return Catalog.Format(msgs.locale, "importReview", nil)
 }
 
 // ImportPostmanEnvironment says "Import Postman environment"
@@ -18638,6 +18668,26 @@ func (msgs Messages) Runs() string {
 	return Catalog.Format(msgs.locale, "runs", nil)
 }
 
+// RunsPage says "Runs"
+// in the language the app shows.
+func RunsPage() string { return In(i18n.Locale()).RunsPage() }
+
+// RunsPage says "Runs"
+// in the language of msgs.
+func (msgs Messages) RunsPage() string {
+	return Catalog.Format(msgs.locale, "runsPage", nil)
+}
+
+// ShowRuns says "Show runs"
+// in the language the app shows.
+func ShowRuns() string { return In(i18n.Locale()).ShowRuns() }
+
+// ShowRuns says "Show runs"
+// in the language of msgs.
+func (msgs Messages) ShowRuns() string {
+	return Catalog.Format(msgs.locale, "showRuns", nil)
+}
+
 // RunsBeforeTheRequestS says "Runs before the request's own script, after any parent collection's."
 // in the language the app shows.
 func RunsBeforeTheRequestS() string { return In(i18n.Locale()).RunsBeforeTheRequestS() }
@@ -20420,6 +20470,16 @@ func (msgs Messages) Session() string {
 	return Catalog.Format(msgs.locale, "session", nil)
 }
 
+// SessionActions says "Session actions"
+// in the language the app shows.
+func SessionActions() string { return In(i18n.Locale()).SessionActions() }
+
+// SessionActions says "Session actions"
+// in the language of msgs.
+func (msgs Messages) SessionActions() string {
+	return Catalog.Format(msgs.locale, "sessionActions", nil)
+}
+
 // SessionColor says "Session color"
 // in the language the app shows.
 func SessionColor() string { return In(i18n.Locale()).SessionColor() }
@@ -21384,6 +21444,28 @@ func (msgs Messages) SocketIoMessages() string {
 	return Catalog.Format(msgs.locale, "socketIoMessages", nil)
 }
 
+// SocketIoSessionLine says "Session · {state} · {namespace}"
+// in the language the app shows.
+func SocketIoSessionLine(state string, namespace string) string {
+	return In(i18n.Locale()).SocketIoSessionLine(state, namespace)
+}
+
+// SocketIoSessionLine says "Session · {state} · {namespace}"
+// in the language of msgs.
+func (msgs Messages) SocketIoSessionLine(state string, namespace string) string {
+	return Catalog.Format(msgs.locale, "socketIoSessionLine", map[string]any{"state": state, "namespace": namespace})
+}
+
+// SocketIoPendingAck says "{count} pending ACK"
+// in the language the app shows.
+func SocketIoPendingAck(count string) string { return In(i18n.Locale()).SocketIoPendingAck(count) }
+
+// SocketIoPendingAck says "{count} pending ACK"
+// in the language of msgs.
+func (msgs Messages) SocketIoPendingAck(count string) string {
+	return Catalog.Format(msgs.locale, "socketIoPendingAck", map[string]any{"count": count})
+}
+
 // SocketIoNamespace says "Socket.IO namespace"
 // in the language the app shows.
 func SocketIoNamespace() string { return In(i18n.Locale()).SocketIoNamespace() }
@@ -22336,11 +22418,11 @@ func (msgs Messages) System() string {
 	return Catalog.Format(msgs.locale, "system", nil)
 }
 
-// SystemCaBundleUnavailableOnly says "System CA bundle unavailable: only NODE_EXTRA_CA_CERTS is set, so undecrypted hosts use their own default trust."
+// SystemCaBundleUnavailableOnly says "System CA bundle unavailable: only NODE_EXTRA_CA_CERTS is set, so undecrypted hosts use their own default trust. Star…"
 // in the language the app shows.
 func SystemCaBundleUnavailableOnly() string { return In(i18n.Locale()).SystemCaBundleUnavailableOnly() }
 
-// SystemCaBundleUnavailableOnly says "System CA bundle unavailable: only NODE_EXTRA_CA_CERTS is set, so undecrypted hosts use their own default trust."
+// SystemCaBundleUnavailableOnly says "System CA bundle unavailable: only NODE_EXTRA_CA_CERTS is set, so undecrypted hosts use their own default trust. Star…"
 // in the language of msgs.
 func (msgs Messages) SystemCaBundleUnavailableOnly() string {
 	return Catalog.Format(msgs.locale, "systemCaBundleUnavailableOnly", nil)

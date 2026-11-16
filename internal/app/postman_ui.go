@@ -298,9 +298,10 @@ func (a *app) importReportModal(c *ui.Context, t *ui.Theme) {
 	if !r.open {
 		return
 	}
-	uikit.Modal(c, &r.open, r.title, func() {
+	uikit.Modal(c, &r.open, locales.ImportReview(), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
-			uikit.DialogTitle(c, r.title)
+			uikit.DialogTitle(c, locales.ImportReview())
+			uikit.Hint(c, r.title)
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {
 				uikit.Hint(c, r.intro)
 				for _, line := range r.lines {

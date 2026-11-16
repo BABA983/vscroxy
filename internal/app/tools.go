@@ -132,6 +132,11 @@ func (a *app) toolsModal(c *ui.Context, t *ui.Theme) {
 // active draws the chosen category as in a window in front.
 func (a *app) toolsContent(c *ui.Context, t *ui.Theme, active, window bool) {
 	pal := uikit.Colors(t)
+	width, _ := c.Size()
+	navWidth := float32(180)
+	if width < 1000 {
+		navWidth = 150
+	}
 	ui.Row(c).Grow(1).FillWidth().MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 		top := t.Space(2)
 		if window {
@@ -146,7 +151,7 @@ func (a *app) toolsContent(c *ui.Context, t *ui.Theme, active, window bool) {
 				{"hosts", hostsIcon, locales.HostProfiles()}, {"mocks", mocksIcon, locales.Mocks()}, {"git", gitIcon, locales.Git()}} {
 				uikit.SidebarItem(c, page.id, page.icon, page.label, a.toolsPage == page.id, active).Label(locales.ToolsCategory(page.label))
 			}
-		}).Width(180).Padding(top, t.Space(2), t.Space(2), t.Space(2)).Gap(t.Space(0.5)).Background(pal.Chrome)
+		}).Width(navWidth).Padding(top, t.Space(2), t.Space(2), t.Space(2)).Gap(t.Space(0.5)).Background(pal.Chrome)
 		ui.Divider(c)
 		switch a.toolsPage {
 		case "rules", "mocks":
@@ -173,7 +178,12 @@ func (a *app) hostProfilesPage(c *ui.Context, t *ui.Theme, window bool) {
 	if window {
 		top = max(c.TitleBar().Height+t.Space(1), t.Space(4))
 	}
-	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
+	width, _ := c.Size()
+	listWidth := float32(268)
+	if width < 1000 {
+		listWidth = 220
+	}
+	ui.Column(c).Width(listWidth).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, locales.HostProfiles()).FontSize(uikit.Scaled(uikit.TextTitle)).FontWeight(500).TextColor(t.Text).Grow(1)
 			if uikit.IconButton(c, locales.NewProfile(), locales.NewProfile(), plusIcon).Clicked() {
@@ -384,7 +394,7 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 		if p.URL != "" {
 			note = "A subscription is read-only; it refreshes every hour."
 		}
-		uikit.Meta(c, note).Grow(1).SingleLine()
+		uikit.Tip(c, uikit.Meta(c, note).Grow(1).SingleLine(), note)
 		ui.Row(c).Disabled(a.srv == nil).Children(func() {
 			if uikit.Tip(c, uikit.SecondaryButton(c, locales.DropOpenConnections()), locales.CloseTheClientsOpenConnections()).Clicked() {
 				a.dropConnections()

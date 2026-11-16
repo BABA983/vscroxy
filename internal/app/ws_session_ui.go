@@ -108,24 +108,35 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 		canConnect := a.srv != nil && a.srv.Running() && request.IsWebSocket(s.url)
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(h - 100).Children(func() {
 			uikit.DialogTitle(c, locales.WebsocketSessionState(stateLabel(state)))
-			uikit.SettingsGroup(c, locales.Connection(), func() {
-				uikit.SettingsRow(c, locales.Url(), func() ui.Element {
-					in := uikit.Input(c, &s.url).Label(locales.WebsocketUrl()).Placeholder("ws://127.0.0.1:8080/socket").
-						Font(uikit.FontMono).Disabled(active)
-					uikit.Tip(c, in, locales.WebsocketUrlHelp())
-					return in
-				}, "")
-				uikit.SettingsRow(c, locales.Subprotocols(), func() ui.Element {
-					in := uikit.Input(c, &s.subprotocols).Label(locales.WebsocketSubprotocols()).
-						Placeholder(locales.SubprotocolsInPreferenceOrderE()).Disabled(active)
-					uikit.Tip(c, in, locales.WebsocketSubprotocolsHelp())
-					return in
-				}, "")
-				uikit.SettingsRowMultiline(c, locales.Headers(), func() ui.Element {
-					return uikit.TextArea(c, &s.headers).Label(locales.WebsocketHandshakeHeaders()).Placeholder("Authorization: Bearer …").
-						Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(active)
-				}, locales.WebsocketHeadersHelp())
-			})
+			if active {
+				// The handshake is fixed while it is open; keep one line for
+				// the endpoint instead of three disabled fields, so the
+				// messages and the footer keep the dialog's height.
+				uikit.SettingsCard(c, "", func() {
+					uikit.SettingsCardRow(c, locales.Connection(), "", func() {
+						uikit.Tip(c, uikit.Meta(c, s.url).Font(uikit.FontMono).SingleLine(), s.url)
+					}, s.url)
+				})
+			} else {
+				uikit.SettingsGroup(c, locales.Connection(), func() {
+					uikit.SettingsRow(c, locales.Url(), func() ui.Element {
+						in := uikit.Input(c, &s.url).Label(locales.WebsocketUrl()).Placeholder("ws://127.0.0.1:8080/socket").
+							Font(uikit.FontMono)
+						uikit.Tip(c, in, locales.WebsocketUrlHelp())
+						return in
+					}, "")
+					uikit.SettingsRow(c, locales.Subprotocols(), func() ui.Element {
+						in := uikit.Input(c, &s.subprotocols).Label(locales.WebsocketSubprotocols()).
+							Placeholder(locales.SubprotocolsInPreferenceOrderE())
+						uikit.Tip(c, in, locales.WebsocketSubprotocolsHelp())
+						return in
+					}, "")
+					uikit.SettingsRowMultiline(c, locales.Headers(), func() ui.Element {
+						return uikit.TextArea(c, &s.headers).Label(locales.WebsocketHandshakeHeaders()).Placeholder("Authorization: Bearer …").
+							Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+					}, locales.WebsocketHeadersHelp())
+				})
+			}
 			if s.problem != "" {
 				ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 			}

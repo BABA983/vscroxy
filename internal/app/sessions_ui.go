@@ -169,30 +169,41 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 	}
 	f := &item.data.Flows[item.picked]
 	s := &a.sessions
-	ui.Row(c).Padding(t.Space(2)).Gap(t.Space(1)).Wrap().Children(func() {
-		label := "Pin"
-		if f.Pinned {
-			label = "Unpin"
-		}
-		if uikit.CompactButton(c, label).Clicked() {
-			f.Pinned = !f.Pinned
-			item.persist(a.invalidate)
-		}
-		if uikit.CompactButton(c, locales.UseAsLeft()).Clicked() {
+	ui.Row(c).Padding(t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		useAsLeft := func() {
 			left := f.flow()
 			s.left, s.leftLabel = &left, item.data.Title
 			s.comparison = captureAnalysis{}
 		}
-		if uikit.CompactButton(c, locales.CompareWithLeft()).Disabled(s.left == nil).Clicked() {
-			s.comparing, s.comparison = true, captureAnalysis{}
+		if s.left != nil {
+			if uikit.PrimaryButton(c, locales.CompareWithLeft()).Clicked() {
+				s.comparing, s.comparison = true, captureAnalysis{}
+			}
+			if uikit.SecondaryButton(c, locales.UseAsLeft()).Clicked() {
+				useAsLeft()
+			}
+		} else {
+			if uikit.PrimaryButton(c, locales.UseAsLeft()).Clicked() {
+				useAsLeft()
+			}
 		}
-		label = "Reveal credentials"
-		if item.reveal {
-			label = "Hide credentials"
-		}
-		if uikit.CompactButton(c, label).Clicked() {
-			item.reveal, item.reader = !item.reveal, nil
-		}
+		uikit.MoreMenu(c, locales.SessionActions(), func(m *ui.Menu) {
+			label := "Pin"
+			if f.Pinned {
+				label = "Unpin"
+			}
+			if m.Item(label).Chosen() {
+				f.Pinned = !f.Pinned
+				item.persist(a.invalidate)
+			}
+			label = "Reveal credentials"
+			if item.reveal {
+				label = "Hide credentials"
+			}
+			if m.Item(label).Chosen() {
+				item.reveal, item.reader = !item.reveal, nil
+			}
+		})
 	})
 	uikit.Tip(c, uikit.Meta(c, f.URL).Padding(0, t.Space(2)).SingleLine(), f.URL)
 	ui.Row(c).Padding(t.Space(2)).Gap(t.Space(2)).Children(func() {

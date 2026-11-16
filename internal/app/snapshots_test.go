@@ -1203,7 +1203,17 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.keepSession(sessionFile{Version: 1, Title: "Empty session"})
 		}, want: "This saved session contains no exchanges"},
 		{name: "secondary-sessions-browse", setup: snapshotSources, want: "Historical · read-only payloads"},
-		{name: "secondary-sessions-selected", setup: snapshotSources, act: click("Pin"), want: "Unpin"},
+		{name: "secondary-sessions-selected", setup: snapshotSources, act: func(t *testing.T, tt *ui.Tester) {
+			if err := tt.Click("Session actions"); err != nil {
+				t.Fatal(err)
+			}
+			if err := chooseMenu(tt, "Pin"); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.Click("Session actions"); err != nil {
+				t.Fatal(err)
+			}
+		}, want: "Unpin"},
 		{name: "secondary-sessions-no-matches", setup: func(a *app) {
 			snapshotSources(a)
 			a.sessions.current().query = "no-matches"
@@ -1893,7 +1903,7 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.openDiagnostics(nil, diagnoseDevice)
 		}, want: "Device access is off"},
 		{name: "dialog-clear", setup: func(a *app) { a.clearOpen = true }, want: "Clear captured requests?"},
-		{name: "dialog-clear-records", setup: func(a *app) { snapshotRuns(a); a.experiments.clearing = true }, want: "Clear History?"},
+		{name: "dialog-clear-records", setup: func(a *app) { snapshotRuns(a); a.experiments.clearing = true }, want: "Clear runs?"},
 		{name: "dialog-mark", setup: func(a *app) { a.openMark(a.flows[0]); a.markNote = "Investigate cache response" }, want: "Note"},
 		{name: "dialog-mark-keyboard", setup: func(a *app) { a.openMark(a.flows[0]) }, act: func(t *testing.T, tt *ui.Tester) {
 			tt.Key(0, ui.KeyTab)
@@ -1956,7 +1966,7 @@ func snapshotStates(t *testing.T) []snapshot {
 		{name: "inspector-menu", act: click("Inspector options"), menu: "Replay"},
 		{name: "request-menu", setup: draft, act: click("Request options"), menu: "Copy as cURL"},
 		{name: "capture-copy-menu", act: click("Copy as…"), menu: "Markdown table"},
-		{name: "capture-selection-csv", setup: func(a *app) { a.chosen.Add(2) }, want: "Export CSV…"},
+		{name: "capture-selection-csv", setup: func(a *app) { a.chosen.Add(2) }, act: click("Export…"), want: "Export chosen CSV…"},
 		{name: "collection-folder-menu", setup: func(a *app) {
 			a.page = pageRequest
 			a.requests[0].Examples = []request.Example{{ID: "e", Name: "Two projects", Status: 200, Body: "[]"}}

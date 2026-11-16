@@ -1,6 +1,7 @@
 package app
 
 import (
+	"path/filepath"
 	"slices"
 
 	"github.com/baba983/vscroxy/internal/certs"
@@ -124,16 +125,42 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 			remove := -1
 			for i := range e.rows {
 				row := &e.rows[i]
+				if e.open == nil {
+					e.open = map[string]bool{}
+				}
+				expanded := e.open[row.ID]
 				settingsCardBlock(c, "", func() ui.Element {
 					return ui.Column(c).Gap(t.Space(2)).Children(func() {
-						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
-							if uikit.Input(c, &row.Host).Label(locales.Host()).Placeholder("api.example.com or *.example.com:8443").Grow(1).Changed() {
+						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+							if uikit.Input(c, &row.Host).Label(locales.Host()).Placeholder("api.example.com or *.example.com:8443").Grow(1).MinWidth(0).Changed() {
 								e.dirty = true
 							}
-							format := 0
-							if row.Format == certs.FormatPKCS12 {
-								format = 1
+							summary := certificateRowSummary(*row)
+							if row.CertFile != "" {
+								uikit.Tip(c, uikit.Meta(c, summary).SingleLine(), row.CertFile)
+							} else {
+								uikit.Meta(c, summary).SingleLine()
 							}
+							label := locales.Edit2()
+							if expanded {
+								label = locales.Done()
+							}
+							if uikit.CompactButton(c, label).Clicked() {
+								e.open[row.ID] = !expanded
+							}
+							if uikit.IconButton(c, locales.Remove(), locales.Remove(), closeIcon).Clicked() {
+								remove = i
+							}
+						})
+						if !expanded {
+							return
+						}
+						format := 0
+						if row.Format == certs.FormatPKCS12 {
+							format = 1
+						}
+						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+							uikit.Meta(c, locales.CertificateFormat()).Grow(1)
 							if uikit.Segmented(c, &format, locales.Pem(), locales.Pkcs12()).Label(locales.CertificateFormat()).Changed() {
 								row.Format = certs.FormatPEM
 								if format == 1 {
@@ -164,19 +191,16 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 							if uikit.Input(c, &row.Passphrase).Password().Label(locales.Passphrase()).Placeholder(locales.Optional()).Grow(1).Changed() {
 								row.Clear, e.dirty = false, true
 							}
-							if uikit.SecondaryButton(c, locales.Remove()).Clicked() {
-								remove = i
-							}
 						})
 						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 							switch {
 							case row.Clear:
-								uikit.Hint(c, locales.SavedPassphraseWillBeRemoved())
+								uikit.Hint(c, locales.SavedPassphraseWillBeRemoved()).Grow(1)
 								if uikit.SecondaryButton(c, locales.Keep()).Clicked() {
 									row.Clear, e.dirty = false, true
 								}
 							case row.Saved && row.Passphrase == "":
-								uikit.Hint(c, locales.SavedPassphraseInUse())
+								uikit.Hint(c, locales.SavedPassphraseInUse()).Grow(1)
 								if uikit.SecondaryButton(c, locales.Clear()).Clicked() {
 									row.Clear, e.dirty = true, true
 								}
@@ -195,7 +219,12 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 				return ui.Row(c).Children(func() {
 					b := uikit.SecondaryButton(c, locales.AddClientCertificate())
 					if b.Clicked() {
-						e.rows = append(e.rows, certificateRow{ID: uuid.NewString(), Format: certs.FormatPEM})
+						id := uuid.NewString()
+						e.rows = append(e.rows, certificateRow{ID: id, Format: certs.FormatPEM})
+						if e.open == nil {
+							e.open = map[string]bool{}
+						}
+						e.open[id] = true
 						e.dirty = true
 					}
 				})
@@ -257,4 +286,21 @@ func (a *app) certificateFooter(c *ui.Context, t *ui.Theme) {
 			a.saveCertificates()
 		}
 	})
+}
+
+// certificateRowSummary is the one line a client certificate shows while it
+// is folded: its format and file name, or what is still missing.
+func certificateRowSummary(row certificateRow) string {
+	if row.CertFile == "" {
+		return locales.ChooseACertificate()
+	}
+	format := "PEM"
+	if row.Format == certs.FormatPKCS12 {
+		format = "PKCS#12"
+	}
+	summary := format + " · " + filepath.Base(row.CertFile)
+	if row.Saved {
+		summary += " · " + locales.SealedPassphrase()
+	}
+	return summary
 }
