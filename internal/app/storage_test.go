@@ -24,7 +24,7 @@ func TestSavedFilesCarryTheirFormatVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(data, []byte(`"version":2`)) {
+	if !bytes.Contains(data, []byte(`"version":1`)) {
 		t.Fatalf("settings = %s", data)
 	}
 	// The second save keeps the file it replaces.

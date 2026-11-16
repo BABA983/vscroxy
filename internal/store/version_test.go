@@ -28,7 +28,7 @@ func testFormats(t *testing.T) map[string]struct {
 		member  string
 		version int
 	}{
-		"settings":            {Settings, "settings.json", "", 2},
+		"settings":            {Settings, "settings.json", "", 0},
 		"rules":               {Rules, "rules.json", "rules", 0},
 		"ssl":                 {SSL, "ssl.json", "", 0},
 		"env":                 {Env, "env.json", "", 0},
@@ -174,33 +174,6 @@ func TestMigrationsRunInOrderWithTestData(t *testing.T) {
 	}
 }
 
-// TestSettingsMigrationKeepsTheOldValues reads the version 1 settings
-// fixture: the new file is version 2, every old setting survives, and the
-// migration invents no pane shares.
-func TestSettingsMigrationKeepsTheOldValues(t *testing.T) {
-	data, err := os.ReadFile("testdata/settings.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := Settings.Read(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var doc map[string]any
-	if err := json.Unmarshal(got, &doc); err != nil {
-		t.Fatal(err)
-	}
-	if doc["version"] != float64(2) {
-		t.Fatalf("version = %v, want 2", doc["version"])
-	}
-	if doc["appearance"] != "dark" || doc["proxyPort"] != float64(8899) {
-		t.Fatalf("migration lost a setting: %s", got)
-	}
-	if _, ok := doc["sidebarPaneHeights"]; ok {
-		t.Fatalf("migration invented pane heights: %s", got)
-	}
-}
-
 func TestMigrationIsBackedUpAndKeepsTen(t *testing.T) {
 	dir := t.TempDir()
 	backups := filepath.Join(dir, "backups")
@@ -236,7 +209,7 @@ func TestWriteStampsVersionAndBacksUpOnlyChanges(t *testing.T) {
 	dir := t.TempDir()
 	backups := filepath.Join(dir, "backups")
 	path := filepath.Join(dir, "settings.json")
-	if err := os.WriteFile(path, []byte(`{"version":2,"proxyPort":8899}`), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(`{"proxyPort":8899}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	f := &File{Path: path, Format: Settings, BackupDir: backups}
@@ -247,7 +220,7 @@ func TestWriteStampsVersionAndBacksUpOnlyChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := os.ReadFile(path)
-	if !bytes.Contains(got, []byte(`"version":2`)) {
+	if !bytes.Contains(got, []byte(`"version":1`)) {
 		t.Fatalf("write did not stamp the version: %s", got)
 	}
 	entries, _ := os.ReadDir(backups)
@@ -270,7 +243,8 @@ func TestWriteFileVersionedRefusesANewerFile(t *testing.T) {
 	if err := os.WriteFile(path, newer, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteFileVersioned(path, Settings, []byte(`{"version":2}`), ""); !errors.Is(err, ErrNewer) {
+	format := &Format{Name: "settings", Current: 2}
+	if err := WriteFileVersioned(path, format, []byte(`{"version":2}`), ""); !errors.Is(err, ErrNewer) {
 		t.Fatalf("write = %v, want ErrNewer", err)
 	}
 	if got, _ := os.ReadFile(path); !bytes.Equal(got, newer) {

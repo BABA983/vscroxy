@@ -1,9 +1,5 @@
 package store
 
-import (
-	"encoding/json/v2"
-)
-
 // The app's file formats. Every file the app owns is one of these; a format
 // with no Steps yet is version 1. While the project is in development, a
 // persisted format changes directly: no version bump, step, or migration test
@@ -23,19 +19,7 @@ import (
 // link, removed on exit and reclaimed when stale) and proxy-recovery.json (a
 // proxy snapshot written by the recovery helper and removed after restore).
 var (
-	Settings = &Format{Name: "settings", Current: 2, Steps: []Step{
-		// Version 2 adds the sidebar's pane heights. A version 1 file has
-		// none, and the app fills in its defaults; the step only stamps the
-		// new version, leaving every setting as it was.
-		func(data []byte) ([]byte, error) {
-			var doc map[string]any
-			if err := json.Unmarshal(data, &doc); err != nil {
-				return nil, err
-			}
-			doc["version"] = 2
-			return json.Marshal(doc)
-		},
-	}}
+	Settings           = &Format{Name: "settings"}
 	Rules              = &Format{Name: "rules", Member: "rules"}
 	SSL                = &Format{Name: "ssl"}
 	Env                = &Format{Name: "environments"}
