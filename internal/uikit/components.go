@@ -1049,9 +1049,16 @@ func SubTabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.E
 func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, sub bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	group := ui.TabsBase(c, selected, len(labels))
+	gap := t.Space(0.5)
+	if sub {
+		// A second level reads as words: the words keep a gap that tells
+		// them apart, and the rule below them is the only mark of the
+		// chosen one.
+		gap = t.Space(2)
+	}
 	// As narrow as the underlined tabs were, so a narrow inspector still
 	// shows them all; the chip's own padding keeps neighbours apart.
-	group.List.Gap(t.Space(0.5)).Children(func() {
+	group.List.Gap(gap).Children(func() {
 		for i, label := range labels {
 			name := label
 			if prefix != "" {
@@ -1064,7 +1071,7 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 			case chosen && sub:
 				// A rule, not a chip: the row is one level down from the
 				// tabs that chose it, and the accent says which one.
-				tab.TextColor(t.Text).Radius(0).BorderWidth(0, 0, 2, 0).BorderColor(p.Accent)
+				tab.TextColor(t.Text).Radius(0)
 			case chosen:
 				tab.Background(p.Fill).TextColor(t.Text)
 			case sub && (tab.Pressed() || tab.Hovered()):
@@ -1078,6 +1085,12 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 				ui.Text(c, label).FontSize(Scaled(TextBody))
 				if i < len(counts) && counts[i] != "" && counts[i] != "0" {
 					Meta(c, counts[i]).FontFeatures("tnum")
+				}
+				if chosen && sub {
+					// The rule spans the word, not the tab's hit area, so
+					// it starts where the word does.
+					ui.Box(c).Absolute().Left(Scaled(ControlPaddingXSmall)).Right(Scaled(ControlPaddingXSmall)).Bottom(0).
+						Height(2).Background(p.Accent)
 				}
 			})
 		}

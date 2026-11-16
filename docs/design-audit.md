@@ -467,8 +467,8 @@ uikit 前五条已经实现，页面层只重排了 Rules／Scripts／Mocks 三�
 
 这两条不在 (b) 的页面清单里，是实窗口补看请求编辑器时发现的，和用户拿 Postman 对照提的两个问题重合。
 
-- **请求编辑器左栏的 History／Examples 是带框的分段控件（P2）。** 它换的是视图，不是互斥模式，`Segmented` 的凹槽把一行两个词读成了开关；`FillWidth()` 又把它拉到整栏宽，两个段各占一半，像一条空槽。改成 `SubTabs`：纯文字，选中项加 2px 强调色下划线，行高 32 贴住列表顶部。同一轮把编辑器里其他“换视图却用 Segmented”的地方一起改了：GraphQL Query／Variables、Scripts 的 Pre-request／Post-response、Example 的 Body／Headers／Request、MCP 的 Arguments／Input schema、文件夹编辑器的 Pre-request／Post-response、Sessions 的 Headers／Body／Messages／Connection，以及 API endpoint 的 Overview／Raw（它本来就是 `SubTabs`，现在有了下划线）。`Segmented` 只留真正的模式：主题、方向、编码格式、Host 头、筛选范围。`internal/uikit/components.go`、`request_history.go`、`request_fields.go`、`requests.go`、`examples.go`、`mcp_ui.go`、`collections.go`。
-- **URL 栏并排两个下拉：协议和方法（P2）。** `HTTP ▾` 和 `POST ▾` 各占一段，URL 被挤到第三段；Postman 只有一个方法下拉贴在 URL 输入框左边。现在左边只有一个下拉：HTTP 文档显示方法（可输入、可下拉），菜单末尾用一条分隔线和 `Protocol` 小标题列出 HTTP／gRPC／Socket.IO／MQTT／MCP；非 HTTP 文档在同一个位置显示协议名，菜单里换协议（含回到 HTTP）。协议切换仍会停掉旧协议的会话，配置保留。`internal/app/requests.go`。
+- **请求编辑器左栏的 History／Examples 是带框的分段控件（P2）。** 它换的是视图，不是互斥模式，`Segmented` 的凹槽把一行两个词读成了开关；`FillWidth()` 又把它拉到整栏宽，两个段各占一半，像一条空槽。改成 `SubTabs`：纯文字，标签之间 Space(2)，选中项的 2px 强调色下划线只画在文字宽度下（不是整块点击区），行高 32 贴住列表顶部，第一个标签的字和下方列表行的字左边对齐。同一轮把编辑器里其他“换视图却用 Segmented”的地方一起改了：GraphQL Query／Variables、Scripts 的 Pre-request／Post-response、Example 的 Body／Headers／Request、MCP 的 Arguments／Input schema、文件夹编辑器的 Pre-request／Post-response、Sessions 的 Headers／Body／Messages／Connection，以及 API endpoint 的 Overview／Raw（它本来就是 `SubTabs`，现在有了下划线）。`Segmented` 只留真正的模式：主题、方向、编码格式、Host 头、筛选范围。`internal/uikit/components.go`、`request_history.go`、`request_fields.go`、`requests.go`、`examples.go`、`mcp_ui.go`、`collections.go`。
+- **URL 栏并排两个下拉：协议和方法（P2）。** `HTTP ▾` 和 `POST ▾` 各占一段，URL 被挤到第三段；Postman 只有一个方法下拉贴在 URL 输入框左边。现在左边只有一个按钮：方法名 + 内联 chevron，宽度跟词走，左右 padding 和 gap 与协议按钮一致。HTTP 文档的菜单是方法列表，底部 `Protocol` 子菜单列出 HTTP／gRPC／Socket.IO／MQTT／MCP，再下面是 `Custom…`；非 HTTP 文档在同一个位置显示协议名，菜单里换协议（含回到 HTTP）。`Custom…` 把按钮原位换成短输入框，输入自定义方法后回车或离开就变回按钮，所以“输入方法表里没有的方法”这个功能没丢，平时也不会出现文本光标。协议切换仍会停掉旧协议的会话，配置保留。`internal/app/requests.go`。
 
 ### e.5 计划不处理的 P3（5 条）
 
@@ -478,6 +478,6 @@ uikit 前五条已经实现，页面层只重排了 Rules／Scripts／Mocks 三�
 - **Rules／Scripts 的重复标题。** 外层是 Tools 的分类名，内层是列表／详情的标题，后者跟着选中的对象走；这两个页面的内层标题和其他三个 Tools 页共用同一个组件，去掉会让它们不一致，属于外观重复。
 - **Scenarios 每行的 Edit 按钮。** 行本身是选择目标，不是按钮；常驻 Edit 让动作对键盘和读屏都可达，改成“点行打开、悬停才出 Edit”要改列表的选中语义，为一条 P3 不值得。
 
-### e.6 检查到但没修的（1 条 P2，留给协议编辑器专项）
+### e.6 协议编辑器的标签行（P2，uikit-ag 已修）
 
-- **协议编辑器（gRPC／MQTT／MCP／Socket.IO）的标签行在窄面板里被裁。** 它们各自画一排 `Tabs`，没有 HTTP 请求面板那套“按量出来的宽度把放不下的 tab 收进 More”的逻辑；保存过的请求打开历史栏之后，1280 下 gRPC 的 `Examples` 只剩 `Exam`，960 下更早。修法是把 `requestPaneHeader` 的实测溢出搬到这四个编辑器（它们各自还有尾随控件），属于协议编辑器专项，不在这一轮里顺手改。
+- **协议编辑器（gRPC／MQTT／MCP／Socket.IO）的标签行在窄面板里被裁。** 它们各自画一排 `Tabs`，没有 HTTP 请求面板那套“按量出来的宽度把放不下的 tab 收进 More”的逻辑；保存过的请求打开历史栏之后，1280 下 gRPC 的 `Examples` 只剩 `Exam`，960 下更早。修法是把实测溢出搬到这四个编辑器：新增 `protocolTabRow`，用 `paneTabsWidth`／`paneMoreWidth` 量出这一行有多少宽度，从右边把放不下的 tab 收进 More，选中的那个永远留在行里；从 More 选的视图回到行的最后一个 chip，所以行永远知道自己显示的是什么。gRPC 响应面板的三格标签改用 `TabStrip`（响应面板本来就是这么滚的）。`internal/app/inspector.go`、`grpc_ui.go`、`mqtt_ui.go`、`mcp_ui.go`、`socketio_ui.go`。
