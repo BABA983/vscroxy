@@ -74,6 +74,7 @@ func (s *structuredInspector) view(c *ui.Context, a *app, source inspectionBody,
 	switch body.Format {
 	case "Form":
 		cols := []ui.TableColumn{{Title: "#", Width: 36, Fixed: true}, {Title: locales.Name()}, {Title: locales.Value()}}
+		// Bare: the kit has no table; this is MyGo's table for the form's fields.
 		ui.Table(c, &s.list, cols, len(body.Fields), func(row, col int) {
 			field := body.Fields[row]
 			value := fmt.Sprint(row + 1)

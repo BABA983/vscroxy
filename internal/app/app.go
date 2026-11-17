@@ -2084,7 +2084,7 @@ func (a *app) panel(c *ui.Context, t *ui.Theme) {
 		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Background(p.Canvas).
 			Radius(radii[0], radii[1], radii[2], radii[3]).Clip().Children(func() {
 			if a.srv == nil && a.errText != "" {
-				uikit.Body(c, locales.ProxyUnavailable(a.errText)).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).TextColor(t.Danger)
+				uikit.Callout(c, uikit.CalloutDanger, locales.ProxyUnavailable(a.errText), nil).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
 			}
 			if a.requestsProblem != "" || a.envsProblem != "" {
 				ui.Column(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
@@ -3012,6 +3012,7 @@ func (a *app) table(c *ui.Context) {
 	// own edge below it, drawn per cell.
 	selectionTheme.Border = ui.Color{}
 	c.SetTheme(selectionTheme)
+	// Bare: the kit has no table; this is MyGo's table of flows, with its own cell edges.
 	table := ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
 		if col == 0 && a.chosen.Has(f.id) {
@@ -3392,7 +3393,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		}
 	})
 	if f.conn.error != "" {
-		uikit.Tip(c, uikit.Body(c, f.conn.error).Selectable().MaxLines(3), f.conn.error).TextColor(t.Danger).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM))
+		uikit.Tip(c, uikit.ErrorText(c, f.conn.error).Selectable().MaxLines(3), f.conn.error).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM))
 	}
 	if f.kind == "connect" {
 		// What decides whether the next connection is decrypted: the tunnel's

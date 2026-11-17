@@ -344,7 +344,7 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 		uikit.FormRow(c, locales.SubscriptionUrl(), "", "", func() {
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				in := uikit.Input(c, &h.url).Label(locales.SubscriptionUrl()).Placeholder("https://example.com/hosts").Font(uikit.FontMono).Grow(1)
-				refresh := uikit.SecondaryButton(c, locales.Refresh()).Disabled(h.fetching[p.Name])
+				refresh := uikit.SecondaryButtonBusy(c, locales.Refresh(), h.fetching[p.Name])
 				if in.Submitted() || refresh.Clicked() {
 					url := strings.TrimSpace(h.url)
 					if url != p.URL && a.changeHosts(func(s *hosts.Set) { s.Profiles[i].URL, s.Profiles[i].Updated = url, time.Time{} }) {

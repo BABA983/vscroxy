@@ -319,7 +319,7 @@ func (a *app) gitProblem(c *ui.Context, t *ui.Theme) {
 	if a.git.problem == "not-a-repo" {
 		title, hint = locales.GitThisFolderIsNotARepository(), locales.GitInitializeOneHereOrChoose()
 		actions = func() {
-			if uikit.PrimaryButton(c, locales.GitInitializeRepository()).Disabled(a.git.loading).Clicked() {
+			if uikit.PrimaryButtonBusy(c, locales.GitInitializeRepository(), a.git.loading).Clicked() {
 				a.initGit()
 			}
 			if uikit.SecondaryButton(c, locales.Refresh()).Clicked() {

@@ -409,8 +409,8 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 		})
 		ui.Divider(c)
 		if p.loadedError != "" {
-			uikit.Caption(c, locales.PayloadUnavailable(p.loadedError)).
-				TextColor(t.Danger).Background(t.Danger.Alpha(0.12)).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).FillWidth()
+			uikit.Callout(c, uikit.CalloutDanger, locales.PayloadUnavailable(p.loadedError), nil).
+				Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))
 		}
 		if p.mode == 2 {
 			a.protobuf.url = f.url

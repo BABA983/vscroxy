@@ -302,7 +302,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 		if fetch.Clicked() {
 			a.fetchGraphQLSchema(d)
 		}
-		if uikit.SecondaryButton(c, locales.LoadSchema()).Disabled(g.loading != nil).Clicked() {
+		if uikit.SecondaryButtonBusy(c, locales.LoadSchema(), g.loading != nil).Clicked() {
 			a.chooseGraphQLSchema(d)
 		}
 		if opsErr == nil {

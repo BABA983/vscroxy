@@ -378,7 +378,7 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 				return sw
 			}, "")
 			if !a.inheritance(d.composeCollection).InheritSettings(d.settings).Verifies() {
-				uikit.Caption(c, locales.CertificateVerificationIsOffThis3()).TextColor(t.Danger)
+				uikit.Callout(c, uikit.CalloutWarning, locales.CertificateVerificationIsOffThis3(), nil)
 			}
 		})
 		if c1.Version == request.MQTT5 {
