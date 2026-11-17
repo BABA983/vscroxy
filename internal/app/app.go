@@ -4669,8 +4669,14 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 					ui.Column(c).Height(listHeight).Children(func() {
 						uikit.DataListIndexed(c, &a.sslList, len(draft.Apps), func(i int) {
 							app := draft.Apps[i]
+							// Rows divide from each other; the last one has no rule of
+							// its own, or it doubles the card's bottom edge.
+							rule := float32(1)
+							if i == len(draft.Apps)-1 {
+								rule = 0
+							}
 							ui.Row(c).Height(uikit.SettingsRowHeight).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).
-								BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+								BorderWidth(0, 0, rule, 0).BorderColor(t.Border).Children(func() {
 								ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
 									uikit.Body(c, app.Name).SingleLine()
 									uikit.Tip(c, uikit.Meta(c, app.Path).SingleLine(), app.Path)
