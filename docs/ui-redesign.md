@@ -492,7 +492,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 | 组件 | 用途 | 变体和尺寸 | 状态 | 不要做的事 |
 | --- | --- | --- | --- | --- |
-| `Callout` | 页面或区块里一句需要读的通知：警告、错误、信息、成功，一句话加行尾动作 | 四种：`CalloutInfo`、`CalloutSuccess`、`CalloutWarning`、`CalloutDanger`；图标 16，首行对齐；正文 13；没有底色 | 静止；动作是按钮（`SecondaryButton` 等） | 不用于字段错误（用 `FormRow`）；不做成卡片 |
+| `Callout` | 页面或区块里一句需要读的通知：警告、错误、信息、成功，一句话加行尾动作 | 四种：`CalloutInfo`、`CalloutSuccess`、`CalloutWarning`、`CalloutDanger`；图标 16，首行对齐；正文 13；没有底色。进行中（如上游代理在加载）用 `CalloutInfo`，不用 `CalloutDanger`；页脚的状态芯片同理，`danger` 只在真正失败时为真 | 静止；动作是按钮（`SecondaryButton` 等） | 不用于字段错误（用 `FormRow`）；不做成卡片 |
 | `ErrorText` | 没有字段可挂的错误句子（如连接失败的细节） | 12，危险色 | 静止 | 不用作字段错误；不用来显示状态词（用 `Meta` 加危险色） |
 | `Spinner` | 未知长度的忙碌 | 正文次要色，标签是名字 | 转动（MyGo） | 按钮里的忙碌用 `*Busy` |
 | `ProgressBar` | 进度：0 到 1 的确定进度，或不确定（负值） | 4 高，圆角 2，轨道 `Fill`，标签由调用方在旁边写 | 确定、不确定 | 没有进度的长任务用 `Spinner` |

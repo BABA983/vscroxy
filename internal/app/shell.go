@@ -562,7 +562,7 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 		if a.upstreamLoading {
 			label = locales.UpstreamLoading()
 		}
-		chips = append(chips, footerChip{id: "upstream-error", label: label, tip: a.upstreamProblem, icon: upstreamIcon, danger: true,
+		chips = append(chips, footerChip{id: "upstream-error", label: label, tip: a.upstreamProblem, icon: upstreamIcon, danger: !a.upstreamLoading,
 			open: func() { a.openSettings(1) }, off: a.clearUpstream})
 	} else if a.upstream != "" {
 		chips = append(chips, footerChip{id: "upstream", label: locales.ShellUpstream(), tip: "Edit upstream proxy settings", icon: upstreamIcon,

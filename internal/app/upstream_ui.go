@@ -423,7 +423,12 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 		if a.upstreamProblem != "" {
 			settingsCardBlock(c, "", func() ui.Element {
 				return ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-					uikit.Callout(c, uikit.CalloutDanger, a.upstreamProblem, nil).Grow(1)
+					// Loading is in progress, not a failure, so it is not styled as one.
+					kind := uikit.CalloutDanger
+					if a.upstreamLoading {
+						kind = uikit.CalloutInfo
+					}
+					uikit.Callout(c, kind, a.upstreamProblem, nil).Grow(1)
 					if !a.upstreamLoading && uikit.SecondaryButton(c, locales.Retry()).Clicked() {
 						a.retryUpstreamNow()
 					}
