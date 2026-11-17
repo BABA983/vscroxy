@@ -487,44 +487,33 @@ uikit 前五条已经实现，页面层只重排了 Rules／Scripts／Mocks 三�
 - **Runs／History 命名（P1）的剩余入口。** (e.2) 把页面标题改成了 Runs，但打开同一份运行记录的入口仍叫 History：命令面板的 `History…`、请求和抓包的 `History` 命令、请求选项里的 `Open request History`、`Show all History`、Runs 视图里自己的小节标题、请求编辑器左栏的 History 标签和它的两个筛选标签，以及三条提到“History”的说明。现在全部叫 Runs／运行记录（只改 `locales/*.json` 的值，键名不变，和 `clearHistory` 的先例一致）。
 - **配色（P2）。** 保留 Daydream，只修三处：Light 输入框改成同绿调、外壳和细线深一档让面板边缘可见、Dark 外壳取面板的青调。见 `ui-redesign.md` 决策 101。录制中的 pill 带一层 `Success` 浅底。
 
-## (f) 组件库与设计系统完善（2026-11-16）
+## (f) 组件库与设计系统完善（2026-11-16，第二轮 2026-11-17）
 
-按 `vscroxy 组件库与设计系统完善路线` 执行。配色、字体不变；每个阶段一组本地提交。
+按 `vscroxy 组件库与设计系统完善路线` 执行。配色和字体不变。第一轮的提交已压成快照 `59217b0`（原提交历史不可恢复），第二轮在它之上提交。本节只列第二轮的结果和仍然没做的项；规范本身在 `ui-redesign.md` 第 6 节。
 
-### 阶段 1：token
+### 第二轮（review 第 514 条）的 10 项
 
-- **间距、内边距、尺寸。** 间距有名字（`SpaceHair`…`Space3XL`，乘主题网格）；`internal/` 里的 `t.Space(数字)` 全部换成名字。内边距（`PanelPadding`、`TipPaddingX／Y`、`ToastPaddingX／Y`、`CardTipPaddingX／Y`、`CardPaddingX`、`CardRowPaddingY`）给组件内部用。`ControlHeight`／`ControlHeightSmall`／`HeightControl`（24）改名为 `HeightControl`／`HeightControlSmall`／`HeightRow`，`HeightLarge` 和 `HeightFooterControl` 并入前两者。宽度 120／140／160／200／240 有名字（`WidthNarrow`、`WidthPicker`、`WidthField`、`WidthFieldWide`、`WidthWide`）。
-- **其余 token。** `HairlineWidth` 替换边缘和分隔线里的裸 1。圆角、图标、阴影、遮罩原本就有名字。禁用的半透明由 MyGo 决定，不另设常量。
-- **文字角色。** 新增 `ErrorText`（页面上没有字段可挂的错误句子）和 `Code`（多行等宽）。`Numeric` 不加：`Meta` 和 `Mono` 已经带 `tnum`。
-- **图版。** `foundations-space` 改为名字和宽度，新增 `foundations-insets`。
+| # | 项目 | 结果 |
+| --- | --- | --- |
+| 1 | 复选框和单选的对比度 | 完成。未选中的方框和圆点有 1 pt `Ring` 边；`theme_test.go` 在字段边的检查旁加了画布、chrome、well 和面上的四条。 |
+| 2 | 采用新原语 | `internal/app` 里 Callout 26 处、Code 10 处（Client setup 的环境变量列表等）；页面级的红字和有底色的横幅改成 Callout（`dfdf01e`）；Callout 的图标首行对齐。Radio 0 处，按评审决定留作文档化组件（6.8）。剩下 8 处 `TextColor(t.Danger)` 逐个看过，都不是页面级的句子：状态单元格（“Failed”、错误数、schema 状态）、无效输入框自己的字色、观察到的错误原文（诊断页和 HTTPS 的复制行）、连接失败的行标题（与“复制连接日志”同行）。 |
+| 3 | 文字角色 | 完成。`BodyStrong`、`DataBody`、`DataMeta`、`Caption` 已加。`internal/app` 没有裸 `ui.Text`；行内 `FontSize` 只剩两处，都在 `// Bare:` 的裸控件上。 |
+| 4 | FormRow 与 SettingsRow | 部分完成：说明作为控件的 `Description` 绑定；标签没有绑定，见下面的第一条。设置页的图版逐字节不变。 |
+| 5 | 列表键盘光标 | 没有需要修的。检查了 `internal/app` 的 10 处 `ui.List`（侧栏、Tools 的规则、Git、场景、Protobuf、MQTT、Socket.IO、WS、命令面板、调用结果）和 `DataList`／`DataListIndexed`：MyGo 的光标就是 `Selected`，应用从不设 `Selection`，所以一行只会有一个选中标记。 |
+| 6 | 其余组件 | 完成。留在组件里的固定数字都换成具名常量（sparkline、时序条、开关轨道、标记框、活动条、分隔条、键帽、提示的断行长度）；输入家族的状态在输入图版里都有（静止、焦点、无效、禁用，含 TextArea 和 NumberField）。 |
+| 7 | 裸 MyGo 控件 | 18 处，每处都有 `// Bare:` 注释，理由列在 6.8。没有包装的原因：NumberInput 的步进按钮、URL 栏、环境 chip、命令面板输入、集合名的自由文本、搜索框的 `Changed()`、查询字段的 token 和补全、协议 chip 的计数、文字链接、两张表。 |
+| 8 | 忙碌态 | 新增：`LoadSchema`、Tools 的订阅刷新、Git 初始化（`dfdf01e`）。诊断页的“Check again”原来就有忙碌态；诊断页没有单独的运行按钮。集合的“运行集合”（`runner.go`）运行时换成“取消运行”，不只是禁用，不用再改。 |
+| 9 | 测试 | 新增：单选的禁用不切换（`TestDisabledRadioKeepsItsValue`）；`FormRowTall` 的错误只画一次（`TestFormRowTallDrawsItsErrorOnce`，在旧代码上失败，已验证）。复选框、单选、忙碌按钮宽度、Select 高度、Callout、ProgressBar 的测试是原有的。 |
+| 10 | 文档 | 第 6 节重写为完整规范；第 7 节里一句已经不成立的过渡时长说明已改。`docs/design` 按原方式重导出。 |
 
-### 阶段 2：基础组件
+### 仍没做的，以及原因
 
-- **按钮。** 新增 `PrimaryButtonBusy`：禁用，转圈代替标签，标签保留宽度。`LinkButton`、`SwatchButton` 在禁用时不换面。
-- **下拉统一。** `Select`、`SelectLabels`、`MenuSelect` 共用一个触发器（28 高、12 内边距、chevron、打开时的 hover 面）和一个弹层面。`SelectLabels` 原来没有面（触发器在 `faced()` 之前建好），现在由触发器自己画。`MenuSelect` 原来 24 高，现在 28。`Combobox` 自带字段面和控件高度，调用方不再包 `FieldFace`。
-- **高亮规则。** 浮动选择列表（菜单、`Select`、`Combobox` 弹层）用强调色实底，命令面板和数据列表用选中浅底。`ui-redesign.md` 里两处矛盾的说法已统一。
-- **Checkbox、Radio、RadioGroup。** 新增（`controls.go`）。方框和圆点是控件面，不描边。
-- **反馈。** 新增 `Spinner`、`ProgressBar`、`Callout`（图标加一行正文加行尾动作，没有底）、`Badge`。`EmptyState` 的动作排成一行。
-- **结构。** `Divider` 用 MyGo 的：它的颜色就是 `Hairline`，在横排里自动变竖线，不另包一层。`Panel`、`PaneHeader`、`DialogTitle`／`DialogFooter`、`Toast`、`Tip`／`Kbd`、`Tabs`／`SubTabs`／`Segmented` 的尺寸在图版里核对过，没有改。
+- **设置行的标签没有绑定到控件。** 要绑定只能用 MyGo 的 `LabelledBy`，它会替换控件自己的无障碍名（例如 “Proxy port” 变成 “Port”），设置页的测试和无障碍名都依赖控件自己的名字。`ui.Field` 在 `ui.Form` 里会把标签右对齐，不在 Form 里则把标签放在控件上方，都不是设置页现在的样子。所以标签仍是画出来的左列，控件接收说明（`Description`）。
+- **`FormRow` 与 `SettingsCardRow` 没有合并。** 设置页的卡片行是另一种布局；合并要先定目标的样子，本轮只做了绑定。
+- **Radio 没有接入界面。** 没有一处是“两到四项互斥选择，且单选比现有的 `Select`／`Segmented` 更好”。它作为文档化的基础组件保留。
+- **Combobox 的弹层高亮是 `Ring`，不是强调色实底。** `Combobox` 把主题的强调色换成焦点色，让它的焦点边保持中性；弹层的高亮读的也是这个强调色，所以它与菜单的实底高亮不一致。本轮没改。
+- **表格没有包装。** 两处 `ui.Table`（检查器的字段表、流量表）没有 kit 对应物，仍是 MyGo 的，见 6.8。
 
-**没做的（有理由）：**
+### 验证
 
-- **`FormRow` 与 `SettingsRow` 合并（路线第 2 阶段）。** `SettingsRow` 有 44 处以上调用（设置、MQTT、规则、证书、客户端设置等），标签列宽度由 `settingsLabelWidth` 按组算，而 `FormRow` 用 MyGo 的 `Form` 对齐。合并会改掉二十多个屏幕的标签布局，需要先定目标样子。现在保留两种布局，错误和说明的接线规则不变：字段错误走 `FormRow`。
-- **列表键盘光标（审计 a.4）。** MyGo 的列表把“光标”和“已选”分开画，只在多选列表里有区别。哪一行该是光标、哪一行该是已选，是每个列表的交互决定，不是 token 能定的。脚本列表里两行都像选中的问题留给这个决定。
-
-### 阶段 3：迁移
-
-- **Checkbox。** 56 处 `ui.Checkbox` 全部改为 `uikit.Checkbox`，去掉逐处的字号。写死的英文标签（33 处）进 `locales/en.json` 和 `zh-Hans.json`（新增 35 个键，其中 `includeRequest` 带参数）。`i18n_test.go` 的 UI 构造器列表补上 `Checkbox`、`Radio`、`Callout`、`Badge`、`ErrorText`、`Code`、`PrimaryButtonBusy`；这次补列表时发现的 4 处未翻译的 `ui.Badge`（抓包已停止、局域网关闭／开启、代理地址）改用 `uikit.Badge` 和目录消息。
-- **Spinner 和 Progress。** 5 处裸 `ui.Spinner` 和 1 处 `ui.Progress` 改为 `uikit.Spinner`、`uikit.ProgressBar`。忙碌按钮：保存上游（原来在按钮旁边放转圈）、导入配置的替换、URL 导入、负载测试的开始。
-- **文字角色。** `ui.Text` 的 290 处里，144 处改成了角色（`Body` 82、`ErrorText` 46、`Heading` 5、`Meta` 6、`Mono` 4、`Small` 1）。页面里的红字（`TextColor(t.Danger)`）中，46 处是错误句子，改成 `ErrorText`；其余是图标、状态和表格单元的信号色，保留。`overview.go` 三处 600 字重改为 500。
-- **输入。** 两处只有面没有框的输入改用 `uikit.InputControl`。剩下的裸 MyGo 控件有明确理由保留：环境选择器（带色点、带边框的 chip）、URL 栏（`Bind` 绑定焦点）、方法输入（方法色文字）、命令面板输入（48 高）、补全行（`ButtonBase` 行）。
-- **仍未处理。** 约 146 处 `ui.Text` 带着角色没有的组合（比如不带 muted 色的 `Meta`、13 号等宽），以及 211 处挂在控件上的行内 `FontSize`（多为 11 号的内联控件）。它们需要逐处看效果，本轮没有批量改。
-
-### 阶段 4：文档与图版
-
-- `ui-redesign.md`：第 4、5、6 节更新为新名字、间距、内边距、宽度、文字角色、组件和禁用规则；已完成和待做的清单更新。
-- 图版：`internal/gallery` 新增 `components-checks`、`components-feedback`、`foundations-insets`；`components-text`、`foundations-space` 更新。`docs/design` 按原方式重新导出（1600 宽、112 色、无抖动）。
-
-### 阶段 5：验证
-
-见本轮的提交说明和交付报告。
+`go build`、`go vet`、`go tool mygo vet`、`go tool mygo i18n check`、`gofmt`、`third-party-notices -check` 和 `go test ./...` 的结果，以及画廊和快照的前后对照，见本轮的交付报告。
