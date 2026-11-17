@@ -1955,6 +1955,7 @@
   "shellUpstream": "Upstream",
   "sideRequest": "request",
   "sideResponse": "response",
+  "skippedByItsPreRequest": "Skipped by its pre-request script",
   "@skippedNamed": {
     "placeholders": {
       "name": {
@@ -1971,6 +1972,9 @@
     }
   },
   "socketIOState": "Socket.IO · {state}",
+  "socketIoArgumentsJson": "Socket.IO arguments JSON",
+  "socketIoAttachmentsJson": "Socket.IO attachments JSON",
+  "socketIoNamespaceAuthJson": "Socket.IO namespace auth JSON",
   "socksLocationUnavailable": "Settings location is unavailable; SOCKS5 settings were not saved",
   "@socksSettingsNotSaved": {
     "placeholders": {
@@ -1996,6 +2000,7 @@
     }
   },
   "stageFailed": "{stage} failed",
+  "startAClientOrBidirectional": "Start a client or bidirectional stream first",
   "startCaptureBeforeSocketIO": "Start capture before connecting Socket.IO",
   "startCaptureProxyFirst": "Start the local capture proxy successfully before enabling device access",
   "startLocalProxyFirst": "Start the local proxy first",
@@ -2010,6 +2015,7 @@
     }
   },
   "startedAt": "Started {time} · {state}",
+  "startedContainerThroughVscroxy": "Started container through vscroxy",
   "@startedFailed": {
     "placeholders": {
       "started": {
@@ -2055,6 +2061,10 @@
   },
   "stdioCommand": "stdio · {command}",
   "stdioProcess": "stdio process",
+  "stoppedCancelled": "Stopped · cancelled",
+  "stoppedExecutionError": "Stopped · execution error",
+  "stoppedFirstFailure": "Stopped · first failure",
+  "stoppedTimedOut": "Stopped · timed out",
   "stoppingState": "Stopping",
   "stoppingStatus": "Stopping…",
   "stoppingWaitingForBody": "Stopping · waiting for body read",
@@ -2068,6 +2078,7 @@
   },
   "subscribedURL": "Subscribed: {url}",
   "subscriptionReadOnly": "A subscription is read-only; it refreshes every hour.",
+  "switchHostProfiles": "Switch Host profiles",
   "systemProxyAutoOn": "System proxy: automatic configuration is still on",
   "systemProxyAutoPrecedence": "System proxy: automatic configuration still takes precedence",
   "systemProxyChangeSent": "System proxy: change sent; OS settings could not be read",
@@ -2125,6 +2136,14 @@
   },
   "templateNamed": "Template: {name}",
   "textMessageUTF8": "Text messages must be valid UTF-8.",
+  "theAppSExecutableIs": "The app's executable is unknown",
+  "theRemoteUrlMustNot": "The remote URL must not carry credentials, a query or a fragment",
+  "theSavedQueryNoLonger": "The saved query no longer exists; select it again",
+  "theseDomainsAndTheirSubdomains": "These domains and their subdomains are decrypted. Every other host stays an encrypted tunnel.",
+  "thisBodyCannotBeEdited": "This body cannot be edited as text, so it is kept; the template’s body was not applied.",
+  "thisCaptureIsReadOnly": "This capture is read only",
+  "thisCollectionExistsChooseIt": "This collection exists; choose it in Save to or use another name.",
+  "thisEnvironmentExistsSelectIt": "This environment exists; select it instead of New environment.",
   "@timeKindSize": {
     "placeholders": {
       "time": {
@@ -3078,6 +3097,10 @@
       }
     }
   },
+  "trustNotVerifiedOnThis": "Trust not verified on this system",
+  "trustOnTheClientCan": "Trust on the client can't be checked from here; Actual traffic shows the outcome",
+  "trustThisCaOnThe": "Trust this CA on the requesting device or in the requesting application too. Separate trust stores and certificate pinning may need client-side configuration.",
+  "trustedByThisSystem": "Trusted by this system",
   "@truststore": {
     "placeholders": {
       "path": {
@@ -3106,12 +3129,17 @@
   },
   "typeAndID": "Type: {eventType} · ID: {id}",
   "unary": "Unary",
+  "unavailableForWhatIsShown": "Unavailable for what is shown or selected",
   "unidentified": "unidentified",
   "unknownLower": "unknown",
   "unknownStage": "unknown stage",
   "unknownType": "unknown type",
   "unpin": "Unpin",
   "unresolvedReviewVariables": "unresolved (review variables)",
+  "unsavedDraft": "Unsaved draft",
+  "untitled": "Untitled",
+  "untitledApi": "Untitled API",
+  "untitledRule": "Untitled rule",
   "@updatedAgo": {
     "placeholders": {
       "ago": {

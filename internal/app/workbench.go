@@ -623,9 +623,9 @@ func (a *app) actions(c *ui.Context) []action {
 		do("session.open", locales.OpenSession(), a.openSession),
 		do("session.save", locales.SaveCaptureToSessions(), a.saveSession).when(capturing, ""),
 		do("network.client", locales.SetUpALocalClient(), a.openClientSetup).when(a.srv != nil, ""),
-		do("network.terminal", locales.OpenAProxiedTerminal(), a.openProxiedTerminal).when(proxyReady, "Start capture first"),
-		do("network.chrome", locales.OpenProxiedChrome(), a.openProxiedChrome).when(proxyReady, "Start capture first"),
-		do("network.firefox", locales.OpenProxiedFirefox(), a.openProxiedFirefox).when(proxyReady, "Start capture first"),
+		do("network.terminal", locales.OpenAProxiedTerminal(), a.openProxiedTerminal).when(proxyReady, locales.StartCaptureFirst()),
+		do("network.chrome", locales.OpenProxiedChrome(), a.openProxiedChrome).when(proxyReady, locales.StartCaptureFirst()),
+		do("network.firefox", locales.OpenProxiedFirefox(), a.openProxiedFirefox).when(proxyReady, locales.StartCaptureFirst()),
 		do("network.android", locales.SetUpAnAndroidEmulator(), func() { a.openClientSetupTarget(clientTargetAndroid) }),
 		do("network.ios", locales.InstallCaInIosSimulator(), func() { a.openClientSetupTarget(clientTargetIOS) }).
 			when(runtime.GOOS == "darwin", "iOS simulators are available only on macOS"),

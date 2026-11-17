@@ -816,7 +816,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 	e := &a.ruleUI
 	breakpoint := e.kind == "Request breakpoint" || e.kind == "Response breakpoint" || e.kind == "WebSocket message breakpoint"
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-		uikit.Input(c, &e.draft.Name).Label(locales.RuleName()).Placeholder(cmp.Or(e.draft.Match, "Untitled rule")).Grow(1).MaxWidth(360).Height(uikit.HeightControl)
+		uikit.Input(c, &e.draft.Name).Label(locales.RuleName()).Placeholder(cmp.Or(e.draft.Match, locales.UntitledRule())).Grow(1).MaxWidth(360).Height(uikit.HeightControl)
 		on := !e.draft.Disabled
 		if uikit.Switch(c, &on).Label(locales.RuleEnabled()).Changed() {
 			e.draft.Disabled = !on

@@ -121,7 +121,7 @@ func (a *app) saveQuery(name, dialect, expression string) bool {
 func (a *app) deleteQuery(name string) bool {
 	list := slices.DeleteFunc(slices.Clone(a.queries), func(q savedQuery) bool { return q.Name == name })
 	if len(list) == len(a.queries) {
-		a.queriesProblem = "The saved query no longer exists; select it again"
+		a.queriesProblem = locales.TheSavedQueryNoLonger()
 		return false
 	}
 	return a.writeQueries(list)

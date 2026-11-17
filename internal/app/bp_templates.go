@@ -127,7 +127,7 @@ func (a *app) applyBreakTemplate(t bpTemplate) {
 	a.bpNote = ""
 	if t.Body != nil {
 		if a.bp.BodyReadOnly {
-			a.bpNote = "This body cannot be edited as text, so it is kept; the template’s body was not applied."
+			a.bpNote = locales.ThisBodyCannotBeEdited()
 		} else {
 			a.bpBody = *t.Body
 		}

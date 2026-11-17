@@ -4814,6 +4814,16 @@ func (msgs Messages) SideResponse() string {
 	return Catalog.Format(msgs.locale, "sideResponse", nil)
 }
 
+// SkippedByItsPreRequest says "Skipped by its pre-request script"
+// in the language the app shows.
+func SkippedByItsPreRequest() string { return In(i18n.Locale()).SkippedByItsPreRequest() }
+
+// SkippedByItsPreRequest says "Skipped by its pre-request script"
+// in the language of msgs.
+func (msgs Messages) SkippedByItsPreRequest() string {
+	return Catalog.Format(msgs.locale, "skippedByItsPreRequest", nil)
+}
+
 // SkippedNamed says "{name} · skipped"
 // in the language the app shows.
 func SkippedNamed(name string) string { return In(i18n.Locale()).SkippedNamed(name) }
@@ -4832,6 +4842,36 @@ func SocketIOState(state string) string { return In(i18n.Locale()).SocketIOState
 // in the language of msgs.
 func (msgs Messages) SocketIOState(state string) string {
 	return Catalog.Format(msgs.locale, "socketIOState", map[string]any{"state": state})
+}
+
+// SocketIoArgumentsJson says "Socket.IO arguments JSON"
+// in the language the app shows.
+func SocketIoArgumentsJson() string { return In(i18n.Locale()).SocketIoArgumentsJson() }
+
+// SocketIoArgumentsJson says "Socket.IO arguments JSON"
+// in the language of msgs.
+func (msgs Messages) SocketIoArgumentsJson() string {
+	return Catalog.Format(msgs.locale, "socketIoArgumentsJson", nil)
+}
+
+// SocketIoAttachmentsJson says "Socket.IO attachments JSON"
+// in the language the app shows.
+func SocketIoAttachmentsJson() string { return In(i18n.Locale()).SocketIoAttachmentsJson() }
+
+// SocketIoAttachmentsJson says "Socket.IO attachments JSON"
+// in the language of msgs.
+func (msgs Messages) SocketIoAttachmentsJson() string {
+	return Catalog.Format(msgs.locale, "socketIoAttachmentsJson", nil)
+}
+
+// SocketIoNamespaceAuthJson says "Socket.IO namespace auth JSON"
+// in the language the app shows.
+func SocketIoNamespaceAuthJson() string { return In(i18n.Locale()).SocketIoNamespaceAuthJson() }
+
+// SocketIoNamespaceAuthJson says "Socket.IO namespace auth JSON"
+// in the language of msgs.
+func (msgs Messages) SocketIoNamespaceAuthJson() string {
+	return Catalog.Format(msgs.locale, "socketIoNamespaceAuthJson", nil)
 }
 
 // SocksLocationUnavailable says "Settings location is unavailable; SOCKS5 settings were not saved"
@@ -4876,6 +4916,16 @@ func (msgs Messages) StageFailed(stage string) string {
 	return Catalog.Format(msgs.locale, "stageFailed", map[string]any{"stage": stage})
 }
 
+// StartAClientOrBidirectional says "Start a client or bidirectional stream first"
+// in the language the app shows.
+func StartAClientOrBidirectional() string { return In(i18n.Locale()).StartAClientOrBidirectional() }
+
+// StartAClientOrBidirectional says "Start a client or bidirectional stream first"
+// in the language of msgs.
+func (msgs Messages) StartAClientOrBidirectional() string {
+	return Catalog.Format(msgs.locale, "startAClientOrBidirectional", nil)
+}
+
 // StartCaptureBeforeSocketIO says "Start capture before connecting Socket.IO"
 // in the language the app shows.
 func StartCaptureBeforeSocketIO() string { return In(i18n.Locale()).StartCaptureBeforeSocketIO() }
@@ -4914,6 +4964,18 @@ func StartedAt(time_ string, state string) string { return In(i18n.Locale()).Sta
 // in the language of msgs.
 func (msgs Messages) StartedAt(time_ string, state string) string {
 	return Catalog.Format(msgs.locale, "startedAt", map[string]any{"time": time_, "state": state})
+}
+
+// StartedContainerThroughVscroxy says "Started container through vscroxy"
+// in the language the app shows.
+func StartedContainerThroughVscroxy() string {
+	return In(i18n.Locale()).StartedContainerThroughVscroxy()
+}
+
+// StartedContainerThroughVscroxy says "Started container through vscroxy"
+// in the language of msgs.
+func (msgs Messages) StartedContainerThroughVscroxy() string {
+	return Catalog.Format(msgs.locale, "startedContainerThroughVscroxy", nil)
 }
 
 // StartedFailed says "{started}/{total} started · {failed} failed"
@@ -4968,6 +5030,46 @@ func StdioProcess() string { return In(i18n.Locale()).StdioProcess() }
 // in the language of msgs.
 func (msgs Messages) StdioProcess() string {
 	return Catalog.Format(msgs.locale, "stdioProcess", nil)
+}
+
+// StoppedCancelled says "Stopped · cancelled"
+// in the language the app shows.
+func StoppedCancelled() string { return In(i18n.Locale()).StoppedCancelled() }
+
+// StoppedCancelled says "Stopped · cancelled"
+// in the language of msgs.
+func (msgs Messages) StoppedCancelled() string {
+	return Catalog.Format(msgs.locale, "stoppedCancelled", nil)
+}
+
+// StoppedExecutionError says "Stopped · execution error"
+// in the language the app shows.
+func StoppedExecutionError() string { return In(i18n.Locale()).StoppedExecutionError() }
+
+// StoppedExecutionError says "Stopped · execution error"
+// in the language of msgs.
+func (msgs Messages) StoppedExecutionError() string {
+	return Catalog.Format(msgs.locale, "stoppedExecutionError", nil)
+}
+
+// StoppedFirstFailure says "Stopped · first failure"
+// in the language the app shows.
+func StoppedFirstFailure() string { return In(i18n.Locale()).StoppedFirstFailure() }
+
+// StoppedFirstFailure says "Stopped · first failure"
+// in the language of msgs.
+func (msgs Messages) StoppedFirstFailure() string {
+	return Catalog.Format(msgs.locale, "stoppedFirstFailure", nil)
+}
+
+// StoppedTimedOut says "Stopped · timed out"
+// in the language the app shows.
+func StoppedTimedOut() string { return In(i18n.Locale()).StoppedTimedOut() }
+
+// StoppedTimedOut says "Stopped · timed out"
+// in the language of msgs.
+func (msgs Messages) StoppedTimedOut() string {
+	return Catalog.Format(msgs.locale, "stoppedTimedOut", nil)
 }
 
 // StoppingState says "Stopping"
@@ -5028,6 +5130,16 @@ func SubscriptionReadOnly() string { return In(i18n.Locale()).SubscriptionReadOn
 // in the language of msgs.
 func (msgs Messages) SubscriptionReadOnly() string {
 	return Catalog.Format(msgs.locale, "subscriptionReadOnly", nil)
+}
+
+// SwitchHostProfiles says "Switch Host profiles"
+// in the language the app shows.
+func SwitchHostProfiles() string { return In(i18n.Locale()).SwitchHostProfiles() }
+
+// SwitchHostProfiles says "Switch Host profiles"
+// in the language of msgs.
+func (msgs Messages) SwitchHostProfiles() string {
+	return Catalog.Format(msgs.locale, "switchHostProfiles", nil)
 }
 
 // SystemProxyAutoOn says "System proxy: automatic configuration is still on"
@@ -5184,6 +5296,88 @@ func (msgs Messages) TextMessageUTF8() string {
 	return Catalog.Format(msgs.locale, "textMessageUTF8", nil)
 }
 
+// TheAppSExecutableIs says "The app's executable is unknown"
+// in the language the app shows.
+func TheAppSExecutableIs() string { return In(i18n.Locale()).TheAppSExecutableIs() }
+
+// TheAppSExecutableIs says "The app's executable is unknown"
+// in the language of msgs.
+func (msgs Messages) TheAppSExecutableIs() string {
+	return Catalog.Format(msgs.locale, "theAppSExecutableIs", nil)
+}
+
+// TheRemoteUrlMustNot says "The remote URL must not carry credentials, a query or a fragment"
+// in the language the app shows.
+func TheRemoteUrlMustNot() string { return In(i18n.Locale()).TheRemoteUrlMustNot() }
+
+// TheRemoteUrlMustNot says "The remote URL must not carry credentials, a query or a fragment"
+// in the language of msgs.
+func (msgs Messages) TheRemoteUrlMustNot() string {
+	return Catalog.Format(msgs.locale, "theRemoteUrlMustNot", nil)
+}
+
+// TheSavedQueryNoLonger says "The saved query no longer exists; select it again"
+// in the language the app shows.
+func TheSavedQueryNoLonger() string { return In(i18n.Locale()).TheSavedQueryNoLonger() }
+
+// TheSavedQueryNoLonger says "The saved query no longer exists; select it again"
+// in the language of msgs.
+func (msgs Messages) TheSavedQueryNoLonger() string {
+	return Catalog.Format(msgs.locale, "theSavedQueryNoLonger", nil)
+}
+
+// TheseDomainsAndTheirSubdomains says "These domains and their subdomains are decrypted. Every other host stays an encrypted tunnel."
+// in the language the app shows.
+func TheseDomainsAndTheirSubdomains() string {
+	return In(i18n.Locale()).TheseDomainsAndTheirSubdomains()
+}
+
+// TheseDomainsAndTheirSubdomains says "These domains and their subdomains are decrypted. Every other host stays an encrypted tunnel."
+// in the language of msgs.
+func (msgs Messages) TheseDomainsAndTheirSubdomains() string {
+	return Catalog.Format(msgs.locale, "theseDomainsAndTheirSubdomains", nil)
+}
+
+// ThisBodyCannotBeEdited says "This body cannot be edited as text, so it is kept; the template’s body was not applied."
+// in the language the app shows.
+func ThisBodyCannotBeEdited() string { return In(i18n.Locale()).ThisBodyCannotBeEdited() }
+
+// ThisBodyCannotBeEdited says "This body cannot be edited as text, so it is kept; the template’s body was not applied."
+// in the language of msgs.
+func (msgs Messages) ThisBodyCannotBeEdited() string {
+	return Catalog.Format(msgs.locale, "thisBodyCannotBeEdited", nil)
+}
+
+// ThisCaptureIsReadOnly says "This capture is read only"
+// in the language the app shows.
+func ThisCaptureIsReadOnly() string { return In(i18n.Locale()).ThisCaptureIsReadOnly() }
+
+// ThisCaptureIsReadOnly says "This capture is read only"
+// in the language of msgs.
+func (msgs Messages) ThisCaptureIsReadOnly() string {
+	return Catalog.Format(msgs.locale, "thisCaptureIsReadOnly", nil)
+}
+
+// ThisCollectionExistsChooseIt says "This collection exists; choose it in Save to or use another name."
+// in the language the app shows.
+func ThisCollectionExistsChooseIt() string { return In(i18n.Locale()).ThisCollectionExistsChooseIt() }
+
+// ThisCollectionExistsChooseIt says "This collection exists; choose it in Save to or use another name."
+// in the language of msgs.
+func (msgs Messages) ThisCollectionExistsChooseIt() string {
+	return Catalog.Format(msgs.locale, "thisCollectionExistsChooseIt", nil)
+}
+
+// ThisEnvironmentExistsSelectIt says "This environment exists; select it instead of New environment."
+// in the language the app shows.
+func ThisEnvironmentExistsSelectIt() string { return In(i18n.Locale()).ThisEnvironmentExistsSelectIt() }
+
+// ThisEnvironmentExistsSelectIt says "This environment exists; select it instead of New environment."
+// in the language of msgs.
+func (msgs Messages) ThisEnvironmentExistsSelectIt() string {
+	return Catalog.Format(msgs.locale, "thisEnvironmentExistsSelectIt", nil)
+}
+
 // TimeKindSize says "{time} · {kind} · {size} B"
 // in the language the app shows.
 func TimeKindSize(time_ string, kind string, size int) string {
@@ -5290,6 +5484,46 @@ func (msgs Messages) ToolSchemaNotJSON() string {
 	return Catalog.Format(msgs.locale, "toolSchemaNotJSON", nil)
 }
 
+// TrustNotVerifiedOnThis says "Trust not verified on this system"
+// in the language the app shows.
+func TrustNotVerifiedOnThis() string { return In(i18n.Locale()).TrustNotVerifiedOnThis() }
+
+// TrustNotVerifiedOnThis says "Trust not verified on this system"
+// in the language of msgs.
+func (msgs Messages) TrustNotVerifiedOnThis() string {
+	return Catalog.Format(msgs.locale, "trustNotVerifiedOnThis", nil)
+}
+
+// TrustOnTheClientCan says "Trust on the client can't be checked from here; Actual traffic shows the outcome"
+// in the language the app shows.
+func TrustOnTheClientCan() string { return In(i18n.Locale()).TrustOnTheClientCan() }
+
+// TrustOnTheClientCan says "Trust on the client can't be checked from here; Actual traffic shows the outcome"
+// in the language of msgs.
+func (msgs Messages) TrustOnTheClientCan() string {
+	return Catalog.Format(msgs.locale, "trustOnTheClientCan", nil)
+}
+
+// TrustThisCaOnThe says "Trust this CA on the requesting device or in the requesting application too. Separate trust stores and certificate pi…"
+// in the language the app shows.
+func TrustThisCaOnThe() string { return In(i18n.Locale()).TrustThisCaOnThe() }
+
+// TrustThisCaOnThe says "Trust this CA on the requesting device or in the requesting application too. Separate trust stores and certificate pi…"
+// in the language of msgs.
+func (msgs Messages) TrustThisCaOnThe() string {
+	return Catalog.Format(msgs.locale, "trustThisCaOnThe", nil)
+}
+
+// TrustedByThisSystem says "Trusted by this system"
+// in the language the app shows.
+func TrustedByThisSystem() string { return In(i18n.Locale()).TrustedByThisSystem() }
+
+// TrustedByThisSystem says "Trusted by this system"
+// in the language of msgs.
+func (msgs Messages) TrustedByThisSystem() string {
+	return Catalog.Format(msgs.locale, "trustedByThisSystem", nil)
+}
+
 // Truststore says "Truststore: {path}"
 // in the language the app shows.
 func Truststore(path string) string { return In(i18n.Locale()).Truststore(path) }
@@ -5328,6 +5562,16 @@ func Unary() string { return In(i18n.Locale()).Unary() }
 // in the language of msgs.
 func (msgs Messages) Unary() string {
 	return Catalog.Format(msgs.locale, "unary", nil)
+}
+
+// UnavailableForWhatIsShown says "Unavailable for what is shown or selected"
+// in the language the app shows.
+func UnavailableForWhatIsShown() string { return In(i18n.Locale()).UnavailableForWhatIsShown() }
+
+// UnavailableForWhatIsShown says "Unavailable for what is shown or selected"
+// in the language of msgs.
+func (msgs Messages) UnavailableForWhatIsShown() string {
+	return Catalog.Format(msgs.locale, "unavailableForWhatIsShown", nil)
 }
 
 // Unidentified says "unidentified"
@@ -5388,6 +5632,46 @@ func UnresolvedReviewVariables() string { return In(i18n.Locale()).UnresolvedRev
 // in the language of msgs.
 func (msgs Messages) UnresolvedReviewVariables() string {
 	return Catalog.Format(msgs.locale, "unresolvedReviewVariables", nil)
+}
+
+// UnsavedDraft says "Unsaved draft"
+// in the language the app shows.
+func UnsavedDraft() string { return In(i18n.Locale()).UnsavedDraft() }
+
+// UnsavedDraft says "Unsaved draft"
+// in the language of msgs.
+func (msgs Messages) UnsavedDraft() string {
+	return Catalog.Format(msgs.locale, "unsavedDraft", nil)
+}
+
+// Untitled says "Untitled"
+// in the language the app shows.
+func Untitled() string { return In(i18n.Locale()).Untitled() }
+
+// Untitled says "Untitled"
+// in the language of msgs.
+func (msgs Messages) Untitled() string {
+	return Catalog.Format(msgs.locale, "untitled", nil)
+}
+
+// UntitledApi says "Untitled API"
+// in the language the app shows.
+func UntitledApi() string { return In(i18n.Locale()).UntitledApi() }
+
+// UntitledApi says "Untitled API"
+// in the language of msgs.
+func (msgs Messages) UntitledApi() string {
+	return Catalog.Format(msgs.locale, "untitledApi", nil)
+}
+
+// UntitledRule says "Untitled rule"
+// in the language the app shows.
+func UntitledRule() string { return In(i18n.Locale()).UntitledRule() }
+
+// UntitledRule says "Untitled rule"
+// in the language of msgs.
+func (msgs Messages) UntitledRule() string {
+	return Catalog.Format(msgs.locale, "untitledRule", nil)
 }
 
 // UpdatedAgo says "Updated · {ago}"

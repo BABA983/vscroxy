@@ -26,7 +26,7 @@ import (
 // runSummary is one line for a run: its error, or status, size, time and checks.
 func runSummary(r request.Execution) string {
 	if r.Skipped {
-		return "Skipped by its pre-request script"
+		return locales.SkippedByItsPreRequest()
 	}
 	if r.Response == nil {
 		if r.Err != nil {

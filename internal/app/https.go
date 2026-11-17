@@ -99,9 +99,9 @@ func (a *app) certificateStatus(t *ui.Theme) (string, ui.Color) {
 	case s.cert == nil:
 		return locales.LocalCaUnavailable(), t.Warning
 	case s.err != nil:
-		return "Trust not verified on this system", t.Warning
+		return locales.TrustNotVerifiedOnThis(), t.Warning
 	default:
-		return "Trusted by this system", t.Success
+		return locales.TrustedByThisSystem(), t.Success
 	}
 }
 
@@ -211,7 +211,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 				hint = locales.ListedDomainsOrExactLocal()
 			case len(domains) > 0:
 				summary = strings.Join(domains, ", ")
-				hint = "These domains and their subdomains are decrypted. Every other host stays an encrypted tunnel."
+				hint = locales.TheseDomainsAndTheirSubdomains()
 			}
 			settingsCardBlock(c, locales.DomainsAndApps(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
@@ -268,7 +268,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 
 // certificateScope says where trusting the CA here reaches, and where not.
 func certificateScope() string {
-	scope := "Trust this CA on the requesting device or in the requesting application too. Separate trust stores and certificate pinning may need client-side configuration."
+	scope := locales.TrustThisCaOnThe()
 	if runtime.GOOS == "windows" {
 		scope += " On Windows, installation trusts it for the current user, not other accounts or services."
 	}
@@ -322,7 +322,7 @@ func (a *app) appInspectionActions(app capture.SSLApp) []action {
 		label = locales.DisableHTTPSFor(app.Name)
 	}
 	return []action{do("https.app", label, func() { a.setAppInspection(app, !enabled) }).
-		when(filepath.IsAbs(app.Path), "The app's executable is unknown").checked(checkbox(enabled))}
+		when(filepath.IsAbs(app.Path), locales.TheAppSExecutableIs()).checked(checkbox(enabled))}
 }
 
 // connectPanel describes this historical tunnel separately from today's rules:

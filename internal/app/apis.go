@@ -43,7 +43,7 @@ type apiDocument struct {
 }
 
 func (d *apiDocument) title() string {
-	return cmp.Or(d.name, "Untitled API")
+	return cmp.Or(d.name, locales.UntitledApi())
 }
 
 func (d *apiDocument) dirty() bool { return d.saved == nil || d.code.Buffer.Modified() }
@@ -202,7 +202,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 		} else if valid {
 			state := "Saved locally"
 			if d.dirty() {
-				state = "Unsaved draft"
+				state = locales.UnsavedDraft()
 			}
 			status = fmt.Sprintf("%s  ·  OpenAPI %s  ·  Endpoints: %d", state, d.parsed.OpenAPI, len(apiOperations(d.parsed)))
 			if len(d.lint) > 0 {

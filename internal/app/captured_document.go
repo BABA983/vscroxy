@@ -126,7 +126,7 @@ func (a *app) editCapture(f flow) *requestDocument {
 	}
 	d, problem := a.liveDocument(f)
 	if d == nil {
-		a.warn(cmp.Or(problem, "This capture is read only"))
+		a.warn(cmp.Or(problem, locales.ThisCaptureIsReadOnly()))
 		return nil
 	}
 	a.requestDocument = d

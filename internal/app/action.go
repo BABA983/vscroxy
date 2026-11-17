@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+	"github.com/baba983/vscroxy/locales"
 	"runtime"
 	"strings"
 
@@ -103,7 +104,7 @@ func (x action) as(label string) action {
 }
 
 func (x action) why() string {
-	return cmp.Or(x.reason, "Unavailable for what is shown or selected")
+	return cmp.Or(x.reason, locales.UnavailableForWhatIsShown())
 }
 
 func (x action) hint() string {

@@ -573,7 +573,7 @@ func (a *app) saveCollection(list []savedRequest, folders []request.Folder, vars
 	}
 	root := folders[0].Path
 	if w.destination == "" && slices.Contains(a.collectionNames(), root) {
-		w.problem = "This collection exists; choose it in Save to or use another name."
+		w.problem = locales.ThisCollectionExistsChooseIt()
 		return
 	}
 	if a.envsProblem != "" {
@@ -584,7 +584,7 @@ func (a *app) saveCollection(list []savedRequest, folders []request.Folder, vars
 	if envName == "New environment" {
 		envName = strings.TrimSpace(w.environmentName)
 		if slices.Contains(a.envNames(), envName) {
-			w.problem = "This environment exists; select it instead of New environment."
+			w.problem = locales.ThisEnvironmentExistsSelectIt()
 			return
 		}
 	}

@@ -254,7 +254,7 @@ func (a *app) deleteSavedToken(key string) {
 func (a *app) newAccessToken(in request.Context, cfg request.OAuth2) {
 	s := &a.oauth
 	if a.srv == nil || !a.srv.Running() {
-		*s = oauthState{key: cfg.Key(), problem: "Start the proxy first: the token request is sent through it."}
+		*s = oauthState{key: cfg.Key(), problem: locales.TokenRequestThroughProxy()}
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)

@@ -208,7 +208,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 			cert.detail = []string{"Clients with their own trust store (Firefox, Java, Node.js, Python) need the CA added separately."}
 		}
 	default:
-		cert.result = "Trust on the client can't be checked from here; Actual traffic shows the outcome"
+		cert.result = locales.TrustOnTheClientCan()
 		if a.srv != nil {
 			fingerprint := fmt.Sprintf("%X", sha256.Sum256(a.srv.CACertificate()))
 			cert.detail = []string{"CA SHA-256 " + fingerprint}

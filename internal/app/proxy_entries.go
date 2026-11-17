@@ -288,7 +288,7 @@ func (a *app) saveReverseProxy() {
 		return
 	}
 	if u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-		d.problem = "The remote URL must not carry credentials, a query or a fragment"
+		d.problem = locales.TheRemoteUrlMustNot()
 		return
 	}
 	entry := reverseProxySetting{ID: d.editing, Port: port, Target: target, KeepHost: d.keepHost, Enabled: true, Insecure: d.insecure}

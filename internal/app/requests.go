@@ -240,7 +240,7 @@ func (d *requestDocument) cancelSend() {
 }
 
 func (d *requestDocument) title() string {
-	return cmp.Or(d.composeName, "Untitled request")
+	return cmp.Or(d.composeName, locales.UntitledRequest())
 }
 
 func (a *app) addDocument(r savedRequest, key string) {

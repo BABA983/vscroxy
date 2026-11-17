@@ -251,8 +251,8 @@ func (a *app) grpcActions(d *requestDocument, editing bool) []action {
 			}
 			g.problem = ""
 			g.session.write(req.Body, false)
-		}).when(canWrite, "Start a client or bidirectional stream first"),
-		do("request.grpc-finish", locales.FinishGrpcSending(), func() { g.session.write("", true) }).when(canWrite, "Start a client or bidirectional stream first"),
+		}).when(canWrite, locales.StartAClientOrBidirectional()),
+		do("request.grpc-finish", locales.FinishGrpcSending(), func() { g.session.write("", true) }).when(canWrite, locales.StartAClientOrBidirectional()),
 	}
 }
 

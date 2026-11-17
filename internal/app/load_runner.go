@@ -106,7 +106,7 @@ func (a *app) startLoadRunner() {
 		return
 	}
 	if a.srv == nil || !a.srv.Running() {
-		r.status = "Start the local proxy first"
+		r.status = locales.StartLocalProxyFirst()
 		return
 	}
 	var vars map[string]string
@@ -221,17 +221,17 @@ func loadRunnerReason(reason string) string {
 	case "duration":
 		return "Finished · duration reached"
 	case "failure":
-		return "Stopped · first failure"
+		return locales.StoppedFirstFailure()
 	case "attempt-limit":
 		return "Stopped · attempt budget reached"
 	case "cancelled":
-		return "Stopped · cancelled"
+		return locales.StoppedCancelled()
 	case "timed-out":
-		return "Stopped · timed out"
+		return locales.StoppedTimedOut()
 	case "finished":
 		return "Finished · all users ended their sequence"
 	default:
-		return "Stopped · execution error"
+		return locales.StoppedExecutionError()
 	}
 }
 

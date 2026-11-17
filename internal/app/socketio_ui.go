@@ -152,7 +152,7 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					})
 				}
 				uikit.Panel(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM)).Children(func() {
-					authoredText(c, &d.composeBody, &d.bodyEditor, &d.bodyFor, "Socket.IO arguments JSON", "json")
+					authoredText(c, &d.composeBody, &d.bodyEditor, &d.bodyFor, locales.SocketIoArgumentsJson(), "json")
 				})
 				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					namespace := cmp.Or(d.socketIOConfig.Namespace, "/")
@@ -163,7 +163,7 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				})
 			case 1:
 				uikit.Tip(c, uikit.Meta(c, locales.AttachmentsHelp()), locales.BinaryAttachmentsJsonArrayOf())
-				authoredText(c, &d.socketIOConfig.Attachments, &u.attachmentEditor, &u.attachmentsFor, "Socket.IO attachments JSON", "json")
+				authoredText(c, &d.socketIOConfig.Attachments, &u.attachmentEditor, &u.attachmentsFor, locales.SocketIoAttachmentsJson(), "json")
 			case 2:
 				ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Disabled(d.composeWaiting).Children(func() {
 					uikit.SettingsGroup(c, locales.Connection(), func() {
@@ -174,7 +174,7 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 						}, "")
 						uikit.SettingsRowMultiline(c, locales.NamespaceAuth(), func() ui.Element {
 							return ui.Box(c).Height(180).FillWidth().Children(func() {
-								authoredText(c, &d.socketIOConfig.Auth, &u.authEditor, &u.authFor, "Socket.IO namespace auth JSON", "json")
+								authoredText(c, &d.socketIOConfig.Auth, &u.authEditor, &u.authFor, locales.SocketIoNamespaceAuthJson(), "json")
 							})
 						}, locales.NamespaceAuthJsonObjectVariables())
 					})

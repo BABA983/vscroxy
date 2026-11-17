@@ -546,7 +546,7 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 	// is: a chip that reads "Off" is a switch for a feature nobody turned on.
 	if hostsLabel := a.hostsLabel(); hostsLabel != "" {
 		hosts := footerChip{id: "hosts", label: hostsLabel, openLabel: locales.HostProfiles(),
-			tip: "Switch Host profiles", keys: hostsKeys(), icon: hostsIcon, off: a.hostsOff}
+			tip: locales.SwitchHostProfiles(), keys: hostsKeys(), icon: hostsIcon, off: a.hostsOff}
 		hosts.open = func() { a.profiles.menuOpen = !a.profiles.menuOpen }
 		hosts.panel = func(anchor ui.Element) {
 			ui.PopoverBase(c, anchor, &a.profiles.menuOpen, func(panel ui.Element) {

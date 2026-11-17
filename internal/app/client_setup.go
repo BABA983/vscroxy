@@ -318,7 +318,7 @@ func commandString(command clientsetup.Argv) string {
 
 func (a *app) openInterceptContainer() {
 	container := strings.TrimSpace(a.clientUI.container)
-	a.launchClient(locales.InterceptContainer(), "Started container through vscroxy", true, func(p clientsetup.Proxy) (clientLaunch, error) {
+	a.launchClient(locales.InterceptContainer(), locales.StartedContainerThroughVscroxy(), true, func(p clientsetup.Proxy) (clientLaunch, error) {
 		command, err := clientsetup.OpenContainer(p, container)
 		return clientLaunch{command: command}, err
 	})

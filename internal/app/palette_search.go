@@ -85,7 +85,7 @@ func (a *app) requestSearch() requestSearchIndex {
 		// Request descriptions are not part of the model yet; add them here
 		// when they are. Values of {{variables}} stay authored, as in the URL.
 		idx.requests = append(idx.requests, requestSearchEntry{
-			key: r.key(), label: cmp.Or(r.Name, "Untitled request"), detail: detail,
+			key: r.key(), label: cmp.Or(r.Name, locales.UntitledRequest()), detail: detail,
 			haystack: strings.ToLower(r.Collection + "\x00" + r.Name + "\x00" + method + "\x00" + r.URL),
 		})
 	}
