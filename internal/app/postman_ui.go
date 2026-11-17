@@ -121,7 +121,7 @@ func (a *app) importData(data []byte, path string) {
 			return
 		}
 		envs, globals := slices.Clone(a.envs), maps.Clone(a.globals)
-		title := fmt.Sprintf("Imported %d %s into globals", len(env.Values), plural(len(env.Values), "variable", "variables"))
+		title := locales.ImportedVariablesIntoGlobals(len(env.Values))
 		if env.Globals {
 			if globals == nil {
 				globals = map[string]string{}
@@ -142,7 +142,7 @@ func (a *app) importData(data []byte, path string) {
 			}
 			maps.Copy(vars, env.Values)
 			envs[at].Vars = vars
-			title = fmt.Sprintf("Imported environment “%s” · %d %s", name, len(env.Values), plural(len(env.Values), "variable", "variables"))
+			title = locales.ImportedEnvironmentVariables(name, len(env.Values))
 		}
 		if err := func() error {
 			f := a.localEnvs()
@@ -275,7 +275,7 @@ func (a *app) importPostmanCollection(col postman.Collection) {
 			break
 		}
 	}
-	a.reportImport(fmt.Sprintf("Imported “%s” · %d %s", col.Name, len(col.Requests), plural(len(col.Requests), "request", "requests")), col.Warnings, review)
+	a.reportImport(locales.ImportedCollection(col.Name, len(col.Requests)), col.Warnings, review)
 }
 
 // reportImport says what came in; when something was dropped it opens a

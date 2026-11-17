@@ -456,7 +456,7 @@ func (s *mcpSession) refreshCatalog() bool {
 		}
 		if client.CatalogTruncated() {
 			s.mu.Lock()
-			s.catalogNotice = fmt.Sprintf("Catalog truncated at %d entries or %d MiB; refresh after narrowing it on the server.",
+			s.catalogNotice = locales.CatalogTruncated(
 				request.MCPMaxCatalogItems, request.MCPMaxCatalogBytes>>20)
 			s.mu.Unlock()
 		}

@@ -124,7 +124,7 @@ func importTitle(result imports.Result, requests int) string {
 		parts = append(parts, fmt.Sprintf("%d %s in %d %s", variables, plural(variables, "variable", "variables"), len(result.Environments), plural(len(result.Environments), "environment", "environments")))
 	}
 	if len(result.Collections) == 1 {
-		return fmt.Sprintf("Imported “%s” · %s", result.Collections[0].Name, strings.Join(parts, " · "))
+		return locales.ImportedCollectionParts(result.Collections[0].Name, strings.Join(parts, " · "))
 	}
 	return "Imported " + strings.Join(parts, " · ")
 }
@@ -277,10 +277,10 @@ func (a *app) mergeImportedEnvironments(incoming []imports.Environment) (title s
 	a.envs = envs
 	switch {
 	case len(incoming) == 1:
-		return fmt.Sprintf("Imported environment “%s” · %d %s", strings.TrimSpace(incoming[0].Name), len(incoming[0].Values), plural(len(incoming[0].Values), "variable", "variables")), warnings, nil
+		return locales.ImportedEnvironmentVariables(strings.TrimSpace(incoming[0].Name), len(incoming[0].Values)), warnings, nil
 	case added > 0 && updated == 0:
 		return fmt.Sprintf("Imported %d %s", added, plural(added, "environment", "environments")), warnings, nil
 	default:
-		return fmt.Sprintf("Merged %d %s", len(incoming), plural(len(incoming), "environment", "environments")), warnings, nil
+		return locales.MergedEnvironments(len(incoming)), warnings, nil
 	}
 }

@@ -50,7 +50,7 @@ func (a *app) inspectCapture(id int) {
 	if !slices.ContainsFunc(a.visible, func(i int) bool { return a.flows[i].id == id }) {
 		a.views.capture(a)
 		a.views.newView(a)
-		a.views.activeView().preset = fmt.Sprintf("Capture #%d", id)
+		a.views.activeView().preset = locales.CaptureNumber(id)
 		a.inform(locales.OpenedLinkedCaptureInA())
 	}
 	a.chosen.Clear()

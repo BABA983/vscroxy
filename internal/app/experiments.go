@@ -165,7 +165,7 @@ func experimentPayload(inline, path string, size int, problem string) ([]byte, i
 		}
 	}
 	if size > len(body) {
-		problem = experimentProblem(problem, fmt.Sprintf("Experiment body truncated: retained %d of %d bytes", len(body), size))
+		problem = experimentProblem(problem, locales.ExperimentBodyTruncated(len(body), size))
 	}
 	return body, size, problem
 }

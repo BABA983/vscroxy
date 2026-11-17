@@ -933,7 +933,7 @@ func (v *captureViews) status() (text string, failure bool) {
 		}
 	}
 	if n := len(v.cache.errs); n > 0 {
-		return fmt.Sprintf("%d %s could not be read in full", n, plural(n, "body", "bodies")), true
+		return locales.BodiesNotReadInFull(n), true
 	}
 	return "", false
 }

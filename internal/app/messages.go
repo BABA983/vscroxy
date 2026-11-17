@@ -197,7 +197,7 @@ func messagesNote(list []messageView) string {
 	if len(list) == 0 {
 		return ""
 	}
-	note := fmt.Sprintf("%d messages", len(list))
+	note := locales.MessagesCount(len(list))
 	if len(list) == 1 {
 		note = locales.N1Message()
 	}

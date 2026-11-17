@@ -2,7 +2,6 @@ package app
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 
@@ -416,7 +415,7 @@ func gitStatusLabel(code string) string {
 	case "T":
 		return locales.GitTypeChanged()
 	default:
-		return fmt.Sprintf("Changed (%s)", letter)
+		return locales.ChangedLetter(letter)
 	}
 }
 

@@ -97,7 +97,7 @@ func socketIOMessageText(m request.SocketIOMessage) (string, string) {
 		text = string(m.Args)
 	}
 	for i, b := range m.Attachments {
-		text += fmt.Sprintf("\n\nAttachment %d · %d B · base64\n%s", i, len(b), base64.StdEncoding.EncodeToString(b))
+		text += locales.AttachmentBase64(i, len(b), base64.StdEncoding.EncodeToString(b))
 	}
 	return name, text
 }

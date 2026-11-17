@@ -119,7 +119,7 @@ func (s *wsSession) finish(err error) {
 			e.Detail = "Peer close frame without a status code"
 		} else {
 			e.CloseCode = closed.Code
-			e.Detail = fmt.Sprintf("Peer close %d: %s", closed.Code, closed.Text)
+			e.Detail = locales.PeerClose(closed.Code, closed.Text)
 		}
 	} else if local {
 		e.Detail = locales.LocalDisconnectRequestedNoPeer()

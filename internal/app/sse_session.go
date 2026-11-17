@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/baba983/vscroxy/locales"
 	"net/http"
 	"slices"
@@ -59,7 +58,7 @@ func openSSESession(proxy string, req *request.Prepared, ca []byte, certificates
 				case "Connected":
 					e.detail = locales.ConnectedDotURL(u.URL) + "\n\n" + request.HeaderBlock(u.Header)
 				case "Reconnecting":
-					e.detail = fmt.Sprintf("Reconnecting in %s · Last-Event-ID: %s", u.Retry, u.LastEventID)
+					e.detail = locales.ReconnectingInLastEventID(u.Retry.String(), u.LastEventID)
 				case "Stopped":
 					e.detail = locales.Http204ServerStoppedThe()
 				}
@@ -108,7 +107,7 @@ func ssePreview(text string) string {
 	for !utf8.ValidString(preview) {
 		preview = preview[:len(preview)-1]
 	}
-	return strings.Clone(preview) + fmt.Sprintf("\nRetained %d of %d bytes", len(preview), len(text))
+	return strings.Clone(preview) + locales.RetainedOfBytes(len(preview), len(text))
 }
 
 func (s *sseSession) changed() {

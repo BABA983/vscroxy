@@ -198,7 +198,7 @@ func (a *app) importHARCollection(data []byte, path string) {
 		return
 	}
 	a.page = pageRequest
-	a.reportImport(fmt.Sprintf("Imported “%s” · %d %s", name, len(incoming), plural(len(incoming), "request", "requests")), warnings)
+	a.reportImport(locales.ImportedCollection(name, len(incoming)), warnings)
 }
 
 // openAPIRequests are a document's operations as requests in collection,
@@ -233,7 +233,7 @@ func (a *app) importOpenAPICollection(doc *openapi3.T, fallback string, warnings
 		return
 	}
 	var folders []request.Folder
-	title := fmt.Sprintf("Imported “%s” · %d %s", name, len(incoming), plural(len(incoming), "request", "requests"))
+	title := locales.ImportedCollection(name, len(incoming))
 	if base {
 		folders = []request.Folder{{Path: name, Variables: []request.Variable{{Name: "base_url"}}}}
 		title += locales.SetBaseURLInSettings()
@@ -302,7 +302,7 @@ func (a *app) saveFlowsToCollection(flows []flow, name string, perHost bool) {
 		a.fail(locales.SaveToCollection(), err)
 		return
 	}
-	a.reportImport(fmt.Sprintf("Saved %d %s to “%s”; not sent", len(incoming), plural(len(incoming), "request", "requests"), name), warnings)
+	a.reportImport(locales.SavedRequestsNotSent(len(incoming), name), warnings)
 }
 
 func (a *app) collectionSaveModal(c *ui.Context, t *ui.Theme) {

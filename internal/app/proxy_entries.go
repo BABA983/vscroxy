@@ -274,7 +274,7 @@ func (a *app) saveReverseProxy() {
 		return
 	}
 	if used, ok := a.reversePortOwner(port, d.editing); ok {
-		d.problem = fmt.Sprintf("Port %d is already used by %s", port, used)
+		d.problem = locales.PortAlreadyUsedBy(port, used)
 		return
 	}
 	target := strings.TrimSpace(d.target)

@@ -37,13 +37,13 @@ func (s replaySettings) problem(flows int) string {
 	case flows <= 0:
 		return locales.SelectAtLeastOneHttp()
 	case s.repeat < 1 || s.repeat > replayMaxRepeat:
-		return fmt.Sprintf("Enter 1–%d repeats.", replayMaxRepeat)
+		return locales.EnterRepeatRange(replayMaxRepeat)
 	case s.concurrency < 1 || s.concurrency > replayMaxConcurrency:
-		return fmt.Sprintf("Enter 1–%d concurrent requests.", replayMaxConcurrency)
+		return locales.EnterConcurrencyRange(replayMaxConcurrency)
 	case s.interval < 0 || s.interval > replayMaxIntervalMS*time.Millisecond:
-		return fmt.Sprintf("Enter 0–%d ms between starts.", replayMaxIntervalMS)
+		return locales.EnterIntervalRange(replayMaxIntervalMS)
 	case flows*s.repeat > replayMaxSends:
-		return fmt.Sprintf("This would send %d requests; the batch limit is %d. Lower the repeat count or select fewer requests.", flows*s.repeat, replayMaxSends)
+		return locales.BatchLimitExceeded(flows*s.repeat, replayMaxSends)
 	}
 	return ""
 }

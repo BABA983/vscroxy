@@ -128,3 +128,6 @@ curl --noproxy '' --proxy
  --cacert 
 gRPC 
 RPC 
+%.1f KB
+%.1f MB
+%d B

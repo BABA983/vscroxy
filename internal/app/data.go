@@ -267,7 +267,7 @@ func (f flow) bodyPreview(response bool) (body, notice string) {
 	if file != "" {
 		reader, err := os.Open(file)
 		if err != nil {
-			notice = fmt.Sprintf("\n\n… the spilled body is gone: %v", err)
+			notice = locales.SpilledBodyGone(fmt.Sprint(err))
 		} else {
 			defer reader.Close()
 			data, err := io.ReadAll(io.LimitReader(reader, maxBodyView+1))
@@ -279,9 +279,9 @@ func (f flow) bodyPreview(response bool) (body, notice string) {
 	}
 	if len(head) > maxBodyView {
 		head = head[:maxBodyView]
-		notice += fmt.Sprintf("\n\n… truncated: %d bytes shown (recorded size: %d)", maxBodyView, size)
+		notice += locales.TruncatedBytesShown(maxBodyView, size)
 	} else if size > len(head) && problem == "" && notice == "" {
-		notice = fmt.Sprintf("\n\n… incomplete body: %d of %d bytes retained", len(head), size)
+		notice = locales.IncompleteBodyRetained(len(head), size)
 	}
 	if problem != "" {
 		notice += locales.IncompleteBodyNotice(problem)

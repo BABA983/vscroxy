@@ -366,7 +366,7 @@ func (a *app) scriptUsers(s *scriptStore, name string) (int, string) {
 				n++
 			}
 		}
-		return n, fmt.Sprintf("Run by %d %s", n, plural(n, "rule", "rules"))
+		return n, locales.RunByRules(n)
 	}
 	for _, store := range []*scriptStore{&a.scripts, &a.addons} {
 		for other, text := range store.texts {
@@ -380,7 +380,7 @@ func (a *app) scriptUsers(s *scriptStore, name string) (int, string) {
 			n++
 		}
 	}
-	return n, fmt.Sprintf("Required by %d %s", n, plural(n, "script", "scripts"))
+	return n, locales.RequiredByScripts(n)
 }
 
 // requires reports whether src imports or requires the module name, as

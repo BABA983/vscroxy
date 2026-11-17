@@ -200,7 +200,7 @@ func inspectProtoMessage(ctx context.Context, m messageView, schema *protoSchema
 		}
 	}
 	if len(data) < m.size {
-		result.problem = fmt.Sprintf("Incomplete message: %d of %d bytes retained", len(data), m.size)
+		result.problem = locales.IncompleteMessageRetained(len(data), m.size)
 		return result
 	}
 	if len(data) > 16<<20 {
@@ -260,11 +260,11 @@ func inspectProto(ctx context.Context, f flow, response bool, schema *protoSchem
 		head = string(data)
 	}
 	if size > len(head) {
-		result.problem = fmt.Sprintf("Incomplete body: %d of %d bytes retained", len(head), size)
+		result.problem = locales.IncompleteBodyRetainedOf(len(head), size)
 		return result
 	}
 	if len(head) > maxProtoBytes {
-		result.problem = fmt.Sprintf("Protobuf inspection is limited to %s per body", humanBytes(maxProtoBytes))
+		result.problem = locales.ProtobufInspectionLimited(humanBytes(maxProtoBytes))
 		return result
 	}
 	if name == "" || name == "Auto" {
@@ -288,12 +288,12 @@ func inspectProto(ctx context.Context, f flow, response bool, schema *protoSchem
 		if list, ok := splitDelimited(data); ok {
 			for i, payload := range list {
 				if len(payload) > 16<<20 {
-					result.problem = fmt.Sprintf("Message %d exceeds the 16 MiB message limit", i+1)
+					result.problem = locales.MessageExceedsLimit(i + 1)
 					return result
 				}
 				text, err := protoMessageText(payload, schema, desc)
 				if err != nil {
-					result.problem = fmt.Sprintf("Message %d: %v", i+1, err)
+					result.problem = locales.MessageError(i+1, fmt.Sprint(err))
 					return result
 				}
 				result.messages = append(result.messages, protoMessage{text: text, size: len(payload)})
@@ -317,12 +317,12 @@ func inspectProto(ctx context.Context, f flow, response bool, schema *protoSchem
 				return result
 			}
 			if len(data) < 5 {
-				result.problem = fmt.Sprintf("Message %d: incomplete gRPC frame header (%d of 5 bytes)", index, len(data))
+				result.problem = locales.MessageFrameHeaderIncomplete(index, len(data))
 				return result
 			}
 			length := uint64(binary.BigEndian.Uint32(data[1:5]))
 			if data[0] > 1 || length > uint64(len(data)-5) {
-				result.problem = fmt.Sprintf("Message %d: invalid flag or incomplete gRPC payload (declared %d, available %d)", index, length, len(data)-5)
+				result.problem = locales.MessagePayloadInvalid(index, int(length), len(data)-5)
 				return result
 			}
 			compressed = data[0] == 1
@@ -331,7 +331,7 @@ func inspectProto(ctx context.Context, f flow, response bool, schema *protoSchem
 		limit := min(16<<20, remaining)
 		if compressed {
 			if !strings.EqualFold(header.Get("Grpc-Encoding"), "gzip") {
-				result.problem = fmt.Sprintf("Message %d: unsupported grpc-encoding %q (gzip supported)", index, header.Get("Grpc-Encoding"))
+				result.problem = locales.MessageEncodingUnsupported(index, header.Get("Grpc-Encoding"))
 				return result
 			}
 			reader, err := gzip.NewReader(bytes.NewReader(payload))
@@ -340,18 +340,18 @@ func inspectProto(ctx context.Context, f flow, response bool, schema *protoSchem
 				reader.Close()
 			}
 			if err != nil {
-				result.problem = fmt.Sprintf("Message %d: invalid gzip payload: %v", index, err)
+				result.problem = locales.MessageGzipInvalid(index, fmt.Sprint(err))
 				return result
 			}
 		}
 		if len(payload) > limit {
-			result.problem = fmt.Sprintf("Message %d exceeds the 16 MiB message / 32 MiB decoded body limit", index)
+			result.problem = locales.MessageExceedsDecodedLimit(index)
 			return result
 		}
 		remaining -= len(payload)
 		text, err := protoMessageText(payload, schema, desc)
 		if err != nil {
-			result.problem = fmt.Sprintf("Message %d: %v", index, err)
+			result.problem = locales.MessageError(index, fmt.Sprint(err))
 			return result
 		}
 		result.messages = append(result.messages, protoMessage{text: text, size: len(payload), compressed: compressed})

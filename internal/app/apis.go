@@ -204,9 +204,9 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			if d.dirty() {
 				state = locales.UnsavedDraft()
 			}
-			status = fmt.Sprintf("%s  ·  OpenAPI %s  ·  Endpoints: %d", state, d.parsed.OpenAPI, len(apiOperations(d.parsed)))
+			status = locales.OpenAPIEndpoints(state, d.parsed.OpenAPI, len(apiOperations(d.parsed)))
 			if len(d.lint) > 0 {
-				status += fmt.Sprintf("  ·  Lint: %d", len(d.lint))
+				status += locales.LintCount(len(d.lint))
 			}
 		}
 		uikit.Caption(c, status).FontFeatures("tnum").TextColor(color).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))

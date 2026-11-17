@@ -1008,7 +1008,7 @@ func ruleSummary(r capture.Rule) string {
 		parts = append(parts, "@"+strings.Join(r.Apps, ","))
 	}
 	if n := len(r.When); n > 0 {
-		parts = append(parts, fmt.Sprintf("+%d %s", n, plural(n, "header", "headers")))
+		parts = append(parts, locales.HeaderCountAdded(n))
 	}
 	return strings.TrimSpace(strings.Join(parts, " "))
 }

@@ -900,7 +900,7 @@ func (a *app) loadRequestAssets() {
 // loadEnvsState reads the environments and variables in use from their files.
 func (a *app) loadEnvsState() {
 	if f, err := a.loadEnvFile(); err != nil {
-		a.envsProblem = fmt.Sprintf("Variables (%s): %v", a.envsPath, err)
+		a.envsProblem = locales.VariablesProblem(a.envsPath, fmt.Sprint(err))
 	} else {
 		a.envs, a.activeEnv, a.globals, a.globalsCurrent, a.folderCurrent, a.folderCredentials, a.envsProblem = f.Envs, f.Active, f.Globals, f.GlobalsCurrent, f.FolderCurrent, f.FolderCredentials, ""
 		if a.activeEnv == "" && len(a.envs) > 0 {
@@ -3442,11 +3442,11 @@ func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 			field(c, t, locales.FailedAt(), cn.errorStage+": "+cn.error)
 		}
 		if cn.flows > 0 {
-			field(c, t, locales.ConnectionUse(), fmt.Sprintf("request #%d · reused: %t", cn.flows, cn.reused))
+			field(c, t, locales.ConnectionUse(), locales.RequestReused(cn.flows, fmt.Sprint(cn.reused)))
 		}
 		resolved := cn.resolved
 		if resolved != "" {
-			resolved = fmt.Sprintf("%s  (%d ms)", resolved, cn.lookupMs)
+			resolved = locales.ResolvedInMs(resolved, cn.lookupMs)
 		}
 		field(c, t, "Resolved", resolved)
 		tls := cn.tls
@@ -3459,7 +3459,7 @@ func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 		field(c, t, "TLS", tls)
 		cert := cn.certCN
 		if cn.issuer != "" {
-			cert = fmt.Sprintf("%s, issued by %s", cert, cn.issuer)
+			cert = locales.IssuedBy(cert, cn.issuer)
 		}
 		if cn.certUntil != "" {
 			cert += locales.UntilTime(cn.certUntil)

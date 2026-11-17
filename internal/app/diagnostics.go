@@ -264,7 +264,7 @@ func (a *app) trafficCheck(target *url.URL, https bool) diagnosticCheck {
 		}
 	}
 	if a.diagnostics.flowID != 0 && latest == nil {
-		check.result = fmt.Sprintf("#%d is no longer in the live capture", a.diagnostics.flowID)
+		check.result = locales.NoLongerInLiveCapture(a.diagnostics.flowID)
 		return check
 	}
 	inspect := func(f *flow) {
@@ -292,11 +292,11 @@ func (a *app) trafficCheck(target *url.URL, https bool) diagnosticCheck {
 		}
 	case latest.conn.error != "":
 		check.state, check.failure = checkFail, latest
-		check.result = fmt.Sprintf("#%d · %s failed", latest.id, cmp.Or(latest.conn.errorStage, "Connection"))
+		check.result = locales.DiagnosticStageFailed(latest.id, cmp.Or(latest.conn.errorStage, locales.ConnectionLabel()))
 		inspect(latest)
 	case https && latest.kind == "connect" && decrypted == nil:
 		check.state = checkFail
-		check.result = fmt.Sprintf("#%d · encrypted tunnel only; no decrypted request yet", latest.id)
+		check.result = locales.EncryptedTunnelOnly(latest.id)
 		check.detail = []string{"Reconnect the client after enabling decryption; open connections keep their old policy."}
 		inspect(latest)
 	default:

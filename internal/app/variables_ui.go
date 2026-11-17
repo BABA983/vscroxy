@@ -123,7 +123,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 						})
 					}
 					ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-						field := requestGridInput(c, &r.Name, "name", fmt.Sprintf("Variable name %d", i+1))
+						field := requestGridInput(c, &r.Name, "name", locales.VariableName(i+1))
 						cellBorder(t, field, false, false)
 						if field.Changed() {
 							changed = true
@@ -131,7 +131,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 					})
 					secret := r.secret()
 					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-						field := requestGridInput(c, &r.Initial, locales.SharedValue(), fmt.Sprintf("Variable initial value %d", i+1))
+						field := requestGridInput(c, &r.Initial, locales.SharedValue(), locales.VariableInitialValue(i+1))
 						if secret && !r.Revealed {
 							field.Password()
 						}
@@ -141,7 +141,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 						}
 					})
 					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-						field := requestGridInput(c, &r.Current, locales.UseInitial(), fmt.Sprintf("Variable current value %d", i+1))
+						field := requestGridInput(c, &r.Current, locales.UseInitial(), locales.VariableCurrentValue(i+1))
 						if secret && !r.Revealed {
 							field.Password()
 						}

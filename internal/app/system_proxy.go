@@ -2,7 +2,6 @@ package app
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -411,11 +410,11 @@ func proxySummary(configs []system.ProxyConfig) string {
 		if len(configs) == 1 {
 			return locales.N1NetworkServiceHasNo()
 		}
-		return fmt.Sprintf("%d network services have no proxy", len(configs))
+		return locales.NetworkServicesNoProxy(len(configs))
 	case 1:
-		return fmt.Sprintf("%s; the other %d have no proxy", pointed[0], len(configs)-1)
+		return locales.OtherNetworkServicesNoProxy(pointed[0], len(configs)-1)
 	default:
-		return fmt.Sprintf("%d of %d network services point at a proxy", len(pointed), len(configs))
+		return locales.NetworkServicesAtProxy(len(pointed), len(configs))
 	}
 }
 

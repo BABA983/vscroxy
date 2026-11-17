@@ -713,7 +713,7 @@ func (a *app) mqttResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		ui.Split(c, &u.split, func() {
 			u.list.Selected = &u.selected
 			u.list.Key = func(i int) any { return events[i].seq }
-			u.list.Label = func(i int) string { return fmt.Sprintf("MQTT event %d %s", events[i].seq, events[i].name) }
+			u.list.Label = func(i int) string { return locales.MqttEvent(events[i].seq, events[i].name) }
 			uikit.DataListIndexed(c, &u.list, len(events), func(i int) {
 				e := events[i]
 				ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
@@ -784,7 +784,7 @@ func mqttEventMeta(e mqttEvent) string {
 	if e.note != "" {
 		flags = append(flags, e.note)
 	}
-	return fmt.Sprintf("#%d · %s · %s · %d B", e.seq, e.at.Format("15:04:05.000"), strings.Join(flags, " · "), e.size)
+	return locales.MqttEventLine(e.seq, e.at.Format("15:04:05.000"), strings.Join(flags, " · "), e.size)
 }
 
 func mqttEventText(e mqttEvent, view int) string {
@@ -798,14 +798,14 @@ func mqttEventText(e mqttEvent, view int) string {
 	case 1:
 		if formatted, ok := indentJSON(text); ok {
 			if len(payload) < e.size {
-				formatted += fmt.Sprintf("\nRetained %d of %d bytes", len(payload), e.size)
+				formatted += locales.RetainedOfBytes(len(payload), e.size)
 			}
 			return formatted
 		}
 		return text
 	case 2:
 		if len(payload) < e.size {
-			return hex.Dump(payload) + fmt.Sprintf("\nRetained %d of %d bytes", len(payload), e.size)
+			return hex.Dump(payload) + locales.RetainedOfBytes(len(payload), e.size)
 		}
 		return hex.Dump(payload)
 	default:
@@ -813,7 +813,7 @@ func mqttEventText(e mqttEvent, view int) string {
 			return "Not UTF-8; shown as hex\n" + hex.Dump(payload)
 		}
 		if len(payload) < e.size {
-			text += fmt.Sprintf("\nRetained %d of %d bytes", len(payload), e.size)
+			text += locales.RetainedOfBytes(len(payload), e.size)
 		}
 		return text
 	}

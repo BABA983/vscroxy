@@ -315,7 +315,7 @@ func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
 						a.done(locales.ImportedCurlAsAnUnsent())
 						return
 					}
-					a.reportImport(fmt.Sprintf("Imported %d %s", len(requests), plural(len(requests), locales.CurlRequest(), locales.CurlRequests())), warnings)
+					a.reportImport(locales.ImportedCurlRequests(len(requests)), warnings)
 				}
 			})
 		})

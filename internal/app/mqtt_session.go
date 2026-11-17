@@ -267,7 +267,7 @@ func (s *mqttSession) run(url string, cfg request.MQTTConfig, proxy func() (stri
 			failures++
 			s.system(locales.ReconnectFailed(), err.Error())
 			if failures >= 5 {
-				s.finish("Failed", fmt.Sprintf("connection lost; gave up after %d failed reconnects: %v", failures, err))
+				s.finish("Failed", locales.ConnectionLostFailedReconnects(failures, fmt.Sprint(err)))
 				return
 			}
 			if !s.wait(reconnectDelay(failures)) {
@@ -315,13 +315,13 @@ func (s *mqttSession) run(url string, cfg request.MQTTConfig, proxy func() (stri
 				}
 				reconnects++
 				if reconnects > mqttReconnectLimit {
-					s.finish("Failed", fmt.Sprintf("connection lost; gave up after %d reconnects: %v", mqttReconnectLimit, err))
+					s.finish("Failed", locales.ConnectionLostReconnects(mqttReconnectLimit, fmt.Sprint(err)))
 					return
 				}
 				delay := reconnectDelay(reconnects)
 				s.mu.Lock()
 				s.state = "Reconnecting"
-				s.systemLocked("Reconnecting", fmt.Sprintf("%v · reconnect %d/%d in %s", err, reconnects, mqttReconnectLimit, delay))
+				s.systemLocked("Reconnecting", locales.ReconnectingIn(fmt.Sprint(err), reconnects, mqttReconnectLimit, delay.String()))
 				s.mu.Unlock()
 				s.changed()
 				if !s.wait(delay) {

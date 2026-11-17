@@ -135,6 +135,20 @@
   },
   "argumentsList": "Arguments: {args}",
   "atMostCustomColumns": "At most 16 custom columns; remove one before adding another.",
+  "@attachmentBase64": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "size": {
+        "type": "int"
+      },
+      "data": {
+        "type": "String"
+      }
+    }
+  },
+  "attachmentBase64": "\n\nAttachment {index, number, ::group-off} · {size, number, ::group-off} B · base64\n{data}",
   "@autoSelectCount": {
     "placeholders": {
       "count": {
@@ -166,6 +180,17 @@
     }
   },
   "basicUsernameHidden": "Basic · username {user} · password hidden",
+  "@batchLimitExceeded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "batchLimitExceeded": "This would send {count, number, ::group-off} requests; the batch limit is {limit, number, ::group-off}. Lower the repeat count or select fewer requests.",
   "bearerTokenHidden": "Bearer token (hidden)",
   "bidirectionalStream": "Bidirectional stream",
   "binaryBody": "Binary body",
@@ -193,6 +218,14 @@
   "blockHide": "Block · hide",
   "blockRefuseHide": "Block · refuse and hide",
   "bodiesAndStreamMessages": "Bodies and stream messages",
+  "@bodiesNotReadInFull": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "bodiesNotReadInFull": "{count, plural, one {{count, number, ::group-off} body could not be read in full} other {{count, number, ::group-off} bodies could not be read in full}}",
   "bodyDerivedColumns": "Body-derived columns",
   "breakpointRequestPaused": "Breakpoint · request paused",
   "breakpointResponsePaused": "Breakpoint · response paused",
@@ -205,7 +238,7 @@
       }
     }
   },
-  "bytesNotShown": "\n… {count} bytes not shown",
+  "bytesNotShown": "\n… {count, number, ::group-off} bytes not shown",
   "caFileNotFoundStart": "CA file not found. Start capture, then check again.",
   "cancelDiscovery": "Cancel discovery",
   "cancelRequest": "Cancel request",
@@ -265,6 +298,14 @@
   "captureFilterSaved": "Saved {name}.",
   "captureHasNoAddressYet": "Capture has no address yet",
   "captureNotAvailable": "Capture is not available",
+  "@captureNumber": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
+  "captureNumber": "Capture #{id, number, ::group-off}",
   "@captureNumberMethodURL": {
     "placeholders": {
       "number": {
@@ -357,6 +398,17 @@
       }
     }
   },
+  "@catalogTruncated": {
+    "placeholders": {
+      "entries": {
+        "type": "int"
+      },
+      "mib": {
+        "type": "int"
+      }
+    }
+  },
+  "catalogTruncated": "Catalog truncated at {entries, number, ::group-off} entries or {mib, number, ::group-off} MiB; refresh after narrowing it on the server.",
   "@certValid": {
     "placeholders": {
       "from": {
@@ -389,6 +441,14 @@
   },
   "changeFailedWith": "Change failed: {error}",
   "changeNetworkConditions": "Change network conditions",
+  "@changedLetter": {
+    "placeholders": {
+      "letter": {
+        "type": "String"
+      }
+    }
+  },
+  "changedLetter": "Changed ({letter})",
   "@changedValues": {
     "placeholders": {
       "values": {
@@ -589,7 +649,30 @@
     }
   },
   "connectionEndedWithoutCloseWith": "Connection ended without a peer close frame: {error}",
+  "connectionLabel": "Connection",
   "connectionLost": "Connection lost",
+  "@connectionLostFailedReconnects": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "connectionLostFailedReconnects": "connection lost; gave up after {count, number, ::group-off} failed reconnects: {error}",
+  "@connectionLostReconnects": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "connectionLostReconnects": "connection lost; gave up after {count, number, ::group-off} reconnects: {error}",
   "connectionUse": "Connection use",
   "@containsValue": {
     "placeholders": {
@@ -804,6 +887,17 @@
   "diagListener": "Listener",
   "diagProcessProxy": "Process proxy",
   "diagSystemProxy": "System proxy",
+  "@diagnosticStageFailed": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      },
+      "stage": {
+        "type": "String"
+      }
+    }
+  },
+  "diagnosticStageFailed": "#{id, number, ::group-off} · {stage} failed",
   "@dirNotRead": {
     "placeholders": {
       "path": {
@@ -941,6 +1035,14 @@
   "encryptedKeyNoStore": "Encrypted with a key kept in {path}: this system has no credential store, so anyone who can read that file can open the vault.",
   "encryptedNotDecrypted": "Encrypted, not decrypted",
   "encryptedNotIndividual": "Encrypted, not decrypted — not individual requests",
+  "@encryptedTunnelOnly": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
+  "encryptedTunnelOnly": "#{id, number, ::group-off} · encrypted tunnel only; no decrypted request yet",
   "endNotObserved": "End not yet observed",
   "@endedAt": {
     "placeholders": {
@@ -981,10 +1083,34 @@
   "enterAnAbsoluteHttpS": "Enter an absolute HTTP(S) URL",
   "enterAnHttpOrHttps2": "Enter an http:// or https:// URL",
   "enterCanonicalBase64": "Enter canonical padded base64 for the binary message.",
+  "@enterConcurrencyRange": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "enterConcurrencyRange": "Enter 1–{max, number, ::group-off} concurrent requests.",
   "enterFinalStatus": "Enter a final response status from 200 to 599.",
   "enterGraphQLEndpointFirst": "Enter the GraphQL endpoint URL first.",
+  "@enterIntervalRange": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "enterIntervalRange": "Enter 0–{max, number, ::group-off} ms between starts.",
   "enterPasswordOrOff": "Enter a password, or turn authentication off",
   "enterPortRange": "Enter a port from 1024 to 65535, or leave empty for automatic selection",
+  "@enterRepeatRange": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "enterRepeatRange": "Enter 1–{max, number, ::group-off} repeats.",
   "enterUsernameOrOff": "Enter a username, or turn authentication off",
   "enterValidHTTPMethod": "Enter a valid HTTP method.",
   "@environmentDotName": {
@@ -1095,6 +1221,17 @@
     }
   },
   "experimentBodyReadWith": "Experiment body read: {error}",
+  "@experimentBodyTruncated": {
+    "placeholders": {
+      "retained": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "experimentBodyTruncated": "Experiment body truncated: retained {retained, number, ::group-off} of {total, number, ::group-off} bytes",
   "@experimentCheckpointFailed": {
     "placeholders": {
       "error": {
@@ -1281,6 +1418,23 @@
     }
   },
   "grpcRequestJson": "gRPC request JSON",
+  "@grpcRunSummary": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "ms": {
+        "type": "int"
+      },
+      "passed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "grpcRunSummary": "gRPC {name} · {ms, number, ::group-off} ms · {passed, number, ::group-off}/{total, number, ::group-off} tests",
   "grpcStatusMissingHttp200": "gRPC status missing (HTTP 200 alone does not mean success)",
   "grpcUnaryOnly": "Scripts and Checks run with unary methods; the streaming client runs without them",
   "grpcWebFramingIsNot": "gRPC-Web framing is not supported; use native gRPC over inspected HTTP/2",
@@ -1312,6 +1466,14 @@
       }
     }
   },
+  "@headerCountAdded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "headerCountAdded": "+{count, plural, one {{count, number, ::group-off} header} other {{count, number, ::group-off} headers}}",
   "@headerExistsNamed": {
     "placeholders": {
       "name": {
@@ -1422,8 +1584,57 @@
   "importSoapuiProject": "Import SoapUI project",
   "importThunderClientCollection": "Import Thunder Client collection",
   "importedCaIntoJavaTruststore": "Imported CA into Java truststore",
+  "@importedCollection": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importedCollection": "Imported “{name}” · {count, plural, one {{count, number, ::group-off} request} other {{count, number, ::group-off} requests}}",
+  "@importedCollectionParts": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "parts": {
+        "type": "String"
+      }
+    }
+  },
+  "importedCollectionParts": "Imported “{name}” · {parts}",
+  "@importedCurlRequests": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importedCurlRequests": "Imported {count, plural, one {{count, number, ::group-off} cURL request} other {{count, number, ::group-off} cURL requests}}",
   "importedEnvironment": "Imported environment",
+  "@importedEnvironmentVariables": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importedEnvironmentVariables": "Imported environment “{name}” · {count, plural, one {{count, number, ::group-off} variable} other {{count, number, ::group-off} variables}}",
   "importedRemainder": "Everything else was imported. These parts have no equivalent here yet:",
+  "@importedVariablesIntoGlobals": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importedVariablesIntoGlobals": "Imported {count, plural, one {{count, number, ::group-off} variable} other {{count, number, ::group-off} variables}} into globals",
   "@inScenario": {
     "placeholders": {
       "scenario": {
@@ -1440,6 +1651,28 @@
     }
   },
   "incompleteBodyNotice": "\n\n… incomplete body: {problem}",
+  "@incompleteBodyRetained": {
+    "placeholders": {
+      "retained": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "incompleteBodyRetained": "\n\n… incomplete body: {retained, number, ::group-off} of {total, number, ::group-off} bytes retained",
+  "@incompleteBodyRetainedOf": {
+    "placeholders": {
+      "retained": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "incompleteBodyRetainedOf": "Incomplete body: {retained, number, ::group-off} of {total, number, ::group-off} bytes retained",
   "@incompleteBodyWith": {
     "placeholders": {
       "problem": {
@@ -1448,6 +1681,17 @@
     }
   },
   "incompleteBodyWith": "Incomplete body: {problem}",
+  "@incompleteMessageRetained": {
+    "placeholders": {
+      "retained": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "incompleteMessageRetained": "Incomplete message: {retained, number, ::group-off} of {total, number, ::group-off} bytes retained",
   "inheritedFromTheFolderOr": "Inherited from the folder or collection",
   "@insertVariable": {
     "placeholders": {
@@ -1513,6 +1757,17 @@
     }
   },
   "isSubscriptionHostProfile": "{name} is a subscription; add the mapping to another profile",
+  "@issuedBy": {
+    "placeholders": {
+      "cert": {
+        "type": "String"
+      },
+      "issuer": {
+        "type": "String"
+      }
+    }
+  },
+  "issuedBy": "{cert}, issued by {issuer}",
   "@iterationName": {
     "placeholders": {
       "index": {
@@ -1608,6 +1863,14 @@
     }
   },
   "lineName": "Line {line} · {name}",
+  "@lintCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "lintCount": "  ·  Lint: {count, number, ::group-off}",
   "listedDomainsOrExactLocal": "Listed domains or exact local executables are decrypted. Other clients stay encrypted unless a domain rule also matches.",
   "@listeningOnAddress": {
     "placeholders": {
@@ -1659,7 +1922,75 @@
     }
   },
   "mcpVersion": "MCP {version} · {transport}",
+  "@mergedEnvironments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mergedEnvironments": "Merged {count, plural, one {{count, number, ::group-off} environment} other {{count, number, ::group-off} environments}}",
   "messageEditLimit": "Message edits are limited to 1 MiB.",
+  "@messageEncodingUnsupported": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "encoding": {
+        "type": "String"
+      }
+    }
+  },
+  "messageEncodingUnsupported": "Message {index, number, ::group-off}: unsupported grpc-encoding \"{encoding}\" (gzip supported)",
+  "@messageError": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "messageError": "Message {index, number, ::group-off}: {error}",
+  "@messageExceedsDecodedLimit": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "messageExceedsDecodedLimit": "Message {index, number, ::group-off} exceeds the 16 MiB message / 32 MiB decoded body limit",
+  "@messageExceedsLimit": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "messageExceedsLimit": "Message {index, number, ::group-off} exceeds the 16 MiB message limit",
+  "@messageFrameHeaderIncomplete": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "retained": {
+        "type": "int"
+      }
+    }
+  },
+  "messageFrameHeaderIncomplete": "Message {index, number, ::group-off}: incomplete gRPC frame header ({retained, number, ::group-off} of 5 bytes)",
+  "@messageGzipInvalid": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "messageGzipInvalid": "Message {index, number, ::group-off}: invalid gzip payload: {error}",
   "@messageIndexName": {
     "placeholders": {
       "index": {
@@ -1671,6 +2002,20 @@
     }
   },
   "messageIndexName": "Message {index} · {name}",
+  "@messagePayloadInvalid": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "declared": {
+        "type": "int"
+      },
+      "available": {
+        "type": "int"
+      }
+    }
+  },
+  "messagePayloadInvalid": "Message {index, number, ::group-off}: invalid flag or incomplete gRPC payload (declared {declared, number, ::group-off}, available {available, number, ::group-off})",
   "@messageTypeNamed": {
     "placeholders": {
       "typeName": {
@@ -1679,6 +2024,14 @@
     }
   },
   "messageTypeNamed": "Message type: {typeName}",
+  "@messagesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messagesCount": "{count, plural, one {{count, number, ::group-off} message} other {{count, number, ::group-off} messages}}",
   "@methodNamed": {
     "placeholders": {
       "method": {
@@ -1717,6 +2070,34 @@
     }
   },
   "mqttClientNote": "{version} · client {id}",
+  "@mqttEvent": {
+    "placeholders": {
+      "seq": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mqttEvent": "MQTT event {seq, number, ::group-off} {name}",
+  "@mqttEventLine": {
+    "placeholders": {
+      "seq": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      },
+      "flags": {
+        "type": "String"
+      },
+      "size": {
+        "type": "int"
+      }
+    }
+  },
+  "mqttEventLine": "#{seq, number, ::group-off} · {time} · {flags} · {size, number, ::group-off} B",
   "mqttLastWillPayload": "MQTT last will payload",
   "mqttNeedsTopic": "Add at least one topic filter, or turn on at least one topic's On connect",
   "mqttPassword": "MQTT password",
@@ -1745,6 +2126,25 @@
     }
   },
   "networkRuleCount": "Network rules: {count}",
+  "@networkServicesAtProxy": {
+    "placeholders": {
+      "pointed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "networkServicesAtProxy": "{pointed, number, ::group-off} of {total, number, ::group-off} network services point at a proxy",
+  "@networkServicesNoProxy": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "networkServicesNoProxy": "{count, plural, one {{count, number, ::group-off} network service has no proxy} other {{count, number, ::group-off} network services have no proxy}}",
   "newCollectionMenu": "New collection",
   "@noAccessTokenWith": {
     "placeholders": {
@@ -1774,6 +2174,14 @@
   "noHooks": "No hooks",
   "noHostProfileIsOn": "No Host profile is on",
   "noLocalExecutableWasRecorded": "No local executable was recorded",
+  "@noLongerInLiveCapture": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
+  "noLongerInLiveCapture": "#{id, number, ::group-off} is no longer in the live capture",
   "noMatchesSearchable": "No matches in searchable traffic",
   "noMatchingRequests": "No matching requests",
   "noMcpRequestIsRunning": "No MCP request is running",
@@ -1893,6 +2301,20 @@
   "onWindowsTrustsCurrentUser": " On Windows, installation trusts it for the current user, not other accounts or services.",
   "oneContract": "1 contract",
   "onlyAScenarioNamedFor": "Only a scenario named for a collection with examples",
+  "@openAPIEndpoints": {
+    "placeholders": {
+      "state": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "openAPIEndpoints": "{state}  ·  OpenAPI {version}  ·  Endpoints: {count, number, ::group-off}",
   "openARequestDraftFirst": "Open a request draft first",
   "openARequestDraftWait": "Open a request draft; wait for its send to finish before closing",
   "openARequestFirst": "Open a request first",
@@ -1940,6 +2362,17 @@
   "originCurrent": "current",
   "originInitial": "initial",
   "originalEntryOrderDuplicatesAre": "Original entry order; duplicates are preserved",
+  "@otherNetworkServicesNoProxy": {
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "otherNetworkServicesNoProxy": "{first}; {count, plural, one {the other one has no proxy} other {the other {count, number, ::group-off} have no proxy}}",
   "@overviewScopeSession": {
     "placeholders": {
       "count": {
@@ -1979,12 +2412,34 @@
   },
   "partsNotPreviewed": "{count} parts · files are not previewed",
   "pauseView": "Pause view",
+  "@peerClose": {
+    "placeholders": {
+      "code": {
+        "type": "int"
+      },
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "peerClose": "Peer close {code, number, ::group-off}: {text}",
   "persistCurrentAsInitialWrites": "Persist current as initial: writes it to the shared file and exports",
   "persistentSessionNote": " · persistent session",
   "pin": "Pin",
   "pinToTheTop": "Pin to the top",
   "pointsAtAnotherProxy": "Points at another proxy",
   "pointsAtThisAppBut": "Points at this app, but capture is stopped",
+  "@portAlreadyUsedBy": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      },
+      "used": {
+        "type": "String"
+      }
+    }
+  },
+  "portAlreadyUsedBy": "Port {port, number, ::group-off} is already used by {used}",
   "@portUsedHTTPProxy": {
     "placeholders": {
       "port": {
@@ -2041,6 +2496,14 @@
   },
   "progressNamed": "Progress · {progress}",
   "protobufInspectionIsLimitedTo": "Protobuf inspection is limited to 16 MiB per message",
+  "@protobufInspectionLimited": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "protobufInspectionLimited": "Protobuf inspection is limited to {size} per body",
   "@protobufJSONDirection": {
     "placeholders": {
       "direction": {
@@ -2143,6 +2606,34 @@
   },
   "rebuildScenarioFromExamples": "Rebuild scenario “{path}” from examples",
   "reconnectFailed": "Reconnect failed",
+  "@reconnectingIn": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      },
+      "attempt": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      },
+      "delay": {
+        "type": "String"
+      }
+    }
+  },
+  "reconnectingIn": "{error} · reconnect {attempt, number, ::group-off}/{limit, number, ::group-off} in {delay}",
+  "@reconnectingInLastEventID": {
+    "placeholders": {
+      "delay": {
+        "type": "String"
+      },
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "reconnectingInLastEventID": "Reconnecting in {delay} · Last-Event-ID: {id}",
   "recordedApi": "Recorded API",
   "recordedConnectionEvidenceAtCapture": "Recorded connection evidence at capture time",
   "@recordedFailure": {
@@ -2204,7 +2695,26 @@
       }
     }
   },
+  "@requestReused": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      },
+      "reused": {
+        "type": "String"
+      }
+    }
+  },
+  "requestReused": "request #{number, number, ::group-off} · reused: {reused}",
   "requestSentFirstByteBack": "request sent, first byte back",
+  "@requiredByScripts": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "requiredByScripts": "Required by {count, plural, one {{count, number, ::group-off} script} other {{count, number, ::group-off} scripts}}",
   "@requiredVariables": {
     "placeholders": {
       "names": {
@@ -2213,6 +2723,17 @@
     }
   },
   "requiredVariables": "Required variables: {names} · configure in Variables…",
+  "@resolvedInMs": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      },
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "resolvedInMs": "{address}  ({ms, number, ::group-off} ms)",
   "@responseFromTime": {
     "placeholders": {
       "time": {
@@ -2227,6 +2748,17 @@
   "restOfTheResponseBody": "rest of the response body",
   "resumeView": "Resume",
   "retainedAttempt": "Retained attempt",
+  "@retainedOfBytes": {
+    "placeholders": {
+      "retained": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "retainedOfBytes": "\nRetained {retained, number, ::group-off} of {total, number, ::group-off} bytes",
   "@returnToOriginalTab": {
     "placeholders": {
       "name": {
@@ -2263,6 +2795,14 @@
   "rulesChangedSinceLaunch": "{count, plural, one {Changed # request since launch} other {Changed # requests since launch}}",
   "rulesEmptyHint": "Map, redirect, block, script or pause matching requests. Create one here, or from a request’s Tools menu.",
   "rulesStorageUnavailable": "Rules storage is unavailable",
+  "@runByRules": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "runByRules": "Run by {count, plural, one {{count, number, ::group-off} rule} other {{count, number, ::group-off} rules}}",
   "@runNumberLabel": {
     "placeholders": {
       "number": {
@@ -2279,6 +2819,26 @@
     }
   },
   "runNumberResult": "Run #{number} result",
+  "@runResponseSummary": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      },
+      "size": {
+        "type": "String"
+      },
+      "ms": {
+        "type": "int"
+      },
+      "passed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "runResponseSummary": "{status, number, ::group-off} · {size} · {ms, number, ::group-off} ms · {passed, number, ::group-off}/{total, number, ::group-off} tests",
   "runResultsLimitTip": "Displaying latest 1000 results; closing keeps a run active",
   "@runnerRecordNotRetainedWith": {
     "placeholders": {
@@ -2338,6 +2898,17 @@
   },
   "savedQueriesWith": "Saved queries: {error}",
   "savedRequests": "Saved requests",
+  "@savedRequestsNotSent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "savedRequestsNotSent": "Saved {count, plural, one {{count, number, ::group-off} request} other {{count, number, ::group-off} requests}} to “{name}”; not sent",
   "savedSession": "Saved session",
   "@savedSessionsEvidence": {
     "placeholders": {
@@ -2508,6 +3079,14 @@
     }
   },
   "socksSettingsNotSaved": "SOCKS5 settings were not saved: {error}",
+  "@spilledBodyGone": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "spilledBodyGone": "\n\n… the spilled body is gone: {error}",
   "@sslCABundleNote": {
     "placeholders": {
       "path": {
@@ -3652,6 +4231,17 @@
       }
     }
   },
+  "@truncatedBytesShown": {
+    "placeholders": {
+      "shown": {
+        "type": "int"
+      },
+      "size": {
+        "type": "int"
+      }
+    }
+  },
+  "truncatedBytesShown": "\n\n… truncated: {shown, number, ::group-off} bytes shown (recorded size: {size, number, ::group-off})",
   "truncatedForDocumentation": "\n… truncated for documentation",
   "trustNotVerifiedOnThis": "Trust not verified on this system",
   "trustOnTheClientCan": "Trust on the client can't be checked from here; Actual traffic shows the outcome",
@@ -3756,6 +4346,14 @@
       }
     }
   },
+  "@variableCurrentValue": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "variableCurrentValue": "Variable current value {index, number, ::group-off}",
   "@variableDotName": {
     "placeholders": {
       "name": {
@@ -3764,6 +4362,22 @@
     }
   },
   "variableDotName": "Variable · {name}",
+  "@variableInitialValue": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "variableInitialValue": "Variable initial value {index, number, ::group-off}",
+  "@variableName": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "variableName": "Variable name {index, number, ::group-off}",
   "variableNamesRules": "Variable names must be nonempty, unique and contain no braces.",
   "@variablesCount": {
     "placeholders": {
@@ -3775,6 +4389,17 @@
       }
     }
   },
+  "@variablesProblem": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "variablesProblem": "Variables ({path}): {error}",
   "variablesSection": "\n\nVariables:\n",
   "@variablesUnresolved": {
     "placeholders": {
@@ -3824,6 +4449,14 @@
       }
     }
   },
+  "@webSocketReplies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "webSocketReplies": "WebSocket: {count, plural, one {{count, number, ::group-off} reply} other {{count, number, ::group-off} replies}}",
   "websocketMessagesOrSseEvents": "WebSocket messages or SSE events",
   "whileTheAllowListIs": "While the allow list is on, the table shows only these apps, one name per line, as the Apps section spells them, besides the allowed hosts.",
   "whileTheAllowListIs2": "While the allow list is on, the table shows only these hosts and their subdomains, one per line, besides the allowed apps. A leading dot matches subdomains only; * is a wildcard.",

@@ -362,6 +362,18 @@ func (msgs Messages) AtMostCustomColumns() string {
 	return Catalog.Format(msgs.locale, "atMostCustomColumns", nil)
 }
 
+// AttachmentBase64 says "\n\nAttachment {index, number, ::group-off} · {size, number, ::group-off} B · base64\n{data}"
+// in the language the app shows.
+func AttachmentBase64(index int, size int, data string) string {
+	return In(i18n.Locale()).AttachmentBase64(index, size, data)
+}
+
+// AttachmentBase64 says "\n\nAttachment {index, number, ::group-off} · {size, number, ::group-off} B · base64\n{data}"
+// in the language of msgs.
+func (msgs Messages) AttachmentBase64(index int, size int, data string) string {
+	return Catalog.Format(msgs.locale, "attachmentBase64", map[string]any{"index": index, "size": size, "data": data})
+}
+
 // AutomaticConfigurationTakesPrecedence says "Automatic configuration takes precedence"
 // in the language the app shows.
 func AutomaticConfigurationTakesPrecedence() string {
@@ -402,6 +414,18 @@ func BasicUsernameHidden(user string) string { return In(i18n.Locale()).BasicUse
 // in the language of msgs.
 func (msgs Messages) BasicUsernameHidden(user string) string {
 	return Catalog.Format(msgs.locale, "basicUsernameHidden", map[string]any{"user": user})
+}
+
+// BatchLimitExceeded says "This would send {count, number, ::group-off} requests; the batch limit is {limit, number, ::group-off}. Lower the rep…"
+// in the language the app shows.
+func BatchLimitExceeded(count int, limit int) string {
+	return In(i18n.Locale()).BatchLimitExceeded(count, limit)
+}
+
+// BatchLimitExceeded says "This would send {count, number, ::group-off} requests; the batch limit is {limit, number, ::group-off}. Lower the rep…"
+// in the language of msgs.
+func (msgs Messages) BatchLimitExceeded(count int, limit int) string {
+	return Catalog.Format(msgs.locale, "batchLimitExceeded", map[string]any{"count": count, "limit": limit})
 }
 
 // BearerTokenHidden says "Bearer token (hidden)"
@@ -504,6 +528,16 @@ func (msgs Messages) BodiesAndStreamMessages() string {
 	return Catalog.Format(msgs.locale, "bodiesAndStreamMessages", nil)
 }
 
+// BodiesNotReadInFull says "{count, plural, one {{count, number, ::group-off} body could not be read in full} other {{count, number, ::group-off}…"
+// in the language the app shows.
+func BodiesNotReadInFull(count int) string { return In(i18n.Locale()).BodiesNotReadInFull(count) }
+
+// BodiesNotReadInFull says "{count, plural, one {{count, number, ::group-off} body could not be read in full} other {{count, number, ::group-off}…"
+// in the language of msgs.
+func (msgs Messages) BodiesNotReadInFull(count int) string {
+	return Catalog.Format(msgs.locale, "bodiesNotReadInFull", map[string]any{"count": count})
+}
+
 // BodyDerivedColumns says "Body-derived columns"
 // in the language the app shows.
 func BodyDerivedColumns() string { return In(i18n.Locale()).BodyDerivedColumns() }
@@ -554,11 +588,11 @@ func (msgs Messages) BreakpointsChip() string {
 	return Catalog.Format(msgs.locale, "breakpointsChip", nil)
 }
 
-// BytesNotShown says "\n… {count} bytes not shown"
+// BytesNotShown says "\n… {count, number, ::group-off} bytes not shown"
 // in the language the app shows.
 func BytesNotShown(count int) string { return In(i18n.Locale()).BytesNotShown(count) }
 
-// BytesNotShown says "\n… {count} bytes not shown"
+// BytesNotShown says "\n… {count, number, ::group-off} bytes not shown"
 // in the language of msgs.
 func (msgs Messages) BytesNotShown(count int) string {
 	return Catalog.Format(msgs.locale, "bytesNotShown", map[string]any{"count": count})
@@ -708,6 +742,16 @@ func (msgs Messages) CaptureNotAvailable() string {
 	return Catalog.Format(msgs.locale, "captureNotAvailable", nil)
 }
 
+// CaptureNumber says "Capture #{id, number, ::group-off}"
+// in the language the app shows.
+func CaptureNumber(id int) string { return In(i18n.Locale()).CaptureNumber(id) }
+
+// CaptureNumber says "Capture #{id, number, ::group-off}"
+// in the language of msgs.
+func (msgs Messages) CaptureNumber(id int) string {
+	return Catalog.Format(msgs.locale, "captureNumber", map[string]any{"id": id})
+}
+
 // CaptureNumberMethodURL says "Capture #{number} · {method} {url}"
 // in the language the app shows.
 func CaptureNumberMethodURL(number int, method string, url string) string {
@@ -824,6 +868,18 @@ func (msgs Messages) CatalogChangedRefreshItTo() string {
 	return Catalog.Format(msgs.locale, "catalogChangedRefreshItTo", nil)
 }
 
+// CatalogTruncated says "Catalog truncated at {entries, number, ::group-off} entries or {mib, number, ::group-off} MiB; refresh after narrowin…"
+// in the language the app shows.
+func CatalogTruncated(entries int, mib int) string {
+	return In(i18n.Locale()).CatalogTruncated(entries, mib)
+}
+
+// CatalogTruncated says "Catalog truncated at {entries, number, ::group-off} entries or {mib, number, ::group-off} MiB; refresh after narrowin…"
+// in the language of msgs.
+func (msgs Messages) CatalogTruncated(entries int, mib int) string {
+	return Catalog.Format(msgs.locale, "catalogTruncated", map[string]any{"entries": entries, "mib": mib})
+}
+
 // CertValid says "Valid: {from} → {to}"
 // in the language the app shows.
 func CertValid(from string, to string) string { return In(i18n.Locale()).CertValid(from, to) }
@@ -874,6 +930,16 @@ func ChangeNetworkConditions() string { return In(i18n.Locale()).ChangeNetworkCo
 // in the language of msgs.
 func (msgs Messages) ChangeNetworkConditions() string {
 	return Catalog.Format(msgs.locale, "changeNetworkConditions", nil)
+}
+
+// ChangedLetter says "Changed ({letter})"
+// in the language the app shows.
+func ChangedLetter(letter string) string { return In(i18n.Locale()).ChangedLetter(letter) }
+
+// ChangedLetter says "Changed ({letter})"
+// in the language of msgs.
+func (msgs Messages) ChangedLetter(letter string) string {
+	return Catalog.Format(msgs.locale, "changedLetter", map[string]any{"letter": letter})
 }
 
 // ChangedValues says "Changed values: {values}"
@@ -1366,6 +1432,16 @@ func (msgs Messages) ConnectionEndedWithoutCloseWith(error string) string {
 	return Catalog.Format(msgs.locale, "connectionEndedWithoutCloseWith", map[string]any{"error": error})
 }
 
+// ConnectionLabel says "Connection"
+// in the language the app shows.
+func ConnectionLabel() string { return In(i18n.Locale()).ConnectionLabel() }
+
+// ConnectionLabel says "Connection"
+// in the language of msgs.
+func (msgs Messages) ConnectionLabel() string {
+	return Catalog.Format(msgs.locale, "connectionLabel", nil)
+}
+
 // ConnectionLost says "Connection lost"
 // in the language the app shows.
 func ConnectionLost() string { return In(i18n.Locale()).ConnectionLost() }
@@ -1374,6 +1450,30 @@ func ConnectionLost() string { return In(i18n.Locale()).ConnectionLost() }
 // in the language of msgs.
 func (msgs Messages) ConnectionLost() string {
 	return Catalog.Format(msgs.locale, "connectionLost", nil)
+}
+
+// ConnectionLostFailedReconnects says "connection lost; gave up after {count, number, ::group-off} failed reconnects: {error}"
+// in the language the app shows.
+func ConnectionLostFailedReconnects(count int, error string) string {
+	return In(i18n.Locale()).ConnectionLostFailedReconnects(count, error)
+}
+
+// ConnectionLostFailedReconnects says "connection lost; gave up after {count, number, ::group-off} failed reconnects: {error}"
+// in the language of msgs.
+func (msgs Messages) ConnectionLostFailedReconnects(count int, error string) string {
+	return Catalog.Format(msgs.locale, "connectionLostFailedReconnects", map[string]any{"count": count, "error": error})
+}
+
+// ConnectionLostReconnects says "connection lost; gave up after {count, number, ::group-off} reconnects: {error}"
+// in the language the app shows.
+func ConnectionLostReconnects(count int, error string) string {
+	return In(i18n.Locale()).ConnectionLostReconnects(count, error)
+}
+
+// ConnectionLostReconnects says "connection lost; gave up after {count, number, ::group-off} reconnects: {error}"
+// in the language of msgs.
+func (msgs Messages) ConnectionLostReconnects(count int, error string) string {
+	return Catalog.Format(msgs.locale, "connectionLostReconnects", map[string]any{"count": count, "error": error})
 }
 
 // ConnectionUse says "Connection use"
@@ -1850,6 +1950,18 @@ func (msgs Messages) DiagSystemProxy() string {
 	return Catalog.Format(msgs.locale, "diagSystemProxy", nil)
 }
 
+// DiagnosticStageFailed says "#{id, number, ::group-off} · {stage} failed"
+// in the language the app shows.
+func DiagnosticStageFailed(id int, stage string) string {
+	return In(i18n.Locale()).DiagnosticStageFailed(id, stage)
+}
+
+// DiagnosticStageFailed says "#{id, number, ::group-off} · {stage} failed"
+// in the language of msgs.
+func (msgs Messages) DiagnosticStageFailed(id int, stage string) string {
+	return Catalog.Format(msgs.locale, "diagnosticStageFailed", map[string]any{"id": id, "stage": stage})
+}
+
 // DirNotRead says "{path} could not be read"
 // in the language the app shows.
 func DirNotRead(path string) string { return In(i18n.Locale()).DirNotRead(path) }
@@ -2114,6 +2226,16 @@ func (msgs Messages) EncryptedNotIndividual() string {
 	return Catalog.Format(msgs.locale, "encryptedNotIndividual", nil)
 }
 
+// EncryptedTunnelOnly says "#{id, number, ::group-off} · encrypted tunnel only; no decrypted request yet"
+// in the language the app shows.
+func EncryptedTunnelOnly(id int) string { return In(i18n.Locale()).EncryptedTunnelOnly(id) }
+
+// EncryptedTunnelOnly says "#{id, number, ::group-off} · encrypted tunnel only; no decrypted request yet"
+// in the language of msgs.
+func (msgs Messages) EncryptedTunnelOnly(id int) string {
+	return Catalog.Format(msgs.locale, "encryptedTunnelOnly", map[string]any{"id": id})
+}
+
 // EndNotObserved says "End not yet observed"
 // in the language the app shows.
 func EndNotObserved() string { return In(i18n.Locale()).EndNotObserved() }
@@ -2234,6 +2356,16 @@ func (msgs Messages) EnterCanonicalBase64() string {
 	return Catalog.Format(msgs.locale, "enterCanonicalBase64", nil)
 }
 
+// EnterConcurrencyRange says "Enter 1–{max, number, ::group-off} concurrent requests."
+// in the language the app shows.
+func EnterConcurrencyRange(max int) string { return In(i18n.Locale()).EnterConcurrencyRange(max) }
+
+// EnterConcurrencyRange says "Enter 1–{max, number, ::group-off} concurrent requests."
+// in the language of msgs.
+func (msgs Messages) EnterConcurrencyRange(max int) string {
+	return Catalog.Format(msgs.locale, "enterConcurrencyRange", map[string]any{"max": max})
+}
+
 // EnterFinalStatus says "Enter a final response status from 200 to 599."
 // in the language the app shows.
 func EnterFinalStatus() string { return In(i18n.Locale()).EnterFinalStatus() }
@@ -2254,6 +2386,16 @@ func (msgs Messages) EnterGraphQLEndpointFirst() string {
 	return Catalog.Format(msgs.locale, "enterGraphQLEndpointFirst", nil)
 }
 
+// EnterIntervalRange says "Enter 0–{max, number, ::group-off} ms between starts."
+// in the language the app shows.
+func EnterIntervalRange(max int) string { return In(i18n.Locale()).EnterIntervalRange(max) }
+
+// EnterIntervalRange says "Enter 0–{max, number, ::group-off} ms between starts."
+// in the language of msgs.
+func (msgs Messages) EnterIntervalRange(max int) string {
+	return Catalog.Format(msgs.locale, "enterIntervalRange", map[string]any{"max": max})
+}
+
 // EnterPasswordOrOff says "Enter a password, or turn authentication off"
 // in the language the app shows.
 func EnterPasswordOrOff() string { return In(i18n.Locale()).EnterPasswordOrOff() }
@@ -2272,6 +2414,16 @@ func EnterPortRange() string { return In(i18n.Locale()).EnterPortRange() }
 // in the language of msgs.
 func (msgs Messages) EnterPortRange() string {
 	return Catalog.Format(msgs.locale, "enterPortRange", nil)
+}
+
+// EnterRepeatRange says "Enter 1–{max, number, ::group-off} repeats."
+// in the language the app shows.
+func EnterRepeatRange(max int) string { return In(i18n.Locale()).EnterRepeatRange(max) }
+
+// EnterRepeatRange says "Enter 1–{max, number, ::group-off} repeats."
+// in the language of msgs.
+func (msgs Messages) EnterRepeatRange(max int) string {
+	return Catalog.Format(msgs.locale, "enterRepeatRange", map[string]any{"max": max})
 }
 
 // EnterUsernameOrOff says "Enter a username, or turn authentication off"
@@ -2388,6 +2540,18 @@ func ExperimentBodyReadWith(error string) string {
 // in the language of msgs.
 func (msgs Messages) ExperimentBodyReadWith(error string) string {
 	return Catalog.Format(msgs.locale, "experimentBodyReadWith", map[string]any{"error": error})
+}
+
+// ExperimentBodyTruncated says "Experiment body truncated: retained {retained, number, ::group-off} of {total, number, ::group-off} bytes"
+// in the language the app shows.
+func ExperimentBodyTruncated(retained int, total int) string {
+	return In(i18n.Locale()).ExperimentBodyTruncated(retained, total)
+}
+
+// ExperimentBodyTruncated says "Experiment body truncated: retained {retained, number, ::group-off} of {total, number, ::group-off} bytes"
+// in the language of msgs.
+func (msgs Messages) ExperimentBodyTruncated(retained int, total int) string {
+	return Catalog.Format(msgs.locale, "experimentBodyTruncated", map[string]any{"retained": retained, "total": total})
 }
 
 // ExperimentCheckpointFailed says "Experiment checkpoint failed: {error}"
@@ -2794,6 +2958,18 @@ func (msgs Messages) GrpcRequestJson() string {
 	return Catalog.Format(msgs.locale, "grpcRequestJson", nil)
 }
 
+// GrpcRunSummary says "gRPC {name} · {ms, number, ::group-off} ms · {passed, number, ::group-off}/{total, number, ::group-off} tests"
+// in the language the app shows.
+func GrpcRunSummary(name string, ms int, passed int, total int) string {
+	return In(i18n.Locale()).GrpcRunSummary(name, ms, passed, total)
+}
+
+// GrpcRunSummary says "gRPC {name} · {ms, number, ::group-off} ms · {passed, number, ::group-off}/{total, number, ::group-off} tests"
+// in the language of msgs.
+func (msgs Messages) GrpcRunSummary(name string, ms int, passed int, total int) string {
+	return Catalog.Format(msgs.locale, "grpcRunSummary", map[string]any{"name": name, "ms": ms, "passed": passed, "total": total})
+}
+
 // GrpcStatusMissingHttp200 says "gRPC status missing (HTTP 200 alone does not mean success)"
 // in the language the app shows.
 func GrpcStatusMissingHttp200() string { return In(i18n.Locale()).GrpcStatusMissingHttp200() }
@@ -2864,6 +3040,16 @@ func HeaderColumns() string { return In(i18n.Locale()).HeaderColumns() }
 // in the language of msgs.
 func (msgs Messages) HeaderColumns() string {
 	return Catalog.Format(msgs.locale, "headerColumns", nil)
+}
+
+// HeaderCountAdded says "+{count, plural, one {{count, number, ::group-off} header} other {{count, number, ::group-off} headers}}"
+// in the language the app shows.
+func HeaderCountAdded(count int) string { return In(i18n.Locale()).HeaderCountAdded(count) }
+
+// HeaderCountAdded says "+{count, plural, one {{count, number, ::group-off} header} other {{count, number, ::group-off} headers}}"
+// in the language of msgs.
+func (msgs Messages) HeaderCountAdded(count int) string {
+	return Catalog.Format(msgs.locale, "headerCountAdded", map[string]any{"count": count})
 }
 
 // HeaderExistsNamed says "Header exists: {name}"
@@ -3106,6 +3292,40 @@ func (msgs Messages) ImportedCaIntoJavaTruststore() string {
 	return Catalog.Format(msgs.locale, "importedCaIntoJavaTruststore", nil)
 }
 
+// ImportedCollection says "Imported “{name}” · {count, plural, one {{count, number, ::group-off} request} other {{count, number, ::group-of…"
+// in the language the app shows.
+func ImportedCollection(name string, count int) string {
+	return In(i18n.Locale()).ImportedCollection(name, count)
+}
+
+// ImportedCollection says "Imported “{name}” · {count, plural, one {{count, number, ::group-off} request} other {{count, number, ::group-of…"
+// in the language of msgs.
+func (msgs Messages) ImportedCollection(name string, count int) string {
+	return Catalog.Format(msgs.locale, "importedCollection", map[string]any{"name": name, "count": count})
+}
+
+// ImportedCollectionParts says "Imported “{name}” · {parts}"
+// in the language the app shows.
+func ImportedCollectionParts(name string, parts string) string {
+	return In(i18n.Locale()).ImportedCollectionParts(name, parts)
+}
+
+// ImportedCollectionParts says "Imported “{name}” · {parts}"
+// in the language of msgs.
+func (msgs Messages) ImportedCollectionParts(name string, parts string) string {
+	return Catalog.Format(msgs.locale, "importedCollectionParts", map[string]any{"name": name, "parts": parts})
+}
+
+// ImportedCurlRequests says "Imported {count, plural, one {{count, number, ::group-off} cURL request} other {{count, number, ::group-off} cURL req…"
+// in the language the app shows.
+func ImportedCurlRequests(count int) string { return In(i18n.Locale()).ImportedCurlRequests(count) }
+
+// ImportedCurlRequests says "Imported {count, plural, one {{count, number, ::group-off} cURL request} other {{count, number, ::group-off} cURL req…"
+// in the language of msgs.
+func (msgs Messages) ImportedCurlRequests(count int) string {
+	return Catalog.Format(msgs.locale, "importedCurlRequests", map[string]any{"count": count})
+}
+
 // ImportedEnvironment says "Imported environment"
 // in the language the app shows.
 func ImportedEnvironment() string { return In(i18n.Locale()).ImportedEnvironment() }
@@ -3116,6 +3336,18 @@ func (msgs Messages) ImportedEnvironment() string {
 	return Catalog.Format(msgs.locale, "importedEnvironment", nil)
 }
 
+// ImportedEnvironmentVariables says "Imported environment “{name}” · {count, plural, one {{count, number, ::group-off} variable} other {{count, numbe…"
+// in the language the app shows.
+func ImportedEnvironmentVariables(name string, count int) string {
+	return In(i18n.Locale()).ImportedEnvironmentVariables(name, count)
+}
+
+// ImportedEnvironmentVariables says "Imported environment “{name}” · {count, plural, one {{count, number, ::group-off} variable} other {{count, numbe…"
+// in the language of msgs.
+func (msgs Messages) ImportedEnvironmentVariables(name string, count int) string {
+	return Catalog.Format(msgs.locale, "importedEnvironmentVariables", map[string]any{"name": name, "count": count})
+}
+
 // ImportedRemainder says "Everything else was imported. These parts have no equivalent here yet:"
 // in the language the app shows.
 func ImportedRemainder() string { return In(i18n.Locale()).ImportedRemainder() }
@@ -3124,6 +3356,18 @@ func ImportedRemainder() string { return In(i18n.Locale()).ImportedRemainder() }
 // in the language of msgs.
 func (msgs Messages) ImportedRemainder() string {
 	return Catalog.Format(msgs.locale, "importedRemainder", nil)
+}
+
+// ImportedVariablesIntoGlobals says "Imported {count, plural, one {{count, number, ::group-off} variable} other {{count, number, ::group-off} variables}} …"
+// in the language the app shows.
+func ImportedVariablesIntoGlobals(count int) string {
+	return In(i18n.Locale()).ImportedVariablesIntoGlobals(count)
+}
+
+// ImportedVariablesIntoGlobals says "Imported {count, plural, one {{count, number, ::group-off} variable} other {{count, number, ::group-off} variables}} …"
+// in the language of msgs.
+func (msgs Messages) ImportedVariablesIntoGlobals(count int) string {
+	return Catalog.Format(msgs.locale, "importedVariablesIntoGlobals", map[string]any{"count": count})
 }
 
 // InScenario says "In scenario {scenario}"
@@ -3148,6 +3392,30 @@ func (msgs Messages) IncompleteBodyNotice(problem string) string {
 	return Catalog.Format(msgs.locale, "incompleteBodyNotice", map[string]any{"problem": problem})
 }
 
+// IncompleteBodyRetained says "\n\n… incomplete body: {retained, number, ::group-off} of {total, number, ::group-off} bytes retained"
+// in the language the app shows.
+func IncompleteBodyRetained(retained int, total int) string {
+	return In(i18n.Locale()).IncompleteBodyRetained(retained, total)
+}
+
+// IncompleteBodyRetained says "\n\n… incomplete body: {retained, number, ::group-off} of {total, number, ::group-off} bytes retained"
+// in the language of msgs.
+func (msgs Messages) IncompleteBodyRetained(retained int, total int) string {
+	return Catalog.Format(msgs.locale, "incompleteBodyRetained", map[string]any{"retained": retained, "total": total})
+}
+
+// IncompleteBodyRetainedOf says "Incomplete body: {retained, number, ::group-off} of {total, number, ::group-off} bytes retained"
+// in the language the app shows.
+func IncompleteBodyRetainedOf(retained int, total int) string {
+	return In(i18n.Locale()).IncompleteBodyRetainedOf(retained, total)
+}
+
+// IncompleteBodyRetainedOf says "Incomplete body: {retained, number, ::group-off} of {total, number, ::group-off} bytes retained"
+// in the language of msgs.
+func (msgs Messages) IncompleteBodyRetainedOf(retained int, total int) string {
+	return Catalog.Format(msgs.locale, "incompleteBodyRetainedOf", map[string]any{"retained": retained, "total": total})
+}
+
 // IncompleteBodyWith says "Incomplete body: {problem}"
 // in the language the app shows.
 func IncompleteBodyWith(problem string) string { return In(i18n.Locale()).IncompleteBodyWith(problem) }
@@ -3156,6 +3424,18 @@ func IncompleteBodyWith(problem string) string { return In(i18n.Locale()).Incomp
 // in the language of msgs.
 func (msgs Messages) IncompleteBodyWith(problem string) string {
 	return Catalog.Format(msgs.locale, "incompleteBodyWith", map[string]any{"problem": problem})
+}
+
+// IncompleteMessageRetained says "Incomplete message: {retained, number, ::group-off} of {total, number, ::group-off} bytes retained"
+// in the language the app shows.
+func IncompleteMessageRetained(retained int, total int) string {
+	return In(i18n.Locale()).IncompleteMessageRetained(retained, total)
+}
+
+// IncompleteMessageRetained says "Incomplete message: {retained, number, ::group-off} of {total, number, ::group-off} bytes retained"
+// in the language of msgs.
+func (msgs Messages) IncompleteMessageRetained(retained int, total int) string {
+	return Catalog.Format(msgs.locale, "incompleteMessageRetained", map[string]any{"retained": retained, "total": total})
 }
 
 // InheritedFromTheFolderOr says "Inherited from the folder or collection"
@@ -3324,6 +3604,16 @@ func IsSubscriptionHostProfile(name string) string {
 // in the language of msgs.
 func (msgs Messages) IsSubscriptionHostProfile(name string) string {
 	return Catalog.Format(msgs.locale, "isSubscriptionHostProfile", map[string]any{"name": name})
+}
+
+// IssuedBy says "{cert}, issued by {issuer}"
+// in the language the app shows.
+func IssuedBy(cert string, issuer string) string { return In(i18n.Locale()).IssuedBy(cert, issuer) }
+
+// IssuedBy says "{cert}, issued by {issuer}"
+// in the language of msgs.
+func (msgs Messages) IssuedBy(cert string, issuer string) string {
+	return Catalog.Format(msgs.locale, "issuedBy", map[string]any{"cert": cert, "issuer": issuer})
 }
 
 // IterationName says "{index} · {name}"
@@ -3500,6 +3790,16 @@ func (msgs Messages) LineName(line int, name string) string {
 	return Catalog.Format(msgs.locale, "lineName", map[string]any{"line": line, "name": name})
 }
 
+// LintCount says "  ·  Lint: {count, number, ::group-off}"
+// in the language the app shows.
+func LintCount(count int) string { return In(i18n.Locale()).LintCount(count) }
+
+// LintCount says "  ·  Lint: {count, number, ::group-off}"
+// in the language of msgs.
+func (msgs Messages) LintCount(count int) string {
+	return Catalog.Format(msgs.locale, "lintCount", map[string]any{"count": count})
+}
+
 // ListedDomainsOrExactLocal says "Listed domains or exact local executables are decrypted. Other clients stay encrypted unless a domain rule also matches."
 // in the language the app shows.
 func ListedDomainsOrExactLocal() string { return In(i18n.Locale()).ListedDomainsOrExactLocal() }
@@ -3634,6 +3934,16 @@ func (msgs Messages) McpVersion(version string, transport string) string {
 	return Catalog.Format(msgs.locale, "mcpVersion", map[string]any{"version": version, "transport": transport})
 }
 
+// MergedEnvironments says "Merged {count, plural, one {{count, number, ::group-off} environment} other {{count, number, ::group-off} environments}}"
+// in the language the app shows.
+func MergedEnvironments(count int) string { return In(i18n.Locale()).MergedEnvironments(count) }
+
+// MergedEnvironments says "Merged {count, plural, one {{count, number, ::group-off} environment} other {{count, number, ::group-off} environments}}"
+// in the language of msgs.
+func (msgs Messages) MergedEnvironments(count int) string {
+	return Catalog.Format(msgs.locale, "mergedEnvironments", map[string]any{"count": count})
+}
+
 // MessageEditLimit says "Message edits are limited to 1 MiB."
 // in the language the app shows.
 func MessageEditLimit() string { return In(i18n.Locale()).MessageEditLimit() }
@@ -3642,6 +3952,76 @@ func MessageEditLimit() string { return In(i18n.Locale()).MessageEditLimit() }
 // in the language of msgs.
 func (msgs Messages) MessageEditLimit() string {
 	return Catalog.Format(msgs.locale, "messageEditLimit", nil)
+}
+
+// MessageEncodingUnsupported says "Message {index, number, ::group-off}: unsupported grpc-encoding \"{encoding}\" (gzip supported)"
+// in the language the app shows.
+func MessageEncodingUnsupported(index int, encoding string) string {
+	return In(i18n.Locale()).MessageEncodingUnsupported(index, encoding)
+}
+
+// MessageEncodingUnsupported says "Message {index, number, ::group-off}: unsupported grpc-encoding \"{encoding}\" (gzip supported)"
+// in the language of msgs.
+func (msgs Messages) MessageEncodingUnsupported(index int, encoding string) string {
+	return Catalog.Format(msgs.locale, "messageEncodingUnsupported", map[string]any{"index": index, "encoding": encoding})
+}
+
+// MessageError says "Message {index, number, ::group-off}: {error}"
+// in the language the app shows.
+func MessageError(index int, error string) string {
+	return In(i18n.Locale()).MessageError(index, error)
+}
+
+// MessageError says "Message {index, number, ::group-off}: {error}"
+// in the language of msgs.
+func (msgs Messages) MessageError(index int, error string) string {
+	return Catalog.Format(msgs.locale, "messageError", map[string]any{"index": index, "error": error})
+}
+
+// MessageExceedsDecodedLimit says "Message {index, number, ::group-off} exceeds the 16 MiB message / 32 MiB decoded body limit"
+// in the language the app shows.
+func MessageExceedsDecodedLimit(index int) string {
+	return In(i18n.Locale()).MessageExceedsDecodedLimit(index)
+}
+
+// MessageExceedsDecodedLimit says "Message {index, number, ::group-off} exceeds the 16 MiB message / 32 MiB decoded body limit"
+// in the language of msgs.
+func (msgs Messages) MessageExceedsDecodedLimit(index int) string {
+	return Catalog.Format(msgs.locale, "messageExceedsDecodedLimit", map[string]any{"index": index})
+}
+
+// MessageExceedsLimit says "Message {index, number, ::group-off} exceeds the 16 MiB message limit"
+// in the language the app shows.
+func MessageExceedsLimit(index int) string { return In(i18n.Locale()).MessageExceedsLimit(index) }
+
+// MessageExceedsLimit says "Message {index, number, ::group-off} exceeds the 16 MiB message limit"
+// in the language of msgs.
+func (msgs Messages) MessageExceedsLimit(index int) string {
+	return Catalog.Format(msgs.locale, "messageExceedsLimit", map[string]any{"index": index})
+}
+
+// MessageFrameHeaderIncomplete says "Message {index, number, ::group-off}: incomplete gRPC frame header ({retained, number, ::group-off} of 5 bytes)"
+// in the language the app shows.
+func MessageFrameHeaderIncomplete(index int, retained int) string {
+	return In(i18n.Locale()).MessageFrameHeaderIncomplete(index, retained)
+}
+
+// MessageFrameHeaderIncomplete says "Message {index, number, ::group-off}: incomplete gRPC frame header ({retained, number, ::group-off} of 5 bytes)"
+// in the language of msgs.
+func (msgs Messages) MessageFrameHeaderIncomplete(index int, retained int) string {
+	return Catalog.Format(msgs.locale, "messageFrameHeaderIncomplete", map[string]any{"index": index, "retained": retained})
+}
+
+// MessageGzipInvalid says "Message {index, number, ::group-off}: invalid gzip payload: {error}"
+// in the language the app shows.
+func MessageGzipInvalid(index int, error string) string {
+	return In(i18n.Locale()).MessageGzipInvalid(index, error)
+}
+
+// MessageGzipInvalid says "Message {index, number, ::group-off}: invalid gzip payload: {error}"
+// in the language of msgs.
+func (msgs Messages) MessageGzipInvalid(index int, error string) string {
+	return Catalog.Format(msgs.locale, "messageGzipInvalid", map[string]any{"index": index, "error": error})
 }
 
 // MessageIndexName says "Message {index} · {name}"
@@ -3656,6 +4036,18 @@ func (msgs Messages) MessageIndexName(index int, name string) string {
 	return Catalog.Format(msgs.locale, "messageIndexName", map[string]any{"index": index, "name": name})
 }
 
+// MessagePayloadInvalid says "Message {index, number, ::group-off}: invalid flag or incomplete gRPC payload (declared {declared, number, ::group-of…"
+// in the language the app shows.
+func MessagePayloadInvalid(index int, declared int, available int) string {
+	return In(i18n.Locale()).MessagePayloadInvalid(index, declared, available)
+}
+
+// MessagePayloadInvalid says "Message {index, number, ::group-off}: invalid flag or incomplete gRPC payload (declared {declared, number, ::group-of…"
+// in the language of msgs.
+func (msgs Messages) MessagePayloadInvalid(index int, declared int, available int) string {
+	return Catalog.Format(msgs.locale, "messagePayloadInvalid", map[string]any{"index": index, "declared": declared, "available": available})
+}
+
 // MessageTypeNamed says "Message type: {typeName}"
 // in the language the app shows.
 func MessageTypeNamed(typeName string) string { return In(i18n.Locale()).MessageTypeNamed(typeName) }
@@ -3664,6 +4056,16 @@ func MessageTypeNamed(typeName string) string { return In(i18n.Locale()).Message
 // in the language of msgs.
 func (msgs Messages) MessageTypeNamed(typeName string) string {
 	return Catalog.Format(msgs.locale, "messageTypeNamed", map[string]any{"typeName": typeName})
+}
+
+// MessagesCount says "{count, plural, one {{count, number, ::group-off} message} other {{count, number, ::group-off} messages}}"
+// in the language the app shows.
+func MessagesCount(count int) string { return In(i18n.Locale()).MessagesCount(count) }
+
+// MessagesCount says "{count, plural, one {{count, number, ::group-off} message} other {{count, number, ::group-off} messages}}"
+// in the language of msgs.
+func (msgs Messages) MessagesCount(count int) string {
+	return Catalog.Format(msgs.locale, "messagesCount", map[string]any{"count": count})
 }
 
 // MethodNamed says "Method: {method}"
@@ -3736,6 +4138,28 @@ func MqttClientNote(version string, id string) string {
 // in the language of msgs.
 func (msgs Messages) MqttClientNote(version string, id string) string {
 	return Catalog.Format(msgs.locale, "mqttClientNote", map[string]any{"version": version, "id": id})
+}
+
+// MqttEvent says "MQTT event {seq, number, ::group-off} {name}"
+// in the language the app shows.
+func MqttEvent(seq int, name string) string { return In(i18n.Locale()).MqttEvent(seq, name) }
+
+// MqttEvent says "MQTT event {seq, number, ::group-off} {name}"
+// in the language of msgs.
+func (msgs Messages) MqttEvent(seq int, name string) string {
+	return Catalog.Format(msgs.locale, "mqttEvent", map[string]any{"seq": seq, "name": name})
+}
+
+// MqttEventLine says "#{seq, number, ::group-off} · {time} · {flags} · {size, number, ::group-off} B"
+// in the language the app shows.
+func MqttEventLine(seq int, time_ string, flags string, size int) string {
+	return In(i18n.Locale()).MqttEventLine(seq, time_, flags, size)
+}
+
+// MqttEventLine says "#{seq, number, ::group-off} · {time} · {flags} · {size, number, ::group-off} B"
+// in the language of msgs.
+func (msgs Messages) MqttEventLine(seq int, time_ string, flags string, size int) string {
+	return Catalog.Format(msgs.locale, "mqttEventLine", map[string]any{"seq": seq, "time": time_, "flags": flags, "size": size})
 }
 
 // MqttLastWillPayload says "MQTT last will payload"
@@ -3848,6 +4272,28 @@ func NetworkRuleCount(count int) string { return In(i18n.Locale()).NetworkRuleCo
 // in the language of msgs.
 func (msgs Messages) NetworkRuleCount(count int) string {
 	return Catalog.Format(msgs.locale, "networkRuleCount", map[string]any{"count": count})
+}
+
+// NetworkServicesAtProxy says "{pointed, number, ::group-off} of {total, number, ::group-off} network services point at a proxy"
+// in the language the app shows.
+func NetworkServicesAtProxy(pointed int, total int) string {
+	return In(i18n.Locale()).NetworkServicesAtProxy(pointed, total)
+}
+
+// NetworkServicesAtProxy says "{pointed, number, ::group-off} of {total, number, ::group-off} network services point at a proxy"
+// in the language of msgs.
+func (msgs Messages) NetworkServicesAtProxy(pointed int, total int) string {
+	return Catalog.Format(msgs.locale, "networkServicesAtProxy", map[string]any{"pointed": pointed, "total": total})
+}
+
+// NetworkServicesNoProxy says "{count, plural, one {{count, number, ::group-off} network service has no proxy} other {{count, number, ::group-off} n…"
+// in the language the app shows.
+func NetworkServicesNoProxy(count int) string { return In(i18n.Locale()).NetworkServicesNoProxy(count) }
+
+// NetworkServicesNoProxy says "{count, plural, one {{count, number, ::group-off} network service has no proxy} other {{count, number, ::group-off} n…"
+// in the language of msgs.
+func (msgs Messages) NetworkServicesNoProxy(count int) string {
+	return Catalog.Format(msgs.locale, "networkServicesNoProxy", map[string]any{"count": count})
 }
 
 // NewCollectionMenu says "New collection"
@@ -3998,6 +4444,16 @@ func NoLocalExecutableWasRecorded() string { return In(i18n.Locale()).NoLocalExe
 // in the language of msgs.
 func (msgs Messages) NoLocalExecutableWasRecorded() string {
 	return Catalog.Format(msgs.locale, "noLocalExecutableWasRecorded", nil)
+}
+
+// NoLongerInLiveCapture says "#{id, number, ::group-off} is no longer in the live capture"
+// in the language the app shows.
+func NoLongerInLiveCapture(id int) string { return In(i18n.Locale()).NoLongerInLiveCapture(id) }
+
+// NoLongerInLiveCapture says "#{id, number, ::group-off} is no longer in the live capture"
+// in the language of msgs.
+func (msgs Messages) NoLongerInLiveCapture(id int) string {
+	return Catalog.Format(msgs.locale, "noLongerInLiveCapture", map[string]any{"id": id})
 }
 
 // NoMatchesSearchable says "No matches in searchable traffic"
@@ -4408,6 +4864,18 @@ func (msgs Messages) OnlyAScenarioNamedFor() string {
 	return Catalog.Format(msgs.locale, "onlyAScenarioNamedFor", nil)
 }
 
+// OpenAPIEndpoints says "{state}  ·  OpenAPI {version}  ·  Endpoints: {count, number, ::group-off}"
+// in the language the app shows.
+func OpenAPIEndpoints(state string, version string, count int) string {
+	return In(i18n.Locale()).OpenAPIEndpoints(state, version, count)
+}
+
+// OpenAPIEndpoints says "{state}  ·  OpenAPI {version}  ·  Endpoints: {count, number, ::group-off}"
+// in the language of msgs.
+func (msgs Messages) OpenAPIEndpoints(state string, version string, count int) string {
+	return Catalog.Format(msgs.locale, "openAPIEndpoints", map[string]any{"state": state, "version": version, "count": count})
+}
+
 // OpenARequestDraftFirst says "Open a request draft first"
 // in the language the app shows.
 func OpenARequestDraftFirst() string { return In(i18n.Locale()).OpenARequestDraftFirst() }
@@ -4600,6 +5068,18 @@ func (msgs Messages) OriginalEntryOrderDuplicatesAre() string {
 	return Catalog.Format(msgs.locale, "originalEntryOrderDuplicatesAre", nil)
 }
 
+// OtherNetworkServicesNoProxy says "{first}; {count, plural, one {the other one has no proxy} other {the other {count, number, ::group-off} have no proxy}}"
+// in the language the app shows.
+func OtherNetworkServicesNoProxy(first string, count int) string {
+	return In(i18n.Locale()).OtherNetworkServicesNoProxy(first, count)
+}
+
+// OtherNetworkServicesNoProxy says "{first}; {count, plural, one {the other one has no proxy} other {the other {count, number, ::group-off} have no proxy}}"
+// in the language of msgs.
+func (msgs Messages) OtherNetworkServicesNoProxy(first string, count int) string {
+	return Catalog.Format(msgs.locale, "otherNetworkServicesNoProxy", map[string]any{"first": first, "count": count})
+}
+
 // OrganizeNamed says "Organize {name}"
 // in the language the app shows.
 func OrganizeNamed(name string) string { return In(i18n.Locale()).OrganizeNamed(name) }
@@ -4638,6 +5118,16 @@ func PauseView() string { return In(i18n.Locale()).PauseView() }
 // in the language of msgs.
 func (msgs Messages) PauseView() string {
 	return Catalog.Format(msgs.locale, "pauseView", nil)
+}
+
+// PeerClose says "Peer close {code, number, ::group-off}: {text}"
+// in the language the app shows.
+func PeerClose(code int, text string) string { return In(i18n.Locale()).PeerClose(code, text) }
+
+// PeerClose says "Peer close {code, number, ::group-off}: {text}"
+// in the language of msgs.
+func (msgs Messages) PeerClose(code int, text string) string {
+	return Catalog.Format(msgs.locale, "peerClose", map[string]any{"code": code, "text": text})
 }
 
 // PersistCurrentAsInitialWrites says "Persist current as initial: writes it to the shared file and exports"
@@ -4698,6 +5188,18 @@ func PointsAtThisAppBut() string { return In(i18n.Locale()).PointsAtThisAppBut()
 // in the language of msgs.
 func (msgs Messages) PointsAtThisAppBut() string {
 	return Catalog.Format(msgs.locale, "pointsAtThisAppBut", nil)
+}
+
+// PortAlreadyUsedBy says "Port {port, number, ::group-off} is already used by {used}"
+// in the language the app shows.
+func PortAlreadyUsedBy(port int, used string) string {
+	return In(i18n.Locale()).PortAlreadyUsedBy(port, used)
+}
+
+// PortAlreadyUsedBy says "Port {port, number, ::group-off} is already used by {used}"
+// in the language of msgs.
+func (msgs Messages) PortAlreadyUsedBy(port int, used string) string {
+	return Catalog.Format(msgs.locale, "portAlreadyUsedBy", map[string]any{"port": port, "used": used})
 }
 
 // PortUsedHTTPProxy says "Port {port} is already used by the HTTP proxy"
@@ -4838,6 +5340,18 @@ func ProtobufInspectionIsLimitedTo() string { return In(i18n.Locale()).ProtobufI
 // in the language of msgs.
 func (msgs Messages) ProtobufInspectionIsLimitedTo() string {
 	return Catalog.Format(msgs.locale, "protobufInspectionIsLimitedTo", nil)
+}
+
+// ProtobufInspectionLimited says "Protobuf inspection is limited to {size} per body"
+// in the language the app shows.
+func ProtobufInspectionLimited(size string) string {
+	return In(i18n.Locale()).ProtobufInspectionLimited(size)
+}
+
+// ProtobufInspectionLimited says "Protobuf inspection is limited to {size} per body"
+// in the language of msgs.
+func (msgs Messages) ProtobufInspectionLimited(size string) string {
+	return Catalog.Format(msgs.locale, "protobufInspectionLimited", map[string]any{"size": size})
 }
 
 // ProtobufJSONDirection says "{direction} · protobuf JSON"
@@ -5024,6 +5538,30 @@ func (msgs Messages) ReconnectFailed() string {
 	return Catalog.Format(msgs.locale, "reconnectFailed", nil)
 }
 
+// ReconnectingIn says "{error} · reconnect {attempt, number, ::group-off}/{limit, number, ::group-off} in {delay}"
+// in the language the app shows.
+func ReconnectingIn(error string, attempt int, limit int, delay string) string {
+	return In(i18n.Locale()).ReconnectingIn(error, attempt, limit, delay)
+}
+
+// ReconnectingIn says "{error} · reconnect {attempt, number, ::group-off}/{limit, number, ::group-off} in {delay}"
+// in the language of msgs.
+func (msgs Messages) ReconnectingIn(error string, attempt int, limit int, delay string) string {
+	return Catalog.Format(msgs.locale, "reconnectingIn", map[string]any{"error": error, "attempt": attempt, "limit": limit, "delay": delay})
+}
+
+// ReconnectingInLastEventID says "Reconnecting in {delay} · Last-Event-ID: {id}"
+// in the language the app shows.
+func ReconnectingInLastEventID(delay string, id string) string {
+	return In(i18n.Locale()).ReconnectingInLastEventID(delay, id)
+}
+
+// ReconnectingInLastEventID says "Reconnecting in {delay} · Last-Event-ID: {id}"
+// in the language of msgs.
+func (msgs Messages) ReconnectingInLastEventID(delay string, id string) string {
+	return Catalog.Format(msgs.locale, "reconnectingInLastEventID", map[string]any{"delay": delay, "id": id})
+}
+
 // RecordedApi says "Recorded API"
 // in the language the app shows.
 func RecordedApi() string { return In(i18n.Locale()).RecordedApi() }
@@ -5204,6 +5742,18 @@ func (msgs Messages) ReplyAck() string {
 	return Catalog.Format(msgs.locale, "replyAck", nil)
 }
 
+// RequestReused says "request #{number, number, ::group-off} · reused: {reused}"
+// in the language the app shows.
+func RequestReused(number int, reused string) string {
+	return In(i18n.Locale()).RequestReused(number, reused)
+}
+
+// RequestReused says "request #{number, number, ::group-off} · reused: {reused}"
+// in the language of msgs.
+func (msgs Messages) RequestReused(number int, reused string) string {
+	return Catalog.Format(msgs.locale, "requestReused", map[string]any{"number": number, "reused": reused})
+}
+
 // RequestSentFirstByteBack says "request sent, first byte back"
 // in the language the app shows.
 func RequestSentFirstByteBack() string { return In(i18n.Locale()).RequestSentFirstByteBack() }
@@ -5214,6 +5764,16 @@ func (msgs Messages) RequestSentFirstByteBack() string {
 	return Catalog.Format(msgs.locale, "requestSentFirstByteBack", nil)
 }
 
+// RequiredByScripts says "Required by {count, plural, one {{count, number, ::group-off} script} other {{count, number, ::group-off} scripts}}"
+// in the language the app shows.
+func RequiredByScripts(count int) string { return In(i18n.Locale()).RequiredByScripts(count) }
+
+// RequiredByScripts says "Required by {count, plural, one {{count, number, ::group-off} script} other {{count, number, ::group-off} scripts}}"
+// in the language of msgs.
+func (msgs Messages) RequiredByScripts(count int) string {
+	return Catalog.Format(msgs.locale, "requiredByScripts", map[string]any{"count": count})
+}
+
 // RequiredVariables says "Required variables: {names} · configure in Variables…"
 // in the language the app shows.
 func RequiredVariables(names string) string { return In(i18n.Locale()).RequiredVariables(names) }
@@ -5222,6 +5782,16 @@ func RequiredVariables(names string) string { return In(i18n.Locale()).RequiredV
 // in the language of msgs.
 func (msgs Messages) RequiredVariables(names string) string {
 	return Catalog.Format(msgs.locale, "requiredVariables", map[string]any{"names": names})
+}
+
+// ResolvedInMs says "{address}  ({ms, number, ::group-off} ms)"
+// in the language the app shows.
+func ResolvedInMs(address string, ms int) string { return In(i18n.Locale()).ResolvedInMs(address, ms) }
+
+// ResolvedInMs says "{address}  ({ms, number, ::group-off} ms)"
+// in the language of msgs.
+func (msgs Messages) ResolvedInMs(address string, ms int) string {
+	return Catalog.Format(msgs.locale, "resolvedInMs", map[string]any{"address": address, "ms": ms})
 }
 
 // ResponseFromTime says "Response from {time}"
@@ -5292,6 +5862,18 @@ func RetainedAttempt() string { return In(i18n.Locale()).RetainedAttempt() }
 // in the language of msgs.
 func (msgs Messages) RetainedAttempt() string {
 	return Catalog.Format(msgs.locale, "retainedAttempt", nil)
+}
+
+// RetainedOfBytes says "\nRetained {retained, number, ::group-off} of {total, number, ::group-off} bytes"
+// in the language the app shows.
+func RetainedOfBytes(retained int, total int) string {
+	return In(i18n.Locale()).RetainedOfBytes(retained, total)
+}
+
+// RetainedOfBytes says "\nRetained {retained, number, ::group-off} of {total, number, ::group-off} bytes"
+// in the language of msgs.
+func (msgs Messages) RetainedOfBytes(retained int, total int) string {
+	return Catalog.Format(msgs.locale, "retainedOfBytes", map[string]any{"retained": retained, "total": total})
 }
 
 // ReturnToOriginalTab says "Return to the original editable tab without overwriting its current edits: {name}"
@@ -5376,6 +5958,16 @@ func (msgs Messages) RulesStorageUnavailable() string {
 	return Catalog.Format(msgs.locale, "rulesStorageUnavailable", nil)
 }
 
+// RunByRules says "Run by {count, plural, one {{count, number, ::group-off} rule} other {{count, number, ::group-off} rules}}"
+// in the language the app shows.
+func RunByRules(count int) string { return In(i18n.Locale()).RunByRules(count) }
+
+// RunByRules says "Run by {count, plural, one {{count, number, ::group-off} rule} other {{count, number, ::group-off} rules}}"
+// in the language of msgs.
+func (msgs Messages) RunByRules(count int) string {
+	return Catalog.Format(msgs.locale, "runByRules", map[string]any{"count": count})
+}
+
 // RunNumberLabel says "Run #{number}"
 // in the language the app shows.
 func RunNumberLabel(number int) string { return In(i18n.Locale()).RunNumberLabel(number) }
@@ -5394,6 +5986,18 @@ func RunNumberResult(number int) string { return In(i18n.Locale()).RunNumberResu
 // in the language of msgs.
 func (msgs Messages) RunNumberResult(number int) string {
 	return Catalog.Format(msgs.locale, "runNumberResult", map[string]any{"number": number})
+}
+
+// RunResponseSummary says "{status, number, ::group-off} · {size} · {ms, number, ::group-off} ms · {passed, number, ::group-off}/{total, numb…"
+// in the language the app shows.
+func RunResponseSummary(status int, size string, ms int, passed int, total int) string {
+	return In(i18n.Locale()).RunResponseSummary(status, size, ms, passed, total)
+}
+
+// RunResponseSummary says "{status, number, ::group-off} · {size} · {ms, number, ::group-off} ms · {passed, number, ::group-off}/{total, numb…"
+// in the language of msgs.
+func (msgs Messages) RunResponseSummary(status int, size string, ms int, passed int, total int) string {
+	return Catalog.Format(msgs.locale, "runResponseSummary", map[string]any{"status": status, "size": size, "ms": ms, "passed": passed, "total": total})
 }
 
 // RunResultsLimitTip says "Displaying latest 1000 results; closing keeps a run active"
@@ -5570,6 +6174,18 @@ func SavedRequests() string { return In(i18n.Locale()).SavedRequests() }
 // in the language of msgs.
 func (msgs Messages) SavedRequests() string {
 	return Catalog.Format(msgs.locale, "savedRequests", nil)
+}
+
+// SavedRequestsNotSent says "Saved {count, plural, one {{count, number, ::group-off} request} other {{count, number, ::group-off} requests}} to …"
+// in the language the app shows.
+func SavedRequestsNotSent(count int, name string) string {
+	return In(i18n.Locale()).SavedRequestsNotSent(count, name)
+}
+
+// SavedRequestsNotSent says "Saved {count, plural, one {{count, number, ::group-off} request} other {{count, number, ::group-off} requests}} to …"
+// in the language of msgs.
+func (msgs Messages) SavedRequestsNotSent(count int, name string) string {
+	return Catalog.Format(msgs.locale, "savedRequestsNotSent", map[string]any{"count": count, "name": name})
 }
 
 // SavedSession says "Saved session"
@@ -6174,6 +6790,16 @@ func SocksSettingsNotSaved(error string) string {
 // in the language of msgs.
 func (msgs Messages) SocksSettingsNotSaved(error string) string {
 	return Catalog.Format(msgs.locale, "socksSettingsNotSaved", map[string]any{"error": error})
+}
+
+// SpilledBodyGone says "\n\n… the spilled body is gone: {error}"
+// in the language the app shows.
+func SpilledBodyGone(error string) string { return In(i18n.Locale()).SpilledBodyGone(error) }
+
+// SpilledBodyGone says "\n\n… the spilled body is gone: {error}"
+// in the language of msgs.
+func (msgs Messages) SpilledBodyGone(error string) string {
+	return Catalog.Format(msgs.locale, "spilledBodyGone", map[string]any{"error": error})
 }
 
 // SslCABundleNote says "SSL_CERT_FILE, REQUESTS_CA_BUNDLE, CURL_CA_BUNDLE, GIT_SSL_CAINFO, PIP_CERT and DENO_CERT point at {path}, a 0600 bun…"
@@ -6868,6 +7494,18 @@ func (msgs Messages) ToolSchemaNotJSON() string {
 	return Catalog.Format(msgs.locale, "toolSchemaNotJSON", nil)
 }
 
+// TruncatedBytesShown says "\n\n… truncated: {shown, number, ::group-off} bytes shown (recorded size: {size, number, ::group-off})"
+// in the language the app shows.
+func TruncatedBytesShown(shown int, size int) string {
+	return In(i18n.Locale()).TruncatedBytesShown(shown, size)
+}
+
+// TruncatedBytesShown says "\n\n… truncated: {shown, number, ::group-off} bytes shown (recorded size: {size, number, ::group-off})"
+// in the language of msgs.
+func (msgs Messages) TruncatedBytesShown(shown int, size int) string {
+	return Catalog.Format(msgs.locale, "truncatedBytesShown", map[string]any{"shown": shown, "size": size})
+}
+
 // TruncatedForDocumentation says "\n… truncated for documentation"
 // in the language the app shows.
 func TruncatedForDocumentation() string { return In(i18n.Locale()).TruncatedForDocumentation() }
@@ -7264,6 +7902,16 @@ func (msgs Messages) ValidationFailedFixTheSource() string {
 	return Catalog.Format(msgs.locale, "validationFailedFixTheSource", nil)
 }
 
+// VariableCurrentValue says "Variable current value {index, number, ::group-off}"
+// in the language the app shows.
+func VariableCurrentValue(index int) string { return In(i18n.Locale()).VariableCurrentValue(index) }
+
+// VariableCurrentValue says "Variable current value {index, number, ::group-off}"
+// in the language of msgs.
+func (msgs Messages) VariableCurrentValue(index int) string {
+	return Catalog.Format(msgs.locale, "variableCurrentValue", map[string]any{"index": index})
+}
+
 // VariableDotName says "Variable · {name}"
 // in the language the app shows.
 func VariableDotName(name string) string { return In(i18n.Locale()).VariableDotName(name) }
@@ -7274,6 +7922,26 @@ func (msgs Messages) VariableDotName(name string) string {
 	return Catalog.Format(msgs.locale, "variableDotName", map[string]any{"name": name})
 }
 
+// VariableInitialValue says "Variable initial value {index, number, ::group-off}"
+// in the language the app shows.
+func VariableInitialValue(index int) string { return In(i18n.Locale()).VariableInitialValue(index) }
+
+// VariableInitialValue says "Variable initial value {index, number, ::group-off}"
+// in the language of msgs.
+func (msgs Messages) VariableInitialValue(index int) string {
+	return Catalog.Format(msgs.locale, "variableInitialValue", map[string]any{"index": index})
+}
+
+// VariableName says "Variable name {index, number, ::group-off}"
+// in the language the app shows.
+func VariableName(index int) string { return In(i18n.Locale()).VariableName(index) }
+
+// VariableName says "Variable name {index, number, ::group-off}"
+// in the language of msgs.
+func (msgs Messages) VariableName(index int) string {
+	return Catalog.Format(msgs.locale, "variableName", map[string]any{"index": index})
+}
+
 // VariableNamesRules says "Variable names must be nonempty, unique and contain no braces."
 // in the language the app shows.
 func VariableNamesRules() string { return In(i18n.Locale()).VariableNamesRules() }
@@ -7282,6 +7950,18 @@ func VariableNamesRules() string { return In(i18n.Locale()).VariableNamesRules()
 // in the language of msgs.
 func (msgs Messages) VariableNamesRules() string {
 	return Catalog.Format(msgs.locale, "variableNamesRules", nil)
+}
+
+// VariablesProblem says "Variables ({path}): {error}"
+// in the language the app shows.
+func VariablesProblem(path string, error string) string {
+	return In(i18n.Locale()).VariablesProblem(path, error)
+}
+
+// VariablesProblem says "Variables ({path}): {error}"
+// in the language of msgs.
+func (msgs Messages) VariablesProblem(path string, error string) string {
+	return Catalog.Format(msgs.locale, "variablesProblem", map[string]any{"path": path, "error": error})
 }
 
 // VariablesSection says "\n\nVariables:\n"
@@ -7352,6 +8032,16 @@ func WaitingForTheSignIn() string { return In(i18n.Locale()).WaitingForTheSignIn
 // in the language of msgs.
 func (msgs Messages) WaitingForTheSignIn() string {
 	return Catalog.Format(msgs.locale, "waitingForTheSignIn", nil)
+}
+
+// WebSocketReplies says "WebSocket: {count, plural, one {{count, number, ::group-off} reply} other {{count, number, ::group-off} replies}}"
+// in the language the app shows.
+func WebSocketReplies(count int) string { return In(i18n.Locale()).WebSocketReplies(count) }
+
+// WebSocketReplies says "WebSocket: {count, plural, one {{count, number, ::group-off} reply} other {{count, number, ::group-off} replies}}"
+// in the language of msgs.
+func (msgs Messages) WebSocketReplies(count int) string {
+	return Catalog.Format(msgs.locale, "webSocketReplies", map[string]any{"count": count})
 }
 
 // WebsocketMessagesOrSseEvents says "WebSocket messages or SSE events"

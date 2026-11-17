@@ -32,7 +32,7 @@ func runSummary(r request.Execution) string {
 		if r.Err != nil {
 			return ntlmErrorText(r.Err)
 		}
-		return fmt.Sprintf("WebSocket: %d replies", len(r.Replies))
+		return locales.WebSocketReplies(len(r.Replies))
 	}
 	passed := 0
 	for _, t := range r.Tests {
@@ -46,12 +46,12 @@ func runSummary(r request.Execution) string {
 		if r.Err != nil {
 			return "gRPC " + name + " · " + ntlmErrorText(r.Err)
 		}
-		return fmt.Sprintf("gRPC %s · %d ms · %d/%d tests", name, r.Response.Millis, passed, len(r.Tests))
+		return locales.GrpcRunSummary(name, r.Response.Millis, passed, len(r.Tests))
 	}
 	if r.Err != nil {
 		return ntlmErrorText(r.Err)
 	}
-	return fmt.Sprintf("%d · %s · %d ms · %d/%d tests", r.Response.Status, humanBytes(r.Response.Bytes), r.Response.Millis, passed, len(r.Tests))
+	return locales.RunResponseSummary(r.Response.Status, humanBytes(r.Response.Bytes), r.Response.Millis, passed, len(r.Tests))
 }
 
 // grpcCodeName names a grpc-status value, or keeps the text when it is not a
