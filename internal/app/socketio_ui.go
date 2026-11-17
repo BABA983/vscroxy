@@ -166,7 +166,7 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				authoredText(c, &d.socketIOConfig.Attachments, &u.attachmentEditor, &u.attachmentsFor, locales.SocketIoAttachmentsJson(), "json")
 			case 2:
 				ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Disabled(d.composeWaiting).Children(func() {
-					uikit.SettingsGroup(c, locales.Connection(), func() {
+					uikit.SettingsGroup(c, locales.Handshake(), func() {
 						uikit.SettingsRow(c, locales.Namespace(), func() ui.Element {
 							in := uikit.Input(c, &d.socketIOConfig.Namespace).Label(locales.SocketIoNamespace()).Placeholder(locales.DefaultText())
 							uikit.Tip(c, in, locales.SocketIoNamespaceHelp())

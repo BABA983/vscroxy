@@ -3104,6 +3104,16 @@ func (msgs Messages) GrpcWebFramingIsNot() string {
 	return Catalog.Format(msgs.locale, "grpcWebFramingIsNot", nil)
 }
 
+// Handshake says "Handshake"
+// in the language the app shows.
+func Handshake() string { return In(i18n.Locale()).Handshake() }
+
+// Handshake says "Handshake"
+// in the language of msgs.
+func (msgs Messages) Handshake() string {
+	return Catalog.Format(msgs.locale, "handshake", nil)
+}
+
 // HandshakeAccepted says "Handshake accepted · {url} · subprotocol: {protocol}"
 // in the language the app shows.
 func HandshakeAccepted(url string, protocol string) string {
@@ -7878,6 +7888,16 @@ func Unary() string { return In(i18n.Locale()).Unary() }
 // in the language of msgs.
 func (msgs Messages) Unary() string {
 	return Catalog.Format(msgs.locale, "unary", nil)
+}
+
+// Unavailable says "Unavailable"
+// in the language the app shows.
+func Unavailable() string { return In(i18n.Locale()).Unavailable() }
+
+// Unavailable says "Unavailable"
+// in the language of msgs.
+func (msgs Messages) Unavailable() string {
+	return Catalog.Format(msgs.locale, "unavailable", nil)
 }
 
 // UnavailableForWhatIsShown says "Unavailable for what is shown or selected"

@@ -3176,7 +3176,7 @@ func (a *app) table(c *ui.Context) {
 						return
 					}
 					if cell.problem != "" {
-						uikit.Tip(c, quiet("Unavailable"), cell.problem)
+						uikit.Tip(c, quiet(locales.Unavailable()), cell.problem)
 						return
 					}
 				}
