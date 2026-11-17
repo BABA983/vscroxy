@@ -121,6 +121,7 @@ func screenStrings(t *testing.T, path string) []string {
 		"Description": 0, "Error": 0, "Tooltip": 0, "Placeholder": 0,
 		"do": 1, "note": 0, "submenu": 0, "command": 1, "MenuSelect": 1,
 		"inform": 0, "done": 0, "warn": 0, "fail": 0,
+		"Item": 0, "Submenu": 0,
 	}
 	variadic := map[string]int{"Segmented": 2, "Tabs": 3, "SubTabs": 3, "EmptyState": 1}
 	fields := map[string]bool{
@@ -203,7 +204,33 @@ func screenStrings(t *testing.T, path string) []string {
 	}
 	// Package-level values and the results of package functions that return
 	// a string are known before any screen is read.
-	global := &scope{vars: map[string][]string{}, funcs: map[string][]string{}}
+	global := &scope{vars: map[string][]string{}, funcs: map[string][]string{}, fieldVals: map[string][]string{}}
+	// Struct fields a function sets, or a keyed literal sets, hold the strings
+	// a view may show later as x.field.
+	for _, decl := range file.Decls {
+		d, ok := decl.(*ast.FuncDecl)
+		if !ok || d.Body == nil {
+			continue
+		}
+		c := global.child(d.Body)
+		ast.Inspect(d.Body, func(n ast.Node) bool {
+			switch x := n.(type) {
+			case *ast.AssignStmt:
+				if len(x.Lhs) == len(x.Rhs) {
+					for i, l := range x.Lhs {
+						if sel, ok := l.(*ast.SelectorExpr); ok {
+							global.fieldVals[sel.Sel.Name] = append(global.fieldVals[sel.Sel.Name], c.values(x.Rhs[i])...)
+						}
+					}
+				}
+			case *ast.KeyValueExpr:
+				if key, ok := x.Key.(*ast.Ident); ok {
+					global.fieldVals[key.Name] = append(global.fieldVals[key.Name], c.values(x.Value)...)
+				}
+			}
+			return true
+		})
+	}
 	for _, decl := range file.Decls {
 		switch d := decl.(type) {
 		case *ast.FuncDecl:
@@ -236,14 +263,15 @@ func screenStrings(t *testing.T, path string) []string {
 // scope maps the variables of a function to the strings they are bound to,
 // and the package functions to the strings they return.
 type scope struct {
-	vars  map[string][]string
-	funcs map[string][]string
+	vars      map[string][]string
+	funcs     map[string][]string
+	fieldVals map[string][]string
 }
 
 // child is the scope of a function body: the package's, plus the variables
 // the body binds.
 func (s *scope) child(body ast.Node) *scope {
-	c := &scope{vars: map[string][]string{}, funcs: s.funcs}
+	c := &scope{vars: map[string][]string{}, funcs: s.funcs, fieldVals: s.fieldVals}
 	maps.Copy(c.vars, s.vars)
 	c.bind(body)
 	return c
@@ -293,9 +321,23 @@ func (s *scope) values(e ast.Expr) []string {
 		}
 	case *ast.Ident:
 		return s.vars[x.Name]
+	case *ast.SelectorExpr:
+		return s.fieldVals[x.Sel.Name]
 	case *ast.CallExpr:
-		if id, ok := x.Fun.(*ast.Ident); ok {
-			return s.funcs[id.Name]
+		switch fn := x.Fun.(type) {
+		case *ast.Ident:
+			return s.funcs[fn.Name]
+		case *ast.SelectorExpr:
+			// fmt.Sprintf and fmt.Errorf show their format, and a method
+			// returns the strings of its return statements.
+			if id, ok := fn.X.(*ast.Ident); ok && id.Name == "fmt" && (fn.Sel.Name == "Sprintf" || fn.Sel.Name == "Errorf") && len(x.Args) > 0 {
+				return s.values(x.Args[0])
+			}
+			if fn.Sel.Name == "Error" {
+				// err.Error() shows the message of the error it holds.
+				return slices.Concat(s.values(fn.X), s.funcs["Error"])
+			}
+			return s.funcs[fn.Sel.Name]
 		}
 	}
 	return nil
@@ -309,7 +351,7 @@ func readAllowed(t *testing.T, path string) map[string]bool {
 	}
 	allowed := map[string]bool{}
 	for _, line := range strings.Split(string(data), "\n") {
-		if line == "" || strings.HasPrefix(line, "#") {
+		if line == "" || line == "#" || strings.HasPrefix(line, "# ") {
 			continue
 		}
 		allowed[line] = true
