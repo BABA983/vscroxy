@@ -292,7 +292,7 @@ func (a *app) hostsActions() []action {
 		do("hosts.drop-connections", locales.DropOpenConnections(), a.dropConnections).
 			when(a.srv != nil, "Start capture first").in("hosts"),
 		do("hosts.off", locales.TurnOffHostProfiles(), a.hostsOff).
-			when(len(a.profiles.set.On()) > 0, "No Host profile is on").in("hosts"),
+			when(len(a.profiles.set.On()) > 0, locales.NoHostProfileIsOn()).in("hosts"),
 	}
 	for i, p := range a.profiles.set.Profiles {
 		actions = append(actions, do("hosts.switch", locales.HostProfileNamed(p.Name), func() { a.switchProfile(i, !p.On) }).

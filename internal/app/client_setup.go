@@ -378,7 +378,7 @@ func (a *app) launchElectronApp() {
 		a.warn(locales.ChooseAnElectronAppFirst())
 		return
 	}
-	a.launchClient("Launch Electron app", "Launched Electron app", false, func(p clientsetup.Proxy) (clientLaunch, error) {
+	a.launchClient(locales.LaunchElectronApp(), locales.LaunchedElectronApp(), false, func(p clientsetup.Proxy) (clientLaunch, error) {
 		command, err := clientsetup.OpenElectron(path, p)
 		return clientLaunch{command: command}, err
 	})

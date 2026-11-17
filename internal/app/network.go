@@ -214,7 +214,7 @@ func (a *app) writeNetworkPresets(presets []capture.Throttle) bool {
 	}
 	f := a.file(n.path)
 	if err := f.Problem(); err != nil {
-		return a.networkProblem("Network presets are read-only until reloaded cleanly", err)
+		return a.networkProblem(locales.NetworkPresetsAreReadOnly(), err)
 	}
 	// Atomic replacement must not bypass an explicitly read-only file's mode.
 	info, err := os.Stat(n.path)

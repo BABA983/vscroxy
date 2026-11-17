@@ -163,7 +163,7 @@ func (a *app) mcpActions(d *requestDocument, editing bool) []action {
 	connected := s.connected && !s.finished
 	idle := connected && !s.busy && !d.sendCancelling
 	return []action{
-		do("request.mcp-cancel", locales.CancelMcpRequest(), func() { u.session.cancelOp() }).when(connected && s.busy, "No MCP request is running"),
+		do("request.mcp-cancel", locales.CancelMcpRequest(), func() { u.session.cancelOp() }).when(connected && s.busy, locales.NoMcpRequestIsRunning()),
 		do("request.mcp-disconnect", locales.DisconnectMcp(), func() { u.session.disconnect() }).when(connected, locales.ConnectAnMcpDocumentFirst()),
 		do("request.mcp-refresh", locales.RefreshMcpCatalog(), func() { u.session.refreshCatalog() }).when(idle, locales.ConnectAnMcpDocumentFirst()),
 		do("request.mcp-call", locales.CallMcpTool(), func() {
@@ -384,7 +384,7 @@ func (a *app) mcpToolsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 		uikit.Hint(c, locales.ConnectAndRefreshTheCatalog())
 		return
 	}
-	description := cmp.Or(tool.Description, tool.Title, "No description")
+	description := cmp.Or(tool.Description, tool.Title, locales.NoDescription())
 	uikit.Meta(c, description).MaxLines(2)
 	if tool.Annotations != "" && tool.Annotations != "null" {
 		uikit.Tip(c, uikit.Meta(c, tool.Annotations).SingleLine(), locales.ToolAnnotations())
@@ -413,7 +413,7 @@ func (a *app) mcpToolsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Meta(c, locales.ArgumentsJsonObjectVariablesSupported()).Grow(1).SingleLine()
 	})
-	authoredText(c, &d.mcpConfig.ToolArgs, &u.argsEditor, &u.argsFor, "MCP tool arguments", "json")
+	authoredText(c, &d.mcpConfig.ToolArgs, &u.argsEditor, &u.argsFor, locales.McpToolArguments(), "json")
 	a.wireVariableEditor(u.argsEditor, d.composeCollection)
 	a.setVariableDiagnostics(u.argsEditor, d.mcpConfig.ToolArgs, d.composeCollection)
 }
@@ -514,7 +514,7 @@ func (a *app) mcpPromptsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Meta(c, locales.ArgumentsJsonObjectStringValues()).Grow(1).SingleLine()
 	})
-	authoredText(c, &d.mcpConfig.PromptArgs, &u.argsEditor, &u.argsFor, "MCP prompt arguments", "json")
+	authoredText(c, &d.mcpConfig.PromptArgs, &u.argsEditor, &u.argsFor, locales.McpPromptArguments(), "json")
 	a.wireVariableEditor(u.argsEditor, d.composeCollection)
 	a.setVariableDiagnostics(u.argsEditor, d.mcpConfig.PromptArgs, d.composeCollection)
 }
@@ -874,7 +874,7 @@ func (a *app) mcpSessionPane(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSn
 	info := s.connection
 	ui.Scroll(c).Grow(1).Padding(0, t.Space(uikit.SpaceL)).Children(func() {
 		ui.Column(c).Selectable().Gap(t.Space(uikit.SpaceM)).Children(func() {
-			server := cmp.Or(s.server.Title, s.server.Name, "MCP server")
+			server := cmp.Or(s.server.Title, s.server.Name, locales.McpServer())
 			uikit.Body(c, server+" "+s.server.Version).FontWeight(500)
 			uikit.Meta(c, locales.McpVersion(cmp.Or(s.server.ProtocolVersion, locales.UnknownLower()), info.Transport)).SingleLine()
 			if info.Endpoint != "" {

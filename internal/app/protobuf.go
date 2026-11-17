@@ -440,7 +440,7 @@ func grpcStatus(f flow) string {
 		return "gRPC status missing (HTTP 200 alone does not mean success)"
 	}
 	names := [...]string{"OK", "Cancelled", "Unknown", "InvalidArgument", "DeadlineExceeded", "NotFound", "AlreadyExists", "PermissionDenied", "ResourceExhausted", "FailedPrecondition", "Aborted", "OutOfRange", "Unimplemented", "Internal", "Unavailable", "DataLoss", "Unauthenticated"}
-	name := "Invalid status"
+	name := locales.InvalidStatus()
 	if n, err := strconv.Atoi(code); err == nil && n >= 0 && n < len(names) {
 		name = names[n]
 	}

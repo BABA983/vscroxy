@@ -84,7 +84,7 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 
 	in, cfg, err := a.oauthConfig(*auth, collection)
 	s := &a.oauth
-	status, color := "No access token yet", t.TextMuted
+	status, color := locales.NoAccessTokenYet(), t.TextMuted
 	if err != nil {
 		status, color = err.Error(), t.Danger
 	} else if tok, ok := in.Tokens.Peek(cfg); ok {
@@ -104,7 +104,7 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 			status += " · scope " + tok.Scope
 		}
 	} else if !interactive {
-		status = "No access token yet · the first send gets one"
+		status = locales.NoAccessTokenYetThe()
 	}
 	if s.key == cfg.Key() && s.busy {
 		status, color = "Getting an access token…", t.TextMuted

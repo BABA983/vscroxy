@@ -194,7 +194,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 	cert := diagnosticCheck{title: locales.DiagCertificate()}
 	switch {
 	case !https:
-		cert.result = "Not needed for HTTP"
+		cert.result = locales.NotNeededForHttp()
 	case d.client == diagnoseMac:
 		status, _ := a.certificateStatus(t)
 		cert.result = status
@@ -224,7 +224,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 	decrypt := diagnosticCheck{title: locales.HttpsDecryption()}
 	switch {
 	case !https:
-		decrypt.result = "Not needed for HTTP"
+		decrypt.result = locales.NotNeededForHttp()
 	case a.inspectionConfig().Decrypts(target.Hostname()):
 		decrypt.state, decrypt.result = checkPass, target.Hostname()+" is decrypted on new connections"
 	default:

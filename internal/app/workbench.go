@@ -446,7 +446,7 @@ func (a *app) captureActions() []action {
 	return append(actions,
 		do("capture.add-column", locales.AddColumn(), a.openColumn).in("columns"),
 		do("capture.clear", locales.ClearUnpinnedRequests2(), func() { a.clearOpen = true }).in("clear"),
-		do("flow.undo-delete", locales.Undo(), a.undoDelete).when(len(a.deletions) > 0, "Nothing to undo").keys(ui.Cmd, ui.KeyZ),
+		do("flow.undo-delete", locales.Undo(), a.undoDelete).when(len(a.deletions) > 0, locales.NothingToUndo()).keys(ui.Cmd, ui.KeyZ),
 	)
 }
 
@@ -568,7 +568,7 @@ func (a *app) actions(c *ui.Context) []action {
 		do("request.previous-tab", locales.PreviousOpenRequest(), func() { a.cycleDocument(-1) }).
 			when(len(a.documents) > 0, "Open a request first").keys(ui.Ctrl|ui.Shift, ui.KeyTab),
 		do("capture.export-chosen", locales.ExportSelectedHar(), a.exportChosen).when(capturing && a.chosen.Len() > 0, ""),
-		do("capture.export-csv", locales.ExportCsv(), a.exportCSV).when(capturing && len(a.visible) > 0, "No visible requests to export"),
+		do("capture.export-csv", locales.ExportCsv(), a.exportCSV).when(capturing && len(a.visible) > 0, locales.NoVisibleRequestsToExport()),
 		do("capture.export-chosen-csv", locales.ExportChosenCsv(), a.exportChosenCSV).when(capturing && a.chosen.Len() > 0, locales.ChooseRequestsFirst()),
 		do("view.focus-inspector", focus, func() {
 			w.focused = !w.focused
@@ -604,7 +604,7 @@ func (a *app) actions(c *ui.Context) []action {
 		do("view.layout-bottom", locales.LayoutStacked(), func() { w.layout, w.focused = "bottom", false }).
 			checked(checkbox(w.layout == "bottom")),
 		do("view.sidebar", locales.ToggleSidebar(), func() { w.sidebarHidden = !w.sidebarHidden }).keys(ui.Cmd, ui.KeyB),
-		do("flow.undo-delete", locales.Undo(), a.undoDelete).when(len(a.deletions) > 0, "Nothing to undo").keys(ui.Cmd, ui.KeyZ),
+		do("flow.undo-delete", locales.Undo(), a.undoDelete).when(len(a.deletions) > 0, locales.NothingToUndo()).keys(ui.Cmd, ui.KeyZ),
 		do("view.layout-reset", locales.ResetDesktopLayout(), func() {
 			w.layout, w.sidebarHidden, w.focused, w.sidePercent = "right", false, false, 64
 			a.sidebarWidth, a.tablePercent = 220, 44

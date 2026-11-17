@@ -320,7 +320,7 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 			}, "")
 			uikit.SettingsRow(c, locales.ClientId(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-					in := a.variableInput(c, "mqtt-client-id", &c1.ClientID, "MQTT client ID", d.composeCollection).
+					in := a.variableInput(c, "mqtt-client-id", &c1.ClientID, locales.MqttClientId(), d.composeCollection).
 						Placeholder(locales.BrokerAssignsOne()).Grow(1).MinWidth(0)
 					uikit.Tip(c, in, locales.Mqtt50MayLeave())
 					if uikit.SecondaryButton(c, locales.Generate()).Clicked() {
@@ -339,10 +339,10 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 			}, "")
 			if d.auth.Type == "Basic" {
 				uikit.SettingsRow(c, locales.Username(), func() ui.Element {
-					return a.variableInput(c, "mqtt-username", &d.auth.Username, "MQTT username", d.composeCollection).Grow(1).MinWidth(0)
+					return a.variableInput(c, "mqtt-username", &d.auth.Username, locales.MqttUsername(), d.composeCollection).Grow(1).MinWidth(0)
 				}, "")
 				uikit.SettingsRow(c, locales.Password(), func() ui.Element {
-					return a.variablePasswordInput(c, "mqtt-password", &d.auth.Password, "MQTT password", d.composeCollection).Grow(1).MinWidth(0)
+					return a.variablePasswordInput(c, "mqtt-password", &d.auth.Password, locales.MqttPassword(), d.composeCollection).Grow(1).MinWidth(0)
 				}, "")
 			}
 			uikit.SettingsRow(c, locales.Session(), func() ui.Element {
@@ -528,7 +528,7 @@ func (a *app) mqttPublishTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 					if u.payloadType != language {
 						u.payloadType, u.payloadEditor = language, nil
 					}
-					mqttPayloadEditor(c, &u.publish.message.Payload, &u.payloadEditor, &u.payloadFor, "MQTT publish payload", language, 160)
+					mqttPayloadEditor(c, &u.publish.message.Payload, &u.payloadEditor, &u.payloadFor, locales.MqttPublishPayload(), language, 160)
 				})
 			}, locales.N1MibMaximum())
 		})
@@ -547,7 +547,7 @@ func (a *app) mqttPublishPropertiesEditor(c *ui.Context, t *ui.Theme, u *mqttDoc
 			return uikit.Input(c, &u.publish.message.Properties.ContentType).Placeholder("application/json").Label(locales.MimeContentType())
 		}, "")
 		uikit.SettingsRow(c, locales.ResponseTopic(), func() ui.Element {
-			return a.variableInput(c, "mqtt-response-topic", &u.publish.message.Properties.ResponseTopic, "MQTT response topic", collection)
+			return a.variableInput(c, "mqtt-response-topic", &u.publish.message.Properties.ResponseTopic, locales.MqttResponseTopic(), collection)
 		}, "")
 		uikit.SettingsRow(c, locales.CorrelationData(), func() ui.Element {
 			return uikit.Input(c, &u.publish.message.Properties.CorrelationData).Placeholder(locales.OpaqueReplyCorrelationValue()).Label(locales.CorrelationData())
@@ -575,7 +575,7 @@ func (a *app) mqttWillTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *mqt
 		ui.Column(c).Disabled(!c1.Will.Enabled).Gap(t.Space(uikit.SpaceXL)).Children(func() {
 			uikit.SettingsGroup(c, locales.LastWill(), func() {
 				uikit.SettingsRow(c, locales.Topic(), func() ui.Element {
-					return a.variableInput(c, "mqtt-will-topic", &c1.Will.Topic, "Last will topic", d.composeCollection)
+					return a.variableInput(c, "mqtt-will-topic", &c1.Will.Topic, locales.LastWillTopic(), d.composeCollection)
 				}, "")
 				uikit.SettingsRowMultiline(c, locales.Payload(), func() ui.Element {
 					return ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
@@ -596,7 +596,7 @@ func (a *app) mqttWillTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *mqt
 						if u.willPayloadType != language {
 							u.willPayloadType, u.willPayloadEditor = language, nil
 						}
-						mqttPayloadEditor(c, &c1.Will.Payload, &u.willPayloadEditor, &u.willPayloadFor, "MQTT last will payload", language, 140)
+						mqttPayloadEditor(c, &c1.Will.Payload, &u.willPayloadEditor, &u.willPayloadFor, locales.MqttLastWillPayload(), language, 140)
 					})
 				}, "")
 			})
@@ -950,6 +950,6 @@ func (a *app) mqttActions(d *requestDocument, editing bool) []action {
 	return []action{
 		do("request.mqtt-publish", locales.PublishMqttMessage(), func() { a.publishMQTT(d) }).when(live, locales.ConnectMqttFirst()),
 		do("request.mqtt-subscribe", locales.SubscribeMqttTopics(), func() { a.subscribeMQTT(d) }).when(live, locales.ConnectMqttFirst()),
-		do("request.mqtt-unsubscribe", locales.UnsubscribeMqttTopics(), func() { a.unsubscribeMQTT(d) }).when(live && len(s.subscriptions) > 0, "No active MQTT subscriptions"),
+		do("request.mqtt-unsubscribe", locales.UnsubscribeMqttTopics(), func() { a.unsubscribeMQTT(d) }).when(live && len(s.subscriptions) > 0, locales.NoActiveMqttSubscriptions()),
 	}
 }

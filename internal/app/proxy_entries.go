@@ -362,7 +362,7 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 			st := status[r.ID]
 			mode := "Remote host"
 			if r.KeepHost {
-				mode = "Keep original Host"
+				mode = locales.KeepOriginalHost()
 			}
 			tlsMode := "Verify TLS"
 			if r.Insecure {
@@ -372,7 +372,7 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 			if r.Enabled {
 				switch {
 				case st.Error != "":
-					state = "Not listening"
+					state = locales.NotListening()
 				case st.Addr != "":
 					state = "Listening on " + st.Addr
 				case a.srv == nil || !a.srv.Running():

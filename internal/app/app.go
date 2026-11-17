@@ -3403,7 +3403,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		if a.inspectionConfig().Decrypts(f.host) {
 			domain = "On for " + hostOnly(f.host)
 		}
-		app := "No local executable was recorded"
+		app := locales.NoLocalExecutableWasRecorded()
 		if filepath.IsAbs(f.processPath) {
 			app = "Off for " + cmp.Or(f.process, filepath.Base(f.processPath))
 			if a.appInspectionEnabled(f.processPath) {

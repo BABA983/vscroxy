@@ -298,7 +298,7 @@ func (a *app) clientJavaPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, r
 		}
 	}
 	if s.javaCACerts == "" {
-		uikit.Tip(c, uikit.ErrorText(c, cmp.Or(s.javaProblem, "JDK cacerts are unavailable.")).MaxLines(3), s.javaProblem)
+		uikit.Tip(c, uikit.ErrorText(c, cmp.Or(s.javaProblem, locales.JdkCacertsAreUnavailable())).MaxLines(3), s.javaProblem)
 		return
 	}
 	commands, err := clientsetup.JavaTruststoreCommands(p, keystore, s.javaCACerts)

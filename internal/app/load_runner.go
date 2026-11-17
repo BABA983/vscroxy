@@ -126,7 +126,7 @@ func (a *app) startLoadRunner() {
 	for _, step := range steps {
 		method, url := strings.ToUpper(step.Request.Method), strings.ToLower(strings.TrimSpace(step.Request.URL))
 		if method == "WS" || method == "WSS" || strings.HasPrefix(url, "ws:") || strings.HasPrefix(url, "wss:") {
-			r.status = "Load tests support HTTP(S) requests only"
+			r.status = locales.LoadTestsSupportHttpS()
 			return
 		}
 	}

@@ -344,7 +344,7 @@ func (a *app) systemProxyStatus(t *ui.Theme) (string, ui.Color) {
 	case s.check.Status == system.ProxyAutomatic:
 		return locales.AutomaticConfigurationTakesPrecedence(), t.Warning
 	case s.check.Status == system.ProxyOff:
-		return "No system proxy is set", t.TextMuted
+		return locales.NoSystemProxyIsSet(), t.TextMuted
 	default:
 		return "Points at another proxy", t.Warning
 	}

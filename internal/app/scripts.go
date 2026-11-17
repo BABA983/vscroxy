@@ -703,7 +703,7 @@ func scriptHooks(s *scriptStore, name string) string {
 			hooks = append(hooks, "onMessage")
 		}
 	}
-	return cmp.Or(strings.Join(hooks, " · "), "No hooks")
+	return cmp.Or(strings.Join(hooks, " · "), locales.NoHooks())
 }
 
 // scriptEditor is the chosen script: its name, menu, the code, the Console

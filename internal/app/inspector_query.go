@@ -158,7 +158,7 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 			uikit.Meta(c, locales.JsonpathItemsPrice10Jq()).FillWidth()
 			ui.Column(c).Height(76).Children(func() {
 				before := u.expression
-				authoredText(c, &u.expression, &u.expressionEditor, &u.seen, "JSON query expression", "")
+				authoredText(c, &u.expression, &u.expressionEditor, &u.seen, locales.JsonQueryExpression(), "")
 				if before != u.expression {
 					u.job.stop()
 					u.job.result, u.job.problem = nil, ""

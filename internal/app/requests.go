@@ -554,7 +554,7 @@ func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 			uikit.Tip(c, env.Trigger.Label(locales.ActiveEnvironment()), locales.ActiveEnvironment()).Width(132).Height(uikit.HeightRow).
 				Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(t.Accent)
-				uikit.Body(c, cmp.Or(a.activeEnv, "No environment")).SingleLine().Grow(1)
+				uikit.Body(c, cmp.Or(a.activeEnv, locales.NoEnvironment())).SingleLine().Grow(1)
 				uikit.Glyph(c, chevronIcon)
 			})
 			env.Popup(func(panel ui.Element) {

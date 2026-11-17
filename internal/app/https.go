@@ -97,7 +97,7 @@ func (a *app) certificateStatus(t *ui.Theme) (string, ui.Color) {
 	case s.checking:
 		return "Checking system trust…", t.TextMuted
 	case s.cert == nil:
-		return "Local CA unavailable", t.Warning
+		return locales.LocalCaUnavailable(), t.Warning
 	case s.err != nil:
 		return "Trust not verified on this system", t.Warning
 	default:
@@ -208,7 +208,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 			switch {
 			case len(a.sslApps) > 0:
 				summary = locales.DomainAndLocalRules(len(domains), len(a.sslApps))
-				hint = "Listed domains or exact local executables are decrypted. Other clients stay encrypted unless a domain rule also matches."
+				hint = locales.ListedDomainsOrExactLocal()
 			case len(domains) > 0:
 				summary = strings.Join(domains, ", ")
 				hint = "These domains and their subdomains are decrypted. Every other host stays an encrypted tunnel."

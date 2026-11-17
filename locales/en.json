@@ -1249,6 +1249,7 @@
   },
   "invalidMessageNothingSent": "Invalid {encoding} message; nothing sent",
   "invalidSearchPattern": "Invalid search pattern",
+  "invalidStatus": "Invalid status",
   "@isSubscriptionHostProfile": {
     "placeholders": {
       "name": {
@@ -1277,6 +1278,7 @@
     }
   },
   "jdkCACerts": "JDK cacerts: {path}",
+  "jdkCacertsAreUnavailable": "JDK cacerts are unavailable.",
   "@jsonPathSegments": {
     "placeholders": {
       "path": {
@@ -1285,6 +1287,8 @@
     }
   },
   "jsonPathSegments": "JSON path segments: {path}",
+  "jsonQueryExpression": "JSON query expression",
+  "keepOriginalHost": "Keep original Host",
   "@keepThisAsEdited": {
     "placeholders": {
       "phase": {
@@ -1323,6 +1327,9 @@
     }
   },
   "kindWithSize": "{kind} · {size} B",
+  "lastWillTopic": "Last will topic",
+  "launchElectronApp": "Launch Electron app",
+  "launchedElectronApp": "Launched Electron app",
   "@lineName": {
     "placeholders": {
       "line": {
@@ -1334,6 +1341,8 @@
     }
   },
   "lineName": "Line {line} · {name}",
+  "listedDomainsOrExactLocal": "Listed domains or exact local executables are decrypted. Other clients stay encrypted unless a domain rule also matches.",
+  "loadTestsSupportHttpS": "Load tests support HTTP(S) requests only",
   "@loadedFrom": {
     "placeholders": {
       "source": {
@@ -1342,6 +1351,7 @@
     }
   },
   "loadedFrom": "Loaded from {source}",
+  "localCaUnavailable": "Local CA unavailable",
   "localCommand": "local command",
   "@mapHostFor": {
     "placeholders": {
@@ -1351,6 +1361,9 @@
     }
   },
   "mapHostFor": "Map a host for {name}…",
+  "mcpPromptArguments": "MCP prompt arguments",
+  "mcpServer": "MCP server",
+  "mcpToolArguments": "MCP tool arguments",
   "@mcpVersion": {
     "placeholders": {
       "version": {
@@ -1408,9 +1421,16 @@
   "mockFromExamples": "Mock “{path}” from examples",
   "mockThisResponse": "Mock this response…",
   "mocksEmptyHint": "Answer requests from local files or JavaScript. Create a Map Local or Code Mock rule here; saved examples can also become mocks.",
+  "mqttClientId": "MQTT client ID",
+  "mqttLastWillPayload": "MQTT last will payload",
   "mqttNeedsTopic": "Add at least one topic filter, or turn on at least one topic's On connect",
+  "mqttPassword": "MQTT password",
+  "mqttPublishPayload": "MQTT publish payload",
+  "mqttResponseTopic": "MQTT response topic",
+  "mqttUsername": "MQTT username",
   "n1Message": "1 message",
   "n1NetworkServiceHasNo": "1 network service has no proxy",
+  "networkPresetsAreReadOnly": "Network presets are read-only until reloaded cleanly",
   "@networkRuleCount": {
     "placeholders": {
       "count": {
@@ -1420,12 +1440,20 @@
   },
   "networkRuleCount": "Network rules: {count}",
   "newCollectionMenu": "New collection",
+  "noAccessTokenYet": "No access token yet",
+  "noAccessTokenYetThe": "No access token yet · the first send gets one",
+  "noActiveMqttSubscriptions": "No active MQTT subscriptions",
   "noAddons": "No addons",
   "noAuthSet": "No collection or folder sets auth, so none is sent.",
   "noBodyBytes": "No body bytes available; see the capture warning above",
   "noDataFile": "No data file: every iteration uses the same variables.",
+  "noDescription": "No description",
+  "noHooks": "No hooks",
+  "noHostProfileIsOn": "No Host profile is on",
+  "noLocalExecutableWasRecorded": "No local executable was recorded",
   "noMatchesSearchable": "No matches in searchable traffic",
   "noMatchingRequests": "No matching requests",
+  "noMcpRequestIsRunning": "No MCP request is running",
   "noMessageMatches": "No message matches",
   "noMessagesInBody": "No messages in this body (a trailers-only gRPC response is valid)",
   "noMessagesRetained": "No messages retained",
@@ -1447,10 +1475,15 @@
   "noScenario": "No scenario",
   "noSchema": "No schema",
   "noScripts": "No scripts",
+  "noSystemProxyIsSet": "No system proxy is set",
   "noTemplate": "No template",
+  "noVisibleRequestsToExport": "No visible requests to export",
   "noneLower": "none",
   "noneRecordedOnExchange": "None recorded on this exchange",
   "notFetchedYet": "Not fetched yet",
+  "notListening": "Not listening",
+  "notNeededForHttp": "Not needed for HTTP",
+  "notSavedYet": "Not saved yet",
   "nothingSavedUntilCreate": "Nothing is saved until Create.",
   "nothingShownUntilAdd": "Nothing is shown until you add a host or an app.",
   "@nothingToImport": {
@@ -1464,6 +1497,7 @@
     }
   },
   "nothingToImport": "{what}: nothing to import; {warnings}",
+  "nothingToUndo": "Nothing to undo",
   "@numberedName": {
     "placeholders": {
       "base": {
@@ -1484,6 +1518,7 @@
   },
   "observedFailure": "Observed failure · {stage}",
   "oneContract": "1 contract",
+  "onlyAScenarioNamedFor": "Only a scenario named for a collection with examples",
   "openConnectionTab": "Open this exchange's Connection tab: the recorded log, addresses and rules",
   "@openExampleNamed": {
     "placeholders": {
