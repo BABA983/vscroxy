@@ -399,7 +399,9 @@ func Combobox(c *ui.Context, value *string, options []string) ui.Element {
 	face := *t
 	face.Accent = p.Ring
 	c.SetTheme(&face)
-	e := ui.Combobox(c, value, options).Border(0, ui.Color{}).Height(HeightControl).Padding(0, Scaled(ControlPaddingX)).FontSize(Scaled(TextBody))
+	// The field's gap sits between the text and the arrow, so a long value
+	// stops ControlPaddingX short of the arrow, as an Input's stops at its inset.
+	e := ui.Combobox(c, value, options).Border(0, ui.Color{}).Height(HeightControl).Padding(0, Scaled(ControlPaddingX)).Gap(Scaled(ControlPaddingX)).FontSize(Scaled(TextBody))
 	c.SetTheme(t)
 	return fieldFace(p, e, false, e.Focused(), false)
 }

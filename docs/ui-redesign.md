@@ -472,7 +472,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `SettingsRow`／`SettingsRowMultiline` | 设置行：左列标签，右边控件，下面一行说明 | 标签列按组宽（112–180）；多行版的标签与控件首行对齐 | 说明可带 tip；控件自己的状态 | 不用于非设置的表单（用 `FormRow`） |
 | `Switch`／`SettingsSwitch` | 开关 | 轨道 36×20，圆角 10；`SettingsSwitch` 带标签 | 关、开（`SwitchOn`）、焦点、禁用（半透明） | 不要用来做互斥选择 |
 
-**单行文字的边距。** `Input` 与 `InputControl` 的文字左右各留 `ControlPaddingX`（12）。左边是内边距；右边是一条透明的边框（`uikit.TextInset`），因为 MyGo 把输入的文字裁到边框的外沿，而不是内边距。这条边框在各状态下都画不出来（`InputControl` 建字段时把 Accent、Border、Text、Danger 设为透明，MyGo 按状态给边框上色时取的就是这些颜色）。超出字段的文字裁在这条线上，没有省略号（MyGo 的输入不做省略）；所以字段的占位文字或长值要按宽度留够，或由调用方缩短。URL 栏是裸的 `ui.TextInputBase`，同样用 `uikit.TextInset`，右边留 `SpaceM`（8），与它的左边相同。
+**单行文字的边距。** `Input` 与 `InputControl` 的文字左右各留 `ControlPaddingX`（12）。左边是内边距；右边是一条透明的边框（`uikit.TextInset`），因为 MyGo 把输入的文字裁到边框的外沿，而不是内边距。这条边框在各状态下都画不出来（`InputControl` 建字段时把 Accent、Border、Text、Danger 设为透明，MyGo 按状态给边框上色时取的就是这些颜色）。超出字段的文字裁在这条线上，没有省略号（MyGo 的输入不做省略）；所以字段的占位文字或长值要按宽度留够，或由调用方缩短。URL 栏是裸的 `ui.TextInputBase`，同样用 `uikit.TextInset`，右边留 `SpaceM`（8），与它的左边相同。`Combobox` 的文字停在箭头前 `ControlPaddingX`（12）：字段的 `Gap` 就是文字与箭头之间的距离（箭头宽 10，字段内边距 12），弹层的高亮仍是 `Ring`。
 
 **字段的说明在控件下面。** 数字字段的单位说明（超时的“秒”、重定向的“HTTP 跳数”）放在 `NumberInput` 那一行的下一行，宽度给整列；并排放在控件右边时，表单的字段列只剩几十点，说明会被裁成半个词。
 

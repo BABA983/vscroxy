@@ -1,6 +1,7 @@
 package uikit
 
 import (
+	"image"
 	"image/color"
 	"testing"
 
@@ -243,7 +244,52 @@ func TestInputTextStopsAtItsRightInset(t *testing.T) {
 		Input(c, &value).Width(160)
 	}, 160, 28)
 	tt.Frame()
+	checkTextStopsAtRightInset(t, tt.Image(), 160)
+}
+
+// A combobox's text stops ControlPaddingX short of its arrow, so a value
+// longer than the field never runs up to the arrow. In the field's ink the
+// arrow is the last run of columns and the text is the run before it.
+func TestComboboxTextStopsBeforeItsArrow(t *testing.T) {
+	value := "https://api.example.com/v1/projects/a-path-that-does-not-fit-the-field"
+	tt := ui.NewTester(func(c *ui.Context) {
+		c.SetTheme(Theme(false))
+		Combobox(c, &value, []string{value}).Width(160)
+	}, 160, 28)
+	tt.Frame()
 	img := tt.Image()
+	inked := func(x int) bool {
+		for y := 8; y < 20; y++ {
+			if r, g, b, _ := img.At(x, y).RGBA(); (r+g+b)/3 < 0xb000 {
+				return true
+			}
+		}
+		return false
+	}
+	var runs [][2]int
+	for x := 2; x < 158; x++ {
+		if !inked(x) {
+			continue
+		}
+		if n := len(runs); n > 0 && runs[n-1][1] == x-1 {
+			runs[n-1][1] = x
+		} else {
+			runs = append(runs, [2]int{x, x})
+		}
+	}
+	if len(runs) < 2 {
+		t.Fatalf("want text and an arrow in the field, got ink runs %v", runs)
+	}
+	text, arrow := runs[len(runs)-2], runs[len(runs)-1]
+	if gap := arrow[0] - text[1] - 1; gap < ControlPaddingX {
+		t.Fatalf("the text ends %d px before the arrow, want at least %d", gap, ControlPaddingX)
+	}
+}
+
+// checkTextStopsAtRightInset fails when a 160-wide field draws no text, or
+// draws ink in the band of its right inset.
+func checkTextStopsAtRightInset(t *testing.T, img image.Image, width int) {
+	t.Helper()
 	ink := func(x0, x1 int) bool {
 		for y := 8; y < 20; y++ {
 			for x := x0; x < x1; x++ {
@@ -254,10 +300,10 @@ func TestInputTextStopsAtItsRightInset(t *testing.T) {
 		}
 		return false
 	}
-	if !ink(ControlPaddingX, 160-ControlPaddingX) {
+	if !ink(ControlPaddingX, width-ControlPaddingX) {
 		t.Fatal("the field draws no text")
 	}
-	if ink(160-ControlPaddingX, 160-2) {
+	if ink(width-ControlPaddingX, width-2) {
 		t.Fatal("the text runs into the right inset")
 	}
 }
