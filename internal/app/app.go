@@ -2619,7 +2619,7 @@ func (a *app) sourcesRows(c *ui.Context, t *ui.Theme) {
 		rows = a.clients
 	}
 	if len(rows) == 0 {
-		uikit.Hint(c, locales.AppsAndDomainsShowHere()).LineHeight(uikit.LineMeta).MaxLines(1).
+		uikit.Hint(c, locales.AppsAndDomainsShowHere()).LineHeight(uikit.LineMeta).
 			Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))
 		return
 	}
