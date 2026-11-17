@@ -227,7 +227,9 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 			if len(excluded) > 0 {
 				excludedSummary = strings.Join(excluded, ", ")
 			}
-			uikit.SettingsRow(c, locales.NeverDecrypt(), func() ui.Element {
+			// A card block like its neighbours: the label-column SettingsRow
+			// ignored the card's inset, so its label sat on the card's edge.
+			settingsCardBlock(c, locales.NeverDecrypt(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.ManageExclusions()).Clicked() {
 						a.leaveSettings()
@@ -235,7 +237,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 					}
 					uikit.Tip(c, uikit.Hint(c, excludedSummary).SingleLine().Shrink(1).MinWidth(0), excludedSummary)
 				})
-			}, locales.NeverDecryptHint())
+			}, locales.NeverDecryptHint(), locales.NeverDecryptHint())
 			allowed := splitHosts(a.sslUntrusted)
 			allowedSummary := locales.None()
 			if len(allowed) > 0 {
