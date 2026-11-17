@@ -265,6 +265,14 @@ func snapshotStates(t *testing.T) []snapshot {
 		openDraft(a, a.flows[0])
 		a.composeTab = composeTabHeaders
 	}
+	// wizardStep opens the capture-to-collection wizard on one of its steps.
+	wizardStep := func(step int) func(*app) {
+		return func(a *app) {
+			a.openCollectionWizard(a.flows)
+			a.collectionUI.step = step
+			a.collectionUI.name = "Captured API"
+		}
+	}
 	// graphqlSnapshotDraft is a saved GraphQL request with a loaded schema and
 	// two operations, so the selector and the schema toolbar both show.
 	graphqlDraft := func(a *app) *requestDocument {
@@ -1189,6 +1197,11 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.requests[0].Examples = []request.Example{{Name: "Projects", Status: 200, Headers: "Content-Type: application/json", Body: `{"projects":[]}`}}
 			a.openDocs("Workspace/API")
 		}, want: "Documentation · Workspace/API"},
+		{name: "dialog-wizard-scope", setup: wizardStep(0), want: "Next: Endpoints"},
+		{name: "dialog-wizard-variables", setup: wizardStep(2), want: "Next: Structure"},
+		{name: "dialog-wizard-structure", setup: wizardStep(3), want: "Next: Examples"},
+		{name: "dialog-wizard-examples", setup: wizardStep(4), want: "Next: Done"},
+		{name: "dialog-wizard-done", setup: wizardStep(5), want: "Create collection"},
 		{name: "dialog-collection-defaults", setup: func(a *app) {
 			off := false
 			a.folders = []request.Folder{{Path: "Workspace/API", Settings: request.Settings{VerifyTLS: &off}}}
