@@ -93,9 +93,9 @@ func (a *app) certificateStatus(t *ui.Theme) (string, ui.Color) {
 	}
 	switch {
 	case s.installing:
-		return "Installing certificate…", t.TextMuted
+		return locales.InstallingCertificate(), t.TextMuted
 	case s.checking:
-		return "Checking system trust…", t.TextMuted
+		return locales.CheckingSystemTrust(), t.TextMuted
 	case s.cert == nil:
 		return locales.LocalCaUnavailable(), t.Warning
 	case s.err != nil:

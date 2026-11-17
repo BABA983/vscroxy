@@ -107,6 +107,7 @@
     }
   },
   "appRuleEnabled": "App rule enabled for {app}; reconnect the client · decryption not yet verified",
+  "applyingToTheOs": "Applying to the OS…",
   "@appsCount": {
     "placeholders": {
       "count": {
@@ -173,6 +174,8 @@
   "breakpointWebSocketPaused": "Breakpoint · WebSocket message paused",
   "breakpointsChip": "Breakpoints",
   "caFileNotFoundStart": "CA file not found. Start capture, then check again.",
+  "cancelDiscovery": "Cancel discovery",
+  "cancelRequest": "Cancel request",
   "@canceledCount": {
     "placeholders": {
       "count": {
@@ -182,6 +185,7 @@
   },
   "canceledCount": " · {count} canceled",
   "cancelledStatus": "Cancelled",
+  "cancelling": "Cancelling…",
   "captureDroppedTrafficReduceLoad": "Capture dropped traffic; reduce load and start recording again",
   "@captureFilterApplied": {
     "placeholders": {
@@ -252,6 +256,7 @@
   "captureSelected": "Capture · {count} selected requests",
   "captureWasPausedOrThe": "Capture was paused or the application is quitting",
   "captureWasPausedStartCollection": "Capture was paused; start collection recording again after resuming",
+  "captured": "Captured",
   "capturedApi": "Captured API",
   "@capturedNumber": {
     "placeholders": {
@@ -344,6 +349,8 @@
   },
   "changedValues": "Changed values: {values}",
   "changesApplyNewConnections": "Changes apply to new connections.",
+  "checkingOsSettings": "Checking OS settings…",
+  "checkingSystemTrust": "Checking system trust…",
   "@chipApp": {
     "placeholders": {
       "app": {
@@ -476,6 +483,7 @@
   "connectClientToCapture": "Connect a client to start capturing",
   "connectMqttFirst": "Connect MQTT first",
   "connectionDiagnosticsReadOnly": "Connection diagnostics · read-only until you press a fix",
+  "connectionLost": "Connection lost",
   "connectionUse": "Connection use",
   "@containsValue": {
     "placeholders": {
@@ -607,6 +615,7 @@
     }
   },
   "dataRunSummary": "{name} · {count, plural, one {# row} other {# rows}} · {columns}",
+  "decodeInput": "Decode input",
   "decodeSelection": "Decode selection…",
   "@definesHooks": {
     "placeholders": {
@@ -746,6 +755,7 @@
   "editScopedNetworkConditions": "Edit scoped network conditions",
   "editTheAllowList": "Edit the allow list",
   "editUpstreamProxySettings": "Edit upstream proxy settings",
+  "emitEvent": "Emit event",
   "enableADomainOrA2": "Enable a domain or a local app to read its headers, cookies and bodies.",
   "@enableHTTPSFor": {
     "placeholders": {
@@ -984,6 +994,7 @@
       }
     }
   },
+  "exportSession2": "Export session",
   "@exportedFile": {
     "placeholders": {
       "file": {
@@ -1002,6 +1013,7 @@
     }
   },
   "failedAt": "Failed at",
+  "fetchSchema": "Fetch schema",
   "fetchSchemaHint": "Fetch introspection or load an SDL or introspection JSON file to complete and check fields.",
   "@fileNotRead": {
     "placeholders": {
@@ -1018,6 +1030,7 @@
       }
     }
   },
+  "fillFromSchema": "Fill from schema",
   "@fillThisWithSaved": {
     "placeholders": {
       "phase": {
@@ -1029,6 +1042,9 @@
   "filterHexRows": "Filter hex rows (hex bytes or text)…",
   "filterJSONPaths": "Filter JSON paths and values…",
   "findInBodyLabel": "Find in body",
+  "finishSending": "Finish sending",
+  "finishedAllUsersEndedTheir": "Finished · all users ended their sequence",
+  "finishedDurationReached": "Finished · duration reached",
   "finishedStatus": "Finished",
   "focusInspector": "Focus inspector",
   "focusRequestList": "Focus request list",
@@ -1054,6 +1070,7 @@
   "formatGraphQLQuery": "Format GraphQL query",
   "formatTheGraphqlDocumentWithout": "Format the GraphQL document without expanding variables or changing its operations",
   "generatedAtSend": "generated at send",
+  "gettingAnAccessToken": "Getting an access token…",
   "globalVariable": "Global variable",
   "@globalsCount": {
     "placeholders": {
@@ -1149,6 +1166,7 @@
       }
     }
   },
+  "headersWithheld": "Headers withheld",
   "hidden": "•••• (hidden)",
   "@hiddenByFilters": {
     "placeholders": {
@@ -1214,6 +1232,7 @@
   },
   "importCAJavaTruststore": "Import CA into Java truststore",
   "importJmeterTestPlan": "Import JMeter test plan",
+  "importSchema": "Import schema",
   "importSoapuiProject": "Import SoapUI project",
   "importThunderClientCollection": "Import Thunder Client collection",
   "importedCaIntoJavaTruststore": "Imported CA into Java truststore",
@@ -1249,6 +1268,7 @@
   },
   "installationFailed": "Installation failed: {error}",
   "installedCaInIosSimulator": "Installed CA in iOS simulator",
+  "installingCertificate": "Installing certificate…",
   "@invalidMessageNothingSent": {
     "placeholders": {
       "encoding": {
@@ -1362,6 +1382,7 @@
   "loadedFrom": "Loaded from {source}",
   "localCaUnavailable": "Local CA unavailable",
   "localCommand": "local command",
+  "localDisconnectRequestedNoPeer": "Local disconnect requested; no peer close frame recorded",
   "@mapHostFor": {
     "placeholders": {
       "name": {
@@ -1489,6 +1510,7 @@
   "noVisibleRequestsToExport": "No visible requests to export",
   "noneLower": "none",
   "noneRecordedOnExchange": "None recorded on this exchange",
+  "notCheckedYet": "Not checked yet",
   "notFetchedYet": "Not fetched yet",
   "notListening": "Not listening",
   "notNeededForHttp": "Not needed for HTTP",
@@ -1507,6 +1529,7 @@
   },
   "nothingToImport": "{what}: nothing to import; {warnings}",
   "nothingToUndo": "Nothing to undo",
+  "notification": "Notification",
   "@numberedName": {
     "placeholders": {
       "base": {
@@ -1606,7 +1629,9 @@
   },
   "partsNotPreviewed": "{count} parts · files are not previewed",
   "pauseView": "Pause view",
+  "persistCurrentAsInitialWrites": "Persist current as initial: writes it to the shared file and exports",
   "pin": "Pin",
+  "pinToTheTop": "Pin to the top",
   "pointsAtAnotherProxy": "Points at another proxy",
   "pointsAtThisAppBut": "Points at this app, but capture is stopped",
   "@portUsedHTTPProxy": {
@@ -1657,6 +1682,7 @@
     }
   },
   "proxyResponseNumbered": "{number} · proxy response",
+  "publishFailed": "Publish failed",
   "publishTopic": "Publish topic",
   "queryCancelled": "Query cancelled",
   "@queryEditLabel": {
@@ -1708,6 +1734,7 @@
     }
   },
   "readOnlyInspection": "{format} · read-only inspection",
+  "readResource": "Read resource",
   "@rebuildScenarioFromExamples": {
     "placeholders": {
       "path": {
@@ -1716,6 +1743,7 @@
     }
   },
   "rebuildScenarioFromExamples": "Rebuild scenario “{path}” from examples",
+  "reconnectFailed": "Reconnect failed",
   "recordedApi": "Recorded API",
   "recordedConnectionEvidenceAtCapture": "Recorded connection evidence at capture time",
   "@recordedFailure": {
@@ -1728,6 +1756,8 @@
   "recordedFailure": "Recorded failure · {stage}",
   "recordingQueueIsFullReduce": "Recording queue is full; reduce the host/App scope and start again",
   "recordingStoppedBeforeOpeningIts": "Recording stopped before opening its environment editor; restart after saving your edits",
+  "reflectServices": "Reflect services",
+  "refreshSchema": "Refresh schema",
   "reloadAction": "Reload",
   "removeBodiesAndStreams": "Remove request and response bodies, binary payloads and all stream messages.",
   "@removeColumnNamed": {
@@ -1741,6 +1771,8 @@
   "replaceBodyJSONCells": "Replace request and response JSON cells.",
   "replaceHeaderCellsExceptTypeAccept": "Replace header-derived cells except Content-Type and Accept.",
   "replaceHeadersExceptTypeAccept": "Replace every header and trailer value except Content-Type and Accept; remove cookies.",
+  "replay": "Replay",
+  "replayChosen": "Replay chosen…",
   "@replayedCapture": {
     "placeholders": {
       "number": {
@@ -1758,6 +1790,7 @@
     }
   },
   "replayedCapture": "Replayed Capture #{number} · {method} {url} → {status}",
+  "replyAck": "Reply ACK",
   "@reproBundleSavedTo": {
     "placeholders": {
       "path": {
@@ -1790,6 +1823,7 @@
   },
   "responseFromTime": "Response from {time}",
   "responseHeadersFormat": "Response headers must use Name: Value, one per line",
+  "responseLimit": "Response limit",
   "responseStatusRange": "Response status must be a number between 200 and 599",
   "restOfTheResponseBody": "rest of the response body",
   "resumeView": "Resume",
@@ -1850,6 +1884,8 @@
     }
   },
   "saveRequestsEllipsis": "Save {count} requests to collection…",
+  "saveRuleWritesItTo": "Save rule writes it to the file.",
+  "savedCapture": "Saved capture",
   "@savedCaptureFiltersProblem": {
     "placeholders": {
       "error": {
@@ -1859,6 +1895,7 @@
   },
   "savedCaptureFiltersProblem": "Saved capture filters: {error}",
   "savedFilterNeedsName": "A saved filter needs a name.",
+  "savedLocally": "Saved locally",
   "savedNoRequestsSent": "Saved · no requests sent",
   "@savedProtobufSchema": {
     "placeholders": {
@@ -1869,6 +1906,8 @@
   },
   "savedProtobufSchema": "Saved protobuf schema: {error}",
   "savedQueriesLocationIsUnavailable": "Saved queries location is unavailable",
+  "savedRequests": "Saved requests",
+  "savedSession": "Saved session",
   "@savedSessionsEvidence": {
     "placeholders": {
       "count": {
@@ -1877,6 +1916,7 @@
     }
   },
   "savedSessionsEvidence": "{count} saved sessions · read-only evidence",
+  "savedUngrouped": "Saved (ungrouped)",
   "scenarioOff": "Off: its rules do nothing.",
   "scenarioOn": "On: its rules apply. Rules with no scenario also apply.",
   "schemaFetching": "Schema · fetching…",
@@ -1942,7 +1982,10 @@
   "selectPendingACK": "Select a pending server ACK request",
   "selectRecordingEnvironment": "Select the recording environment before editing it; this draft does not include its recorded variables.",
   "selfSignedAllowed": "Self-signed allowed",
+  "sendMessage": "Send message",
   "sendRequestForExperiment": "Send a request to record an experiment.",
+  "sensitiveValuesStayLocalEdit": "Sensitive values stay local; edit Initial explicitly if you need to export it",
+  "serverDisconnected": "Server disconnected",
   "serverStream": "Server stream",
   "serverToClient": "Server → client",
   "setByTheProcessItself": "Set by the process itself; not checkable from here",
@@ -1964,6 +2007,7 @@
     }
   },
   "sha256Fingerprint": "SHA-256: {fingerprint}",
+  "sharedValue": "Shared value",
   "shellUpstream": "Upstream",
   "sideRequest": "request",
   "sideResponse": "response",
@@ -2074,14 +2118,19 @@
   },
   "stdioCommand": "stdio · {command}",
   "stdioProcess": "stdio process",
+  "stoppedAttemptBudgetReached": "Stopped · attempt budget reached",
   "stoppedCancelled": "Stopped · cancelled",
   "stoppedExecutionError": "Stopped · execution error",
   "stoppedFirstFailure": "Stopped · first failure",
+  "stoppedLocallyNoFurtherReconnects": "Stopped locally; no further reconnects",
   "stoppedTimedOut": "Stopped · timed out",
   "stoppingState": "Stopping",
   "stoppingStatus": "Stopping…",
   "stoppingWaitingForBody": "Stopping · waiting for body read",
+  "streamEndedReconnectIsOff": "Stream ended · Reconnect is off",
   "subprotocolsNotBoth": "Enter subprotocols in the dedicated field or headers, not both",
+  "subscribeFailed": "Subscribe failed",
+  "subscribed": "Subscribed",
   "@subscribedURL": {
     "placeholders": {
       "url": {
@@ -3150,6 +3199,8 @@
   "unpin": "Unpin",
   "unresolvedReviewVariables": "unresolved (review variables)",
   "unsavedDraft": "Unsaved draft",
+  "unsubscribeFailed": "Unsubscribe failed",
+  "unsubscribed": "Unsubscribed",
   "untitled": "Untitled",
   "untitledApi": "Untitled API",
   "untitledRule": "Untitled rule",
@@ -3170,6 +3221,7 @@
   "upstreamSettingsSaved": "Upstream settings saved",
   "useANonNegativeInteger": "Use a non-negative integer, optionally prefixed with <, <=, =, >= or >.",
   "useHttpStatusCodes100": "Use HTTP status codes (100–599), ranges, comparisons or comma-separated alternatives.",
+  "useInitial": "Use initial",
   "@usedByChanges": {
     "placeholders": {
       "usedBy": {
@@ -3237,6 +3289,7 @@
   },
   "waitSchemaDiscovery": "Wait for schema discovery to finish",
   "waitingForCaptureToStart": "Waiting for capture to start",
+  "waitingForTheSignIn": "Waiting for the sign-in in your browser…",
   "@waitingResponseTimeout": {
     "placeholders": {
       "seconds": {

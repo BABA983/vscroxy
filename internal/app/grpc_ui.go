@@ -304,7 +304,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		if g.loading != nil {
 			ui.Row(c).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				uikit.Meta(c, locales.LoadingSchema()).Grow(1)
-				a.actionButton(c, "request.grpc-cancel-discovery", "Cancel discovery")
+				a.actionButton(c, "request.grpc-cancel-discovery", locales.CancelDiscovery())
 			})
 		}
 		ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
@@ -313,8 +313,8 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if d.composeWaiting {
 					ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 						ui.Spacer(c).Grow(1)
-						a.actionButton(c, "request.grpc-send-message", "Send message")
-						a.actionButton(c, "request.grpc-finish", "Finish sending")
+						a.actionButton(c, "request.grpc-send-message", locales.SendMessage())
+						a.actionButton(c, "request.grpc-finish", locales.FinishSending())
 					})
 				}
 				if method, err := g.schema.method(d.grpcConfig.Method); err == nil && method.IsStreamingClient() {
@@ -337,8 +337,8 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 						}, "")
 					})
 					ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
-						a.actionButton(c, "request.grpc-import", "Import schema")
-						a.actionButton(c, "request.grpc-reflect", "Reflect services")
+						a.actionButton(c, "request.grpc-import", locales.ImportSchema())
+						a.actionButton(c, "request.grpc-reflect", locales.ReflectServices())
 					})
 					if g.schema != nil {
 						n := len(g.schema.methods)

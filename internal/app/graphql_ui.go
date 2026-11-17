@@ -294,9 +294,9 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 		if statusDanger {
 			status.TextColor(t.Danger)
 		}
-		fetchLabel := "Fetch schema"
+		fetchLabel := locales.FetchSchema()
 		if schema != nil && d.graphql.SchemaSource == d.composeURL {
-			fetchLabel = "Refresh schema"
+			fetchLabel = locales.RefreshSchema()
 		}
 		fetch := uikit.SecondaryButtonBusy(c, fetchLabel, g.loading != nil).Disabled(g.loading != nil || d.composeWaiting)
 		if fetch.Clicked() {

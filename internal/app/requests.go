@@ -1020,12 +1020,12 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			a.primaryActionButton(c, "request.send", sendLabel).Width(sendWidth)
 		}
 		if d.composeWaiting {
-			label := "Cancel"
+			label := locales.Cancel()
 			if d.protocol == "Socket.IO" || d.protocol == "MQTT" || d.protocol == "MCP" {
-				label = "Disconnect"
+				label = locales.Disconnect()
 			}
 			if d.sendCancelling && !narrow {
-				label = "Cancelling…"
+				label = locales.Cancelling()
 			}
 			a.actionButton(c, "request.cancel-send", label).Label(locales.CancelSend()).Width(cancelWidth).
 				Tooltip(locales.StopWaitingCancellingDoesNot())

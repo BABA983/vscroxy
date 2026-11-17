@@ -140,7 +140,7 @@ func generateOpenAPI(requests []savedRequest, collection string) (apiSpec, error
 		return apiSpec{}, errors.New("save at least one request in this collection first")
 	}
 	doc := &openapi3.T{
-		OpenAPI: "3.0.3", Info: &openapi3.Info{Title: cmp.Or(collection, "Saved requests"), Version: "1.0.0"},
+		OpenAPI: "3.0.3", Info: &openapi3.Info{Title: cmp.Or(collection, locales.SavedRequests()), Version: "1.0.0"},
 		Paths: openapi3.NewPaths(),
 	}
 	notes := []string{

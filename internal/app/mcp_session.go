@@ -242,7 +242,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 		}
 		handlers := request.MCPHandlers{
 			Notification: func(method, text string) {
-				s.append("Notification", method, text)
+				s.append(locales.Notification(), method, text)
 				if strings.Contains(method, "list_changed") {
 					s.mu.Lock()
 					s.catalogNotice = locales.CatalogChangedRefreshItTo()
@@ -262,7 +262,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 			},
 			RPC: func(direction, method, text string) { s.rpc(direction, method, text) },
 			BodyLimit: func(limit int64) {
-				s.append("System", "Response limit", fmt.Sprintf("The MCP response body exceeded %d bytes; the SDK closes this session. Reduce the response size or use a smaller request.", limit))
+				s.append("System", locales.ResponseLimit(), fmt.Sprintf("The MCP response body exceeded %d bytes; the SDK closes this session. Reduce the response size or use a smaller request.", limit))
 				s.mu.Lock()
 				cancel := s.cancel
 				s.mu.Unlock()
@@ -271,7 +271,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 				}
 			},
 			HeadersDropped: func(target string) {
-				s.append("System", "Headers withheld", "Document headers were not sent to "+target+" because it is not the document's origin.")
+				s.append("System", locales.HeadersWithheld(), "Document headers were not sent to "+target+" because it is not the document's origin.")
 			},
 			Reconnect: func(attempt int, err error) {
 				s.reconnectUpdate(attempt, err)
@@ -322,7 +322,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 		case ctx.Err() != nil:
 			s.state = "Disconnected"
 		case err != nil:
-			s.state, s.problem = "Server disconnected", err.Error()
+			s.state, s.problem = locales.ServerDisconnected(), err.Error()
 		default:
 			s.state = "Disconnected"
 		}

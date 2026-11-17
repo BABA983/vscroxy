@@ -107,9 +107,9 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 		status = locales.NoAccessTokenYetThe()
 	}
 	if s.key == cfg.Key() && s.busy {
-		status, color = "Getting an access token…", t.TextMuted
+		status, color = locales.GettingAnAccessToken(), t.TextMuted
 		if interactive {
-			status = "Waiting for the sign-in in your browser…"
+			status = locales.WaitingForTheSignIn()
 		}
 	} else if s.key == cfg.Key() && s.problem != "" {
 		status, color = s.problem, t.Danger

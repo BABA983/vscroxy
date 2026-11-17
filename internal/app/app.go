@@ -2815,7 +2815,7 @@ func captureCard(f flow) uikit.HoverCard {
 		rows = append(rows, uikit.HoverCardRow{Key: "Host", Value: f.host})
 	}
 	if f.process != "" {
-		rows = append(rows, uikit.HoverCardRow{Key: "Client", Value: f.process})
+		rows = append(rows, uikit.HoverCardRow{Key: locales.Client(), Value: f.process})
 	}
 	if f.conn.error != "" {
 		rows = append(rows, uikit.HoverCardRow{Key: "Error", Value: f.conn.errorStage + ": " + f.conn.error})
@@ -3431,7 +3431,7 @@ func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 	ui.Column(c).Width(440).Gap(t.Space(uikit.SpaceHair)).Padding(t.Space(uikit.SpaceXS)).Children(func() {
 		uikit.BodyStrong(c, locales.Connection()).TextColor(t.Text).Padding(0, 0, t.Space(uikit.SpaceM), 0)
 		field(c, t, locales.HttpVersion(), cn.proto)
-		field(c, t, "Client", cn.client)
+		field(c, t, locales.Client(), cn.client)
 		field(c, t, "Proxy", cn.proxy)
 		field(c, t, "Upstream", cn.server)
 		field(c, t, locales.RemoteIp(), cn.remote)
@@ -3792,7 +3792,7 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	services := c.Services()
 	requests := a.requestActions(c, f, true)
 	actions := []action{
-		pick(requests, "flow.replay").as("Replay").in("open"),
+		pick(requests, "flow.replay").as(locales.Replay()).in("open"),
 		pick(requests, "flow.edit").in("open"),
 	}
 	if f.kind == "" && f.url != "" {
@@ -3850,7 +3850,7 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 		saveChosen = do("flow.save-chosen", locales.SaveRequestsEllipsis(len(chosen)), func() { a.openCollectionSave(chosen) }).in("save")
 	}
 	return append(actions,
-		do("flow.pin", cmp.Or(pinLabel(f), "Pin"), func() { a.togglePin(f) }).in("keep"),
+		do("flow.pin", cmp.Or(pinLabel(f), locales.Pin()), func() { a.togglePin(f) }).in("keep"),
 		do("flow.mark", locales.Mark(), func() { a.openMark(f) }).in("keep"),
 		submenu(locales.FilterCaptures(), filters...).in("keep"),
 		do("flow.save-request", locales.SaveAsRequest(), func() { a.saveCapture(f) }).
@@ -4805,9 +4805,9 @@ func (a *app) flushSettings() {
 // pinLabel is what the row menu says about pinning a flow.
 func pinLabel(f flow) string {
 	if f.pinned {
-		return "Unpin"
+		return locales.Unpin()
 	}
-	return "Pin to the top"
+	return locales.PinToTheTop()
 }
 
 // togglePin pins a flow to the top of the table, or unpins it. A pinned flow

@@ -47,7 +47,7 @@ func (a *app) exportReproBundle(item *savedSession) {
 
 // buildReproBundle redacts one saved session and embeds a runnable collection.
 func buildReproBundle(file sessionFile) ([]byte, error) {
-	title := cmp.Or(file.Title, "Saved session")
+	title := cmp.Or(file.Title, locales.SavedSession())
 	collectionName := "Repro · " + title
 	var flows []repro.Flow
 	var requests []request.Request

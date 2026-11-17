@@ -119,7 +119,7 @@ func (a *app) detailWith(c *ui.Context, detached bool) {
 		}
 		switch a.inspect.pane {
 		case inspectorDiff:
-			a.inspectorPaneBar(c, t, "Diff", locales.PreviousAndCurrentResponseFor())
+			a.inspectorPaneBar(c, t, locales.GitDiff(), locales.PreviousAndCurrentResponseFor())
 			a.diffPane(c, f)
 		case inspectorConnection:
 			a.inspectorPaneBar(c, t, "Connection", locales.RecordedConnectionEvidenceAtCapture())

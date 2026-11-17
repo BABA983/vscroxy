@@ -629,7 +629,7 @@ func (a *app) addHARFlows(flows []flow) {
 func (a *app) saveSession() {
 	flows, frames := a.snapshot()
 	file := sessionFrom(flows, frames)
-	file.Title, file.Created = "Saved capture", time.Now()
+	file.Title, file.Created = locales.SavedCapture(), time.Now()
 	a.keepSession(file)
 }
 

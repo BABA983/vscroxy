@@ -729,7 +729,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 	)
 	session := []action{
 		pick(global, "collection.record"),
-		pick(global, "flow.replay").as("Replay chosen…"),
+		pick(global, "flow.replay").as(locales.ReplayChosen()),
 		do("capture.export-har", locales.ExportHar(), a.exportHAR).in("files"),
 		pick(global, "capture.export-chosen").as(locales.ExportChosenHar()).in("files"),
 		do("capture.export-csv", locales.ExportCsv(), a.exportCSV).in("files"),

@@ -200,7 +200,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 		if current && d.problem != "" {
 			status, color = locales.ValidationFailedFixTheSource(), t.Danger
 		} else if valid {
-			state := "Saved locally"
+			state := locales.SavedLocally()
 			if d.dirty() {
 				state = locales.UnsavedDraft()
 			}
@@ -615,7 +615,7 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, locales.GenerateOpenapiDraft())
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceXL)).Children(func() {
 				uikit.Hint(c, locales.ChooseASavedCollectionUnsaved())
-				uikit.MenuSelect(c, cmp.Or(a.apiCollection, "Saved (ungrouped)"), func(m *ui.Menu) {
+				uikit.MenuSelect(c, cmp.Or(a.apiCollection, locales.SavedUngrouped()), func(m *ui.Menu) {
 					for _, name := range slices.Sorted(maps.Keys(groupRequests(a.requests))) {
 						if m.Item(cmp.Or(name, "Saved (ungrouped)")).Checked(name == a.apiCollection).Chosen() {
 							a.apiCollection = name

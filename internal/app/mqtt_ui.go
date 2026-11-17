@@ -502,7 +502,7 @@ func (a *app) mqttPublishTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 			u.deleteMessage(c1)
 		}
 		ui.Spacer(c)
-		a.actionButton(c, "request.mqtt-publish", "Publish")
+		a.actionButton(c, "request.mqtt-publish", locales.Publish())
 	})
 	ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 		uikit.SettingsGroup(c, locales.Message(), func() {

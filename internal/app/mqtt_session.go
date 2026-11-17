@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/baba983/vscroxy/locales"
 	"maps"
 	"net/url"
 	"slices"
@@ -264,7 +265,7 @@ func (s *mqttSession) run(url string, cfg request.MQTTConfig, proxy func() (stri
 				return
 			}
 			failures++
-			s.system("Reconnect failed", err.Error())
+			s.system(locales.ReconnectFailed(), err.Error())
 			if failures >= 5 {
 				s.finish("Failed", fmt.Sprintf("connection lost; gave up after %d failed reconnects: %v", failures, err))
 				return
@@ -309,7 +310,7 @@ func (s *mqttSession) run(url string, cfg request.MQTTConfig, proxy func() (stri
 					return
 				}
 				if !cfg.AutoReconnects() {
-					s.finish("Connection lost", mqttErrorText(err))
+					s.finish(locales.ConnectionLost(), mqttErrorText(err))
 					return
 				}
 				reconnects++
@@ -445,10 +446,10 @@ func (s *mqttSession) applySubscriptions(conn *request.MQTTClient, cfg request.M
 			s.subscriptions[sub.Topic] = sub
 		}
 	}
-	s.systemLocked("Subscribed", note)
+	s.systemLocked(locales.Subscribed(), note)
 	if err != nil {
 		s.problem = err.Error()
-		s.systemLocked("Subscribe failed", err.Error())
+		s.systemLocked(locales.SubscribeFailed(), err.Error())
 	}
 	s.mu.Unlock()
 	s.changed()
@@ -576,7 +577,7 @@ func (s *mqttSession) publish(msg request.MQTTPublish, name string) {
 			s.busy = false
 			if err != nil {
 				s.problem = mqttErrorText(err)
-				s.systemLocked("Publish failed", mqttErrorText(err))
+				s.systemLocked(locales.PublishFailed(), mqttErrorText(err))
 			} else {
 				s.recordOutgoingLocked(msg, name)
 			}
@@ -608,10 +609,10 @@ func (s *mqttSession) subscribe(subs []request.MQTTSubscription) {
 					s.subscriptions[sub.Topic] = sub
 				}
 			}
-			s.systemLocked("Subscribed", mqttSubscriptionNote(subs, grants))
+			s.systemLocked(locales.Subscribed(), mqttSubscriptionNote(subs, grants))
 			if err != nil {
 				s.problem = mqttErrorText(err)
-				s.systemLocked("Subscribe failed", mqttErrorText(err))
+				s.systemLocked(locales.SubscribeFailed(), mqttErrorText(err))
 			}
 		}
 		s.mu.Unlock()
@@ -641,12 +642,12 @@ func (s *mqttSession) unsubscribe(topics []string) {
 			s.busy = false
 			if err != nil {
 				s.problem = mqttErrorText(err)
-				s.systemLocked("Unsubscribe failed", mqttErrorText(err))
+				s.systemLocked(locales.UnsubscribeFailed(), mqttErrorText(err))
 			} else {
 				for _, topic := range topics {
 					delete(s.subscriptions, topic)
 				}
-				s.systemLocked("Unsubscribed", strings.Join(topics, "\n"))
+				s.systemLocked(locales.Unsubscribed(), strings.Join(topics, "\n"))
 			}
 		}
 		s.mu.Unlock()

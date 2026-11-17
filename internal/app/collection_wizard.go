@@ -529,7 +529,7 @@ func (w *collectionWizard) build() ([]savedRequest, []request.Folder, map[string
 
 func (a *app) openCollectionWizard(flows []flow) {
 	w := &a.collectionUI
-	*w = collectionWizard{open: true, flows: slices.Clone(flows), static: true, tunnels: true, failed: true, grouping: 1, environment: "New environment", environmentName: "Captured", name: a.newCollectionName(locales.CapturedApi())}
+	*w = collectionWizard{open: true, flows: slices.Clone(flows), static: true, tunnels: true, failed: true, grouping: 1, environment: "New environment", environmentName: locales.Captured(), name: a.newCollectionName(locales.CapturedApi())}
 	w.regroup()
 }
 

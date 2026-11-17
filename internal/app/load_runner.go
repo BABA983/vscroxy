@@ -219,17 +219,17 @@ func (a *app) drainLoadRunner() {
 func loadRunnerReason(reason string) string {
 	switch reason {
 	case "duration":
-		return "Finished · duration reached"
+		return locales.FinishedDurationReached()
 	case "failure":
 		return locales.StoppedFirstFailure()
 	case "attempt-limit":
-		return "Stopped · attempt budget reached"
+		return locales.StoppedAttemptBudgetReached()
 	case "cancelled":
 		return locales.StoppedCancelled()
 	case "timed-out":
 		return locales.StoppedTimedOut()
 	case "finished":
-		return "Finished · all users ended their sequence"
+		return locales.FinishedAllUsersEndedTheir()
 	default:
 		return locales.StoppedExecutionError()
 	}

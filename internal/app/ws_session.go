@@ -122,7 +122,7 @@ func (s *wsSession) finish(err error) {
 			e.Detail = fmt.Sprintf("Peer close %d: %s", closed.Code, closed.Text)
 		}
 	} else if local {
-		e.Detail = "Local disconnect requested; no peer close frame recorded"
+		e.Detail = locales.LocalDisconnectRequestedNoPeer()
 	} else if connecting {
 		e.Detail = "Handshake failed: " + err.Error()
 	} else {

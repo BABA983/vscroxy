@@ -131,7 +131,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 					})
 					secret := r.secret()
 					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-						field := requestGridInput(c, &r.Initial, "Shared value", fmt.Sprintf("Variable initial value %d", i+1))
+						field := requestGridInput(c, &r.Initial, locales.SharedValue(), fmt.Sprintf("Variable initial value %d", i+1))
 						if secret && !r.Revealed {
 							field.Password()
 						}
@@ -141,7 +141,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 						}
 					})
 					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-						field := requestGridInput(c, &r.Current, "Use initial", fmt.Sprintf("Variable current value %d", i+1))
+						field := requestGridInput(c, &r.Current, locales.UseInitial(), fmt.Sprintf("Variable current value %d", i+1))
 						if secret && !r.Revealed {
 							field.Password()
 						}
@@ -161,9 +161,9 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 							ui.Box(c).Size(uikit.HeightRow, uikit.HeightRow)
 						}
 						blocked := r.Credential || sensitiveVariable(r.Name)
-						persistTooltip := "Persist current as initial: writes it to the shared file and exports"
+						persistTooltip := locales.PersistCurrentAsInitialWrites()
 						if blocked {
-							persistTooltip = "Sensitive values stay local; edit Initial explicitly if you need to export it"
+							persistTooltip = locales.SensitiveValuesStayLocalEdit()
 						}
 						ui.Row(c).Disabled(!r.HasCurrent || r.Current == "" || blocked).Children(func() {
 							if uikit.RowIconButton(c, locales.PersistCurrentValue(i+1), persistTooltip, persistIcon).Clicked() {

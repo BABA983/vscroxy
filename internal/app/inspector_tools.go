@@ -56,7 +56,7 @@ func (a *app) decoderModal(c *ui.Context) {
 				uikit.Meta(c, locales.LocalPreviewDoesNotChange()).Grow(1)
 			})
 			ui.Column(c).Height(110).Children(func() {
-				authoredText(c, &u.input, &u.inputEditor, &u.inputFor, "Decode input", "")
+				authoredText(c, &u.input, &u.inputEditor, &u.inputFor, locales.DecodeInput(), "")
 			})
 			if u.error != "" {
 				uikit.ErrorText(c, u.error)

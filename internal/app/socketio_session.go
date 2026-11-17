@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
+	"github.com/baba983/vscroxy/locales"
 	"io"
 	"maps"
 	"net/http"
@@ -138,7 +139,7 @@ func openSocketIOSession(proxy string, ca []byte, certificates certs.Settings, j
 		case ctx.Err() != nil:
 			s.state = "Disconnected"
 		case errors.Is(err, io.EOF), websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway):
-			s.state = "Server disconnected"
+			s.state = locales.ServerDisconnected()
 		default:
 			s.state, s.problem = "Failed", err.Error()
 		}

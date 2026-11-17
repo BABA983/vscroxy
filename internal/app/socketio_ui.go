@@ -139,7 +139,7 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					uikit.Input(c, &d.socketIOConfig.Event).Label(locales.SocketIoEventName()).Placeholder(locales.EventNameEGEcho()).Grow(1).MinWidth(0)
 					uikit.Checkbox(c, &d.socketIOConfig.WantACK, locales.RequestAck())
-					a.actionButton(c, "request.socketio-emit", "Emit event")
+					a.actionButton(c, "request.socketio-emit", locales.EmitEvent())
 				})
 				if len(s.owed) > 0 {
 					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
@@ -148,7 +148,7 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 							u.ackID = s.owed[0]
 						}
 						uikit.Select(c, &u.ackID, s.owed).Label(locales.SocketIoAckRequest()).Width(88).Disabled(!s.ready || s.busy)
-						a.actionButton(c, "request.socketio-ack", "Reply ACK")
+						a.actionButton(c, "request.socketio-ack", locales.ReplyAck())
 					})
 				}
 				uikit.Panel(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM)).Children(func() {
@@ -288,7 +288,7 @@ func (a *app) socketIOSavedEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 				Attachments: d.socketIOConfig.Attachments, WantACK: d.socketIOConfig.WantACK,
 			})
 		}
-		a.actionButton(c, "request.socketio-emit-saved", "Emit saved")
+		a.actionButton(c, "request.socketio-emit-saved", locales.EmitSaved())
 		if uikit.SecondaryButton(c, locales.SaveSentMessages()).Disabled(len(sent) == 0).Clicked() {
 			d.socketIOConfig.Messages = slices.Clone(sent)
 			a.done(locales.SavedTheSessionMessages(len(sent)))

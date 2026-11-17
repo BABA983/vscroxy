@@ -73,13 +73,13 @@ func openSSESession(proxy string, req *request.Prepared, ca []byte, certificates
 		switch {
 		case s.stopping || errors.Is(err, context.Canceled):
 			s.state = "Stopped"
-			s.append(sseSessionEvent{detail: "Stopped locally; no further reconnects"})
+			s.append(sseSessionEvent{detail: locales.StoppedLocallyNoFurtherReconnects()})
 		case err != nil:
 			s.state = "Failed"
 			s.append(sseSessionEvent{detail: "Stream failed: " + err.Error()})
 		case s.state != "Stopped":
 			s.state = "Ended"
-			s.append(sseSessionEvent{detail: "Stream ended · Reconnect is off"})
+			s.append(sseSessionEvent{detail: locales.StreamEndedReconnectIsOff()})
 		}
 		s.mu.Unlock()
 		s.changed()

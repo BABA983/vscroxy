@@ -330,11 +330,11 @@ func (a *app) systemProxyStatus(t *ui.Theme) (string, ui.Color) {
 	s := &a.systemProxy
 	switch {
 	case s.applying:
-		return "Applying to the OS…", t.TextMuted
+		return locales.ApplyingToTheOs(), t.TextMuted
 	case s.checking:
-		return "Checking OS settings…", t.TextMuted
+		return locales.CheckingOsSettings(), t.TextMuted
 	case !s.checked:
-		return "Not checked yet", t.TextMuted
+		return locales.NotCheckedYet(), t.TextMuted
 	case s.writeErr != nil:
 		return locales.ChangeFailed(), t.Danger
 	case s.check.Status == system.ProxyUnknown:

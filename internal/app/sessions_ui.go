@@ -86,7 +86,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 				if err != nil {
 					s.problem = err.Error()
 				} else {
-					a.reviewExport("Export session", "vscroxy-session.json", data, nil)
+					a.reviewExport(locales.ExportSession2(), "vscroxy-session.json", data, nil)
 				}
 			}
 		})

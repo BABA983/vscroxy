@@ -360,7 +360,7 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 		}
 		for _, r := range slices.Clone(a.reverses) {
 			st := status[r.ID]
-			mode := "Remote host"
+			mode := locales.RemoteHost()
 			if r.KeepHost {
 				mode = locales.KeepOriginalHost()
 			}

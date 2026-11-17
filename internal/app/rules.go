@@ -900,7 +900,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 					uikit.Input(c, &e.delay).Label(locales.DelayMs()).Placeholder("0").Font(uikit.FontMono).Width(uikit.WidthFieldWide)
 				})
 				if !e.bodyDir {
-					uikit.FormRowTall(c, locales.Body(), cmp.Or(e.bodyNote, "Save rule writes it to the file."), "", func() ui.Element {
+					uikit.FormRowTall(c, locales.Body(), cmp.Or(e.bodyNote, locales.SaveRuleWritesItTo()), "", func() ui.Element {
 						if e.body == nil {
 							return uikit.Hint(c, e.bodyNote)
 						}

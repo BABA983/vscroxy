@@ -261,7 +261,7 @@ func (a *app) mcpEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		if s.catalogNotice != "" && !s.busy {
 			ui.Row(c).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, s.catalogNotice).Grow(1).SingleLine()
-				a.actionButton(c, "request.mcp-refresh", "Refresh")
+				a.actionButton(c, "request.mcp-refresh", locales.Refresh())
 			})
 		}
 		ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
@@ -308,7 +308,7 @@ func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 			d.mcpConfig.ProtocolVersion = version
 		})
 		if d.mcpConfig.Transport == request.MCPTransportStdio {
-			a.variableInput(c, "mcp-command", &d.mcpConfig.Command, "Command", d.composeCollection).
+			a.variableInput(c, "mcp-command", &d.mcpConfig.Command, locales.Command(), d.composeCollection).
 				Placeholder("/path/to/mcp-server").Font(uikit.FontMono)
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, locales.ArgumentsOnePerLineVariables()).Grow(1)
@@ -393,7 +393,7 @@ func (a *app) mcpToolsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 		uikit.SubTabs(c, &u.toolTab, "MCP tool", locales.Arguments(), locales.InputSchema())
 		ui.Spacer(c)
 		if u.toolTab == 0 {
-			a.actionButton(c, "request.mcp-fill-args", "Fill from schema")
+			a.actionButton(c, "request.mcp-fill-args", locales.FillFromSchema())
 		}
 	})
 	if u.toolTab == 1 {
@@ -451,7 +451,7 @@ func (a *app) mcpResourcesEditor(c *ui.Context, t *ui.Theme, d *requestDocument,
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Combobox(c, &d.mcpConfig.ResourceURI, mcpResourceOptions(s.resources, s.templates)).Label(locales.McpResourceUri()).
 			Placeholder("memo://welcome").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(d.composeWaiting)
-		a.actionButton(c, "request.mcp-read", "Read resource")
+		a.actionButton(c, "request.mcp-read", locales.ReadResource())
 	})
 	if resource := mcpResourceByURI(s.resources, d.mcpConfig.ResourceURI); resource != nil {
 		uikit.Meta(c, cmp.Or(resource.Title, resource.Name, resource.URI)+" · "+cmp.Or(resource.MIMEType, locales.UnknownType())).MaxLines(2)
@@ -526,7 +526,7 @@ func (a *app) mcpResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			uikit.Tabs(c, &u.responseTab, "MCP response", locales.Timeline(), locales.Result(), locales.CatalogTab(), locales.Session()).Grow(1)
 			if s.busy {
-				a.actionButton(c, "request.mcp-cancel", "Cancel request")
+				a.actionButton(c, "request.mcp-cancel", locales.CancelRequest())
 			}
 			state := stateLabel(s.state)
 			if s.connected && s.server.Name != "" {
@@ -771,7 +771,7 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 		uikit.Label(c, title)
 		ui.Spacer(c)
 		uikit.Meta(c, locales.CatalogSummary(len(s.tools), len(s.resources), len(s.templates), len(s.prompts))).SingleLine()
-		a.actionButton(c, "request.mcp-refresh", "Refresh")
+		a.actionButton(c, "request.mcp-refresh", locales.Refresh())
 	})
 	switch catalog {
 	case 0:
