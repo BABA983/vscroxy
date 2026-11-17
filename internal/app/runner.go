@@ -450,15 +450,19 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				ui.Divider(c)
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 					uikit.Label(c, locales.RunnerResults(r.completed, r.failures)).Height(uikit.HeightTabs).Padding(t.Space(uikit.SpaceM)).FontFeatures("tnum").Border(0, t.Border).BorderWidth(0, 0, 1, 0)
-					if len(r.history) > 0 || r.running {
-						keys := make([]string, 0, len(r.history)+1)
+					if r.running {
+						// A run cannot be switched while it runs, so its name is
+						// status, not a picker that reads as a control.
+						ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Children(func() {
+							uikit.Spinner(c, locales.RunningCollection())
+							uikit.Body(c, locales.RunningCollection()).TextColor(t.TextMuted)
+						})
+					} else if len(r.history) > 0 {
+						keys := make([]string, 0, len(r.history))
 						for i := range r.history {
 							keys = append(keys, strconv.Itoa(i))
 						}
-						if r.running {
-							keys = append(keys, strconv.Itoa(len(r.history)))
-						}
-						if uikit.SelectLabels(c, &r.viewKey, keys, r.runLabel).Label(locales.PastRuns()).Disabled(r.running).FillWidth().Changed() {
+						if uikit.SelectLabels(c, &r.viewKey, keys, r.runLabel).Label(locales.PastRuns()).FillWidth().Changed() {
 							if i, err := strconv.Atoi(r.viewKey); err == nil && i < len(r.history) {
 								r.showRun(i)
 								r.picked = 0
