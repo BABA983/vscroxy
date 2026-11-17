@@ -460,6 +460,9 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.addDocument(savedRequest{Protocol: "gRPC", Name: "Untitled gRPC", URL: "https://api.example.com"}, "")
 		}, want: "No gRPC call yet"},
 		{name: "requests-grpc-schema", setup: func(a *app) { grpcDraft(a); a.grpcState().tab = 3 }, want: "1 method · descriptors saved with this request"},
+		{name: "requests-grpc-auth", setup: func(a *app) { grpcDraft(a); a.grpcState().tab = 2 }, want: "Authorization type"},
+		{name: "requests-graphql-auth", setup: func(a *app) { graphqlDraft(a); a.composeTab = composeTabAuth }, want: "Authorization type"},
+		{name: "requests-graphql-settings", setup: func(a *app) { graphqlDraft(a); a.composeTab = composeTabSettings }, want: "Follow redirects"},
 		{name: "requests-grpc-stream", setup: grpcStream, want: "gRPC OK"},
 		{name: "requests-grpc-saved-messages", setup: func(a *app) {
 			// A client-streaming method is where the saved message list
