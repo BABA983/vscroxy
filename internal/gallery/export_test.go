@@ -111,6 +111,13 @@ func TestGallerySnapshots(t *testing.T) {
 			tt := ui.NewTester(view, w, h)
 			tt.SetLocale("en-US")
 			tt.Frame()
+			// The spinner turns every 0.9 s and the indeterminate bar sweeps
+			// every 1.4 s, on a clock that starts at the run's wall time. The
+			// feedback plate would catch them at a different point on each
+			// export, so it starts both at a shared boundary (12.6 s).
+			if e.ID == "feedback" {
+				tt.Advance(time.Duration((12600-tt.Now().UnixMilli()%12600)%12600) * time.Millisecond)
+			}
 			forceStates(t, tt, e)
 			tt.Advance(250 * time.Millisecond)
 			tt.Frame()

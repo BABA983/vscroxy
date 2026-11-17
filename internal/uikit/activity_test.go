@@ -97,10 +97,37 @@ func TestPaneMenusDrawTheirWords(t *testing.T) {
 		})
 	}, 300, 60)
 	tt.Frame()
-	if r, ok := tt.Find("Inspector options"); !ok || r.W == 0 || r.H == 0 {
-		t.Fatalf("the menu has no drawn box: %+v %q", r, tt.Texts())
+	more, ok := tt.Find("Inspector options")
+	if !ok {
+		t.Fatalf("the menu has no box: %q", tt.Texts())
+	}
+	// At rest a row menu has no face, so its corner is the window's
+	// background; any ink inside the box is what it draws.
+	if ink := inkWithin(tt.Image(), more); ink < 10 {
+		t.Fatalf("the menu draws %d ink pixels in its box, want its icon", ink)
 	}
 	if _, ok := tt.Find("More"); !ok {
 		t.Fatalf("the tab has no label: %q", tt.Texts())
 	}
+}
+
+// inkWithin counts the pixels in r that differ from r's top-left corner.
+func inkWithin(im *image.RGBA, r ui.Rect) int {
+	face := im.RGBAAt(int(r.X), int(r.Y))
+	diff := func(a, b uint8) int {
+		if a > b {
+			return int(a - b)
+		}
+		return int(b - a)
+	}
+	ink := 0
+	for y := int(r.Y); y < int(r.Y+r.H); y++ {
+		for x := int(r.X); x < int(r.X+r.W); x++ {
+			p := im.RGBAAt(x, y)
+			if diff(p.R, face.R)+diff(p.G, face.G)+diff(p.B, face.B) > 60 {
+				ink++
+			}
+		}
+	}
+	return ink
 }
