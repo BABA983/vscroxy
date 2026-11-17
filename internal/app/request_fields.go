@@ -692,7 +692,7 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 	} else if d.bodyMode == "Binary" {
 		uikit.Meta(c, locales.BinaryFileUpTo16())
 		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
-			a.variableInput(c, "body-file", &d.bodyFile, "Binary body file", d.composeCollection).Placeholder(locales.LocalPathOrUploadPath()).Font(uikit.FontMono).Grow(1).MinWidth(uikit.WidthNarrow)
+			a.variableInput(c, "body-file", &d.bodyFile, locales.BinaryBodyFile(), d.composeCollection).Placeholder(locales.LocalPathOrUploadPath()).Font(uikit.FontMono).Grow(1).MinWidth(uikit.WidthNarrow)
 			if uikit.SecondaryButton(c, locales.ChooseFile()).Label(locales.ChooseBinaryBodyFile()).Clicked() && a.win != nil {
 				win, before := a.win, d.bodyFile
 				go func() {

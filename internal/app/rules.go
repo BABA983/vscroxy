@@ -825,8 +825,8 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 		uikit.MoreMenu(c, locales.RuleActions(), func(m *ui.Menu) {
 			i := e.index
 			actionMenu(m, []action{
-				do("rules.up", locales.MoveUp(), func() { a.moveRules([]int{i}, i-1) }).when(i > 0, "Already tried first").in("order"),
-				do("rules.down", locales.MoveDown(), func() { a.moveRules([]int{i}, i+2) }).when(i >= 0 && i < len(a.rules)-1, "Already tried last").in("order"),
+				do("rules.up", locales.MoveUp(), func() { a.moveRules([]int{i}, i-1) }).when(i > 0, locales.AlreadyTriedFirst()).in("order"),
+				do("rules.down", locales.MoveDown(), func() { a.moveRules([]int{i}, i+2) }).when(i >= 0 && i < len(a.rules)-1, locales.AlreadyTriedLast()).in("order"),
 				do("rules.delete", locales.DeleteRule(), func() { e.deleting = true }).when(i >= 0, "Not saved yet").in("danger"),
 			})
 		})

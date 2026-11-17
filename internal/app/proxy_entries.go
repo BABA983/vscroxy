@@ -376,7 +376,7 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 				case st.Addr != "":
 					state = "Listening on " + st.Addr
 				case a.srv == nil || !a.srv.Running():
-					state = "Capture is not running"
+					state = locales.CaptureIsNotRunning()
 				default:
 					state = "Starting…"
 				}

@@ -90,15 +90,15 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 	} else if tok, ok := in.Tokens.Peek(cfg); ok {
 		switch {
 		case tok.Fresh(time.Now()) && tok.Expiry.IsZero():
-			status, color = "Access token ready", t.Success
+			status, color = locales.AccessTokenReady(), t.Success
 		case tok.Fresh(time.Now()):
 			status, color = "Access token ready · expires "+tok.Expiry.Format("15:04:05"), t.Success
 		case tok.Refresh != "":
-			status = "Access token expired · the next send refreshes it"
+			status = locales.AccessTokenExpiredTheNext2()
 		case !interactive:
-			status = "Access token expired · the next send gets a new one"
+			status = locales.AccessTokenExpiredTheNext()
 		default:
-			status, color = "Access token expired · get a new one", t.Danger
+			status, color = locales.AccessTokenExpiredGetA(), t.Danger
 		}
 		if tok.Scope != "" {
 			status += " · scope " + tok.Scope

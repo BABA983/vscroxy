@@ -154,7 +154,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 					if s.checked && !s.checking && s.err != nil {
 						problem := s.err.Error()
 						if errors.Is(s.err, os.ErrNotExist) {
-							problem = "CA file not found. Start capture, then check again."
+							problem = locales.CaFileNotFoundStart()
 						}
 						uikit.Tip(c, uikit.Caption(c, problem).TextColor(t.Warning).SingleLine(), s.err.Error())
 					}

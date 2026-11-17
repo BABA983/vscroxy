@@ -336,13 +336,13 @@ func (a *app) systemProxyStatus(t *ui.Theme) (string, ui.Color) {
 	case !s.checked:
 		return "Not checked yet", t.TextMuted
 	case s.writeErr != nil:
-		return "Change failed", t.Danger
+		return locales.ChangeFailed(), t.Danger
 	case s.check.Status == system.ProxyUnknown:
 		return "Could not read OS settings", t.Warning
 	case s.check.Status == system.ProxyMatches:
 		return "HTTP and HTTPS point at this app", t.Success
 	case s.check.Status == system.ProxyAutomatic:
-		return "Automatic configuration takes precedence", t.Warning
+		return locales.AutomaticConfigurationTakesPrecedence(), t.Warning
 	case s.check.Status == system.ProxyOff:
 		return "No system proxy is set", t.TextMuted
 	default:
@@ -385,7 +385,7 @@ func (a *app) systemProxyDetail(target string) (line, tooltip string) {
 	case target != "":
 		line = "This app's proxy address: " + target
 	default:
-		line = "Capture has no address yet"
+		line = locales.CaptureHasNoAddressYet()
 	}
 	if scopes != "" {
 		return line, line + " · " + scopes
@@ -409,7 +409,7 @@ func proxySummary(configs []system.ProxyConfig) string {
 	switch len(pointed) {
 	case 0:
 		if len(configs) == 1 {
-			return "1 network service has no proxy"
+			return locales.N1NetworkServiceHasNo()
 		}
 		return fmt.Sprintf("%d network services have no proxy", len(configs))
 	case 1:

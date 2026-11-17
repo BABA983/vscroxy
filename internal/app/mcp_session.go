@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/baba983/vscroxy/locales"
 	"maps"
 	"net/url"
 	"slices"
@@ -244,7 +245,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 				s.append("Notification", method, text)
 				if strings.Contains(method, "list_changed") {
 					s.mu.Lock()
-					s.catalogNotice = "Catalog changed; refresh it to see the new entries."
+					s.catalogNotice = locales.CatalogChangedRefreshItTo()
 					s.mu.Unlock()
 				}
 			},

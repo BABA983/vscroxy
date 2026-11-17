@@ -515,7 +515,7 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 			}})
 	}
 	if throttled {
-		chips = append(chips, footerChip{id: "throttle", label: a.throttle.Name, tip: "Change network conditions", icon: networkIcon,
+		chips = append(chips, footerChip{id: "throttle", label: a.throttle.Name, tip: locales.ChangeNetworkConditions(), icon: networkIcon,
 			open: func() { a.openNetwork() }, off: func() { a.setThrottle(capture.Presets[0]) }})
 	}
 	if networkRules > 0 {
@@ -523,7 +523,7 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 			tip: "Edit scoped network conditions", icon: networkIcon, open: a.openNetworkRules, off: func() { a.disableNetworkRules() }})
 	}
 	if noCaching {
-		chips = append(chips, footerChip{id: "no-caching", label: locales.NoCaching(), tip: "Change caching and network conditions", icon: cacheIcon,
+		chips = append(chips, footerChip{id: "no-caching", label: locales.NoCaching(), tip: locales.ChangeCachingAndNetworkConditions(), icon: cacheIcon,
 			open: func() { a.openNetwork() }, off: func() { a.srv.SetNoCaching(false) }})
 	}
 	if a.allowOn {

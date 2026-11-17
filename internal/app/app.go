@@ -1376,10 +1376,10 @@ func (a *app) drain() {
 		}
 	}
 	if a.recordingPaused {
-		a.stopCollectionRecording("Capture was paused; start collection recording again after resuming")
+		a.stopCollectionRecording(locales.CaptureWasPausedStartCollection())
 	}
 	if s := a.collectionRecording; s != nil && s.Active && a.srv.Dropped() != s.dropped {
-		a.stopCollectionRecording("Capture dropped traffic; reduce load and start recording again")
+		a.stopCollectionRecording(locales.CaptureDroppedTrafficReduceLoad())
 	}
 	if pending = a.record(pending); len(pending) == 0 {
 		return
@@ -1929,7 +1929,7 @@ func (a *app) view(c *ui.Context) {
 	a.configImportDialog(c, t)
 	a.dnsRuleModal(c, t)
 	a.hostListModal(c, t, &a.ignoreAppsOpen, "Ignored apps",
-		"Apps whose flows stay out of the table, one name per line, as the Apps section spells them. They are still proxied.",
+		locales.AppsWhoseFlowsStayOut(),
 		a.ignoreAppsPath, &a.ignoreAppsText, func(apps []string) {
 			if a.srv != nil {
 				a.srv.SetIgnoreApps(apps)
@@ -1942,10 +1942,10 @@ func (a *app) view(c *ui.Context) {
 				a.srv.SetIgnore(patterns)
 			}
 		})
-	a.hostListModal(c, t, &a.allowOpen, "Allowed hosts",
+	a.hostListModal(c, t, &a.allowOpen, locales.AllowedHosts(),
 		"While the allow list is on, the table shows only these hosts and their subdomains, one per line, besides the allowed apps. A leading dot matches subdomains only; * is a wildcard.",
 		a.allowPath, &a.allowText, func([]string) { a.applyAllow() })
-	a.hostListModal(c, t, &a.allowAppsOpen, "Allowed apps",
+	a.hostListModal(c, t, &a.allowAppsOpen, locales.AllowedApps(),
 		"While the allow list is on, the table shows only these apps, one name per line, as the Apps section spells them, besides the allowed hosts.",
 		a.allowAppsPath, &a.allowAppsText, func([]string) { a.applyAllow() })
 	a.varsModal(c, t)
@@ -3412,7 +3412,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		}
 		ui.Column(c).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM)).Children(func() {
 			field(c, t, "Decryption", domain)
-			field(c, t, "App rule", app)
+			field(c, t, locales.AppRule(), app)
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceHair), 0).Children(func() {
 				uikit.Meta(c, locales.Trust()).Width(96)
 				uikit.DataBody(c, trust).TextColor(trustColor).Grow(1).
@@ -3464,7 +3464,7 @@ func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 		if cn.certUntil != "" {
 			cert += ", until " + cn.certUntil
 		}
-		field(c, t, "Certificate", strings.TrimPrefix(cert, ", "))
+		field(c, t, locales.DiagCertificate(), strings.TrimPrefix(cert, ", "))
 	})
 }
 

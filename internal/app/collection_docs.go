@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
+	"github.com/baba983/vscroxy/locales"
 	"html/template"
 	"net/http"
 	"slices"
@@ -103,7 +104,7 @@ func docEntries(requests []savedRequest, root string) []docsEntry {
 // docsBody is the request body as authored, with a note for non-text bodies.
 func docsBody(r savedRequest) (string, string) {
 	if r.BodyMode == "Binary" {
-		return "", cmp.Or("Binary body from "+r.BodyFile, "Binary body")
+		return "", cmp.Or("Binary body from "+r.BodyFile, locales.BinaryBody())
 	}
 	if r.BodyMode == "GraphQL" {
 		body := strings.TrimSpace(r.GraphQL.Query)
@@ -156,7 +157,7 @@ func authSummary(auth request.Auth) string {
 	case "Inherit":
 		return "Inherited from the folder or collection"
 	case "Bearer":
-		return "Bearer token (hidden)"
+		return locales.BearerTokenHidden()
 	case "Basic":
 		return "Basic · username " + cmp.Or(auth.Username, "(hidden)") + " · password hidden"
 	case "API key":
@@ -166,13 +167,13 @@ func authSummary(auth request.Auth) string {
 	case "OAuth 1.0":
 		return "OAuth 1.0 · consumer key " + cmp.Or(auth.OAuth1.ConsumerKey, "(hidden)") + " · secrets hidden"
 	case "AWS Signature":
-		return "AWS Signature · access key hidden"
+		return locales.AwsSignatureAccessKeyHidden()
 	case "JWT":
 		return "JWT · " + cmp.Or(auth.JWT.Algorithm, "algorithm") + " · secret and private key hidden"
 	case "Hawk":
 		return "Hawk · credentials hidden"
 	case "Akamai EdgeGrid":
-		return "Akamai EdgeGrid · credentials hidden"
+		return locales.AkamaiEdgegridCredentialsHidden()
 	case "NTLM":
 		return "NTLM · username " + cmp.Or(auth.NTLM.Username, "(hidden)") + " · password hidden"
 	default:

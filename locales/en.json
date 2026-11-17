@@ -1,6 +1,10 @@
 {
   "@@locale": "en",
   "abortBreakpoint": "Abort",
+  "accessTokenExpiredGetA": "Access token expired · get a new one",
+  "accessTokenExpiredTheNext": "Access token expired · the next send gets a new one",
+  "accessTokenExpiredTheNext2": "Access token expired · the next send refreshes it",
+  "accessTokenReady": "Access token ready",
   "@activeSubscriptions": {
     "placeholders": {
       "count": {
@@ -61,7 +65,9 @@
   "addonSavedNoParse": "Addon saved · it does not parse, so require(\"{name}\") fails: {error}",
   "addonsEmptyHint": "Code to share between scripts: what an addon exports, rule scripts import from \"its name\" and request scripts require.",
   "addsToCollectionEnd": "Adds to the end of this collection.",
+  "akamaiEdgegridCredentialsHidden": "Akamai EdgeGrid · credentials hidden",
   "allowListChip": "Allow list",
+  "allowedApps": "Allowed apps",
   "@allowedDomains": {
     "placeholders": {
       "index": {
@@ -69,6 +75,11 @@
       }
     }
   },
+  "allowedHosts": "Allowed hosts",
+  "alreadyTriedFirst": "Already tried first",
+  "alreadyTriedLast": "Already tried last",
+  "androidProxyRestored": "Android proxy restored",
+  "androidProxySet": "Android proxy set",
   "@apiDraftSource": {
     "placeholders": {
       "collection": {
@@ -78,6 +89,7 @@
   },
   "apiDraftSource": "Source: {collection} · independent draft",
   "apiSourceChanged": "Source collection changed — review before updating this contract.",
+  "appRule": "App rule",
   "@appRuleDisabled": {
     "placeholders": {
       "app": {
@@ -102,6 +114,7 @@
     }
   },
   "appsCount": "{count, plural, one {# app} other {# apps}}",
+  "appsWhoseFlowsStayOut": "Apps whose flows stay out of the table, one name per line, as the Apps section spells them. They are still proxied.",
   "@argumentsList": {
     "placeholders": {
       "args": {
@@ -118,6 +131,7 @@
       }
     }
   },
+  "automaticConfigurationTakesPrecedence": "Automatic configuration takes precedence",
   "@averageTiming": {
     "placeholders": {
       "average": {
@@ -131,8 +145,12 @@
       }
     }
   },
+  "awsSignatureAccessKeyHidden": "AWS Signature · access key hidden",
   "backToList": "Back to list",
+  "bearerTokenHidden": "Bearer token (hidden)",
   "bidirectionalStream": "Bidirectional stream",
+  "binaryBody": "Binary body",
+  "binaryBodyFile": "Binary body file",
   "binaryContentEditOutside": "Binary content; edit it outside vscroxy.",
   "@blockData": {
     "placeholders": {
@@ -153,6 +171,7 @@
   "breakpointResponsePaused": "Breakpoint · response paused",
   "breakpointWebSocketPaused": "Breakpoint · WebSocket message paused",
   "breakpointsChip": "Breakpoints",
+  "caFileNotFoundStart": "CA file not found. Start capture, then check again.",
   "@canceledCount": {
     "placeholders": {
       "count": {
@@ -162,6 +181,7 @@
   },
   "canceledCount": " · {count} canceled",
   "cancelledStatus": "Cancelled",
+  "captureDroppedTrafficReduceLoad": "Capture dropped traffic; reduce load and start recording again",
   "@captureFilterApplied": {
     "placeholders": {
       "name": {
@@ -205,6 +225,7 @@
     }
   },
   "captureFilterSaved": "Saved {name}.",
+  "captureHasNoAddressYet": "Capture has no address yet",
   "captureNotAvailable": "Capture is not available",
   "@captureNumberMethodURL": {
     "placeholders": {
@@ -228,6 +249,9 @@
     }
   },
   "captureSelected": "Capture · {count} selected requests",
+  "captureWasPausedOrThe": "Capture was paused or the application is quitting",
+  "captureWasPausedStartCollection": "Capture was paused; start collection recording again after resuming",
+  "capturedApi": "Captured API",
   "@capturedNumber": {
     "placeholders": {
       "number": {
@@ -269,6 +293,7 @@
     }
   },
   "capturesOverview": "{count} captures · session overview",
+  "catalogChangedRefreshItTo": "Catalog changed; refresh it to see the new entries.",
   "@catalogSummary": {
     "placeholders": {
       "tools": {
@@ -306,6 +331,9 @@
       }
     }
   },
+  "changeCachingAndNetworkConditions": "Change caching and network conditions",
+  "changeFailed": "Change failed",
+  "changeNetworkConditions": "Change network conditions",
   "@changedValues": {
     "placeholders": {
       "values": {
@@ -348,6 +376,10 @@
     }
   },
   "chipTraffic": "Traffic: {filter}",
+  "chooseABaselineResponseFirst": "Choose a baseline response first",
+  "chooseAPendingServerAck": "Choose a pending server ACK request",
+  "chooseASavedCollectionWith": "Choose a saved collection with 1–200 HTTP(S) requests",
+  "chooseHttpRequestsOnlyTunnels": "Choose HTTP requests only; tunnels and streams cannot be replayed",
   "chooseLocalResponseFile": "Choose local response file",
   "choosePortRange": "Choose a proxy port between 1 and 65534; the certificate service uses the next port",
   "chooseResponseFolder": "Choose a folder to answer from",
@@ -1317,6 +1349,8 @@
   "mockThisResponse": "Mock this response…",
   "mocksEmptyHint": "Answer requests from local files or JavaScript. Create a Map Local or Code Mock rule here; saved examples can also become mocks.",
   "mqttNeedsTopic": "Add at least one topic filter, or turn on at least one topic's On connect",
+  "n1Message": "1 message",
+  "n1NetworkServiceHasNo": "1 network service has no proxy",
   "@networkRuleCount": {
     "placeholders": {
       "count": {

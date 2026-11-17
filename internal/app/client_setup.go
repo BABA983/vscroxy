@@ -462,7 +462,7 @@ func (a *app) applyAndroidProxy() {
 		results <- clientSetupResult{
 			action:   "android",
 			what:     locales.SetAndroidProxy(),
-			success:  "Android proxy set",
+			success:  locales.AndroidProxySet(),
 			command:  clientsetup.JoinCommands(commands, runtime.GOOS == "windows"),
 			err:      err,
 			serial:   serial,
@@ -500,7 +500,7 @@ func (a *app) clearAndroidProxy() {
 		results <- clientSetupResult{
 			action:  "undo",
 			what:    locales.UndoAndroidProxy(),
-			success: "Android proxy restored",
+			success: locales.AndroidProxyRestored(),
 			command: clientsetup.JoinCommands(commands, runtime.GOOS == "windows"),
 			err:     err,
 			warning: warning,

@@ -1264,7 +1264,7 @@ func (a *app) inspectorActions(c *ui.Context, f flow) []action {
 	}
 	actions := []action{
 		pane("inspector.split", "Request & response", inspectorSplit),
-		pane("inspector.diff", "Diff responses", inspectorDiff).when(a.diffBaseline, "Choose a baseline response first"),
+		pane("inspector.diff", "Diff responses", inspectorDiff).when(a.diffBaseline, locales.ChooseABaselineResponseFirst()),
 		pane("inspector.connection", "Connection", inspectorConnection),
 	}
 	if f.kind == "ws" || f.kind == "sse" {

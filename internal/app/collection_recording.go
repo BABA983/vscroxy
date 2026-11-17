@@ -162,11 +162,11 @@ func (a *app) recordCollection(flows []flow) {
 		return
 	}
 	if a.srv.Dropped() != s.dropped {
-		a.stopCollectionRecording("Capture dropped traffic; reduce load and start recording again")
+		a.stopCollectionRecording(locales.CaptureDroppedTrafficReduceLoad())
 		return
 	}
 	if a.recordingPaused {
-		a.stopCollectionRecording("Capture was paused; start collection recording again after resuming")
+		a.stopCollectionRecording(locales.CaptureWasPausedStartCollection())
 		return
 	}
 	for _, f := range flows {
@@ -224,7 +224,7 @@ func (a *app) nextCollectionRecording() {
 		return
 	}
 	if a.systemProxy.quitting || a.systemProxy.quitReady || a.recordingPaused {
-		a.stopCollectionRecording("Capture was paused or the application is quitting")
+		a.stopCollectionRecording(locales.CaptureWasPausedOrThe())
 		return
 	}
 	env := slices.IndexFunc(a.envs, func(e environment) bool { return e.Name == s.Environment })
@@ -278,12 +278,12 @@ func (a *app) finishRecordedCapture(s *collectionRecording, f flow, result recor
 	}
 	if a.srv.Dropped() != s.dropped {
 		s.Discarded++
-		a.stopCollectionRecording("Capture dropped traffic; reduce load and start recording again")
+		a.stopCollectionRecording(locales.CaptureDroppedTrafficReduceLoad())
 		return
 	}
 	if a.systemProxy.quitting || a.systemProxy.quitReady || a.recordingPaused {
 		s.Discarded++
-		a.stopCollectionRecording("Capture was paused or the application is quitting")
+		a.stopCollectionRecording(locales.CaptureWasPausedOrThe())
 		return
 	}
 	if err != nil {

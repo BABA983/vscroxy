@@ -120,7 +120,7 @@ func (a *app) startLoadRunner() {
 	}
 	steps := a.loadRunnerSteps(r.collection, r.environment)
 	if len(steps) < 1 || len(steps) > 200 {
-		r.status = "Choose a saved collection with 1–200 HTTP(S) requests"
+		r.status = locales.ChooseASavedCollectionWith()
 		return
 	}
 	for _, step := range steps {

@@ -238,8 +238,8 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 					return uikit.ErrorText(c, problem)
 				}, "")
 			}
-			list("Allowed hosts", a.allowText, locales.HostsCount, "Each host with its subdomains.", &a.allowOpen)
-			list("Allowed apps", a.allowAppsText, locales.AppsCount, "As the sidebar's Apps names them.", &a.allowAppsOpen)
+			list(locales.AllowedHosts(), a.allowText, locales.HostsCount, "Each host with its subdomains.", &a.allowOpen)
+			list(locales.AllowedApps(), a.allowAppsText, locales.AppsCount, "As the sidebar's Apps names them.", &a.allowAppsOpen)
 		})
 		uikit.SettingsCard(c, locales.Ignored(), func() {
 			list("Ignored hosts", a.ignoreText, locales.HostsCount, "Still proxied, but not shown in the table, even when allowed.", &a.ignoreOpen)

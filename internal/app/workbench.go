@@ -478,7 +478,7 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 		do("flow.edit", locales.EditRequest(), func() { a.editCapture(f) }).
 			when(current && !bulk && f.kind == "", inspectOne).keys(ui.Cmd|ui.Alt, ui.KeyEnter),
 		do("flow.replay", locales.ReplaySelected(), func() { a.openReplay(selected) }).
-			when(replayable, "Choose HTTP requests only; tunnels and streams cannot be replayed").keys(ui.Cmd, ui.KeyR),
+			when(replayable, locales.ChooseHttpRequestsOnlyTunnels()).keys(ui.Cmd, ui.KeyR),
 	}
 	for _, item := range a.requestCopyActions(c, f, draft) {
 		if item.id == "flow.copy-curl" {
@@ -592,7 +592,7 @@ func (a *app) actions(c *ui.Context) []action {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
 		}).when(a.srv != nil, ""),
-		do("capture.stop", locales.StopCapture(), a.stopCapture).when(proxyReady, "Capture is not running").keys(ui.Cmd, ui.KeyPeriod),
+		do("capture.stop", locales.StopCapture(), a.stopCapture).when(proxyReady, locales.CaptureIsNotRunning()).keys(ui.Cmd, ui.KeyPeriod),
 		do("capture.start", locales.StartCapture(), func() { go a.startCapture() }).when(a.srv != nil && !proxyReady, "Capture is already running").keys(ui.Cmd, ui.KeyPeriod),
 		do("capture.recording", recording, func() { a.recordingPaused = !a.recordingPaused }).
 			when(a.srv != nil && a.srv.Running(), ""),

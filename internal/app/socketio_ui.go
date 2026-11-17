@@ -115,7 +115,7 @@ func (a *app) socketIOActions(d *requestDocument, editing bool) []action {
 	}
 	return []action{
 		do("request.socketio-emit", locales.EmitSocketIoEvent(), func() { a.sendSocketIOMessage(d, false) }).when(ready, "Connect a Socket.IO document first"),
-		do("request.socketio-ack", locales.ReplySocketIoAck(), func() { a.sendSocketIOMessage(d, true) }).when(ack, "Choose a pending server ACK request"),
+		do("request.socketio-ack", locales.ReplySocketIoAck(), func() { a.sendSocketIOMessage(d, true) }).when(ack, locales.ChooseAPendingServerAck()),
 		do("request.socketio-emit-saved", locales.EmitSaved(), func() { a.emitSocketIOSaved(d) }).
 			when(ready && len(d.socketIOConfig.Messages) > 0, "Connect a Socket.IO document and save messages first"),
 	}

@@ -128,7 +128,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 		listener.state, listener.result = checkFail, a.errText
 		listener.detail = []string{"A fixed port that another program holds keeps capture stopped; choose another port or clear it."}
 	default:
-		listener.state, listener.result = checkFail, "Capture is stopped"
+		listener.state, listener.result = checkFail, locales.CaptureIsStopped()
 		listener.fix = "Start capture"
 		listener.run = func(*ui.Context) { go a.startCapture() }
 		listener.detail = []string{"Start capture to listen again, or open Proxy settings to change the port."}

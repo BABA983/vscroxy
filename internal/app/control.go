@@ -314,7 +314,7 @@ func (a *app) controlValue(command control.Command) (any, error) {
 		}
 		a.recordingPaused = !*p.Enabled
 		if a.recordingPaused {
-			a.stopCollectionRecording("Capture was paused; start collection recording again after resuming")
+			a.stopCollectionRecording(locales.CaptureWasPausedStartCollection())
 		}
 		return map[string]bool{"recording": *p.Enabled}, nil
 	case "rules.set-enabled":

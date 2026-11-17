@@ -199,7 +199,7 @@ func messagesNote(list []messageView) string {
 	}
 	note := fmt.Sprintf("%d messages", len(list))
 	if len(list) == 1 {
-		note = "1 message"
+		note = locales.N1Message()
 	}
 	if dropped := messagesDropped(list); dropped > 0 {
 		note += locales.DroppedSuffix(dropped)
