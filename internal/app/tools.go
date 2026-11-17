@@ -202,7 +202,7 @@ func (a *app) hostProfilesPage(c *ui.Context, t *ui.Theme, window bool) {
 			uikit.ErrorText(c, locales.ReadOnlyReason(h.problem.Error())).MaxLines(3)
 		}
 		a.profileList(c, t)
-		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).Wrap().Children(func() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().Children(func() {
 			if uikit.Tip(c, uikit.CompactButton(c, locales.ImportSystemHosts()), locales.CopySystemHosts(hosts.SystemFile())).Clicked() {
 				a.importSystemHosts()
 			}
