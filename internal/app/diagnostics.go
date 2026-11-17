@@ -428,20 +428,26 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 		if !expanded || !expandable {
 			return
 		}
-		details := ui.Column(c).Padding(0, t.Space(uikit.SpaceXL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceM))
+		// The details take the row's disclosure and status slots, so their
+		// column starts where the title's does.
+		details := ui.Row(c).Padding(0, t.Space(uikit.SpaceXL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceL))
 		if d.reveal {
 			c.CloseToast("") // an earlier toast would cover the fix buttons
 			details.ScrollIntoView()
 			d.reveal = false
 		}
 		details.Children(func() {
-			if check.failure != nil {
-				a.explainFailure(c, t, *check.failure)
-				return
-			}
-			for _, line := range check.detail {
-				uikit.Body(c, line)
-			}
+			ui.Box(c).Size(uikit.IconInline, uikit.IconInline).Shrink(0)
+			ui.Box(c).Size(uikit.IconLarge, uikit.IconLarge).Shrink(0)
+			ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
+				if check.failure != nil {
+					a.explainFailure(c, t, *check.failure)
+					return
+				}
+				for _, line := range check.detail {
+					uikit.Body(c, line)
+				}
+			})
 		})
 	})
 }
