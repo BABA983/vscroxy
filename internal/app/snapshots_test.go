@@ -723,6 +723,7 @@ func snapshotStates(t *testing.T) []snapshot {
 		}, want: "No matching requests"},
 		{name: "capture-multiple", setup: func(a *app) { a.chosen.Add(2) }, want: "2 selected"},
 		{name: "capture-connect", setup: func(a *app) { a.flows[0].kind, a.flows[0].method = "connect", "CONNECT" }, want: "Encrypted, not decrypted — not individual requests"},
+		{name: "capture-proxy-unavailable", setup: func(a *app) { a.errText = "listen tcp 127.0.0.1:7890: bind: address already in use" }, want: "Local requests remain available"},
 		{name: "capture-connect-failed", setup: func(a *app) {
 			a.flows[0].kind, a.flows[0].method = "connect", "CONNECT"
 			a.flows[0].conn = conn{errorStage: "TLS client", error: "remote error: tls: unknown certificate authority"}
