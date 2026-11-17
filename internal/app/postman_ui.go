@@ -305,7 +305,11 @@ func (a *app) importReportModal(c *ui.Context, t *ui.Theme) {
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				uikit.Hint(c, r.intro)
 				for _, line := range r.lines {
-					uikit.Body(c, "• "+line).Selectable()
+					// The bullet hangs: a wrapped line starts under the text, not the dot.
+					ui.Row(c).Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Start).Children(func() {
+						uikit.Body(c, "•")
+						uikit.Body(c, line).Selectable().Grow(1).MinWidth(0)
+					})
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {
