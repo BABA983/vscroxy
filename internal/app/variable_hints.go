@@ -71,9 +71,9 @@ func variableOriginName(origin string) string {
 func (h variableHint) display() string {
 	switch {
 	case h.Dynamic:
-		return "generated at send"
+		return locales.GeneratedAtSend()
 	case h.Vault:
-		return "hidden in the Vault"
+		return locales.HiddenInTheVault()
 	case h.Sensitive:
 		return "••••••"
 	case h.Value == "":

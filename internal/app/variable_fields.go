@@ -110,7 +110,7 @@ func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variable
 						uikit.ErrorText(c, "undefined").Grow(1)
 					}
 				})
-				value := "stays literal when sent"
+				value := locales.StaysLiteralWhenSent()
 				if mark.Defined {
 					if mask {
 						value = "••••••"

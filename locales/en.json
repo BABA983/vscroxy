@@ -80,6 +80,7 @@
   "alreadyTriedLast": "Already tried last",
   "androidProxyRestored": "Android proxy restored",
   "androidProxySet": "Android proxy set",
+  "anotherReverseProxy": "another reverse proxy",
   "@apiDraftSource": {
     "placeholders": {
       "collection": {
@@ -590,6 +591,8 @@
   },
   "credentialsMax255": "Username and password must each be at most 255 bytes",
   "csvOrJSON": "CSV or JSON",
+  "curlRequest": "cURL request",
+  "curlRequests": "cURL requests",
   "@dataRunSummary": {
     "placeholders": {
       "name": {
@@ -1050,6 +1053,7 @@
   "formFieldsOriginalOrder": "{count} form fields · original order",
   "formatGraphQLQuery": "Format GraphQL query",
   "formatTheGraphqlDocumentWithout": "Format the GraphQL document without expanding variables or changing its operations",
+  "generatedAtSend": "generated at send",
   "globalVariable": "Global variable",
   "@globalsCount": {
     "placeholders": {
@@ -1083,7 +1087,10 @@
       }
     }
   },
+  "grpcRequestJson": "gRPC request JSON",
+  "grpcStatusMissingHttp200": "gRPC status missing (HTTP 200 alone does not mean success)",
   "grpcUnaryOnly": "Scripts and Checks run with unary methods; the streaming client runs without them",
+  "grpcWebFramingIsNot": "gRPC-Web framing is not supported; use native gRPC over inspected HTTP/2",
   "@handshakeAccepted": {
     "placeholders": {
       "url": {
@@ -1142,6 +1149,7 @@
       }
     }
   },
+  "hidden": "•••• (hidden)",
   "@hiddenByFilters": {
     "placeholders": {
       "count": {
@@ -1149,6 +1157,7 @@
       }
     }
   },
+  "hiddenInTheVault": "hidden in the Vault",
   "hideCookieValues": "Hide cookie values",
   "hideCredentials": "Hide credentials",
   "@hideRow": {
@@ -1619,6 +1628,7 @@
   "postResponseScript": "Post-response script",
   "preRequestScript": "Pre-request script",
   "preparingRequests": "Preparing requests and examples…",
+  "previewLimitedTo8Mib2": "preview limited to 8 MiB",
   "previewOnlyNothingChanged": "Preview only · nothing changed",
   "previousAndCurrentResponseFor": "Previous and current response for this method and URL",
   "privateSlotSavedReview": "Private slot saved · review save error",
@@ -1762,6 +1772,7 @@
       }
     }
   },
+  "requestSentFirstByteBack": "request sent, first byte back",
   "@requiredVariables": {
     "placeholders": {
       "names": {
@@ -1780,6 +1791,7 @@
   "responseFromTime": "Response from {time}",
   "responseHeadersFormat": "Response headers must use Name: Value, one per line",
   "responseStatusRange": "Response status must be a number between 200 and 599",
+  "restOfTheResponseBody": "rest of the response body",
   "resumeView": "Resume",
   "retainedAttempt": "Retained attempt",
   "@returnToOriginalTab": {
@@ -2052,6 +2064,7 @@
     }
   },
   "statusTimePath": "{status} · {time} · {path}",
+  "staysLiteralWhenSent": "stays literal when sent",
   "@stdioCommand": {
     "placeholders": {
       "command": {
@@ -3140,6 +3153,7 @@
   "untitled": "Untitled",
   "untitledApi": "Untitled API",
   "untitledRule": "Untitled rule",
+  "unvalidatedChangesValidateBeforeUsing": "Unvalidated changes — validate before using endpoints or exporting.",
   "@updatedAgo": {
     "placeholders": {
       "ago": {
@@ -3149,8 +3163,13 @@
   },
   "updatedAgo": "Updated · {ago}",
   "updating": "Updating…",
+  "upstreamConfigurationIsLoading": "Upstream configuration is loading",
   "upstreamError": "Upstream error",
   "upstreamLoading": "Upstream loading",
+  "upstreamOff2": "Upstream: off",
+  "upstreamSettingsSaved": "Upstream settings saved",
+  "useANonNegativeInteger": "Use a non-negative integer, optionally prefixed with <, <=, =, >= or >.",
+  "useHttpStatusCodes100": "Use HTTP status codes (100–599), ranges, comparisons or comma-separated alternatives.",
   "@usedByChanges": {
     "placeholders": {
       "usedBy": {
@@ -3159,6 +3178,7 @@
     }
   },
   "usedByChanges": "{usedBy} · changes apply to new requests.",
+  "usersMustBeBetween1": "Users must be between 1 and 64",
   "@usesAuthFrom": {
     "placeholders": {
       "authType": {
@@ -3170,6 +3190,8 @@
     }
   },
   "usesAuthFrom": "Uses {authType} auth from {from}.",
+  "validateTheEditedSourceTo": "Validate the edited source to refresh endpoints.",
+  "validationFailedFixTheSource": "Validation failed — fix the source and validate again.",
   "@valueOfRow": {
     "placeholders": {
       "noun": {
@@ -3205,6 +3227,7 @@
       }
     }
   },
+  "verifyTls": "Verify TLS",
   "@viewNumber": {
     "placeholders": {
       "number": {
@@ -3213,6 +3236,7 @@
     }
   },
   "waitSchemaDiscovery": "Wait for schema discovery to finish",
+  "waitingForCaptureToStart": "Waiting for capture to start",
   "@waitingResponseTimeout": {
     "placeholders": {
       "seconds": {
@@ -3220,6 +3244,10 @@
       }
     }
   },
+  "websocketMessagesOrSseEvents": "WebSocket messages or SSE events",
+  "whileTheAllowListIs": "While the allow list is on, the table shows only these apps, one name per line, as the Apps section spells them, besides the allowed hosts.",
+  "whileTheAllowListIs2": "While the allow list is on, the table shows only these hosts and their subdomains, one per line, besides the allowed apps. A leading dot matches subdomains only; * is a wildcard.",
+  "willResponseTopic": "Will response topic",
   "@windowTooNarrowForTheSidebar": {
     "placeholders": {
       "width": {

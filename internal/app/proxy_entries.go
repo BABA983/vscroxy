@@ -319,7 +319,7 @@ func (a *app) saveReverseProxy() {
 func (a *app) reversePortOwner(port int, except string) (string, bool) {
 	for _, r := range a.reverses {
 		if r.ID != except && r.Port == port {
-			return "another reverse proxy", true
+			return locales.AnotherReverseProxy(), true
 		}
 	}
 	if a.proxyPort == port {
@@ -364,7 +364,7 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 			if r.KeepHost {
 				mode = locales.KeepOriginalHost()
 			}
-			tlsMode := "Verify TLS"
+			tlsMode := locales.VerifyTls()
 			if r.Insecure {
 				tlsMode = locales.SelfSignedAllowed()
 			}

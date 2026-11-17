@@ -222,7 +222,7 @@ func (a *app) saveUpstream() {
 		u.problem = err.Error()
 		return
 	}
-	a.applyUpstreamSettings(settings, secrets, "Upstream settings saved")
+	a.applyUpstreamSettings(settings, secrets, locales.UpstreamSettingsSaved())
 }
 
 // drainUpstream delivers the startup PAC load result on the UI thread. A save
@@ -300,7 +300,7 @@ func (a *app) retryUpstream() {
 		return
 	}
 	a.upstreamRetry.retrying = true
-	a.applyUpstreamSettings(r.settings.Clone(), maps.Clone(r.secrets), "Upstream settings saved")
+	a.applyUpstreamSettings(r.settings.Clone(), maps.Clone(r.secrets), locales.UpstreamSettingsSaved())
 }
 
 // retryUpstreamNow is the Settings button: retry immediately and start the
@@ -311,7 +311,7 @@ func (a *app) retryUpstreamNow() {
 		settings, secrets = a.upstreamRetry.settings.Clone(), maps.Clone(a.upstreamRetry.secrets)
 	}
 	a.stopUpstreamRetry()
-	a.applyUpstreamSettings(settings, secrets, "Upstream settings saved")
+	a.applyUpstreamSettings(settings, secrets, locales.UpstreamSettingsSaved())
 }
 
 // applyUpstreamSettings installs the configuration and seals its passwords.
@@ -412,7 +412,7 @@ func (a *app) clearUpstream() {
 	cfg := a.upstreamCfg.Clone()
 	cfg.Default, cfg.Rules, cfg.PAC = "", nil, ""
 	a.upstreamUI.loaded = false
-	a.applyUpstreamSettings(cfg, a.upstreamSecrets, "Upstream: off")
+	a.applyUpstreamSettings(cfg, a.upstreamSecrets, locales.UpstreamOff2())
 }
 
 // upstreamSettingsGroup is the Settings → Proxy → Upstream section.

@@ -1179,7 +1179,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 					{"Duration (ms)", &v.editTriage.Duration}, {"Response size (bytes)", &v.editTriage.Size},
 				} {
 					if _, valid := numericCondition(0, *field.value); !valid {
-						problem = "Use a non-negative integer, optionally prefixed with <, <=, =, >= or >."
+						problem = locales.UseANonNegativeInteger()
 					}
 					ui.Field(c, field.label, func() {
 						uikit.Input(c, field.value).Label(field.label).Placeholder(">=500")
@@ -1189,7 +1189,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 			if strings.TrimSpace(v.editStatus) != "" {
 				for part := range strings.SplitSeq(v.editStatus, ",") {
 					if _, _, ok := statusBounds(part); !ok {
-						problem = "Use HTTP status codes (100–599), ranges, comparisons or comma-separated alternatives."
+						problem = locales.UseHttpStatusCodes100()
 						break
 					}
 				}

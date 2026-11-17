@@ -168,7 +168,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 		proxy.title, proxy.fix, proxy.run = locales.DiagDeviceAccess(), "Device setup…", func(*ui.Context) { a.openDevices() }
 		if !running {
 			proxy.state = checkWait
-			proxy.result = "Waiting for capture to start"
+			proxy.result = locales.WaitingForCaptureToStart()
 			proxy.detail = []string{"Device access is checked while capture is running."}
 		} else if g := a.deviceUI.gateway; g == nil {
 			proxy.state, proxy.result = checkFail, locales.DeviceAccessIsOff()
@@ -275,7 +275,7 @@ func (a *app) trafficCheck(target *url.URL, https bool) diagnosticCheck {
 		// The count belongs to this run, but a failure that Explain was
 		// opened from is still the recorded evidence for the target.
 		check.state = checkWait
-		check.result = "Waiting for capture to start"
+		check.result = locales.WaitingForCaptureToStart()
 		check.detail = []string{"Actual traffic is counted only while capture is running in this session; imported and cleared records do not count."}
 		if latest != nil && latest.conn.error != "" {
 			check.failure = latest

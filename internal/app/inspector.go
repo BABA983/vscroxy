@@ -125,7 +125,7 @@ func (a *app) detailWith(c *ui.Context, detached bool) {
 			a.inspectorPaneBar(c, t, "Connection", locales.RecordedConnectionEvidenceAtCapture())
 			a.connectionView(c, f)
 		case inspectorMessages:
-			a.inspectorPaneBar(c, t, "Messages", "WebSocket messages or SSE events")
+			a.inspectorPaneBar(c, t, "Messages", locales.WebsocketMessagesOrSseEvents())
 			a.messages(c, f)
 		default:
 			if d != nil {

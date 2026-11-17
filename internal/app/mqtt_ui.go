@@ -627,7 +627,7 @@ func (a *app) mqttWillPropertiesEditor(c *ui.Context, t *ui.Theme, d *requestDoc
 			return uikit.Input(c, &c1.Will.Properties.ContentType).Placeholder("application/json").Label(locales.WillMimeContentType())
 		}, "")
 		uikit.SettingsRow(c, locales.ResponseTopic(), func() ui.Element {
-			return a.variableInput(c, "mqtt-will-response", &c1.Will.Properties.ResponseTopic, "Will response topic", d.composeCollection)
+			return a.variableInput(c, "mqtt-will-response", &c1.Will.Properties.ResponseTopic, locales.WillResponseTopic(), d.composeCollection)
 		}, "")
 		uikit.SettingsRow(c, locales.CorrelationData(), func() ui.Element {
 			return uikit.Input(c, &c1.Will.Properties.CorrelationData).Placeholder(locales.OpaqueReplyCorrelationValue()).Label(locales.WillCorrelationData())

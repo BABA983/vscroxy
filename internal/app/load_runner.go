@@ -97,7 +97,7 @@ func (a *app) startLoadRunner() {
 	}
 	users, err := strconv.Atoi(strings.TrimSpace(r.users))
 	if err != nil || users < 1 || users > 64 {
-		r.status = "Users must be between 1 and 64"
+		r.status = locales.UsersMustBeBetween1()
 		return
 	}
 	duration, err := time.ParseDuration(strings.TrimSpace(r.duration))

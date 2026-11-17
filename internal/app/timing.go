@@ -37,8 +37,8 @@ func (a *app) timingView(c *ui.Context, f flow) {
 		}
 		// The wait covers the dial and the server's own time; a lookup the
 		// flow made itself is the part of it that can be named.
-		waterfallRow(c, t, locales.TimingWaiting(), "request sent, first byte back", f.wait, 0, total, wait)
-		waterfallRow(c, t, locales.TimingDownload(), "rest of the response body", f.download, f.wait, total, download)
+		waterfallRow(c, t, locales.TimingWaiting(), locales.RequestSentFirstByteBack(), f.wait, 0, total, wait)
+		waterfallRow(c, t, locales.TimingDownload(), locales.RestOfTheResponseBody(), f.download, f.wait, total, download)
 		ui.Divider(c)
 		ui.Row(c).FillWidth().Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Padding(t.Space(uikit.SpaceXS), 0).Children(func() {
 			uikit.BodyStrong(c, locales.Total()).TextColor(t.Text).Shrink(0)

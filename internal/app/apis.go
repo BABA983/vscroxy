@@ -196,9 +196,9 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 				a.saveAPI(d)
 			}
 		})
-		status, color := "Unvalidated changes — validate before using endpoints or exporting.", t.TextMuted
+		status, color := locales.UnvalidatedChangesValidateBeforeUsing(), t.TextMuted
 		if current && d.problem != "" {
-			status, color = "Validation failed — fix the source and validate again.", t.Danger
+			status, color = locales.ValidationFailedFixTheSource(), t.Danger
 		} else if valid {
 			state := "Saved locally"
 			if d.dirty() {
@@ -233,7 +233,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			if valid {
 				a.apiEndpoints(c, t, d)
 			} else {
-				uikit.EmptyState(c, locales.EndpointsUnavailable(), cmp.Or(d.problem, "Validate the edited source to refresh endpoints."), func() {
+				uikit.EmptyState(c, locales.EndpointsUnavailable(), cmp.Or(d.problem, locales.ValidateTheEditedSourceTo()), func() {
 					if uikit.SecondaryButton(c, locales.EditOpenapi()).Clicked() {
 						d.tab = 1
 					}

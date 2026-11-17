@@ -320,7 +320,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if method, err := g.schema.method(d.grpcConfig.Method); err == nil && method.IsStreamingClient() {
 					a.grpcSavedMessages(c, t, d, g)
 				}
-				authoredText(c, &d.composeBody, &d.bodyEditor, &d.bodyFor, "gRPC request JSON", "json")
+				authoredText(c, &d.composeBody, &d.bodyEditor, &d.bodyFor, locales.GrpcRequestJson(), "json")
 			case 1:
 				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.headerEditor(c, d, t) })
 			case 2:

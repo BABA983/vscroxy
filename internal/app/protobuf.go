@@ -280,7 +280,7 @@ func inspectProto(ctx context.Context, f flow, response bool, schema *protoSchem
 	}
 	ct := f.contentType(response)
 	if strings.HasPrefix(ct, "application/grpc-web") {
-		result.problem = "gRPC-Web framing is not supported; use native gRPC over inspected HTTP/2"
+		result.problem = locales.GrpcWebFramingIsNot()
 		return result
 	}
 	data := []byte(head)
@@ -437,7 +437,7 @@ func (f flow) failed() bool {
 func grpcStatus(f flow) string {
 	code, message := grpcOutcome(f)
 	if code == "" {
-		return "gRPC status missing (HTTP 200 alone does not mean success)"
+		return locales.GrpcStatusMissingHttp200()
 	}
 	names := [...]string{"OK", "Cancelled", "Unknown", "InvalidArgument", "DeadlineExceeded", "NotFound", "AlreadyExists", "PermissionDenied", "ResourceExhausted", "FailedPrecondition", "Aborted", "OutOfRange", "Unimplemented", "Internal", "Unavailable", "DataLoss", "Unauthenticated"}
 	name := locales.InvalidStatus()

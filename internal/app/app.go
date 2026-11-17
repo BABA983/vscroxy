@@ -814,7 +814,7 @@ func newApp() *app {
 		if a.upstreamCfg.Enabled() {
 			// A PAC URL may be slow or unreachable. Requests fail closed while
 			// it loads, and the result reaches the UI through the next frame.
-			a.upstreamProblem = "Upstream configuration is loading"
+			a.upstreamProblem = locales.UpstreamConfigurationIsLoading()
 			a.upstreamLoading = true
 			placeholder := srv.SetUpstreamUnavailable(a.upstreamCfg, errors.New("upstream configuration is loading"))
 			cfg, secrets := a.upstreamCfg.Clone(), maps.Clone(a.upstreamSecrets)
@@ -1943,10 +1943,10 @@ func (a *app) view(c *ui.Context) {
 			}
 		})
 	a.hostListModal(c, t, &a.allowOpen, locales.AllowedHosts(),
-		"While the allow list is on, the table shows only these hosts and their subdomains, one per line, besides the allowed apps. A leading dot matches subdomains only; * is a wildcard.",
+		locales.WhileTheAllowListIs2(),
 		a.allowPath, &a.allowText, func([]string) { a.applyAllow() })
 	a.hostListModal(c, t, &a.allowAppsOpen, locales.AllowedApps(),
-		"While the allow list is on, the table shows only these apps, one name per line, as the Apps section spells them, besides the allowed hosts.",
+		locales.WhileTheAllowListIs(),
 		a.allowAppsPath, &a.allowAppsText, func([]string) { a.applyAllow() })
 	a.varsModal(c, t)
 	a.importReportModal(c, t)

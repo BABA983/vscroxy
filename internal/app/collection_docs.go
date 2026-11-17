@@ -133,7 +133,7 @@ func truncateDocs(text string, limit int) string {
 // redactHeader hides a credential header's value.
 func redactDocsHeader(name, value string) string {
 	if request.IsSensitiveHeader(name) {
-		return "•••• (hidden)"
+		return locales.Hidden()
 	}
 	return value
 }

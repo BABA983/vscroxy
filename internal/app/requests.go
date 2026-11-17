@@ -1737,10 +1737,10 @@ func (a *app) responseCompare(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		reqBody: r.RequestBody, reqSize: r.RequestBodySize, reqHeaders: request.HeaderBlock(r.RequestHeader),
 		resBody: r.ResponseBody, resSize: r.ResponseBodySize, resHeaders: request.HeaderBlock(r.ResponseHeader)}
 	if r.RequestBodySize > len(r.RequestBody) {
-		right.reqError = "preview limited to 8 MiB"
+		right.reqError = locales.PreviewLimitedTo8Mib2()
 	}
 	if r.ResponseBodySize > len(r.ResponseBody) {
-		right.resError = "preview limited to 8 MiB"
+		right.resError = locales.PreviewLimitedTo8Mib2()
 	}
 	uikit.Meta(c, locales.LastSendClientRequestAnd()).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))
 	d.comparison.compare(c, *d.source, right, [2]string{fmt.Sprintf("Source #%d", d.sourceFlow), "Last send"}, &a.diffSplit, nil)

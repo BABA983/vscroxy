@@ -314,7 +314,7 @@ func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 				uikit.Meta(c, locales.ArgumentsOnePerLineVariables()).Grow(1)
 			})
 			a.variableTextArea(c, "mcp-args", &d.mcpConfig.Args, locales.CommandArguments(), d.composeCollection).Height(64).Font(uikit.FontMono)
-			a.variableInput(c, "mcp-dir", &d.mcpConfig.WorkingDir, "Working directory", d.composeCollection).
+			a.variableInput(c, "mcp-dir", &d.mcpConfig.WorkingDir, locales.WorkingDirectory(), d.composeCollection).
 				Placeholder(locales.OptionalTheAppSDirectory()).Font(uikit.FontMono)
 			uikit.Meta(c, locales.EnvironmentValuesMayUseVariables()).Padding(0, t.Space(uikit.SpaceXS))
 			a.requestFieldsEditor(c, &d.mcpConfig.Env, fieldsOptions{secret: true, collection: d.composeCollection}, locales.EnvironmentVariable())
@@ -454,7 +454,7 @@ func (a *app) mcpResourcesEditor(c *ui.Context, t *ui.Theme, d *requestDocument,
 		a.actionButton(c, "request.mcp-read", "Read resource")
 	})
 	if resource := mcpResourceByURI(s.resources, d.mcpConfig.ResourceURI); resource != nil {
-		uikit.Meta(c, cmp.Or(resource.Title, resource.Name, resource.URI)+" · "+cmp.Or(resource.MIMEType, "unknown type")).MaxLines(2)
+		uikit.Meta(c, cmp.Or(resource.Title, resource.Name, resource.URI)+" · "+cmp.Or(resource.MIMEType, locales.UnknownType())).MaxLines(2)
 		if resource.Description != "" {
 			uikit.Meta(c, resource.Description).MaxLines(2)
 		}
@@ -815,10 +815,10 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 			title, note, kind := "", "", ""
 			if row.Index < len(s.resources) {
 				resource := s.resources[row.Index]
-				title, note, kind = cmp.Or(resource.Title, resource.Name, resource.URI), resource.URI+" · "+cmp.Or(resource.MIMEType, "unknown type"), "resource"
+				title, note, kind = cmp.Or(resource.Title, resource.Name, resource.URI), resource.URI+" · "+cmp.Or(resource.MIMEType, locales.UnknownType()), "resource"
 			} else {
 				template := s.templates[row.Index-len(s.resources)]
-				title, note, kind = cmp.Or(template.Title, template.Name, template.URITemplate), template.URITemplate+" · "+cmp.Or(template.MIMEType, "unknown type"), "template"
+				title, note, kind = cmp.Or(template.Title, template.Name, template.URITemplate), template.URITemplate+" · "+cmp.Or(template.MIMEType, locales.UnknownType()), "template"
 			}
 			r := ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 			if row.Hovered() {
