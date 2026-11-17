@@ -368,7 +368,27 @@ func InputState(c *ui.Context, value *string, invalid bool) ui.Element {
 // styles runs of its text before wrapping it with FieldFace. It keeps the
 // control's height, padding and font, so the field looks like Input.
 func InputControl(c *ui.Context, value *string) ui.Element {
-	return ui.TextInput(c, value).Height(HeightControl).Padding(0, Scaled(ControlPaddingX)).FontSize(Scaled(TextBody)).Radius(RadiusControl).FocusRing(false).Border(0, ui.Color{})
+	// MyGo paints a text field's border from the theme it was built with, in
+	// Accent when focused, Border or Text when hovered, Danger when invalid.
+	// The inset border below must stay clear in every state, so the field is
+	// built with those colors clear, and the caller's theme comes back after.
+	t := c.Theme()
+	quiet := *t
+	quiet.Accent, quiet.Border, quiet.Text, quiet.Danger = ui.Color{}, ui.Color{}, ui.Color{}, ui.Color{}
+	c.SetTheme(&quiet)
+	e := TextInset(ui.TextInput(c, value).Height(HeightControl).FontSize(Scaled(TextBody)).Radius(RadiusControl).FocusRing(false), Scaled(ControlPaddingX))
+	c.SetTheme(t)
+	return e
+}
+
+// TextInset gives a single-line text field inset points at each side. The
+// left one is padding. MyGo clips a field's text to its border box, not its
+// padding, so the right one is a border: its width sets the room the text
+// keeps, and it paints nothing because its color is clear. A field whose
+// border MyGo restyles by state, as Input's, is built with clear colors too
+// (see InputControl).
+func TextInset(e ui.Element, inset float32) ui.Element {
+	return e.Padding(0, 0, 0, inset).BorderWidth(0, inset, 0, 0).BorderColor(ui.Color{})
 }
 
 // Combobox is MyGo's text field with a suggestion popup, in the kit's field

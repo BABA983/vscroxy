@@ -232,3 +232,32 @@ func TestSelectPopupInsetsItsOptions(t *testing.T) {
 		t.Fatalf("option text starts %.1f from the popup's edge, want about %.1f", inset, want)
 	}
 }
+
+// A value longer than its field stops at the field's inset, not at the field's
+// edge: the band of the right inset holds the face and no ink, while the text
+// still draws in the field.
+func TestInputTextStopsAtItsRightInset(t *testing.T) {
+	value := "https://api.example.com/v1/projects/a-path-that-does-not-fit-the-field"
+	tt := ui.NewTester(func(c *ui.Context) {
+		c.SetTheme(Theme(false))
+		Input(c, &value).Width(160)
+	}, 160, 28)
+	tt.Frame()
+	img := tt.Image()
+	ink := func(x0, x1 int) bool {
+		for y := 8; y < 20; y++ {
+			for x := x0; x < x1; x++ {
+				if r, _, _, _ := img.At(x, y).RGBA(); r < 0x8000 {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if !ink(ControlPaddingX, 160-ControlPaddingX) {
+		t.Fatal("the field draws no text")
+	}
+	if ink(160-ControlPaddingX, 160-2) {
+		t.Fatal("the text runs into the right inset")
+	}
+}
