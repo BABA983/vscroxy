@@ -15,6 +15,10 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// splitterHandle is the hit height of the divider between two panes: a grab
+// area a few points taller than its one-point line.
+const splitterHandle = 7
+
 // sidebarList is one list's state across frames: the rows it holds, the one the
 // keyboard is on, and the letters typed to find a row.
 type sidebarList struct {
@@ -313,11 +317,11 @@ func SidebarPanes(c *ui.Context, key string, available float32, panes []SidebarP
 				// but the divider belongs to the two bodies it resizes, so
 				// it sits just above the next open heading.
 				if open && previous >= 0 {
-					handle := ui.Column(c).Key("divider:" + panes[previous].ID).Height(7).Shrink(0).FillWidth().
+					handle := ui.Column(c).Key("divider:" + panes[previous].ID).Height(splitterHandle).Shrink(0).FillWidth().
 						Justify(ui.Center).Cursor(ui.CursorResizeNS)
 					var line ui.Element
 					handle.Children(func() {
-						line = ui.Box(c).Height(1).Background(p.Hairline)
+						line = ui.Box(c).Height(HairlineWidth).Background(p.Hairline)
 					})
 					handles, lines = append(handles, handle), append(lines, line)
 					gaps = append(gaps, [2]int{previous, i})

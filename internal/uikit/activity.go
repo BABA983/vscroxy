@@ -16,6 +16,15 @@ type ActivityBucket [5]int
 // Its zero value leaves the table unfiltered.
 type ActivityRange struct{ From, To int }
 
+// The activity strip's own sizes: the plot's height and smallest width, the
+// range's way out (a fixed width so the bars never move) and its clear button.
+const (
+	activityPlotHeight   = 14
+	activityPlotMinWidth = 40
+	activityRangeWidth   = 48
+	activityClearHeight  = 18
+)
+
 // The shortest and narrowest a bar is drawn: a bucket with one request must
 // still read as a bar, not a dot, next to a busy one.
 const activityMinBar = 5
@@ -28,11 +37,11 @@ const activityMinBarWidth = 6
 // build-scoped elements.
 func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRange, last string, changed func()) ui.Element {
 	t, palette := c.Theme(), Colors(c.Theme())
-	strip := ui.Row(c).Height(HeightStatus).Shrink(0).FillWidth().Padding(0, 12).Gap(8).AlignItems(ui.Center).
+	strip := ui.Row(c).Height(HeightStatus).Shrink(0).FillWidth().Padding(0, t.Space(SpaceL)).Gap(t.Space(SpaceM)).AlignItems(ui.Center).
 		Label(locales.ActivityStrip())
 	strip.Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 	strip.Children(func() {
-		plot := ui.Box(c.Key("plot")).Height(14).Grow(1).MinWidth(40).Focusable().Role(ui.RoleGroup).Label(locales.ActivityTimeRange()).
+		plot := ui.Box(c.Key("plot")).Height(activityPlotHeight).Grow(1).MinWidth(activityPlotMinWidth).Focusable().Role(ui.RoleGroup).Label(locales.ActivityTimeRange()).
 			Description(locales.ActivityDragHelp())
 		state := ui.Local(plot, "brush", func() activityGesture { return activityGesture{} })
 		// The handle itself must survive a build, just as the gesture does.
@@ -41,9 +50,9 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 		// The way out of a range keeps its room whether or not one is
 		// chosen: a brush must never move the bars under the pointer that
 		// started it.
-		ui.Row(c).Width(48).Shrink(0).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Width(activityRangeWidth).Shrink(0).AlignItems(ui.Center).Children(func() {
 			clear := SecondaryButton(c.Key("clear"), locales.ClearX()).Label(locales.ClearActivityRange()).
-				Height(18).PaddingX(4).FontSize(Scaled(TextMeta)).Shrink(0)
+				Height(activityClearHeight).PaddingX(KbdPaddingX).FontSize(Scaled(TextMeta)).Shrink(0)
 			if selected.To > selected.From {
 				clear.OnClick(func() { *selected = ActivityRange{}; changed() })
 			} else {

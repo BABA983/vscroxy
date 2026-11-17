@@ -25,6 +25,23 @@ var (
 	closeIcon   = lucide.X()
 )
 
+// tipBreakRun is how many characters a tip lets run before it breaks them.
+const tipBreakRun = 32
+
+// Sizes only these components use: a pane header's monospace line, the
+// timing bar, the activity sparkline, a list's marker box, a switch's track,
+// a tall form's label column and the slack a settings label is measured with.
+const (
+	responseMetaLine   = 14
+	timingBarHeight    = 6
+	sparklineWidth     = 56
+	sparklineHeight    = 14
+	rowMarkerBox       = 4
+	formTallLabelWidth = 96
+	switchHeight       = 20
+	settingsLabelSlack = 4
+)
+
 // ButtonBase keeps native keyboard, focus-ring and accessibility behavior.
 // The face is chosen as the button is built, so disable it through an
 // ancestor (IsDisabled includes one); Disabled on the result comes too late
@@ -289,7 +306,7 @@ func faced(c *ui.Context, build func() ui.Element) ui.Element {
 func RowButton(c *ui.Context, label string) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	b := ui.ButtonBase(c).Label(label).FillWidth().MinHeight(HeightControl).
-		Padding(Scaled(4), Scaled(ControlPaddingXSmall)).Gap(t.Space(SpaceM)).Radius(RadiusControl).AlignItems(ui.Center).
+		Padding(t.Space(SpaceXS), Scaled(ControlPaddingXSmall)).Gap(t.Space(SpaceM)).Radius(RadiusControl).AlignItems(ui.Center).
 		FontSize(Scaled(TextBody)).TextColor(t.Text)
 	switch {
 	case b.IsDisabled():
@@ -457,7 +474,7 @@ type Timing struct {
 func ResponseMeta(c *ui.Context, duration, detail string, timing Timing) ui.Element {
 	t := c.Theme()
 	return ui.Row(c).MinWidth(0).Shrink(1).AlignItems(ui.Center).Label(locales.ResponseResult()).Children(func() {
-		d := Tip(c, Meta(c, duration).Font(FontMono).FixedLineHeight(14).Shrink(0), duration)
+		d := Tip(c, Meta(c, duration).Font(FontMono).FixedLineHeight(responseMetaLine).Shrink(0), duration)
 		if len(timing.Phases) > 0 {
 			d.Description(locales.TimingHoverHelp())
 			ui.TooltipBase(c, d, func(tip ui.Element) {
@@ -466,7 +483,7 @@ func ResponseMeta(c *ui.Context, duration, detail string, timing Timing) ui.Elem
 			})
 		}
 		if detail != "" {
-			Tip(c, Meta(c, " · "+detail).Font(FontMono).FixedLineHeight(14).
+			Tip(c, Meta(c, " · "+detail).Font(FontMono).FixedLineHeight(responseMetaLine).
 				SingleLine().Shrink(1).MinWidth(0), detail)
 		}
 	})
@@ -481,7 +498,7 @@ func timingCard(c *ui.Context, card ui.Element, total string, timing Timing) {
 		sum += max(p.Millis, 0)
 	}
 	PopoverPanel(c, card).Width(WidthWide).Padding(PopoverPadding).Gap(t.Space(SpaceS)).Children(func() {
-		ui.Row(c).FillWidth().Height(6).Radius(3).Background(pal.Fill).Children(func() {
+		ui.Row(c).FillWidth().Height(timingBarHeight).Radius(timingBarHeight / 2).Background(pal.Fill).Children(func() {
 			for _, p := range timing.Phases {
 				if p.Millis > 0 {
 					ui.Box(c).Grow(float32(p.Millis)).FillHeight().Background(p.Color)
@@ -521,7 +538,7 @@ func Sparkline(c *ui.Context, counts []int, ink ui.Color) ui.Element {
 	for _, n := range counts {
 		peak = max(peak, n)
 	}
-	return ui.Box(c).Size(56, 14).Shrink(0).Draw(func(p *ui.Painter, r ui.Rect) {
+	return ui.Box(c).Size(sparklineWidth, sparklineHeight).Shrink(0).Draw(func(p *ui.Painter, r ui.Rect) {
 		const stroke = 1.25
 		bottom, height := r.Y+r.H-stroke/2, r.H-stroke
 		if len(counts) < 2 {
@@ -704,7 +721,7 @@ func CardTip(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
 							continue
 						}
 						ui.Row(c).FillWidth().Gap(t.Space(SpaceM)).AlignItems(ui.Start).Children(func() {
-							Meta(c, row.Key).Width(Scaled(CardKeyWidth)).Shrink(0).Padding(0, 0, 1, 0)
+							Meta(c, row.Key).Width(Scaled(CardKeyWidth)).Shrink(0).Padding(0, 0, HairlineWidth, 0)
 							if strings.Contains(row.Value, "://") {
 								Mono(c, breakTip(row.Value)).TextColor(t.Text).Grow(1).MinWidth(0)
 							} else {
@@ -747,7 +764,7 @@ func breakTip(s string) string {
 			continue
 		}
 		run++
-		if run > 32 {
+		if run > tipBreakRun {
 			return breakLong(s)
 		}
 	}
@@ -758,7 +775,7 @@ func breakTip(s string) string {
 // space after the characters that already divide it; only a run with none of
 // them is broken after 32 characters.
 func breakLong(s string) string {
-	const limit = 32
+	const limit = tipBreakRun
 	var b strings.Builder
 	run := 0
 	for _, r := range s {
@@ -1367,7 +1384,7 @@ func marker(t *ui.Theme, focused bool) func(p *ui.Painter, r ui.Rect) {
 // RowMarker adds the marker to the row being built by a MyGo list or table,
 // whose own selection fill comes from ListTheme.
 func RowMarker(c *ui.Context, focused bool) {
-	ui.Box(c).Absolute().Left(0).Top(0).Bottom(0).Width(4).Draw(marker(c.Theme(), focused))
+	ui.Box(c).Absolute().Left(0).Top(0).Bottom(0).Width(rowMarkerBox).Draw(marker(c.Theme(), focused))
 }
 
 // Selected gives a rounded row the selection look.
@@ -1418,7 +1435,7 @@ func FormRowTall(c *ui.Context, label, description, errText string, control func
 	t := c.Theme()
 	row := ui.Row(c).FillWidth().Gap(t.Space(SpaceL)).AlignItems(ui.Start)
 	row.Children(func() {
-		lab := ui.Text(c, label).Width(Scaled(96)).TextAlign(ui.End).TextColor(t.Text)
+		lab := ui.Text(c, label).Width(Scaled(formTallLabelWidth)).TextAlign(ui.End).TextColor(t.Text)
 		col := ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(SpaceXS))
 		col.Children(func() {
 			ctrl := control()
@@ -1427,9 +1444,9 @@ func FormRowTall(c *ui.Context, label, description, errText string, control func
 				ctrl.Description(description)
 			}
 			if errText != "" {
-				errEl := ui.Text(c, errText).FontSize(Scaled(TextMeta)).TextColor(t.Danger)
-				ctrl.ErrorMessage(errEl)
-				ui.Text(c, errText).FontSize(Scaled(TextMeta)).TextColor(t.Danger)
+				// The error is drawn once, and named as the control's error for
+				// assistive technology.
+				ctrl.ErrorMessage(ui.Text(c, errText).FontSize(Scaled(TextMeta)).TextColor(t.Danger))
 			} else if description != "" {
 				Meta(c, description)
 			}
@@ -1492,7 +1509,7 @@ func SettingsCard(c *ui.Context, legend string, rows func()) ui.Element {
 // distinct from off and from a disabled switch in both themes.
 func Switch(c *ui.Context, on *bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	sw := ui.SwitchBase(c, on).Size(SettingsControlHeight, 20).Radius(10)
+	sw := ui.SwitchBase(c, on).Size(SettingsControlHeight, switchHeight).Radius(switchHeight / 2)
 	target := float32(0)
 	if *on {
 		target = 1
@@ -1602,7 +1619,7 @@ func settingsLabelWidth(c *ui.Context, label string) float32 {
 		width = Scaled(SettingsLabelWidth)
 	}
 	measured, _ := c.MeasureText(0, ui.Span{Text: label, Size: Scaled(TextBody)})
-	want := min(max(measured+Scaled(4), Scaled(SettingsLabelWidth)), Scaled(SettingsLabelMax))
+	want := min(max(measured+Scaled(settingsLabelSlack), Scaled(SettingsLabelWidth)), Scaled(SettingsLabelMax))
 	if want > width {
 		settingsWidths.Store(c, map[string]float32{group: want})
 		c.Invalidate()
@@ -1658,10 +1675,10 @@ func settingsRow(c *ui.Context, label string, control func() ui.Element, hint, t
 		align = ui.Start
 	}
 	if hint == "" {
-		return settingsRowBody(c, label, control, align)
+		return settingsRowBody(c, label, control, "", align)
 	}
 	return ui.Column(c).FillWidth().Gap(t.Space(SpaceXS)).Children(func() {
-		settingsRowBody(c, label, control, align)
+		settingsRowBody(c, label, control, hint, align)
 		ui.Row(c).Children(func() {
 			ui.Box(c).Width(Scaled(SettingsLabelWidth) + t.Space(SpaceXL)).Shrink(0)
 			Tip(c, ui.Text(c, hint).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted).
@@ -1670,7 +1687,12 @@ func settingsRow(c *ui.Context, label string, control func() ui.Element, hint, t
 	})
 }
 
-func settingsRowBody(c *ui.Context, label string, control func() ui.Element, align ui.Align) ui.Element {
+// settingsRowBody lines the label up with the control. The hint is the
+// control's description for assistive technology; the hint line is drawn
+// under the row by settingsRow. The label is not bound to the control with
+// LabelledBy: that would replace the control's own name, which the settings
+// screens rely on.
+func settingsRowBody(c *ui.Context, label string, control func() ui.Element, hint string, align ui.Align) ui.Element {
 	t := c.Theme()
 	labelWidth := settingsLabelWidth(c, label)
 	row := ui.Row(c).FillWidth().Gap(t.Space(SpaceXL)).AlignItems(align)
@@ -1680,7 +1702,9 @@ func settingsRowBody(c *ui.Context, label string, control func() ui.Element, ali
 		} else {
 			ui.Text(c, label).FontSize(Scaled(TextBody)).TextColor(t.Text).Width(labelWidth).Shrink(0).MaxLines(2)
 		}
-		ui.Column(c).Grow(1).MinWidth(0).Children(func() { control() })
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			control().Description(hint)
+		})
 	})
 	return row
 }

@@ -168,6 +168,25 @@ func closeTo(px color.RGBA, ink ui.Color) bool {
 	return px.A == 255 && near(px.R, ink.R) && near(px.G, ink.G) && near(px.B, ink.B)
 }
 
+// A disabled radio button keeps the value it had, as a disabled check box does.
+func TestDisabledRadioKeepsItsValue(t *testing.T) {
+	selected := "alpha"
+	tt := ui.NewTester(func(c *ui.Context) {
+		RadioGroup(c, func() {
+			Radio(c, &selected, "alpha", "Alpha")
+			Radio(c, &selected, "beta", "Beta").Disabled(true)
+		})
+	}, 320, 120)
+	tt.Frame()
+	if err := tt.Click("Beta"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if selected != "alpha" {
+		t.Fatalf("a disabled radio button chose %q", selected)
+	}
+}
+
 // A progress bar reports its fraction, from 0 to 1, as its value.
 func TestProgressBarReportsItsValue(t *testing.T) {
 	tt := ui.NewTester(func(c *ui.Context) {

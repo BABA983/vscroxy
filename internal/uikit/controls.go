@@ -73,7 +73,7 @@ func Radio[T comparable](c *ui.Context, selected *T, value T, label string) ui.E
 		}
 		dot.Children(func() {
 			if on {
-				ui.Box(c).Size(6, 6).Radius(3).Background(p.AccentText)
+				ui.Box(c).Size(DotSize, DotSize).Radius(DotSize / 2).Background(p.AccentText)
 			}
 		})
 		if label != "" {

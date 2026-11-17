@@ -48,13 +48,14 @@ const (
 	Space2XL     = 6   // 24: between sections
 	Space3XL     = 8   // 32: between the parts of a page
 
-	// Three bar heights, as in Proxyman and Xcode: the title bar, a pane
-	// header or filter bar, and the status bar under everything.
+	// Bar heights, as in Proxyman and Xcode: the title bar, a pane header or
+	// filter bar, and the one-row strip that holds a sidebar heading or the
+	// activity line.
 	HeightBar    = 40
 	HeightTabs   = 32
-	HeightStatus = 24 // the activity strip's one row and the status bar
-	// HeightFooter is the bar under everything: the window's own actions,
-	// its counts and the tools that are on.
+	HeightStatus = 24 // the activity strip's one row and a sidebar section heading
+	// HeightFooter is the footer bar under the window: its actions, counts and
+	// the tools that are on.
 	HeightFooter = 28
 	// Heights of what a person presses, types in or picks. HeightControl is
 	// the default for forms, toolbars and primary actions; HeightControlSmall

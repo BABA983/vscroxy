@@ -61,6 +61,29 @@ func TestFormRowBindsDescriptionAndError(t *testing.T) {
 	t.Fatal("the field's control is missing")
 }
 
+// FormRowTall draws its error once, under the control: the error is the
+// control's message for assistive technology, not a second line of text.
+func TestFormRowTallDrawsItsErrorOnce(t *testing.T) {
+	const message = "Syntax error on line 3."
+	value := "{"
+	tt := ui.NewTester(func(c *ui.Context) {
+		c.SetTheme(Theme(false))
+		FormRowTall(c, "Script", "", message, func() ui.Element {
+			return TextArea(c, &value)
+		})
+	}, 480, 200)
+	tt.Frame()
+	drawn := 0
+	for _, s := range tt.Texts() {
+		if s == message {
+			drawn++
+		}
+	}
+	if drawn != 1 {
+		t.Fatalf("the error is drawn %d times, want once; texts=%q", drawn, tt.Texts())
+	}
+}
+
 // DataList owns the list theme and the row marker: a selected row draws the
 // marker at its leading edge without the caller doing either.
 func TestDataListDrawsTheSelectionMarker(t *testing.T) {
