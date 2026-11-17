@@ -142,7 +142,9 @@ func (p *protoInspector) controls(c *ui.Context, a *app, registry *protoInspecto
 	// Keep the type and its schema together; only search wraps in a narrow
 	// inspector. Both fields share the surrounding controls' density.
 	ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
-		ui.Row(c).Grow(1).Basis(280).MinWidth(0).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+		// The tip is on the row, not the combobox: a tip wrapped round the
+		// combobox clipped the decoded text below it (paint only, same bounds).
+		uikit.Tip(c, ui.Row(c).Grow(1).Basis(280).MinWidth(0).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			options := []string{"Auto"}
 			if p.schema != nil {
 				options = append(options, p.schema.names...)
@@ -150,12 +152,11 @@ func (p *protoInspector) controls(c *ui.Context, a *app, registry *protoInspecto
 			if p.name == "" {
 				p.name = "Auto"
 			}
-			uikit.Tip(c, uikit.Combobox(c, &p.name, options).Label(locales.ProtobufMessageType()).Grow(1).MinWidth(0),
-				locales.AutoResolvesHttpGrpcMethods())
+			uikit.Combobox(c, &p.name, options).Label(locales.ProtobufMessageType()).Grow(1).MinWidth(0)
 			if uikit.SecondaryButton(c, locales.Schema()).Shrink(0).Clicked() {
 				registry.open = true
 			}
-		})
+		}), locales.AutoResolvesHttpGrpcMethods())
 		uikit.SearchField(c, &p.query, locales.SearchProtobufMessages(), locales.SearchMessages2(), false).Grow(1).Basis(180).MinWidth(0)
 	})
 	if p.url != "" && p.name != "" && p.name != "Auto" {
