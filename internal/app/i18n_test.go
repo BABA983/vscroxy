@@ -38,6 +38,32 @@ func TestCatalogsMatch(t *testing.T) {
 			t.Errorf("zh-Hans has %q, which en does not", key)
 		}
 	}
+	// A Chinese message that is the English on purpose: product, protocol and
+	// file-format names, acronyms, data examples, and patterns that are only
+	// symbols around values. Each entry must stay identical; a translated
+	// message must come off this list.
+	sameInChinese := map[string]bool{
+		"addedUpdated": true, "android": true, "bearer": true, "contentTypeApplicationJson": true,
+		"cookieUrl": true, "eventLineKind": true, "eventLineSize": true, "grpcEventLine": true,
+		"git": true, "har": true, "https": true, "ios": true, "iterationName": true, "json": true,
+		"kindPath": true, "kindWithSize": true, "millis": true, "mqttEventLine": true,
+		"mqttTopicExample": true, "mcpVersion": true, "multipart": true, "nonce": true,
+		"numberedName": true, "openapi": true, "pac": true, "pem": true, "pkcs12": true,
+		"protobuf": true, "protobufJSONDirection": true, "socketIOState": true, "socks5": true,
+		"sseUrl": true, "ssl": true, "statusTimePath": true, "stdioCommand": true,
+		"timeKindSize": true, "timesCount": true, "tls": true, "token": true, "url": true,
+		"websocketUrl": true, "wireshark": true,
+	}
+	for key, text := range en {
+		if zh[key] == text && !sameInChinese[key] {
+			t.Errorf("zh-Hans %q is the English %q; translate it, or list it in sameInChinese", key, text)
+		}
+	}
+	for key := range sameInChinese {
+		if zh[key] != en[key] {
+			t.Errorf("sameInChinese lists %q, but its Chinese is translated; take it off the list", key)
+		}
+	}
 }
 
 func readCatalog(t *testing.T, path string) map[string]string {
