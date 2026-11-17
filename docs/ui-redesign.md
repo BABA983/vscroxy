@@ -314,6 +314,10 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 **参数表的 key 列。** 它原来是 `t.Space(27)`，即 108 点；现在是 `WidthNarrow`（120 点），所以 key 列由 108 放宽到 120，能放下常见的请求头名。
 
+**变量表的动作列。** 行尾的动作（揭示、Persist、Reset、Remove）都是 `HeightRowAction`（20）的正方形，相邻之间留 `SpaceXS`（4），列宽是 `HeightRow*4 + SpaceXS`（100）。没有揭示按钮的行用同样 20 的占位；原来是 `HeightRow`（24），会让这一行的 Remove 比其他行偏 4 点。Remove 离列的右边 8 点，各行一致。
+
+**整行的设置字段。** 设置页里占整行的字段（如项目目录）用 `MinWidth(260).Grow(1)` 占满块宽，保存按钮靠右；原来的 `Width(260)` 是固定宽，长路径没有空间。
+
 #### 圆角
 
 圆角随嵌套同心：内层 = 外层 − 内边距，所以工作区是 8，里面的控件是 6，再里面的面是 4。
@@ -469,7 +473,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `Select` | 从几个选项里选一个（选项就是显示的文字） | 触发器 28 高，左右 12，圆角 6，最小宽 `WidthPicker` 140，chevron 10（`SpaceCompact`）；弹层高亮强调色实底 | 静止、悬停（面）、打开（面同悬停）、按下、禁用 | 选项是标识符而显示是另一种语言时用 `SelectLabels` |
 | `SelectLabels` | `Select`，选项与显示文字分开 | 同 `Select` | 同 `Select` | 同 `Select` |
 | `MenuSelect` | 用菜单做的选择（如 body 格式） | 触发器同 `Select`，弹层是 `MenuPanel` | 同 `Select`；菜单开着时触发器保持悬停的面 | 不用于切换显示模式（用 `Segmented`） |
-| `SettingsRow`／`SettingsRowMultiline` | 设置行：左列标签，右边控件，下面一行说明 | 标签列按组宽（112–180）；多行版的标签与控件首行对齐 | 说明可带 tip；控件自己的状态 | 不用于非设置的表单（用 `FormRow`） |
+| `SettingsRow`／`SettingsRowMultiline` | 设置行：左列标签，右边控件，下面一行说明 | 标签列按组宽（112–180）；多行版的标签与控件首行对齐 | 说明可带 tip；控件自己的状态 | 不用于非设置的表单（用 `FormRow`）；不放进 `SettingsCard`：它不带卡片的内边距，标签会贴着卡边。卡里用 `SettingsCardBlock`／`SettingsCardRow`（HTTPS 的「永不解密」原来是 `SettingsRow`，标签落在卡边上，现在改为块） |
 | `Switch`／`SettingsSwitch` | 开关 | 轨道 36×20，圆角 10；`SettingsSwitch` 带标签 | 关、开（`SwitchOn`）、焦点、禁用（半透明） | 不要用来做互斥选择 |
 
 **单行文字的边距。** `Input` 与 `InputControl` 的文字左右各留 `ControlPaddingX`（12）。左边是内边距；右边是一条透明的边框（`uikit.TextInset`），因为 MyGo 把输入的文字裁到边框的外沿，而不是内边距。这条边框在各状态下都画不出来（`InputControl` 建字段时把 Accent、Border、Text、Danger 设为透明，MyGo 按状态给边框上色时取的就是这些颜色）。超出字段的文字裁在这条线上，没有省略号（MyGo 的输入不做省略）；所以字段的占位文字或长值要按宽度留够，或由调用方缩短。URL 栏是裸的 `ui.TextInputBase`，同样用 `uikit.TextInset`，右边留 `SpaceM`（8），与它的左边相同。`Combobox` 的文字停在箭头前 `ControlPaddingX`（12）：字段的 `Gap` 就是文字与箭头之间的距离（箭头宽 10，字段内边距 12），弹层的高亮仍是 `Ring`。
@@ -562,6 +566,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - 字：12 号（`TextSmall`），普通文字色；长文本自然换行，URL 和超过 32 字符的连续串按 `/ ? & = - _ .` 断行（`tipBreakRun`）。快捷键画成 `Kbd`，不拼进句子。
 - 富卡片（`CardTip`）：标题 13／500、一行元信息 11（次要色）、一条分隔线和键值行（键 11 次要色、值 12，含 `://` 的值用等宽）。用在侧栏的集合请求行（名字、方法、集合、完整 URL）和抓包行（`GET /path`、状态、耗时、大小、URL、Host、Client）。
 - 时序：指针停留 500 ms 显示（`TooltipDelay`）；提示消失后 warm 窗口内移到相邻目标立即显示；键盘焦点立即显示，Escape 关闭，上方不够翻到下方。
+- 锚点：tip 包住 `Combobox` 时，同一行里解码体的末字形会被裁掉（字段的 `Gap` 为 12 时，裁在 x 1073 附近）；布局框不变，所以是绘制问题。我还没有追到 MyGo 里造成裁切的那一行代码。协议缓冲的消息类型选择器把 tip 放到整行上，像素与没有裁切的版本一致。代价是整行（包括旁边的「Schema」按钮）都会显示这条提示。
 
 ### 6.8 没有接入界面的组件，和留在 MyGo 上的控件
 
