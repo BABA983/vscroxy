@@ -44,7 +44,7 @@ func (a *app) captureColumns() []captureColumn {
 		{id: "status", title: "Status"},
 		{id: "method", title: "Method"},
 		{id: "host", title: "Host"},
-		{id: "remote", title: "Remote IP"},
+		{id: "remote", title: locales.RemoteIp()},
 		{id: "url", title: "Path"},
 		{id: "client", title: "Client"},
 		{id: "duration", title: "Duration"},

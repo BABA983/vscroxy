@@ -1519,6 +1519,10 @@
   "observedFailure": "Observed failure · {stage}",
   "oneContract": "1 contract",
   "onlyAScenarioNamedFor": "Only a scenario named for a collection with examples",
+  "openARequestDraftFirst": "Open a request draft first",
+  "openARequestDraftWait": "Open a request draft; wait for its send to finish before closing",
+  "openARequestFirst": "Open a request first",
+  "openAnIdleGrpcDocument": "Open an idle gRPC document",
   "openConnectionTab": "Open this exchange's Connection tab: the recorded log, addresses and rules",
   "@openExampleNamed": {
     "placeholders": {
@@ -1528,6 +1532,10 @@
     }
   },
   "openExampleNamed": "Open example: {name}",
+  "openProxiedTerminal": "Open proxied terminal",
+  "openedProxiedChrome": "Opened proxied Chrome",
+  "openedProxiedFirefox": "Opened proxied Firefox",
+  "openedProxiedTerminal": "Opened proxied terminal",
   "@operationNamed": {
     "placeholders": {
       "name": {
@@ -1549,6 +1557,7 @@
   "ordinalThird": "third",
   "originCurrent": "current",
   "originInitial": "initial",
+  "originalEntryOrderDuplicatesAre": "Original entry order; duplicates are preserved",
   "@overviewScopeSession": {
     "placeholders": {
       "count": {
@@ -1589,6 +1598,8 @@
   "partsNotPreviewed": "{count} parts · files are not previewed",
   "pauseView": "Pause view",
   "pin": "Pin",
+  "pointsAtAnotherProxy": "Points at another proxy",
+  "pointsAtThisAppBut": "Points at this app, but capture is stopped",
   "@portUsedHTTPProxy": {
     "placeholders": {
       "port": {
@@ -1605,8 +1616,11 @@
     }
   },
   "portUsedReverseProxy": "Port {port} is already used by a reverse proxy",
+  "postResponseScript": "Post-response script",
+  "preRequestScript": "Pre-request script",
   "preparingRequests": "Preparing requests and examples…",
   "previewOnlyNothingChanged": "Preview only · nothing changed",
+  "previousAndCurrentResponseFor": "Previous and current response for this method and URL",
   "privateSlotSavedReview": "Private slot saved · review save error",
   "@progressNamed": {
     "placeholders": {
@@ -1616,6 +1630,7 @@
     }
   },
   "progressNamed": "Progress · {progress}",
+  "protobufInspectionIsLimitedTo": "Protobuf inspection is limited to 16 MiB per message",
   "@protobufJSONDirection": {
     "placeholders": {
       "direction": {
@@ -1632,6 +1647,7 @@
     }
   },
   "proxyResponseNumbered": "{number} · proxy response",
+  "publishTopic": "Publish topic",
   "queryCancelled": "Query cancelled",
   "@queryEditLabel": {
     "placeholders": {
@@ -1690,6 +1706,8 @@
     }
   },
   "rebuildScenarioFromExamples": "Rebuild scenario “{path}” from examples",
+  "recordedApi": "Recorded API",
+  "recordedConnectionEvidenceAtCapture": "Recorded connection evidence at capture time",
   "@recordedFailure": {
     "placeholders": {
       "stage": {
@@ -1698,6 +1716,8 @@
     }
   },
   "recordedFailure": "Recorded failure · {stage}",
+  "recordingQueueIsFullReduce": "Recording queue is full; reduce the host/App scope and start again",
+  "recordingStoppedBeforeOpeningIts": "Recording stopped before opening its environment editor; restart after saving your edits",
   "reloadAction": "Reload",
   "removeBodiesAndStreams": "Remove request and response bodies, binary payloads and all stream messages.",
   "@removeColumnNamed": {
@@ -1761,6 +1781,7 @@
   "responseHeadersFormat": "Response headers must use Name: Value, one per line",
   "responseStatusRange": "Response status must be a number between 200 and 599",
   "resumeView": "Resume",
+  "retainedAttempt": "Retained attempt",
   "@returnToOriginalTab": {
     "placeholders": {
       "name": {
@@ -1807,6 +1828,8 @@
   "runNumberResult": "Run #{number} result",
   "runResultsLimitTip": "Displaying latest 1000 results; closing keeps a run active",
   "runningStatus": "Running…",
+  "saveARequestToA": "Save a request to a collection first",
+  "saveAResponseAsAn": "Save a response as an example first",
   "@saveRequestsEllipsis": {
     "placeholders": {
       "count": {
@@ -1833,6 +1856,7 @@
     }
   },
   "savedProtobufSchema": "Saved protobuf schema: {error}",
+  "savedQueriesLocationIsUnavailable": "Saved queries location is unavailable",
   "@savedSessionsEvidence": {
     "placeholders": {
       "count": {
@@ -1888,6 +1912,8 @@
   "scriptModulesAbout": "Modules rule scripts import, and request scripts require, by name.",
   "scriptRulesAbout": "Script rules edit traffic; Code Mock rules answer locally.",
   "scriptsEmptyHint": "Change requests and responses with JavaScript and the pm API, for the traffic a Script rule matches.",
+  "searchHostAndPathIncluding": "Search host and path (including query) · key:value chips narrow it · /regex/ and * wildcards match the whole field · Ctrl/Cmd+F",
+  "searchPatternsAreLimitedTo": "Search patterns are limited to 4096 bytes",
   "searchSomeBodiesIncomplete": "Some bodies could not be searched in full; matches may be missing.",
   "@searchingIn": {
     "placeholders": {
@@ -1898,12 +1924,18 @@
   },
   "searchingIn": "{note} · searching…",
   "secretNamesRules": "Secret names must be nonempty, unique and contain no spaces or braces.",
+  "selectASourceResponseAnd": "Select a source response and subsequent Bearer requests",
+  "selectAtLeastOneHttp": "Select at least one HTTP request.",
+  "selectCapturedRequestsFirst": "Select captured requests first",
   "selectPendingACK": "Select a pending server ACK request",
   "selectRecordingEnvironment": "Select the recording environment before editing it; this draft does not include its recorded variables.",
+  "selfSignedAllowed": "Self-signed allowed",
   "sendRequestForExperiment": "Send a request to record an experiment.",
   "serverStream": "Server stream",
   "serverToClient": "Server → client",
+  "setByTheProcessItself": "Set by the process itself; not checkable from here",
   "setDeadlineRange": "Set a deadline between 1 and 3600 seconds",
+  "settingsLocationIsUnavailablePort": "Settings location is unavailable; port was not saved",
   "@settingsNotSaved": {
     "placeholders": {
       "error": {

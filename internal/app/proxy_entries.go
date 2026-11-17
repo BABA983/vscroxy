@@ -366,7 +366,7 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 			}
 			tlsMode := "Verify TLS"
 			if r.Insecure {
-				tlsMode = "Self-signed allowed"
+				tlsMode = locales.SelfSignedAllowed()
 			}
 			state := "Off"
 			if r.Enabled {

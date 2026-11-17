@@ -81,7 +81,7 @@ func (a *app) writeQueries(list []savedQuery) bool {
 		return false
 	}
 	if a.queriesPath == "" {
-		a.queriesProblem = "Saved queries location is unavailable"
+		a.queriesProblem = locales.SavedQueriesLocationIsUnavailable()
 		return false
 	}
 	slices.SortFunc(list, func(x, y savedQuery) int { return strings.Compare(strings.ToLower(x.Name), strings.ToLower(y.Name)) })

@@ -867,9 +867,9 @@ func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
 // The document's string stays the source of truth for running and saving.
 func (a *app) requestScriptText(c *ui.Context, d *requestDocument) {
 	if d.scriptTab == 1 {
-		authoredText(c, &d.composePost, &d.postEditor, &d.postFor, "Post-response script", "JavaScript")
+		authoredText(c, &d.composePost, &d.postEditor, &d.postFor, locales.PostResponseScript(), "JavaScript")
 	} else {
-		authoredText(c, &d.composePre, &d.preEditor, &d.preFor, "Pre-request script", "JavaScript")
+		authoredText(c, &d.composePre, &d.preEditor, &d.preFor, locales.PreRequestScript(), "JavaScript")
 	}
 }
 

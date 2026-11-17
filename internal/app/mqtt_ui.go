@@ -510,7 +510,7 @@ func (a *app) mqttPublishTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 				return uikit.Input(c, &u.publish.message.Name).Placeholder(locales.SavedMessageName()).Label(locales.MessageName())
 			}, "")
 			uikit.SettingsRow(c, locales.Topic(), func() ui.Element {
-				return a.variableInput(c, "mqtt-publish-topic", &u.publish.message.Topic, "Publish topic", d.composeCollection)
+				return a.variableInput(c, "mqtt-publish-topic", &u.publish.message.Topic, locales.PublishTopic(), d.composeCollection)
 			}, "")
 			uikit.SettingsRowMultiline(c, locales.Payload(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {

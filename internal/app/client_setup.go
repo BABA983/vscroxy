@@ -325,14 +325,14 @@ func (a *app) openInterceptContainer() {
 }
 
 func (a *app) openProxiedTerminal() {
-	a.launchClient("Open proxied terminal", "Opened proxied terminal", true, func(p clientsetup.Proxy) (clientLaunch, error) {
+	a.launchClient(locales.OpenProxiedTerminal(), locales.OpenedProxiedTerminal(), true, func(p clientsetup.Proxy) (clientLaunch, error) {
 		command, err := clientsetup.OpenTerminal(p)
 		return clientLaunch{command: command}, err
 	})
 }
 
 func (a *app) openProxiedChrome() {
-	a.launchClient("Open proxied Chrome", "Opened proxied Chrome", false, func(p clientsetup.Proxy) (clientLaunch, error) {
+	a.launchClient(locales.OpenProxiedChrome(), locales.OpenedProxiedChrome(), false, func(p clientsetup.Proxy) (clientLaunch, error) {
 		profile, err := clientsetup.BrowserProfile("chrome")
 		if err != nil {
 			return clientLaunch{}, err
@@ -352,7 +352,7 @@ func (a *app) openProxiedChrome() {
 }
 
 func (a *app) openProxiedFirefox() {
-	a.launchClient("Open proxied Firefox", "Opened proxied Firefox", false, func(p clientsetup.Proxy) (clientLaunch, error) {
+	a.launchClient(locales.OpenProxiedFirefox(), locales.OpenedProxiedFirefox(), false, func(p clientsetup.Proxy) (clientLaunch, error) {
 		profile, err := clientsetup.BrowserProfile("firefox")
 		if err != nil {
 			return clientLaunch{}, err

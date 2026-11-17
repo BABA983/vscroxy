@@ -186,7 +186,7 @@ func (a *app) recordCollection(flows []flow) {
 			continue
 		}
 		if len(s.queue) >= collectionRecordingQueue {
-			a.stopCollectionRecording("Recording queue is full; reduce the host/App scope and start again")
+			a.stopCollectionRecording(locales.RecordingQueueIsFullReduce())
 			return
 		}
 		// Bound retained queue memory as well as later spill reads. Captures

@@ -204,7 +204,7 @@ func inspectProtoMessage(ctx context.Context, m messageView, schema *protoSchema
 		return result
 	}
 	if len(data) > 16<<20 {
-		result.problem = "Protobuf inspection is limited to 16 MiB per message"
+		result.problem = locales.ProtobufInspectionIsLimitedTo()
 		return result
 	}
 	if err := ctx.Err(); err != nil {

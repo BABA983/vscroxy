@@ -150,7 +150,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 			// not call that a pass: traffic would go to a closed port.
 			if s.check.Status == system.ProxyMatches {
 				proxy.state = checkWarn
-				proxy.result = "Points at this app, but capture is stopped"
+				proxy.result = locales.PointsAtThisAppBut()
 				proxy.detail = append([]string{"Traffic is sent to a closed port until capture starts or the system proxy is turned off."}, proxy.detail...)
 				proxy.fix = "Turn off system proxy"
 				proxy.run = func(*ui.Context) { a.setSystemProxy(false) }
@@ -185,7 +185,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 		}
 	default:
 		proxy.title, proxy.fix, proxy.run = locales.DiagProcessProxy(), "Client setup…", func(*ui.Context) { a.openClientSetup() }
-		proxy.result = "Set by the process itself; not checkable from here"
+		proxy.result = locales.SetByTheProcessItself()
 		proxy.detail = []string{"Client setup has an example for cURL, Node.js, Python and Go that sets the proxy and CA for one process only."}
 	}
 	checks = append(checks, proxy)

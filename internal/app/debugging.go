@@ -35,7 +35,7 @@ type replaySettings struct {
 func (s replaySettings) problem(flows int) string {
 	switch {
 	case flows <= 0:
-		return "Select at least one HTTP request."
+		return locales.SelectAtLeastOneHttp()
 	case s.repeat < 1 || s.repeat > replayMaxRepeat:
 		return fmt.Sprintf("Enter 1–%d repeats.", replayMaxRepeat)
 	case s.concurrency < 1 || s.concurrency > replayMaxConcurrency:

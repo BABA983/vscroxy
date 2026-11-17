@@ -230,7 +230,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			// Bare: the query field carries its own tokens and completion popup, which uikit.Combobox does not model.
 			cb := ui.ComboboxBase(c.Key("capture-search"), &a.query)
 			search := cb.Input.Bind(&a.search).Label(locales.SearchHostOrPath()).Placeholder(placeholder).
-				Tooltip(cmp.Or(a.queryProblem, a.searchProblem, "Search host and path (including query) · key:value chips narrow it · /regex/ and * wildcards match the whole field · Ctrl/Cmd+F")).
+				Tooltip(cmp.Or(a.queryProblem, a.searchProblem, locales.SearchHostAndPathIncluding())).
 				Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceXS)).Grow(1).MinWidth(min(200, width/5)).FocusRing(false).Border(0, ui.Color{}).
 				OnShortcut(0, ui.KeyEscape, func() { a.clearQuery(c) })
 			if a.queryProblem != "" || a.searchProblem != "" {
@@ -474,9 +474,9 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 	}
 	actions := []action{
 		do("collection.from-capture", locales.CreateCollection(), func() { a.openCollectionWizard(selected) }).
-			when(current && len(selected) > 0, "Select captured requests first"),
+			when(current && len(selected) > 0, locales.SelectCapturedRequestsFirst()),
 		do("tokens.from-capture", locales.RecognizeTokenLinks(), func() { a.openTokenLinks(selected) }).
-			when(current && len(selected) > 1, "Select a source response and subsequent Bearer requests"),
+			when(current && len(selected) > 1, locales.SelectASourceResponseAnd()),
 		do("flow.edit", locales.EditRequest(), func() { a.editCapture(f) }).
 			when(current && !bulk && f.kind == "", inspectOne()).keys(ui.Cmd|ui.Alt, ui.KeyEnter),
 		do("flow.replay", locales.ReplaySelected(), func() { a.openReplay(selected) }).
@@ -492,7 +492,7 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 		actions = append(actions, item.when(current && a.page.capture(), locales.InspectCapturedRequestsFirst()))
 	}
 	actions = append(actions, do("flow.delete", locales.Delete(), func() { a.queueDeleteFlows(selected) }).
-		when(current && len(selected) > 0, "Select captured requests first").in("danger").keys(ui.Cmd, flowDeleteKey()))
+		when(current && len(selected) > 0, locales.SelectCapturedRequestsFirst()).in("danger").keys(ui.Cmd, flowDeleteKey()))
 	return actions
 }
 
@@ -527,7 +527,7 @@ func (a *app) actions(c *ui.Context) []action {
 			find = func() { a.bodyText[side].Run(editor.Find) }
 		}
 	}
-	draft := "Open a request draft first"
+	draft := locales.OpenARequestDraftFirst()
 	actions := a.requestActions(c, f, capturing && current)
 	actions = append(actions, []action{
 		do("app.palette", locales.Commands(), w.openPalette).keys(ui.Cmd, ui.KeyK),
@@ -562,11 +562,11 @@ func (a *app) actions(c *ui.Context) []action {
 			}
 		}).when(editing && d.source != nil && d.response != nil && !d.composeWaiting, "Send a draft opened from Capture before comparing it with its source").keys(ui.Cmd|ui.Shift, ui.KeyD),
 		do("request.close", locales.CloseRequest(), func() { a.requestClose(d) }).
-			when(tab && !d.composeWaiting, "Open a request draft; wait for its send to finish before closing").keys(ui.Cmd, ui.KeyW),
+			when(tab && !d.composeWaiting, locales.OpenARequestDraftWait()).keys(ui.Cmd, ui.KeyW),
 		do("request.next-tab", locales.NextOpenRequest(), func() { a.cycleDocument(1) }).
-			when(len(a.documents) > 0, "Open a request first").keys(ui.Ctrl, ui.KeyTab),
+			when(len(a.documents) > 0, locales.OpenARequestFirst()).keys(ui.Ctrl, ui.KeyTab),
 		do("request.previous-tab", locales.PreviousOpenRequest(), func() { a.cycleDocument(-1) }).
-			when(len(a.documents) > 0, "Open a request first").keys(ui.Ctrl|ui.Shift, ui.KeyTab),
+			when(len(a.documents) > 0, locales.OpenARequestFirst()).keys(ui.Ctrl|ui.Shift, ui.KeyTab),
 		do("capture.export-chosen", locales.ExportSelectedHar(), a.exportChosen).when(capturing && a.chosen.Len() > 0, ""),
 		do("capture.export-csv", locales.ExportCsv(), a.exportCSV).when(capturing && len(a.visible) > 0, locales.NoVisibleRequestsToExport()),
 		do("capture.export-chosen-csv", locales.ExportChosenCsv(), a.exportChosenCSV).when(capturing && a.chosen.Len() > 0, locales.ChooseRequestsFirst()),

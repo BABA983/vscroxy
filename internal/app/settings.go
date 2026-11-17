@@ -144,7 +144,7 @@ func (a *app) saveProxyPort() {
 		port = n
 	}
 	if a.settingsPath == "" {
-		a.proxyPortProblem = "Settings location is unavailable; port was not saved"
+		a.proxyPortProblem = locales.SettingsLocationIsUnavailablePort()
 		return
 	}
 	previous := a.proxyPort

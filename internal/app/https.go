@@ -409,7 +409,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 	if !a.workbench.sideBySide && width >= 1100 && (len(f.reqHeader) > 0 || f.reqHeaders != "") {
 		ui.Row(c).Grow(1).Children(func() {
 			ui.Column(c).WidthPercent(44).FillHeight().Padding(t.Space(uikit.SpaceXL), t.Space(uikit.SpaceXL)).Children(func() {
-				a.headerBlock(c, t, "Request", strings.TrimSpace("CONNECT "+f.host+" "+f.conn.proto), "", f.reqHeader, f.reqHeaders, nil)
+				a.headerBlock(c, t, locales.Request(), strings.TrimSpace("CONNECT "+f.host+" "+f.conn.proto), "", f.reqHeader, f.reqHeaders, nil)
 			})
 			ui.Box(c).Width(1).FillHeight().Background(t.Border)
 			ui.Column(c).Grow(1).FillHeight().Children(inspection)

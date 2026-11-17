@@ -752,7 +752,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 		do("collection.import-folder", locales.ImportCollectionFolder(), a.importCollectionFolder).in("import"),
 		do("request.import-curl", locales.ImportCurl(), a.openCurlImport).in("import"),
 		do("api.generate", locales.GenerateOpenapi(), a.openAPIGeneration).
-			when(len(a.requests) > 0, "Save a request to a collection first").in("api"),
+			when(len(a.requests) > 0, locales.SaveARequestToA()).in("api"),
 	}
 	view := a.pickActions(c, "view.focus-inspector", "view.layout-right", "view.layout-bottom", "view.sidebar")
 	view = append(view, do("capture.filter", locales.Filter(), a.openFilter).in("filter"))

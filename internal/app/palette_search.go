@@ -144,7 +144,7 @@ func (a *app) paletteSearch(query string) paletteSearch {
 		}
 		key := r.key
 		out.entries = append(out.entries, paletteEntry{
-			label: r.label, detail: r.detail, meta: "Request", enabled: true,
+			label: r.label, detail: r.detail, meta: locales.Request(), enabled: true,
 			run: func() { a.openSaved(key) },
 		})
 	}

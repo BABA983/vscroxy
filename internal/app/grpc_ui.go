@@ -239,7 +239,7 @@ func (a *app) grpcActions(d *requestDocument, editing bool) []action {
 	}
 	return []action{
 		do("request.grpc-import", locales.ImportGrpcSchema(), func() { a.loadGRPCSchema(d, false, false) }).when(idle && g.source != "", "Enter a schema file in the gRPC Schema tab"),
-		do("request.grpc-reflect", locales.ReflectGrpcServices(), func() { a.loadGRPCSchema(d, true, false) }).when(idle, "Open an idle gRPC document"),
+		do("request.grpc-reflect", locales.ReflectGrpcServices(), func() { a.loadGRPCSchema(d, true, false) }).when(idle, locales.OpenAnIdleGrpcDocument()),
 		do("request.grpc-cancel-discovery", locales.CancelGrpcDiscovery(), func() { g.cancelImport() }).when(ready && g.loading != nil, ""),
 		do("request.grpc-send-message", locales.SendGrpcMessage(), func() {
 			r := g.session.input

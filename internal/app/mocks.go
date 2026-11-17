@@ -26,7 +26,7 @@ func (a *app) mocksDir() string { return filepath.Join(filepath.Dir(a.rulesPath)
 func (a *app) exampleMock(r request.Request, e request.Example) (capture.Rule, error) {
 	raw := request.ExpandVars(cmp.Or(e.Request.URL, r.URL), a.inheritance(r.Collection).Values(a.activeVars()))
 	rule := capture.Rule{
-		Name: cmp.Or(r.Name, "Request") + " · " + e.Name, Type: capture.RuleMapLocal,
+		Name: cmp.Or(r.Name, locales.Request()) + " · " + e.Name, Type: capture.RuleMapLocal,
 		MatchMode: rules.URLRegex, Match: capture.MockPattern(raw), Method: strings.ToUpper(cmp.Or(e.Request.Method, r.Method, "GET")),
 		Status: e.Status, Headers: request.ParseHeaderBlock(e.Headers),
 	}

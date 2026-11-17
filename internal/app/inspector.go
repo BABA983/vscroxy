@@ -119,10 +119,10 @@ func (a *app) detailWith(c *ui.Context, detached bool) {
 		}
 		switch a.inspect.pane {
 		case inspectorDiff:
-			a.inspectorPaneBar(c, t, "Diff", "Previous and current response for this method and URL")
+			a.inspectorPaneBar(c, t, "Diff", locales.PreviousAndCurrentResponseFor())
 			a.diffPane(c, f)
 		case inspectorConnection:
-			a.inspectorPaneBar(c, t, "Connection", "Recorded connection evidence at capture time")
+			a.inspectorPaneBar(c, t, "Connection", locales.RecordedConnectionEvidenceAtCapture())
 			a.connectionView(c, f)
 		case inspectorMessages:
 			a.inspectorPaneBar(c, t, "Messages", "WebSocket messages or SSE events")

@@ -116,7 +116,7 @@ func (a *app) captureSearch() func(string) bool {
 	var expr string
 	switch {
 	case len(text) > 4096:
-		a.searchProblem = "Search patterns are limited to 4096 bytes"
+		a.searchProblem = locales.SearchPatternsAreLimitedTo()
 	case wildcard:
 		expr = "(?is)^" + strings.NewReplacer(`\*`, ".*", `\?`, ".").Replace(regexp.QuoteMeta(text)) + "$"
 	default:

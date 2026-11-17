@@ -23,7 +23,7 @@ func (a *app) openCollectionRecording(collection, host, process string) {
 			return // opening another entry never changes a running scope
 		}
 	} else {
-		*w = collectionRecordingEditor{open: true, collection: a.newCollectionName("Recorded API"), environment: a.activeEnv}
+		*w = collectionRecordingEditor{open: true, collection: a.newCollectionName(locales.RecordedApi()), environment: a.activeEnv}
 		if w.environment == "" && len(a.envs) > 0 {
 			w.environment = a.envs[0].Name
 		}

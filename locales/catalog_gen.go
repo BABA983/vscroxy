@@ -3556,6 +3556,46 @@ func (msgs Messages) OnlyAScenarioNamedFor() string {
 	return Catalog.Format(msgs.locale, "onlyAScenarioNamedFor", nil)
 }
 
+// OpenARequestDraftFirst says "Open a request draft first"
+// in the language the app shows.
+func OpenARequestDraftFirst() string { return In(i18n.Locale()).OpenARequestDraftFirst() }
+
+// OpenARequestDraftFirst says "Open a request draft first"
+// in the language of msgs.
+func (msgs Messages) OpenARequestDraftFirst() string {
+	return Catalog.Format(msgs.locale, "openARequestDraftFirst", nil)
+}
+
+// OpenARequestDraftWait says "Open a request draft; wait for its send to finish before closing"
+// in the language the app shows.
+func OpenARequestDraftWait() string { return In(i18n.Locale()).OpenARequestDraftWait() }
+
+// OpenARequestDraftWait says "Open a request draft; wait for its send to finish before closing"
+// in the language of msgs.
+func (msgs Messages) OpenARequestDraftWait() string {
+	return Catalog.Format(msgs.locale, "openARequestDraftWait", nil)
+}
+
+// OpenARequestFirst says "Open a request first"
+// in the language the app shows.
+func OpenARequestFirst() string { return In(i18n.Locale()).OpenARequestFirst() }
+
+// OpenARequestFirst says "Open a request first"
+// in the language of msgs.
+func (msgs Messages) OpenARequestFirst() string {
+	return Catalog.Format(msgs.locale, "openARequestFirst", nil)
+}
+
+// OpenAnIdleGrpcDocument says "Open an idle gRPC document"
+// in the language the app shows.
+func OpenAnIdleGrpcDocument() string { return In(i18n.Locale()).OpenAnIdleGrpcDocument() }
+
+// OpenAnIdleGrpcDocument says "Open an idle gRPC document"
+// in the language of msgs.
+func (msgs Messages) OpenAnIdleGrpcDocument() string {
+	return Catalog.Format(msgs.locale, "openAnIdleGrpcDocument", nil)
+}
+
 // OpenConnectionTab says "Open this exchange's Connection tab: the recorded log, addresses and rules"
 // in the language the app shows.
 func OpenConnectionTab() string { return In(i18n.Locale()).OpenConnectionTab() }
@@ -3574,6 +3614,46 @@ func OpenExampleNamed(name string) string { return In(i18n.Locale()).OpenExample
 // in the language of msgs.
 func (msgs Messages) OpenExampleNamed(name string) string {
 	return Catalog.Format(msgs.locale, "openExampleNamed", map[string]any{"name": name})
+}
+
+// OpenProxiedTerminal says "Open proxied terminal"
+// in the language the app shows.
+func OpenProxiedTerminal() string { return In(i18n.Locale()).OpenProxiedTerminal() }
+
+// OpenProxiedTerminal says "Open proxied terminal"
+// in the language of msgs.
+func (msgs Messages) OpenProxiedTerminal() string {
+	return Catalog.Format(msgs.locale, "openProxiedTerminal", nil)
+}
+
+// OpenedProxiedChrome says "Opened proxied Chrome"
+// in the language the app shows.
+func OpenedProxiedChrome() string { return In(i18n.Locale()).OpenedProxiedChrome() }
+
+// OpenedProxiedChrome says "Opened proxied Chrome"
+// in the language of msgs.
+func (msgs Messages) OpenedProxiedChrome() string {
+	return Catalog.Format(msgs.locale, "openedProxiedChrome", nil)
+}
+
+// OpenedProxiedFirefox says "Opened proxied Firefox"
+// in the language the app shows.
+func OpenedProxiedFirefox() string { return In(i18n.Locale()).OpenedProxiedFirefox() }
+
+// OpenedProxiedFirefox says "Opened proxied Firefox"
+// in the language of msgs.
+func (msgs Messages) OpenedProxiedFirefox() string {
+	return Catalog.Format(msgs.locale, "openedProxiedFirefox", nil)
+}
+
+// OpenedProxiedTerminal says "Opened proxied terminal"
+// in the language the app shows.
+func OpenedProxiedTerminal() string { return In(i18n.Locale()).OpenedProxiedTerminal() }
+
+// OpenedProxiedTerminal says "Opened proxied terminal"
+// in the language of msgs.
+func (msgs Messages) OpenedProxiedTerminal() string {
+	return Catalog.Format(msgs.locale, "openedProxiedTerminal", nil)
 }
 
 // OperationNamed says "Operation · {name}"
@@ -3646,6 +3726,18 @@ func (msgs Messages) OriginInitial() string {
 	return Catalog.Format(msgs.locale, "originInitial", nil)
 }
 
+// OriginalEntryOrderDuplicatesAre says "Original entry order; duplicates are preserved"
+// in the language the app shows.
+func OriginalEntryOrderDuplicatesAre() string {
+	return In(i18n.Locale()).OriginalEntryOrderDuplicatesAre()
+}
+
+// OriginalEntryOrderDuplicatesAre says "Original entry order; duplicates are preserved"
+// in the language of msgs.
+func (msgs Messages) OriginalEntryOrderDuplicatesAre() string {
+	return Catalog.Format(msgs.locale, "originalEntryOrderDuplicatesAre", nil)
+}
+
 // OrganizeNamed says "Organize {name}"
 // in the language the app shows.
 func OrganizeNamed(name string) string { return In(i18n.Locale()).OrganizeNamed(name) }
@@ -3696,6 +3788,26 @@ func (msgs Messages) Pin() string {
 	return Catalog.Format(msgs.locale, "pin", nil)
 }
 
+// PointsAtAnotherProxy says "Points at another proxy"
+// in the language the app shows.
+func PointsAtAnotherProxy() string { return In(i18n.Locale()).PointsAtAnotherProxy() }
+
+// PointsAtAnotherProxy says "Points at another proxy"
+// in the language of msgs.
+func (msgs Messages) PointsAtAnotherProxy() string {
+	return Catalog.Format(msgs.locale, "pointsAtAnotherProxy", nil)
+}
+
+// PointsAtThisAppBut says "Points at this app, but capture is stopped"
+// in the language the app shows.
+func PointsAtThisAppBut() string { return In(i18n.Locale()).PointsAtThisAppBut() }
+
+// PointsAtThisAppBut says "Points at this app, but capture is stopped"
+// in the language of msgs.
+func (msgs Messages) PointsAtThisAppBut() string {
+	return Catalog.Format(msgs.locale, "pointsAtThisAppBut", nil)
+}
+
 // PortUsedHTTPProxy says "Port {port} is already used by the HTTP proxy"
 // in the language the app shows.
 func PortUsedHTTPProxy(port int) string { return In(i18n.Locale()).PortUsedHTTPProxy(port) }
@@ -3714,6 +3826,26 @@ func PortUsedReverseProxy(port int) string { return In(i18n.Locale()).PortUsedRe
 // in the language of msgs.
 func (msgs Messages) PortUsedReverseProxy(port int) string {
 	return Catalog.Format(msgs.locale, "portUsedReverseProxy", map[string]any{"port": port})
+}
+
+// PostResponseScript says "Post-response script"
+// in the language the app shows.
+func PostResponseScript() string { return In(i18n.Locale()).PostResponseScript() }
+
+// PostResponseScript says "Post-response script"
+// in the language of msgs.
+func (msgs Messages) PostResponseScript() string {
+	return Catalog.Format(msgs.locale, "postResponseScript", nil)
+}
+
+// PreRequestScript says "Pre-request script"
+// in the language the app shows.
+func PreRequestScript() string { return In(i18n.Locale()).PreRequestScript() }
+
+// PreRequestScript says "Pre-request script"
+// in the language of msgs.
+func (msgs Messages) PreRequestScript() string {
+	return Catalog.Format(msgs.locale, "preRequestScript", nil)
 }
 
 // PreparingRequests says "Preparing requests and examples…"
@@ -3736,6 +3868,16 @@ func (msgs Messages) PreviewOnlyNothingChanged() string {
 	return Catalog.Format(msgs.locale, "previewOnlyNothingChanged", nil)
 }
 
+// PreviousAndCurrentResponseFor says "Previous and current response for this method and URL"
+// in the language the app shows.
+func PreviousAndCurrentResponseFor() string { return In(i18n.Locale()).PreviousAndCurrentResponseFor() }
+
+// PreviousAndCurrentResponseFor says "Previous and current response for this method and URL"
+// in the language of msgs.
+func (msgs Messages) PreviousAndCurrentResponseFor() string {
+	return Catalog.Format(msgs.locale, "previousAndCurrentResponseFor", nil)
+}
+
 // PrivateSlotSavedReview says "Private slot saved · review save error"
 // in the language the app shows.
 func PrivateSlotSavedReview() string { return In(i18n.Locale()).PrivateSlotSavedReview() }
@@ -3754,6 +3896,16 @@ func ProgressNamed(progress string) string { return In(i18n.Locale()).ProgressNa
 // in the language of msgs.
 func (msgs Messages) ProgressNamed(progress string) string {
 	return Catalog.Format(msgs.locale, "progressNamed", map[string]any{"progress": progress})
+}
+
+// ProtobufInspectionIsLimitedTo says "Protobuf inspection is limited to 16 MiB per message"
+// in the language the app shows.
+func ProtobufInspectionIsLimitedTo() string { return In(i18n.Locale()).ProtobufInspectionIsLimitedTo() }
+
+// ProtobufInspectionIsLimitedTo says "Protobuf inspection is limited to 16 MiB per message"
+// in the language of msgs.
+func (msgs Messages) ProtobufInspectionIsLimitedTo() string {
+	return Catalog.Format(msgs.locale, "protobufInspectionIsLimitedTo", nil)
 }
 
 // ProtobufJSONDirection says "{direction} · protobuf JSON"
@@ -3776,6 +3928,16 @@ func ProxyResponseNumbered(number int) string { return In(i18n.Locale()).ProxyRe
 // in the language of msgs.
 func (msgs Messages) ProxyResponseNumbered(number int) string {
 	return Catalog.Format(msgs.locale, "proxyResponseNumbered", map[string]any{"number": number})
+}
+
+// PublishTopic says "Publish topic"
+// in the language the app shows.
+func PublishTopic() string { return In(i18n.Locale()).PublishTopic() }
+
+// PublishTopic says "Publish topic"
+// in the language of msgs.
+func (msgs Messages) PublishTopic() string {
+	return Catalog.Format(msgs.locale, "publishTopic", nil)
 }
 
 // QueryCancelled says "Query cancelled"
@@ -3870,6 +4032,28 @@ func (msgs Messages) RebuildScenarioFromExamples(path string) string {
 	return Catalog.Format(msgs.locale, "rebuildScenarioFromExamples", map[string]any{"path": path})
 }
 
+// RecordedApi says "Recorded API"
+// in the language the app shows.
+func RecordedApi() string { return In(i18n.Locale()).RecordedApi() }
+
+// RecordedApi says "Recorded API"
+// in the language of msgs.
+func (msgs Messages) RecordedApi() string {
+	return Catalog.Format(msgs.locale, "recordedApi", nil)
+}
+
+// RecordedConnectionEvidenceAtCapture says "Recorded connection evidence at capture time"
+// in the language the app shows.
+func RecordedConnectionEvidenceAtCapture() string {
+	return In(i18n.Locale()).RecordedConnectionEvidenceAtCapture()
+}
+
+// RecordedConnectionEvidenceAtCapture says "Recorded connection evidence at capture time"
+// in the language of msgs.
+func (msgs Messages) RecordedConnectionEvidenceAtCapture() string {
+	return Catalog.Format(msgs.locale, "recordedConnectionEvidenceAtCapture", nil)
+}
+
 // RecordedFailure says "Recorded failure · {stage}"
 // in the language the app shows.
 func RecordedFailure(stage string) string { return In(i18n.Locale()).RecordedFailure(stage) }
@@ -3878,6 +4062,28 @@ func RecordedFailure(stage string) string { return In(i18n.Locale()).RecordedFai
 // in the language of msgs.
 func (msgs Messages) RecordedFailure(stage string) string {
 	return Catalog.Format(msgs.locale, "recordedFailure", map[string]any{"stage": stage})
+}
+
+// RecordingQueueIsFullReduce says "Recording queue is full; reduce the host/App scope and start again"
+// in the language the app shows.
+func RecordingQueueIsFullReduce() string { return In(i18n.Locale()).RecordingQueueIsFullReduce() }
+
+// RecordingQueueIsFullReduce says "Recording queue is full; reduce the host/App scope and start again"
+// in the language of msgs.
+func (msgs Messages) RecordingQueueIsFullReduce() string {
+	return Catalog.Format(msgs.locale, "recordingQueueIsFullReduce", nil)
+}
+
+// RecordingStoppedBeforeOpeningIts says "Recording stopped before opening its environment editor; restart after saving your edits"
+// in the language the app shows.
+func RecordingStoppedBeforeOpeningIts() string {
+	return In(i18n.Locale()).RecordingStoppedBeforeOpeningIts()
+}
+
+// RecordingStoppedBeforeOpeningIts says "Recording stopped before opening its environment editor; restart after saving your edits"
+// in the language of msgs.
+func (msgs Messages) RecordingStoppedBeforeOpeningIts() string {
+	return Catalog.Format(msgs.locale, "recordingStoppedBeforeOpeningIts", nil)
 }
 
 // ReloadAction says "Reload"
@@ -4006,6 +4212,16 @@ func (msgs Messages) ResumeView() string {
 	return Catalog.Format(msgs.locale, "resumeView", nil)
 }
 
+// RetainedAttempt says "Retained attempt"
+// in the language the app shows.
+func RetainedAttempt() string { return In(i18n.Locale()).RetainedAttempt() }
+
+// RetainedAttempt says "Retained attempt"
+// in the language of msgs.
+func (msgs Messages) RetainedAttempt() string {
+	return Catalog.Format(msgs.locale, "retainedAttempt", nil)
+}
+
 // ReturnToOriginalTab says "Return to the original editable tab without overwriting its current edits: {name}"
 // in the language the app shows.
 func ReturnToOriginalTab(name string) string { return In(i18n.Locale()).ReturnToOriginalTab(name) }
@@ -4118,6 +4334,26 @@ func (msgs Messages) RunningStatus() string {
 	return Catalog.Format(msgs.locale, "runningStatus", nil)
 }
 
+// SaveARequestToA says "Save a request to a collection first"
+// in the language the app shows.
+func SaveARequestToA() string { return In(i18n.Locale()).SaveARequestToA() }
+
+// SaveARequestToA says "Save a request to a collection first"
+// in the language of msgs.
+func (msgs Messages) SaveARequestToA() string {
+	return Catalog.Format(msgs.locale, "saveARequestToA", nil)
+}
+
+// SaveAResponseAsAn says "Save a response as an example first"
+// in the language the app shows.
+func SaveAResponseAsAn() string { return In(i18n.Locale()).SaveAResponseAsAn() }
+
+// SaveAResponseAsAn says "Save a response as an example first"
+// in the language of msgs.
+func (msgs Messages) SaveAResponseAsAn() string {
+	return Catalog.Format(msgs.locale, "saveAResponseAsAn", nil)
+}
+
 // SaveRequestsEllipsis says "Save {count} requests to collection…"
 // in the language the app shows.
 func SaveRequestsEllipsis(count int) string { return In(i18n.Locale()).SaveRequestsEllipsis(count) }
@@ -4168,6 +4404,18 @@ func SavedProtobufSchema(error string) string { return In(i18n.Locale()).SavedPr
 // in the language of msgs.
 func (msgs Messages) SavedProtobufSchema(error string) string {
 	return Catalog.Format(msgs.locale, "savedProtobufSchema", map[string]any{"error": error})
+}
+
+// SavedQueriesLocationIsUnavailable says "Saved queries location is unavailable"
+// in the language the app shows.
+func SavedQueriesLocationIsUnavailable() string {
+	return In(i18n.Locale()).SavedQueriesLocationIsUnavailable()
+}
+
+// SavedQueriesLocationIsUnavailable says "Saved queries location is unavailable"
+// in the language of msgs.
+func (msgs Messages) SavedQueriesLocationIsUnavailable() string {
+	return Catalog.Format(msgs.locale, "savedQueriesLocationIsUnavailable", nil)
 }
 
 // SavedSessionsEvidence says "{count} saved sessions · read-only evidence"
@@ -4342,6 +4590,26 @@ func (msgs Messages) ScriptsEmptyHint() string {
 	return Catalog.Format(msgs.locale, "scriptsEmptyHint", nil)
 }
 
+// SearchHostAndPathIncluding says "Search host and path (including query) · key:value chips narrow it · /regex/ and * wildcards match the whole field …"
+// in the language the app shows.
+func SearchHostAndPathIncluding() string { return In(i18n.Locale()).SearchHostAndPathIncluding() }
+
+// SearchHostAndPathIncluding says "Search host and path (including query) · key:value chips narrow it · /regex/ and * wildcards match the whole field …"
+// in the language of msgs.
+func (msgs Messages) SearchHostAndPathIncluding() string {
+	return Catalog.Format(msgs.locale, "searchHostAndPathIncluding", nil)
+}
+
+// SearchPatternsAreLimitedTo says "Search patterns are limited to 4096 bytes"
+// in the language the app shows.
+func SearchPatternsAreLimitedTo() string { return In(i18n.Locale()).SearchPatternsAreLimitedTo() }
+
+// SearchPatternsAreLimitedTo says "Search patterns are limited to 4096 bytes"
+// in the language of msgs.
+func (msgs Messages) SearchPatternsAreLimitedTo() string {
+	return Catalog.Format(msgs.locale, "searchPatternsAreLimitedTo", nil)
+}
+
 // SearchSomeBodiesIncomplete says "Some bodies could not be searched in full; matches may be missing."
 // in the language the app shows.
 func SearchSomeBodiesIncomplete() string { return In(i18n.Locale()).SearchSomeBodiesIncomplete() }
@@ -4372,6 +4640,36 @@ func (msgs Messages) SecretNamesRules() string {
 	return Catalog.Format(msgs.locale, "secretNamesRules", nil)
 }
 
+// SelectASourceResponseAnd says "Select a source response and subsequent Bearer requests"
+// in the language the app shows.
+func SelectASourceResponseAnd() string { return In(i18n.Locale()).SelectASourceResponseAnd() }
+
+// SelectASourceResponseAnd says "Select a source response and subsequent Bearer requests"
+// in the language of msgs.
+func (msgs Messages) SelectASourceResponseAnd() string {
+	return Catalog.Format(msgs.locale, "selectASourceResponseAnd", nil)
+}
+
+// SelectAtLeastOneHttp says "Select at least one HTTP request."
+// in the language the app shows.
+func SelectAtLeastOneHttp() string { return In(i18n.Locale()).SelectAtLeastOneHttp() }
+
+// SelectAtLeastOneHttp says "Select at least one HTTP request."
+// in the language of msgs.
+func (msgs Messages) SelectAtLeastOneHttp() string {
+	return Catalog.Format(msgs.locale, "selectAtLeastOneHttp", nil)
+}
+
+// SelectCapturedRequestsFirst says "Select captured requests first"
+// in the language the app shows.
+func SelectCapturedRequestsFirst() string { return In(i18n.Locale()).SelectCapturedRequestsFirst() }
+
+// SelectCapturedRequestsFirst says "Select captured requests first"
+// in the language of msgs.
+func (msgs Messages) SelectCapturedRequestsFirst() string {
+	return Catalog.Format(msgs.locale, "selectCapturedRequestsFirst", nil)
+}
+
 // SelectPendingACK says "Select a pending server ACK request"
 // in the language the app shows.
 func SelectPendingACK() string { return In(i18n.Locale()).SelectPendingACK() }
@@ -4390,6 +4688,16 @@ func SelectRecordingEnvironment() string { return In(i18n.Locale()).SelectRecord
 // in the language of msgs.
 func (msgs Messages) SelectRecordingEnvironment() string {
 	return Catalog.Format(msgs.locale, "selectRecordingEnvironment", nil)
+}
+
+// SelfSignedAllowed says "Self-signed allowed"
+// in the language the app shows.
+func SelfSignedAllowed() string { return In(i18n.Locale()).SelfSignedAllowed() }
+
+// SelfSignedAllowed says "Self-signed allowed"
+// in the language of msgs.
+func (msgs Messages) SelfSignedAllowed() string {
+	return Catalog.Format(msgs.locale, "selfSignedAllowed", nil)
 }
 
 // SendRequestForExperiment says "Send a request to record an experiment."
@@ -4422,6 +4730,16 @@ func (msgs Messages) ServerToClient() string {
 	return Catalog.Format(msgs.locale, "serverToClient", nil)
 }
 
+// SetByTheProcessItself says "Set by the process itself; not checkable from here"
+// in the language the app shows.
+func SetByTheProcessItself() string { return In(i18n.Locale()).SetByTheProcessItself() }
+
+// SetByTheProcessItself says "Set by the process itself; not checkable from here"
+// in the language of msgs.
+func (msgs Messages) SetByTheProcessItself() string {
+	return Catalog.Format(msgs.locale, "setByTheProcessItself", nil)
+}
+
 // SetDeadlineRange says "Set a deadline between 1 and 3600 seconds"
 // in the language the app shows.
 func SetDeadlineRange() string { return In(i18n.Locale()).SetDeadlineRange() }
@@ -4430,6 +4748,18 @@ func SetDeadlineRange() string { return In(i18n.Locale()).SetDeadlineRange() }
 // in the language of msgs.
 func (msgs Messages) SetDeadlineRange() string {
 	return Catalog.Format(msgs.locale, "setDeadlineRange", nil)
+}
+
+// SettingsLocationIsUnavailablePort says "Settings location is unavailable; port was not saved"
+// in the language the app shows.
+func SettingsLocationIsUnavailablePort() string {
+	return In(i18n.Locale()).SettingsLocationIsUnavailablePort()
+}
+
+// SettingsLocationIsUnavailablePort says "Settings location is unavailable; port was not saved"
+// in the language of msgs.
+func (msgs Messages) SettingsLocationIsUnavailablePort() string {
+	return Catalog.Format(msgs.locale, "settingsLocationIsUnavailablePort", nil)
 }
 
 // SettingsNotSaved says "Settings were not saved: {error}"

@@ -2774,7 +2774,7 @@ func (a *app) collectionsActions() []action {
 		}).in("api"),
 		do("api.import-openapi", locales.ImportOpenapi(), a.importOpenAPI).in("api"),
 		do("api.generate", locales.GenerateApiFromCollection(), a.openAPIGeneration).
-			when(len(a.requests) > 0, "Save a request to a collection first").in("api"),
+			when(len(a.requests) > 0, locales.SaveARequestToA()).in("api"),
 		do("vault.open", locales.Vault(), a.openVault).in("stores"),
 		do("cookies.open", locales.Cookies(), a.openCookies).in("stores"),
 	}
@@ -3434,7 +3434,7 @@ func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 		field(c, t, "Client", cn.client)
 		field(c, t, "Proxy", cn.proxy)
 		field(c, t, "Upstream", cn.server)
-		field(c, t, "Remote IP", cn.remote)
+		field(c, t, locales.RemoteIp(), cn.remote)
 		if f.dns != "" {
 			field(c, t, locales.HostProfile(), mappedBy(f))
 		}
@@ -3955,7 +3955,7 @@ func (a *app) openVars() {
 
 func (a *app) editEnvironment(name string) {
 	if s := a.collectionRecording; s != nil && s.Active && s.Environment == name {
-		a.stopCollectionRecording("Recording stopped before opening its environment editor; restart after saving your edits")
+		a.stopCollectionRecording(locales.RecordingStoppedBeforeOpeningIts())
 	}
 	a.varsGlobals = false
 	a.varsName, a.varsChoice, a.varsProblem = name, name, ""

@@ -78,7 +78,7 @@ func (s *structuredInspector) view(c *ui.Context, a *app, source inspectionBody,
 		ui.Table(c, &s.list, cols, len(body.Fields), func(row, col int) {
 			field := body.Fields[row]
 			value := fmt.Sprint(row + 1)
-			raw := "Original entry order; duplicates are preserved"
+			raw := locales.OriginalEntryOrderDuplicatesAre()
 			if col == 1 {
 				value, raw = field.Key, "Raw name: "+field.RawKey
 			} else if col == 2 {

@@ -203,7 +203,7 @@ func (a *app) openRecord(r experimentRecord) {
 	a.composeReplies = slices.Clone(r.Replies)
 	a.console = slices.Clone(r.Console)
 	a.sent, a.sentAt, a.sentSet, a.sentRun = a.draft(), r.At, true, r.RunKey
-	a.sendOutcome = cmp.Or(r.Outcome, "Retained attempt")
+	a.sendOutcome = cmp.Or(r.Outcome, locales.RetainedAttempt())
 	if a.response != nil {
 		a.responseArrived()
 	}
