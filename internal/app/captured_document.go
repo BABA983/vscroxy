@@ -149,7 +149,15 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 		// The capture's line carries the whole exchange in its card: the
 		// table's columns cut a long URL, and this one does not.
 		title := f.method + " " + cmp.Or(f.url, f.scheme+"://"+f.host+f.path)
-		uikit.CardTip(c, uikit.Meta(c, source).Label(title).FontFeatures("tnum").SingleLine().MinWidth(0), captureCard(f))
+		// The header cuts the source line to its width, so the card repeats it
+		// in full at the top of its facts.
+		card := captureCard(f)
+		if card.Meta != "" {
+			card.Meta = source + " · " + card.Meta
+		} else {
+			card.Meta = source
+		}
+		uikit.CardTip(c, uikit.Meta(c, source).Label(title).FontFeatures("tnum").SingleLine().MinWidth(0), card)
 		a.capturedRequestMatch(c, t, f)
 		if d == nil {
 			// Streams and tunnels read as they were; the path names them.

@@ -152,8 +152,9 @@ func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
 		label = locales.MatchesCount(len(matches))
 	}
 	// Bare: a text link that runs an action inside a tip, not a button, so the kit's LinkButton does not fit.
+	// The tip repeats the label in full: the link cuts it to the header's width.
 	anchor := uikit.Tip(c, ui.Link(c.Key("captured-request-match"), label, "").
-		Bind(&a.matchUI.anchor).SingleLine().MinWidth(0), locales.SavedRequestsMatchingThisMethod())
+		Bind(&a.matchUI.anchor).SingleLine().MinWidth(0), label+"\n"+locales.SavedRequestsMatchingThisMethod())
 	anchor.OnClick(func() {
 		a.matchUI.open = !a.matchUI.open
 		a.matchUI.gap = t.Space(uikit.SpaceXS)
