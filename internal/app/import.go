@@ -315,9 +315,9 @@ func (a *app) collectionSaveModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, locales.SaveRequestsToCollection(len(s.flows)))
 			names := a.collectionNames()
 			name := collectionSegment(s.name)
-			hint := "Creates a new collection."
+			hint := locales.CreatesNewCollection()
 			if slices.Contains(names, name) {
-				hint = "Adds to the end of this collection."
+				hint = locales.AddsToCollectionEnd()
 			}
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				uikit.Hint(c, locales.SavedInCaptureOrderNot())

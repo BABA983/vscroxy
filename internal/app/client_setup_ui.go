@@ -151,7 +151,7 @@ func (a *app) clientTerminalPanel(c *ui.Context, t *ui.Theme, p clientsetup.Prox
 	if p.BundlePath == "" {
 		uikit.Callout(c, uikit.CalloutWarning, locales.SystemCaBundleUnavailableOnly(), nil)
 	} else {
-		uikit.Meta(c, "SSL_CERT_FILE, REQUESTS_CA_BUNDLE, CURL_CA_BUNDLE, GIT_SSL_CAINFO, PIP_CERT and DENO_CERT point at "+p.BundlePath+", a 0600 bundle of the system roots plus the vscroxy CA. Undecrypted hosts keep working.")
+		uikit.Meta(c, locales.SslCABundleNote(p.BundlePath))
 	}
 	if clientActionButton(c, locales.OpenTerminal(), running).Disabled(!running).Clicked() {
 		a.openProxiedTerminal()
@@ -308,8 +308,8 @@ func (a *app) clientJavaPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, r
 	}
 	command := clientsetup.JoinCommands(commands, runtime.GOOS == "windows")
 	uikit.Hint(c, locales.CopiesTheJdkSCacerts())
-	uikit.Tip(c, uikit.Meta(c, "JDK cacerts: "+s.javaCACerts).Font(uikit.FontMono).Selectable().MaxLines(2), s.javaCACerts)
-	uikit.Tip(c, uikit.Meta(c, "Truststore: "+keystore).Font(uikit.FontMono).Selectable().MaxLines(2), keystore)
+	uikit.Tip(c, uikit.Meta(c, locales.JdkCACerts(s.javaCACerts)).Font(uikit.FontMono).Selectable().MaxLines(2), s.javaCACerts)
+	uikit.Tip(c, uikit.Meta(c, locales.Truststore(keystore)).Font(uikit.FontMono).Selectable().MaxLines(2), keystore)
 	uikit.Code(c, command).Selectable().MaxLines(8)
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().Children(func() {
 		if uikit.SecondaryButton(c, locales.CopyCommands()).Clicked() {

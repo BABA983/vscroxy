@@ -161,7 +161,7 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 		uikit.Tabs(c, &a.tab, "", locales.HttpsSetup(), locales.Connection())
 		ui.Spacer(c)
 		if f.conn.error != "" {
-			uikit.Tip(c, uikit.ErrorText(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").SingleLine().Shrink(0), f.conn.error)
+			uikit.Tip(c, uikit.ErrorText(c, locales.StageFailed(cmp.Or(f.conn.errorStage, locales.Connection()))).SingleLine().Shrink(0), f.conn.error)
 		}
 		uikit.Tip(c, uikit.Meta(c, f.host).Font(uikit.FontMono).SingleLine().MinWidth(0).Shrink(1), f.url)
 		// The pane's own commands, where every other pane keeps them: a
@@ -198,9 +198,9 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 		status, color = locales.Tunnel(), t.TextMuted
 	}
 	if f.conn.error != "" {
-		status, color = "Failed", t.Danger
+		status, color = locales.Failed(), t.Danger
 		if f.kind == "connect" && f.status == 200 {
-			status = "CONNECT 200 · failed"
+			status = locales.Connect200Failed()
 		}
 	}
 	chip := uikit.StatusPill(c, status, color).Shrink(0)
@@ -769,12 +769,12 @@ type responseSummary struct {
 // title stays in the body color and only the light carries the status.
 func responseSummaryOf(t *ui.Theme, f flow) responseSummary {
 	p := uikit.Colors(t)
-	title := "No response"
+	title := locales.NoResponse()
 	if f.status != 0 {
 		title = strings.TrimSpace(fmt.Sprintf("%d %s", f.status, http.StatusText(f.status)))
 	}
 	if f.conn.error != "" {
-		title = "Failed"
+		title = locales.Failed()
 	}
 	sum := responseSummary{title: title, dot: p.TextMuted, duration: fmt.Sprintf("%d ms", f.millis), detail: humanBytes(f.bytes),
 		timing: headlineTiming(t, f), stream: f.kind == "ws" || f.kind == "sse"}
@@ -787,7 +787,7 @@ func responseSummaryOf(t *ui.Theme, f flow) responseSummary {
 // sentSummaryOf reads what the last send got back.
 func sentSummaryOf(t *ui.Theme, r *capture.Flow, outcome string) responseSummary {
 	p := uikit.Colors(t)
-	sum := responseSummary{title: "No response", dot: p.TextMuted, duration: fmt.Sprintf("%d ms", r.Millis), detail: humanBytes(r.Bytes)}
+	sum := responseSummary{title: locales.NoResponse(), dot: p.TextMuted, duration: fmt.Sprintf("%d ms", r.Millis), detail: humanBytes(r.Bytes)}
 	if r.Status != 0 {
 		sum.title = strings.TrimSpace(fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status)))
 	}
@@ -1084,7 +1084,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 	note := ""
 	if side == 0 {
 		headers, raw, trailers = f.respHeader, f.resHeaders, f.resTrailer
-		line = "No response"
+		line = locales.NoResponse()
 		if f.status != 0 {
 			line = fmt.Sprintf("%d %s", f.status, http.StatusText(f.status))
 			if f.resProto != "" {
@@ -1109,9 +1109,9 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				uikit.Meta(c, count).FontFeatures("tnum")
 			}
 			if hasSensitiveHeader(headers) {
-				label := "Reveal"
+				label := locales.Reveal()
 				if a.inspect.reveal[side] {
-					label = "Hide"
+					label = locales.Hide()
 				}
 				if uikit.Tip(c, uikit.CompactButton(c, label).Label(locales.RevealCredentials()), locales.CredentialsAreMaskedSoA()).Clicked() {
 					a.inspect.reveal[side] = !a.inspect.reveal[side]

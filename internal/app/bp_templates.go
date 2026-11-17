@@ -33,6 +33,14 @@ func phaseName(p capture.Phase) string {
 	return "request"
 }
 
+// phaseLabel is the phase as the screen says it.
+func phaseLabel(p capture.Phase) string {
+	if p == capture.PhaseResponse {
+		return locales.SideResponse()
+	}
+	return locales.SideRequest()
+}
+
 // readBreakTemplates reads the templates file. One that does not parse stays
 // read-only.
 func (a *app) readBreakTemplates() ([]bpTemplate, error) {
@@ -130,7 +138,7 @@ func (a *app) applyBreakTemplate(t bpTemplate) {
 // breakTemplates is the dialog's line of template controls. With nothing
 // saved for this phase it is one quiet button.
 func (a *app) breakTemplates(c *ui.Context, t *ui.Theme, valid bool) {
-	phase := phaseName(a.bp.Phase)
+	phase := phaseLabel(a.bp.Phase)
 	var mine []bpTemplate
 	for _, o := range a.bpTemplates {
 		if o.Phase == phase {
@@ -151,9 +159,9 @@ func (a *app) breakTemplates(c *ui.Context, t *ui.Theme, valid bool) {
 			return
 		}
 		if len(mine) > 0 {
-			current := "No template"
+			current := locales.NoTemplate()
 			if a.bpTemplate != "" {
-				current = "Template: " + a.bpTemplate
+				current = locales.TemplateNamed(a.bpTemplate)
 			}
 			uikit.Tip(c, uikit.MenuSelect(c, current, func(m *ui.Menu) {
 				for _, o := range mine {
@@ -169,10 +177,10 @@ func (a *app) breakTemplates(c *ui.Context, t *ui.Theme, valid bool) {
 						}
 					}
 				})
-			}).Height(uikit.HeightRow).Label(locales.BreakpointTemplate()), "Fill this "+phase+" with a saved one; the URL stays as paused")
+			}).Height(uikit.HeightRow).Label(locales.BreakpointTemplate()), locales.FillThisWithSaved(phase))
 		}
 		save := uikit.CompactButton(c, locales.SaveAsTemplate()).Disabled(!valid).
-			Tooltip("Keep this " + phase + " as edited to apply at a later pause")
+			Tooltip(locales.KeepThisAsEdited(phase))
 		if save.Clicked() {
 			a.bpSaving, a.bpName = true, a.bpTemplate
 		}

@@ -273,19 +273,19 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 	matchesSaved := slices.ContainsFunc(ops, func(op graphql.Operation) bool { return op.Name == d.graphql.OperationName })
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 		schema := d.graphqlSchema()
-		statusText, statusTip, statusDanger := "No schema", "Fetch introspection or load an SDL or introspection JSON file to complete and check fields.", false
+		statusText, statusTip, statusDanger := locales.NoSchema(), locales.FetchSchemaHint(), false
 		switch {
 		case g.loading != nil:
-			statusText, statusTip = "Schema · fetching…", ""
+			statusText, statusTip = locales.SchemaFetching(), ""
 		case schema != nil:
 			statusText = fmt.Sprintf("Schema · %d types", schema.TypeCount())
 			if d.graphql.SchemaSource != "" {
-				statusTip = "Loaded from " + d.graphql.SchemaSource
+				statusTip = locales.LoadedFrom(d.graphql.SchemaSource)
 			} else {
 				statusTip = ""
 			}
 		case g.parsedError != "":
-			statusText, statusTip, statusDanger = "Schema is invalid", g.parsedError, true
+			statusText, statusTip, statusDanger = locales.SchemaInvalid(), g.parsedError, true
 		}
 		status := uikit.Meta(c, statusText).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
 		if statusTip != "" {
@@ -324,7 +324,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 			case len(ops) == 1 && d.graphql.OperationName != "" && !matchesSaved:
 				uikit.Tip(c, uikit.Meta(c, locales.SelectOperation()), locales.TheSavedOperationNoLonger())
 			case len(ops) == 1 && ops[0].Name != "":
-				uikit.Tip(c, uikit.Meta(c, "Operation · "+ops[0].Name), locales.TheDocumentSOnlyOperation())
+				uikit.Tip(c, uikit.Meta(c, locales.OperationNamed(ops[0].Name)), locales.TheDocumentSOnlyOperation())
 			case len(ops) == 1:
 				uikit.Meta(c, locales.AnonymousOperation())
 			}
@@ -341,7 +341,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 	})
 	if g.problem != "" {
 		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-			uikit.Tip(c, uikit.ErrorText(c, "Schema: "+oneLine(g.problem)).SingleLine().MinWidth(0).Ellipsis("…"), g.problem)
+			uikit.Tip(c, uikit.ErrorText(c, locales.SchemaProblem(oneLine(g.problem))).SingleLine().MinWidth(0).Ellipsis("…"), g.problem)
 		})
 	}
 }

@@ -405,7 +405,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				r.discardVars = !keep
 			})
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-				text, color := "No data file: every iteration uses the same variables.", t.TextMuted
+				text, color := locales.NoDataFile(), t.TextMuted
 				switch {
 				case r.dataProblem != "":
 					text, color = r.dataProblem, t.Danger

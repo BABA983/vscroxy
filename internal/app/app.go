@@ -914,7 +914,7 @@ func (a *app) loadEnvsState() {
 // It runs on the main thread, from startup or the Reload button.
 func (a *app) reloadConfig() {
 	unreadable := func(path string, err error) {
-		a.fail(path+" could not be read and is left untouched", err)
+		a.fail(locales.FileNotRead(path), err)
 	}
 	if a.network.path != "" {
 		a.loadNetworkPresets()
@@ -2126,12 +2126,12 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 	// especially when queued breakpoints open in a small window.
 	c.CloseToast("")
 	_, height := c.Size()
-	title := "Breakpoint · request paused"
+	title := locales.BreakpointRequestPaused()
 	if a.bp.Phase == capture.PhaseResponse {
-		title = "Breakpoint · response paused"
+		title = locales.BreakpointResponsePaused()
 	}
 	if message {
-		title = "Breakpoint · WebSocket message paused"
+		title = locales.BreakpointWebSocketPaused()
 	}
 	if uikit.Modal(c, &a.bpOpen, title, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(640, height-80)).Children(func() {
@@ -2169,9 +2169,9 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 			}
 			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(uikit.SpaceM)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				if message {
-					direction := "Server → client"
+					direction := locales.ServerToClient()
 					if a.bp.Direction == "out" {
-						direction = "Client → server"
+						direction = locales.ClientToServer()
 					}
 					uikit.Body(c, direction+" · "+a.bp.MessageType)
 					uikit.Tip(c, uikit.Hint(c, a.bp.URL).SingleLine(), a.bp.URL)
@@ -2223,10 +2223,10 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 				uikit.ErrorText(c, validation)
 			}
 			uikit.DialogFooter(c).Children(func() {
-				abortLabel := "Drop message"
+				abortLabel := locales.DropMessage()
 				if !message {
 					uikit.Select(c, &a.bpAbort, []string{"502 Bad Gateway", "429 Too Many Requests", "503 Service Unavailable"}).Width(uikit.WidthFieldWide).Label(locales.AbortStatus())
-					abortLabel = "Abort"
+					abortLabel = locales.AbortBreakpoint()
 				}
 				if uikit.SecondaryButton(c, abortLabel).Clicked() {
 					a.resolveBreak(true, false, false)
@@ -2750,7 +2750,7 @@ func (a *app) clientActions(name string, apps []capture.SSLApp) []action {
 	}, actions...),
 		do("collection.from-app", locales.CreateCollection(), func() { a.openCollectionWizard(a.collectionScope("", name)) }).in("edit"),
 		do("collection.record-app", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", name) }).in("edit"),
-		do("dns.map-client", "Map a host for "+name+"…", func() { a.openDNSRule("", name) }).in("edit"),
+		do("dns.map-client", locales.MapHostFor(name), func() { a.openDNSRule("", name) }).in("edit"),
 	)
 }
 
@@ -2828,16 +2828,16 @@ func (a *app) table(c *ui.Context) {
 	if len(a.visible) == 0 {
 		if len(a.flows) > 0 || a.searchProblem != "" {
 			note, failure := a.views.status()
-			title := "No matching requests"
+			title := locales.NoMatchingRequests()
 			hint := locales.HiddenByFilters(len(a.flows))
 			if note != "" {
 				title, hint = locales.SearchingBodiesTitle(), locales.ResultsNotFinal()
 				if failure {
-					title, hint = "No matches in searchable traffic", "Some bodies could not be searched in full; matches may be missing."
+					title, hint = locales.NoMatchesSearchable(), locales.SearchSomeBodiesIncomplete()
 				}
 			}
 			if a.searchProblem != "" {
-				title, hint = "Invalid search pattern", a.searchProblem
+				title, hint = locales.InvalidSearchPattern(), a.searchProblem
 			}
 			// The conditions are chips in the field above; the empty state
 			// says how many rows they hide and offers the two ways out, and
@@ -2860,9 +2860,9 @@ func (a *app) table(c *ui.Context) {
 			return
 		}
 		running := a.srv != nil && a.srv.Running()
-		title, hint := "Capture is stopped", ""
+		title, hint := locales.CaptureIsStopped(), ""
 		if running {
-			title, hint = "Connect a client to start capturing", locales.ListeningNoRequests(a.srv.Addr())
+			title, hint = locales.ConnectClientToCapture(), locales.ListeningNoRequests(a.srv.Addr())
 		}
 		// One sentence and at most two buttons. Setting up a client is the
 		// first thing a capture needs, so it is here as well as in the
@@ -3383,7 +3383,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 	t := c.Theme()
 	ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		if f.conn.error != "" {
-			uikit.Body(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").TextColor(t.Danger).Grow(1)
+			uikit.Body(c, locales.StageFailed(cmp.Or(f.conn.errorStage, locales.Connection()))).TextColor(t.Danger).Grow(1)
 		} else {
 			uikit.Hint(c, locales.ConnectionLogSnapshotAtCapture()).Grow(1)
 		}
@@ -3816,11 +3816,11 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	// Sync the conditions on the next frame; changing visible rows while the
 	// table is building would invalidate its row indices.
 	filters := []action{
-		do("flow.filter-host", "Host: "+f.host, func() { a.filterTriage.Host = textToken(f.host); c.AnimationFrame() }).
+		do("flow.filter-host", locales.ChipHost(f.host), func() { a.filterTriage.Host = textToken(f.host); c.AnimationFrame() }).
 			when(f.host != "", "").in("edit"),
-		do("flow.filter-app", "App: "+cmp.Or(f.process, "unidentified"), func() { a.filterTriage.Client = textToken(f.process); c.AnimationFrame() }).
+		do("flow.filter-app", locales.ChipApp(cmp.Or(f.process, locales.Unidentified())), func() { a.filterTriage.Client = textToken(f.process); c.AnimationFrame() }).
 			when(f.process != "", "").in("edit"),
-		do("flow.filter-method", "Method: "+f.method, func() { a.filterTriage.Method = f.method; c.AnimationFrame() }).
+		do("flow.filter-method", locales.MethodNamed(f.method), func() { a.filterTriage.Method = f.method; c.AnimationFrame() }).
 			when(f.method != "", "").in("edit"),
 	}
 	// A CONNECT status acknowledges a tunnel; it is not the status of an
@@ -3835,7 +3835,7 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	for _, kind := range ruleTypes {
 		label := ruleLabel(kind) + "…"
 		if kind == capture.RuleMapLocal {
-			label = "Mock this response…"
+			label = locales.MockThisResponse()
 		}
 		tools = append(tools, do("flow.rule", label, func() { a.ruleFromFlow(f, kind) }).
 			when(f.url != "" && f.method != "CONNECT", "Tunnels have no request to match"))

@@ -119,9 +119,9 @@ func (a *app) collectionTree(c *ui.Context) {
 				open = new(true)
 			}
 			menu := func(m *ui.Menu) {
-				mock := "Mock “" + path + "” from examples"
+				mock := locales.MockFromExamples(path)
 				if slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Scenario == path }) {
-					mock = "Rebuild scenario “" + path + "” from examples"
+					mock = locales.RebuildScenarioFromExamples(path)
 				}
 				actions := append([]action{do("collection.docs", locales.ViewDocumentation(), func() { a.openDocs(path) }).in("open")}, a.folderSettingsActions(path)...)
 				serve := do("collection.mockserve", locales.StartMockServer(), func() { a.startCollectionMock(path) }).
@@ -133,7 +133,7 @@ func (a *app) collectionTree(c *ui.Context) {
 					serve,
 					do("collection.mock", mock, func() { a.scenarioFromExamples(path) }).
 						when(a.examplesUnder(path), "Save a response as an example first").in("edit"),
-					do("collection.delete", "Delete “"+path+"”…", func() { a.confirmDeleteFolder(path) }).in("danger")))
+					do("collection.delete", locales.DeletePathEllipsis(path), func() { a.confirmDeleteFolder(path) }).in("danger")))
 			}
 			parts := tree.Item(open)
 			row := treeRow(c, parts, depth).Label(locales.CollectionPath(path)).PopoverMenu(menu)

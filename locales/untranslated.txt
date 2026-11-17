@@ -72,3 +72,27 @@ us-east-1
 {"custom": "{{value}}"}
 https://example.com/collection.json
 /var/run/app.sock
+array<
+oneOf
+anyOf
+allOf
+object
+CONNECT 
+--user-data-dir=<temporary profile>\n--proxy-server=http://
+--proxy-server=http://
+network.proxy.type=1 · HTTP/SSL 
+\nsecurity.enterprise_roots.enabled=true
+xcrun simctl keychain booted add-root-cert 
+http://
+/vscroxy-ca.cer
+x-request-id
+page
+/data/user/id
+https://api.example.com/v1/resource
+mqtts://broker.example.com:8883
+https://host/socket.io
+⌘K
+Ctrl K
+<0.01 ms
+ · gzip
+from "

@@ -201,7 +201,7 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 					*open = true
 				}
 				n := len(splitHosts(text))
-				summary := "None"
+				summary := locales.None()
 				if n > 0 {
 					summary = fmt.Sprintf("%d %s", n, plural(n, unit, unit+"s"))
 				}
@@ -224,7 +224,7 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 			empty := len(splitHosts(a.allowText))+len(splitHosts(a.allowAppsText)) == 0
 			problem := ""
 			if a.allowOn && empty {
-				problem = "Nothing is shown until you add a host or an app."
+				problem = locales.NothingShownUntilAdd()
 			}
 			settingsCardRow(c, locales.AllowList(), func() ui.Element {
 				toggle := uikit.SettingsSwitch(c, &a.allowOn, locales.OnlyShowAllowedTraffic())

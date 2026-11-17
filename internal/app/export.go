@@ -74,11 +74,11 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 				before, raw := s.options, s.unredacted
 				uikit.Checkbox(c.Key("export-unredacted"), &s.unredacted, locales.ExportUnredacted())
 				if !s.unredacted {
-					headersLabel := "Headers, trailers and cookies"
-					headersTip := "Replace every header and trailer value except Content-Type and Accept; remove cookies."
+					headersLabel := locales.HeadersAndTrailers()
+					headersTip := locales.ReplaceHeadersExceptTypeAccept()
 					if s.csv != nil {
-						headersLabel = "Header columns"
-						headersTip = "Replace header-derived cells except Content-Type and Accept."
+						headersLabel = locales.HeaderColumns()
+						headersTip = locales.ReplaceHeaderCellsExceptTypeAccept()
 					}
 					uikit.Tip(c, uikit.Checkbox(c.Key("export-headers"), &s.options.Headers, headersLabel), headersTip)
 					uikit.Tip(c, uikit.Checkbox(c.Key("export-query"), &s.options.Query, locales.UrlQueryValues()), locales.ReplaceAllQueryValuesIncluding())
@@ -86,9 +86,9 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 					if s.csv == nil {
 						uikit.Tip(c, uikit.Checkbox(c.Key("export-variables"), &s.options.Variables, locales.CollectionFolderEnvironmentVariables()), locales.ReplaceEveryVariableValueIncluding())
 					}
-					bodyLabel, bodyTip := "Bodies and stream messages", "Remove request and response bodies, binary payloads and all stream messages."
+					bodyLabel, bodyTip := locales.BodiesAndStreamMessages(), locales.RemoveBodiesAndStreams()
 					if s.csv != nil {
-						bodyLabel, bodyTip = "Body-derived columns", "Replace request and response JSON cells."
+						bodyLabel, bodyTip = locales.BodyDerivedColumns(), locales.ReplaceBodyJSONCells()
 					}
 					uikit.Tip(c, uikit.Checkbox(c.Key("export-bodies"), &s.options.Bodies, bodyLabel), bodyTip)
 					if s.csv == nil {

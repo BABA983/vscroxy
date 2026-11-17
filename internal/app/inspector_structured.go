@@ -45,7 +45,7 @@ func (s *structuredInspector) view(c *ui.Context, a *app, source inspectionBody,
 	s.job.poll(c)
 	t := c.Theme()
 	ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-		label := inspect.BodyFormat(contentType) + " · read-only inspection"
+		label := locales.ReadOnlyInspection(inspect.BodyFormat(contentType))
 		if s.job.body != nil {
 			switch s.job.body.Format {
 			case "Form":

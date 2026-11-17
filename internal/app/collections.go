@@ -205,14 +205,14 @@ func (a *app) folderSettingsActions(path string) []action {
 		if part == "" {
 			return actions
 		}
-		label := "Collection “" + part + "” settings…"
+		label := locales.CollectionSettingsNamed(part)
 		if i > 0 {
-			label = "Folder “" + part + "” settings…"
+			label = locales.FolderSettings(part)
 		}
 		actions = append(actions, do("collection.settings", label, func() { a.openFolder(strings.Join(parts[:i+1], "/")) }).in("edit"))
 	}
 	return append(actions,
-		do("collection.export-postman", "Export “"+parts[0]+"” as Postman…", func() { a.exportPostman(parts[0]) }).in("copy"),
+		do("collection.export-postman", locales.ExportCollectionPostman(parts[0]), func() { a.exportPostman(parts[0]) }).in("copy"),
 		do("collection.export-http", locales.ExportCollectionAsHttp(parts[0]), func() { a.exportHTTPCollection(parts[0]) }).in("copy"))
 }
 
@@ -347,17 +347,17 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	_, height := c.Size()
-	kind := "Collection"
+	kind := locales.Collection()
 	if strings.Contains(f.draft.Path, "/") {
-		kind = "Folder"
+		kind = locales.FolderName()
 	}
-	uikit.Modal(c, &f.open, kind+" · "+f.draft.Path, func() {
+	uikit.Modal(c, &f.open, locales.KindPath(kind, f.draft.Path), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(560, height-80)).Children(func() {
-			uikit.DialogTitle(c, kind+" · "+f.draft.Path)
+			uikit.DialogTitle(c, locales.KindPath(kind, f.draft.Path))
 			uikit.Meta(c, locales.EveryRequestSavedUnderIt())
 			ui.Form(c, func() {
 				uikit.FormRow(c, locales.Name(), "", f.problem, func() {
-					uikit.InputState(c, &f.name, f.problem != "").Label(kind + " name")
+					uikit.InputState(c, &f.name, f.problem != "").Label(locales.KindName(kind))
 				})
 			})
 			uikit.Meta(c, locales.RenamingMovesItsRequestsFolders())

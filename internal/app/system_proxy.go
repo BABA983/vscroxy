@@ -297,31 +297,31 @@ func (a *app) drainSystemProxy() {
 // proxyOutcome words a write and its readback for the status bar.
 func proxyOutcome(result proxyResult) string {
 	if result.applied != nil {
-		return "System proxy: " + result.applied.Error()
+		return locales.SystemProxyError(result.applied.Error())
 	}
 	if !result.on {
 		switch result.check.Status {
 		case system.ProxyOff:
-			return "System proxy: off in OS settings"
+			return locales.SystemProxyOff()
 		case system.ProxyAutomatic:
-			return "System proxy: automatic configuration is still on"
+			return locales.SystemProxyAutoOn()
 		case system.ProxyUnknown:
-			return "System proxy: change sent; OS settings could not be read"
+			return locales.SystemProxyChangeSent()
 		default:
-			return "System proxy: another proxy is still configured"
+			return locales.SystemProxyOtherConfigured()
 		}
 	}
 	switch result.check.Status {
 	case system.ProxyMatches:
-		return "System proxy: HTTP and HTTPS now point at " + result.check.Target
+		return locales.SystemProxyPointsAt(result.check.Target)
 	case system.ProxyAutomatic:
-		return "System proxy: automatic configuration still takes precedence"
+		return locales.SystemProxyAutoPrecedence()
 	case system.ProxyOff:
-		return "System proxy: OS settings still show no proxy"
+		return locales.SystemProxyStillNone()
 	case system.ProxyUnknown:
-		return "System proxy: change sent; OS settings could not be read"
+		return locales.SystemProxyChangeSent()
 	default:
-		return "System proxy: OS settings still point elsewhere"
+		return locales.SystemProxyStillElsewhere()
 	}
 }
 

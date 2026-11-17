@@ -447,7 +447,7 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 func (a *app) explainFailure(c *ui.Context, t *ui.Theme, f flow) {
 	e := f.conn.explanation()
 	ui.Column(c).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
-		uikit.Label(c, "Observed failure · "+cmp.Or(f.conn.errorStage, "unknown stage"))
+		uikit.Label(c, locales.ObservedFailure(cmp.Or(f.conn.errorStage, locales.UnknownStage())))
 		uikit.Body(c, e.title).FontWeight(500)
 		uikit.DataMeta(c, f.conn.error).TextColor(t.Danger).Selectable()
 		uikit.Hint(c, e.summary)

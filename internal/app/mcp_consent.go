@@ -316,7 +316,7 @@ func (a *app) mcpConsentModal(c *ui.Context, t *ui.Theme) {
 			if s.valuesChanged {
 				uikit.Hint(c, locales.EnvironmentValuesChangedSinceYou())
 				if len(s.changed) > 0 {
-					uikit.Meta(c, "Changed values: "+strings.Join(s.changed, ", ")).SingleLine()
+					uikit.Meta(c, locales.ChangedValues(strings.Join(s.changed, ", "))).SingleLine()
 				}
 			}
 			uikit.Meta(c, locales.Command()).Padding(0, t.Space(uikit.SpaceXS))

@@ -173,9 +173,9 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 				}
 				requestCodeEditor(c, u.job.result)
 			} else {
-				hint := "Run to preview results. JSONPath returns an array; jq returns a stream of JSON values."
+				hint := locales.QueryPreviewHint()
 				if u.job.answers != nil {
-					hint = "Running query…"
+					hint = locales.RunningQuery()
 				}
 				uikit.Hint(c, hint).Grow(1).FillWidth()
 			}

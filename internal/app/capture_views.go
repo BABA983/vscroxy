@@ -981,7 +981,7 @@ func (a *app) headerFilterMenu(c *ui.Context, name string, values []string) func
 		m.EditItems()
 		actions := []action{
 			note(locales.MatchesRequestOrResponseHeaders()),
-			do("capture.filter-header", "Header exists: "+name, func() {
+			do("capture.filter-header", locales.HeaderExistsNamed(name), func() {
 				a.filterHeader = name
 				c.AnimationFrame()
 			}),

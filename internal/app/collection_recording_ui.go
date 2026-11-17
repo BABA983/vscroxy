@@ -52,11 +52,11 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 			running := s != nil && (s.Active || s.Busy)
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				if s != nil {
-					state := "Stopped"
+					state := locales.Stopped()
 					if s.Active {
-						state = "Recording"
+						state = locales.RecordingState()
 					} else if s.Busy {
-						state = "Stopping · waiting for body read"
+						state = locales.StoppingWaitingForBody()
 					}
 					uikit.Body(c, state+" · "+s.Collection).FontWeight(500)
 					uikit.Meta(c, locales.RecordingSummary(s.Added, s.Updated, s.Skipped, s.Discarded, len(s.queue)))

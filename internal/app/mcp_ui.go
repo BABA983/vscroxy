@@ -459,7 +459,7 @@ func (a *app) mcpResourcesEditor(c *ui.Context, t *ui.Theme, d *requestDocument,
 			uikit.Meta(c, resource.Description).MaxLines(2)
 		}
 	} else if template := mcpTemplateByURI(s.templates, d.mcpConfig.ResourceURI); template != nil {
-		uikit.Meta(c, "Template "+template.URITemplate+" · edit its placeholders before reading").MaxLines(2)
+		uikit.Meta(c, locales.TemplateEditBeforeReading(template.URITemplate)).MaxLines(2)
 		if template.Description != "" {
 			uikit.Meta(c, template.Description).MaxLines(2)
 		}
@@ -509,7 +509,7 @@ func (a *app) mcpPromptsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u
 			}
 			parts = append(parts, name)
 		}
-		uikit.Meta(c, "Arguments: "+strings.Join(parts, ", ")).MaxLines(2)
+		uikit.Meta(c, locales.ArgumentsList(strings.Join(parts, ", "))).MaxLines(2)
 	}
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Meta(c, locales.ArgumentsJsonObjectStringValues()).Grow(1).SingleLine()
@@ -619,7 +619,7 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 	key := fmt.Sprint(s.resultSeq)
 	a.startMCPImageDecode(u, result, key)
 	if s.progress != "" {
-		uikit.Meta(c, "Progress · "+s.progress).Padding(0, t.Space(uikit.SpaceL)).SingleLine()
+		uikit.Meta(c, locales.ProgressNamed(s.progress)).Padding(0, t.Space(uikit.SpaceL)).SingleLine()
 	}
 	ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Body(c, result.Kind+" · "+cmp.Or(result.Title, "result")).Grow(1).SingleLine()
@@ -876,9 +876,9 @@ func (a *app) mcpSessionPane(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSn
 		ui.Column(c).Selectable().Gap(t.Space(uikit.SpaceM)).Children(func() {
 			server := cmp.Or(s.server.Title, s.server.Name, "MCP server")
 			uikit.Body(c, server+" "+s.server.Version).FontWeight(500)
-			uikit.Meta(c, "MCP "+cmp.Or(s.server.ProtocolVersion, "unknown")+" · "+info.Transport).SingleLine()
+			uikit.Meta(c, locales.McpVersion(cmp.Or(s.server.ProtocolVersion, locales.UnknownLower()), info.Transport)).SingleLine()
 			if info.Endpoint != "" {
-				uikit.Meta(c, "Endpoint "+info.Endpoint).SingleLine()
+				uikit.Meta(c, locales.EndpointValue(info.Endpoint)).SingleLine()
 			}
 			if info.Command != "" {
 				uikit.Meta(c, locales.McpCommandSummary(info.Command, info.ArgsCount, info.EnvCount)).MaxLines(2)

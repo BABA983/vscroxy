@@ -439,9 +439,9 @@ func (a *app) reverseProxyModal(c *ui.Context, t *ui.Theme) {
 	if !d.open {
 		return
 	}
-	title := "Add reverse proxy"
+	title := locales.AddReverseProxyItem()
 	if d.editing != "" {
-		title = "Edit reverse proxy"
+		title = locales.EditReverseProxy()
 	}
 	uikit.Modal(c, &d.open, title, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {

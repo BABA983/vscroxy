@@ -85,7 +85,7 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 		if language := codeLanguage(s.language); language != "" {
 			buf.SetLanguage(editor.LanguageNamed(language))
 		}
-		s.view = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Code: " + s.language}
+		s.view = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.CodeNamed(s.language)}
 	}
 	_, h := c.Size()
 	uikit.Modal(c, &s.open, locales.Code(), func() {

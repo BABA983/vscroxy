@@ -163,7 +163,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 							if e.detail == "" {
 								text = e.data
 								ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
-									uikit.Meta(c, "Type: "+clamp(e.eventType, 80)+" · ID: "+clamp(e.id, 80)).Grow(1).MinWidth(0)
+									uikit.Meta(c, locales.TypeAndID(clamp(e.eventType, 80), clamp(e.id, 80))).Grow(1).MinWidth(0)
 									if uikit.IconButton(c, locales.CopyEventId(), locales.CopyEventId(), copyIcon).Clicked() {
 										c.Services().WriteClipboard(e.id)
 									}

@@ -430,19 +430,19 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		return
 	}
 	if body == "" {
-		message := "Empty body"
+		message := locales.EmptyBody()
 		if a.bodyNotice[side] != "" {
-			message = "No body bytes available; see the capture warning above"
+			message = locales.NoBodyBytes()
 		} else if side == 0 && (f.method == "HEAD" || f.status == 204 || f.status == 304) {
-			message = "No response body expected for " + f.method + " / " + strconv.Itoa(f.status)
+			message = locales.NoResponseBodyExpected(f.method, strconv.Itoa(f.status))
 		}
 		uikit.Hint(c, message).Padding(t.Space(uikit.SpaceXL))
 		return
 	}
 	if mode == 2 || mode == 3 {
-		placeholder := "Filter JSON paths and values…"
+		placeholder := locales.FilterJSONPaths()
 		if mode == 3 {
-			placeholder = "Filter hex rows (hex bytes or text)…"
+			placeholder = locales.FilterHexRows()
 		}
 		uikit.Tip(c, uikit.Input(c, &a.bodyQuery[side]).Label(locales.SearchBody()).Placeholder(placeholder), placeholder).
 			Height(uikit.HeightRow).Radius(uikit.RadiusControl).Margin(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM)).FillWidth()
@@ -691,11 +691,11 @@ func (a *app) jsonTree(c *ui.Context, side int, rows []jsonRow, keyColor ui.Colo
 			ui.Box(c).Width(float32(row.depth) * 16)
 			if len(row.node.children) > 0 && a.bodyQuery[side] == "" {
 				expanded := a.jsonExpanded[side][row.node.path]
-				arrow, action := "▸", "Expand"
+				arrow, action := "▸", locales.ExpandAction()
 				if expanded {
-					arrow, action = "▾", "Collapse"
+					arrow, action = "▾", locales.CollapseAction()
 				}
-				label := action + " " + []string{"response", "request"}[side] + " JSON " + row.node.path
+				label := locales.ToggleJSON(action, []string{locales.SideResponse(), locales.SideRequest()}[side], row.node.path)
 				if uikit.Tip(c, uikit.SecondaryButton(c, arrow).Label(label), label).Expanded(expanded).Size(uikit.HeightRow, uikit.HeightRow).Padding(0).Clicked() {
 					a.jsonExpanded[side][row.node.path] = !expanded
 				}

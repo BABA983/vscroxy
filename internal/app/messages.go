@@ -544,20 +544,20 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		c.After(250 * time.Millisecond)
 	}
 	ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL), 0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-		state := "End not yet observed"
+		state := locales.EndNotObserved()
 		if !f.live {
-			state = "Historical · no end recorded"
+			state = locales.HistoricalNoEnd()
 		}
 		if !f.streamEnd.At.IsZero() {
-			state = "Ended " + f.streamEnd.At.Format("15:04:05.000")
+			state = locales.EndedAt(f.streamEnd.At.Format("15:04:05.000"))
 		}
 		if !f.at.IsZero() {
-			state = "Started " + f.at.Format("15:04:05.000") + " · " + state
+			state = locales.StartedAt(f.at.Format("15:04:05.000"), state)
 		}
-		uikit.Tip(c, uikit.Meta(c, state).FontFeatures("tnum").Grow(1).SingleLine(), state+". The engine does not provide close codes or an end reason.")
-		pauseLabel := "Pause view"
+		uikit.Tip(c, uikit.Meta(c, state).FontFeatures("tnum").Grow(1).SingleLine(), locales.EngineNoCloseCodes(state))
+		pauseLabel := locales.PauseView()
 		if p.paused {
-			pauseLabel = "Resume"
+			pauseLabel = locales.ResumeView()
 		}
 		if uikit.SecondaryButton(c, pauseLabel).Clicked() {
 			p.paused = !p.paused
@@ -613,7 +613,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 			}
 		}
 		if len(p.searchPending) > 0 {
-			note += " · searching…"
+			note = locales.SearchingIn(note)
 			c.After(100 * time.Millisecond)
 		}
 		if n := len(p.searchCache.errs); n > 0 {
@@ -656,9 +656,9 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		}
 		rows.Children(func() {
 			if len(visible) == 0 {
-				text := "No message matches"
+				text := locales.NoMessageMatches()
 				if len(list) == 0 {
-					text = "No messages retained"
+					text = locales.NoMessagesRetained()
 				}
 				uikit.Hint(c, text).Padding(t.Space(uikit.SpaceXL))
 			}

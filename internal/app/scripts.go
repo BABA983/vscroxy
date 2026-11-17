@@ -210,7 +210,7 @@ func (a *app) loadScriptDir(s *scriptStore) {
 	names, err := listedScripts(s.dir, s.addon)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		s.problem = err
-		a.fail(s.dir+" could not be read", err)
+		a.fail(locales.DirNotRead(s.dir), err)
 		return
 	}
 	s.problem = nil
@@ -495,7 +495,7 @@ func (a *app) saveScript(name string) {
 	}
 	switch err := s.problems[name]; {
 	case err != nil && s.addon:
-		a.warn("Addon saved · it does not parse, so require(\"" + name + "\") fails: " + err.Error())
+		a.warn(locales.AddonSavedNoParse(name, err.Error()))
 	case err != nil:
 		a.warn(locales.ScriptSavedNotParse(err.Error()))
 	case s.addon:
@@ -585,10 +585,10 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 			s.choice = s.names[0]
 		}
 	}
-	base, about := "Untitled", "Script rules edit traffic; Code Mock rules answer locally."
+	base, about := "Untitled", locales.ScriptRulesAbout()
 	newLabel := locales.NewScript()
 	if s.addon {
-		base, about = "helpers", "Modules rule scripts import, and request scripts require, by name."
+		base, about = "helpers", locales.ScriptModulesAbout()
 		newLabel = locales.NewAddon()
 	}
 	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(uikit.SpaceL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
@@ -615,9 +615,9 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 	ui.Divider(c)
 	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(uikit.SpaceXL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceL)).Children(func() {
 		if s.choice == "" {
-			title, hint := "No scripts", "Change requests and responses with JavaScript and the pm API, for the traffic a Script rule matches."
+			title, hint := locales.NoScripts(), locales.ScriptsEmptyHint()
 			if s.addon {
-				title, hint = "No addons", "Code to share between scripts: what an addon exports, rule scripts import from \"its name\" and request scripts require."
+				title, hint = locales.NoAddons(), locales.AddonsEmptyHint()
 			}
 			uikit.EmptyState(c, title, hint, func() {
 				if uikit.PrimaryButton(c, newLabel).Clicked() {
@@ -768,14 +768,14 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 	}
 	_, modified := a.scriptToSave()
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-		note := "No rule runs it yet; add a Script or Code Mock rule."
+		note := locales.NoRuleRunsYet()
 		switch {
 		case s.addon && users > 0:
-			note = usedBy + ` · import it from "` + name + `", or require it.`
+			note = locales.ScriptImportAddonUsed(usedBy, name)
 		case s.addon:
-			note = `Import it in a rule script from "` + name + `", or require it in a request script.`
+			note = locales.ScriptImportAddon(name)
 		case users > 0:
-			note = usedBy + " · changes apply to new requests."
+			note = locales.UsedByChanges(usedBy)
 		}
 		uikit.Meta(c, note).Grow(1).SingleLine()
 		ui.Row(c).Disabled(!modified).Children(func() {

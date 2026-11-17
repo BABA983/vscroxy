@@ -12,6 +12,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/gorilla/websocket"
 )
 
@@ -72,9 +73,9 @@ func openWSSession(proxy string, req *request.Prepared, ca []byte, certificates 
 		s.mu.Unlock()
 		protocol := c.Subprotocol()
 		if protocol == "" {
-			protocol = "none"
+			protocol = locales.NoneLower()
 		}
-		s.add(wsSessionEvent{Detail: "Handshake accepted · " + req.URL + " · subprotocol: " + protocol})
+		s.add(wsSessionEvent{Detail: locales.HandshakeAccepted(req.URL, protocol)})
 		for {
 			kind, data, err := c.ReadMessage()
 			if err != nil {

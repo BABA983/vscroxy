@@ -73,7 +73,7 @@ func (a *app) checksEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			})
 		}
 		if names := d.value().Variables(); len(names) > 0 {
-			uikit.Meta(c, "Required variables: "+strings.Join(names, ", ")+" · configure in Variables…")
+			uikit.Meta(c, locales.RequiredVariables(strings.Join(names, ", ")))
 		}
 		uikit.Meta(c, locales.JsonTypesMatterMissingIs())
 	})

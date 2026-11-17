@@ -177,9 +177,9 @@ func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool,
 			if save != nil && len(cookies) > 0 && uikit.SecondaryButton(c, locales.SaveCookiesToJar()).Clicked() {
 				save()
 			}
-			label := "Reveal cookie values"
+			label := locales.RevealCookieValues()
 			if *reveal {
-				label = "Hide cookie values"
+				label = locales.HideCookieValues()
 			}
 			ui.Row(c).Disabled(len(cookies) == 0).Children(func() {
 				if uikit.SecondaryButton(c, label).Clicked() {

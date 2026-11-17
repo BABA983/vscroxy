@@ -127,9 +127,6 @@ var narrowColumns = []string{
 // maxCustomColumns is how many the table holds; the menu and the dialog say so.
 const maxCustomColumns = 16
 
-// tooManyColumns is why a column cannot be added.
-const tooManyColumns = "At most 16 custom columns; remove one before adding another."
-
 // headerColumnLimit is how many of the traffic's headers the menu offers at
 // once, the most common first.
 const headerColumnLimit = 30
@@ -147,7 +144,7 @@ func (a *app) columnsMenu(m *ui.Menu, id string) { actionMenu(m, a.columnActions
 func (a *app) columnActions(id string) []action {
 	var actions []action
 	if cc, ok := a.customColumnAt(id); ok {
-		actions = append(actions, do("column.remove", "Remove “"+cc.title()+"” column", func() {
+		actions = append(actions, do("column.remove", locales.RemoveColumnNamed(cc.title()), func() {
 			a.setCustomColumns(slices.DeleteFunc(slices.Clone(a.customColumns), func(x customColumn) bool { return x.id() == id }))
 		}))
 	}
@@ -253,7 +250,7 @@ func (a *app) headerColumnActions(source string) []action {
 				return
 			}
 			a.setColumnShown(cc.id(), !shown)
-		}).checked(checkbox(shown)).when(exists || len(a.customColumns) < maxCustomColumns, tooManyColumns))
+		}).checked(checkbox(shown)).when(exists || len(a.customColumns) < maxCustomColumns, locales.AtMostCustomColumns()))
 	}
 	if len(actions) == 0 {
 		label := locales.NoRequestHeaders()
@@ -304,12 +301,12 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 		}
 	}
 	if len(a.customColumns) >= maxCustomColumns {
-		problem = tooManyColumns
+		problem = locales.AtMostCustomColumns()
 	}
 	if name != "" && slices.ContainsFunc(a.customColumns, func(cc customColumn) bool {
 		return cc.id() == (customColumn{Source: draft.Source, Name: name}).id()
 	}) {
-		problem = "The table already has this column."
+		problem = locales.TableHasColumn()
 	}
 	uikit.Modal(c, &a.columnOpen, locales.AddColumn2(), func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {

@@ -173,9 +173,9 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 			}
 		})
 	})
-	status := "Off: its rules do nothing."
+	status := locales.ScenarioOff()
 	if name == current {
-		status = "On: its rules apply. Rules with no scenario also apply."
+		status = locales.ScenarioOn()
 	}
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Meta(c, status).Grow(1).SingleLine()

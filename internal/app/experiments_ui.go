@@ -264,9 +264,9 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 	}
 	title := locales.RunsPage()
 	if s.scope != nil {
-		title += " · Source"
+		title = locales.TitleSource(title)
 	} else if s.draftKey != "" {
-		title += " · Draft"
+		title = locales.TitleDraft(title)
 	}
 	uikit.Modal(c, &s.open, title, func() { a.experimentsView(c, t, false) })
 }
@@ -294,9 +294,9 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 		ui.Row(c).Height(uikit.HeightTabs).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			title := locales.RunsPage()
 			if s.scope != nil {
-				title += " · Source"
+				title = locales.TitleSource(title)
 			} else if s.draftKey != "" {
-				title += " · Draft"
+				title = locales.TitleDraft(title)
 			}
 			uikit.DialogTitle(c, title).Grow(1)
 			uikit.Tip(c, uikit.Glyph(c, infoIcon).TextColor(t.TextMuted), locales.PrivateLocalSnapshotsMayContain())
@@ -357,11 +357,11 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 			ui.Column(c).Grow(1).MinWidth(0).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				r := s.record(s.picked)
 				if r == nil {
-					message := "Send a request to record an experiment."
+					message := locales.SendRequestForExperiment()
 					if s.scope != nil {
-						message = "No retained experiments for this source. Open a linked draft to continue; opening never sends."
+						message = locales.ExperimentsNoRetainedSource()
 					} else if s.draftKey != "" {
-						message = "No retained sends for this draft. Opening history never sends."
+						message = locales.ExperimentsNoRetainedDraft()
 					}
 					if s.scope == nil {
 						uikit.EmptyState(c, locales.NoRetainedRuns(), message, nil)
@@ -379,7 +379,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					return
 				}
 				uikit.Tip(c, uikit.Body(c, locales.RunDraft(r.ID, r.Draft.Method, r.Draft.URL)).FontFeatures("tnum").FontWeight(500).SingleLine(), r.Draft.URL)
-				uikit.Meta(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontFeatures("tnum")
+				uikit.Meta(c, locales.ExperimentEnvironment(r.Summary, cmp.Or(r.Environment, locales.NoneLower()))).FontFeatures("tnum")
 				if r.Outcome != "" {
 					uikit.Meta(c, r.Outcome)
 				}
@@ -392,7 +392,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 						a.openDebugHistory(r.Source)
 					}
 					origin := slices.IndexFunc(a.documents, func(d *requestDocument) bool { return r.DraftKey != "" && d.debugKey == r.DraftKey })
-					if uikit.Tip(c, uikit.SecondaryButton(c, locales.OriginDraft()).Label(locales.OpenOriginatingDraft()).Disabled(origin < 0), "Return to the original editable tab without overwriting its current edits: "+r.Draft.Name).Clicked() {
+					if uikit.Tip(c, uikit.SecondaryButton(c, locales.OriginDraft()).Label(locales.OpenOriginatingDraft()).Disabled(origin < 0), locales.ReturnToOriginalTab(r.Draft.Name)).Clicked() {
 						d := a.documents[origin]
 						a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
 						s.open = false

@@ -161,7 +161,7 @@ func (a *app) debugWire(c *ui.Context, r experimentRecord) {
 		s.wire = slices.Index(options, choice)
 	}
 	wire := r.Wire[s.wire]
-	effects := "None recorded on this exchange"
+	effects := locales.NoneRecordedOnExchange()
 	if len(wire.Actions) > 0 {
 		effects = strings.Join(wire.Actions, " · ")
 	}

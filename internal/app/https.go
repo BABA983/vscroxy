@@ -144,9 +144,9 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 					uikit.BodyStrong(c, status).TextColor(color)
 					if s.cert != nil {
 						uikit.Body(c, cmp.Or(s.cert.Subject.CommonName, s.cert.Subject.String()))
-						uikit.Meta(c, "Valid: "+s.cert.NotBefore.Local().Format("2006-01-02")+" → "+s.cert.NotAfter.Local().Format("2006-01-02"))
+						uikit.Meta(c, locales.CertValid(s.cert.NotBefore.Local().Format("2006-01-02"), s.cert.NotAfter.Local().Format("2006-01-02")))
 						fingerprint := fmt.Sprintf("%X", sha256.Sum256(s.cert.Raw))
-						uikit.Tip(c, uikit.Meta(c, "SHA-256: "+fingerprint).Font(uikit.FontMono).SingleLine(), fingerprint).Selectable()
+						uikit.Tip(c, uikit.Meta(c, locales.Sha256Fingerprint(fingerprint)).Font(uikit.FontMono).SingleLine(), fingerprint).Selectable()
 					}
 					if s.installing {
 						uikit.Meta(c, locales.IfTheSystemAsksFor())
@@ -162,7 +162,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 						if errors.Is(s.installErr, system.ErrInstallCancelled) {
 							uikit.Meta(c, locales.InstallationCancelledYouCanTry())
 						} else {
-							uikit.Tip(c, uikit.ErrorText(c, "Installation failed: "+s.installErr.Error()).MaxLines(2), s.installErr.Error())
+							uikit.Tip(c, uikit.ErrorText(c, locales.InstallationFailed(s.installErr.Error())).MaxLines(2), s.installErr.Error())
 							switch runtime.GOOS {
 							case "darwin":
 								uikit.Meta(c, locales.ManualFallbackUseShowCertificate())
@@ -203,7 +203,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 				return toggle
 			}, locales.DecryptEveryNewHttpsConnection())
 			domains := splitHosts(a.sslHosts)
-			summary := "None"
+			summary := locales.None()
 			hint := "Enable a domain or a local app to read its headers, cookies and bodies."
 			switch {
 			case len(a.sslApps) > 0:
@@ -307,19 +307,19 @@ func (a *app) setAppInspection(app capture.SSLApp, enabled bool) {
 		cfg.Apps = append(cfg.Apps, app)
 	}
 	if a.saveSSL(cfg) {
-		message := "App rule disabled for " + app.Name + "; domain and global rules still apply to new connections"
+		message := locales.AppRuleDisabled(app.Name)
 		if enabled {
-			message = "App rule enabled for " + app.Name + "; reconnect the client · decryption not yet verified"
+			message = locales.AppRuleEnabled(app.Name)
 		}
 		a.inform(message)
 	}
 }
 
 func (a *app) appInspectionActions(app capture.SSLApp) []action {
-	label := "Enable HTTPS for " + cmp.Or(app.Name, "this app")
+	label := locales.EnableHTTPSFor(cmp.Or(app.Name, locales.ThisApp()))
 	enabled := a.appInspectionEnabled(app.Path)
 	if enabled {
-		label = "Disable HTTPS for " + app.Name
+		label = locales.DisableHTTPSFor(app.Name)
 	}
 	return []action{do("https.app", label, func() { a.setAppInspection(app, !enabled) }).
 		when(filepath.IsAbs(app.Path), "The app's executable is unknown").checked(checkbox(enabled))}
@@ -347,13 +347,13 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 				// One line says what this row is, and the button beside it
 				// is the way out: everything else about why the tunnel is
 				// closed lives in the Connection tab.
-				title := "Encrypted, not decrypted"
+				title := locales.EncryptedNotDecrypted()
 				if failed {
 					title = e.title
 				}
 				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					ui.Icon(c, lockIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
-					uikit.Heading(c, title).Label(title + " — not individual requests").Grow(1).SingleLine()
+					uikit.Heading(c, title).Label(locales.EncryptedNotIndividual()).Grow(1).SingleLine()
 				})
 				if failed {
 					uikit.Hint(c, e.summary)
@@ -362,7 +362,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 					// What happened: the stage and the raw error, copyable.
 					ui.Column(c).FillWidth().Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceXS)).BorderWidth(0, 0, 0, 2).BorderColor(t.Danger).Children(func() {
 						ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-							uikit.Label(c, "Recorded failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).Grow(1)
+							uikit.Label(c, locales.RecordedFailure(cmp.Or(f.conn.errorStage, locales.UnknownStage()))).Grow(1)
 							if uikit.ToolbarButton(c, locales.CopyError(), locales.CopyTheRecordedError(), false).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 								ui.Icon(c, copyIcon).Size(uikit.IconInline, uikit.IconInline)
 								uikit.Caption(c, locales.Copy())
@@ -380,8 +380,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 				// still leads with the rule that would decrypt it.
 				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 					record := func() {
-						const tip = "Open this exchange's Connection tab: the recorded log, addresses and rules"
-						button := uikit.Tip(c, uikit.SecondaryButton(c, locales.ViewConnectionRecord()), tip)
+						button := uikit.Tip(c, uikit.SecondaryButton(c, locales.ViewConnectionRecord()), locales.OpenConnectionTab())
 						if button.Clicked() {
 							a.inspect.pane = inspectorConnection
 						}

@@ -498,7 +498,7 @@ func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &open, locales.SaveChanges(), func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, locales.SaveChanges())
-			uikit.Hint(c, d.title()+" has unsaved changes. Closing it without saving will discard this draft.")
+			uikit.Hint(c, locales.DraftUnsavedChanges(d.title()))
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.closingDocument = nil
@@ -712,9 +712,9 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 	if !a.renameOpen || d == nil {
 		return
 	}
-	title := "Rename request"
+	title := locales.RenameRequest()
 	if a.saveAfterRename {
-		title = "Save to collection"
+		title = locales.SaveToCollection()
 	}
 	uikit.Modal(c, &a.renameOpen, title, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
@@ -801,22 +801,22 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 	if len(rows) == 0 && !d.variablesOpen {
 		return
 	}
-	target := "unresolved (review variables)"
+	target := locales.UnresolvedReviewVariables()
 	if r.Protocol == "MCP" && r.MCP.Transport == request.MCPTransportStdio {
-		target = "stdio process"
+		target = locales.StdioProcess()
 	} else if u, err := url.Parse(request.ExpandVars(d.composeURL, in.Values(vars))); err == nil && u.Hostname() != "" {
 		target = u.Scheme + "://" + u.Host // Do not reveal query tokens or userinfo.
 	}
-	targetLabel := "Target before scripts: "
-	contextLabel := "Draft context · pre-script may generate or replace values"
+	targetLabel := locales.TargetBeforeScripts
+	contextLabel := locales.DraftContextPreScript()
 	if r.Protocol != "" {
-		targetLabel, contextLabel = "Target: ", "Draft context · resolved from variables and Vault"
+		targetLabel, contextLabel = locales.TargetAfterVariables, locales.DraftContextResolved()
 	}
 	ui.Row(c).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		if uikit.CompactButton(c, locales.VariablesUnresolved(missing)).Label(locales.RequestVariables()).Clicked() {
 			d.variablesOpen = !d.variablesOpen
 		}
-		uikit.Meta(c, targetLabel+target).SingleLine().Grow(1)
+		uikit.Meta(c, targetLabel(target)).SingleLine().Grow(1)
 	})
 	if !d.variablesOpen {
 		return
@@ -953,7 +953,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			}
 			if d.protocol == "MCP" && d.mcpConfig.Transport == request.MCPTransportStdio {
 				ui.Row(c).Grow(1).Height(uikit.HeightRow).AlignItems(ui.Center).Padding(0, t.Space(uikit.SpaceM)).Children(func() {
-					uikit.Meta(c, "stdio · "+cmp.Or(d.mcpConfig.Command, "local command")).Font(uikit.FontMono).SingleLine()
+					uikit.Meta(c, locales.StdioCommand(cmp.Or(d.mcpConfig.Command, locales.LocalCommand()))).Font(uikit.FontMono).SingleLine()
 				})
 				return
 			}
@@ -1238,7 +1238,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 		formatted, isJSON := indentJSON(*text)
 		query := d.bodyMode == "GraphQL" && d.graphqlTab == 0
 		if query {
-			formatLabel, formatHelp = "Format GraphQL query", "Format the GraphQL document without expanding variables or changing its operations"
+			formatLabel, formatHelp = locales.FormatGraphQLQuery(), "Format the GraphQL document without expanding variables or changing its operations"
 		}
 		ui.Row(c).Disabled(!query && (!isJSON || !canFormat)).Children(func() {
 			if uikit.ToolbarButton(c, formatLabel, formatHelp, false).Children(func() {
@@ -1324,7 +1324,7 @@ func (a *app) requestSentState(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	case !d.sentSet:
 		uikit.Meta(c, locales.NotSentYet())
 	case reflect.DeepEqual(d.draft(), d.sent):
-		uikit.Meta(c, "Draft matches last attempt · "+d.sentAt.Local().Format("15:04:05")).
+		uikit.Meta(c, locales.DraftMatchesAttemptAt(d.sentAt.Local().Format("15:04:05"))).
 			Tooltip(locales.TheDraftSnapshotMatchesVariables())
 	default:
 		uikit.Caption(c, locales.EditedSinceLastSendNot()).TextColor(t.Warning).
@@ -1495,7 +1495,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					uikit.Body(c, d.sent.Method+" "+d.sent.URL).Label(locales.LastSentDraftUrl()).Selectable()
 					uikit.Meta(c, locales.DraftSnapshotVariablesScriptsRedirects())
 					if d.response != nil {
-						uikit.Meta(c, "Response from "+d.response.At.Local().Format("15:04:05"))
+						uikit.Meta(c, locales.ResponseFromTime(d.response.At.Local().Format("15:04:05")))
 					}
 				})
 			}
@@ -1534,7 +1534,7 @@ func (a *app) responseProvenance(c *ui.Context, t *ui.Theme, d *requestDocument)
 	if d.response == nil || d.sentSet && !d.comparing {
 		return
 	}
-	provenance := "Response from " + d.response.At.Local().Format("15:04:05")
+	provenance := locales.ResponseFromTime(d.response.At.Local().Format("15:04:05"))
 	uikit.Meta(c, provenance).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).
 		Tooltip(locales.RedirectsCookiesAndProxyRules())
 }
@@ -1682,7 +1682,7 @@ func testResultRow(c *ui.Context, result request.TestResult) {
 	}
 	name := mark + " " + result.Name
 	if result.Skipped {
-		name += " · skipped"
+		name = locales.SkippedNamed(name)
 	}
 	ui.Column(c).Gap(t.Space(uikit.SpaceHair)).Children(func() {
 		uikit.Body(c, name).TextColor(color)

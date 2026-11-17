@@ -1,5 +1,6 @@
 {
   "@@locale": "en",
+  "abortBreakpoint": "Abort",
   "@activeSubscriptions": {
     "placeholders": {
       "count": {
@@ -14,6 +15,7 @@
       }
     }
   },
+  "addReverseProxyItem": "Add reverse proxy",
   "@addedUpdated": {
     "placeholders": {
       "added": {
@@ -24,6 +26,19 @@
       }
     }
   },
+  "@addonSavedNoParse": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "addonSavedNoParse": "Addon saved · it does not parse, so require(\"{name}\") fails: {error}",
+  "addonsEmptyHint": "Code to share between scripts: what an addon exports, rule scripts import from \"its name\" and request scripts require.",
+  "addsToCollectionEnd": "Adds to the end of this collection.",
   "@allowedDomains": {
     "placeholders": {
       "index": {
@@ -31,6 +46,40 @@
       }
     }
   },
+  "@apiDraftSource": {
+    "placeholders": {
+      "collection": {
+        "type": "String"
+      }
+    }
+  },
+  "apiDraftSource": "Source: {collection} · independent draft",
+  "apiSourceChanged": "Source collection changed — review before updating this contract.",
+  "@appRuleDisabled": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "appRuleDisabled": "App rule disabled for {app}; domain and global rules still apply to new connections",
+  "@appRuleEnabled": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "appRuleEnabled": "App rule enabled for {app}; reconnect the client · decryption not yet verified",
+  "@argumentsList": {
+    "placeholders": {
+      "args": {
+        "type": "String"
+      }
+    }
+  },
+  "argumentsList": "Arguments: {args}",
+  "atMostCustomColumns": "At most 16 custom columns; remove one before adding another.",
   "@autoSelectCount": {
     "placeholders": {
       "count": {
@@ -51,6 +100,8 @@
       }
     }
   },
+  "backToList": "Back to list",
+  "bidirectionalStream": "Bidirectional stream",
   "@blockData": {
     "placeholders": {
       "kind": {
@@ -61,6 +112,14 @@
       }
     }
   },
+  "blockDropConnection": "Block · drop connection",
+  "blockHide": "Block · hide",
+  "blockRefuseHide": "Block · refuse and hide",
+  "bodiesAndStreamMessages": "Bodies and stream messages",
+  "bodyDerivedColumns": "Body-derived columns",
+  "breakpointRequestPaused": "Breakpoint · request paused",
+  "breakpointResponsePaused": "Breakpoint · response paused",
+  "breakpointWebSocketPaused": "Breakpoint · WebSocket message paused",
   "@capturedRequestsCount": {
     "placeholders": {
       "count": {
@@ -91,6 +150,17 @@
       }
     }
   },
+  "@certValid": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "to": {
+        "type": "String"
+      }
+    }
+  },
+  "certValid": "Valid: {from} → {to}",
   "@certificatesSaved": {
     "placeholders": {
       "clients": {
@@ -101,6 +171,15 @@
       }
     }
   },
+  "@changedValues": {
+    "placeholders": {
+      "values": {
+        "type": "String"
+      }
+    }
+  },
+  "changedValues": "Changed values: {values}",
+  "changesApplyNewConnections": "Changes apply to new connections.",
   "@chipApp": {
     "placeholders": {
       "app": {
@@ -134,6 +213,8 @@
     }
   },
   "chipTraffic": "Traffic: {filter}",
+  "chooseLocalResponseFile": "Choose local response file",
+  "chooseResponseFolder": "Choose a folder to answer from",
   "@chosenCount": {
     "placeholders": {
       "count": {
@@ -141,6 +222,17 @@
       }
     }
   },
+  "clientStream": "Client stream",
+  "clientToServer": "Client → server",
+  "@codeNamed": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "codeNamed": "Code: {language}",
+  "collapseAction": "Collapse",
   "@collectionCreated": {
     "placeholders": {
       "name": {
@@ -151,6 +243,14 @@
       }
     }
   },
+  "@collectionSettingsNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "collectionSettingsNamed": "Collection “{name}” settings…",
   "@concurrencyDescription": {
     "placeholders": {
       "max": {
@@ -167,6 +267,8 @@
       }
     }
   },
+  "connect200Failed": "CONNECT 200 · failed",
+  "connectClientToCapture": "Connect a client to start capturing",
   "@containsValue": {
     "placeholders": {
       "index": {
@@ -211,6 +313,14 @@
       }
     }
   },
+  "@cookieFileUnavailable": {
+    "placeholders": {
+      "problem": {
+        "type": "String"
+      }
+    }
+  },
+  "cookieFileUnavailable": "The local cookie file was not read or written: {problem}",
   "@cookiesCaptured": {
     "placeholders": {
       "count": {
@@ -218,6 +328,9 @@
       }
     }
   },
+  "cookiesInMemory": "Cookies stay in memory until the app quits. Session cookies are never saved.",
+  "cookiesPersistentSaved": "Persistent cookies are saved to ~/.vscroxy/cookies.json (0600), outside collections and exports. Session cookies are never saved.",
+  "createsNewCollection": "Creates a new collection.",
   "@credentialSummary": {
     "placeholders": {
       "header": {
@@ -235,6 +348,22 @@
       }
     }
   },
+  "@definesHooks": {
+    "placeholders": {
+      "hooks": {
+        "type": "String"
+      }
+    }
+  },
+  "definesHooks": "Defines {hooks}",
+  "@deleteConditionConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteConditionConfirm": "Delete “{name}”? This cannot be undone. If active, global conditions will turn Off.",
   "@deleteDetail": {
     "placeholders": {
       "count": {
@@ -242,6 +371,65 @@
       }
     }
   },
+  "@deletePathEllipsis": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "deletePathEllipsis": "Delete “{name}”…",
+  "@deletedHostProfile": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "deletedHostProfile": "Deleted Host profile {name}",
+  "@dirNotRead": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "dirNotRead": "{path} could not be read",
+  "@disableHTTPSFor": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "disableHTTPSFor": "Disable HTTPS for {app}",
+  "draftContextPreScript": "Draft context · pre-script may generate or replace values",
+  "draftContextResolved": "Draft context · resolved from variables and Vault",
+  "@draftMatchesAttemptAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "draftMatchesAttemptAt": "Draft matches last attempt · {time}",
+  "@draftTitled": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "draftTitled": "Draft · {title}",
+  "@draftUnsavedChanges": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "draftUnsavedChanges": "{title} has unsaved changes. Closing it without saving will discard this draft.",
+  "dropMessage": "Drop message",
   "@droppedConnections": {
     "placeholders": {
       "count": {
@@ -263,6 +451,7 @@
       }
     }
   },
+  "editReverseProxy": "Edit reverse proxy",
   "@editRule": {
     "placeholders": {
       "index": {
@@ -270,6 +459,14 @@
       }
     }
   },
+  "@enableHTTPSFor": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "enableHTTPSFor": "Enable HTTPS for {app}",
   "@enableRow": {
     "placeholders": {
       "noun": {
@@ -294,6 +491,50 @@
       }
     }
   },
+  "encryptedKeyCredentialStore": "Encrypted with a key kept in this system's credential store.",
+  "@encryptedKeyNoStore": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "encryptedKeyNoStore": "Encrypted with a key kept in {path}: this system has no credential store, so anyone who can read that file can open the vault.",
+  "encryptedNotDecrypted": "Encrypted, not decrypted",
+  "encryptedNotIndividual": "Encrypted, not decrypted — not individual requests",
+  "endNotObserved": "End not yet observed",
+  "@endedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "endedAt": "Ended {time}",
+  "@endpointLabelNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "endpointLabelNamed": "Endpoint: {name}",
+  "@endpointValue": {
+    "placeholders": {
+      "endpoint": {
+        "type": "String"
+      }
+    }
+  },
+  "endpointValue": "Endpoint {endpoint}",
+  "@engineNoCloseCodes": {
+    "placeholders": {
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "engineNoCloseCodes": "{state}. The engine does not provide close codes or an end reason.",
   "@errorsCount": {
     "placeholders": {
       "count": {
@@ -330,6 +571,22 @@
       }
     }
   },
+  "@exampleEditorName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "exampleEditorName": "Example {name}",
+  "@exampleNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "exampleNamed": "Example: {name}",
   "@examplesCount": {
     "placeholders": {
       "count": {
@@ -344,6 +601,18 @@
       }
     }
   },
+  "expandAction": "Expand",
+  "@experimentEnvironment": {
+    "placeholders": {
+      "summary": {
+        "type": "String"
+      },
+      "environment": {
+        "type": "String"
+      }
+    }
+  },
+  "experimentEnvironment": "{summary} · Environment: {environment}",
   "@experimentNumber": {
     "placeholders": {
       "id": {
@@ -351,6 +620,16 @@
       }
     }
   },
+  "experimentsNoRetainedDraft": "No retained sends for this draft. Opening history never sends.",
+  "experimentsNoRetainedSource": "No retained experiments for this source. Open a linked draft to continue; opening never sends.",
+  "@exportCollectionPostman": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "exportCollectionPostman": "Export “{name}” as Postman…",
   "@exportMessagesNote": {
     "placeholders": {
       "count": {
@@ -378,6 +657,15 @@
       }
     }
   },
+  "fetchSchemaHint": "Fetch introspection or load an SDL or introspection JSON file to complete and check fields.",
+  "@fileNotRead": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "fileNotRead": "{path} could not be read and is left untouched",
   "@filePartLabel": {
     "placeholders": {
       "index": {
@@ -385,6 +673,30 @@
       }
     }
   },
+  "@fillThisWithSaved": {
+    "placeholders": {
+      "phase": {
+        "type": "String"
+      }
+    }
+  },
+  "fillThisWithSaved": "Fill this {phase} with a saved one; the URL stays as paused",
+  "filterHexRows": "Filter hex rows (hex bytes or text)…",
+  "filterJSONPaths": "Filter JSON paths and values…",
+  "findInBodyLabel": "Find in body",
+  "focusInspector": "Focus inspector",
+  "focusRequestList": "Focus request list",
+  "focusRequestURL": "Focus request URL",
+  "folderName": "Folder",
+  "@folderSettings": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "folderSettings": "Folder “{name}” settings…",
+  "formatGraphQLQuery": "Format GraphQL query",
   "@globalsCount": {
     "placeholders": {
       "count": {
@@ -415,6 +727,18 @@
       }
     }
   },
+  "@handshakeAccepted": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      },
+      "protocol": {
+        "type": "String"
+      }
+    }
+  },
+  "handshakeAccepted": "Handshake accepted · {url} · subprotocol: {protocol}",
+  "headerColumns": "Header columns",
   "@headerComparison": {
     "placeholders": {
       "index": {
@@ -422,6 +746,14 @@
       }
     }
   },
+  "@headerExistsNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "headerExistsNamed": "Header exists: {name}",
   "@headerName": {
     "placeholders": {
       "index": {
@@ -436,6 +768,7 @@
       }
     }
   },
+  "headersAndTrailers": "Headers, trailers and cookies",
   "@headersMore": {
     "placeholders": {
       "count": {
@@ -450,6 +783,7 @@
       }
     }
   },
+  "hideCookieValues": "Hide cookie values",
   "@hideRow": {
     "placeholders": {
       "noun": {
@@ -460,6 +794,8 @@
       }
     }
   },
+  "higherProfilesWin": "Higher profiles win when two map a host.",
+  "historicalNoEnd": "Historical · no end recorded",
   "@hostsCount": {
     "placeholders": {
       "count": {
@@ -494,6 +830,213 @@
       }
     }
   },
+  "@inScenario": {
+    "placeholders": {
+      "scenario": {
+        "type": "String"
+      }
+    }
+  },
+  "inScenario": "In scenario {scenario}",
+  "@insertVariable": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "insertVariable": "Insert '{{'{name}'}}'",
+  "@installationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "installationFailed": "Installation failed: {error}",
+  "invalidSearchPattern": "Invalid search pattern",
+  "@isSubscriptionHostProfile": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "isSubscriptionHostProfile": "{name} is a subscription; add the mapping to another profile",
+  "@jdkCACerts": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "jdkCACerts": "JDK cacerts: {path}",
+  "@jsonPathSegments": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "jsonPathSegments": "JSON path segments: {path}",
+  "@keepThisAsEdited": {
+    "placeholders": {
+      "phase": {
+        "type": "String"
+      }
+    }
+  },
+  "keepThisAsEdited": "Keep this {phase} as edited to apply at a later pause",
+  "@kindName": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "kindName": "{kind} name",
+  "@kindPath": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "kindPath": "{kind} · {path}",
+  "@loadedFrom": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "loadedFrom": "Loaded from {source}",
+  "localCommand": "local command",
+  "@mapHostFor": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mapHostFor": "Map a host for {name}…",
+  "@mcpVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "transport": {
+        "type": "String"
+      }
+    }
+  },
+  "mcpVersion": "MCP {version} · {transport}",
+  "@messageTypeNamed": {
+    "placeholders": {
+      "typeName": {
+        "type": "String"
+      }
+    }
+  },
+  "messageTypeNamed": "Message type: {typeName}",
+  "@methodNamed": {
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
+  "methodNamed": "Method: {method}",
+  "@missingNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "missingNamed": "{name} (missing)",
+  "@mockFromExamples": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "mockFromExamples": "Mock “{path}” from examples",
+  "mockThisResponse": "Mock this response…",
+  "mocksEmptyHint": "Answer requests from local files or JavaScript. Create a Map Local or Code Mock rule here; saved examples can also become mocks.",
+  "noAddons": "No addons",
+  "noAuthSet": "No collection or folder sets auth, so none is sent.",
+  "noBodyBytes": "No body bytes available; see the capture warning above",
+  "noDataFile": "No data file: every iteration uses the same variables.",
+  "noMatchesSearchable": "No matches in searchable traffic",
+  "noMatchingRequests": "No matching requests",
+  "noMessageMatches": "No message matches",
+  "noMessagesInBody": "No messages in this body (a trailers-only gRPC response is valid)",
+  "noMessagesRetained": "No messages retained",
+  "noMocks": "No mocks",
+  "@noResponseBodyExpected": {
+    "placeholders": {
+      "method": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "noResponseBodyExpected": "No response body expected for {method} / {status}",
+  "noRuleActs": "No rule acts · it goes upstream unchanged",
+  "noRuleRunsYet": "No rule runs it yet; add a Script or Code Mock rule.",
+  "noRules": "No rules",
+  "noScenario": "No scenario",
+  "noSchema": "No schema",
+  "noScripts": "No scripts",
+  "noTemplate": "No template",
+  "noneLower": "none",
+  "noneRecordedOnExchange": "None recorded on this exchange",
+  "notFetchedYet": "Not fetched yet",
+  "nothingSavedUntilCreate": "Nothing is saved until Create.",
+  "nothingShownUntilAdd": "Nothing is shown until you add a host or an app.",
+  "@nothingToImport": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      },
+      "warnings": {
+        "type": "String"
+      }
+    }
+  },
+  "nothingToImport": "{what}: nothing to import; {warnings}",
+  "@observedFailure": {
+    "placeholders": {
+      "stage": {
+        "type": "String"
+      }
+    }
+  },
+  "observedFailure": "Observed failure · {stage}",
+  "openConnectionTab": "Open this exchange's Connection tab: the recorded log, addresses and rules",
+  "@openExampleNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "openExampleNamed": "Open example: {name}",
+  "@operationNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "operationNamed": "Operation · {name}",
   "@overviewScopeSession": {
     "placeholders": {
       "count": {
@@ -516,6 +1059,34 @@
     }
   },
   "organizeNamed": "Organize {name}",
+  "@parameterSection": {
+    "placeholders": {
+      "location": {
+        "type": "String"
+      }
+    }
+  },
+  "parameterSection": "{location} parameters",
+  "pauseView": "Pause view",
+  "preparingRequests": "Preparing requests and examples…",
+  "previewOnlyNothingChanged": "Preview only · nothing changed",
+  "privateSlotSavedReview": "Private slot saved · review save error",
+  "@progressNamed": {
+    "placeholders": {
+      "progress": {
+        "type": "String"
+      }
+    }
+  },
+  "progressNamed": "Progress · {progress}",
+  "@protobufJSONDirection": {
+    "placeholders": {
+      "direction": {
+        "type": "String"
+      }
+    }
+  },
+  "protobufJSONDirection": "{direction} · protobuf JSON",
   "@queryEditLabel": {
     "placeholders": {
       "condition": {
@@ -532,6 +1103,7 @@
     }
   },
   "queryEditTip": "Edit {condition}",
+  "queryPreviewHint": "Run to preview results. JSONPath returns an array; jq returns a stream of JSON values.",
   "@queryRemoveLabel": {
     "placeholders": {
       "condition": {
@@ -548,6 +1120,42 @@
     }
   },
   "queryRemoveTip": "Remove {condition}",
+  "@readOnlyInspection": {
+    "placeholders": {
+      "format": {
+        "type": "String"
+      }
+    }
+  },
+  "readOnlyInspection": "{format} · read-only inspection",
+  "@rebuildScenarioFromExamples": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "rebuildScenarioFromExamples": "Rebuild scenario “{path}” from examples",
+  "@recordedFailure": {
+    "placeholders": {
+      "stage": {
+        "type": "String"
+      }
+    }
+  },
+  "recordedFailure": "Recorded failure · {stage}",
+  "removeBodiesAndStreams": "Remove request and response bodies, binary payloads and all stream messages.",
+  "@removeColumnNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "removeColumnNamed": "Remove “{name}” column",
+  "replaceBodyJSONCells": "Replace request and response JSON cells.",
+  "replaceHeaderCellsExceptTypeAccept": "Replace header-derived cells except Content-Type and Accept.",
+  "replaceHeadersExceptTypeAccept": "Replace every header and trailer value except Content-Type and Accept; remove cookies.",
   "@reproBundleSavedTo": {
     "placeholders": {
       "path": {
@@ -562,7 +1170,233 @@
       }
     }
   },
+  "@requiredVariables": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "requiredVariables": "Required variables: {names} · configure in Variables…",
+  "@responseFromTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "responseFromTime": "Response from {time}",
+  "resumeView": "Resume",
+  "@returnToOriginalTab": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "returnToOriginalTab": "Return to the original editable tab without overwriting its current edits: {name}",
+  "reveal": "Reveal",
+  "revealCookieValues": "Reveal cookie values",
+  "rulesEmptyHint": "Map, redirect, block, script or pause matching requests. Create one here, or from a request’s Tools menu.",
   "runResultsLimitTip": "Displaying latest 1000 results; closing keeps a run active",
+  "savedNoRequestsSent": "Saved · no requests sent",
+  "scenarioOff": "Off: its rules do nothing.",
+  "scenarioOn": "On: its rules apply. Rules with no scenario also apply.",
+  "schemaFetching": "Schema · fetching…",
+  "schemaInvalid": "Schema is invalid",
+  "schemaLess": "Schema-less: field numbers, not names. Load a schema to resolve types.",
+  "@schemaProblem": {
+    "placeholders": {
+      "problem": {
+        "type": "String"
+      }
+    }
+  },
+  "schemaProblem": "Schema: {problem}",
+  "@scriptImportAddon": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "scriptImportAddon": "Import it in a rule script from \"{name}\", or require it in a request script.",
+  "@scriptImportAddonUsed": {
+    "placeholders": {
+      "usedBy": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "scriptImportAddonUsed": "{usedBy} · import it from \"{name}\", or require it.",
+  "scriptModulesAbout": "Modules rule scripts import, and request scripts require, by name.",
+  "scriptRulesAbout": "Script rules edit traffic; Code Mock rules answer locally.",
+  "scriptsEmptyHint": "Change requests and responses with JavaScript and the pm API, for the traffic a Script rule matches.",
+  "searchSomeBodiesIncomplete": "Some bodies could not be searched in full; matches may be missing.",
+  "@searchingIn": {
+    "placeholders": {
+      "note": {
+        "type": "String"
+      }
+    }
+  },
+  "searchingIn": "{note} · searching…",
+  "sendRequestForExperiment": "Send a request to record an experiment.",
+  "serverStream": "Server stream",
+  "serverToClient": "Server → client",
+  "@sha256Fingerprint": {
+    "placeholders": {
+      "fingerprint": {
+        "type": "String"
+      }
+    }
+  },
+  "sha256Fingerprint": "SHA-256: {fingerprint}",
+  "sideRequest": "request",
+  "sideResponse": "response",
+  "@skippedNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "skippedNamed": "{name} · skipped",
+  "@sslCABundleNote": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "sslCABundleNote": "SSL_CERT_FILE, REQUESTS_CA_BUNDLE, CURL_CA_BUNDLE, GIT_SSL_CAINFO, PIP_CERT and DENO_CERT point at {path}, a 0600 bundle of the system roots plus the vscroxy CA. Undecrypted hosts keep working.",
+  "@stageFailed": {
+    "placeholders": {
+      "stage": {
+        "type": "String"
+      }
+    }
+  },
+  "stageFailed": "{stage} failed",
+  "@startedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "startedAt": "Started {time} · {state}",
+  "@stdioCommand": {
+    "placeholders": {
+      "command": {
+        "type": "String"
+      }
+    }
+  },
+  "stdioCommand": "stdio · {command}",
+  "stdioProcess": "stdio process",
+  "stoppingWaitingForBody": "Stopping · waiting for body read",
+  "@subscribedURL": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "subscribedURL": "Subscribed: {url}",
+  "subscriptionReadOnly": "A subscription is read-only; it refreshes every hour.",
+  "systemProxyAutoOn": "System proxy: automatic configuration is still on",
+  "systemProxyAutoPrecedence": "System proxy: automatic configuration still takes precedence",
+  "systemProxyChangeSent": "System proxy: change sent; OS settings could not be read",
+  "@systemProxyError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "systemProxyError": "System proxy: {error}",
+  "systemProxyOff": "System proxy: off in OS settings",
+  "systemProxyOtherConfigured": "System proxy: another proxy is still configured",
+  "@systemProxyPointsAt": {
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "systemProxyPointsAt": "System proxy: HTTP and HTTPS now point at {target}",
+  "systemProxyStillElsewhere": "System proxy: OS settings still point elsewhere",
+  "systemProxyStillNone": "System proxy: OS settings still show no proxy",
+  "tableHasColumn": "The table already has this column.",
+  "@targetAfterVariables": {
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "targetAfterVariables": "Target: {target}",
+  "@targetBeforeScripts": {
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "targetBeforeScripts": "Target before scripts: {target}",
+  "@templateEditBeforeReading": {
+    "placeholders": {
+      "template": {
+        "type": "String"
+      }
+    }
+  },
+  "templateEditBeforeReading": "Template {template} · edit its placeholders before reading",
+  "@templateNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "templateNamed": "Template: {name}",
+  "@titleDraft": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "titleDraft": "{title} · Draft",
+  "@titleSource": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "titleSource": "{title} · Source",
+  "@toggleJSON": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "side": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "toggleJSON": "{action} {side} JSON {path}",
   "@totalBytes": {
     "placeholders": {
       "bytes": {
@@ -1447,6 +2281,14 @@
       }
     }
   },
+  "@truststore": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "truststore": "Truststore: {path}",
   "@tunnelTooltip": {
     "placeholders": {
       "status": {
@@ -1454,6 +2296,51 @@
       }
     }
   },
+  "turningOneOn": "Turning one on turns the others off.",
+  "@typeAndID": {
+    "placeholders": {
+      "eventType": {
+        "type": "String"
+      },
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "typeAndID": "Type: {eventType} · ID: {id}",
+  "unary": "Unary",
+  "unidentified": "unidentified",
+  "unknownLower": "unknown",
+  "unknownStage": "unknown stage",
+  "unresolvedReviewVariables": "unresolved (review variables)",
+  "@updatedAgo": {
+    "placeholders": {
+      "ago": {
+        "type": "String"
+      }
+    }
+  },
+  "updatedAgo": "Updated · {ago}",
+  "updating": "Updating…",
+  "@usedByChanges": {
+    "placeholders": {
+      "usedBy": {
+        "type": "String"
+      }
+    }
+  },
+  "usedByChanges": "{usedBy} · changes apply to new requests.",
+  "@usesAuthFrom": {
+    "placeholders": {
+      "authType": {
+        "type": "String"
+      },
+      "from": {
+        "type": "String"
+      }
+    }
+  },
+  "usesAuthFrom": "Uses {authType} auth from {from}.",
   "@valueOfRow": {
     "placeholders": {
       "noun": {

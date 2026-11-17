@@ -247,9 +247,9 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 				})
 				return
 			}
-			where := "Encrypted with a key kept in this system's credential store."
+			where := locales.EncryptedKeyCredentialStore()
 			if v.keyInFile {
-				where = "Encrypted with a key kept in " + v.keyPath + ": this system has no credential store, so anyone who can read that file can open the vault."
+				where = locales.EncryptedKeyNoStore(v.keyPath)
 			}
 			uikit.Meta(c, where)
 			// The rows' scroll leaves the same side room for input halos.
@@ -282,9 +282,9 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 						ui.Box(c).Basis(0).Grow(2).MinWidth(0).Children(func() {
 							uikit.Input(c, &r.domains).Label(locales.AllowedDomains(i + 1)).Placeholder(locales.AnyHostOrApiExample()).FillWidth().MinWidth(0)
 						})
-						label := "Reveal"
+						label := locales.Reveal()
 						if r.revealed {
-							label = "Hide"
+							label = locales.Hide()
 						}
 						if uikit.Tip(c, uikit.SecondaryButton(c, "◉").Label(locales.SecretRow(label, i+1)), locales.SecretRow(label, i+1)).Width(34).Padding(0).Clicked() {
 							r.revealed = !r.revealed

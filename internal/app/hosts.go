@@ -91,7 +91,7 @@ func (a *app) loadHosts() {
 	}
 	if err != nil {
 		h.problem = err
-		a.fail(index+" could not be read and is left untouched", err)
+		a.fail(locales.FileNotRead(index), err)
 		return
 	}
 	for i := range set.Profiles {
@@ -244,7 +244,7 @@ func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 			}
 			uikit.Body(c, p.Name).TextColor(t.Text).SingleLine().MinWidth(0)
 			if p.URL != "" {
-				uikit.Tip(c, uikit.Glyph(c, subscribeIcon), "Subscribed: "+p.URL)
+				uikit.Tip(c, uikit.Glyph(c, subscribeIcon), locales.SubscribedURL(p.URL))
 			}
 			if n := conflicts[p.Name]; n > 0 && p.On {
 				uikit.Caption(c, locales.ConflictsCount(n)).TextColor(t.Warning).SingleLine().
@@ -295,7 +295,7 @@ func (a *app) hostsActions() []action {
 			when(len(a.profiles.set.On()) > 0, "No Host profile is on").in("hosts"),
 	}
 	for i, p := range a.profiles.set.Profiles {
-		actions = append(actions, do("hosts.switch", "Host profile: "+p.Name, func() { a.switchProfile(i, !p.On) }).
+		actions = append(actions, do("hosts.switch", locales.HostProfileNamed(p.Name), func() { a.switchProfile(i, !p.On) }).
 			checked(checkbox(p.On)).in("hosts"))
 	}
 	return actions
@@ -527,7 +527,7 @@ func (a *app) deleteProfile(i int) {
 	delete(a.files, path)
 	delete(h.editors, p.Name)
 	h.choice = min(h.choice, max(len(h.set.Profiles)-1, 0))
-	a.notify(notice{level: noticeSuccess, text: "Deleted Host profile " + p.Name, action: locales.Undo(), run: func() {
+	a.notify(notice{level: noticeSuccess, text: locales.DeletedHostProfile(p.Name), action: locales.Undo(), run: func() {
 		if h.set.Index(p.Name) >= 0 {
 			return
 		}
@@ -604,7 +604,7 @@ func (a *app) mapHostLine(profile, line string) bool {
 	}
 	p := h.set.Profiles[i]
 	if p.URL != "" {
-		a.warn(p.Name + " is a subscription; add the mapping to another profile")
+		a.warn(locales.IsSubscriptionHostProfile(p.Name))
 		return false
 	}
 	text := p.Text

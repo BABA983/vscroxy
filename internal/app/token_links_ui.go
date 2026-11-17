@@ -152,7 +152,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 					ui.Column(c.Key(i)).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Border(1, t.Border).Radius(uikit.RadiusPanel).Children(func() {
 						uikit.Body(c, locales.TokenLinkRow(link.Source, len(link.Consumers))).FontWeight(500)
 						path, _ := json.Marshal(link.Path)
-						uikit.Mono(c, "JSON path segments: "+string(path)).Wrap()
+						uikit.Mono(c, locales.JsonPathSegments(string(path))).Wrap()
 						ids := make([]string, len(link.Consumers))
 						for j, id := range link.Consumers {
 							ids[j] = "#" + strconv.Itoa(id)
@@ -181,11 +181,11 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 				uikit.ErrorText(c, w.applyError).MaxHeight(64)
 			}
 			uikit.DialogFooter(c).Children(func() {
-				state := "Preview only · nothing changed"
+				state := locales.PreviewOnlyNothingChanged()
 				if w.applied {
-					state = "Saved · no requests sent"
+					state = locales.SavedNoRequestsSent()
 				} else if w.plan != nil && w.plan.reserved {
-					state = "Private slot saved · review save error"
+					state = locales.PrivateSlotSavedReview()
 				}
 				uikit.Meta(c, state).Grow(1).MinWidth(0)
 				uikit.SecondaryButton(c, locales.CloseTokenLinks()).OnClick(w.close)

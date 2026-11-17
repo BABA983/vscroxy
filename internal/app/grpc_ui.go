@@ -357,13 +357,13 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 func grpcMethodKind(m protoreflect.MethodDescriptor) string {
 	switch {
 	case m.IsStreamingClient() && m.IsStreamingServer():
-		return "Bidirectional stream"
+		return locales.BidirectionalStream()
 	case m.IsStreamingClient():
-		return "Client stream"
+		return locales.ClientStream()
 	case m.IsStreamingServer():
-		return "Server stream"
+		return locales.ServerStream()
 	default:
-		return "Unary"
+		return locales.Unary()
 	}
 }
 
@@ -444,7 +444,7 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 			ui.Column(c).Fill().Children(func() {
 				ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
-					uikit.Meta(c, e.direction+" · protobuf JSON").Grow(1)
+					uikit.Meta(c, locales.ProtobufJSONDirection(e.direction)).Grow(1)
 					uikit.SecondaryButton(c, locales.CopyShownMessage()).OnClick(func() { c.Services().WriteClipboard(g.reader.Buffer.String()) })
 				})
 				requestCodeEditor(c, g.reader)

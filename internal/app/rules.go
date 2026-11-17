@@ -370,9 +370,9 @@ func (a *app) switchRule(i int, on bool) bool {
 }
 
 func (a *app) browseRuleFile(folder bool) {
-	title := "Choose local response file"
+	title := locales.ChooseLocalResponseFile()
 	if folder {
-		title = "Choose a folder to answer from"
+		title = locales.ChooseResponseFolder()
 	}
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: title, Directory: folder})
@@ -471,7 +471,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 	}
 	title, kind := locales.Rules(), capture.RuleMapRemote
 	if mocks {
-		title, kind = "Mocks", capture.RuleMapLocal
+		title, kind = locales.Mocks(), capture.RuleMapLocal
 	}
 	var preview []capture.RulePreview
 	req, testing := ruleTest(e.test)
@@ -522,7 +522,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 			for _, p := range preview {
 				acting += min(p.Step, 1)
 			}
-			summary := "No rule acts · it goes upstream unchanged"
+			summary := locales.NoRuleActs()
 			if acting > 0 {
 				summary = fmt.Sprintf("%d %s, in the order numbered", acting, plural(acting, "rule acts", "rules act"))
 			}
@@ -539,9 +539,9 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 	ui.Divider(c)
 	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(uikit.SpaceXL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceL)).Children(func() {
 		if !e.open {
-			empty, hint := "No rules", "Map, redirect, block, script or pause matching requests. Create one here, or from a request’s Tools menu."
+			empty, hint := locales.NoRules(), locales.RulesEmptyHint()
 			if mocks {
-				empty, hint = "No mocks", "Answer requests from local files or JavaScript. Create a Map Local or Code Mock rule here; saved examples can also become mocks."
+				empty, hint = locales.NoMocks(), locales.MocksEmptyHint()
 			}
 			uikit.EmptyState(c, empty, hint, func() {
 				if uikit.PrimaryButton(c, locales.NewRule()).Clicked() {
@@ -577,12 +577,12 @@ func (a *app) ruleScenario(c *ui.Context) {
 		return
 	}
 	active := capture.ActiveScenario(a.rules)
-	current := "No scenario"
+	current := locales.NoScenario()
 	if active != "" {
 		current = locales.ScenarioLabel(active)
 	}
 	uikit.Tip(c, uikit.MenuSelect(c, current, func(m *ui.Menu) {
-		if m.Item("No scenario").Radio(active == "").Chosen() {
+		if m.Item(locales.NoScenario()).Radio(active == "").Chosen() {
 			a.selectRuleScenario("")
 		}
 		m.Separator()
@@ -758,18 +758,18 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview [
 			icon, kind := ruleIcons[max(slices.Index(ruleTypes, r.Type), 0)], ruleLabel(r.Type)
 			switch r.Block {
 			case capture.BlockHide:
-				icon, kind = hideIcon, "Block · hide"
+				icon, kind = hideIcon, locales.BlockHide()
 			case capture.BlockRefuseHide:
-				icon, kind = hideIcon, "Block · refuse and hide"
+				icon, kind = hideIcon, locales.BlockRefuseHide()
 			case capture.BlockDrop:
-				kind = "Block · drop connection"
+				kind = locales.BlockDropConnection()
 			}
 			uikit.Tip(c, uikit.Glyph(c, icon), kind)
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					uikit.Body(c, cmp.Or(r.Name, r.Match)).TextColor(t.Text).Grow(1).SingleLine()
 					if r.Scenario != "" {
-						uikit.Tip(c, uikit.Meta(c, r.Scenario).MaxWidth(96).SingleLine(), "In scenario "+r.Scenario)
+						uikit.Tip(c, uikit.Meta(c, r.Scenario).MaxWidth(96).SingleLine(), locales.InScenario(r.Scenario))
 					}
 					switch {
 					case p.Step > 0:
@@ -1020,7 +1020,7 @@ func (a *app) ruleScriptField(c *ui.Context, t *ui.Theme) {
 		current := strings.TrimSuffix(e.draft.Target, ".js")
 		label := cmp.Or(current, "Choose a script")
 		if current != "" && !slices.Contains(a.scripts.names, current) {
-			label = current + " (missing)"
+			label = locales.MissingNamed(current)
 		}
 		uikit.MenuSelect(c, label, func(m *ui.Menu) {
 			for _, name := range a.scripts.names {
@@ -1042,7 +1042,7 @@ func (a *app) ruleScriptField(c *ui.Context, t *ui.Theme) {
 			}
 		}).Label(locales.RuleScript()).Width(uikit.WidthWide)
 		if current != "" && slices.Contains(a.scripts.names, current) {
-			if uikit.Tip(c, uikit.SecondaryButton(c, locales.EditScript()), "Defines "+scriptHooks(&a.scripts, current)).Clicked() {
+			if uikit.Tip(c, uikit.SecondaryButton(c, locales.EditScript()), locales.DefinesHooks(scriptHooks(&a.scripts, current))).Clicked() {
 				a.openScript(current)
 			}
 		}

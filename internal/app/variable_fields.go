@@ -7,6 +7,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -211,7 +212,7 @@ func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, valu
 		uikit.PopoverPanel(c, panel).Width(320).Padding(t.Space(uikit.SpaceXS))
 		ui.Scroll(c).MaxHeight(300).Children(func() {
 			for i, hint := range items {
-				item := uikit.RowButton(c, "Insert {{"+hint.Name+"}}").Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center)
+				item := uikit.RowButton(c, locales.InsertVariable(hint.Name)).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center)
 				if i == a.varsComplete.selected {
 					item.Background(uikit.Colors(t).AccentTint)
 				} else if item.Hovered() {

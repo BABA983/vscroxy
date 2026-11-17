@@ -128,7 +128,7 @@ func (a *app) historyExamples(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		return
 	}
 	for i, e := range d.examples {
-		row := uikit.RowButton(c.Key(e.ID), "Open example: "+e.Name)
+		row := uikit.RowButton(c.Key(e.ID), locales.OpenExampleNamed(e.Name))
 		if d.composeTab == composeTabExamples && i == d.example {
 			uikit.Selected(c, row, !a.windowBehind)
 		}

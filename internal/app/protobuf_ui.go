@@ -185,9 +185,9 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 			return
 		}
 	}
-	note := "Schema-less: field numbers, not names. Load a schema to resolve types."
+	note := locales.SchemaLess()
 	if p.result.typeName != "" {
-		note = "Message type: " + p.result.typeName
+		note = locales.MessageTypeNamed(p.result.typeName)
 	}
 	uikit.Tip(c, uikit.Meta(c, note).SingleLine(), note).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
 	var visible []int
@@ -198,9 +198,9 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 	}
 	uikit.Meta(c, locales.ProtobufMessages(len(visible), len(p.result.messages))).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
 	if len(visible) == 0 {
-		note := "No message matches"
+		note := locales.NoMessageMatches()
 		if len(p.result.messages) == 0 && p.result.problem == "" {
-			note = "No messages in this body (a trailers-only gRPC response is valid)"
+			note = locales.NoMessagesInBody()
 		}
 		uikit.Hint(c, note).Padding(t.Space(uikit.SpaceL))
 		return

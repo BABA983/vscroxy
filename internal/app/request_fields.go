@@ -389,9 +389,9 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		}
 		if d.auth.Type == request.AuthInherit {
 			resolved, from := a.inheritance(d.composeCollection).InheritAuth(d.auth)
-			text := "No collection or folder sets auth, so none is sent."
+			text := locales.NoAuthSet()
 			if from != "" {
-				text = "Uses " + resolved.Type + " auth from " + from + "."
+				text = locales.UsesAuthFrom(resolved.Type, from)
 			}
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, text)

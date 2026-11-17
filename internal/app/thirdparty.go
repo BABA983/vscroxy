@@ -80,7 +80,7 @@ func (a *app) importThirdParty(result imports.Result, what string) {
 		if len(warnings) == 0 {
 			warnings = []string{"the export has no requests or environments"}
 		}
-		a.warn(what + ": nothing to import; " + strings.Join(warnings, "; "))
+		a.warn(locales.NothingToImport(what, strings.Join(warnings, "; ")))
 		return
 	}
 	warnings = uniqueWarnings(warnings)

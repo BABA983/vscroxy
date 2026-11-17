@@ -638,13 +638,13 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 			if uikit.Checkbox(c, &keep, locales.KeepCookiesAfterQuitting()).Changed() {
 				a.setCookiePersistence(keep)
 			}
-			hint := "Cookies stay in memory until the app quits. Session cookies are never saved."
+			hint := locales.CookiesInMemory()
 			if a.cookiePersistence {
-				hint = "Persistent cookies are saved to ~/.vscroxy/cookies.json (0600), outside collections and exports. Session cookies are never saved."
+				hint = locales.CookiesPersistentSaved()
 			}
 			uikit.Hint(c, hint)
 			if problem := a.requestCookies().problemText(); problem != "" {
-				uikit.ErrorText(c, "The local cookie file was not read or written: "+problem)
+				uikit.ErrorText(c, locales.CookieFileUnavailable(problem))
 			}
 			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				items := a.requestCookies().snapshot()

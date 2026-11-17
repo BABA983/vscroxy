@@ -112,7 +112,7 @@ func (a *app) desktopContent(c *ui.Context) {
 			ui.Column(c).Fill().Children(func() {
 				if w.focused && !a.inspectorDetached {
 					ui.Row(c).Height(uikit.HeightControl).Padding(0, c.Theme().Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
-						a.actionButton(c, "view.focus-inspector", "Back to list")
+						a.actionButton(c, "view.focus-inspector", locales.BackToList())
 						uikit.Meta(c, locales.InspectorFocusCtrlCmdShift())
 					})
 					a.detail(c)
@@ -506,23 +506,23 @@ func (a *app) actions(c *ui.Context) []action {
 	// A captured request in LIVE is a document too; tabs are COLLECTIONS'.
 	editing := d != nil && (a.page == pageLive || a.page == pageRequest)
 	tab := editing && !a.page.capture()
-	focus := "Focus inspector"
+	focus := locales.FocusInspector()
 	if w.focused {
-		focus = "Back to list"
+		focus = locales.BackToList()
 	}
 	recording := locales.PauseCapture()
 	if a.recordingPaused {
 		recording = locales.ResumeCapture()
 	}
-	primary := "Focus request list"
+	primary := locales.FocusRequestList()
 	if tab {
-		primary = "Focus request URL"
+		primary = locales.FocusRequestURL()
 	}
 	search := locales.SearchHostOrPath()
 	find := func() { a.search.Focus(c) }
 	for side := range 2 {
 		if c != nil && capturing && a.bodyText[side] != nil && a.bodyReader[side].FocusWithin(c) {
-			search = "Find in body"
+			search = locales.FindInBodyLabel()
 			find = func() { a.bodyText[side].Run(editor.Find) }
 		}
 	}
@@ -861,7 +861,7 @@ func (a *app) commandPalette(c *ui.Context) {
 						context = fmt.Sprintf("Capture #%d · %s %s", f.id, f.method, f.path)
 					}
 				case !a.page.capture() && a.requestDocument != nil:
-					context = "Draft · " + a.title()
+					context = locales.DraftTitled(a.title())
 				}
 			}
 			ui.Divider(c)

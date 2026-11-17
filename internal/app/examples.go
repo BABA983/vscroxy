@@ -135,7 +135,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		ui.Column(c).Width(168).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 			ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, t.Space(uikit.SpaceM), 0, 0).Children(func() {
 				for i, e := range d.examples {
-					item := uikit.ToolbarButton(c.Key(e.ID), "Example: "+e.Name, e.Name, false).FillWidth()
+					item := uikit.ToolbarButton(c.Key(e.ID), locales.ExampleNamed(e.Name), e.Name, false).FillWidth()
 					if i == d.example {
 						item.Background(t.SurfaceHover)
 					}
@@ -167,7 +167,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				e.Status = int(status)
 				delay := float64(e.DelayMS)
 				uikit.NumberField(c, &d.exampleDelayText, &delay, 0, 60000, "", locales.Delay(), "", nil)
-				uikit.Meta(c, locales.Delay()+" (ms)").FontFeatures("tnum")
+				uikit.Meta(c, locales.DelayMs()).FontFeatures("tnum")
 				e.DelayMS = int(delay)
 				uikit.Meta(c, http.StatusText(e.Status))
 				uikit.Meta(c, humanBytes(len(e.Body))).FontFeatures("tnum")
@@ -218,7 +218,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				if language != "" {
 					buf.SetLanguage(editor.LanguageNamed(language))
 				}
-				d.exampleEditor = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: "Example " + e.Name}
+				d.exampleEditor = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: locales.ExampleEditorName(e.Name)}
 				d.exampleShown = text
 			}
 			// The body and headers are edited in place, and an edit is written

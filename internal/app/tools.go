@@ -193,9 +193,9 @@ func (a *app) hostProfilesPage(c *ui.Context, t *ui.Theme, window bool) {
 			}
 		})
 		ui.Row(c).Children(func() { a.hostsMode(c) })
-		caption := "Higher profiles win when two map a host."
+		caption := locales.HigherProfilesWin()
 		if h.set.Exclusive {
-			caption = "Turning one on turns the others off."
+			caption = locales.TurningOneOn()
 		}
 		uikit.Meta(c, caption)
 		if h.problem != nil {
@@ -271,11 +271,11 @@ func (a *app) profileList(c *ui.Context, t *ui.Theme) {
 func profileFreshness(p hosts.Profile, fetching bool) string {
 	switch {
 	case fetching:
-		return "Updating…"
+		return locales.Updating()
 	case p.Updated.IsZero():
-		return "Not fetched yet"
+		return locales.NotFetchedYet()
 	}
-	return "Updated " + sinceLabel(time.Since(p.Updated))
+	return locales.UpdatedAgo(sinceLabel(time.Since(p.Updated)))
 }
 
 func sinceLabel(d time.Duration) string {
@@ -390,9 +390,9 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 	ui.Spacer(c)
 	_, modified := a.profileToSave()
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-		note := "Changes apply to new connections."
+		note := locales.ChangesApplyNewConnections()
 		if p.URL != "" {
-			note = "A subscription is read-only; it refreshes every hour."
+			note = locales.SubscriptionReadOnly()
 		}
 		uikit.Tip(c, uikit.Meta(c, note).Grow(1).SingleLine(), note)
 		ui.Row(c).Disabled(a.srv == nil).Children(func() {

@@ -398,7 +398,7 @@ func (a *app) networkModal(c *ui.Context, t *ui.Theme) {
 			n.draft.fields(c)
 			uikit.Meta(c, locales.WholeNumbersRates01073741824())
 			if n.deleting {
-				uikit.Meta(c, "Delete “"+n.editing+"”? This cannot be undone. If active, global conditions will turn Off.")
+				uikit.Meta(c, locales.DeleteConditionConfirm(n.editing))
 				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Justify(ui.End).Children(func() {
 					uikit.SecondaryButton(c, locales.CancelDelete()).OnClick(func() { n.deleting = false })
 					uikit.SecondaryButton(c, locales.ConfirmDelete()).OnClick(func() { a.deleteNetworkPreset(n.editing) })

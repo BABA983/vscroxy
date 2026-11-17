@@ -214,9 +214,9 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			changed := d.spec.Fingerprint != collectionFingerprint(collectionRequests(a.requests, d.spec.Collection))
 			ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 				Border(0, t.Border).BorderWidth(1, 0, 1, 0).Children(func() {
-				message := "Source: " + cmp.Or(d.spec.Collection, "Saved") + " · independent draft"
+				message := locales.ApiDraftSource(cmp.Or(d.spec.Collection, locales.Saved()))
 				if changed {
-					message = "Source collection changed — review before updating this contract."
+					message = locales.ApiSourceChanged()
 				}
 				uikit.Meta(c, message).Grow(1)
 				if uikit.SecondaryButton(c, locales.GenerateNewDraft()).Clicked() {
@@ -277,7 +277,7 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 			uikit.SidebarList(c, "api-endpoints", &d.endpoint, func(id string) { d.endpoint = id }, func() {
 				for _, endpoint := range endpoints {
 					label := endpoint.method + " " + endpoint.path
-					uikit.SidebarItem(c, label, nil, endpoint.path, d.endpoint == label, !a.windowBehind).Label("Endpoint: " + label).Children(func() {
+					uikit.SidebarItem(c, label, nil, endpoint.path, d.endpoint == label, !a.windowBehind).Label(locales.EndpointLabelNamed(label)).Children(func() {
 						method := uikit.DataMeta(c, endpoint.method).SingleLine().Width(48)
 						if d.endpoint != label {
 							method.TextColor(uikit.MethodColor(endpoint.method, t))
@@ -398,7 +398,7 @@ func apiParameterGroup(in string) string {
 		if in == "" {
 			return locales.Parameters()
 		}
-		return strings.ToUpper(in[:1]) + in[1:] + " parameters"
+		return locales.ParameterSection(strings.ToUpper(in[:1]) + in[1:])
 	}
 }
 

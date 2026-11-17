@@ -155,9 +155,9 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 				uikit.ErrorText(c, w.problem)
 			}
 			uikit.DialogFooter(c).Children(func() {
-				message := "Nothing is saved until Create."
+				message := locales.NothingSavedUntilCreate()
 				if w.building != nil {
-					message = "Preparing requests and examples…"
+					message = locales.PreparingRequests()
 				}
 				uikit.Meta(c, message).Grow(1)
 				uikit.SecondaryButton(c, locales.Cancel()).OnClick(func() { w.open = false })
