@@ -72,6 +72,22 @@ func (g *Gallery) SetDark(dark bool) {
 	}
 }
 
+// Settled reports whether the screen's body inspections have finished. A
+// frame drawn before that shows the state before the result, so an export
+// waits for it.
+func (g *Gallery) Settled() bool { return inspectionsIdle(g.a) }
+
+// inspectionsIdle reports that no body inspection is still running or queued.
+// A capture body marked dirty only starts its reads when a frame draws it, so
+// a caller that has just changed state draws one frame before it waits.
+func inspectionsIdle(a *app) bool {
+	return a.columnRead.answers == nil && len(a.columnRead.queue) == 0 &&
+		a.protobuf.answers == nil && a.socket.protobuf.answers == nil &&
+		a.jsonQuery.job.answers == nil && a.structured[0].job.answers == nil &&
+		a.structured[1].job.answers == nil &&
+		(a.requestDocument == nil || a.requestDocument.structured.job.answers == nil)
+}
+
 // Close stops what the screen's documents started. It is safe to call twice.
 func (g *Gallery) Close() {
 	a := g.a

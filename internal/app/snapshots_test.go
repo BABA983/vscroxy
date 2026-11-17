@@ -215,9 +215,10 @@ func snapshotTester(t *testing.T, state snapshot, dark bool, width, height int, 
 	}
 	// Body inspection is asynchronous. Wait for completion, not
 	// an arbitrary sleep, and never capture an intermediate frame.
+	tt.Frame() // starts the reads a dirty capture body is waiting to make
 	deadline := time.NewTimer(time.Minute)
 	defer deadline.Stop()
-	for a.columnRead.dirty || a.columnRead.answers != nil || len(a.columnRead.queue) > 0 || a.protobuf.answers != nil || a.socket.protobuf.answers != nil || a.jsonQuery.job.answers != nil || a.structured[0].job.answers != nil || a.structured[1].job.answers != nil || (a.requestDocument != nil && a.requestDocument.structured.job.answers != nil) {
+	for !inspectionsIdle(a) {
 		select {
 		case <-deadline.C:
 			t.Fatal("body inspection render did not settle")
