@@ -581,6 +581,18 @@ func snapshotStates(t *testing.T) []snapshot {
 		}, want: "Traffic"},
 		{name: "capture-sidebar-hidden", setup: func(a *app) { a.workbench.sidebarHidden = true }, want: "Captured requests"},
 		{name: "capture-sidebar-long", setup: func(a *app) { snapshotSidebar(a, 20, 3, 14) }, want: "Show all domains"},
+		{name: "capture-sidebar-card", setup: func(a *app) { snapshotSidebar(a, 20, 3, 14) }, act: func(t *testing.T, tt *ui.Tester) {
+			// A request low in the sidebar: its card opens beside the row, inside the window.
+			tt.Scroll(120, 300, 0, -120)
+			tt.Scroll(120, 300, 0, -120)
+			tt.Frame()
+			r, ok := tt.Find("GET  List items 4")
+			if !ok {
+				t.Fatal("the request row is missing")
+			}
+			tt.Move(r.X+r.W/3, r.Y+r.H/2)
+			tt.Advance(time.Second)
+		}, want: "GET · Workspace/Service 1"},
 		{name: "capture-imported-charles", setup: func(a *app) {
 			data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", "charles-session.chlsj"))
 			if err != nil {
@@ -722,6 +734,7 @@ func snapshotStates(t *testing.T) []snapshot {
 			tt.Type("no-match")
 		}, want: "No matching requests"},
 		{name: "capture-multiple", setup: func(a *app) { a.chosen.Add(2) }, want: "2 selected"},
+		{name: "capture-diff-pool", setup: func(a *app) { a.chosen.Add(1); a.chosen.Add(2) }, act: click("Diff pool"), want: "Remove from pool"},
 		{name: "capture-connect", setup: func(a *app) { a.flows[0].kind, a.flows[0].method = "connect", "CONNECT" }, want: "Encrypted, not decrypted — not individual requests"},
 		{name: "capture-proxy-unavailable", setup: func(a *app) { a.errText = "listen tcp 127.0.0.1:7890: bind: address already in use" }, want: "Local requests remain available"},
 		{name: "capture-connect-failed", setup: func(a *app) {
