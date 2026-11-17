@@ -9,8 +9,10 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -96,7 +98,9 @@ func TestUIScreensUseTheCatalog(t *testing.T) {
 	}
 }
 
-// screenStrings are the literals a file passes where a screen shows text.
+// screenStrings are the strings a file passes where a screen shows text. A
+// string counts when a UI position takes it as written, or takes it through a
+// variable, a concatenation, a struct field or a function that returns it.
 func screenStrings(t *testing.T, path string) []string {
 	t.Helper()
 	fset := token.NewFileSet()
@@ -118,7 +122,7 @@ func screenStrings(t *testing.T, path string) []string {
 		"do": 1, "note": 0, "submenu": 0, "command": 1, "MenuSelect": 1,
 		"inform": 0, "done": 0, "warn": 0, "fail": 0,
 	}
-	variadic := map[string]int{"Segmented": 2, "Tabs": 3, "SubTabs": 3}
+	variadic := map[string]int{"Segmented": 2, "Tabs": 3, "SubTabs": 3, "EmptyState": 1}
 	fields := map[string]bool{
 		"Label": true, "Title": true, "Description": true, "Placeholder": true,
 		"Tooltip": true, "Empty": true, "Action": true, "Detail": true,
@@ -127,86 +131,174 @@ func screenStrings(t *testing.T, path string) []string {
 		"Subtitle": true, "Caption": true, "Hint": true,
 	}
 	var texts []string
-	add := func(lit *ast.BasicLit) {
-		if lit.Kind != token.STRING {
-			return
-		}
-		text, err := strconv.Unquote(lit.Value)
-		if err == nil && hasLetter(text) {
-			texts = append(texts, text)
+	add := func(s *scope, e ast.Expr) {
+		for _, text := range s.values(e) {
+			if hasLetter(text) {
+				texts = append(texts, text)
+			}
 		}
 	}
-	ast.Inspect(file, func(n ast.Node) bool {
-		switch x := n.(type) {
-		case *ast.CallExpr:
-			name := ""
-			switch fn := x.Fun.(type) {
-			case *ast.SelectorExpr:
-				name = fn.Sel.Name
-			case *ast.Ident:
-				name = fn.Name
-			}
-			if name == "Label" {
-				// uikit.Label(c, text) and Element.Label(text).
-				i := 0
-				if len(x.Args) >= 2 {
-					if id, ok := x.Args[0].(*ast.Ident); ok && id.Name == "c" {
-						i = 1
+	// screen collects the strings the UI positions in node take.
+	screen := func(node ast.Node, s *scope) {
+		ast.Inspect(node, func(n ast.Node) bool {
+			switch x := n.(type) {
+			case *ast.CallExpr:
+				name := ""
+				switch fn := x.Fun.(type) {
+				case *ast.SelectorExpr:
+					name = fn.Sel.Name
+				case *ast.Ident:
+					name = fn.Name
+				}
+				if name == "Label" {
+					// uikit.Label(c, text) and Element.Label(text).
+					i := 0
+					if len(x.Args) >= 2 {
+						if id, ok := x.Args[0].(*ast.Ident); ok && id.Name == "c" {
+							i = 1
+						}
+					}
+					if i < len(x.Args) {
+						add(s, x.Args[i])
+					}
+					return true
+				}
+				if i, ok := args[name]; ok && i < len(x.Args) {
+					add(s, x.Args[i])
+				}
+				if start, ok := variadic[name]; ok {
+					for i := start; i < len(x.Args); i++ {
+						add(s, x.Args[i])
 					}
 				}
-				if i < len(x.Args) {
-					if lit, ok := x.Args[i].(*ast.BasicLit); ok {
-						add(lit)
+			case *ast.CompositeLit:
+				if id, ok := x.Type.(*ast.Ident); ok && id.Name == "notice" {
+					for _, e := range x.Elts {
+						kv, ok := e.(*ast.KeyValueExpr)
+						if !ok {
+							continue
+						}
+						key, ok := kv.Key.(*ast.Ident)
+						if !ok || (key.Name != "text" && key.Name != "detail" && key.Name != "action") {
+							continue
+						}
+						add(s, kv.Value)
 					}
+					return true
 				}
-				return true
-			}
-			if i, ok := args[name]; ok && i < len(x.Args) {
-				if lit, ok := x.Args[i].(*ast.BasicLit); ok {
-					add(lit)
-				}
-			}
-			if start, ok := variadic[name]; ok {
-				for i := start; i < len(x.Args); i++ {
-					if lit, ok := x.Args[i].(*ast.BasicLit); ok {
-						add(lit)
-					}
-				}
-			}
-		case *ast.CompositeLit:
-			if id, ok := x.Type.(*ast.Ident); ok && id.Name == "notice" {
 				for _, e := range x.Elts {
 					kv, ok := e.(*ast.KeyValueExpr)
 					if !ok {
 						continue
 					}
 					key, ok := kv.Key.(*ast.Ident)
-					if !ok || (key.Name != "text" && key.Name != "detail" && key.Name != "action") {
+					if !ok || !fields[key.Name] {
 						continue
 					}
-					if lit, ok := kv.Value.(*ast.BasicLit); ok {
-						add(lit)
-					}
+					add(s, kv.Value)
+				}
+			}
+			return true
+		})
+	}
+	// Package-level values and the results of package functions that return
+	// a string are known before any screen is read.
+	global := &scope{vars: map[string][]string{}, funcs: map[string][]string{}}
+	for _, decl := range file.Decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			if d.Body == nil {
+				continue
+			}
+			ast.Inspect(d.Body, func(n ast.Node) bool {
+				if r, ok := n.(*ast.ReturnStmt); ok && len(r.Results) == 1 {
+					global.funcs[d.Name.Name] = append(global.funcs[d.Name.Name], global.values(r.Results[0])...)
 				}
 				return true
+			})
+		case *ast.GenDecl:
+			global.bind(d)
+		}
+	}
+	for _, decl := range file.Decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			if d.Body != nil {
+				screen(d.Body, global.child(d.Body))
 			}
-			for _, e := range x.Elts {
-				kv, ok := e.(*ast.KeyValueExpr)
-				if !ok {
-					continue
+		case *ast.GenDecl:
+			screen(d, global)
+		}
+	}
+	return texts
+}
+
+// scope maps the variables of a function to the strings they are bound to,
+// and the package functions to the strings they return.
+type scope struct {
+	vars  map[string][]string
+	funcs map[string][]string
+}
+
+// child is the scope of a function body: the package's, plus the variables
+// the body binds.
+func (s *scope) child(body ast.Node) *scope {
+	c := &scope{vars: map[string][]string{}, funcs: s.funcs}
+	maps.Copy(c.vars, s.vars)
+	c.bind(body)
+	return c
+}
+
+// bind records the strings each assignment and declaration in node gives a
+// variable. A variable bound to a string anywhere in the function counts as
+// one, which may flag a variable that is later given another value.
+func (s *scope) bind(node ast.Node) {
+	ast.Inspect(node, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.AssignStmt:
+			if len(x.Lhs) != len(x.Rhs) {
+				break
+			}
+			for i, l := range x.Lhs {
+				if id, ok := l.(*ast.Ident); ok {
+					s.vars[id.Name] = append(slices.Clip(s.vars[id.Name]), s.values(x.Rhs[i])...)
 				}
-				key, ok := kv.Key.(*ast.Ident)
-				if !ok || !fields[key.Name] {
-					continue
-				}
-				if lit, ok := kv.Value.(*ast.BasicLit); ok {
-					add(lit)
+			}
+		case *ast.ValueSpec:
+			for i, name := range x.Names {
+				if i < len(x.Values) {
+					s.vars[name.Name] = append(slices.Clip(s.vars[name.Name]), s.values(x.Values[i])...)
 				}
 			}
 		}
 		return true
 	})
-	return texts
+}
+
+// values are the strings an expression may hold: a literal, a concatenation
+// of them, a variable bound to them, or a call of a function that returns them.
+func (s *scope) values(e ast.Expr) []string {
+	switch x := e.(type) {
+	case *ast.BasicLit:
+		if x.Kind == token.STRING {
+			if text, err := strconv.Unquote(x.Value); err == nil {
+				return []string{text}
+			}
+		}
+	case *ast.ParenExpr:
+		return s.values(x.X)
+	case *ast.BinaryExpr:
+		if x.Op == token.ADD {
+			return append(s.values(x.X), s.values(x.Y)...)
+		}
+	case *ast.Ident:
+		return s.vars[x.Name]
+	case *ast.CallExpr:
+		if id, ok := x.Fun.(*ast.Ident); ok {
+			return s.funcs[id.Name]
+		}
+	}
+	return nil
 }
 
 func readAllowed(t *testing.T, path string) map[string]bool {
