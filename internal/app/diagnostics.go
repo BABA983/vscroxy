@@ -123,7 +123,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 	listener := diagnosticCheck{title: "Listener", fix: "Proxy settings…", run: func(*ui.Context) { a.openSettings(1) }}
 	switch {
 	case running:
-		listener.state, listener.result, listener.fix = checkPass, "Listening at "+cmp.Or(addr, "this app"), ""
+		listener.state, listener.result, listener.fix = checkPass, locales.ListeningAddr(cmp.Or(addr, locales.ThisApp())), ""
 	case a.errText != "":
 		listener.state, listener.result = checkFail, a.errText
 		listener.detail = []string{"A fixed port that another program holds keeps capture stopped; choose another port or clear it."}

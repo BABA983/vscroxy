@@ -1412,7 +1412,7 @@ func (v *captureViews) saveCurrent(a *app) {
 		list = append(list, f)
 	}
 	if err := writeCaptureFilters(a.file(v.path), list); err != nil {
-		v.problem = "Could not save filters: " + err.Error()
+		v.problem = locales.CouldNotSaveFilters(err.Error())
 		return
 	}
 	v.filters = list
@@ -1448,7 +1448,7 @@ func (v *captureViews) renameSaved(a *app) {
 		}
 	}
 	if err := writeCaptureFilters(a.file(v.path), list); err != nil {
-		v.problem = "Could not save filters: " + err.Error()
+		v.problem = locales.CouldNotSaveFilters(err.Error())
 		return
 	}
 	v.filters = list
@@ -1468,7 +1468,7 @@ func (v *captureViews) renameSaved(a *app) {
 func (v *captureViews) deleteSaved(a *app, name string) {
 	list := slices.DeleteFunc(slices.Clone(v.filters), func(f savedCaptureFilter) bool { return f.Name == name })
 	if err := writeCaptureFilters(a.file(v.path), list); err != nil {
-		v.problem = "Could not save filters: " + err.Error()
+		v.problem = locales.CouldNotSaveFilters(err.Error())
 		return
 	}
 	v.filters = list

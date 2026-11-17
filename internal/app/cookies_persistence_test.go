@@ -361,7 +361,7 @@ func TestCookieManagerMasksValuesAndClearsByDomain(t *testing.T) {
 	if !tt.HasText("session = super-secret") {
 		t.Fatalf("revealing the cookie did not show its value: %v", tt.Texts())
 	}
-	if err := tt.Click("Clear cookies for example.com"); err != nil {
+	if err := tt.Click("Clear all cookies for example.com"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("No cookies yet. Send a request or add one below.") {

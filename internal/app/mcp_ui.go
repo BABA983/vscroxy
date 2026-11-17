@@ -336,7 +336,7 @@ func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 				})
 			}
 			if s.connected {
-				uikit.Meta(c, "Connected to "+s.connection.Endpoint).Padding(0, t.Space(uikit.SpaceXS)).SingleLine()
+				uikit.Meta(c, locales.ConnectedTo(s.connection.Endpoint)).Padding(0, t.Space(uikit.SpaceXS)).SingleLine()
 			}
 		}
 		uikit.Hint(c, locales.McpDocumentsDoNotRun())

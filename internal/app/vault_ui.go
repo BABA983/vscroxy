@@ -186,7 +186,7 @@ func (a *app) saveVault() {
 		secrets = append(secrets, vault.Secret{Name: name, Value: row.value, Domains: domains})
 	}
 	if err := a.writeVault(secrets); err != nil {
-		v.editProblem = "Save failed: " + err.Error()
+		v.editProblem = locales.SaveFailedWith(err.Error())
 		return
 	}
 	v.open, v.scripts = false, v.scriptsDraft

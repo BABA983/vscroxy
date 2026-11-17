@@ -508,6 +508,14 @@
       }
     }
   },
+  "@organizeNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "organizeNamed": "Organize {name}",
   "@queryEditLabel": {
     "placeholders": {
       "condition": {
@@ -1880,7 +1888,7 @@
       }
     }
   },
-  "clearCookiesForDomain": "Clear cookies for {domain}",
+  "clearCookiesForDomain": "Clear all cookies for {domain}",
   "clearFilters": "Clear filters",
   "clearHistory": "Clear runs…",
   "clearHistory2": "Clear runs?",
@@ -1996,6 +2004,14 @@
   "connectToPublishAndSubscribe": "Connect to publish and subscribe on the live broker.",
   "connectToStartAFreshTimeline": "Connect to start a fresh timeline.",
   "connected": "Connected",
+  "@connectedTo": {
+    "placeholders": {
+      "endpoint": {
+        "type": "String"
+      }
+    }
+  },
+  "connectedTo": "Connected to {endpoint}",
   "connecting": "Connecting",
   "connection": "Connection",
   "connectionAddressesDnsAndTls": "Connection: addresses, DNS and TLS",
@@ -2109,6 +2125,14 @@
   "couldNotReleaseSystemProxy": "Could not release system proxy",
   "couldNotRenameHostProfile": "Could not rename Host profile {name}",
   "couldNotRestoreHostProfile": "Could not restore Host profile {name}",
+  "@couldNotSaveFilters": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "couldNotSaveFilters": "Could not save filters: {error}",
   "couldNotSaveHostProfile": "Could not save Host profile {name}",
   "couldNotSaveHostProfiles": "Could not save Host profiles",
   "coversContentTypeAndThe": "Covers Content-Type and the body in the MAC.",
@@ -2305,6 +2329,14 @@
   "enableVariable": "Enable variable {index}",
   "encrypted": "Encrypted",
   "encryptedTunnelConnectSuccessIs": "Encrypted tunnel; CONNECT success is not a decrypted response",
+  "@endpointNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "endpointNamed": "Endpoint {name}",
   "endpoints": "Endpoints",
   "endpointsUnavailable": "Endpoints unavailable",
   "enterAScenarioNameWithout": "Enter a scenario name without control characters",
@@ -2342,6 +2374,14 @@
   "exampleName": "Example name",
   "examples": "Examples",
   "examplesCount": "{count} examples",
+  "@examplesFor": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "examplesFor": "Examples for {name}",
   "exchangesCount": "{count, plural, one {# exchange} other {# exchanges}}",
   "excludedHosts": "Excluded hosts",
   "executionOrder": "Execution order",
@@ -2599,6 +2639,14 @@
   "hostProfiles": "Host profiles",
   "hostProfilesAreReadOnly": "Host profiles are read-only until they read cleanly",
   "hostRules": "Host rules",
+  "@hostVariable": {
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "hostVariable": "Host variable {origin}",
   "hosts": "Hosts",
   "hostsCount": "{count, plural, one {# host} other {# hosts}}",
   "hostsEnvironment": "Hosts → environment",
@@ -2773,7 +2821,23 @@
   "light": "Light",
   "linkLocalAddressTheDevice": "Link-local address: the device needs a compatible address on the same network link.",
   "listener": "Listener",
+  "@listeningAddr": {
+    "placeholders": {
+      "addr": {
+        "type": "String"
+      }
+    }
+  },
+  "listeningAddr": "Listening at {addr}",
   "listeningAt": "Listening at",
+  "@listeningNoRequests": {
+    "placeholders": {
+      "addr": {
+        "type": "String"
+      }
+    }
+  },
+  "listeningNoRequests": "Listening at {addr} · no retained requests yet",
   "listeningOn": "Listening on",
   "liveTraffic": "Live traffic",
   "loadASchemaSelectA": "Load a schema, select a method and send a JSON message.",
@@ -2956,6 +3020,14 @@
   "nextBodyMatch": "Next body match",
   "nextMatchEnter": "Next match · Enter",
   "nextOpenRequest": "Next open request",
+  "@nextStep": {
+    "placeholders": {
+      "step": {
+        "type": "String"
+      }
+    }
+  },
+  "nextStep": "Next: {step}",
   "noActiveLanAddressConnect": "No active LAN address. Connect to a network, then reopen this dialog.",
   "noAndroidDeviceOrEmulator": "No Android device or emulator",
   "networkSecurityConfig": "Network security config",
@@ -3550,6 +3622,14 @@
   "saveCurrentConditionsApplyRename": "Save current conditions, apply, rename or delete a saved filter",
   "saveEvidenceToSessions": "Save evidence to Sessions",
   "saveExport": "Save export…",
+  "@saveFailedWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "saveFailedWith": "Save failed: {error}",
   "saveFilter": "Save filter…",
   "saveFilter2": "Save filter",
   "saveForNextLaunch": "Save for next launch",
@@ -3970,6 +4050,7 @@
   "theme": "Theme",
   "thisAddressAcceptsAnHttp": "This address accepts an HTTP proxy. Turn on SOCKS5 in Settings → Proxy to accept SOCKS5 here too.",
   "thisAddressAcceptsHttpAnd": "This address accepts HTTP and SOCKS5 proxies; both are limited to the allowed sources.",
+  "thisApp": "this app",
   "thisComputer": "This computer",
   "thisMac": "This Mac",
   "thisRemovesTheRetainedRuns": "This removes the retained runs and baseline, not open drafts, captured traffic or saved requests.",

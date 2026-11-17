@@ -2862,7 +2862,7 @@ func (a *app) table(c *ui.Context) {
 		running := a.srv != nil && a.srv.Running()
 		title, hint := "Capture is stopped", ""
 		if running {
-			title, hint = "Connect a client to start capturing", "Listening at "+a.srv.Addr()+" · no retained requests yet"
+			title, hint = "Connect a client to start capturing", locales.ListeningNoRequests(a.srv.Addr())
 		}
 		// One sentence and at most two buttons. Setting up a client is the
 		// first thing a capture needs, so it is here as well as in the
@@ -4082,7 +4082,7 @@ func (a *app) saveVars() {
 		f := a.localEnvs()
 		f.Globals, f.GlobalsCurrent = initial, current
 		if err := a.saveEnvFile(f); err != nil {
-			a.varsProblem = "Save failed: " + err.Error()
+			a.varsProblem = locales.SaveFailedWith(err.Error())
 			return
 		}
 		a.globals, a.globalsCurrent, a.varsOpen = initial, current, false
@@ -4104,7 +4104,7 @@ func (a *app) saveVars() {
 	f := a.localEnvs()
 	f.Active, f.Envs = name, envs
 	if err := a.saveEnvFile(f); err != nil {
-		a.varsProblem = "Save failed: " + err.Error()
+		a.varsProblem = locales.SaveFailedWith(err.Error())
 		return
 	}
 	a.envs, a.activeEnv = envs, name

@@ -104,6 +104,16 @@ func (msgs Messages) ConditionsMatchAny() string {
 	return Catalog.Format(msgs.locale, "conditionsMatchAny", nil)
 }
 
+// OrganizeNamed says "Organize {name}"
+// in the language the app shows.
+func OrganizeNamed(name string) string { return In(i18n.Locale()).OrganizeNamed(name) }
+
+// OrganizeNamed says "Organize {name}"
+// in the language of msgs.
+func (msgs Messages) OrganizeNamed(name string) string {
+	return Catalog.Format(msgs.locale, "organizeNamed", map[string]any{"name": name})
+}
+
 // QueryEditLabel says "Edit condition: {condition}"
 // in the language the app shows.
 func QueryEditLabel(condition string) string { return In(i18n.Locale()).QueryEditLabel(condition) }
@@ -3456,13 +3466,13 @@ func (msgs Messages) ClearChoice() string {
 	return Catalog.Format(msgs.locale, "clearChoice", nil)
 }
 
-// ClearCookiesForDomain says "Clear cookies for {domain}"
+// ClearCookiesForDomain says "Clear all cookies for {domain}"
 // in the language the app shows.
 func ClearCookiesForDomain(domain string) string {
 	return In(i18n.Locale()).ClearCookiesForDomain(domain)
 }
 
-// ClearCookiesForDomain says "Clear cookies for {domain}"
+// ClearCookiesForDomain says "Clear all cookies for {domain}"
 // in the language of msgs.
 func (msgs Messages) ClearCookiesForDomain(domain string) string {
 	return Catalog.Format(msgs.locale, "clearCookiesForDomain", map[string]any{"domain": domain})
@@ -4564,6 +4574,16 @@ func (msgs Messages) Connected() string {
 	return Catalog.Format(msgs.locale, "connected", nil)
 }
 
+// ConnectedTo says "Connected to {endpoint}"
+// in the language the app shows.
+func ConnectedTo(endpoint string) string { return In(i18n.Locale()).ConnectedTo(endpoint) }
+
+// ConnectedTo says "Connected to {endpoint}"
+// in the language of msgs.
+func (msgs Messages) ConnectedTo(endpoint string) string {
+	return Catalog.Format(msgs.locale, "connectedTo", map[string]any{"endpoint": endpoint})
+}
+
 // Connecting says "Connecting"
 // in the language the app shows.
 func Connecting() string { return In(i18n.Locale()).Connecting() }
@@ -5652,6 +5672,16 @@ func CouldNotRestoreHostProfile(name string) string {
 // in the language of msgs.
 func (msgs Messages) CouldNotRestoreHostProfile(name string) string {
 	return Catalog.Format(msgs.locale, "couldNotRestoreHostProfile", map[string]any{"name": name})
+}
+
+// CouldNotSaveFilters says "Could not save filters: {error}"
+// in the language the app shows.
+func CouldNotSaveFilters(error string) string { return In(i18n.Locale()).CouldNotSaveFilters(error) }
+
+// CouldNotSaveFilters says "Could not save filters: {error}"
+// in the language of msgs.
+func (msgs Messages) CouldNotSaveFilters(error string) string {
+	return Catalog.Format(msgs.locale, "couldNotSaveFilters", map[string]any{"error": error})
 }
 
 // CouldNotSaveHostProfile says "Could not save Host profile {name}"
@@ -7476,6 +7506,16 @@ func (msgs Messages) EncryptedTunnelConnectSuccessIs() string {
 	return Catalog.Format(msgs.locale, "encryptedTunnelConnectSuccessIs", nil)
 }
 
+// EndpointNamed says "Endpoint {name}"
+// in the language the app shows.
+func EndpointNamed(name string) string { return In(i18n.Locale()).EndpointNamed(name) }
+
+// EndpointNamed says "Endpoint {name}"
+// in the language of msgs.
+func (msgs Messages) EndpointNamed(name string) string {
+	return Catalog.Format(msgs.locale, "endpointNamed", map[string]any{"name": name})
+}
+
 // Endpoints says "Endpoints"
 // in the language the app shows.
 func Endpoints() string { return In(i18n.Locale()).Endpoints() }
@@ -7864,6 +7904,16 @@ func ExamplesCount(count int) string { return In(i18n.Locale()).ExamplesCount(co
 // in the language of msgs.
 func (msgs Messages) ExamplesCount(count int) string {
 	return Catalog.Format(msgs.locale, "examplesCount", map[string]any{"count": count})
+}
+
+// ExamplesFor says "Examples for {name}"
+// in the language the app shows.
+func ExamplesFor(name string) string { return In(i18n.Locale()).ExamplesFor(name) }
+
+// ExamplesFor says "Examples for {name}"
+// in the language of msgs.
+func (msgs Messages) ExamplesFor(name string) string {
+	return Catalog.Format(msgs.locale, "examplesFor", map[string]any{"name": name})
 }
 
 // ExchangesCount says "{count, plural, one {# exchange} other {# exchanges}}"
@@ -10052,6 +10102,16 @@ func (msgs Messages) HostRules() string {
 	return Catalog.Format(msgs.locale, "hostRules", nil)
 }
 
+// HostVariable says "Host variable {origin}"
+// in the language the app shows.
+func HostVariable(origin string) string { return In(i18n.Locale()).HostVariable(origin) }
+
+// HostVariable says "Host variable {origin}"
+// in the language of msgs.
+func (msgs Messages) HostVariable(origin string) string {
+	return Catalog.Format(msgs.locale, "hostVariable", map[string]any{"origin": origin})
+}
+
 // Hosts says "Hosts"
 // in the language the app shows.
 func Hosts() string { return In(i18n.Locale()).Hosts() }
@@ -11832,6 +11892,16 @@ func (msgs Messages) Listener() string {
 	return Catalog.Format(msgs.locale, "listener", nil)
 }
 
+// ListeningAddr says "Listening at {addr}"
+// in the language the app shows.
+func ListeningAddr(addr string) string { return In(i18n.Locale()).ListeningAddr(addr) }
+
+// ListeningAddr says "Listening at {addr}"
+// in the language of msgs.
+func (msgs Messages) ListeningAddr(addr string) string {
+	return Catalog.Format(msgs.locale, "listeningAddr", map[string]any{"addr": addr})
+}
+
 // ListeningAt says "Listening at"
 // in the language the app shows.
 func ListeningAt() string { return In(i18n.Locale()).ListeningAt() }
@@ -11840,6 +11910,16 @@ func ListeningAt() string { return In(i18n.Locale()).ListeningAt() }
 // in the language of msgs.
 func (msgs Messages) ListeningAt() string {
 	return Catalog.Format(msgs.locale, "listeningAt", nil)
+}
+
+// ListeningNoRequests says "Listening at {addr} · no retained requests yet"
+// in the language the app shows.
+func ListeningNoRequests(addr string) string { return In(i18n.Locale()).ListeningNoRequests(addr) }
+
+// ListeningNoRequests says "Listening at {addr} · no retained requests yet"
+// in the language of msgs.
+func (msgs Messages) ListeningNoRequests(addr string) string {
+	return Catalog.Format(msgs.locale, "listeningNoRequests", map[string]any{"addr": addr})
 }
 
 // ListeningOn says "Listening on"
@@ -13696,6 +13776,16 @@ func NextOpenRequest() string { return In(i18n.Locale()).NextOpenRequest() }
 // in the language of msgs.
 func (msgs Messages) NextOpenRequest() string {
 	return Catalog.Format(msgs.locale, "nextOpenRequest", nil)
+}
+
+// NextStep says "Next: {step}"
+// in the language the app shows.
+func NextStep(step string) string { return In(i18n.Locale()).NextStep(step) }
+
+// NextStep says "Next: {step}"
+// in the language of msgs.
+func (msgs Messages) NextStep(step string) string {
+	return Catalog.Format(msgs.locale, "nextStep", map[string]any{"step": step})
 }
 
 // NoActiveLanAddressConnect says "No active LAN address. Connect to a network, then reopen this dialog."
@@ -19658,6 +19748,16 @@ func (msgs Messages) SaveExport() string {
 	return Catalog.Format(msgs.locale, "saveExport", nil)
 }
 
+// SaveFailedWith says "Save failed: {error}"
+// in the language the app shows.
+func SaveFailedWith(error string) string { return In(i18n.Locale()).SaveFailedWith(error) }
+
+// SaveFailedWith says "Save failed: {error}"
+// in the language of msgs.
+func (msgs Messages) SaveFailedWith(error string) string {
+	return Catalog.Format(msgs.locale, "saveFailedWith", map[string]any{"error": error})
+}
+
 // SaveFilter says "Save filter…"
 // in the language the app shows.
 func SaveFilter() string { return In(i18n.Locale()).SaveFilter() }
@@ -23704,6 +23804,16 @@ func ThisAddressAcceptsHttpAnd() string { return In(i18n.Locale()).ThisAddressAc
 // in the language of msgs.
 func (msgs Messages) ThisAddressAcceptsHttpAnd() string {
 	return Catalog.Format(msgs.locale, "thisAddressAcceptsHttpAnd", nil)
+}
+
+// ThisApp says "this app"
+// in the language the app shows.
+func ThisApp() string { return In(i18n.Locale()).ThisApp() }
+
+// ThisApp says "this app"
+// in the language of msgs.
+func (msgs Messages) ThisApp() string {
+	return Catalog.Format(msgs.locale, "thisApp", nil)
 }
 
 // ThisComputer says "This computer"

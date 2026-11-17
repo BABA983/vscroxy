@@ -148,7 +148,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 							uikit.Mono(c, body+notice).Selectable().MaxLines(12)
 						}
 					})
-					uikit.Meta(c, "Environment: "+w.environmentLabel())
+					uikit.Meta(c, locales.EnvironmentLabel(w.environmentLabel()))
 				})
 			})
 			if w.problem != "" {
@@ -165,7 +165,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 					uikit.SecondaryButton(c, locales.Back()).Disabled(w.building != nil).OnClick(func() { w.step--; w.problem = "" })
 				}
 				if w.step < 5 {
-					uikit.PrimaryButton(c, "Next: "+collectionSteps[w.step+1]).Disabled(len(w.groups) == 0).OnClick(func() { w.step++; w.problem = "" })
+					uikit.PrimaryButton(c, locales.NextStep(collectionSteps[w.step+1])).Disabled(len(w.groups) == 0).OnClick(func() { w.step++; w.problem = "" })
 				} else {
 					uikit.PrimaryButton(c, locales.Create()).Disabled(w.building != nil).OnClick(a.createCollection)
 				}
@@ -204,7 +204,7 @@ func (a *app) collectionEndpointsEditor(c *ui.Context, t *ui.Theme) {
 	for i, g := range w.groups {
 		ui.Row(c.Key(g.id)).Gap(t.Space(uikit.SpaceM)).Height(uikit.HeightControl).Children(func() {
 			uikit.Checkbox(c, &g.include, "").Label(locales.IncludeRequest(g.method, g.template))
-			uikit.ToolbarButton(c, "Endpoint "+g.method+" "+g.template, g.origin, i == w.active).Grow(1).MinWidth(0).Children(func() {
+			uikit.ToolbarButton(c, locales.EndpointNamed(g.method+" "+g.template), g.origin, i == w.active).Grow(1).MinWidth(0).Children(func() {
 				uikit.Mono(c, g.method).TextColor(uikit.MethodColor(g.method, t)).Width(46)
 				uikit.Mono(c, g.template).Grow(1).MinWidth(0).SingleLine()
 				uikit.Meta(c, locales.TimesCount(len(g.flows)))
@@ -246,7 +246,7 @@ func (a *app) collectionVariablesEditor(c *ui.Context, t *ui.Theme) {
 	for i := range w.hosts {
 		h := &w.hosts[i]
 		ui.Row(c.Key(h.origin)).Gap(t.Space(uikit.SpaceM)).Children(func() {
-			uikit.Input(c, &h.variable).Label("Host variable " + h.origin).Width(uikit.WidthPicker).Font(uikit.FontMono)
+			uikit.Input(c, &h.variable).Label(locales.HostVariable(h.origin)).Width(uikit.WidthPicker).Font(uikit.FontMono)
 			uikit.Tip(c, uikit.Mono(c, h.origin).SingleLine().Grow(1).MinWidth(0), h.origin)
 		})
 	}
@@ -328,7 +328,7 @@ func (a *app) collectionExamplesEditor(c *ui.Context, t *ui.Theme) {
 			continue
 		}
 		ui.Column(c.Key(g.id)).Gap(t.Space(uikit.SpaceM)).Children(func() {
-			uikit.ToolbarButton(c, "Examples for "+g.name, g.template, w.active == index).FillWidth().Children(func() { uikit.Mono(c, g.method+" "+g.template).SingleLine() }).OnClick(func() { w.active = index })
+			uikit.ToolbarButton(c, locales.ExamplesFor(g.name), g.template, w.active == index).FillWidth().Children(func() { uikit.Mono(c, g.method+" "+g.template).SingleLine() }).OnClick(func() { w.active = index })
 			for _, i := range g.flows {
 				f := w.flows[i]
 				selected := w.examples[i]
@@ -366,7 +366,7 @@ func (a *app) collectionWizardTree(c *ui.Context, t *ui.Theme) {
 				if !g.include || g.folder != name {
 					continue
 				}
-				row := uikit.ToolbarButton(c.Key(g.id), "Organize "+g.name, g.method+" "+g.template, i == w.active).FillWidth().Drag(g.id)
+				row := uikit.ToolbarButton(c.Key(g.id), locales.OrganizeNamed(g.name), g.method+" "+g.template, i == w.active).FillWidth().Drag(g.id)
 				if _, over := ui.DragOver[string](row); over {
 					row.BorderWidth(2, 0, 0, 0).BorderColor(t.Accent)
 				}

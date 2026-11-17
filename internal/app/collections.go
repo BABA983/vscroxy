@@ -265,7 +265,7 @@ func (a *app) saveFolder() {
 	}
 	folders := slices.DeleteFunc(slices.Clone(a.folders), func(folder request.Folder) bool { return folder.Path == draft.Path })
 	if err := a.writeFolders(append(folders, draft)); err != nil {
-		f.problem = "Save failed: " + err.Error()
+		f.problem = locales.SaveFailedWith(err.Error())
 		return
 	}
 	next := maps.Clone(a.folderCurrent)
