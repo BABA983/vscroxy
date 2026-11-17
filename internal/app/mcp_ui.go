@@ -164,8 +164,8 @@ func (a *app) mcpActions(d *requestDocument, editing bool) []action {
 	idle := connected && !s.busy && !d.sendCancelling
 	return []action{
 		do("request.mcp-cancel", locales.CancelMcpRequest(), func() { u.session.cancelOp() }).when(connected && s.busy, "No MCP request is running"),
-		do("request.mcp-disconnect", locales.DisconnectMcp(), func() { u.session.disconnect() }).when(connected, "Connect an MCP document first"),
-		do("request.mcp-refresh", locales.RefreshMcpCatalog(), func() { u.session.refreshCatalog() }).when(idle, "Connect an MCP document first"),
+		do("request.mcp-disconnect", locales.DisconnectMcp(), func() { u.session.disconnect() }).when(connected, locales.ConnectAnMcpDocumentFirst()),
+		do("request.mcp-refresh", locales.RefreshMcpCatalog(), func() { u.session.refreshCatalog() }).when(idle, locales.ConnectAnMcpDocumentFirst()),
 		do("request.mcp-call", locales.CallMcpTool(), func() {
 			if _, err := u.session.callTool(d.mcpConfig); err != nil {
 				u.problem = err.Error()
@@ -313,7 +313,7 @@ func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, locales.ArgumentsOnePerLineVariables()).Grow(1)
 			})
-			a.variableTextArea(c, "mcp-args", &d.mcpConfig.Args, "Command arguments", d.composeCollection).Height(64).Font(uikit.FontMono)
+			a.variableTextArea(c, "mcp-args", &d.mcpConfig.Args, locales.CommandArguments(), d.composeCollection).Height(64).Font(uikit.FontMono)
 			a.variableInput(c, "mcp-dir", &d.mcpConfig.WorkingDir, "Working directory", d.composeCollection).
 				Placeholder(locales.OptionalTheAppSDirectory()).Font(uikit.FontMono)
 			uikit.Meta(c, locales.EnvironmentValuesMayUseVariables()).Padding(0, t.Space(uikit.SpaceXS))

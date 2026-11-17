@@ -338,7 +338,7 @@ func (a *app) systemProxyStatus(t *ui.Theme) (string, ui.Color) {
 	case s.writeErr != nil:
 		return locales.ChangeFailed(), t.Danger
 	case s.check.Status == system.ProxyUnknown:
-		return "Could not read OS settings", t.Warning
+		return locales.CouldNotReadOsSettings(), t.Warning
 	case s.check.Status == system.ProxyMatches:
 		return "HTTP and HTTPS point at this app", t.Success
 	case s.check.Status == system.ProxyAutomatic:

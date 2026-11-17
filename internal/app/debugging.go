@@ -298,7 +298,7 @@ drained:
 	timeoutValid := err == nil && seconds >= 0 && seconds <= 86400
 	timeoutProblem := ""
 	if !timeoutValid {
-		timeoutProblem = "Enter 0–86400 seconds."
+		timeoutProblem = locales.Enter086400Seconds()
 	}
 	valid := timeoutValid && inputProblem == ""
 	total := len(r.flows) * settings.repeat

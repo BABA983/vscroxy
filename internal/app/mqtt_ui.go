@@ -948,8 +948,8 @@ func (a *app) mqttActions(d *requestDocument, editing bool) []action {
 	}
 	live := ready && s.ready && !s.busy && !d.sendCancelling
 	return []action{
-		do("request.mqtt-publish", locales.PublishMqttMessage(), func() { a.publishMQTT(d) }).when(live, "Connect MQTT first"),
-		do("request.mqtt-subscribe", locales.SubscribeMqttTopics(), func() { a.subscribeMQTT(d) }).when(live, "Connect MQTT first"),
+		do("request.mqtt-publish", locales.PublishMqttMessage(), func() { a.publishMQTT(d) }).when(live, locales.ConnectMqttFirst()),
+		do("request.mqtt-subscribe", locales.SubscribeMqttTopics(), func() { a.subscribeMQTT(d) }).when(live, locales.ConnectMqttFirst()),
 		do("request.mqtt-unsubscribe", locales.UnsubscribeMqttTopics(), func() { a.unsubscribeMQTT(d) }).when(live && len(s.subscriptions) > 0, "No active MQTT subscriptions"),
 	}
 }

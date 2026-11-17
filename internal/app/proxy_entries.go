@@ -270,7 +270,7 @@ func (a *app) saveReverseProxy() {
 	d := &a.reverseDraft
 	port, err := strconv.Atoi(strings.TrimSpace(d.port))
 	if err != nil || port < 1024 || port > 65535 {
-		d.problem = "Enter a port from 1024 to 65535"
+		d.problem = locales.EnterAPortFrom1024()
 		return
 	}
 	if used, ok := a.reversePortOwner(port, d.editing); ok {

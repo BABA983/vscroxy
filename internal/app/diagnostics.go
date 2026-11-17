@@ -171,7 +171,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 			proxy.result = "Waiting for capture to start"
 			proxy.detail = []string{"Device access is checked while capture is running."}
 		} else if g := a.deviceUI.gateway; g == nil {
-			proxy.state, proxy.result = checkFail, "Device access is off"
+			proxy.state, proxy.result = checkFail, locales.DeviceAccessIsOff()
 		} else {
 			status := g.Status()
 			proxy.result = "Devices connect to " + g.Addr()

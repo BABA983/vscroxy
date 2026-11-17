@@ -602,7 +602,7 @@ func (a *app) saveCookie() {
 		return
 	}
 	if !strings.HasPrefix(e.path, "/") {
-		e.problem = "Cookie path must start with /"
+		e.problem = locales.CookiePathMustStartWith()
 		return
 	}
 	c := &http.Cookie{Name: e.name, Value: e.value, Path: e.path, Domain: e.domain, Secure: e.secure, HttpOnly: e.httpOnly}
@@ -613,7 +613,7 @@ func (a *app) saveCookie() {
 	probe := &cookieStore{}
 	probe.SetCookies(u, []*http.Cookie{c})
 	if len(probe.snapshot()) == 0 {
-		e.problem = "Cookie domain was rejected for this URL"
+		e.problem = locales.CookieDomainWasRejectedFor()
 		return
 	}
 	a.requestCookies().SetCookies(u, []*http.Cookie{c})

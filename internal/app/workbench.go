@@ -567,7 +567,7 @@ func (a *app) actions(c *ui.Context) []action {
 			when(len(a.documents) > 0, "Open a request first").keys(ui.Ctrl|ui.Shift, ui.KeyTab),
 		do("capture.export-chosen", locales.ExportSelectedHar(), a.exportChosen).when(capturing && a.chosen.Len() > 0, ""),
 		do("capture.export-csv", locales.ExportCsv(), a.exportCSV).when(capturing && len(a.visible) > 0, "No visible requests to export"),
-		do("capture.export-chosen-csv", locales.ExportChosenCsv(), a.exportChosenCSV).when(capturing && a.chosen.Len() > 0, "Choose requests first"),
+		do("capture.export-chosen-csv", locales.ExportChosenCsv(), a.exportChosenCSV).when(capturing && a.chosen.Len() > 0, locales.ChooseRequestsFirst()),
 		do("view.focus-inspector", focus, func() {
 			w.focused = !w.focused
 			if w.focused {
@@ -678,7 +678,7 @@ func (a *app) actions(c *ui.Context) []action {
 			*a.regionOpen("sessions") = true
 		}).keys(ui.Cmd, ui.Key3),
 		do("go.apis", locales.ApiContracts(), func() { a.page = pageAPI }).
-			when(len(a.apis) > 0, "Create or import an API contract first"),
+			when(len(a.apis) > 0, locales.CreateOrImportAnApi()),
 		do("api.new", locales.NewApiContract(), func() {
 			a.newAPI()
 			a.page = pageAPI

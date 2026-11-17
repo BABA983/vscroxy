@@ -844,6 +844,26 @@ func (msgs Messages) ChooseASavedCollectionWith() string {
 	return Catalog.Format(msgs.locale, "chooseASavedCollectionWith", nil)
 }
 
+// ChooseAScript says "Choose a script"
+// in the language the app shows.
+func ChooseAScript() string { return In(i18n.Locale()).ChooseAScript() }
+
+// ChooseAScript says "Choose a script"
+// in the language of msgs.
+func (msgs Messages) ChooseAScript() string {
+	return Catalog.Format(msgs.locale, "chooseAScript", nil)
+}
+
+// ChooseAnAvailableEnvironment says "Choose an available environment"
+// in the language the app shows.
+func ChooseAnAvailableEnvironment() string { return In(i18n.Locale()).ChooseAnAvailableEnvironment() }
+
+// ChooseAnAvailableEnvironment says "Choose an available environment"
+// in the language of msgs.
+func (msgs Messages) ChooseAnAvailableEnvironment() string {
+	return Catalog.Format(msgs.locale, "chooseAnAvailableEnvironment", nil)
+}
+
 // ChooseHttpRequestsOnlyTunnels says "Choose HTTP requests only; tunnels and streams cannot be replayed"
 // in the language the app shows.
 func ChooseHttpRequestsOnlyTunnels() string { return In(i18n.Locale()).ChooseHttpRequestsOnlyTunnels() }
@@ -872,6 +892,16 @@ func ChoosePortRange() string { return In(i18n.Locale()).ChoosePortRange() }
 // in the language of msgs.
 func (msgs Messages) ChoosePortRange() string {
 	return Catalog.Format(msgs.locale, "choosePortRange", nil)
+}
+
+// ChooseRequestsFirst says "Choose requests first"
+// in the language the app shows.
+func ChooseRequestsFirst() string { return In(i18n.Locale()).ChooseRequestsFirst() }
+
+// ChooseRequestsFirst says "Choose requests first"
+// in the language of msgs.
+func (msgs Messages) ChooseRequestsFirst() string {
+	return Catalog.Format(msgs.locale, "chooseRequestsFirst", nil)
 }
 
 // ChooseResponseFolder says "Choose a folder to answer from"
@@ -944,6 +974,18 @@ func (msgs Messages) CollapseAction() string {
 	return Catalog.Format(msgs.locale, "collapseAction", nil)
 }
 
+// CollectionOrEnvironmentIsUnavailable says "Collection or environment is unavailable; repair storage before restarting"
+// in the language the app shows.
+func CollectionOrEnvironmentIsUnavailable() string {
+	return In(i18n.Locale()).CollectionOrEnvironmentIsUnavailable()
+}
+
+// CollectionOrEnvironmentIsUnavailable says "Collection or environment is unavailable; repair storage before restarting"
+// in the language of msgs.
+func (msgs Messages) CollectionOrEnvironmentIsUnavailable() string {
+	return Catalog.Format(msgs.locale, "collectionOrEnvironmentIsUnavailable", nil)
+}
+
 // CollectionSettingsNamed says "Collection “{name}” settings…"
 // in the language the app shows.
 func CollectionSettingsNamed(name string) string {
@@ -954,6 +996,16 @@ func CollectionSettingsNamed(name string) string {
 // in the language of msgs.
 func (msgs Messages) CollectionSettingsNamed(name string) string {
 	return Catalog.Format(msgs.locale, "collectionSettingsNamed", map[string]any{"name": name})
+}
+
+// CommandArguments says "Command arguments"
+// in the language the app shows.
+func CommandArguments() string { return In(i18n.Locale()).CommandArguments() }
+
+// CommandArguments says "Command arguments"
+// in the language of msgs.
+func (msgs Messages) CommandArguments() string {
+	return Catalog.Format(msgs.locale, "commandArguments", nil)
 }
 
 // ConditionsMatchAll says "All conditions must match"
@@ -1018,6 +1070,36 @@ func (msgs Messages) Connect200Failed() string {
 	return Catalog.Format(msgs.locale, "connect200Failed", nil)
 }
 
+// ConnectASocketIoDocument says "Connect a Socket.IO document and save messages first"
+// in the language the app shows.
+func ConnectASocketIoDocument() string { return In(i18n.Locale()).ConnectASocketIoDocument() }
+
+// ConnectASocketIoDocument says "Connect a Socket.IO document and save messages first"
+// in the language of msgs.
+func (msgs Messages) ConnectASocketIoDocument() string {
+	return Catalog.Format(msgs.locale, "connectASocketIoDocument", nil)
+}
+
+// ConnectASocketIoDocument2 says "Connect a Socket.IO document first"
+// in the language the app shows.
+func ConnectASocketIoDocument2() string { return In(i18n.Locale()).ConnectASocketIoDocument2() }
+
+// ConnectASocketIoDocument2 says "Connect a Socket.IO document first"
+// in the language of msgs.
+func (msgs Messages) ConnectASocketIoDocument2() string {
+	return Catalog.Format(msgs.locale, "connectASocketIoDocument2", nil)
+}
+
+// ConnectAnMcpDocumentFirst says "Connect an MCP document first"
+// in the language the app shows.
+func ConnectAnMcpDocumentFirst() string { return In(i18n.Locale()).ConnectAnMcpDocumentFirst() }
+
+// ConnectAnMcpDocumentFirst says "Connect an MCP document first"
+// in the language of msgs.
+func (msgs Messages) ConnectAnMcpDocumentFirst() string {
+	return Catalog.Format(msgs.locale, "connectAnMcpDocumentFirst", nil)
+}
+
 // ConnectClientToCapture says "Connect a client to start capturing"
 // in the language the app shows.
 func ConnectClientToCapture() string { return In(i18n.Locale()).ConnectClientToCapture() }
@@ -1026,6 +1108,16 @@ func ConnectClientToCapture() string { return In(i18n.Locale()).ConnectClientToC
 // in the language of msgs.
 func (msgs Messages) ConnectClientToCapture() string {
 	return Catalog.Format(msgs.locale, "connectClientToCapture", nil)
+}
+
+// ConnectMqttFirst says "Connect MQTT first"
+// in the language the app shows.
+func ConnectMqttFirst() string { return In(i18n.Locale()).ConnectMqttFirst() }
+
+// ConnectMqttFirst says "Connect MQTT first"
+// in the language of msgs.
+func (msgs Messages) ConnectMqttFirst() string {
+	return Catalog.Format(msgs.locale, "connectMqttFirst", nil)
 }
 
 // ConnectionDiagnosticsReadOnly says "Connection diagnostics · read-only until you press a fix"
@@ -1038,6 +1130,16 @@ func (msgs Messages) ConnectionDiagnosticsReadOnly() string {
 	return Catalog.Format(msgs.locale, "connectionDiagnosticsReadOnly", nil)
 }
 
+// ConnectionUse says "Connection use"
+// in the language the app shows.
+func ConnectionUse() string { return In(i18n.Locale()).ConnectionUse() }
+
+// ConnectionUse says "Connection use"
+// in the language of msgs.
+func (msgs Messages) ConnectionUse() string {
+	return Catalog.Format(msgs.locale, "connectionUse", nil)
+}
+
 // ContractsCount says "{count} contracts"
 // in the language the app shows.
 func ContractsCount(count int) string { return In(i18n.Locale()).ContractsCount(count) }
@@ -1046,6 +1148,16 @@ func ContractsCount(count int) string { return In(i18n.Locale()).ContractsCount(
 // in the language of msgs.
 func (msgs Messages) ContractsCount(count int) string {
 	return Catalog.Format(msgs.locale, "contractsCount", map[string]any{"count": count})
+}
+
+// CookieDomainWasRejectedFor says "Cookie domain was rejected for this URL"
+// in the language the app shows.
+func CookieDomainWasRejectedFor() string { return In(i18n.Locale()).CookieDomainWasRejectedFor() }
+
+// CookieDomainWasRejectedFor says "Cookie domain was rejected for this URL"
+// in the language of msgs.
+func (msgs Messages) CookieDomainWasRejectedFor() string {
+	return Catalog.Format(msgs.locale, "cookieDomainWasRejectedFor", nil)
 }
 
 // CookieFileUnavailable says "The local cookie file was not read or written: {problem}"
@@ -1058,6 +1170,16 @@ func CookieFileUnavailable(problem string) string {
 // in the language of msgs.
 func (msgs Messages) CookieFileUnavailable(problem string) string {
 	return Catalog.Format(msgs.locale, "cookieFileUnavailable", map[string]any{"problem": problem})
+}
+
+// CookiePathMustStartWith says "Cookie path must start with /"
+// in the language the app shows.
+func CookiePathMustStartWith() string { return In(i18n.Locale()).CookiePathMustStartWith() }
+
+// CookiePathMustStartWith says "Cookie path must start with /"
+// in the language of msgs.
+func (msgs Messages) CookiePathMustStartWith() string {
+	return Catalog.Format(msgs.locale, "cookiePathMustStartWith", nil)
 }
 
 // CookiesInMemory says "Cookies stay in memory until the app quits. Session cookies are never saved."
@@ -1080,6 +1202,16 @@ func (msgs Messages) CookiesPersistentSaved() string {
 	return Catalog.Format(msgs.locale, "cookiesPersistentSaved", nil)
 }
 
+// CopiedCaToAndroidDownloads says "Copied CA to Android Downloads"
+// in the language the app shows.
+func CopiedCaToAndroidDownloads() string { return In(i18n.Locale()).CopiedCaToAndroidDownloads() }
+
+// CopiedCaToAndroidDownloads says "Copied CA to Android Downloads"
+// in the language of msgs.
+func (msgs Messages) CopiedCaToAndroidDownloads() string {
+	return Catalog.Format(msgs.locale, "copiedCaToAndroidDownloads", nil)
+}
+
 // CopyCAAndroidDevice says "Copy CA to Android device"
 // in the language the app shows.
 func CopyCAAndroidDevice() string { return In(i18n.Locale()).CopyCAAndroidDevice() }
@@ -1088,6 +1220,98 @@ func CopyCAAndroidDevice() string { return In(i18n.Locale()).CopyCAAndroidDevice
 // in the language of msgs.
 func (msgs Messages) CopyCAAndroidDevice() string {
 	return Catalog.Format(msgs.locale, "copyCAAndroidDevice", nil)
+}
+
+// CouldNotApplyNetworkConditions says "Could not apply network conditions"
+// in the language the app shows.
+func CouldNotApplyNetworkConditions() string {
+	return In(i18n.Locale()).CouldNotApplyNetworkConditions()
+}
+
+// CouldNotApplyNetworkConditions says "Could not apply network conditions"
+// in the language of msgs.
+func (msgs Messages) CouldNotApplyNetworkConditions() string {
+	return Catalog.Format(msgs.locale, "couldNotApplyNetworkConditions", nil)
+}
+
+// CouldNotDeleteNetworkPreset says "Could not delete network preset"
+// in the language the app shows.
+func CouldNotDeleteNetworkPreset() string { return In(i18n.Locale()).CouldNotDeleteNetworkPreset() }
+
+// CouldNotDeleteNetworkPreset says "Could not delete network preset"
+// in the language of msgs.
+func (msgs Messages) CouldNotDeleteNetworkPreset() string {
+	return Catalog.Format(msgs.locale, "couldNotDeleteNetworkPreset", nil)
+}
+
+// CouldNotDeleteNetworkPreset2 says "Could not delete network preset; file left untouched"
+// in the language the app shows.
+func CouldNotDeleteNetworkPreset2() string { return In(i18n.Locale()).CouldNotDeleteNetworkPreset2() }
+
+// CouldNotDeleteNetworkPreset2 says "Could not delete network preset; file left untouched"
+// in the language of msgs.
+func (msgs Messages) CouldNotDeleteNetworkPreset2() string {
+	return Catalog.Format(msgs.locale, "couldNotDeleteNetworkPreset2", nil)
+}
+
+// CouldNotDisableNetworkRules says "Could not disable network rules"
+// in the language the app shows.
+func CouldNotDisableNetworkRules() string { return In(i18n.Locale()).CouldNotDisableNetworkRules() }
+
+// CouldNotDisableNetworkRules says "Could not disable network rules"
+// in the language of msgs.
+func (msgs Messages) CouldNotDisableNetworkRules() string {
+	return Catalog.Format(msgs.locale, "couldNotDisableNetworkRules", nil)
+}
+
+// CouldNotLoadNetworkPresets says "Could not load network presets; file left untouched"
+// in the language the app shows.
+func CouldNotLoadNetworkPresets() string { return In(i18n.Locale()).CouldNotLoadNetworkPresets() }
+
+// CouldNotLoadNetworkPresets says "Could not load network presets; file left untouched"
+// in the language of msgs.
+func (msgs Messages) CouldNotLoadNetworkPresets() string {
+	return Catalog.Format(msgs.locale, "couldNotLoadNetworkPresets", nil)
+}
+
+// CouldNotReadOsSettings says "Could not read OS settings"
+// in the language the app shows.
+func CouldNotReadOsSettings() string { return In(i18n.Locale()).CouldNotReadOsSettings() }
+
+// CouldNotReadOsSettings says "Could not read OS settings"
+// in the language of msgs.
+func (msgs Messages) CouldNotReadOsSettings() string {
+	return Catalog.Format(msgs.locale, "couldNotReadOsSettings", nil)
+}
+
+// CouldNotSaveNetworkPreset says "Could not save network preset"
+// in the language the app shows.
+func CouldNotSaveNetworkPreset() string { return In(i18n.Locale()).CouldNotSaveNetworkPreset() }
+
+// CouldNotSaveNetworkPreset says "Could not save network preset"
+// in the language of msgs.
+func (msgs Messages) CouldNotSaveNetworkPreset() string {
+	return Catalog.Format(msgs.locale, "couldNotSaveNetworkPreset", nil)
+}
+
+// CouldNotSaveNetworkPreset2 says "Could not save network preset; file left untouched"
+// in the language the app shows.
+func CouldNotSaveNetworkPreset2() string { return In(i18n.Locale()).CouldNotSaveNetworkPreset2() }
+
+// CouldNotSaveNetworkPreset2 says "Could not save network preset; file left untouched"
+// in the language of msgs.
+func (msgs Messages) CouldNotSaveNetworkPreset2() string {
+	return Catalog.Format(msgs.locale, "couldNotSaveNetworkPreset2", nil)
+}
+
+// CouldNotSaveNetworkPresets says "Could not save network presets"
+// in the language the app shows.
+func CouldNotSaveNetworkPresets() string { return In(i18n.Locale()).CouldNotSaveNetworkPresets() }
+
+// CouldNotSaveNetworkPresets says "Could not save network presets"
+// in the language of msgs.
+func (msgs Messages) CouldNotSaveNetworkPresets() string {
+	return Catalog.Format(msgs.locale, "couldNotSaveNetworkPresets", nil)
 }
 
 // CountOfTotal says "{count} of {total}"
@@ -1100,6 +1324,16 @@ func CountOfTotal(count int, total string) string {
 // in the language of msgs.
 func (msgs Messages) CountOfTotal(count int, total string) string {
 	return Catalog.Format(msgs.locale, "countOfTotal", map[string]any{"count": count, "total": total})
+}
+
+// CreateOrImportAnApi says "Create or import an API contract first"
+// in the language the app shows.
+func CreateOrImportAnApi() string { return In(i18n.Locale()).CreateOrImportAnApi() }
+
+// CreateOrImportAnApi says "Create or import an API contract first"
+// in the language of msgs.
+func (msgs Messages) CreateOrImportAnApi() string {
+	return Catalog.Format(msgs.locale, "createOrImportAnApi", nil)
 }
 
 // CreatesNewCollection says "Creates a new collection."
@@ -1204,6 +1438,16 @@ func DeletedHostProfile(name string) string { return In(i18n.Locale()).DeletedHo
 // in the language of msgs.
 func (msgs Messages) DeletedHostProfile(name string) string {
 	return Catalog.Format(msgs.locale, "deletedHostProfile", map[string]any{"name": name})
+}
+
+// DeviceAccessIsOff says "Device access is off"
+// in the language the app shows.
+func DeviceAccessIsOff() string { return In(i18n.Locale()).DeviceAccessIsOff() }
+
+// DeviceAccessIsOff says "Device access is off"
+// in the language of msgs.
+func (msgs Messages) DeviceAccessIsOff() string {
+	return Catalog.Format(msgs.locale, "deviceAccessIsOff", nil)
 }
 
 // DeviceAlreadyPointsAtVscroxy says "The device already points at vscroxy; use Undo proxy to clear it"
@@ -1338,6 +1582,16 @@ func (msgs Messages) DraftContextResolved() string {
 	return Catalog.Format(msgs.locale, "draftContextResolved", nil)
 }
 
+// DraftFromOpenapiReviewServer says "Draft from OpenAPI. Review server, variables, authentication and body before sending."
+// in the language the app shows.
+func DraftFromOpenapiReviewServer() string { return In(i18n.Locale()).DraftFromOpenapiReviewServer() }
+
+// DraftFromOpenapiReviewServer says "Draft from OpenAPI. Review server, variables, authentication and body before sending."
+// in the language of msgs.
+func (msgs Messages) DraftFromOpenapiReviewServer() string {
+	return Catalog.Format(msgs.locale, "draftFromOpenapiReviewServer", nil)
+}
+
 // DraftMatchesAttemptAt says "Draft matches last attempt · {time}"
 // in the language the app shows.
 func DraftMatchesAttemptAt(time_ string) string {
@@ -1380,6 +1634,26 @@ func (msgs Messages) DropMessage() string {
 	return Catalog.Format(msgs.locale, "dropMessage", nil)
 }
 
+// DurationMustBeBetween1s says "Duration must be between 1s and 10m (for example, 30s)"
+// in the language the app shows.
+func DurationMustBeBetween1s() string { return In(i18n.Locale()).DurationMustBeBetween1s() }
+
+// DurationMustBeBetween1s says "Duration must be between 1s and 10m (for example, 30s)"
+// in the language of msgs.
+func (msgs Messages) DurationMustBeBetween1s() string {
+	return Catalog.Format(msgs.locale, "durationMustBeBetween1s", nil)
+}
+
+// EditBreakpointRules says "Edit breakpoint rules"
+// in the language the app shows.
+func EditBreakpointRules() string { return In(i18n.Locale()).EditBreakpointRules() }
+
+// EditBreakpointRules says "Edit breakpoint rules"
+// in the language of msgs.
+func (msgs Messages) EditBreakpointRules() string {
+	return Catalog.Format(msgs.locale, "editBreakpointRules", nil)
+}
+
 // EditReverseProxy says "Edit reverse proxy"
 // in the language the app shows.
 func EditReverseProxy() string { return In(i18n.Locale()).EditReverseProxy() }
@@ -1388,6 +1662,46 @@ func EditReverseProxy() string { return In(i18n.Locale()).EditReverseProxy() }
 // in the language of msgs.
 func (msgs Messages) EditReverseProxy() string {
 	return Catalog.Format(msgs.locale, "editReverseProxy", nil)
+}
+
+// EditScopedNetworkConditions says "Edit scoped network conditions"
+// in the language the app shows.
+func EditScopedNetworkConditions() string { return In(i18n.Locale()).EditScopedNetworkConditions() }
+
+// EditScopedNetworkConditions says "Edit scoped network conditions"
+// in the language of msgs.
+func (msgs Messages) EditScopedNetworkConditions() string {
+	return Catalog.Format(msgs.locale, "editScopedNetworkConditions", nil)
+}
+
+// EditTheAllowList says "Edit the allow list"
+// in the language the app shows.
+func EditTheAllowList() string { return In(i18n.Locale()).EditTheAllowList() }
+
+// EditTheAllowList says "Edit the allow list"
+// in the language of msgs.
+func (msgs Messages) EditTheAllowList() string {
+	return Catalog.Format(msgs.locale, "editTheAllowList", nil)
+}
+
+// EditUpstreamProxySettings says "Edit upstream proxy settings"
+// in the language the app shows.
+func EditUpstreamProxySettings() string { return In(i18n.Locale()).EditUpstreamProxySettings() }
+
+// EditUpstreamProxySettings says "Edit upstream proxy settings"
+// in the language of msgs.
+func (msgs Messages) EditUpstreamProxySettings() string {
+	return Catalog.Format(msgs.locale, "editUpstreamProxySettings", nil)
+}
+
+// EnableADomainOrA2 says "Enable a domain or a local app to read its headers, cookies and bodies."
+// in the language the app shows.
+func EnableADomainOrA2() string { return In(i18n.Locale()).EnableADomainOrA2() }
+
+// EnableADomainOrA2 says "Enable a domain or a local app to read its headers, cookies and bodies."
+// in the language of msgs.
+func (msgs Messages) EnableADomainOrA2() string {
+	return Catalog.Format(msgs.locale, "enableADomainOrA2", nil)
 }
 
 // EnableHTTPSFor says "Enable HTTPS for {app}"
@@ -1488,6 +1802,26 @@ func EngineNoCloseCodes(state string) string { return In(i18n.Locale()).EngineNo
 // in the language of msgs.
 func (msgs Messages) EngineNoCloseCodes(state string) string {
 	return Catalog.Format(msgs.locale, "engineNoCloseCodes", map[string]any{"state": state})
+}
+
+// Enter086400Seconds says "Enter 0–86400 seconds."
+// in the language the app shows.
+func Enter086400Seconds() string { return In(i18n.Locale()).Enter086400Seconds() }
+
+// Enter086400Seconds says "Enter 0–86400 seconds."
+// in the language of msgs.
+func (msgs Messages) Enter086400Seconds() string {
+	return Catalog.Format(msgs.locale, "enter086400Seconds", nil)
+}
+
+// EnterAPortFrom1024 says "Enter a port from 1024 to 65535"
+// in the language the app shows.
+func EnterAPortFrom1024() string { return In(i18n.Locale()).EnterAPortFrom1024() }
+
+// EnterAPortFrom1024 says "Enter a port from 1024 to 65535"
+// in the language of msgs.
+func (msgs Messages) EnterAPortFrom1024() string {
+	return Catalog.Format(msgs.locale, "enterAPortFrom1024", nil)
 }
 
 // EnterAbsoluteHTTPURL says "Enter an absolute http:// or https:// URL."

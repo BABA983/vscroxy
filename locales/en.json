@@ -379,9 +379,12 @@
   "chooseABaselineResponseFirst": "Choose a baseline response first",
   "chooseAPendingServerAck": "Choose a pending server ACK request",
   "chooseASavedCollectionWith": "Choose a saved collection with 1–200 HTTP(S) requests",
+  "chooseAScript": "Choose a script",
+  "chooseAnAvailableEnvironment": "Choose an available environment",
   "chooseHttpRequestsOnlyTunnels": "Choose HTTP requests only; tunnels and streams cannot be replayed",
   "chooseLocalResponseFile": "Choose local response file",
   "choosePortRange": "Choose a proxy port between 1 and 65534; the certificate service uses the next port",
+  "chooseRequestsFirst": "Choose requests first",
   "chooseResponseFolder": "Choose a folder to answer from",
   "chooseSavedRequest": "Choose at least one saved request",
   "chooseToolFirst": "Choose a tool from the catalog first.",
@@ -413,6 +416,7 @@
       }
     }
   },
+  "collectionOrEnvironmentIsUnavailable": "Collection or environment is unavailable; repair storage before restarting",
   "@collectionSettingsNamed": {
     "placeholders": {
       "name": {
@@ -421,6 +425,7 @@
     }
   },
   "collectionSettingsNamed": "Collection “{name}” settings…",
+  "commandArguments": "Command arguments",
   "@concurrencyDescription": {
     "placeholders": {
       "max": {
@@ -464,8 +469,13 @@
     }
   },
   "connect200Failed": "CONNECT 200 · failed",
+  "connectASocketIoDocument": "Connect a Socket.IO document and save messages first",
+  "connectASocketIoDocument2": "Connect a Socket.IO document first",
+  "connectAnMcpDocumentFirst": "Connect an MCP document first",
   "connectClientToCapture": "Connect a client to start capturing",
+  "connectMqttFirst": "Connect MQTT first",
   "connectionDiagnosticsReadOnly": "Connection diagnostics · read-only until you press a fix",
+  "connectionUse": "Connection use",
   "@containsValue": {
     "placeholders": {
       "index": {
@@ -518,6 +528,7 @@
     }
   },
   "contractsCount": "{count} contracts",
+  "cookieDomainWasRejectedFor": "Cookie domain was rejected for this URL",
   "@cookieFileUnavailable": {
     "placeholders": {
       "problem": {
@@ -526,6 +537,7 @@
     }
   },
   "cookieFileUnavailable": "The local cookie file was not read or written: {problem}",
+  "cookiePathMustStartWith": "Cookie path must start with /",
   "@cookiesCaptured": {
     "placeholders": {
       "count": {
@@ -535,7 +547,17 @@
   },
   "cookiesInMemory": "Cookies stay in memory until the app quits. Session cookies are never saved.",
   "cookiesPersistentSaved": "Persistent cookies are saved to ~/.vscroxy/cookies.json (0600), outside collections and exports. Session cookies are never saved.",
+  "copiedCaToAndroidDownloads": "Copied CA to Android Downloads",
   "copyCAAndroidDevice": "Copy CA to Android device",
+  "couldNotApplyNetworkConditions": "Could not apply network conditions",
+  "couldNotDeleteNetworkPreset": "Could not delete network preset",
+  "couldNotDeleteNetworkPreset2": "Could not delete network preset; file left untouched",
+  "couldNotDisableNetworkRules": "Could not disable network rules",
+  "couldNotLoadNetworkPresets": "Could not load network presets; file left untouched",
+  "couldNotReadOsSettings": "Could not read OS settings",
+  "couldNotSaveNetworkPreset": "Could not save network preset",
+  "couldNotSaveNetworkPreset2": "Could not save network preset; file left untouched",
+  "couldNotSaveNetworkPresets": "Could not save network presets",
   "@countOfTotal": {
     "placeholders": {
       "count": {
@@ -547,6 +569,7 @@
     }
   },
   "countOfTotal": "{count} of {total}",
+  "createOrImportAnApi": "Create or import an API contract first",
   "createsNewCollection": "Creates a new collection.",
   "@credentialSummary": {
     "placeholders": {
@@ -622,6 +645,7 @@
     }
   },
   "deletedHostProfile": "Deleted Host profile {name}",
+  "deviceAccessIsOff": "Device access is off",
   "deviceAlreadyPointsAtVscroxy": "The device already points at vscroxy; use Undo proxy to clear it",
   "diagActualTraffic": "Actual traffic",
   "diagCertificate": "Certificate",
@@ -659,6 +683,7 @@
   "domainAndLocalRules": "{domains} domain rules · {locals} local executable rules",
   "draftContextPreScript": "Draft context · pre-script may generate or replace values",
   "draftContextResolved": "Draft context · resolved from variables and Vault",
+  "draftFromOpenapiReviewServer": "Draft from OpenAPI. Review server, variables, authentication and body before sending.",
   "@draftMatchesAttemptAt": {
     "placeholders": {
       "time": {
@@ -705,6 +730,8 @@
       }
     }
   },
+  "durationMustBeBetween1s": "Duration must be between 1s and 10m (for example, 30s)",
+  "editBreakpointRules": "Edit breakpoint rules",
   "editReverseProxy": "Edit reverse proxy",
   "@editRule": {
     "placeholders": {
@@ -713,6 +740,10 @@
       }
     }
   },
+  "editScopedNetworkConditions": "Edit scoped network conditions",
+  "editTheAllowList": "Edit the allow list",
+  "editUpstreamProxySettings": "Edit upstream proxy settings",
+  "enableADomainOrA2": "Enable a domain or a local app to read its headers, cookies and bodies.",
   "@enableHTTPSFor": {
     "placeholders": {
       "app": {
@@ -789,6 +820,8 @@
     }
   },
   "engineNoCloseCodes": "{state}. The engine does not provide close codes or an end reason.",
+  "enter086400Seconds": "Enter 0–86400 seconds.",
+  "enterAPortFrom1024": "Enter a port from 1024 to 65535",
   "enterAbsoluteHTTPURL": "Enter an absolute http:// or https:// URL.",
   "enterAbsoluteURLNoCredentials": "Enter an absolute HTTP(S) URL without embedded credentials",
   "enterCanonicalBase64": "Enter canonical padded base64 for the binary message.",

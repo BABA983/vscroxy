@@ -204,7 +204,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 			}, locales.DecryptEveryNewHttpsConnection())
 			domains := splitHosts(a.sslHosts)
 			summary := locales.None()
-			hint := "Enable a domain or a local app to read its headers, cookies and bodies."
+			hint := locales.EnableADomainOrA2()
 			switch {
 			case len(a.sslApps) > 0:
 				summary = locales.DomainAndLocalRules(len(domains), len(a.sslApps))

@@ -229,7 +229,7 @@ func (a *app) nextCollectionRecording() {
 	}
 	env := slices.IndexFunc(a.envs, func(e environment) bool { return e.Name == s.Environment })
 	if env < 0 || a.envsProblem != "" || a.requestsProblem != "" {
-		a.stopCollectionRecording("Collection or environment is unavailable; repair storage before restarting")
+		a.stopCollectionRecording(locales.CollectionOrEnvironmentIsUnavailable())
 		return
 	}
 	f := s.queue[0]
@@ -461,7 +461,7 @@ func (a *app) keepRecordedCapture(f flow, result recordedCapture) error {
 	s := a.collectionRecording
 	env := slices.IndexFunc(a.envs, func(e environment) bool { return e.Name == s.Environment })
 	if env < 0 || a.envsProblem != "" || a.requestsProblem != "" {
-		return errors.New("Collection or environment is unavailable; repair storage before restarting")
+		return errors.New(locales.CollectionOrEnvironmentIsUnavailable())
 	}
 	if last := s.latest[result.example.ID]; f.at.Before(last) {
 		s.Skipped++

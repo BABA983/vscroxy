@@ -333,7 +333,7 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 func (a *app) openAPIRequest(d *apiDocument, endpoint apiOperation) {
 	a.addDocument(requestFromOperation(d.parsed, endpoint), "")
 	a.sourceAPI = d.spec.ID
-	a.composeResult = "Draft from OpenAPI. Review server, variables, authentication and body before sending."
+	a.composeResult = locales.DraftFromOpenapiReviewServer()
 }
 
 // apiRawOperation keeps the operation's JSON behind the reader's Raw tab.

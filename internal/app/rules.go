@@ -1018,7 +1018,7 @@ func (a *app) ruleScriptField(c *ui.Context, t *ui.Theme) {
 	e := &a.ruleUI
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).FillWidth().Children(func() {
 		current := strings.TrimSuffix(e.draft.Target, ".js")
-		label := cmp.Or(current, "Choose a script")
+		label := cmp.Or(current, locales.ChooseAScript())
 		if current != "" && !slices.Contains(a.scripts.names, current) {
 			label = locales.MissingNamed(current)
 		}

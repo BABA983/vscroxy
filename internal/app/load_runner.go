@@ -102,7 +102,7 @@ func (a *app) startLoadRunner() {
 	}
 	duration, err := time.ParseDuration(strings.TrimSpace(r.duration))
 	if err != nil || duration < time.Second || duration > 10*time.Minute {
-		r.status = "Duration must be between 1s and 10m (for example, 30s)"
+		r.status = locales.DurationMustBeBetween1s()
 		return
 	}
 	if a.srv == nil || !a.srv.Running() {
@@ -113,7 +113,7 @@ func (a *app) startLoadRunner() {
 	if r.environment != "" {
 		at := slices.IndexFunc(a.envs, func(e environment) bool { return e.Name == r.environment })
 		if at < 0 {
-			r.status = "Choose an available environment"
+			r.status = locales.ChooseAnAvailableEnvironment()
 			return
 		}
 		vars = maps.Clone(a.envs[at].values())

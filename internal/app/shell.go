@@ -506,7 +506,7 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 		chips = append(chips, chip)
 	}
 	if a.breakOn {
-		chips = append(chips, footerChip{id: "breakpoints", label: locales.BreakpointsChip(), tip: "Edit breakpoint rules", icon: breakIcon,
+		chips = append(chips, footerChip{id: "breakpoints", label: locales.BreakpointsChip(), tip: locales.EditBreakpointRules(), icon: breakIcon,
 			open: a.openRules, off: func() {
 				a.breakOn = false
 				if a.srv != nil {
@@ -520,14 +520,14 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 	}
 	if networkRules > 0 {
 		chips = append(chips, footerChip{id: "network-rules", label: locales.NetworkRuleCount(networkRules),
-			tip: "Edit scoped network conditions", icon: networkIcon, open: a.openNetworkRules, off: func() { a.disableNetworkRules() }})
+			tip: locales.EditScopedNetworkConditions(), icon: networkIcon, open: a.openNetworkRules, off: func() { a.disableNetworkRules() }})
 	}
 	if noCaching {
 		chips = append(chips, footerChip{id: "no-caching", label: locales.NoCaching(), tip: locales.ChangeCachingAndNetworkConditions(), icon: cacheIcon,
 			open: func() { a.openNetwork() }, off: func() { a.srv.SetNoCaching(false) }})
 	}
 	if a.allowOn {
-		chips = append(chips, footerChip{id: "allow-list", label: locales.AllowListChip(), tip: "Edit the allow list", icon: filterIcon,
+		chips = append(chips, footerChip{id: "allow-list", label: locales.AllowListChip(), tip: locales.EditTheAllowList(), icon: filterIcon,
 			open: func() { a.openSettings(4) }, off: func() {
 				a.allowOn = false
 				a.applyAllow()
@@ -565,7 +565,7 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 		chips = append(chips, footerChip{id: "upstream-error", label: label, tip: a.upstreamProblem, icon: upstreamIcon, danger: !a.upstreamLoading,
 			open: func() { a.openSettings(1) }, off: a.clearUpstream})
 	} else if a.upstream != "" {
-		chips = append(chips, footerChip{id: "upstream", label: locales.ShellUpstream(), tip: "Edit upstream proxy settings", icon: upstreamIcon,
+		chips = append(chips, footerChip{id: "upstream", label: locales.ShellUpstream(), tip: locales.EditUpstreamProxySettings(), icon: upstreamIcon,
 			open: func() { a.openSettings(1) }, off: a.clearUpstream})
 	}
 	return chips

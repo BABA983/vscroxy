@@ -3411,7 +3411,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 			}
 		}
 		ui.Column(c).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM)).Children(func() {
-			field(c, t, "Decryption", domain)
+			field(c, t, locales.Decryption(), domain)
 			field(c, t, locales.AppRule(), app)
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceHair), 0).Children(func() {
 				uikit.Meta(c, locales.Trust()).Width(96)
@@ -3442,7 +3442,7 @@ func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 			field(c, t, "Failed at", cn.errorStage+": "+cn.error)
 		}
 		if cn.flows > 0 {
-			field(c, t, "Connection use", fmt.Sprintf("request #%d · reused: %t", cn.flows, cn.reused))
+			field(c, t, locales.ConnectionUse(), fmt.Sprintf("request #%d · reused: %t", cn.flows, cn.reused))
 		}
 		resolved := cn.resolved
 		if resolved != "" {

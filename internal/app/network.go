@@ -146,7 +146,7 @@ func (a *app) loadNetworkPresets() {
 	presets, err := a.readNetworkPresets()
 	a.network.loadedPath = a.network.path
 	if err != nil {
-		a.networkProblem("Could not load network presets; file left untouched", err)
+		a.networkProblem(locales.CouldNotLoadNetworkPresets(), err)
 		return
 	}
 	a.network.presets, a.network.problem = presets, ""
@@ -206,11 +206,11 @@ func (a *app) networkPresetBaseline() ([]capture.Throttle, error) {
 // write. Callers publish it and apply conditions only after this succeeds.
 func (a *app) writeNetworkPresets(presets []capture.Throttle) bool {
 	if err := validateNetworkPresets(presets); err != nil {
-		return a.networkProblem("Could not save network presets", err)
+		return a.networkProblem(locales.CouldNotSaveNetworkPresets(), err)
 	}
 	n := &a.network
 	if n.path == "" {
-		return a.networkProblem("Could not save network presets", errors.New("Network presets location is unavailable"))
+		return a.networkProblem(locales.CouldNotSaveNetworkPresets(), errors.New("Network presets location is unavailable"))
 	}
 	f := a.file(n.path)
 	if err := f.Problem(); err != nil {
@@ -219,10 +219,10 @@ func (a *app) writeNetworkPresets(presets []capture.Throttle) bool {
 	// Atomic replacement must not bypass an explicitly read-only file's mode.
 	info, err := os.Stat(n.path)
 	if err == nil && info.Mode().Perm()&0o222 == 0 {
-		return a.networkProblem("Could not save network presets", fs.ErrPermission)
+		return a.networkProblem(locales.CouldNotSaveNetworkPresets(), fs.ErrPermission)
 	}
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return a.networkProblem("Could not save network presets", err)
+		return a.networkProblem(locales.CouldNotSaveNetworkPresets(), err)
 	}
 	file := networkPresetFile{Version: store.Version, Presets: make([]networkPresetRecord, 0, len(presets))}
 	for _, p := range presets {
@@ -236,7 +236,7 @@ func (a *app) writeNetworkPresets(presets []capture.Throttle) bool {
 		err = f.Write(append(data, '\n'))
 	}
 	if err != nil {
-		return a.networkProblem("Could not save network presets", err)
+		return a.networkProblem(locales.CouldNotSaveNetworkPresets(), err)
 	}
 	n.problem, n.loadedPath = "", n.path
 	return true
@@ -250,11 +250,11 @@ func (a *app) networkPresets() []capture.Throttle {
 // rejected server setting as applied in the app.
 func (a *app) setThrottle(t capture.Throttle) bool {
 	if err := t.Validate(); err != nil {
-		return a.networkProblem("Could not apply network conditions", err)
+		return a.networkProblem(locales.CouldNotApplyNetworkConditions(), err)
 	}
 	if a.srv != nil {
 		if err := a.srv.SetThrottle(t); err != nil {
-			return a.networkProblem("Could not apply network conditions", err)
+			return a.networkProblem(locales.CouldNotApplyNetworkConditions(), err)
 		}
 	}
 	a.throttle = t
@@ -292,7 +292,7 @@ func (a *app) disableNetworkRules() bool {
 		}
 	}
 	if changed && !a.applyRuleChanges(next) {
-		return a.networkProblem("Could not disable network rules", errors.New(a.ruleUI.problem))
+		return a.networkProblem(locales.CouldNotDisableNetworkRules(), errors.New(a.ruleUI.problem))
 	}
 	return true
 }
@@ -308,19 +308,19 @@ func (a *app) networkOff() {
 func (a *app) saveNetworkPreset(original string, p capture.Throttle) bool {
 	// Reject controls before trimming so newlines cannot silently become names.
 	if !utf8.ValidString(p.Name) || strings.ContainsFunc(p.Name, unicode.IsControl) {
-		return a.networkProblem("Could not save network preset", errors.New("Preset names must be valid UTF-8 and control-free"))
+		return a.networkProblem(locales.CouldNotSaveNetworkPreset(), errors.New("Preset names must be valid UTF-8 and control-free"))
 	}
 	p.Name = strings.TrimSpace(p.Name)
 	list, err := a.networkPresetBaseline()
 	if err != nil {
-		return a.networkProblem("Could not save network preset; file left untouched", err)
+		return a.networkProblem(locales.CouldNotSaveNetworkPreset2(), err)
 	}
 	if original == "" {
 		list = append(list, p)
 	} else {
 		index := slices.IndexFunc(list, func(t capture.Throttle) bool { return t.Name == original })
 		if index < 0 {
-			return a.networkProblem("Could not save network preset", errors.New("The preset no longer exists; select it again"))
+			return a.networkProblem(locales.CouldNotSaveNetworkPreset(), errors.New("The preset no longer exists; select it again"))
 		}
 		list[index] = p
 	}
@@ -335,11 +335,11 @@ func (a *app) saveNetworkPreset(original string, p capture.Throttle) bool {
 func (a *app) deleteNetworkPreset(name string) bool {
 	list, err := a.networkPresetBaseline()
 	if err != nil {
-		return a.networkProblem("Could not delete network preset; file left untouched", err)
+		return a.networkProblem(locales.CouldNotDeleteNetworkPreset2(), err)
 	}
 	index := slices.IndexFunc(list, func(t capture.Throttle) bool { return t.Name == name })
 	if index < 0 {
-		return a.networkProblem("Could not delete network preset", errors.New("The preset no longer exists; select it again"))
+		return a.networkProblem(locales.CouldNotDeleteNetworkPreset(), errors.New("The preset no longer exists; select it again"))
 	}
 	list = slices.Delete(list, index, index+1)
 	if !a.writeNetworkPresets(list) {
@@ -412,7 +412,7 @@ func (a *app) networkModal(c *ui.Context, t *ui.Theme) {
 					uikit.PrimaryButton(c, locales.SaveApply()).OnClick(func() {
 						p, err := n.draft.value()
 						if err != nil {
-							a.networkProblem("Could not save network preset", err)
+							a.networkProblem(locales.CouldNotSaveNetworkPreset(), err)
 							return
 						}
 						p.Name = n.name

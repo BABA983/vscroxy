@@ -114,10 +114,10 @@ func (a *app) socketIOActions(d *requestDocument, editing bool) []action {
 		ack = ready && slices.Contains(s.owed, u.ackID)
 	}
 	return []action{
-		do("request.socketio-emit", locales.EmitSocketIoEvent(), func() { a.sendSocketIOMessage(d, false) }).when(ready, "Connect a Socket.IO document first"),
+		do("request.socketio-emit", locales.EmitSocketIoEvent(), func() { a.sendSocketIOMessage(d, false) }).when(ready, locales.ConnectASocketIoDocument2()),
 		do("request.socketio-ack", locales.ReplySocketIoAck(), func() { a.sendSocketIOMessage(d, true) }).when(ack, locales.ChooseAPendingServerAck()),
 		do("request.socketio-emit-saved", locales.EmitSaved(), func() { a.emitSocketIOSaved(d) }).
-			when(ready && len(d.socketIOConfig.Messages) > 0, "Connect a Socket.IO document and save messages first"),
+			when(ready && len(d.socketIOConfig.Messages) > 0, locales.ConnectASocketIoDocument()),
 	}
 }
 

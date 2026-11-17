@@ -552,7 +552,7 @@ func (a *app) pushAndroidCA() {
 		results <- clientSetupResult{
 			action:  "push",
 			what:    locales.CopyCAAndroidDevice(),
-			success: "Copied CA to Android Downloads",
+			success: locales.CopiedCaToAndroidDownloads(),
 			command: commandString(command),
 			err:     err,
 		}

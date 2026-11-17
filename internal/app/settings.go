@@ -138,7 +138,7 @@ func (a *app) saveProxyPort() {
 	if input := strings.TrimSpace(a.proxyPortInput); input != "" {
 		n, err := strconv.Atoi(input)
 		if err != nil || n < 1024 || n > 65535 {
-			a.proxyPortProblem = "Enter a port from 1024 to 65535, or leave empty for automatic selection"
+			a.proxyPortProblem = locales.EnterPortRange()
 			return
 		}
 		port = n

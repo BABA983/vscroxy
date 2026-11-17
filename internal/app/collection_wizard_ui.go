@@ -360,7 +360,7 @@ func (a *app) collectionWizardTree(c *ui.Context, t *ui.Theme) {
 			}
 			heading.Children(func() {
 				ui.Icon(c, lucide.Folder()).Size(uikit.IconInline, uikit.IconInline)
-				uikit.Body(c, cmp.Or(name, "Collection root"))
+				uikit.Body(c, cmp.Or(name, locales.CollectionRoot()))
 			})
 			for i, g := range w.groups {
 				if !g.include || g.folder != name {

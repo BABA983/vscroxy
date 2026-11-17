@@ -222,7 +222,7 @@ func settingsLabel(path string) string {
 	if strings.Contains(path, "/") {
 		return "Folder settings…"
 	}
-	return "Collection settings…"
+	return locales.CollectionSettings()
 }
 
 // collectionRoot is the collection a path is in: "Shop" for "Shop/Orders".
