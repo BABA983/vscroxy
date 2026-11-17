@@ -195,7 +195,7 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 	}
 	color := f.statusColor(t)
 	if f.kind == "connect" {
-		status, color = "Tunnel", t.TextMuted
+		status, color = locales.Tunnel(), t.TextMuted
 	}
 	if f.conn.error != "" {
 		status, color = "Failed", t.Danger

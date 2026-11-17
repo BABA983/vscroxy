@@ -27,13 +27,13 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 						continue
 					}
 					ui.Row(c.Key(doc.key)).FillHeight().AlignItems(ui.Center).Children(func() {
-						if uikit.ToolbarButton(c, "Session: "+doc.data.Title, locales.HistoricalSessionReadOnlyPayloads(), doc == item).Children(func() {
+						if uikit.ToolbarButton(c, locales.SessionNamed(doc.data.Title), locales.HistoricalSessionReadOnlyPayloads(), doc == item).Children(func() {
 							uikit.Glyph(c, clockIcon)
 							uikit.Body(c, doc.data.Title).SingleLine().MaxWidth(220)
 						}).Clicked() {
 							a.selectSession(doc.key)
 						}
-						if uikit.IconButton(c, "Close session: "+doc.data.Title, locales.CloseTabKeepTheSaved(), closeIcon).Clicked() {
+						if uikit.IconButton(c, locales.CloseSessionNamed(doc.data.Title), locales.CloseTabKeepTheSaved(), closeIcon).Clicked() {
 							doc.closeTab()
 							if doc == item {
 								s.active = ""

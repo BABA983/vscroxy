@@ -81,7 +81,7 @@ func (a *app) diffPool(c *ui.Context, selected []flow) {
 			label := poolLabel(f)
 			ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
 				uikit.Caption(c, label).TextColor(uikit.Colors(t).TextMuted)
-				if uikit.Tip(c, uikit.CompactButton(c, "×"), locales.RemoveFromPool()).Clicked() {
+				if uikit.RowIconButton(c, locales.RemoveFromPool(), locales.RemoveFromPool(), closeIcon).Clicked() {
 					s.pool = slices.DeleteFunc(s.pool, func(id int) bool { return id == f.id })
 					if s.poolLeft == label || s.poolRight == label {
 						s.poolLeft, s.poolRight = "", ""

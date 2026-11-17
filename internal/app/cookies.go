@@ -22,6 +22,7 @@ import (
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
+	"github.com/oneo-me/onevra/source/icons/lucide"
 	"golang.org/x/net/idna"
 	"golang.org/x/net/publicsuffix"
 )
@@ -657,8 +658,8 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 				}
 				for _, domain := range slices.Sorted(maps.Keys(groups)) {
 					ui.Row(c.Key("domain:" + domain)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-						uikit.Tip(c, uikit.Label(c, domain).SingleLine().Grow(1), "Cookies for "+domain)
-						if uikit.CompactButton(c, locales.Clear()).Label("Clear cookies for " + domain).Clicked() {
+						uikit.Tip(c, uikit.Label(c, domain).SingleLine().Grow(1), locales.CookiesForDomain(domain))
+						if uikit.RowIconButton(c, locales.ClearCookiesForDomain(domain), locales.ClearCookiesForDomain(domain), lucide.Trash()).Clicked() {
 							a.requestCookies().clearDomain(domain)
 							clear(e.reveal)
 						}
@@ -673,7 +674,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 								uikit.Mono(c, item.cookie.Name+" = "+value).SingleLine()
 								expires := "Session cookie"
 								if !item.cookie.Expires.IsZero() {
-									expires = "Expires " + item.cookie.Expires.Local().Format("2006-01-02 15:04")
+									expires = locales.CookieExpiresAt(item.cookie.Expires.Local().Format("2006-01-02 15:04"))
 								}
 								attrs := []string{item.cookie.Path, expires}
 								if item.cookie.Secure {
@@ -684,14 +685,14 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 								}
 								uikit.Meta(c, strings.Join(attrs, " · "))
 							})
-							label := fmt.Sprintf("Reveal cookie %s %s", item.cookie.Name, item.cookie.Path)
+							label := locales.RevealCookieNamed(item.cookie.Name, item.cookie.Path)
 							if e.reveal[item.key] {
-								label = fmt.Sprintf("Hide cookie %s %s", item.cookie.Name, item.cookie.Path)
+								label = locales.HideCookieNamed(item.cookie.Name, item.cookie.Path)
 							}
 							if uikit.RowIconButton(c, label, locales.CookieValuesAreMaskedBy(), eyeIcon).Clicked() {
 								e.reveal[item.key] = !e.reveal[item.key]
 							}
-							if uikit.SecondaryButton(c, locales.Delete()).Label("Delete cookie " + item.cookie.Name + " " + item.cookie.Path).Clicked() {
+							if uikit.RowIconButton(c, locales.DeleteCookieNamed(item.cookie.Name, item.cookie.Path), locales.DeleteCookieNamed(item.cookie.Name, item.cookie.Path), lucide.Trash()).Clicked() {
 								a.requestCookies().remove(item.key)
 							}
 						})

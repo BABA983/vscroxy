@@ -16,6 +16,7 @@ import (
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
+	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
 // scenarioUI is the scenario the page shows and its name as being edited.
@@ -118,7 +119,7 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 			}
 			r.Children(func() {
 				on := name == current
-				if uikit.Switch(c, &on).Label("Scenario active: " + name).Changed() {
+				if uikit.Switch(c, &on).Label(locales.ScenarioActiveNamed(name)).Changed() {
 					a.selectRuleScenario(map[bool]string{true: name}[on])
 				}
 				uikit.Body(c, name).TextColor(t.Text).Grow(1).SingleLine()
@@ -211,7 +212,7 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 					uikit.Body(c, cmp.Or(r.Name, r.Match)).TextColor(t.Text).SingleLine()
 					uikit.Meta(c, ruleSummary(r)).Font(uikit.FontMono).SingleLine()
 				})
-				if uikit.CompactButton(c, locales.Edit2()).Label(locales.EditRule(i + 1)).Clicked() {
+				if uikit.RowIconButton(c, locales.EditRule(i+1), locales.Edit2(), lucide.Pencil()).Clicked() {
 					a.editRule(i, r)
 					a.openTools("rules")
 				}

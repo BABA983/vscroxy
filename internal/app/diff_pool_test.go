@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -30,7 +31,7 @@ func TestDiffPoolComparesAnyTwoOfMoreThanTwoCaptures(t *testing.T) {
 	if a.analysis.pair != [2]int{3, 1} {
 		t.Fatalf("compared %v, want the pool's chosen sides", a.analysis.pair)
 	}
-	if err := tt.Click("×"); err != nil {
+	if err := tt.Click(locales.RemoveFromPool()); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.analysis.pool) != 2 {

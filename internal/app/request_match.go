@@ -183,11 +183,11 @@ func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
 						uikit.Tip(c, uikit.Meta(c, locales.CollectionPath(cmp.Or(r.Collection, locales.Unfiled()))).SingleLine(), r.Collection)
 						uikit.Tip(c, uikit.Mono(c, cmp.Or(r.Method, "GET")+" "+r.URL).SingleLine(), r.URL)
 						ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().Children(func() {
-							uikit.SecondaryButton(c, locales.OpenRequest()).Label("Open request: " + r.Name).OnClick(func() {
+							uikit.SecondaryButton(c, locales.OpenRequest()).Label(locales.OpenRequestNamed(r.Name)).OnClick(func() {
 								a.matchUI.open = false
 								a.openSaved(r.key())
 							})
-							uikit.SecondaryButton(c, locales.SaveResponseAsExample()).Label("Save response as example: " + r.Name).
+							uikit.SecondaryButton(c, locales.SaveResponseAsExample()).Label(locales.SaveResponseAsExampleNamed(r.Name)).
 								Disabled(f.status == 0 || f.resError != "").OnClick(func() {
 								if a.saveCapturedExample(f, r.key()) {
 									a.matchUI.open = false

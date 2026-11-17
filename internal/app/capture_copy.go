@@ -128,9 +128,9 @@ func (a *app) captureCellValue(f flow, col captureColumn) captureCell {
 	case "status":
 		switch {
 		case f.conn.error != "":
-			return plainCell("Failed")
+			return plainCell(locales.Failed())
 		case f.kind == "connect":
-			return plainCell("Tunnel")
+			return plainCell(locales.Tunnel())
 		case f.status != 0:
 			return plainCell(strconv.Itoa(f.status))
 		}

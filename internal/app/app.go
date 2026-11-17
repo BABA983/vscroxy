@@ -2800,7 +2800,7 @@ func captureCard(f flow) uikit.HoverCard {
 	case f.conn.error != "":
 		meta = append(meta, locales.Failed())
 	case f.kind == "connect" && f.status > 0:
-		meta = append(meta, "Tunnel")
+		meta = append(meta, locales.Tunnel())
 	case f.status > 0:
 		meta = append(meta, fmt.Sprint(f.status))
 	}
@@ -3091,7 +3091,7 @@ func (a *app) table(c *ui.Context) {
 					// profile sent the request elsewhere.
 					accent := uikit.Colors(t).Accent
 					uikit.Tip(c, ui.Box(c).Height(15).Padding(0, t.Space(uikit.SpaceXS)).Radius(uikit.RadiusControl).Background(accent.Alpha(0.12)).Center().MarginEnd(t.Space(uikit.SpaceXS)).
-						Label("Mapped by "+hostProfileLabel(f.hostProfile)), mappedBy(f)).Children(func() {
+						Label(locales.MappedBy(hostProfileLabel(f.hostProfile))), mappedBy(f)).Children(func() {
 						uikit.Caption(c, locales.Hosts()).FontWeight(500).TextColor(accent)
 					})
 				}

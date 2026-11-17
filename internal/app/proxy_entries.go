@@ -392,7 +392,7 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 						if uikit.SecondaryButton(c, locales.Edit()).Clicked() {
 							a.openReverseProxy(r.ID)
 						}
-						uikit.MoreMenu(c, locales.ReverseProxy()+" actions", func(m *ui.Menu) {
+						uikit.MoreMenu(c, locales.ReverseProxyActions(), func(m *ui.Menu) {
 							actionMenu(m, []action{do("proxy.reverse.remove", locales.Remove(), func() { a.removeReverseProxy(r.ID) }).in("danger")})
 						})
 					})

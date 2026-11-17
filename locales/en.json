@@ -101,14 +101,38 @@
       }
     }
   },
-  "@chipApp": {"placeholders": {"app": {"type": "String"}}},
+  "@chipApp": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
   "chipApp": "App: {app}",
   "chipContentOr": "Content: OR",
-  "@chipHost": {"placeholders": {"host": {"type": "String"}}},
+  "@chipHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
   "chipHost": "Host: {host}",
-  "@chipTime": {"placeholders": {"range": {"type": "String"}}},
+  "@chipTime": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
   "chipTime": "Time: {range}",
-  "@chipTraffic": {"placeholders": {"filter": {"type": "String"}}},
+  "@chipTraffic": {
+    "placeholders": {
+      "filter": {
+        "type": "String"
+      }
+    }
+  },
   "chipTraffic": "Traffic: {filter}",
   "@chosenCount": {
     "placeholders": {
@@ -484,13 +508,37 @@
       }
     }
   },
-  "@queryEditLabel": {"placeholders": {"condition": {"type": "String"}}},
+  "@queryEditLabel": {
+    "placeholders": {
+      "condition": {
+        "type": "String"
+      }
+    }
+  },
   "queryEditLabel": "Edit condition: {condition}",
-  "@queryEditTip": {"placeholders": {"condition": {"type": "String"}}},
+  "@queryEditTip": {
+    "placeholders": {
+      "condition": {
+        "type": "String"
+      }
+    }
+  },
   "queryEditTip": "Edit {condition}",
-  "@queryRemoveLabel": {"placeholders": {"condition": {"type": "String"}}},
+  "@queryRemoveLabel": {
+    "placeholders": {
+      "condition": {
+        "type": "String"
+      }
+    }
+  },
   "queryRemoveLabel": "Remove condition: {condition}",
-  "@queryRemoveTip": {"placeholders": {"condition": {"type": "String"}}},
+  "@queryRemoveTip": {
+    "placeholders": {
+      "condition": {
+        "type": "String"
+      }
+    }
+  },
   "queryRemoveTip": "Remove {condition}",
   "@reproBundleSavedTo": {
     "placeholders": {
@@ -1502,6 +1550,8 @@
   "addVariable": "Add variable",
   "addedExample": "Added example “{name}”; save the request to keep it",
   "addedUpdated": "+{added} / ↻{updated}",
+  "addonActions": "Addon actions",
+  "addonName": "Addon name",
   "addonSavedScriptsLoadIt": "Addon saved · scripts load it from their next run",
   "addons": "Addons",
   "address": "Address",
@@ -1685,12 +1735,36 @@
   "certificateFormat": "Certificate format",
   "chooseACertificate": "Choose a certificate…",
   "cleanStartSession": "Clean start / clean session",
+  "@collapseFolder": {
+    "placeholders": {
+      "folder": {
+        "type": "String"
+      }
+    }
+  },
+  "collapseFolder": "Collapse folder {folder}",
   "collectionFolderEnvironmentVariables": "Collection, folder and environment variables",
+  "@cookieExpiresAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "cookieExpiresAt": "Expires {time}",
   "cookieHttpOnly": "HttpOnly",
   "cookieSecure": "Secure",
   "excludeConnectTunnels": "Exclude CONNECT tunnels",
   "excludeNetworkFailures": "Exclude network failures",
   "excludeStaticResources": "Exclude static resources",
+  "@expandFolder": {
+    "placeholders": {
+      "folder": {
+        "type": "String"
+      }
+    }
+  },
+  "expandFolder": "Expand folder {folder}",
   "exportUnredacted": "Export unredacted (include original values)",
   "hashNonFormBody": "Hash a non-form body",
   "includeInSignature": "Include in the signature",
@@ -1728,8 +1802,22 @@
   "requestAck": "Request ACK",
   "requestResponseInformation": "Request response information",
   "retainMessage": "Retain",
+  "@revealCookieNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "revealCookieNamed": "Reveal cookie {name} {path}",
   "revealPlaintextValues": "Reveal values (plaintext)",
+  "reverseProxyActions": "Reverse proxy actions",
   "reviewedScriptAndCredentialChanges": "I reviewed these script and credential changes",
+  "scriptActions": "Script actions",
+  "scriptName": "Script name",
   "scriptsChecksPrivateNotes": "Scripts, Checks and private notes",
   "sealedPassphrase": "sealed passphrase",
   "certificateInstallationCancelledSystemTrust": "Certificate installation cancelled; system trust not verified",
@@ -1785,6 +1873,14 @@
   "clearAllCookies": "Clear all cookies",
   "clearCapturedRequests": "Clear captured requests?",
   "clearChoice": "Clear choice",
+  "@clearCookiesForDomain": {
+    "placeholders": {
+      "domain": {
+        "type": "String"
+      }
+    }
+  },
+  "clearCookiesForDomain": "Clear cookies for {domain}",
   "clearFilters": "Clear filters",
   "clearHistory": "Clear runs…",
   "clearHistory2": "Clear runs?",
@@ -1811,6 +1907,14 @@
   "closeKeepsRunningQuitCancels": "Close keeps running; Quit cancels and waits.",
   "closeRequest": "Close request",
   "closeSearchEsc": "Close search · Esc",
+  "@closeSessionNamed": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "closeSessionNamed": "Close session: {title}",
   "closeTabKeepTheSaved": "Close tab; keep the saved session",
   "closeTheClientsOpenConnections": "Close the clients' open connections so they connect again",
   "closeThisRequestCtrlCmd": "Close this request · Ctrl/Cmd+W",
@@ -1929,6 +2033,14 @@
   "cookies": "Cookies…",
   "cookies2": "Cookies",
   "cookiesCaptured": "{count} cookies · captured headers",
+  "@cookiesForDomain": {
+    "placeholders": {
+      "domain": {
+        "type": "String"
+      }
+    }
+  },
+  "cookiesForDomain": "Cookies for {domain}",
   "cookiesKeptIn": "Cookies will be kept after quitting in {path}",
   "cookiesWillBeForgottenWhen": "Cookies will be forgotten when the app quits",
   "copiedCaFingerprint": "Copied CA fingerprint",
@@ -2045,6 +2157,14 @@
   "decrease": "Decrease −",
   "decryptEveryDomain": "Decrypt every domain",
   "decryptEveryNewHttpsConnection": "Decrypt every new HTTPS connection, not only the listed domains and apps.",
+  "@decryptHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "decryptHost": "Decrypt {host}",
   "decryption": "Decryption",
   "decryptionDomains": "Decryption domains",
   "defaultLatestSuccessfulResponseAnd": "Default: latest successful response and one response per error status. Deselect incomplete or binary responses.",
@@ -2059,15 +2179,28 @@
   "delegation": "Delegation",
   "delete": "Delete",
   "delete2": "Delete…",
+  "deleteAddon": "Delete addon?",
   "deleteAllSecretsAndStart": "Delete all secrets and start over",
   "deleteCannotBeUndone": "{detail} This cannot be undone.",
   "deleteConfirm": "Delete {name}?",
+  "@deleteCookieNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteCookieNamed": "Delete cookie {name} {path}",
   "deleteDetail": "Its {count, plural, one {# request} other {# requests}}, folders and settings are removed from the library.",
   "deleteExample": "Delete example",
   "deleteKind": "Delete {kind}",
   "deleteNamed": "Delete {name}",
   "deleteRequest": "Delete request…",
   "deleteRule": "Delete rule…",
+  "deleteScript": "Delete script?",
   "deleteSession": "Delete session…",
   "deleteWithItsRules": "Delete with its rules…",
   "deletedCaptureFilter": "Deleted capture filter {name}",
@@ -2429,6 +2562,17 @@
   "hiddenByFilters": "{count} captured requests are hidden by this view's search or filters.",
   "hiddenTools": "More tools",
   "hide": "Hide",
+  "@hideCookieNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "hideCookieNamed": "Hide cookie {name} {path}",
   "hideRow": "Hide {noun} {index}",
   "hideSidebar": "Hide sidebar",
   "historicalReadOnlyPayloads": "Historical · read-only payloads",
@@ -2787,6 +2931,7 @@
   "neverDisablesCertificateVerificationCertificate": "Never disables certificate verification. Certificate trust comes from the system store on macOS/Windows and NSS on Linux. Apps that set their own proxy or pin certificates can ignore the flag.",
   "new": "New",
   "newAccessToken": "Got a new access token from {url}",
+  "newAddon": "New addon",
   "newAmbientHttpTrafficOnly": "New ambient HTTP traffic only. Static resources, streams, network failures and app sends/replays are excluded. Repeated endpoints update Examples, never the authored request.",
   "newApiContract": "New API contract",
   "newCaptureView": "New capture view",
@@ -2943,6 +3088,14 @@
   "openProxiedFirefox": "Open proxied Firefox",
   "openRequest": "Open request",
   "openRequestHistory": "Open request runs",
+  "@openRequestNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "openRequestNamed": "Open request: {name}",
   "openRules": "Open Rules",
   "openSession": "Open session…",
   "openSession2": "Open session",
@@ -3413,6 +3566,14 @@
   "saveRequests": "Save requests",
   "saveRequestsToCollection": "Save {count} requests to collection",
   "saveResponseAsExample": "Save response as example",
+  "@saveResponseAsExampleNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "saveResponseAsExampleNamed": "Save response as example: {name}",
   "saveResponseBody": "Save response body",
   "saveRule": "Save rule",
   "saveSession": "Save session…",
@@ -3456,6 +3617,14 @@
   "scenario": "Scenario",
   "scenarioActions": "Scenario actions",
   "scenarioActive": "Scenario active",
+  "@scenarioActiveNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "scenarioActiveNamed": "Scenario active: {name}",
   "scenarioAnswers": "Scenario “{name}” answers from {count} examples",
   "scenarioDeleted": "Deleted scenario “{name}” and its {count, plural, one {# rule} other {# rules}}",
   "scenarioExists": "A scenario named “{name}” exists",
@@ -3554,6 +3723,14 @@
   "sessionExchangeNote": "Session exchange note",
   "sessionExpiry": "Session expiry",
   "sessionMessageLabel": "Session message {seq}",
+  "@sessionNamed": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "sessionNamed": "Session: {title}",
   "sessionNotes": "Session notes…",
   "sessionNotes2": "Session notes",
   "sessionPayload": "Session payload",
@@ -3854,6 +4031,7 @@
   "trustTheLocalCaOn": "Trust the local CA on this computer; approve system authorization if requested",
   "trustedRoots": "Trusted roots",
   "trustingTheCaMakesDecryption": "Trusting the CA makes decryption possible; decryption chooses which connections are read. Changes apply to new connections.",
+  "tunnel": "Tunnel",
   "tunnelTooltip": "CONNECT {status} · encrypted tunnel, not an HTTP response",
   "turnOff": "Turn off",
   "turnOffHostProfiles": "Turn off Host profiles",
@@ -4061,28 +4239,64 @@
   "gitInitializeRepository": "Initialize repository",
   "gitLoadingChanges": "Loading changes…",
   "gitOnBranch": "On branch {branch}",
-  "@gitOnBranch": {"placeholders": {"branch": {"type": "String"}}},
+  "@gitOnBranch": {
+    "placeholders": {
+      "branch": {
+        "type": "String"
+      }
+    }
+  },
   "gitDetachedAt": "Detached at {commit}",
-  "@gitDetachedAt": {"placeholders": {"commit": {"type": "String"}}},
+  "@gitDetachedAt": {
+    "placeholders": {
+      "commit": {
+        "type": "String"
+      }
+    }
+  },
   "gitOnlyTheFirstChangesAreShown": "Only the first {count} changes are shown.",
-  "@gitOnlyTheFirstChangesAreShown": {"placeholders": {"count": {"type": "int"}}},
+  "@gitOnlyTheFirstChangesAreShown": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "gitChangedFiles": "Changed files",
   "gitSelectFile": "Select {path} to commit",
-  "@gitSelectFile": {"placeholders": {"path": {"type": "String"}}},
+  "@gitSelectFile": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "gitCommitMessage": "Commit message",
   "gitCommitMessageHint": "What this commit changes",
   "gitCommitSelected": "Commit selected",
   "gitSelectAtLeastOneFile": "Select at least one file to commit.",
   "gitEnterACommitMessage": "Enter a commit message.",
   "gitCommitted": "{count, plural, one {Committed # file.} other {Committed # files.}}",
-  "@gitCommitted": {"placeholders": {"count": {"type": "int"}}},
+  "@gitCommitted": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "gitSelectAChangedFile": "Select a changed file",
   "gitSelectAChangedFileHint": "Its diff appears here. Select files to commit them.",
   "gitLoadingDiff": "Loading diff…",
   "gitDiffIsCutAt1Mib": "The diff is cut at 1 MiB.",
   "gitDiff": "Diff",
   "gitRenamedFrom": "Renamed from {path}",
-  "@gitRenamedFrom": {"placeholders": {"path": {"type": "String"}}},
+  "@gitRenamedFrom": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "gitNewFile": "New file",
   "gitAdded": "Added",
   "gitCopied": "Copied",
@@ -4096,23 +4310,53 @@
   "exportHttp": "Export .http",
   "exportAsHttp": "Export as .http…",
   "exportCollectionAsHttp": "Export “{name}” as .http…",
-  "@exportCollectionAsHttp": {"placeholders": {"name": {"type": "String"}}},
+  "@exportCollectionAsHttp": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "httpExportNoRequests": "Export .http: no HTTP requests to export",
   "savedAccessTokens": "Saved access tokens",
   "noSavedAccessTokens": "No saved access tokens. A token you get above is kept sealed on this machine.",
   "tokenStoreProblem": "Saved tokens: {problem}",
-  "@tokenStoreProblem": {"placeholders": {"problem": {"type": "String"}}},
+  "@tokenStoreProblem": {
+    "placeholders": {
+      "problem": {
+        "type": "String"
+      }
+    }
+  },
   "tokenReady": "Ready",
   "tokenExpiresAt": "Expires {time}",
-  "@tokenExpiresAt": {"placeholders": {"time": {"type": "String"}}},
+  "@tokenExpiresAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "tokenExpired": "Expired",
   "tokenExpiredRefreshAvailable": "Expired · refresh available",
   "tokenRequestThroughProxy": "Start the proxy first: the token request is sent through it.",
   "tokenRefreshed": "Refreshed the access token for {label}.",
-  "@tokenRefreshed": {"placeholders": {"label": {"type": "String"}}},
+  "@tokenRefreshed": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
   "tokenDeleted": "Deleted the saved access token.",
   "tokenRefreshFailed": "Refresh failed: {problem}",
-  "@tokenRefreshFailed": {"placeholders": {"problem": {"type": "String"}}},
+  "@tokenRefreshFailed": {
+    "placeholders": {
+      "problem": {
+        "type": "String"
+      }
+    }
+  },
   "aboutVscroxy": "About vscroxy",
   "commit": "Commit",
   "platform": "Platform",
@@ -4172,7 +4416,13 @@
   "imagePreviewTooLarge": "Image is {width}×{height}; previews are limited to {megapixels} megapixels.",
   "saveCookiesToJar": "Save cookies to jar",
   "cookiesSavedToJar": "Saved {count} cookies to the request jar",
-  "@cookiesSavedToJar": {"placeholders":{"count":{"type":"int"}}},
+  "@cookiesSavedToJar": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "diffPool": "Diff pool",
   "chooseAtLeastTwoRowsWith": "Choose at least two rows with Ctrl/Cmd-click",
   "exportUnifiedDiff": "Export unified diff…",

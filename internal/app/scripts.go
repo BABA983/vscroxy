@@ -585,14 +585,16 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 			s.choice = s.names[0]
 		}
 	}
-	what, base, about := "script", "Untitled", "Script rules edit traffic; Code Mock rules answer locally."
+	base, about := "Untitled", "Script rules edit traffic; Code Mock rules answer locally."
+	newLabel := locales.NewScript()
 	if s.addon {
-		what, base, about = "addon", "helpers", "Modules rule scripts import, and request scripts require, by name."
+		base, about = "helpers", "Modules rule scripts import, and request scripts require, by name."
+		newLabel = locales.NewAddon()
 	}
 	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(uikit.SpaceL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
 			uikit.Heading(c, locales.Scripts()).TextColor(t.Text).Grow(1)
-			if uikit.RowIconButton(c, "New "+what, "New "+what, plusIcon).Clicked() {
+			if uikit.RowIconButton(c, newLabel, newLabel, plusIcon).Clicked() {
 				a.newScript(s, base, newScriptText)
 			}
 		})
@@ -606,7 +608,7 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 		})
 		uikit.Meta(c, about)
 		if s.problem != nil {
-			uikit.ErrorText(c, "Read-only: "+s.problem.Error()).MaxLines(3)
+			uikit.ErrorText(c, locales.ReadOnlyReason(s.problem.Error())).MaxLines(3)
 		}
 		a.scriptList(c, t, s, active)
 	})
@@ -618,7 +620,7 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 				title, hint = "No addons", "Code to share between scripts: what an addon exports, rule scripts import from \"its name\" and request scripts require."
 			}
 			uikit.EmptyState(c, title, hint, func() {
-				if uikit.PrimaryButton(c, "New "+what).Clicked() {
+				if uikit.PrimaryButton(c, newLabel).Clicked() {
 					a.newScript(s, base, newScriptText)
 				}
 			})
@@ -630,7 +632,11 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 	if s.addon {
 		message = "Scripts that require it fail until it is back."
 	}
-	if ui.AlertDialog(c, &s.deleting, "Delete "+what+"?", message, "Cancel", "Delete") == 1 {
+	deleteTitle := locales.DeleteScript()
+	if s.addon {
+		deleteTitle = locales.DeleteAddon()
+	}
+	if ui.AlertDialog(c, &s.deleting, deleteTitle, message, locales.Cancel(), locales.Delete()) == 1 {
 		a.dropScript(s, s.choice)
 	}
 }
@@ -717,15 +723,18 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 		s.editors[name] = st
 	}
 	users, usedBy := a.scriptUsers(s, name)
-	what := map[bool]string{false: "Script", true: "Addon"}[s.addon]
+	nameLabel, actionsLabel := locales.ScriptName(), locales.ScriptActions()
+	if s.addon {
+		nameLabel, actionsLabel = locales.AddonName(), locales.AddonActions()
+	}
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-		in := uikit.Input(c, &s.name).Label(what + " name").Grow(1).MaxWidth(320).Height(uikit.HeightControl)
+		in := uikit.Input(c, &s.name).Label(nameLabel).Grow(1).MaxWidth(320).Height(uikit.HeightControl)
 		if in.Submitted() {
 			a.renameScript(s, name, strings.TrimSpace(s.name))
 		}
 		ui.Spacer(c)
 		snippetMenu(c, st, map[bool]string{false: "rule", true: "addon"}[s.addon])
-		uikit.MoreMenu(c, what+" actions", func(m *ui.Menu) {
+		uikit.MoreMenu(c, actionsLabel, func(m *ui.Menu) {
 			actions := []action{do("scripts.rename", locales.Rename(), func() { a.renameScript(s, name, strings.TrimSpace(s.name)) }).
 				when(strings.TrimSpace(s.name) != name, "Type the new name first").in("edit")}
 			if !s.addon {

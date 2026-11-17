@@ -646,6 +646,26 @@ func (msgs Messages) AddedUpdated(added int, updated int) string {
 	return Catalog.Format(msgs.locale, "addedUpdated", map[string]any{"added": added, "updated": updated})
 }
 
+// AddonActions says "Addon actions"
+// in the language the app shows.
+func AddonActions() string { return In(i18n.Locale()).AddonActions() }
+
+// AddonActions says "Addon actions"
+// in the language of msgs.
+func (msgs Messages) AddonActions() string {
+	return Catalog.Format(msgs.locale, "addonActions", nil)
+}
+
+// AddonName says "Addon name"
+// in the language the app shows.
+func AddonName() string { return In(i18n.Locale()).AddonName() }
+
+// AddonName says "Addon name"
+// in the language of msgs.
+func (msgs Messages) AddonName() string {
+	return Catalog.Format(msgs.locale, "addonName", nil)
+}
+
 // AddonSavedScriptsLoadIt says "Addon saved · scripts load it from their next run"
 // in the language the app shows.
 func AddonSavedScriptsLoadIt() string { return In(i18n.Locale()).AddonSavedScriptsLoadIt() }
@@ -2514,6 +2534,16 @@ func (msgs Messages) CleanStartSession() string {
 	return Catalog.Format(msgs.locale, "cleanStartSession", nil)
 }
 
+// CollapseFolder says "Collapse folder {folder}"
+// in the language the app shows.
+func CollapseFolder(folder string) string { return In(i18n.Locale()).CollapseFolder(folder) }
+
+// CollapseFolder says "Collapse folder {folder}"
+// in the language of msgs.
+func (msgs Messages) CollapseFolder(folder string) string {
+	return Catalog.Format(msgs.locale, "collapseFolder", map[string]any{"folder": folder})
+}
+
 // CollectionFolderEnvironmentVariables says "Collection, folder and environment variables"
 // in the language the app shows.
 func CollectionFolderEnvironmentVariables() string {
@@ -2524,6 +2554,16 @@ func CollectionFolderEnvironmentVariables() string {
 // in the language of msgs.
 func (msgs Messages) CollectionFolderEnvironmentVariables() string {
 	return Catalog.Format(msgs.locale, "collectionFolderEnvironmentVariables", nil)
+}
+
+// CookieExpiresAt says "Expires {time}"
+// in the language the app shows.
+func CookieExpiresAt(time_ string) string { return In(i18n.Locale()).CookieExpiresAt(time_) }
+
+// CookieExpiresAt says "Expires {time}"
+// in the language of msgs.
+func (msgs Messages) CookieExpiresAt(time_ string) string {
+	return Catalog.Format(msgs.locale, "cookieExpiresAt", map[string]any{"time": time_})
 }
 
 // CookieHttpOnly says "HttpOnly"
@@ -2574,6 +2614,16 @@ func ExcludeStaticResources() string { return In(i18n.Locale()).ExcludeStaticRes
 // in the language of msgs.
 func (msgs Messages) ExcludeStaticResources() string {
 	return Catalog.Format(msgs.locale, "excludeStaticResources", nil)
+}
+
+// ExpandFolder says "Expand folder {folder}"
+// in the language the app shows.
+func ExpandFolder(folder string) string { return In(i18n.Locale()).ExpandFolder(folder) }
+
+// ExpandFolder says "Expand folder {folder}"
+// in the language of msgs.
+func (msgs Messages) ExpandFolder(folder string) string {
+	return Catalog.Format(msgs.locale, "expandFolder", map[string]any{"folder": folder})
 }
 
 // ExportUnredacted says "Export unredacted (include original values)"
@@ -2780,6 +2830,18 @@ func (msgs Messages) RetainMessage() string {
 	return Catalog.Format(msgs.locale, "retainMessage", nil)
 }
 
+// RevealCookieNamed says "Reveal cookie {name} {path}"
+// in the language the app shows.
+func RevealCookieNamed(name string, path string) string {
+	return In(i18n.Locale()).RevealCookieNamed(name, path)
+}
+
+// RevealCookieNamed says "Reveal cookie {name} {path}"
+// in the language of msgs.
+func (msgs Messages) RevealCookieNamed(name string, path string) string {
+	return Catalog.Format(msgs.locale, "revealCookieNamed", map[string]any{"name": name, "path": path})
+}
+
 // RevealPlaintextValues says "Reveal values (plaintext)"
 // in the language the app shows.
 func RevealPlaintextValues() string { return In(i18n.Locale()).RevealPlaintextValues() }
@@ -2788,6 +2850,16 @@ func RevealPlaintextValues() string { return In(i18n.Locale()).RevealPlaintextVa
 // in the language of msgs.
 func (msgs Messages) RevealPlaintextValues() string {
 	return Catalog.Format(msgs.locale, "revealPlaintextValues", nil)
+}
+
+// ReverseProxyActions says "Reverse proxy actions"
+// in the language the app shows.
+func ReverseProxyActions() string { return In(i18n.Locale()).ReverseProxyActions() }
+
+// ReverseProxyActions says "Reverse proxy actions"
+// in the language of msgs.
+func (msgs Messages) ReverseProxyActions() string {
+	return Catalog.Format(msgs.locale, "reverseProxyActions", nil)
 }
 
 // ReviewedScriptAndCredentialChanges says "I reviewed these script and credential changes"
@@ -2800,6 +2872,26 @@ func ReviewedScriptAndCredentialChanges() string {
 // in the language of msgs.
 func (msgs Messages) ReviewedScriptAndCredentialChanges() string {
 	return Catalog.Format(msgs.locale, "reviewedScriptAndCredentialChanges", nil)
+}
+
+// ScriptActions says "Script actions"
+// in the language the app shows.
+func ScriptActions() string { return In(i18n.Locale()).ScriptActions() }
+
+// ScriptActions says "Script actions"
+// in the language of msgs.
+func (msgs Messages) ScriptActions() string {
+	return Catalog.Format(msgs.locale, "scriptActions", nil)
+}
+
+// ScriptName says "Script name"
+// in the language the app shows.
+func ScriptName() string { return In(i18n.Locale()).ScriptName() }
+
+// ScriptName says "Script name"
+// in the language of msgs.
+func (msgs Messages) ScriptName() string {
+	return Catalog.Format(msgs.locale, "scriptName", nil)
 }
 
 // ScriptsChecksPrivateNotes says "Scripts, Checks and private notes"
@@ -3364,6 +3456,18 @@ func (msgs Messages) ClearChoice() string {
 	return Catalog.Format(msgs.locale, "clearChoice", nil)
 }
 
+// ClearCookiesForDomain says "Clear cookies for {domain}"
+// in the language the app shows.
+func ClearCookiesForDomain(domain string) string {
+	return In(i18n.Locale()).ClearCookiesForDomain(domain)
+}
+
+// ClearCookiesForDomain says "Clear cookies for {domain}"
+// in the language of msgs.
+func (msgs Messages) ClearCookiesForDomain(domain string) string {
+	return Catalog.Format(msgs.locale, "clearCookiesForDomain", map[string]any{"domain": domain})
+}
+
 // ClearFilters says "Clear filters"
 // in the language the app shows.
 func ClearFilters() string { return In(i18n.Locale()).ClearFilters() }
@@ -3624,6 +3728,16 @@ func CloseSearchEsc() string { return In(i18n.Locale()).CloseSearchEsc() }
 // in the language of msgs.
 func (msgs Messages) CloseSearchEsc() string {
 	return Catalog.Format(msgs.locale, "closeSearchEsc", nil)
+}
+
+// CloseSessionNamed says "Close session: {title}"
+// in the language the app shows.
+func CloseSessionNamed(title string) string { return In(i18n.Locale()).CloseSessionNamed(title) }
+
+// CloseSessionNamed says "Close session: {title}"
+// in the language of msgs.
+func (msgs Messages) CloseSessionNamed(title string) string {
+	return Catalog.Format(msgs.locale, "closeSessionNamed", map[string]any{"title": title})
 }
 
 // CloseTabKeepTheSaved says "Close tab; keep the saved session"
@@ -4830,6 +4944,16 @@ func (msgs Messages) CookiesCaptured(count int) string {
 	return Catalog.Format(msgs.locale, "cookiesCaptured", map[string]any{"count": count})
 }
 
+// CookiesForDomain says "Cookies for {domain}"
+// in the language the app shows.
+func CookiesForDomain(domain string) string { return In(i18n.Locale()).CookiesForDomain(domain) }
+
+// CookiesForDomain says "Cookies for {domain}"
+// in the language of msgs.
+func (msgs Messages) CookiesForDomain(domain string) string {
+	return Catalog.Format(msgs.locale, "cookiesForDomain", map[string]any{"domain": domain})
+}
+
 // CookiesKeptIn says "Cookies will be kept after quitting in {path}"
 // in the language the app shows.
 func CookiesKeptIn(path string) string { return In(i18n.Locale()).CookiesKeptIn(path) }
@@ -6022,6 +6146,16 @@ func (msgs Messages) DecryptEveryNewHttpsConnection() string {
 	return Catalog.Format(msgs.locale, "decryptEveryNewHttpsConnection", nil)
 }
 
+// DecryptHost says "Decrypt {host}"
+// in the language the app shows.
+func DecryptHost(host string) string { return In(i18n.Locale()).DecryptHost(host) }
+
+// DecryptHost says "Decrypt {host}"
+// in the language of msgs.
+func (msgs Messages) DecryptHost(host string) string {
+	return Catalog.Format(msgs.locale, "decryptHost", map[string]any{"host": host})
+}
+
 // Decryption says "Decryption"
 // in the language the app shows.
 func Decryption() string { return In(i18n.Locale()).Decryption() }
@@ -6164,6 +6298,16 @@ func (msgs Messages) Delete2() string {
 	return Catalog.Format(msgs.locale, "delete2", nil)
 }
 
+// DeleteAddon says "Delete addon?"
+// in the language the app shows.
+func DeleteAddon() string { return In(i18n.Locale()).DeleteAddon() }
+
+// DeleteAddon says "Delete addon?"
+// in the language of msgs.
+func (msgs Messages) DeleteAddon() string {
+	return Catalog.Format(msgs.locale, "deleteAddon", nil)
+}
+
 // DeleteAllSecretsAndStart says "Delete all secrets and start over"
 // in the language the app shows.
 func DeleteAllSecretsAndStart() string { return In(i18n.Locale()).DeleteAllSecretsAndStart() }
@@ -6194,6 +6338,18 @@ func DeleteConfirm(name string) string { return In(i18n.Locale()).DeleteConfirm(
 // in the language of msgs.
 func (msgs Messages) DeleteConfirm(name string) string {
 	return Catalog.Format(msgs.locale, "deleteConfirm", map[string]any{"name": name})
+}
+
+// DeleteCookieNamed says "Delete cookie {name} {path}"
+// in the language the app shows.
+func DeleteCookieNamed(name string, path string) string {
+	return In(i18n.Locale()).DeleteCookieNamed(name, path)
+}
+
+// DeleteCookieNamed says "Delete cookie {name} {path}"
+// in the language of msgs.
+func (msgs Messages) DeleteCookieNamed(name string, path string) string {
+	return Catalog.Format(msgs.locale, "deleteCookieNamed", map[string]any{"name": name, "path": path})
 }
 
 // DeleteDetail says "Its {count, plural, one {# request} other {# requests}}, folders and settings are removed from the library."
@@ -6254,6 +6410,16 @@ func DeleteRule() string { return In(i18n.Locale()).DeleteRule() }
 // in the language of msgs.
 func (msgs Messages) DeleteRule() string {
 	return Catalog.Format(msgs.locale, "deleteRule", nil)
+}
+
+// DeleteScript says "Delete script?"
+// in the language the app shows.
+func DeleteScript() string { return In(i18n.Locale()).DeleteScript() }
+
+// DeleteScript says "Delete script?"
+// in the language of msgs.
+func (msgs Messages) DeleteScript() string {
+	return Catalog.Format(msgs.locale, "deleteScript", nil)
 }
 
 // DeleteSession says "Delete session…"
@@ -9608,6 +9774,18 @@ func Hide() string { return In(i18n.Locale()).Hide() }
 // in the language of msgs.
 func (msgs Messages) Hide() string {
 	return Catalog.Format(msgs.locale, "hide", nil)
+}
+
+// HideCookieNamed says "Hide cookie {name} {path}"
+// in the language the app shows.
+func HideCookieNamed(name string, path string) string {
+	return In(i18n.Locale()).HideCookieNamed(name, path)
+}
+
+// HideCookieNamed says "Hide cookie {name} {path}"
+// in the language of msgs.
+func (msgs Messages) HideCookieNamed(name string, path string) string {
+	return Catalog.Format(msgs.locale, "hideCookieNamed", map[string]any{"name": name, "path": path})
 }
 
 // HideRow says "Hide {noun} {index}"
@@ -13266,6 +13444,16 @@ func (msgs Messages) NewAccessToken(url string) string {
 	return Catalog.Format(msgs.locale, "newAccessToken", map[string]any{"url": url})
 }
 
+// NewAddon says "New addon"
+// in the language the app shows.
+func NewAddon() string { return In(i18n.Locale()).NewAddon() }
+
+// NewAddon says "New addon"
+// in the language of msgs.
+func (msgs Messages) NewAddon() string {
+	return Catalog.Format(msgs.locale, "newAddon", nil)
+}
+
 // NewAmbientHttpTrafficOnly says "New ambient HTTP traffic only. Static resources, streams, network failures and app sends/replays are excluded. Repeat…"
 // in the language the app shows.
 func NewAmbientHttpTrafficOnly() string { return In(i18n.Locale()).NewAmbientHttpTrafficOnly() }
@@ -14836,6 +15024,16 @@ func OpenRequestHistory() string { return In(i18n.Locale()).OpenRequestHistory()
 // in the language of msgs.
 func (msgs Messages) OpenRequestHistory() string {
 	return Catalog.Format(msgs.locale, "openRequestHistory", nil)
+}
+
+// OpenRequestNamed says "Open request: {name}"
+// in the language the app shows.
+func OpenRequestNamed(name string) string { return In(i18n.Locale()).OpenRequestNamed(name) }
+
+// OpenRequestNamed says "Open request: {name}"
+// in the language of msgs.
+func (msgs Messages) OpenRequestNamed(name string) string {
+	return Catalog.Format(msgs.locale, "openRequestNamed", map[string]any{"name": name})
 }
 
 // OpenRules says "Open Rules"
@@ -19622,6 +19820,18 @@ func (msgs Messages) SaveResponseAsExample() string {
 	return Catalog.Format(msgs.locale, "saveResponseAsExample", nil)
 }
 
+// SaveResponseAsExampleNamed says "Save response as example: {name}"
+// in the language the app shows.
+func SaveResponseAsExampleNamed(name string) string {
+	return In(i18n.Locale()).SaveResponseAsExampleNamed(name)
+}
+
+// SaveResponseAsExampleNamed says "Save response as example: {name}"
+// in the language of msgs.
+func (msgs Messages) SaveResponseAsExampleNamed(name string) string {
+	return Catalog.Format(msgs.locale, "saveResponseAsExampleNamed", map[string]any{"name": name})
+}
+
 // SaveResponseBody says "Save response body"
 // in the language the app shows.
 func SaveResponseBody() string { return In(i18n.Locale()).SaveResponseBody() }
@@ -20056,6 +20266,16 @@ func ScenarioActive() string { return In(i18n.Locale()).ScenarioActive() }
 // in the language of msgs.
 func (msgs Messages) ScenarioActive() string {
 	return Catalog.Format(msgs.locale, "scenarioActive", nil)
+}
+
+// ScenarioActiveNamed says "Scenario active: {name}"
+// in the language the app shows.
+func ScenarioActiveNamed(name string) string { return In(i18n.Locale()).ScenarioActiveNamed(name) }
+
+// ScenarioActiveNamed says "Scenario active: {name}"
+// in the language of msgs.
+func (msgs Messages) ScenarioActiveNamed(name string) string {
+	return Catalog.Format(msgs.locale, "scenarioActiveNamed", map[string]any{"name": name})
 }
 
 // ScenarioAnswers says "Scenario “{name}” answers from {count} examples"
@@ -21058,6 +21278,16 @@ func SessionMessageLabel(seq int) string { return In(i18n.Locale()).SessionMessa
 // in the language of msgs.
 func (msgs Messages) SessionMessageLabel(seq int) string {
 	return Catalog.Format(msgs.locale, "sessionMessageLabel", map[string]any{"seq": seq})
+}
+
+// SessionNamed says "Session: {title}"
+// in the language the app shows.
+func SessionNamed(title string) string { return In(i18n.Locale()).SessionNamed(title) }
+
+// SessionNamed says "Session: {title}"
+// in the language of msgs.
+func (msgs Messages) SessionNamed(title string) string {
+	return Catalog.Format(msgs.locale, "sessionNamed", map[string]any{"title": title})
 }
 
 // SessionNotes says "Session notes…"
@@ -24090,6 +24320,16 @@ func TrustingTheCaMakesDecryption() string { return In(i18n.Locale()).TrustingTh
 // in the language of msgs.
 func (msgs Messages) TrustingTheCaMakesDecryption() string {
 	return Catalog.Format(msgs.locale, "trustingTheCaMakesDecryption", nil)
+}
+
+// Tunnel says "Tunnel"
+// in the language the app shows.
+func Tunnel() string { return In(i18n.Locale()).Tunnel() }
+
+// Tunnel says "Tunnel"
+// in the language of msgs.
+func (msgs Messages) Tunnel() string {
+	return Catalog.Format(msgs.locale, "tunnel", nil)
 }
 
 // TunnelTooltip says "CONNECT {status} · encrypted tunnel, not an HTTP response"

@@ -717,11 +717,10 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview [
 			line := ui.Row(c).MinHeight(uikit.HeightTabs).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 			line.Children(func() {
 				ui.Box(c).Width(float32(entry.depth-1) * 16)
-				icon, action := chevronIcon, "Collapse"
+				icon, label := chevronIcon, locales.CollapseFolder(entry.folder)
 				if collapsed {
-					icon, action = statusMoreIcon, "Expand"
+					icon, label = statusMoreIcon, locales.ExpandFolder(entry.folder)
 				}
-				label := action + " folder " + entry.folder
 				if uikit.RowIconButton(c, label, label, icon).Clicked() {
 					a.ruleUI.collapsed[entry.folder] = !collapsed
 				}
