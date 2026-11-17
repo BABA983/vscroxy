@@ -598,7 +598,7 @@ func (a *app) saveCookie() {
 	e := &a.cookieUI
 	u, err := url.Parse(e.url)
 	if err != nil || u.Hostname() == "" || u.Scheme != "http" && u.Scheme != "https" {
-		e.problem = "Enter an absolute HTTP(S) URL"
+		e.problem = locales.EnterAnAbsoluteHttpS()
 		return
 	}
 	if !strings.HasPrefix(e.path, "/") {

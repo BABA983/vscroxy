@@ -56,7 +56,7 @@ var requestCopyFormats = []struct{ id, label, format string }{
 func (a *app) requestCopyActions(c *ui.Context, f flow, d *requestDocument) []action {
 	var items []action
 	for _, format := range requestCopyFormats {
-		items = append(items, do(format.id, format.label, func() { a.copyRequest(c, f, d, format.format) }).when(d != nil || f.kind == "" && f.url != "", inspectOne))
+		items = append(items, do(format.id, format.label, func() { a.copyRequest(c, f, d, format.format) }).when(d != nil || f.kind == "" && f.url != "", inspectOne()))
 	}
 	return items
 }

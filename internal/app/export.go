@@ -158,7 +158,7 @@ func (a *app) exportCSVFlows(flows []flow, file string) {
 		return
 	}
 	table, warnings := a.snapshotCaptureTable(flows)
-	a.reviewCSV("Export CSV", file, table, warnings)
+	a.reviewCSV(locales.ExportCsv2(), file, table, warnings)
 }
 
 func (a *app) writeReviewedExport(job exportReview) {

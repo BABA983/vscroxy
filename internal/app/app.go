@@ -1928,15 +1928,15 @@ func (a *app) view(c *ui.Context) {
 	a.toolsModal(c, t)
 	a.configImportDialog(c, t)
 	a.dnsRuleModal(c, t)
-	a.hostListModal(c, t, &a.ignoreAppsOpen, "Ignored apps",
+	a.hostListModal(c, t, &a.ignoreAppsOpen, locales.IgnoredApps2(),
 		locales.AppsWhoseFlowsStayOut(),
 		a.ignoreAppsPath, &a.ignoreAppsText, func(apps []string) {
 			if a.srv != nil {
 				a.srv.SetIgnoreApps(apps)
 			}
 		})
-	a.hostListModal(c, t, &a.ignoreOpen, "Ignored hosts",
-		"Hosts whose flows stay out of the table, one per line. They are still proxied, so the client sees no difference.",
+	a.hostListModal(c, t, &a.ignoreOpen, locales.IgnoredHosts2(),
+		locales.HostsWhoseFlowsStayOut(),
 		a.ignorePath, &a.ignoreText, func(patterns []string) {
 			if a.srv != nil {
 				a.srv.SetIgnore(patterns)
@@ -3430,16 +3430,16 @@ func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 	cn := f.conn
 	ui.Column(c).Width(440).Gap(t.Space(uikit.SpaceHair)).Padding(t.Space(uikit.SpaceXS)).Children(func() {
 		uikit.BodyStrong(c, locales.Connection()).TextColor(t.Text).Padding(0, 0, t.Space(uikit.SpaceM), 0)
-		field(c, t, "HTTP version", cn.proto)
+		field(c, t, locales.HttpVersion(), cn.proto)
 		field(c, t, "Client", cn.client)
 		field(c, t, "Proxy", cn.proxy)
 		field(c, t, "Upstream", cn.server)
 		field(c, t, "Remote IP", cn.remote)
 		if f.dns != "" {
-			field(c, t, "Host profile", mappedBy(f))
+			field(c, t, locales.HostProfile(), mappedBy(f))
 		}
 		if cn.error != "" {
-			field(c, t, "Failed at", cn.errorStage+": "+cn.error)
+			field(c, t, locales.FailedAt(), cn.errorStage+": "+cn.error)
 		}
 		if cn.flows > 0 {
 			field(c, t, locales.ConnectionUse(), fmt.Sprintf("request #%d · reused: %t", cn.flows, cn.reused))

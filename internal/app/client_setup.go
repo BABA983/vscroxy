@@ -318,7 +318,7 @@ func commandString(command clientsetup.Argv) string {
 
 func (a *app) openInterceptContainer() {
 	container := strings.TrimSpace(a.clientUI.container)
-	a.launchClient("Intercept container", "Started container through vscroxy", true, func(p clientsetup.Proxy) (clientLaunch, error) {
+	a.launchClient(locales.InterceptContainer(), "Started container through vscroxy", true, func(p clientsetup.Proxy) (clientLaunch, error) {
 		command, err := clientsetup.OpenContainer(p, container)
 		return clientLaunch{command: command}, err
 	})
@@ -616,7 +616,7 @@ func (a *app) installSimulatorCA() {
 		results <- clientSetupResult{
 			action:  "ios",
 			what:    locales.InstallCAIOSSimulator(),
-			success: "Installed CA in iOS simulator",
+			success: locales.InstalledCaInIosSimulator(),
 			command: commandString(command),
 			err:     err,
 		}
@@ -648,7 +648,7 @@ func (a *app) importJavaCA() {
 		results <- clientSetupResult{
 			action:  "java",
 			what:    locales.ImportCAJavaTruststore(),
-			success: "Imported CA into Java truststore",
+			success: locales.ImportedCaIntoJavaTruststore(),
 			command: clientsetup.JoinCommands(commands, runtime.GOOS == "windows"),
 			err:     err,
 		}

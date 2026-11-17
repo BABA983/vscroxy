@@ -581,7 +581,7 @@ func (a *app) reviewHAR(flows []flow, name string) {
 		a.fail(locales.Har(), err)
 		return
 	}
-	a.reviewExport("Export HAR", name, data, nil)
+	a.reviewExport(locales.ExportHar2(), name, data, nil)
 }
 
 // importHAR adds the flows of a HAR file another tool wrote to the table, so a

@@ -450,7 +450,9 @@ func (a *app) captureActions() []action {
 	)
 }
 
-const inspectOne = "Inspect one HTTP request; bulk selections, tunnels and streams are unavailable"
+// inspectOne() is the label of the single-request action; it is read at each
+// use so that it follows the current language.
+func inspectOne() string { return locales.InspectOneHttpRequestBulk() }
 
 // Row menus and global commands share these target rules. Single-row actions
 // use the inspected/clicked request; a bulk replay always uses the whole choice.
@@ -476,7 +478,7 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 		do("tokens.from-capture", locales.RecognizeTokenLinks(), func() { a.openTokenLinks(selected) }).
 			when(current && len(selected) > 1, "Select a source response and subsequent Bearer requests"),
 		do("flow.edit", locales.EditRequest(), func() { a.editCapture(f) }).
-			when(current && !bulk && f.kind == "", inspectOne).keys(ui.Cmd|ui.Alt, ui.KeyEnter),
+			when(current && !bulk && f.kind == "", inspectOne()).keys(ui.Cmd|ui.Alt, ui.KeyEnter),
 		do("flow.replay", locales.ReplaySelected(), func() { a.openReplay(selected) }).
 			when(replayable, locales.ChooseHttpRequestsOnlyTunnels()).keys(ui.Cmd, ui.KeyR),
 	}
@@ -484,10 +486,10 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 		if item.id == "flow.copy-curl" {
 			item = item.keys(ui.Cmd|ui.Alt, ui.KeyC)
 		}
-		actions = append(actions, item.when(copyable, inspectOne))
+		actions = append(actions, item.when(copyable, inspectOne()))
 	}
 	for _, item := range a.captureCopyActions(c, selected) {
-		actions = append(actions, item.when(current && a.page.capture(), "Inspect captured requests first"))
+		actions = append(actions, item.when(current && a.page.capture(), locales.InspectCapturedRequestsFirst()))
 	}
 	actions = append(actions, do("flow.delete", locales.Delete(), func() { a.queueDeleteFlows(selected) }).
 		when(current && len(selected) > 0, "Select captured requests first").in("danger").keys(ui.Cmd, flowDeleteKey()))

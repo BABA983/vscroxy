@@ -155,7 +155,7 @@ func authSummary(auth request.Auth) string {
 	case "", "None":
 		return "None"
 	case "Inherit":
-		return "Inherited from the folder or collection"
+		return locales.InheritedFromTheFolderOr()
 	case "Bearer":
 		return locales.BearerTokenHidden()
 	case "Basic":
@@ -171,7 +171,7 @@ func authSummary(auth request.Auth) string {
 	case "JWT":
 		return "JWT · " + cmp.Or(auth.JWT.Algorithm, "algorithm") + " · secret and private key hidden"
 	case "Hawk":
-		return "Hawk · credentials hidden"
+		return locales.HawkCredentialsHidden()
 	case "Akamai EdgeGrid":
 		return locales.AkamaiEdgegridCredentialsHidden()
 	case "NTLM":

@@ -1238,7 +1238,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 		formatted, isJSON := indentJSON(*text)
 		query := d.bodyMode == "GraphQL" && d.graphqlTab == 0
 		if query {
-			formatLabel, formatHelp = locales.FormatGraphQLQuery(), "Format the GraphQL document without expanding variables or changing its operations"
+			formatLabel, formatHelp = locales.FormatGraphQLQuery(), locales.FormatTheGraphqlDocumentWithout()
 		}
 		ui.Row(c).Disabled(!query && (!isJSON || !canFormat)).Children(func() {
 			// Beside a response the mode and reader selects take the row, so

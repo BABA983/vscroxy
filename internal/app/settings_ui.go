@@ -242,8 +242,8 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 			list(locales.AllowedApps(), a.allowAppsText, locales.AppsCount, "As the sidebar's Apps names them.", &a.allowAppsOpen)
 		})
 		uikit.SettingsCard(c, locales.Ignored(), func() {
-			list("Ignored hosts", a.ignoreText, locales.HostsCount, "Still proxied, but not shown in the table, even when allowed.", &a.ignoreOpen)
-			list("Ignored apps", a.ignoreAppsText, locales.AppsCount, "The same by app.", &a.ignoreAppsOpen)
+			list(locales.IgnoredHosts2(), a.ignoreText, locales.HostsCount, "Still proxied, but not shown in the table, even when allowed.", &a.ignoreOpen)
+			list(locales.IgnoredApps2(), a.ignoreAppsText, locales.AppsCount, "The same by app.", &a.ignoreAppsOpen)
 		})
 		uikit.SettingsCard(c, locales.Memory(), func() {
 			// limit is a field choosing one of options, labelled by label.

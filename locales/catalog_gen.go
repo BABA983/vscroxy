@@ -1844,6 +1844,26 @@ func (msgs Messages) EnterAbsoluteURLNoCredentials() string {
 	return Catalog.Format(msgs.locale, "enterAbsoluteURLNoCredentials", nil)
 }
 
+// EnterAnAbsoluteHttpS says "Enter an absolute HTTP(S) URL"
+// in the language the app shows.
+func EnterAnAbsoluteHttpS() string { return In(i18n.Locale()).EnterAnAbsoluteHttpS() }
+
+// EnterAnAbsoluteHttpS says "Enter an absolute HTTP(S) URL"
+// in the language of msgs.
+func (msgs Messages) EnterAnAbsoluteHttpS() string {
+	return Catalog.Format(msgs.locale, "enterAnAbsoluteHttpS", nil)
+}
+
+// EnterAnHttpOrHttps2 says "Enter an http:// or https:// URL"
+// in the language the app shows.
+func EnterAnHttpOrHttps2() string { return In(i18n.Locale()).EnterAnHttpOrHttps2() }
+
+// EnterAnHttpOrHttps2 says "Enter an http:// or https:// URL"
+// in the language of msgs.
+func (msgs Messages) EnterAnHttpOrHttps2() string {
+	return Catalog.Format(msgs.locale, "enterAnHttpOrHttps2", nil)
+}
+
 // EnterCanonicalBase64 says "Enter canonical padded base64 for the binary message."
 // in the language the app shows.
 func EnterCanonicalBase64() string { return In(i18n.Locale()).EnterCanonicalBase64() }
@@ -2042,6 +2062,16 @@ func (msgs Messages) ExperimentsProblem(error string) string {
 	return Catalog.Format(msgs.locale, "experimentsProblem", map[string]any{"error": error})
 }
 
+// ExportChosenHar says "Export chosen HAR…"
+// in the language the app shows.
+func ExportChosenHar() string { return In(i18n.Locale()).ExportChosenHar() }
+
+// ExportChosenHar says "Export chosen HAR…"
+// in the language of msgs.
+func (msgs Messages) ExportChosenHar() string {
+	return Catalog.Format(msgs.locale, "exportChosenHar", nil)
+}
+
 // ExportCollectionPostman says "Export “{name}” as Postman…"
 // in the language the app shows.
 func ExportCollectionPostman(name string) string {
@@ -2052,6 +2082,26 @@ func ExportCollectionPostman(name string) string {
 // in the language of msgs.
 func (msgs Messages) ExportCollectionPostman(name string) string {
 	return Catalog.Format(msgs.locale, "exportCollectionPostman", map[string]any{"name": name})
+}
+
+// ExportHar2 says "Export HAR"
+// in the language the app shows.
+func ExportHar2() string { return In(i18n.Locale()).ExportHar2() }
+
+// ExportHar2 says "Export HAR"
+// in the language of msgs.
+func (msgs Messages) ExportHar2() string {
+	return Catalog.Format(msgs.locale, "exportHar2", nil)
+}
+
+// FailedAt says "Failed at"
+// in the language the app shows.
+func FailedAt() string { return In(i18n.Locale()).FailedAt() }
+
+// FailedAt says "Failed at"
+// in the language of msgs.
+func (msgs Messages) FailedAt() string {
+	return Catalog.Format(msgs.locale, "failedAt", nil)
 }
 
 // FetchSchemaHint says "Fetch introspection or load an SDL or introspection JSON file to complete and check fields."
@@ -2174,6 +2224,16 @@ func (msgs Messages) FolderSettings(name string) string {
 	return Catalog.Format(msgs.locale, "folderSettings", map[string]any{"name": name})
 }
 
+// FolderSettings2 says "Folder settings…"
+// in the language the app shows.
+func FolderSettings2() string { return In(i18n.Locale()).FolderSettings2() }
+
+// FolderSettings2 says "Folder settings…"
+// in the language of msgs.
+func (msgs Messages) FolderSettings2() string {
+	return Catalog.Format(msgs.locale, "folderSettings2", nil)
+}
+
 // FormFieldsOriginalOrder says "{count} form fields · original order"
 // in the language the app shows.
 func FormFieldsOriginalOrder(count int) string {
@@ -2196,6 +2256,48 @@ func (msgs Messages) FormatGraphQLQuery() string {
 	return Catalog.Format(msgs.locale, "formatGraphQLQuery", nil)
 }
 
+// FormatTheGraphqlDocumentWithout says "Format the GraphQL document without expanding variables or changing its operations"
+// in the language the app shows.
+func FormatTheGraphqlDocumentWithout() string {
+	return In(i18n.Locale()).FormatTheGraphqlDocumentWithout()
+}
+
+// FormatTheGraphqlDocumentWithout says "Format the GraphQL document without expanding variables or changing its operations"
+// in the language of msgs.
+func (msgs Messages) FormatTheGraphqlDocumentWithout() string {
+	return Catalog.Format(msgs.locale, "formatTheGraphqlDocumentWithout", nil)
+}
+
+// GlobalVariable says "Global variable"
+// in the language the app shows.
+func GlobalVariable() string { return In(i18n.Locale()).GlobalVariable() }
+
+// GlobalVariable says "Global variable"
+// in the language of msgs.
+func (msgs Messages) GlobalVariable() string {
+	return Catalog.Format(msgs.locale, "globalVariable", nil)
+}
+
+// GraphqlQuery says "GraphQL query"
+// in the language the app shows.
+func GraphqlQuery() string { return In(i18n.Locale()).GraphqlQuery() }
+
+// GraphqlQuery says "GraphQL query"
+// in the language of msgs.
+func (msgs Messages) GraphqlQuery() string {
+	return Catalog.Format(msgs.locale, "graphqlQuery", nil)
+}
+
+// GraphqlVariables says "GraphQL variables"
+// in the language the app shows.
+func GraphqlVariables() string { return In(i18n.Locale()).GraphqlVariables() }
+
+// GraphqlVariables says "GraphQL variables"
+// in the language of msgs.
+func (msgs Messages) GraphqlVariables() string {
+	return Catalog.Format(msgs.locale, "graphqlVariables", nil)
+}
+
 // GrpcUnaryOnly says "Scripts and Checks run with unary methods; the streaming client runs without them"
 // in the language the app shows.
 func GrpcUnaryOnly() string { return In(i18n.Locale()).GrpcUnaryOnly() }
@@ -2216,6 +2318,16 @@ func HandshakeAccepted(url string, protocol string) string {
 // in the language of msgs.
 func (msgs Messages) HandshakeAccepted(url string, protocol string) string {
 	return Catalog.Format(msgs.locale, "handshakeAccepted", map[string]any{"url": url, "protocol": protocol})
+}
+
+// HawkCredentialsHidden says "Hawk · credentials hidden"
+// in the language the app shows.
+func HawkCredentialsHidden() string { return In(i18n.Locale()).HawkCredentialsHidden() }
+
+// HawkCredentialsHidden says "Hawk · credentials hidden"
+// in the language of msgs.
+func (msgs Messages) HawkCredentialsHidden() string {
+	return Catalog.Format(msgs.locale, "hawkCredentialsHidden", nil)
 }
 
 // HeaderColumns says "Header columns"
@@ -2298,6 +2410,66 @@ func (msgs Messages) HistoricalNoEnd() string {
 	return Catalog.Format(msgs.locale, "historicalNoEnd", nil)
 }
 
+// HostProfiles2 says "Host profiles…"
+// in the language the app shows.
+func HostProfiles2() string { return In(i18n.Locale()).HostProfiles2() }
+
+// HostProfiles2 says "Host profiles…"
+// in the language of msgs.
+func (msgs Messages) HostProfiles2() string {
+	return Catalog.Format(msgs.locale, "hostProfiles2", nil)
+}
+
+// HostsWhoseFlowsStayOut says "Hosts whose flows stay out of the table, one per line. They are still proxied, so the client sees no difference."
+// in the language the app shows.
+func HostsWhoseFlowsStayOut() string { return In(i18n.Locale()).HostsWhoseFlowsStayOut() }
+
+// HostsWhoseFlowsStayOut says "Hosts whose flows stay out of the table, one per line. They are still proxied, so the client sees no difference."
+// in the language of msgs.
+func (msgs Messages) HostsWhoseFlowsStayOut() string {
+	return Catalog.Format(msgs.locale, "hostsWhoseFlowsStayOut", nil)
+}
+
+// Http204ServerStoppedThe says "HTTP 204 · Server stopped the stream"
+// in the language the app shows.
+func Http204ServerStoppedThe() string { return In(i18n.Locale()).Http204ServerStoppedThe() }
+
+// Http204ServerStoppedThe says "HTTP 204 · Server stopped the stream"
+// in the language of msgs.
+func (msgs Messages) Http204ServerStoppedThe() string {
+	return Catalog.Format(msgs.locale, "http204ServerStoppedThe", nil)
+}
+
+// HttpAndHttpsPointAt says "HTTP and HTTPS point at this app"
+// in the language the app shows.
+func HttpAndHttpsPointAt() string { return In(i18n.Locale()).HttpAndHttpsPointAt() }
+
+// HttpAndHttpsPointAt says "HTTP and HTTPS point at this app"
+// in the language of msgs.
+func (msgs Messages) HttpAndHttpsPointAt() string {
+	return Catalog.Format(msgs.locale, "httpAndHttpsPointAt", nil)
+}
+
+// IgnoredApps2 says "Ignored apps"
+// in the language the app shows.
+func IgnoredApps2() string { return In(i18n.Locale()).IgnoredApps2() }
+
+// IgnoredApps2 says "Ignored apps"
+// in the language of msgs.
+func (msgs Messages) IgnoredApps2() string {
+	return Catalog.Format(msgs.locale, "ignoredApps2", nil)
+}
+
+// IgnoredHosts2 says "Ignored hosts"
+// in the language the app shows.
+func IgnoredHosts2() string { return In(i18n.Locale()).IgnoredHosts2() }
+
+// IgnoredHosts2 says "Ignored hosts"
+// in the language of msgs.
+func (msgs Messages) IgnoredHosts2() string {
+	return Catalog.Format(msgs.locale, "ignoredHosts2", nil)
+}
+
 // ImportCAJavaTruststore says "Import CA into Java truststore"
 // in the language the app shows.
 func ImportCAJavaTruststore() string { return In(i18n.Locale()).ImportCAJavaTruststore() }
@@ -2306,6 +2478,56 @@ func ImportCAJavaTruststore() string { return In(i18n.Locale()).ImportCAJavaTrus
 // in the language of msgs.
 func (msgs Messages) ImportCAJavaTruststore() string {
 	return Catalog.Format(msgs.locale, "importCAJavaTruststore", nil)
+}
+
+// ImportJmeterTestPlan says "Import JMeter test plan"
+// in the language the app shows.
+func ImportJmeterTestPlan() string { return In(i18n.Locale()).ImportJmeterTestPlan() }
+
+// ImportJmeterTestPlan says "Import JMeter test plan"
+// in the language of msgs.
+func (msgs Messages) ImportJmeterTestPlan() string {
+	return Catalog.Format(msgs.locale, "importJmeterTestPlan", nil)
+}
+
+// ImportSoapuiProject says "Import SoapUI project"
+// in the language the app shows.
+func ImportSoapuiProject() string { return In(i18n.Locale()).ImportSoapuiProject() }
+
+// ImportSoapuiProject says "Import SoapUI project"
+// in the language of msgs.
+func (msgs Messages) ImportSoapuiProject() string {
+	return Catalog.Format(msgs.locale, "importSoapuiProject", nil)
+}
+
+// ImportThunderClientCollection says "Import Thunder Client collection"
+// in the language the app shows.
+func ImportThunderClientCollection() string { return In(i18n.Locale()).ImportThunderClientCollection() }
+
+// ImportThunderClientCollection says "Import Thunder Client collection"
+// in the language of msgs.
+func (msgs Messages) ImportThunderClientCollection() string {
+	return Catalog.Format(msgs.locale, "importThunderClientCollection", nil)
+}
+
+// ImportedCaIntoJavaTruststore says "Imported CA into Java truststore"
+// in the language the app shows.
+func ImportedCaIntoJavaTruststore() string { return In(i18n.Locale()).ImportedCaIntoJavaTruststore() }
+
+// ImportedCaIntoJavaTruststore says "Imported CA into Java truststore"
+// in the language of msgs.
+func (msgs Messages) ImportedCaIntoJavaTruststore() string {
+	return Catalog.Format(msgs.locale, "importedCaIntoJavaTruststore", nil)
+}
+
+// ImportedEnvironment says "Imported environment"
+// in the language the app shows.
+func ImportedEnvironment() string { return In(i18n.Locale()).ImportedEnvironment() }
+
+// ImportedEnvironment says "Imported environment"
+// in the language of msgs.
+func (msgs Messages) ImportedEnvironment() string {
+	return Catalog.Format(msgs.locale, "importedEnvironment", nil)
 }
 
 // ImportedRemainder says "Everything else was imported. These parts have no equivalent here yet:"
@@ -2328,6 +2550,16 @@ func (msgs Messages) InScenario(scenario string) string {
 	return Catalog.Format(msgs.locale, "inScenario", map[string]any{"scenario": scenario})
 }
 
+// InheritedFromTheFolderOr says "Inherited from the folder or collection"
+// in the language the app shows.
+func InheritedFromTheFolderOr() string { return In(i18n.Locale()).InheritedFromTheFolderOr() }
+
+// InheritedFromTheFolderOr says "Inherited from the folder or collection"
+// in the language of msgs.
+func (msgs Messages) InheritedFromTheFolderOr() string {
+	return Catalog.Format(msgs.locale, "inheritedFromTheFolderOr", nil)
+}
+
 // InsertVariable says "Insert '{{'{name}'}}'"
 // in the language the app shows.
 func InsertVariable(name string) string { return In(i18n.Locale()).InsertVariable(name) }
@@ -2336,6 +2568,36 @@ func InsertVariable(name string) string { return In(i18n.Locale()).InsertVariabl
 // in the language of msgs.
 func (msgs Messages) InsertVariable(name string) string {
 	return Catalog.Format(msgs.locale, "insertVariable", map[string]any{"name": name})
+}
+
+// InspectCapturedRequestsFirst says "Inspect captured requests first"
+// in the language the app shows.
+func InspectCapturedRequestsFirst() string { return In(i18n.Locale()).InspectCapturedRequestsFirst() }
+
+// InspectCapturedRequestsFirst says "Inspect captured requests first"
+// in the language of msgs.
+func (msgs Messages) InspectCapturedRequestsFirst() string {
+	return Catalog.Format(msgs.locale, "inspectCapturedRequestsFirst", nil)
+}
+
+// InspectOneHttpRequestBulk says "Inspect one HTTP request; bulk selections, tunnels and streams are unavailable"
+// in the language the app shows.
+func InspectOneHttpRequestBulk() string { return In(i18n.Locale()).InspectOneHttpRequestBulk() }
+
+// InspectOneHttpRequestBulk says "Inspect one HTTP request; bulk selections, tunnels and streams are unavailable"
+// in the language of msgs.
+func (msgs Messages) InspectOneHttpRequestBulk() string {
+	return Catalog.Format(msgs.locale, "inspectOneHttpRequestBulk", nil)
+}
+
+// InspectionIsLimitedTo1000 says "Inspection is limited to 1000 messages per body"
+// in the language the app shows.
+func InspectionIsLimitedTo1000() string { return In(i18n.Locale()).InspectionIsLimitedTo1000() }
+
+// InspectionIsLimitedTo1000 says "Inspection is limited to 1000 messages per body"
+// in the language of msgs.
+func (msgs Messages) InspectionIsLimitedTo1000() string {
+	return Catalog.Format(msgs.locale, "inspectionIsLimitedTo1000", nil)
 }
 
 // InstallCAIOSSimulator says "Install CA in iOS simulator"
@@ -2356,6 +2618,16 @@ func InstallationFailed(error string) string { return In(i18n.Locale()).Installa
 // in the language of msgs.
 func (msgs Messages) InstallationFailed(error string) string {
 	return Catalog.Format(msgs.locale, "installationFailed", map[string]any{"error": error})
+}
+
+// InstalledCaInIosSimulator says "Installed CA in iOS simulator"
+// in the language the app shows.
+func InstalledCaInIosSimulator() string { return In(i18n.Locale()).InstalledCaInIosSimulator() }
+
+// InstalledCaInIosSimulator says "Installed CA in iOS simulator"
+// in the language of msgs.
+func (msgs Messages) InstalledCaInIosSimulator() string {
+	return Catalog.Format(msgs.locale, "installedCaInIosSimulator", nil)
 }
 
 // InvalidMessageNothingSent says "Invalid {encoding} message; nothing sent"

@@ -90,7 +90,7 @@ func (a *app) importCollectionDir(path string) {
 			a.fail(locales.ImportBrunoCollection(), err)
 			return
 		}
-		a.win.Update(func() { a.importThirdParty(result, "Import Bruno collection") })
+		a.win.Update(func() { a.importThirdParty(result, locales.ImportBrunoCollection()) })
 	default:
 		a.fail(locales.ImportCollectionFolder2(), fmt.Errorf("not a Postman v3 collection or a Bruno collection"))
 	}
@@ -168,7 +168,7 @@ func (a *app) importData(data []byte, path string) {
 				a.fail(locales.ImportInsomnia(), err)
 				return
 			}
-			a.importThirdParty(result, "Import Insomnia")
+			a.importThirdParty(result, locales.ImportInsomnia())
 			return
 		case imports.HoppscotchCollection:
 			result, err := imports.ReadHoppscotch(data)
@@ -176,7 +176,7 @@ func (a *app) importData(data []byte, path string) {
 				a.fail(locales.ImportHoppscotchCollection(), err)
 				return
 			}
-			a.importThirdParty(result, "Import Hoppscotch collection")
+			a.importThirdParty(result, locales.ImportHoppscotchCollection())
 			return
 		case imports.HoppscotchEnvironment:
 			envs, err := imports.ReadHoppscotchEnvironment(data)
@@ -184,7 +184,7 @@ func (a *app) importData(data []byte, path string) {
 				a.fail(locales.ImportHoppscotchEnvironment(), err)
 				return
 			}
-			a.importThirdParty(imports.Result{Environments: envs}, "Import Hoppscotch environment")
+			a.importThirdParty(imports.Result{Environments: envs}, locales.ImportHoppscotchEnvironment())
 			return
 		case imports.ThunderClient:
 			result, err := imports.ReadThunder(data)
@@ -192,7 +192,7 @@ func (a *app) importData(data []byte, path string) {
 				a.fail(locales.ImportText2(), err)
 				return
 			}
-			a.importThirdParty(result, "Import Thunder Client collection")
+			a.importThirdParty(result, locales.ImportThunderClientCollection())
 			return
 		case imports.SoapUI:
 			result, err := imports.ReadSoapUI(data)
@@ -200,7 +200,7 @@ func (a *app) importData(data []byte, path string) {
 				a.fail(locales.ImportText2(), err)
 				return
 			}
-			a.importThirdParty(result, "Import SoapUI project")
+			a.importThirdParty(result, locales.ImportSoapuiProject())
 			return
 		case imports.JMeter:
 			result, err := imports.ReadJMeter(data)
@@ -208,7 +208,7 @@ func (a *app) importData(data []byte, path string) {
 				a.fail(locales.ImportText2(), err)
 				return
 			}
-			a.importThirdParty(result, "Import JMeter test plan")
+			a.importThirdParty(result, locales.ImportJmeterTestPlan())
 			return
 		}
 		if format == imports.Swagger2 {
@@ -339,7 +339,7 @@ func (a *app) exportPostman(name string) {
 		a.fail(locales.ExportPostmanCollection(), err)
 		return
 	}
-	a.saveExport("Export Postman collection", strings.ReplaceAll(name, "∕", "-")+".postman_collection.json", data, warnings)
+	a.saveExport(locales.ExportPostmanCollection(), strings.ReplaceAll(name, "∕", "-")+".postman_collection.json", data, warnings)
 }
 
 // exportPostmanVariables writes the variables dialog's Initial values, as
@@ -365,7 +365,7 @@ func (a *app) exportPostmanVariables() {
 	if a.varsGlobals {
 		file = "workspace.postman_globals.json"
 	}
-	a.saveExport("Export Postman environment", file, data, nil)
+	a.saveExport(locales.ExportPostmanEnvironment(), file, data, nil)
 }
 
 // saveExport reviews a copy before opening the native save dialog.

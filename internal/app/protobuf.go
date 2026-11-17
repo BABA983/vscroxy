@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/baba983/vscroxy/locales"
 	"io"
 	"math"
 	"mime"
@@ -307,7 +308,7 @@ func inspectProto(ctx context.Context, f flow, response bool, schema *protoSchem
 			return result
 		}
 		if index > 1000 {
-			result.problem = "Inspection is limited to 1000 messages per body"
+			result.problem = locales.InspectionIsLimitedTo1000()
 			return result
 		}
 		payload, compressed := data, false

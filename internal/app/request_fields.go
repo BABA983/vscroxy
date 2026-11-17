@@ -680,12 +680,12 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		}
 		if d.graphqlTab == 1 {
 			uikit.Hint(c, locales.JsonObjectVariablesSupportedBlank())
-			authoredText(c.Key("graphql-variables"), &d.graphql.Variables, &d.varsEditor, &d.varsFor, "GraphQL variables", "json")
+			authoredText(c.Key("graphql-variables"), &d.graphql.Variables, &d.varsEditor, &d.varsFor, locales.GraphqlVariables(), "json")
 			a.wireVariableEditor(d.varsEditor, d.composeCollection)
 			a.setVariableDiagnostics(d.varsEditor, d.graphql.Variables, d.composeCollection)
 		} else {
 			uikit.Hint(c, locales.QueryOrMutationVariablesSupported())
-			authoredText(c.Key("graphql-query"), &d.graphql.Query, &d.queryEditor, &d.queryFor, "GraphQL query", "GraphQL")
+			authoredText(c.Key("graphql-query"), &d.graphql.Query, &d.queryEditor, &d.queryFor, locales.GraphqlQuery(), "GraphQL")
 			a.wireGraphQLQueryEditor(d)
 			a.setGraphQLDiagnostics(d)
 		}

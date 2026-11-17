@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+	"github.com/baba983/vscroxy/locales"
 	"maps"
 	"slices"
 	"strings"
@@ -186,7 +187,7 @@ func (a *app) paletteSearch(query string) paletteSearch {
 			continue
 		}
 		out.entries = append(out.entries, paletteEntry{
-			label: name, detail: "Global variable", meta: "Variable", enabled: true,
+			label: name, detail: locales.GlobalVariable(), meta: "Variable", enabled: true,
 			run: func() {
 				a.editGlobals()
 				a.varsOpen = true

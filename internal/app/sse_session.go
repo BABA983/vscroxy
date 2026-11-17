@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/baba983/vscroxy/locales"
 	"net/http"
 	"slices"
 	"strings"
@@ -60,7 +61,7 @@ func openSSESession(proxy string, req *request.Prepared, ca []byte, certificates
 				case "Reconnecting":
 					e.detail = fmt.Sprintf("Reconnecting in %s · Last-Event-ID: %s", u.Retry, u.LastEventID)
 				case "Stopped":
-					e.detail = "HTTP 204 · Server stopped the stream"
+					e.detail = locales.Http204ServerStoppedThe()
 				}
 			}
 			s.append(e)

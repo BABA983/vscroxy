@@ -824,6 +824,8 @@
   "enterAPortFrom1024": "Enter a port from 1024 to 65535",
   "enterAbsoluteHTTPURL": "Enter an absolute http:// or https:// URL.",
   "enterAbsoluteURLNoCredentials": "Enter an absolute HTTP(S) URL without embedded credentials",
+  "enterAnAbsoluteHttpS": "Enter an absolute HTTP(S) URL",
+  "enterAnHttpOrHttps2": "Enter an http:// or https:// URL",
   "enterCanonicalBase64": "Enter canonical padded base64 for the binary message.",
   "enterFinalStatus": "Enter a final response status from 200 to 599.",
   "enterGraphQLEndpointFirst": "Enter the GraphQL endpoint URL first.",
@@ -959,6 +961,7 @@
     }
   },
   "experimentsProblem": "Experiments: {error}",
+  "exportChosenHar": "Export chosen HAR…",
   "@exportCollectionPostman": {
     "placeholders": {
       "name": {
@@ -967,6 +970,7 @@
     }
   },
   "exportCollectionPostman": "Export “{name}” as Postman…",
+  "exportHar2": "Export HAR",
   "@exportMessagesNote": {
     "placeholders": {
       "count": {
@@ -994,6 +998,7 @@
       }
     }
   },
+  "failedAt": "Failed at",
   "fetchSchemaHint": "Fetch introspection or load an SDL or introspection JSON file to complete and check fields.",
   "@fileNotRead": {
     "placeholders": {
@@ -1034,6 +1039,7 @@
     }
   },
   "folderSettings": "Folder “{name}” settings…",
+  "folderSettings2": "Folder settings…",
   "@formFieldsOriginalOrder": {
     "placeholders": {
       "count": {
@@ -1043,6 +1049,8 @@
   },
   "formFieldsOriginalOrder": "{count} form fields · original order",
   "formatGraphQLQuery": "Format GraphQL query",
+  "formatTheGraphqlDocumentWithout": "Format the GraphQL document without expanding variables or changing its operations",
+  "globalVariable": "Global variable",
   "@globalsCount": {
     "placeholders": {
       "count": {
@@ -1050,6 +1058,8 @@
       }
     }
   },
+  "graphqlQuery": "GraphQL query",
+  "graphqlVariables": "GraphQL variables",
   "@grpcEventLine": {
     "placeholders": {
       "seq": {
@@ -1085,6 +1095,7 @@
     }
   },
   "handshakeAccepted": "Handshake accepted · {url} · subprotocol: {protocol}",
+  "hawkCredentialsHidden": "Hawk · credentials hidden",
   "headerColumns": "Header columns",
   "@headerComparison": {
     "placeholders": {
@@ -1152,6 +1163,7 @@
   },
   "higherProfilesWin": "Higher profiles win when two map a host.",
   "historicalNoEnd": "Historical · no end recorded",
+  "hostProfiles2": "Host profiles…",
   "@hostsCount": {
     "placeholders": {
       "count": {
@@ -1159,6 +1171,11 @@
       }
     }
   },
+  "hostsWhoseFlowsStayOut": "Hosts whose flows stay out of the table, one per line. They are still proxied, so the client sees no difference.",
+  "http204ServerStoppedThe": "HTTP 204 · Server stopped the stream",
+  "httpAndHttpsPointAt": "HTTP and HTTPS point at this app",
+  "ignoredApps2": "Ignored apps",
+  "ignoredHosts2": "Ignored hosts",
   "@imagePreviewTooLarge": {
     "placeholders": {
       "width": {
@@ -1187,6 +1204,11 @@
     }
   },
   "importCAJavaTruststore": "Import CA into Java truststore",
+  "importJmeterTestPlan": "Import JMeter test plan",
+  "importSoapuiProject": "Import SoapUI project",
+  "importThunderClientCollection": "Import Thunder Client collection",
+  "importedCaIntoJavaTruststore": "Imported CA into Java truststore",
+  "importedEnvironment": "Imported environment",
   "importedRemainder": "Everything else was imported. These parts have no equivalent here yet:",
   "@inScenario": {
     "placeholders": {
@@ -1196,6 +1218,7 @@
     }
   },
   "inScenario": "In scenario {scenario}",
+  "inheritedFromTheFolderOr": "Inherited from the folder or collection",
   "@insertVariable": {
     "placeholders": {
       "name": {
@@ -1204,6 +1227,9 @@
     }
   },
   "insertVariable": "Insert '{{'{name}'}}'",
+  "inspectCapturedRequestsFirst": "Inspect captured requests first",
+  "inspectOneHttpRequestBulk": "Inspect one HTTP request; bulk selections, tunnels and streams are unavailable",
+  "inspectionIsLimitedTo1000": "Inspection is limited to 1000 messages per body",
   "installCAIOSSimulator": "Install CA in iOS simulator",
   "@installationFailed": {
     "placeholders": {
@@ -1213,6 +1239,7 @@
     }
   },
   "installationFailed": "Installation failed: {error}",
+  "installedCaInIosSimulator": "Installed CA in iOS simulator",
   "@invalidMessageNothingSent": {
     "placeholders": {
       "encoding": {

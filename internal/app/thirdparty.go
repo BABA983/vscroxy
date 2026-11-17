@@ -242,7 +242,7 @@ func (a *app) mergeImportedEnvironments(incoming []imports.Environment) (title s
 	for _, imported := range incoming {
 		name := strings.TrimSpace(imported.Name)
 		if name == "" {
-			name = "Imported environment"
+			name = locales.ImportedEnvironment()
 		}
 		at := slices.IndexFunc(envs, func(existing environment) bool { return existing.Name == name })
 		if at < 0 {

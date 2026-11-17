@@ -725,15 +725,15 @@ func (a *app) moreActions(c *ui.Context) []action {
 		do("https.rules", locales.SslProxying2(), func() { a.sslOpen = true }).in("lists"),
 		do("capture.ignored-hosts", locales.IgnoredHosts(), func() { a.ignoreOpen = true }).in("lists"),
 		do("capture.ignored-apps", locales.IgnoredApps(), func() { a.ignoreAppsOpen = true }).in("lists"),
-		pick(a.hostsActions(), "hosts.manage").as("Host profiles…").in("lists"),
+		pick(a.hostsActions(), "hosts.manage").as(locales.HostProfiles2()).in("lists"),
 	)
 	session := []action{
 		pick(global, "collection.record"),
 		pick(global, "flow.replay").as("Replay chosen…"),
 		do("capture.export-har", locales.ExportHar(), a.exportHAR).in("files"),
-		pick(global, "capture.export-chosen").as("Export chosen HAR…").in("files"),
+		pick(global, "capture.export-chosen").as(locales.ExportChosenHar()).in("files"),
 		do("capture.export-csv", locales.ExportCsv(), a.exportCSV).in("files"),
-		pick(global, "capture.export-chosen-csv").as("Export chosen CSV…").in("files"),
+		pick(global, "capture.export-chosen-csv").as(locales.ExportChosenCsv()).in("files"),
 		do("capture.choose-shown", locales.ChooseAllShown(), func() {
 			for _, at := range a.visible {
 				a.chosen.Add(a.flows[at].id)

@@ -220,7 +220,7 @@ func (a *app) folderSettingsActions(path string) []action {
 // for "Shop", its folder's for "Shop/Orders".
 func settingsLabel(path string) string {
 	if strings.Contains(path, "/") {
-		return "Folder settings…"
+		return locales.FolderSettings2()
 	}
 	return locales.CollectionSettings()
 }

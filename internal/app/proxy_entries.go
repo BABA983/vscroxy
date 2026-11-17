@@ -280,7 +280,7 @@ func (a *app) saveReverseProxy() {
 	target := strings.TrimSpace(d.target)
 	u, err := url.Parse(target)
 	if err != nil || u.Scheme == "" || u.Host == "" {
-		d.problem = "Enter an http:// or https:// URL"
+		d.problem = locales.EnterAnHttpOrHttps2()
 		return
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
