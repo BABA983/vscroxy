@@ -472,15 +472,27 @@ func fieldFace(p *Palette, field ui.Element, onChrome, focused, invalid bool) ui
 	field.Radius(RadiusControl).Background(face).Clip()
 	switch {
 	case invalid && focused:
-		field.InsetShadow(0, 0, 0, HairlineWidth, p.Danger).Shadow(0, 0, 0, FocusHalo, p.Danger.Alpha(0.14))
+		fieldEdge(field, p.Danger)
+		field.Shadow(0, 0, 0, FocusHalo, p.Danger.Alpha(0.14))
 	case invalid:
-		field.InsetShadow(0, 0, 0, HairlineWidth, p.Danger)
+		fieldEdge(field, p.Danger)
 	case focused:
-		field.InsetShadow(0, 0, 0, HairlineWidth, p.Ring).Shadow(0, 0, 0, FocusHalo, p.Ring.Alpha(0.16))
+		fieldEdge(field, p.Ring)
+		field.Shadow(0, 0, 0, FocusHalo, p.Ring.Alpha(0.16))
 	case onChrome:
-		field.InsetShadow(0, 0, 0, HairlineWidth, p.Hairline)
+		fieldEdge(field, p.Hairline)
 	}
 	return field
+}
+
+// fieldEdge draws a field's edge round its whole box. An inset shadow stops
+// at the padding edge, so a field whose text room is a transparent right
+// border (TextInset) would leave that border's side bare; a stroke on the
+// box does not.
+func fieldEdge(field ui.Element, color ui.Color) {
+	field.Draw(func(p *ui.Painter, r ui.Rect) {
+		p.Stroke(r, color, RadiusControl, HairlineWidth)
+	})
 }
 
 // Select picks one of a few options at control height, with a button's face.

@@ -247,6 +247,43 @@ func TestInputTextStopsAtItsRightInset(t *testing.T) {
 	checkTextStopsAtRightInset(t, tt.Image(), 160)
 }
 
+// A field's edge runs round its whole box, the right side included: the right
+// inset is a border, and the edge must not stop at the padding edge short of
+// it. The left and right edge pixels match, and both differ from the well.
+func TestFieldEdgeReachesItsRightSide(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		invalid, focus bool
+	}{
+		{"focused", false, true},
+		{"invalid", true, false},
+		{"invalid and focused", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			empty := ""
+			tt := ui.NewTester(func(c *ui.Context) {
+				c.SetTheme(Theme(false))
+				InputState(c, &empty, tc.invalid).Width(160)
+			}, 160, 40)
+			tt.Frame()
+			if tc.focus {
+				tt.ClickAt(80, 20)
+				tt.Frame()
+			}
+			img := tt.Image()
+			lr, lg, lb, _ := img.At(0, 20).RGBA()
+			rr, rg, rb, _ := img.At(159, 20).RGBA()
+			wr, wg, wb, _ := img.At(80, 20).RGBA()
+			if [3]uint32{lr, lg, lb} == [3]uint32{wr, wg, wb} {
+				t.Fatal("the left edge draws no edge over the well")
+			}
+			if [3]uint32{rr, rg, rb} != [3]uint32{lr, lg, lb} {
+				t.Fatalf("right edge %v, left edge %v: the edge stops short of the right side", [3]uint32{rr, rg, rb}, [3]uint32{lr, lg, lb})
+			}
+		})
+	}
+}
+
 // A combobox's text stops ControlPaddingX short of its arrow, so a value
 // longer than the field never runs up to the arrow. In the field's ink the
 // arrow is the last run of columns and the text is the run before it.
