@@ -120,3 +120,11 @@ Raw HTTP
 #%d · %s · %d · %d ms
 missing-git
 not-a-repo
+tools/call 
+prompts/get 
+resources/read 
+ --url 
+curl --noproxy '' --proxy 
+ --cacert 
+gRPC 
+RPC 

@@ -124,9 +124,9 @@ func (s *wsSession) finish(err error) {
 	} else if local {
 		e.Detail = locales.LocalDisconnectRequestedNoPeer()
 	} else if connecting {
-		e.Detail = "Handshake failed: " + err.Error()
+		e.Detail = locales.HandshakeFailedWith(err.Error())
 	} else {
-		e.Detail = "Connection ended without a peer close frame: " + err.Error()
+		e.Detail = locales.ConnectionEndedWithoutCloseWith(err.Error())
 	}
 	s.add(e)
 }

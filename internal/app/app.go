@@ -3399,15 +3399,15 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		// What decides whether the next connection is decrypted: the tunnel's
 		// own tab says what this one was, not what today's rules would do.
 		trust, trustColor := a.certificateStatus(t)
-		domain := "Off for " + hostOnly(f.host)
+		domain := locales.OffFor(hostOnly(f.host))
 		if a.inspectionConfig().Decrypts(f.host) {
-			domain = "On for " + hostOnly(f.host)
+			domain = locales.OnFor(hostOnly(f.host))
 		}
 		app := locales.NoLocalExecutableWasRecorded()
 		if filepath.IsAbs(f.processPath) {
-			app = "Off for " + cmp.Or(f.process, filepath.Base(f.processPath))
+			app = locales.OffFor(cmp.Or(f.process, filepath.Base(f.processPath)))
 			if a.appInspectionEnabled(f.processPath) {
-				app = "On for " + cmp.Or(f.process, filepath.Base(f.processPath))
+				app = locales.OnFor(cmp.Or(f.process, filepath.Base(f.processPath)))
 			}
 		}
 		ui.Column(c).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM)).Children(func() {
@@ -3462,7 +3462,7 @@ func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 			cert = fmt.Sprintf("%s, issued by %s", cert, cn.issuer)
 		}
 		if cn.certUntil != "" {
-			cert += ", until " + cn.certUntil
+			cert += locales.UntilTime(cn.certUntil)
 		}
 		field(c, t, locales.DiagCertificate(), strings.TrimPrefix(cert, ", "))
 	})

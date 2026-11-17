@@ -613,7 +613,7 @@ func (a *app) saveCollection(list []savedRequest, folders []request.Folder, vars
 			envs[at].Credentials[name] = true
 		}
 		if old, exists := effective[name]; exists && old != value {
-			w.problem = "Environment variable “" + name + "” already has a different value; rename the variable or choose a new environment."
+			w.problem = locales.EnvironmentVariableConflict(name)
 			return
 		}
 		target[name] = value
@@ -652,7 +652,7 @@ func (a *app) saveCollection(list []savedRequest, folders []request.Folder, vars
 		for _, secret := range secrets {
 			if old := slices.IndexFunc(all, func(s vault.Secret) bool { return s.Name == secret.Name }); old >= 0 {
 				if all[old].Value != secret.Value || !slices.Equal(all[old].Domains, secret.Domains) {
-					w.problem = "Vault name “" + secret.Name + "” already exists; rename the variable."
+					w.problem = locales.VaultNameExists(secret.Name)
 					return
 				}
 			} else {
@@ -675,7 +675,7 @@ func (a *app) saveCollection(list []savedRequest, folders []request.Folder, vars
 	a.envs, a.activeEnv = envs, envName
 	w.environment = envName // A retry after a library conflict reuses it.
 	if err := a.addToLibrary(list, folders); err != nil {
-		w.problem = "Collection not saved: " + err.Error() + ". Environment/credential values were kept; retry after resolving the error."
+		w.problem = locales.CollectionNotSavedWith(err.Error())
 		return
 	}
 	if w.generateAPI {

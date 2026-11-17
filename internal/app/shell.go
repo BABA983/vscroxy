@@ -238,7 +238,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 			addr = a.srv.Addr()
 		}
 		if a.deviceUI.gateway != nil {
-			addr += " · LAN"
+			addr += locales.LanSuffix()
 		}
 		uikit.DataMeta(c, addr).FontFeatures("tnum").SingleLine()
 	})
@@ -534,7 +534,7 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 			}})
 	}
 	if scenario != "" {
-		chips = append(chips, footerChip{id: "scenario", label: locales.ScenarioLabel(scenario), tip: "Manage scenario: " + scenario, icon: layersIcon,
+		chips = append(chips, footerChip{id: "scenario", label: locales.ScenarioLabel(scenario), tip: locales.ManageScenario(scenario), icon: layersIcon,
 			open: a.openRules, off: func() {
 				a.selectRuleScenario("")
 				if a.ruleUI.problem != "" {

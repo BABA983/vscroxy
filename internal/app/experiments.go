@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json/v2"
 	"fmt"
+	"github.com/baba983/vscroxy/locales"
 	"io"
 	"os"
 	"path/filepath"
@@ -160,7 +161,7 @@ func experimentPayload(inline, path string, size int, problem string) ([]byte, i
 			}
 		}
 		if err != nil {
-			problem = experimentProblem(problem, "Experiment body read: "+err.Error())
+			problem = experimentProblem(problem, locales.ExperimentBodyReadWith(err.Error()))
 		}
 	}
 	if size > len(body) {

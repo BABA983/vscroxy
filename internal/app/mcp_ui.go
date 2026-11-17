@@ -676,7 +676,7 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 				default:
 					text := request.MCPPreview(block.Text, 64<<10)
 					if text == "" {
-						text = "(empty)"
+						text = locales.EmptyPlaceholder()
 					}
 					uikit.DataBody(c, text)
 				}
@@ -752,7 +752,7 @@ func base64Preview(data []byte) string {
 	const limit = 48 << 10
 	text := strings.TrimRight(base64.StdEncoding.EncodeToString(data[:min(len(data), limit)]), "=")
 	if len(data) > limit {
-		return text + "\n… " + fmt.Sprint(len(data)-limit) + " bytes not shown"
+		return text + locales.BytesNotShown(len(data)-limit)
 	}
 	return text
 }

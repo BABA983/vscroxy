@@ -5,6 +5,14 @@
   "accessTokenExpiredTheNext": "Access token expired · the next send gets a new one",
   "accessTokenExpiredTheNext2": "Access token expired · the next send refreshes it",
   "accessTokenReady": "Access token ready",
+  "@accessTokenReadyExpires": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "accessTokenReadyExpires": "Access token ready · expires {time}",
   "@activeSubscriptions": {
     "placeholders": {
       "count": {
@@ -107,6 +115,7 @@
     }
   },
   "appRuleEnabled": "App rule enabled for {app}; reconnect the client · decryption not yet verified",
+  "appWorkingDirectory": "(the app's working directory)",
   "applyingToTheOs": "Applying to the OS…",
   "@appsCount": {
     "placeholders": {
@@ -149,10 +158,26 @@
   },
   "awsSignatureAccessKeyHidden": "AWS Signature · access key hidden",
   "backToList": "Back to list",
+  "@basicUsernameHidden": {
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "basicUsernameHidden": "Basic · username {user} · password hidden",
   "bearerTokenHidden": "Bearer token (hidden)",
   "bidirectionalStream": "Bidirectional stream",
   "binaryBody": "Binary body",
   "binaryBodyFile": "Binary body file",
+  "@binaryBodyFrom": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "binaryBodyFrom": "Binary body from {file}",
   "binaryContentEditOutside": "Binary content; edit it outside vscroxy.",
   "@blockData": {
     "placeholders": {
@@ -173,6 +198,14 @@
   "breakpointResponsePaused": "Breakpoint · response paused",
   "breakpointWebSocketPaused": "Breakpoint · WebSocket message paused",
   "breakpointsChip": "Breakpoints",
+  "@bytesNotShown": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "bytesNotShown": "\n… {count} bytes not shown",
   "caFileNotFoundStart": "CA file not found. Start capture, then check again.",
   "cancelDiscovery": "Cancel discovery",
   "cancelRequest": "Cancel request",
@@ -258,6 +291,14 @@
   "captureWasPausedStartCollection": "Capture was paused; start collection recording again after resuming",
   "captured": "Captured",
   "capturedApi": "Captured API",
+  "@capturedHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "capturedHost": "Captured {host}",
   "@capturedNumber": {
     "placeholders": {
       "number": {
@@ -339,6 +380,14 @@
   },
   "changeCachingAndNetworkConditions": "Change caching and network conditions",
   "changeFailed": "Change failed",
+  "@changeFailedWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "changeFailedWith": "Change failed: {error}",
   "changeNetworkConditions": "Change network conditions",
   "@changedValues": {
     "placeholders": {
@@ -403,6 +452,7 @@
       }
     }
   },
+  "cleanStartNote": " · clean start",
   "clientStream": "Client stream",
   "clientToServer": "Client → server",
   "@codeNamed": {
@@ -424,6 +474,14 @@
       }
     }
   },
+  "@collectionNotSavedWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "collectionNotSavedWith": "Collection not saved: {error}. Environment/credential values were kept; retry after resolving the error.",
   "collectionOrEnvironmentIsUnavailable": "Collection or environment is unavailable; repair storage before restarting",
   "@collectionSettingsNamed": {
     "placeholders": {
@@ -433,6 +491,38 @@
     }
   },
   "collectionSettingsNamed": "Collection “{name}” settings…",
+  "@columnRequest": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "columnRequest": "{name} (request)",
+  "@columnRequestJSON": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "columnRequestJSON": "{name} (request JSON)",
+  "@columnResponse": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "columnResponse": "{name} (response)",
+  "@columnResponseJSON": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "columnResponseJSON": "{name} (response JSON)",
   "commandArguments": "Command arguments",
   "@concurrencyDescription": {
     "placeholders": {
@@ -482,7 +572,23 @@
   "connectAnMcpDocumentFirst": "Connect an MCP document first",
   "connectClientToCapture": "Connect a client to start capturing",
   "connectMqttFirst": "Connect MQTT first",
+  "@connectedDotURL": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "connectedDotURL": "Connected · {url}",
   "connectionDiagnosticsReadOnly": "Connection diagnostics · read-only until you press a fix",
+  "@connectionEndedWithoutCloseWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "connectionEndedWithoutCloseWith": "Connection ended without a peer close frame: {error}",
   "connectionLost": "Connection lost",
   "connectionUse": "Connection use",
   "@containsValue": {
@@ -561,12 +667,28 @@
   "couldNotApplyNetworkConditions": "Could not apply network conditions",
   "couldNotDeleteNetworkPreset": "Could not delete network preset",
   "couldNotDeleteNetworkPreset2": "Could not delete network preset; file left untouched",
+  "@couldNotDeleteTemplateWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "couldNotDeleteTemplateWith": "Could not delete the template: {error}",
   "couldNotDisableNetworkRules": "Could not disable network rules",
   "couldNotLoadNetworkPresets": "Could not load network presets; file left untouched",
   "couldNotReadOsSettings": "Could not read OS settings",
   "couldNotSaveNetworkPreset": "Could not save network preset",
   "couldNotSaveNetworkPreset2": "Could not save network preset; file left untouched",
   "couldNotSaveNetworkPresets": "Could not save network presets",
+  "@couldNotSaveTemplateWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "couldNotSaveTemplateWith": "Could not save the template: {error}",
   "@countOfTotal": {
     "placeholders": {
       "count": {
@@ -597,6 +719,14 @@
       }
     }
   },
+  "@credentialsHidden": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "credentialsHidden": "{kind} · credentials hidden",
   "credentialsMax255": "Username and password must each be at most 255 bytes",
   "csvOrJSON": "CSV or JSON",
   "curlRequest": "cURL request",
@@ -659,6 +789,14 @@
   "deletedHostProfile": "Deleted Host profile {name}",
   "deviceAccessIsOff": "Device access is off",
   "deviceAlreadyPointsAtVscroxy": "The device already points at vscroxy; use Undo proxy to clear it",
+  "@devicesConnectTo": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesConnectTo": "Devices connect to {address}",
   "diagActualTraffic": "Actual traffic",
   "diagCertificate": "Certificate",
   "diagClientProxy": "Client proxy",
@@ -756,6 +894,9 @@
   "editTheAllowList": "Edit the allow list",
   "editUpstreamProxySettings": "Edit upstream proxy settings",
   "emitEvent": "Emit event",
+  "emptyMessageParens": "(empty message)",
+  "emptyPlaceholder": "(empty)",
+  "emptyValue": "(empty value)",
   "enableADomainOrA2": "Enable a domain or a local app to read its headers, cookies and bodies.",
   "@enableHTTPSFor": {
     "placeholders": {
@@ -846,6 +987,14 @@
   "enterPortRange": "Enter a port from 1024 to 65535, or leave empty for automatic selection",
   "enterUsernameOrOff": "Enter a username, or turn authentication off",
   "enterValidHTTPMethod": "Enter a valid HTTP method.",
+  "@environmentDotName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "environmentDotName": "Environment · {name}",
   "environmentNeedsName": "The environment needs a name.",
   "@environmentSourceNamed": {
     "placeholders": {
@@ -855,6 +1004,14 @@
     }
   },
   "environmentSourceNamed": "Environment: {name}",
+  "@environmentVariableConflict": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "environmentVariableConflict": "Environment variable “{name}” already has a different value; rename the variable or choose a new environment.",
   "@errorsCount": {
     "placeholders": {
       "count": {
@@ -930,6 +1087,14 @@
     }
   },
   "expandAction": "Expand",
+  "@experimentBodyReadWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "experimentBodyReadWith": "Experiment body read: {error}",
   "@experimentCheckpointFailed": {
     "placeholders": {
       "error": {
@@ -1097,6 +1262,17 @@
       }
     }
   },
+  "@grpcMetadataSections": {
+    "placeholders": {
+      "header": {
+        "type": "String"
+      },
+      "trailer": {
+        "type": "String"
+      }
+    }
+  },
+  "grpcMetadataSections": "Initial metadata\n{header}\nFinal trailers\n{trailer}",
   "@grpcMethods": {
     "placeholders": {
       "count": {
@@ -1119,6 +1295,14 @@
     }
   },
   "handshakeAccepted": "Handshake accepted · {url} · subprotocol: {protocol}",
+  "@handshakeFailedWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "handshakeFailedWith": "Handshake failed: {error}",
   "hawkCredentialsHidden": "Hawk · credentials hidden",
   "headerColumns": "Header columns",
   "@headerComparison": {
@@ -1176,6 +1360,7 @@
     }
   },
   "hiddenInTheVault": "hidden in the Vault",
+  "hiddenValue": "(hidden)",
   "hideCookieValues": "Hide cookie values",
   "hideCredentials": "Hide credentials",
   "@hideRow": {
@@ -1201,6 +1386,7 @@
   "hostsWhoseFlowsStayOut": "Hosts whose flows stay out of the table, one per line. They are still proxied, so the client sees no difference.",
   "http204ServerStoppedThe": "HTTP 204 · Server stopped the stream",
   "httpAndHttpsPointAt": "HTTP and HTTPS point at this app",
+  "ignoreKeysNotApplied": "\nIgnore keys not applied: requires a complete JSON object",
   "ignoredApps2": "Ignored apps",
   "ignoredHosts2": "Ignored hosts",
   "@imagePreviewTooLarge": {
@@ -1246,6 +1432,22 @@
     }
   },
   "inScenario": "In scenario {scenario}",
+  "@incompleteBodyNotice": {
+    "placeholders": {
+      "problem": {
+        "type": "String"
+      }
+    }
+  },
+  "incompleteBodyNotice": "\n\n… incomplete body: {problem}",
+  "@incompleteBodyWith": {
+    "placeholders": {
+      "problem": {
+        "type": "String"
+      }
+    }
+  },
+  "incompleteBodyWith": "Incomplete body: {problem}",
   "inheritedFromTheFolderOr": "Inherited from the folder or collection",
   "@insertVariable": {
     "placeholders": {
@@ -1278,7 +1480,31 @@
   },
   "invalidMessageNothingSent": "Invalid {encoding} message; nothing sent",
   "invalidSearchPattern": "Invalid search pattern",
+  "@invalidSearchPatternWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "invalidSearchPatternWith": "Invalid search pattern: {error}",
   "invalidStatus": "Invalid status",
+  "@isDecryptedOnNewConnections": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "isDecryptedOnNewConnections": "{host} is decrypted on new connections",
+  "@isNotInDecryptionList": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "isNotInDecryptionList": "{host} is not in the decryption list",
   "@isSubscriptionHostProfile": {
     "placeholders": {
       "name": {
@@ -1356,6 +1582,18 @@
     }
   },
   "kindWithSize": "{kind} · {size} B",
+  "lanSuffix": " · LAN",
+  "@lastAttempt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      },
+      "request": {
+        "type": "String"
+      }
+    }
+  },
+  "lastAttempt": "Last attempt · {time} · {request}",
   "lastWillTopic": "Last will topic",
   "launchElectronApp": "Launch Electron app",
   "launchedElectronApp": "Launched Electron app",
@@ -1371,6 +1609,14 @@
   },
   "lineName": "Line {line} · {name}",
   "listedDomainsOrExactLocal": "Listed domains or exact local executables are decrypted. Other clients stay encrypted unless a domain rule also matches.",
+  "@listeningOnAddress": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "listeningOnAddress": "Listening on {address}",
   "loadTestsSupportHttpS": "Load tests support HTTP(S) requests only",
   "@loadedFrom": {
     "placeholders": {
@@ -1383,6 +1629,14 @@
   "localCaUnavailable": "Local CA unavailable",
   "localCommand": "local command",
   "localDisconnectRequestedNoPeer": "Local disconnect requested; no peer close frame recorded",
+  "@manageScenario": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "manageScenario": "Manage scenario: {name}",
   "@mapHostFor": {
     "placeholders": {
       "name": {
@@ -1452,6 +1706,17 @@
   "mockThisResponse": "Mock this response…",
   "mocksEmptyHint": "Answer requests from local files or JavaScript. Create a Map Local or Code Mock rule here; saved examples can also become mocks.",
   "mqttClientId": "MQTT client ID",
+  "@mqttClientNote": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "mqttClientNote": "{version} · client {id}",
   "mqttLastWillPayload": "MQTT last will payload",
   "mqttNeedsTopic": "Add at least one topic filter, or turn on at least one topic's On connect",
   "mqttPassword": "MQTT password",
@@ -1460,6 +1725,17 @@
   "mqttUsername": "MQTT username",
   "n1Message": "1 message",
   "n1NetworkServiceHasNo": "1 network service has no proxy",
+  "@needsValueSuchAs": {
+    "placeholders": {
+      "key": {
+        "type": "String"
+      },
+      "example": {
+        "type": "String"
+      }
+    }
+  },
+  "needsValueSuchAs": "{key} needs a value, such as {example}",
   "networkPresetsAreReadOnly": "Network presets are read-only until reloaded cleanly",
   "@networkRuleCount": {
     "placeholders": {
@@ -1470,6 +1746,14 @@
   },
   "networkRuleCount": "Network rules: {count}",
   "newCollectionMenu": "New collection",
+  "@noAccessTokenWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "noAccessTokenWith": "No access token: {error}",
   "noAccessTokenYet": "No access token yet",
   "noAccessTokenYetThe": "No access token yet · the first send gets one",
   "noActiveMqttSubscriptions": "No active MQTT subscriptions",
@@ -1478,6 +1762,15 @@
   "noBodyBytes": "No body bytes available; see the capture warning above",
   "noDataFile": "No data file: every iteration uses the same variables.",
   "noDescription": "No description",
+  "noEqualsSign": "(no =)",
+  "@noHTTPResponseWith": {
+    "placeholders": {
+      "summary": {
+        "type": "String"
+      }
+    }
+  },
+  "noHTTPResponseWith": "No HTTP response: {summary}",
   "noHooks": "No hooks",
   "noHostProfileIsOn": "No Host profile is on",
   "noLocalExecutableWasRecorded": "No local executable was recorded",
@@ -1511,9 +1804,25 @@
   "noneLower": "none",
   "noneRecordedOnExchange": "None recorded on this exchange",
   "notCheckedYet": "Not checked yet",
+  "@notEditableWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "notEditableWith": "Not editable: {error}",
   "notFetchedYet": "Not fetched yet",
   "notListening": "Not listening",
   "notNeededForHttp": "Not needed for HTTP",
+  "@notRenamedWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "notRenamedWith": "Not renamed: {error}",
   "notSavedYet": "Not saved yet",
   "nothingSavedUntilCreate": "Nothing is saved until Create.",
   "nothingShownUntilAdd": "Nothing is shown until you add a host or an app.",
@@ -1530,6 +1839,14 @@
   "nothingToImport": "{what}: nothing to import; {warnings}",
   "nothingToUndo": "Nothing to undo",
   "notification": "Notification",
+  "@ntlmUsernameHidden": {
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "ntlmUsernameHidden": "NTLM · username {user} · password hidden",
   "@numberedName": {
     "placeholders": {
       "base": {
@@ -1541,6 +1858,14 @@
     }
   },
   "numberedName": "{base} {number}",
+  "@oauth1ConsumerKeyHidden": {
+    "placeholders": {
+      "key": {
+        "type": "String"
+      }
+    }
+  },
+  "oauth1ConsumerKeyHidden": "OAuth 1.0 · consumer key {key} · secrets hidden",
   "@observedFailure": {
     "placeholders": {
       "stage": {
@@ -1549,6 +1874,23 @@
     }
   },
   "observedFailure": "Observed failure · {stage}",
+  "@offFor": {
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "offFor": "Off for {target}",
+  "@onFor": {
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "onFor": "On for {target}",
+  "onWindowsTrustsCurrentUser": " On Windows, installation trusts it for the current user, not other accounts or services.",
   "oneContract": "1 contract",
   "onlyAScenarioNamedFor": "Only a scenario named for a collection with examples",
   "openARequestDraftFirst": "Open a request draft first",
@@ -1565,6 +1907,14 @@
   },
   "openExampleNamed": "Open example: {name}",
   "openProxiedTerminal": "Open proxied terminal",
+  "@openSessionWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "openSessionWith": "Open session: {error}",
   "openedProxiedChrome": "Opened proxied Chrome",
   "openedProxiedFirefox": "Opened proxied Firefox",
   "openedProxiedTerminal": "Opened proxied terminal",
@@ -1630,6 +1980,7 @@
   "partsNotPreviewed": "{count} parts · files are not previewed",
   "pauseView": "Pause view",
   "persistCurrentAsInitialWrites": "Persist current as initial: writes it to the shared file and exports",
+  "persistentSessionNote": " · persistent session",
   "pin": "Pin",
   "pinToTheTop": "Pin to the top",
   "pointsAtAnotherProxy": "Points at another proxy",
@@ -1650,8 +2001,32 @@
     }
   },
   "portUsedReverseProxy": "Port {port} is already used by a reverse proxy",
+  "@portWasNotSavedWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "portWasNotSavedWith": "Port was not saved: {error}",
   "postResponseScript": "Post-response script",
+  "@postResponseScriptOf": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "postResponseScriptOf": "{kind} post-response script",
   "preRequestScript": "Pre-request script",
+  "@preRequestScriptOf": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "preRequestScriptOf": "{kind} pre-request script",
   "preparingRequests": "Preparing requests and examples…",
   "previewLimitedTo8Mib2": "preview limited to 8 MiB",
   "previewOnlyNothingChanged": "Preview only · nothing changed",
@@ -1718,6 +2093,22 @@
     }
   },
   "queryRemoveTip": "Remove {condition}",
+  "@rawName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "rawName": "Raw name: {name}",
+  "@rawValue": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "rawValue": "Raw value: {value}",
   "@readExchange": {
     "placeholders": {
       "index": {
@@ -1726,6 +2117,14 @@
     }
   },
   "readExchange": "Read exchange {index}",
+  "@readFailedWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "readFailedWith": "Read failed: {error}",
   "@readOnlyInspection": {
     "placeholders": {
       "format": {
@@ -1838,6 +2237,14 @@
   "returnToOriginalTab": "Return to the original editable tab without overwriting its current edits: {name}",
   "reveal": "Reveal",
   "revealCookieValues": "Reveal cookie values",
+  "@reverseProxyOnPort": {
+    "placeholders": {
+      "port": {
+        "type": "String"
+      }
+    }
+  },
+  "reverseProxyOnPort": "Reverse proxy on port {port}",
   "@rulesActInOrder": {
     "placeholders": {
       "count": {
@@ -1873,6 +2280,14 @@
   },
   "runNumberResult": "Run #{number} result",
   "runResultsLimitTip": "Displaying latest 1000 results; closing keeps a run active",
+  "@runnerRecordNotRetainedWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "runnerRecordNotRetainedWith": "Runner record not retained: {error}",
   "runningStatus": "Running…",
   "saveARequestToA": "Save a request to a collection first",
   "saveAResponseAsAn": "Save a response as an example first",
@@ -1885,6 +2300,14 @@
   },
   "saveRequestsEllipsis": "Save {count} requests to collection…",
   "saveRuleWritesItTo": "Save rule writes it to the file.",
+  "@saveSessionWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "saveSessionWith": "Save session: {error}",
   "savedCapture": "Saved capture",
   "@savedCaptureFiltersProblem": {
     "placeholders": {
@@ -1906,6 +2329,14 @@
   },
   "savedProtobufSchema": "Saved protobuf schema: {error}",
   "savedQueriesLocationIsUnavailable": "Saved queries location is unavailable",
+  "@savedQueriesWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "savedQueriesWith": "Saved queries: {error}",
   "savedRequests": "Saved requests",
   "savedSession": "Saved session",
   "@savedSessionsEvidence": {
@@ -1941,6 +2372,14 @@
   "schemaTypes": "Schema · {count} types",
   "scopeDynamic": "Dynamic",
   "scopeGlobal": "Global",
+  "@scopeNote": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "scopeNote": " · scope {scope}",
   "scopeVault": "Vault",
   "@scriptImportAddon": {
     "placeholders": {
@@ -1988,6 +2427,16 @@
   "serverDisconnected": "Server disconnected",
   "serverStream": "Server stream",
   "serverToClient": "Server → client",
+  "@sessionNotRetainedWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "sessionNotRetainedWith": "Session not retained: {error}",
+  "sessionPresentNote": " · session present",
+  "setBaseURLInSettings": " · set base_url in its settings",
   "setByTheProcessItself": "Set by the process itself; not checkable from here",
   "setDeadlineRange": "Set a deadline between 1 and 3600 seconds",
   "settingsLocationIsUnavailablePort": "Settings location is unavailable; port was not saved",
@@ -1999,6 +2448,14 @@
     }
   },
   "settingsNotSaved": "Settings were not saved: {error}",
+  "@settingsSavedCurrentNotWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsSavedCurrentNotWith": "Settings saved, but local Current values were not: {error}",
   "@sha256Fingerprint": {
     "placeholders": {
       "fingerprint": {
@@ -2020,6 +2477,17 @@
     }
   },
   "skippedNamed": "{name} · skipped",
+  "@socketIOSessionNote": {
+    "placeholders": {
+      "namespace": {
+        "type": "String"
+      },
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "socketIOSessionNote": "Namespace {namespace} · Socket ID {id}\nEngine.IO 4 · WebSocket only · No reconnect or replay",
   "@socketIOState": {
     "placeholders": {
       "state": {
@@ -2128,6 +2596,14 @@
   "stoppingStatus": "Stopping…",
   "stoppingWaitingForBody": "Stopping · waiting for body read",
   "streamEndedReconnectIsOff": "Stream ended · Reconnect is off",
+  "@streamFailedWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "streamFailedWith": "Stream failed: {error}",
   "subprotocolsNotBoth": "Enter subprotocols in the dedicated field or headers, not both",
   "subscribeFailed": "Subscribe failed",
   "subscribed": "Subscribed",
@@ -2198,10 +2674,19 @@
   },
   "templateNamed": "Template: {name}",
   "textMessageUTF8": "Text messages must be valid UTF-8.",
+  "textPreviewLimited64KiB": "\n\n… Text preview limited to 64 KiB; Copy decoded keeps the full text.",
   "theAppSExecutableIs": "The app's executable is unknown",
   "theRemoteUrlMustNot": "The remote URL must not carry credentials, a query or a fragment",
   "theSavedQueryNoLonger": "The saved query no longer exists; select it again",
   "theseDomainsAndTheirSubdomains": "These domains and their subdomains are decrypted. Every other host stays an encrypted tunnel.",
+  "@thisAppProxyAddress": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "thisAppProxyAddress": "This app's proxy address: {address}",
   "thisBodyCannotBeEdited": "This body cannot be edited as text, so it is kept; the template’s body was not applied.",
   "thisCaptureIsReadOnly": "This capture is read only",
   "thisCollectionExistsChooseIt": "This collection exists; choose it in Save to or use another name.",
@@ -2220,6 +2705,14 @@
     }
   },
   "timeKindSize": "{time} · {kind} · {size} B",
+  "@timedOutWith": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "timedOutWith": "Timed out: {error}",
   "timingDNSLookup": "DNS lookup",
   "timingDownload": "Download",
   "@timingExactOffset": {
@@ -3159,6 +3652,7 @@
       }
     }
   },
+  "truncatedForDocumentation": "\n… truncated for documentation",
   "trustNotVerifiedOnThis": "Trust not verified on this system",
   "trustOnTheClientCan": "Trust on the client can't be checked from here; Actual traffic shows the outcome",
   "trustThisCaOnThe": "Trust this CA on the requesting device or in the requesting application too. Separate trust stores and certificate pinning may need client-side configuration.",
@@ -3201,6 +3695,14 @@
   "unsavedDraft": "Unsaved draft",
   "unsubscribeFailed": "Unsubscribe failed",
   "unsubscribed": "Unsubscribed",
+  "@untilTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "untilTime": ", until {time}",
   "untitled": "Untitled",
   "untitledApi": "Untitled API",
   "untitledRule": "Untitled rule",
@@ -3254,6 +3756,14 @@
       }
     }
   },
+  "@variableDotName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "variableDotName": "Variable · {name}",
   "variableNamesRules": "Variable names must be nonempty, unique and contain no braces.",
   "@variablesCount": {
     "placeholders": {
@@ -3265,6 +3775,7 @@
       }
     }
   },
+  "variablesSection": "\n\nVariables:\n",
   "@variablesUnresolved": {
     "placeholders": {
       "count": {
@@ -3272,6 +3783,14 @@
       }
     }
   },
+  "@vaultNameExists": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "vaultNameExists": "Vault name “{name}” already exists; rename the variable.",
   "@vaultSaved": {
     "placeholders": {
       "count": {
@@ -3289,6 +3808,14 @@
   },
   "waitSchemaDiscovery": "Wait for schema discovery to finish",
   "waitingForCaptureToStart": "Waiting for capture to start",
+  "@waitingForRequestTo": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "waitingForRequestTo": "Waiting for a request to {host}",
   "waitingForTheSignIn": "Waiting for the sign-in in your browser…",
   "@waitingResponseTimeout": {
     "placeholders": {

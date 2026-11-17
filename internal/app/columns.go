@@ -51,15 +51,15 @@ func (cc customColumn) id() string {
 func (cc customColumn) title() string {
 	switch cc.Source {
 	case sourceRequestHeader:
-		return cc.Name + " (request)"
+		return locales.ColumnRequest(cc.Name)
 	case sourceResponseHeader:
-		return cc.Name + " (response)"
+		return locales.ColumnResponse(cc.Name)
 	case sourceQuery:
 		return "?" + cc.Name
 	case sourceRequestJSON:
-		return cc.Name + " (request JSON)"
+		return locales.ColumnRequestJSON(cc.Name)
 	case sourceResponseJSON:
-		return cc.Name + " (response JSON)"
+		return locales.ColumnResponseJSON(cc.Name)
 	case sourceGraphQL:
 		return "GraphQL operation"
 	}

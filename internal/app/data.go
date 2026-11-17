@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/base64"
 	"fmt"
+	"github.com/baba983/vscroxy/locales"
 	"io"
 	"net/http"
 	"os"
@@ -283,7 +284,7 @@ func (f flow) bodyPreview(response bool) (body, notice string) {
 		notice = fmt.Sprintf("\n\n… incomplete body: %d of %d bytes retained", len(head), size)
 	}
 	if problem != "" {
-		notice += "\n\n… incomplete body: " + problem
+		notice += locales.IncompleteBodyNotice(problem)
 	}
 	return head, notice
 }

@@ -77,7 +77,7 @@ func (h variableHint) display() string {
 	case h.Sensitive:
 		return "••••••"
 	case h.Value == "":
-		return "(empty)"
+		return locales.EmptyPlaceholder()
 	default:
 		return oneLine(h.Value)
 	}
@@ -212,7 +212,7 @@ func (a *app) variableHintSet(collection string) variableSet {
 		}
 	}
 	env := a.activeEnvironment()
-	addValues("Environment · "+env.Name, env.Vars, env.Current)
+	addValues(locales.EnvironmentDotName(env.Name), env.Vars, env.Current)
 	for name := range env.Credentials {
 		if h, ok := byName[name]; ok {
 			h.Sensitive = true

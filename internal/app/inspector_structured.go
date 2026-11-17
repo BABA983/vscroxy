@@ -80,13 +80,13 @@ func (s *structuredInspector) view(c *ui.Context, a *app, source inspectionBody,
 			value := fmt.Sprint(row + 1)
 			raw := locales.OriginalEntryOrderDuplicatesAre()
 			if col == 1 {
-				value, raw = field.Key, "Raw name: "+field.RawKey
+				value, raw = field.Key, locales.RawName(field.RawKey)
 			} else if col == 2 {
-				value, raw = field.Value, "Raw value: "+field.RawValue
+				value, raw = field.Value, locales.RawValue(field.RawValue)
 				if value == "" {
-					value = "(empty)"
+					value = locales.EmptyPlaceholder()
 					if !field.HasEquals {
-						value = "(no =)"
+						value = locales.NoEqualsSign()
 					}
 				}
 			}

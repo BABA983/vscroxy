@@ -236,7 +236,7 @@ func (a *app) importOpenAPICollection(doc *openapi3.T, fallback string, warnings
 	title := fmt.Sprintf("Imported “%s” · %d %s", name, len(incoming), plural(len(incoming), "request", "requests"))
 	if base {
 		folders = []request.Folder{{Path: name, Variables: []request.Variable{{Name: "base_url"}}}}
-		title += " · set base_url in its settings"
+		title += locales.SetBaseURLInSettings()
 	}
 	replaced := replacedFolderPaths(a.requests, a.folders, folders, []imports.Collection{{Name: name}})
 	if err := a.addToLibrary(incoming, folders); err != nil {
@@ -264,7 +264,7 @@ func (a *app) openCollectionSave(flows []flow) {
 	}
 	a.bulkSaveUI = collectionSave{open: true, flows: flows, perHost: len(hosts) > 1}
 	if len(flows) > 0 {
-		a.bulkSaveUI.name = "Captured " + flows[0].host
+		a.bulkSaveUI.name = locales.CapturedHost(flows[0].host)
 	}
 }
 

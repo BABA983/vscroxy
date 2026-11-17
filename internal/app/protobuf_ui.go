@@ -238,7 +238,7 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 			})
 			text := message.text
 			if len(text) > maxMessageText {
-				text = text[:maxMessageText] + "\n\n… Text preview limited to 64 KiB; Copy decoded keeps the full text."
+				text = text[:maxMessageText] + locales.TextPreviewLimited64KiB()
 			}
 			ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceL)).Children(func() {
 				ui.Column(c).Padding(0, 0, t.Space(uikit.SpaceM), 0).Children(func() {

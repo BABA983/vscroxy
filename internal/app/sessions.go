@@ -227,7 +227,7 @@ func (a *app) checkpointSessions() {
 		case done := <-item.loadDone:
 			item.loading, item.loadDone = false, nil
 			if done.err != nil {
-				item.saveErr = "Open session: " + done.err.Error()
+				item.saveErr = locales.OpenSessionWith(done.err.Error())
 				break
 			}
 			item.data, item.loaded, item.count = done.file, true, len(done.file.Flows)
@@ -239,7 +239,7 @@ func (a *app) checkpointSessions() {
 		select {
 		case err := <-item.results:
 			if err != nil {
-				item.saveErr = "Save session: " + err.Error()
+				item.saveErr = locales.SaveSessionWith(err.Error())
 				a.fail(locales.SaveSession2(), err)
 			} else {
 				item.saveErr = ""

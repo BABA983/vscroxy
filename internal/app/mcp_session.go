@@ -498,7 +498,7 @@ func (s *mcpSession) start(label string, op func(context.Context, *request.MCPCl
 		if !s.finished {
 			switch {
 			case err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded):
-				s.problem = "Timed out: " + err.Error()
+				s.problem = locales.TimedOutWith(err.Error())
 				s.appendLocked("Error", label, s.problem)
 			case err != nil && ctx.Err() != nil:
 				s.appendLocked("System", "Cancelled", err.Error())

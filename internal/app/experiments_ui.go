@@ -238,7 +238,7 @@ func (r experimentRecord) compared(ignore string) flow {
 		f.reqSize, f.resSize = len(f.reqBody), len(f.resBody)
 	}
 	if (r.Exchange == nil || r.Exchange.Status == 0) && f.resBody == "" {
-		f.resError = "No HTTP response: " + r.Summary
+		f.resError = locales.NoHTTPResponseWith(r.Summary)
 	}
 	if strings.TrimSpace(ignore) != "" {
 		var object map[string]jsontext.Value
@@ -251,7 +251,7 @@ func (r experimentRecord) compared(ignore string) flow {
 				f.resSize = len(data)
 			}
 		} else {
-			f.resError += "\nIgnore keys not applied: requires a complete JSON object"
+			f.resError += locales.IgnoreKeysNotApplied()
 		}
 	}
 	return f

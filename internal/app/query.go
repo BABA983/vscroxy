@@ -130,7 +130,7 @@ func (a *app) captureSearch() func(string) bool {
 		if err == nil {
 			return re.MatchString
 		}
-		a.searchProblem = "Invalid search pattern: " + err.Error()
+		a.searchProblem = locales.InvalidSearchPatternWith(err.Error())
 	}
 	return func(string) bool { return false }
 }
@@ -275,7 +275,7 @@ func (a *app) commitQuery(all bool) bool {
 		}
 		problem := ""
 		if t.value == "" {
-			problem = t.key + " needs a value, such as " + t.key + ":…"
+			problem = locales.NeedsValueSuchAs(t.key, t.key+":…")
 		} else if key.check != nil {
 			problem = key.check(t.value)
 		}

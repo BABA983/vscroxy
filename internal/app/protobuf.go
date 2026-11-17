@@ -248,7 +248,7 @@ func inspectProto(ctx context.Context, f flow, response bool, schema *protoSchem
 		head, file, size, problem, header = f.resBody, f.resFile, f.resSize, f.resError, f.respHeader
 	}
 	if problem != "" {
-		result.problem = "Incomplete body: " + problem
+		result.problem = locales.IncompleteBodyWith(problem)
 		return result
 	}
 	if file != "" {
@@ -398,7 +398,7 @@ func messageTypeParam(contentType string) string {
 
 func protoMessageText(data []byte, schema *protoSchema, desc protoreflect.MessageDescriptor) (string, error) {
 	if len(data) == 0 {
-		return "(empty message)", nil
+		return locales.EmptyMessageParens(), nil
 	}
 	if desc != nil {
 		message := dynamicpb.NewMessage(desc)

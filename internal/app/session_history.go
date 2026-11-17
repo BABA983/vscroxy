@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/baba983/vscroxy/locales"
 	"slices"
 	"strings"
 	"time"
@@ -89,7 +90,7 @@ func (a *app) recordSession(d *requestDocument, summary sessionSummary) {
 		ResponseBody: []byte(text),
 	}
 	if err := a.experiments.log.retain(record, a.experimentLimits()); err != nil {
-		a.experiments.problem = "Session not retained: " + err.Error()
+		a.experiments.problem = locales.SessionNotRetainedWith(err.Error())
 		return
 	}
 	a.experiments.persist()

@@ -154,7 +154,7 @@ func (a *app) paletteSearch(query string) paletteSearch {
 		name := env.Name
 		if strings.Contains(strings.ToLower(name), query) && room() {
 			out.entries = append(out.entries, paletteEntry{
-				label: name, detail: "Environment · " + name, meta: "Environment", enabled: true,
+				label: name, detail: locales.EnvironmentDotName(name), meta: "Environment", enabled: true,
 				run: func() { a.openEnvironment(name) },
 			})
 		}
@@ -170,7 +170,7 @@ func (a *app) paletteSearch(query string) paletteSearch {
 				continue
 			}
 			out.entries = append(out.entries, paletteEntry{
-				label: variable, detail: "Variable · " + name, meta: "Variable", enabled: true,
+				label: variable, detail: locales.VariableDotName(name), meta: "Variable", enabled: true,
 				run: func() { a.openEnvironment(name) },
 			})
 		}

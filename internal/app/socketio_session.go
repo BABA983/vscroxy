@@ -113,7 +113,7 @@ func openSocketIOSession(proxy string, ca []byte, certificates certs.Settings, j
 			defer conn.Close()
 			s.mu.Lock()
 			s.conn, s.state = conn, "Connected"
-			s.append("System", "Connected", "Namespace "+cfg.Namespace+" · Socket ID "+conn.SID+"\nEngine.IO 4 · WebSocket only · No reconnect or replay")
+			s.append("System", "Connected", locales.SocketIOSessionNote(cfg.Namespace, conn.SID))
 			s.mu.Unlock()
 			s.changed()
 			for {

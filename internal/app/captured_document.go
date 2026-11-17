@@ -40,7 +40,7 @@ func (a *app) liveDocument(f flow) (*requestDocument, string) {
 	a.liveLoad = false
 	r, err := f.requestDraft()
 	if err != nil {
-		a.liveProblem = "Not editable: " + err.Error()
+		a.liveProblem = locales.NotEditableWith(err.Error())
 		return nil, a.liveProblem
 	}
 	d := a.newDocument(r, "")

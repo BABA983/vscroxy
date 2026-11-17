@@ -57,7 +57,7 @@ func openSSESession(proxy string, req *request.Prepared, ca []byte, certificates
 				s.state = u.State
 				switch u.State {
 				case "Connected":
-					e.detail = "Connected · " + u.URL + "\n\n" + request.HeaderBlock(u.Header)
+					e.detail = locales.ConnectedDotURL(u.URL) + "\n\n" + request.HeaderBlock(u.Header)
 				case "Reconnecting":
 					e.detail = fmt.Sprintf("Reconnecting in %s · Last-Event-ID: %s", u.Retry, u.LastEventID)
 				case "Stopped":
@@ -76,7 +76,7 @@ func openSSESession(proxy string, req *request.Prepared, ca []byte, certificates
 			s.append(sseSessionEvent{detail: locales.StoppedLocallyNoFurtherReconnects()})
 		case err != nil:
 			s.state = "Failed"
-			s.append(sseSessionEvent{detail: "Stream failed: " + err.Error()})
+			s.append(sseSessionEvent{detail: locales.StreamFailedWith(err.Error())})
 		case s.state != "Stopped":
 			s.state = "Ended"
 			s.append(sseSessionEvent{detail: locales.StreamEndedReconnectIsOff()})

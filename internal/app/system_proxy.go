@@ -377,13 +377,13 @@ func (a *app) systemProxyDetail(target string) (line, tooltip string) {
 	scopes := strings.Join(held, " · ")
 	switch {
 	case s.writeErr != nil:
-		line = "Change failed: " + s.writeErr.Error()
+		line = locales.ChangeFailedWith(s.writeErr.Error())
 	case s.check.Err != nil:
-		line = "Read failed: " + s.check.Err.Error()
+		line = locales.ReadFailedWith(s.check.Err.Error())
 	case len(s.check.Configs) > 0:
 		line = proxySummary(s.check.Configs)
 	case target != "":
-		line = "This app's proxy address: " + target
+		line = locales.ThisAppProxyAddress(target)
 	default:
 		line = locales.CaptureHasNoAddressYet()
 	}

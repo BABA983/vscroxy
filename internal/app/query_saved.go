@@ -55,7 +55,7 @@ func (a *app) loadQueries() {
 	data, err := a.file(a.queriesPath).Read()
 	if err != nil || data == nil {
 		if err != nil {
-			a.queriesProblem = "Saved queries: " + err.Error()
+			a.queriesProblem = locales.SavedQueriesWith(err.Error())
 		}
 		return
 	}
@@ -64,11 +64,11 @@ func (a *app) loadQueries() {
 		Queries []savedQuery `json:"queries"`
 	}
 	if err := json.Unmarshal(data, &doc, json.RejectUnknownMembers(true)); err != nil {
-		a.queriesProblem = "Saved queries: " + err.Error()
+		a.queriesProblem = locales.SavedQueriesWith(err.Error())
 		return
 	}
 	if err := validateSavedQueries(doc.Queries); err != nil {
-		a.queriesProblem = "Saved queries: " + err.Error()
+		a.queriesProblem = locales.SavedQueriesWith(err.Error())
 		return
 	}
 	a.queries, a.queriesProblem = doc.Queries, ""

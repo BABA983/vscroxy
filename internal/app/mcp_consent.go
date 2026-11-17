@@ -327,7 +327,7 @@ func (a *app) mcpConsentModal(c *ui.Context, t *ui.Theme) {
 			}
 			dir := plan.WorkingDir
 			if dir == "" {
-				dir = "(the app's working directory)"
+				dir = locales.AppWorkingDirectory()
 			}
 			uikit.Meta(c, locales.WorkingDirectory())
 			uikit.DataBody(c, dir).Selectable()

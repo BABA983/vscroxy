@@ -374,7 +374,7 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 				case st.Error != "":
 					state = locales.NotListening()
 				case st.Addr != "":
-					state = "Listening on " + st.Addr
+					state = locales.ListeningOnAddress(st.Addr)
 				case a.srv == nil || !a.srv.Running():
 					state = locales.CaptureIsNotRunning()
 				default:
@@ -385,7 +385,7 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 						enabled := r.Enabled
-						if uikit.SettingsSwitch(c, &enabled, "Reverse proxy on port "+strconv.Itoa(r.Port)).Changed() {
+						if uikit.SettingsSwitch(c, &enabled, locales.ReverseProxyOnPort(strconv.Itoa(r.Port))).Changed() {
 							a.setReverseEnabled(r.ID, enabled)
 						}
 						uikit.Tip(c, uikit.Mono(c, r.Target).SingleLine().MaxWidth(280).TextColor(t.TextMuted), r.Target)

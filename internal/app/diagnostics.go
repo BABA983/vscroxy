@@ -174,7 +174,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 			proxy.state, proxy.result = checkFail, locales.DeviceAccessIsOff()
 		} else {
 			status := g.Status()
-			proxy.result = "Devices connect to " + g.Addr()
+			proxy.result = locales.DevicesConnectTo(g.Addr())
 			proxy.detail = []string{"Last proxy client: " + cmp.Or(status.LastProxyClient, "not seen yet"),
 				"Last certificate download: " + cmp.Or(status.LastCertificateClient, "not seen yet")}
 			if status.LastProxyClient != "" {
@@ -226,9 +226,9 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 	case !https:
 		decrypt.result = locales.NotNeededForHttp()
 	case a.inspectionConfig().Decrypts(target.Hostname()):
-		decrypt.state, decrypt.result = checkPass, target.Hostname()+" is decrypted on new connections"
+		decrypt.state, decrypt.result = checkPass, locales.IsDecryptedOnNewConnections(target.Hostname())
 	default:
-		decrypt.state, decrypt.result = checkFail, target.Hostname()+" is not in the decryption list"
+		decrypt.state, decrypt.result = checkFail, locales.IsNotInDecryptionList(target.Hostname())
 		decrypt.fix = "Decrypt this host"
 		host := target.Hostname()
 		decrypt.run = func(*ui.Context) { a.decryptHost(host) }
@@ -285,7 +285,7 @@ func (a *app) trafficCheck(target *url.URL, https bool) diagnosticCheck {
 	}
 	switch {
 	case latest == nil:
-		check.result = "Waiting for a request to " + target.Host
+		check.result = locales.WaitingForRequestTo(target.Host)
 		check.detail = []string{"Nothing recorded does not prove a failure: the client may not have sent a request, bypassed the proxy, or matched an ignored host or app."}
 		if a.srv != nil {
 			check.detail = append(check.detail, fmt.Sprintf("Ignored hosts: %d · ignored apps: %d", len(a.srv.Ignore()), len(a.srv.IgnoreApps())))

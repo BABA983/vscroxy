@@ -152,7 +152,7 @@ func (a *app) saveProxyPort() {
 	a.lastSave = time.Time{} // explicit save must not wait for the layout debounce
 	if err := a.persistSettings(); err != nil {
 		a.proxyPort = previous
-		a.proxyPortProblem = "Port was not saved: " + err.Error()
+		a.proxyPortProblem = locales.PortWasNotSavedWith(err.Error())
 		return
 	}
 	a.done(locales.ProxyPortSavedRestartThe())

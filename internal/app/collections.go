@@ -252,7 +252,7 @@ func (a *app) saveFolder() {
 	if name := strings.TrimSpace(f.name); name != f.draft.Path[strings.LastIndex(f.draft.Path, "/")+1:] {
 		from := f.draft.Path
 		if err := a.renameFolder(from, name); err != nil {
-			f.problem = "Not renamed: " + err.Error()
+			f.problem = locales.NotRenamedWith(err.Error())
 			return
 		}
 		f.draft.Path = from[:strings.LastIndex(from, "/")+1] + name
@@ -289,7 +289,7 @@ func (a *app) saveFolder() {
 	envs := a.localEnvs()
 	envs.FolderCurrent, envs.FolderCredentials = next, nextCredentials
 	if err := a.saveEnvFile(envs); err != nil {
-		f.problem = "Settings saved, but local Current values were not: " + err.Error()
+		f.problem = locales.SettingsSavedCurrentNotWith(err.Error())
 		return
 	}
 	a.folderCurrent, a.folderCredentials = next, nextCredentials
@@ -373,9 +373,9 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 					uikit.SubTabs(c, &f.script, "Folder script", locales.PreRequest(), locales.PostResponse())
 					uikit.Meta(c, locales.RunsBeforeTheRequestS())
 					if f.script == 0 {
-						authoredText(c, &f.draft.Pre, &f.pre, &f.preFor, kind+" pre-request script", "JavaScript")
+						authoredText(c, &f.draft.Pre, &f.pre, &f.preFor, locales.PreRequestScriptOf(kind), "JavaScript")
 					} else {
-						authoredText(c, &f.draft.Post, &f.post, &f.postFor, kind+" post-response script", "JavaScript")
+						authoredText(c, &f.draft.Post, &f.post, &f.postFor, locales.PostResponseScriptOf(kind), "JavaScript")
 					}
 				case 2:
 					uikit.Meta(c, locales.EnvironmentValuesOverrideTheseA())

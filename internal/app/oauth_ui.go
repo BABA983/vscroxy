@@ -92,7 +92,7 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 		case tok.Fresh(time.Now()) && tok.Expiry.IsZero():
 			status, color = locales.AccessTokenReady(), t.Success
 		case tok.Fresh(time.Now()):
-			status, color = "Access token ready · expires "+tok.Expiry.Format("15:04:05"), t.Success
+			status, color = locales.AccessTokenReadyExpires(tok.Expiry.Format("15:04:05")), t.Success
 		case tok.Refresh != "":
 			status = locales.AccessTokenExpiredTheNext2()
 		case !interactive:
@@ -101,7 +101,7 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 			status, color = locales.AccessTokenExpiredGetA(), t.Danger
 		}
 		if tok.Scope != "" {
-			status += " · scope " + tok.Scope
+			status += locales.ScopeNote(tok.Scope)
 		}
 	} else if !interactive {
 		status = locales.NoAccessTokenYetThe()
@@ -269,7 +269,7 @@ func (a *app) newAccessToken(in request.Context, cfg request.OAuth2) {
 			}
 			s.busy = false
 			if err != nil {
-				s.problem = "No access token: " + err.Error()
+				s.problem = locales.NoAccessTokenWith(err.Error())
 				return
 			}
 			a.done(locales.NewAccessToken(cfg.TokenURL))

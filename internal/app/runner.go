@@ -287,7 +287,7 @@ func (a *app) drainRunner() {
 				}
 			}
 			if err := a.experiments.log.retain(event.record, a.experimentLimits()); err != nil {
-				a.experiments.problem = "Runner record not retained: " + err.Error()
+				a.experiments.problem = locales.RunnerRecordNotRetainedWith(err.Error())
 			} else {
 				event.row.recordID = a.experiments.log.NextID
 				a.experiments.persist()

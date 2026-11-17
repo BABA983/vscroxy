@@ -356,14 +356,14 @@ func mqttEndpointLabel(raw string) string {
 }
 
 func mqttConnectedNote(cfg request.MQTTConfig, conn *request.MQTTClient) string {
-	note := request.MQTTVersionLabel(cfg.Version) + " · client " + conn.ClientID()
+	note := locales.MqttClientNote(request.MQTTVersionLabel(cfg.Version), conn.ClientID())
 	if cfg.CleanStartEnabled() {
-		note += " · clean start"
+		note += locales.CleanStartNote()
 	} else {
-		note += " · persistent session"
+		note += locales.PersistentSessionNote()
 	}
 	if conn.SessionPresent() {
-		note += " · session present"
+		note += locales.SessionPresentNote()
 	}
 	return note
 }

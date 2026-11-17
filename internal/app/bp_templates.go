@@ -95,7 +95,7 @@ func (a *app) saveBreakTemplate(name string) {
 		list = append(list, t)
 	}
 	if err := a.writeBreakTemplates(list); err != nil {
-		a.bpNote = "Could not save the template: " + err.Error()
+		a.bpNote = locales.CouldNotSaveTemplateWith(err.Error())
 		a.fail(locales.BreakpointTemplate(), err)
 		return
 	}
@@ -106,7 +106,7 @@ func (a *app) saveBreakTemplate(name string) {
 func (a *app) deleteBreakTemplate(t bpTemplate) {
 	list := slices.DeleteFunc(slices.Clone(a.bpTemplates), func(o bpTemplate) bool { return o.Name == t.Name && o.Phase == t.Phase })
 	if err := a.writeBreakTemplates(list); err != nil {
-		a.bpNote = "Could not delete the template: " + err.Error()
+		a.bpNote = locales.CouldNotDeleteTemplateWith(err.Error())
 		a.fail(locales.BreakpointTemplate(), err)
 		return
 	}

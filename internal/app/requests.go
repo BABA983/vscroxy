@@ -849,7 +849,7 @@ func variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool) 
 				} else if *reveal {
 					value = row.Value
 					if value == "" {
-						value = "(empty value)"
+						value = locales.EmptyValue()
 					}
 				}
 				uikit.Caption(c, value).TextColor(color).Grow(1).Selectable()
@@ -1479,7 +1479,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if u, err := url.Parse(path); err == nil && u.Host != "" {
 					path = cmp.Or(u.EscapedPath(), "/")
 				}
-				label := "Last attempt · " + d.sentAt.Local().Format("15:04:05") + " · " + d.sent.Method + " " + path
+				label := locales.LastAttempt(d.sentAt.Local().Format("15:04:05"), d.sent.Method+" "+path)
 				if uikit.ToolbarButton(c, locales.LastSendDetails(), locales.ShowTheFullDraftUrl(), false).Grow(1).MinWidth(0).
 					Justify(ui.Start).Children(func() {
 					arrow := "›"

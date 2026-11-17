@@ -104,12 +104,12 @@ func docEntries(requests []savedRequest, root string) []docsEntry {
 // docsBody is the request body as authored, with a note for non-text bodies.
 func docsBody(r savedRequest) (string, string) {
 	if r.BodyMode == "Binary" {
-		return "", cmp.Or("Binary body from "+r.BodyFile, locales.BinaryBody())
+		return "", cmp.Or(locales.BinaryBodyFrom(r.BodyFile), locales.BinaryBody())
 	}
 	if r.BodyMode == "GraphQL" {
 		body := strings.TrimSpace(r.GraphQL.Query)
 		if v := strings.TrimSpace(r.GraphQL.Variables); v != "" {
-			body += "\n\nVariables:\n" + v
+			body += locales.VariablesSection() + v
 		}
 		return truncateDocs(body, docBodyPreview), ""
 	}
@@ -127,7 +127,7 @@ func truncateDocs(text string, limit int) string {
 	if len(text) <= limit {
 		return text
 	}
-	return text[:limit] + "\n… truncated for documentation"
+	return text[:limit] + locales.TruncatedForDocumentation()
 }
 
 // redactHeader hides a credential header's value.
@@ -159,13 +159,13 @@ func authSummary(auth request.Auth) string {
 	case "Bearer":
 		return locales.BearerTokenHidden()
 	case "Basic":
-		return "Basic · username " + cmp.Or(auth.Username, "(hidden)") + " · password hidden"
+		return locales.BasicUsernameHidden(cmp.Or(auth.Username, locales.HiddenValue()))
 	case "API key":
 		return "API key · " + cmp.Or(auth.Location, "header") + " · value hidden"
 	case "OAuth 2.0":
 		return "OAuth 2.0 · " + cmp.Or(auth.OAuth2.Grant, "grant") + " · client secret and tokens hidden"
 	case "OAuth 1.0":
-		return "OAuth 1.0 · consumer key " + cmp.Or(auth.OAuth1.ConsumerKey, "(hidden)") + " · secrets hidden"
+		return locales.Oauth1ConsumerKeyHidden(cmp.Or(auth.OAuth1.ConsumerKey, locales.HiddenValue()))
 	case "AWS Signature":
 		return locales.AwsSignatureAccessKeyHidden()
 	case "JWT":
@@ -175,9 +175,9 @@ func authSummary(auth request.Auth) string {
 	case "Akamai EdgeGrid":
 		return locales.AkamaiEdgegridCredentialsHidden()
 	case "NTLM":
-		return "NTLM · username " + cmp.Or(auth.NTLM.Username, "(hidden)") + " · password hidden"
+		return locales.NtlmUsernameHidden(cmp.Or(auth.NTLM.Username, locales.HiddenValue()))
 	default:
-		return auth.Type + " · credentials hidden"
+		return locales.CredentialsHidden(auth.Type)
 	}
 }
 

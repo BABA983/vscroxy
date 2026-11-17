@@ -272,7 +272,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 func certificateScope() string {
 	scope := locales.TrustThisCaOnThe()
 	if runtime.GOOS == "windows" {
-		scope += " On Windows, installation trusts it for the current user, not other accounts or services."
+		scope += locales.OnWindowsTrustsCurrentUser()
 	}
 	return scope
 }
