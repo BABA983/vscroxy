@@ -460,7 +460,9 @@ func SearchField(c *ui.Context, value *string, label, placeholder string, onChro
 }
 
 // fieldFace draws a field's face inside its own edges, so its box stays the
-// control height whether or not it has the focus.
+// control height whether or not it has the focus. A faced field's Draw belongs
+// to the kit: MyGo's Draw is a single slot, so the edge replaces any Draw a
+// caller set, and a Draw set after it would drop the edge.
 func fieldFace(p *Palette, field ui.Element, onChrome, focused, invalid bool) ui.Element {
 	face := p.Well
 	if onChrome {
