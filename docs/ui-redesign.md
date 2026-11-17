@@ -448,6 +448,8 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `SwatchButton` | 挑选颜色 | 28 正方形，圆角 6，颜色本身不变 | 选中（对勾）、悬停（1 pt 文字色描边）、禁用 | 不改颜色本身 |
 | `Kbd` | 快捷键键帽，只用于菜单项和命令旁边 | 18 高，11 字 500，圆角 4，1 pt `Hairline`，左右 4 | 无 | 不要嵌进句子里（写文字，不写键帽） |
 
+**窄处的动作只留图标。** 请求体的工具行（模式、读取方式、Format）在响应并排时只有编辑区的一半宽：两个 `Select`（各 `WidthPicker` 140）加上带字的 Format 放不下，所以那里的 Format 用 `IconButton`（28 正方形），带同样的标签和提示；宽处仍是 `ToolbarButton` 带字。MQTT 消息详情的头部同理：Text／JSON／Hex 的 170 宽 `Tabs` 保留，复制改成 `IconButton`（与协议和 SSE 视图的复制一致）。
+
 #### 输入
 
 | 组件 | 用途 | 变体和尺寸 | 状态 | 不要做的事 |
@@ -469,6 +471,10 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `MenuSelect` | 用菜单做的选择（如 body 格式） | 触发器同 `Select`，弹层是 `MenuPanel` | 同 `Select`；菜单开着时触发器保持悬停的面 | 不用于切换显示模式（用 `Segmented`） |
 | `SettingsRow`／`SettingsRowMultiline` | 设置行：左列标签，右边控件，下面一行说明 | 标签列按组宽（112–180）；多行版的标签与控件首行对齐 | 说明可带 tip；控件自己的状态 | 不用于非设置的表单（用 `FormRow`） |
 | `Switch`／`SettingsSwitch` | 开关 | 轨道 36×20，圆角 10；`SettingsSwitch` 带标签 | 关、开（`SwitchOn`）、焦点、禁用（半透明） | 不要用来做互斥选择 |
+
+**单行文字的边距。** `Input` 与 `InputControl` 的文字左右各留 `ControlPaddingX`（12）。左边是内边距；右边是一条透明的边框（`uikit.TextInset`），因为 MyGo 把输入的文字裁到边框的外沿，而不是内边距。这条边框在各状态下都画不出来（`InputControl` 建字段时把 Accent、Border、Text、Danger 设为透明，MyGo 按状态给边框上色时取的就是这些颜色）。超出字段的文字裁在这条线上，没有省略号（MyGo 的输入不做省略）；所以字段的占位文字或长值要按宽度留够，或由调用方缩短。URL 栏是裸的 `ui.TextInputBase`，同样用 `uikit.TextInset`，右边留 `SpaceM`（8），与它的左边相同。
+
+**字段的说明在控件下面。** 数字字段的单位说明（超时的“秒”、重定向的“HTTP 跳数”）放在 `NumberInput` 那一行的下一行，宽度给整列；并排放在控件右边时，表单的字段列只剩几十点，说明会被裁成半个词。
 
 #### 选择
 
@@ -538,6 +544,8 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `ResponseMeta` | 响应面板头右侧的耗时和大小 | 等宽，14 行高；耗时悬停显示时序卡 | 悬停（时序卡）、窄面板里省略（悬停看全文） | 不要在面板头里放第二行 |
 | `Sparkline` | 录制 pill 的速率曲线 | 56×14，1.25 pt 线；少于两个点时只画基线 | 无 | 不用于数据表 |
 
+**带展开箭头的行。** 同一组的行共用箭头的位置：不能展开的行留出同宽（`IconInline` 14）的空位，状态图标和标题才会在同一列（诊断的步骤）。
+
 #### 主题和文字之外的组件
 
 `Palette`、`Theme`、`Colors`、`Shadow`、`Scaled`、`SetTextScale`、`TextScale`：见 6.3。它们不画东西。
@@ -568,7 +576,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | 控件 | 位置 | 理由 |
 | --- | --- | --- |
 | `ui.NumberInput` ×7 | 请求设置的超时、重定向上限、文件夹超时；`Expiry`、`wait`、WebSocket 回复窗口 | 带 ± 步进（箭头键和按钮）；`NumberField` 不画步进，换成它会改变行为 |
-| `ui.TextInputBase` ×2 | URL 栏（面由整行画，与方法和 Send 同一个面）；方法输入（宽度随文字） | 面和高度由所在的行决定，`InputControl` 的内边距与之不同 |
+| `ui.TextInputBase` ×2 | URL 栏（面由整行画，与方法和 Send 同一个面）；方法输入（宽度随文字） | 面和高度由所在的行决定，`InputControl` 的内边距与之不同；URL 栏的右边用 `uikit.TextInset` 留 `SpaceM`（8），与左边相同 |
 | `ui.SelectBase` ×1 | 环境 chip | chip 带状态点，不是 28 高的字段，没有 kit 的触发器对应 |
 | `ui.SearchField` ×1 | 消息搜索 | 要读输入框的 `Changed()` 来跟随数据流；`uikit.SearchField` 的行没有暴露它 |
 | `ui.TextInput` ×1 | 命令面板的输入 | 48 高、16 字，专用的行高（`CommandPaletteInputRow`），不是 28 高的字段 |
