@@ -8,13 +8,13 @@ import "github.com/egoist/mygo/ui"
 
 // Heading titles a dialog, a pane or the request an inspector shows.
 func Heading(c *ui.Context, s string) ui.Element {
-	return ui.Text(c, s).FontSize(Scaled(TextTitle)).FontWeight(500).LineHeight(LineTitle)
+	return ui.Text(c, s).FontSize(Scaled(TextTitle)).FontWeight(WeightMedium).LineHeight(LineTitle)
 }
 
 // Display titles a first-run guide or a command palette: the one line a
 // person reads before anything else on the surface.
 func Display(c *ui.Context, s string) ui.Element {
-	return ui.Text(c, s).FontSize(Scaled(TextDisplay)).FontWeight(500).LineHeight(LineDisplay)
+	return ui.Text(c, s).FontSize(Scaled(TextDisplay)).FontWeight(WeightMedium).LineHeight(LineDisplay)
 }
 
 // Body is ordinary reading text. It keeps the color around it, so it reads
@@ -27,7 +27,7 @@ func Body(c *ui.Context, s string) ui.Element {
 // BodyStrong is body text that must stand out from the lines around it: the
 // lead of a group or the value a row is about. It is 13 at weight 500.
 func BodyStrong(c *ui.Context, s string) ui.Element {
-	return Body(c, s).FontWeight(500)
+	return Body(c, s).FontWeight(WeightMedium)
 }
 
 // Small is secondary interface text: a popover description, a field hint or
@@ -81,7 +81,7 @@ func Meta(c *ui.Context, s string) ui.Element {
 
 // Label names a field or a group of them.
 func Label(c *ui.Context, s string) ui.Element {
-	return Meta(c, s).FontWeight(500)
+	return Meta(c, s).FontWeight(WeightMedium)
 }
 
 // ErrorText is an error sentence no field can carry: the failure a page or a

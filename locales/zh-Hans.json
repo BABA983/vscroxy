@@ -1,5 +1,17 @@
 {
   "@@locale": "zh-Hans",
+  "chipApp": "App：{app}",
+  "chipContentOr": "内容：OR",
+  "chipHost": "主机：{host}",
+  "chipTime": "时间：{range}",
+  "chipTraffic": "流量：{filter}",
+  "conditionsMatchAll": "所有条件都必须匹配",
+  "conditionsMatchAny": "任一内容字段匹配即可（OR）；搜索、侧栏、协议和时间范围仍会缩小结果",
+  "queryEditLabel": "编辑条件：{condition}",
+  "queryEditTip": "编辑 {condition}",
+  "queryRemoveLabel": "移除条件：{condition}",
+  "queryRemoveTip": "移除 {condition}",
+  "runResultsLimitTip": "正在显示最近 1000 条结果；关闭窗口会保留正在运行的测试",
   "@selectedOfTotal": {
     "placeholders": {
       "selected": {

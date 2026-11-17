@@ -67,7 +67,7 @@ func Callout(c *ui.Context, kind CalloutKind, text string, actions func()) ui.El
 // ink colors it; the face never does.
 func Badge(c *ui.Context, label string, ink ui.Color) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	return ui.Text(c, label).FontSize(Scaled(TextMeta)).FontWeight(500).FontFeatures("tnum").
+	return ui.Text(c, label).FontSize(Scaled(TextMeta)).FontWeight(WeightMedium).FontFeatures("tnum").
 		TextColor(ink).Background(p.Fill).Radius(RadiusInner).Padding(0, t.Space(SpaceXS)).
 		Height(IconLarge).Center().SingleLine().Shrink(0)
 }

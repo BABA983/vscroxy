@@ -101,6 +101,15 @@
       }
     }
   },
+  "@chipApp": {"placeholders": {"app": {"type": "String"}}},
+  "chipApp": "App: {app}",
+  "chipContentOr": "Content: OR",
+  "@chipHost": {"placeholders": {"host": {"type": "String"}}},
+  "chipHost": "Host: {host}",
+  "@chipTime": {"placeholders": {"range": {"type": "String"}}},
+  "chipTime": "Time: {range}",
+  "@chipTraffic": {"placeholders": {"filter": {"type": "String"}}},
+  "chipTraffic": "Traffic: {filter}",
   "@chosenCount": {
     "placeholders": {
       "count": {
@@ -125,6 +134,8 @@
       }
     }
   },
+  "conditionsMatchAll": "All conditions must match",
+  "conditionsMatchAny": "Any content field may match (OR); search, sidebar, protocol and time range still narrow",
   "@conflictsCount": {
     "placeholders": {
       "count": {
@@ -473,6 +484,14 @@
       }
     }
   },
+  "@queryEditLabel": {"placeholders": {"condition": {"type": "String"}}},
+  "queryEditLabel": "Edit condition: {condition}",
+  "@queryEditTip": {"placeholders": {"condition": {"type": "String"}}},
+  "queryEditTip": "Edit {condition}",
+  "@queryRemoveLabel": {"placeholders": {"condition": {"type": "String"}}},
+  "queryRemoveLabel": "Remove condition: {condition}",
+  "@queryRemoveTip": {"placeholders": {"condition": {"type": "String"}}},
+  "queryRemoveTip": "Remove {condition}",
   "@reproBundleSavedTo": {
     "placeholders": {
       "path": {
@@ -487,6 +506,7 @@
       }
     }
   },
+  "runResultsLimitTip": "Displaying latest 1000 results; closing keeps a run active",
   "@totalBytes": {
     "placeholders": {
       "bytes": {

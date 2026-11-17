@@ -34,6 +34,126 @@ type Messages struct{ locale string }
 // source language.
 func In(locale string) Messages { return Messages{locale} }
 
+// ChipApp says "App: {app}"
+// in the language the app shows.
+func ChipApp(app string) string { return In(i18n.Locale()).ChipApp(app) }
+
+// ChipApp says "App: {app}"
+// in the language of msgs.
+func (msgs Messages) ChipApp(app string) string {
+	return Catalog.Format(msgs.locale, "chipApp", map[string]any{"app": app})
+}
+
+// ChipContentOr says "Content: OR"
+// in the language the app shows.
+func ChipContentOr() string { return In(i18n.Locale()).ChipContentOr() }
+
+// ChipContentOr says "Content: OR"
+// in the language of msgs.
+func (msgs Messages) ChipContentOr() string {
+	return Catalog.Format(msgs.locale, "chipContentOr", nil)
+}
+
+// ChipHost says "Host: {host}"
+// in the language the app shows.
+func ChipHost(host string) string { return In(i18n.Locale()).ChipHost(host) }
+
+// ChipHost says "Host: {host}"
+// in the language of msgs.
+func (msgs Messages) ChipHost(host string) string {
+	return Catalog.Format(msgs.locale, "chipHost", map[string]any{"host": host})
+}
+
+// ChipTime says "Time: {range}"
+// in the language the app shows.
+func ChipTime(range_ string) string { return In(i18n.Locale()).ChipTime(range_) }
+
+// ChipTime says "Time: {range}"
+// in the language of msgs.
+func (msgs Messages) ChipTime(range_ string) string {
+	return Catalog.Format(msgs.locale, "chipTime", map[string]any{"range": range_})
+}
+
+// ChipTraffic says "Traffic: {filter}"
+// in the language the app shows.
+func ChipTraffic(filter string) string { return In(i18n.Locale()).ChipTraffic(filter) }
+
+// ChipTraffic says "Traffic: {filter}"
+// in the language of msgs.
+func (msgs Messages) ChipTraffic(filter string) string {
+	return Catalog.Format(msgs.locale, "chipTraffic", map[string]any{"filter": filter})
+}
+
+// ConditionsMatchAll says "All conditions must match"
+// in the language the app shows.
+func ConditionsMatchAll() string { return In(i18n.Locale()).ConditionsMatchAll() }
+
+// ConditionsMatchAll says "All conditions must match"
+// in the language of msgs.
+func (msgs Messages) ConditionsMatchAll() string {
+	return Catalog.Format(msgs.locale, "conditionsMatchAll", nil)
+}
+
+// ConditionsMatchAny says "Any content field may match (OR); search, sidebar, protocol and time range still narrow"
+// in the language the app shows.
+func ConditionsMatchAny() string { return In(i18n.Locale()).ConditionsMatchAny() }
+
+// ConditionsMatchAny says "Any content field may match (OR); search, sidebar, protocol and time range still narrow"
+// in the language of msgs.
+func (msgs Messages) ConditionsMatchAny() string {
+	return Catalog.Format(msgs.locale, "conditionsMatchAny", nil)
+}
+
+// QueryEditLabel says "Edit condition: {condition}"
+// in the language the app shows.
+func QueryEditLabel(condition string) string { return In(i18n.Locale()).QueryEditLabel(condition) }
+
+// QueryEditLabel says "Edit condition: {condition}"
+// in the language of msgs.
+func (msgs Messages) QueryEditLabel(condition string) string {
+	return Catalog.Format(msgs.locale, "queryEditLabel", map[string]any{"condition": condition})
+}
+
+// QueryEditTip says "Edit {condition}"
+// in the language the app shows.
+func QueryEditTip(condition string) string { return In(i18n.Locale()).QueryEditTip(condition) }
+
+// QueryEditTip says "Edit {condition}"
+// in the language of msgs.
+func (msgs Messages) QueryEditTip(condition string) string {
+	return Catalog.Format(msgs.locale, "queryEditTip", map[string]any{"condition": condition})
+}
+
+// QueryRemoveLabel says "Remove condition: {condition}"
+// in the language the app shows.
+func QueryRemoveLabel(condition string) string { return In(i18n.Locale()).QueryRemoveLabel(condition) }
+
+// QueryRemoveLabel says "Remove condition: {condition}"
+// in the language of msgs.
+func (msgs Messages) QueryRemoveLabel(condition string) string {
+	return Catalog.Format(msgs.locale, "queryRemoveLabel", map[string]any{"condition": condition})
+}
+
+// QueryRemoveTip says "Remove {condition}"
+// in the language the app shows.
+func QueryRemoveTip(condition string) string { return In(i18n.Locale()).QueryRemoveTip(condition) }
+
+// QueryRemoveTip says "Remove {condition}"
+// in the language of msgs.
+func (msgs Messages) QueryRemoveTip(condition string) string {
+	return Catalog.Format(msgs.locale, "queryRemoveTip", map[string]any{"condition": condition})
+}
+
+// RunResultsLimitTip says "Displaying latest 1000 results; closing keeps a run active"
+// in the language the app shows.
+func RunResultsLimitTip() string { return In(i18n.Locale()).RunResultsLimitTip() }
+
+// RunResultsLimitTip says "Displaying latest 1000 results; closing keeps a run active"
+// in the language of msgs.
+func (msgs Messages) RunResultsLimitTip() string {
+	return Catalog.Format(msgs.locale, "runResultsLimitTip", nil)
+}
+
 // AChangeAppliesToNew says "A change applies to new connections; existing connections keep theirs."
 // in the language the app shows.
 func AChangeAppliesToNew() string { return In(i18n.Locale()).AChangeAppliesToNew() }

@@ -18,12 +18,13 @@ import (
 const (
 	// Five sizes, two weights (400 and 500). Monospace is only for wire
 	// data: paths, header values, numbers and bodies.
-	TextMeta    = 11 // counts, timestamps and sizes
-	TextData    = 12 // monospace data in rows and fields
-	TextSmall   = 12 // secondary interface text and popover descriptions
-	TextBody    = 13 // prose, labels and controls
-	TextTitle   = 16 // a dialog, a pane or the request an inspector shows
-	TextDisplay = 20 // a first-run title or a command palette's heading
+	WeightMedium = 500
+	TextMeta     = 11 // counts, timestamps and sizes
+	TextData     = 12 // monospace data in rows and fields
+	TextSmall    = 12 // secondary interface text and popover descriptions
+	TextBody     = 13 // prose, labels and controls
+	TextTitle    = 16 // a dialog, a pane or the request an inspector shows
+	TextDisplay  = 20 // a first-run title or a command palette's heading
 	// Line heights are multiples of the font size, pinned to the desktop
 	// scale: 11/15, 12/16, 13/20, 16/24 and 20/28. Prose gets a little
 	// more air, which also keeps CJK paragraphs from feeling cramped.
@@ -33,6 +34,10 @@ const (
 	LineProse   = 1.6
 	LineTitle   = 24.0 / 16.0
 	LineDisplay = 28.0 / 20.0
+
+	// SpaceGrid is the default theme's grid in points, which every Space name
+	// multiplies. A local theme may tighten it, as a dense table does.
+	SpaceGrid = 4
 
 	// Spacing names, as multiples of the grid (4 points under the default
 	// theme). Screens use these names, never a bare number, so a gap means
@@ -59,11 +64,20 @@ const (
 	HeightFooter = 28
 	// Heights of what a person presses, types in or picks. HeightControl is
 	// the default for forms, toolbars and primary actions; HeightControlSmall
-	// is for inline actions, pane tabs, chips and the footer. HeightRow is a
-	// table row, a list row or a sidebar item.
+	// is for inline actions, pane tabs and the footer. HeightRow is a table
+	// row, a list row or a sidebar item.
 	HeightControl      = 28
 	HeightControlSmall = 22
 	HeightRow          = 24
+	// HeightRowAction is an icon action or a ⋯ inside a row, a sidebar
+	// heading or a pane header. It is centered, so it leaves RowActionInset
+	// above and below in a 24-point row; its corner is RadiusInner, which is
+	// the row's RadiusControl less that inset.
+	HeightRowAction = 20
+	RowActionInset  = (HeightRow - HeightRowAction) / 2
+	// HeightChip is a query chip in a search field: centered in the field's
+	// 24 points, it leaves 3 above and below, and its corners are RadiusInner.
+	HeightChip = 18
 	// Insets: the padding a surface gives its content. A component builds its
 	// own from these; a screen never pads a control itself.
 	ControlPaddingX      = 12 // a default control, left and right

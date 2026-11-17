@@ -17,36 +17,38 @@ import (
 // plate name them from the same constant, so a plate that moves a sample
 // fails the export instead of quietly photographing the wrong state.
 const (
-	hoverButtons   = "Hover Buttons"
-	focusButtons   = "Focus Buttons"
-	hoverQuiet     = "Hover Quiet"
-	focusQuiet     = "Focus Quiet"
-	hoverInputs    = "Hover Inputs"
-	focusInputs    = "Focus Inputs"
-	hoverTabs      = "Hover Tabs"
-	focusTabs      = "Focus Tabs"
-	hoverSegmented = "Hover Segmented"
-	focusSegmented = "Focus Segmented"
-	hoverMenus     = "Hover Menus"
-	focusMenus     = "Focus Menus"
-	hoverPanes     = "Hover Panes"
-	focusPanes     = "Focus Panes"
-	hoverSidebar   = "Hover Sidebar"
-	hoverActivity  = "Hover Activity"
-	focusActivity  = "Focus Activity"
-	hoverStatus    = "Hover Status"
-	focusStatus    = "Focus Status"
-	hoverPanels    = "Hover Panels"
-	focusPanels    = "Focus Panels"
-	hoverSettings  = "Hover Settings"
-	focusSettings  = "Focus Settings"
-	hoverToasts    = "Hover Toasts"
-	focusToasts    = "Focus Toasts"
-	hoverLists     = "Hover Lists"
-	hoverTooltip   = "Hover Tooltip"
-	hoverCard      = "Hover Card"
-	hoverChecks    = "Hover Checks"
-	focusChecks    = "Focus Checks"
+	hoverButtons     = "Hover Buttons"
+	focusButtons     = "Focus Buttons"
+	hoverQuiet       = "Hover Quiet"
+	focusQuiet       = "Focus Quiet"
+	hoverInputs      = "Hover Inputs"
+	focusInputs      = "Focus Inputs"
+	hoverTabs        = "Hover Tabs"
+	focusTabs        = "Focus Tabs"
+	hoverSegmented   = "Hover Segmented"
+	focusSegmented   = "Focus Segmented"
+	hoverMenus       = "Hover Menus"
+	focusMenus       = "Focus Menus"
+	hoverPanes       = "Hover Panes"
+	focusPanes       = "Focus Panes"
+	hoverSidebar     = "Hover Sidebar"
+	hoverActivity    = "Hover Activity"
+	focusActivity    = "Focus Activity"
+	hoverStatus      = "Hover Status"
+	focusStatus      = "Focus Status"
+	hoverPanels      = "Hover Panels"
+	focusPanels      = "Focus Panels"
+	hoverSettings    = "Hover Settings"
+	focusSettings    = "Focus Settings"
+	hoverToasts      = "Hover Toasts"
+	focusToasts      = "Focus Toasts"
+	hoverLists       = "Hover Lists"
+	hoverTooltip     = "Hover Tooltip"
+	hoverCard        = "Hover Card"
+	hoverSidebarCard = "Hover Sidebar card"
+	hoverQueryChip   = "Hover Query chip"
+	hoverChecks      = "Hover Checks"
+	focusChecks      = "Focus Checks"
 )
 
 // components is the state every component plate keeps across frames: the
@@ -89,6 +91,10 @@ func (g *Gallery) components() *Group {
 		{ID: "kbd", Title: "Kbd", Note: "Shortcuts as 4-point keycaps on a hairline", Height: 280, build: k.kbdPlate},
 		{ID: "tooltip", Title: "Tooltip", Note: "The one tip face: small text, a shortcut as Kbd, a long URL", Height: 380, Hover: hoverTooltip, Tip: true, build: k.tooltipPlate},
 		{ID: "hover-card", Title: "Hover card", Note: "A title, one meta line and key/value rows over a capture row", Height: 340, Hover: hoverCard, Tip: true, build: k.hoverCardPlate},
+		{ID: "sidebar-hover-card", Title: "Sidebar hover card", Note: "A sidebar request's card opens beside the sidebar; its ⋯ is the row-action size", Height: 360, Hover: hoverSidebarCard, Tip: true, build: k.sidebarCardPlate},
+		{ID: "query-chips", Title: "Query chips", Note: "Chips inside the search field: centred, with the field's inset and a keycap-height remove", Height: 300, Hover: hoverQueryChip, build: k.queryChipPlate},
+		{ID: "select-open", Title: "Open select", Note: "A select's popup open under its trigger, with the chosen option checked", Height: 400, Click: "Format", build: k.openSelectPlate},
+		{ID: "menu-select-open", Title: "Open menu select", Note: "A menu select's menu open under its trigger", Height: 400, Click: "Environment", build: k.openMenuSelectPlate},
 		{ID: "panes", Title: "Pane headers", Note: "A title, its tabs and what the pane reports", Height: 380, Hover: hoverPanes, Focus: focusPanes, Tip: true, build: k.panePlate},
 		{ID: "sidebar", Title: "Sidebar", Note: "Rows, headings, letters and the action row", Height: 600, Hover: hoverSidebar, build: k.sidebarPlate},
 		{ID: "activity", Title: "Activity strip", Note: "Rest and a brushed range; drag the plot to brush", Height: 300, Hover: hoverActivity, Focus: focusActivity, build: k.activityPlate},
@@ -450,6 +456,67 @@ func (k *components) hoverCardPlate(c *ui.Context) {
 	// The card hangs below the row; leave it room so the caption stays clear.
 	ui.Box(c).Height(uikit.WidthField).Shrink(0)
 	caption(c, "A rich card adds a title, one meta line and key/value rows to the same surface. It is for what a row's width cannot show: the full URL, method, status and client of a captured request, or a saved request's address.")
+}
+
+func (k *components) sidebarCardPlate(c *ui.Context) {
+	t, p := c.Theme(), uikit.Colors(c.Theme())
+	stateRow(c, "Request row", func() {
+		ui.Column(c).Width(300).Padding(t.Space(uikit.SpaceXS)).Background(p.Chrome).Radius(uikit.RadiusPanel).Children(func() {
+			row := ui.Row(c).FillWidth().Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceS)).Gap(t.Space(uikit.SpaceM)).
+				AlignItems(ui.Center).Radius(uikit.RadiusControl)
+			card := uikit.CardTipBeside(c, row, uikit.HoverCard{Title: "List projects", Meta: "GET · Workspace", Rows: []uikit.HoverCardRow{{Key: "URL", Value: "https://api.example.com/v1/projects?page=2"}}})
+			labelled(card, hoverSidebarCard)
+			card.Children(func() {
+				uikit.MethodLabel(c, "GET")
+				uikit.Body(c, "List projects").SingleLine().Grow(1)
+				uikit.MoreMenu(c, "List projects actions", func(m *ui.Menu) { m.Item("Copy as cURL").ID("curl") }).
+					Absolute().Right(uikit.RowActionInset).Top(uikit.RowActionInset).Background(p.Chrome)
+			})
+		})
+	})
+	ui.Box(c).Height(uikit.WidthField).Shrink(0)
+	caption(c, "Hover the row: its card opens to the right, beside the sidebar, and does not cover the rows above. The ⋯ is a 20-point row action with a 2-point inset in the 24-point row.")
+}
+
+// queryField is the search field with three query chips in it. hover names the
+// first chip for the export's pointer.
+func queryField(c *ui.Context, hover string) {
+	t := c.Theme()
+	row := ui.Row(c).Width(uikit.WidthWide*2).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceXS)).
+		Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center)
+	uikit.FieldFace(c, row, false).Children(func() {
+		first := uikit.QueryChip(c, `app:"Spotify Helper"`, func() {}, func() {})
+		if hover != "" {
+			labelled(first, hover)
+		}
+		uikit.QueryChip(c, "status:>=400", func() {}, func() {})
+		uikit.QueryChip(c, "slow", nil, func() {})
+	})
+}
+
+func (k *components) queryChipPlate(c *ui.Context) {
+	stateRow(c, "Chips", func() { queryField(c, "") })
+	stateRow(c, "Hover", func() { queryField(c, hoverQueryChip) })
+	caption(c, "A chip is 18 points high with 4-point corners, centred in the field's 24 points, so the field's inset shows on every side. Its text is the query syntax, and its × is the same height as the chip.")
+}
+
+func (k *components) openSelectPlate(c *ui.Context) {
+	stateRow(c, "Open", func() {
+		uikit.Select(c, &k.format, []string{"Pretty", "Raw", "Preview"}).Label("Format").Width(uikit.WidthPicker)
+	})
+	ui.Box(c).Height(uikit.WidthField).Shrink(0)
+	caption(c, "The popup opens under the trigger, on the popover shadow, with rows of 28 points. The chosen option carries a check; the highlight is the accent fill and follows the keyboard.")
+}
+
+func (k *components) openMenuSelectPlate(c *ui.Context) {
+	stateRow(c, "Open", func() {
+		uikit.MenuSelect(c, "Local", func(m *ui.Menu) {
+			m.Item("Local").ID("local")
+			m.Item("Staging").ID("staging")
+		}).Label("Environment").Width(uikit.WidthPicker)
+	})
+	ui.Box(c).Height(uikit.WidthField).Shrink(0)
+	caption(c, "A menu select keeps its trigger's hovered face while its menu is open, so the control reads as the one that opened the menu.")
 }
 
 func (k *components) panePlate(c *ui.Context) {

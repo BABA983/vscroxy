@@ -190,7 +190,7 @@ func LetterSquare(c *ui.Context, label string, size float32, ink ui.Color) ui.El
 	}
 	return ui.Row(c).Size(size, size).Shrink(0).Justify(ui.Center).AlignItems(ui.Center).
 		Radius(RadiusControl).Background(Colors(t).Fill).Children(func() {
-		ui.Text(c, letter).FontSize(Scaled(TextMeta)).FontWeight(500).TextColor(ink).SingleLine()
+		ui.Text(c, letter).FontSize(Scaled(TextMeta)).FontWeight(WeightMedium).TextColor(ink).SingleLine()
 	})
 }
 

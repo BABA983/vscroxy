@@ -127,7 +127,7 @@ func Theme(dark bool) *ui.Theme {
 	// Windows; MyGo's warm window, within which the next tip shows at once,
 	// is two thirds of it.
 	t.TooltipDelay = 500 * time.Millisecond
-	t.Font, t.FontSize, t.Radius, t.Spacing = FontUI, Scaled(TextBody), RadiusControl, 4
+	t.Font, t.FontSize, t.Radius, t.Spacing = FontUI, Scaled(TextBody), RadiusControl, SpaceGrid
 	t.Selection, t.Focus = p.Accent.Alpha(0.24), p.Ring
 	return t
 }

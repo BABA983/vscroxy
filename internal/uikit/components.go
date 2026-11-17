@@ -92,8 +92,23 @@ func FooterButton(c *ui.Context, label, tip string, on bool) ui.Element {
 	return b
 }
 
+// IconButton is an icon-only action at control height: the title bar, a
+// toolbar and the footer. Its tip is its only label, so it always has one.
 func IconButton(c *ui.Context, label, tip string, icon *ui.SVG, keys ...string) ui.Element {
-	return ToolbarButton(c, label, tip, false, keys...).Size(HeightControl, HeightControl).
+	return iconAction(c, label, tip, icon, HeightControl, keys...)
+}
+
+// RowIconButton is IconButton at the row-action size, for an action inside a
+// row, a sidebar heading or a pane header: HeightRowAction square, a 14-point
+// icon, and RadiusInner, the corner a row's own radius leaves at its inset.
+func RowIconButton(c *ui.Context, label, tip string, icon *ui.SVG) ui.Element {
+	return iconAction(c, label, tip, icon, HeightRowAction).Radius(RadiusInner)
+}
+
+// iconAction is a ToolbarButton that is a square of size, with the icon as its
+// only child.
+func iconAction(c *ui.Context, label, tip string, icon *ui.SVG, size float32, keys ...string) ui.Element {
+	return ToolbarButton(c, label, tip, false, keys...).Size(size, size).
 		Padding(0).Justify(ui.Center).Children(func() {
 		ui.Icon(c, icon).Size(IconInline, IconInline)
 	})
@@ -130,7 +145,7 @@ func PrimaryButtonState(c *ui.Context, label string, state ButtonState) ui.Eleme
 	}
 	c.SetTheme(&face)
 	b := ui.PrimaryButton(c, label).Height(HeightControl).Padding(0, Scaled(ControlPaddingX)).
-		FontSize(Scaled(TextBody)).FontWeight(500).Radius(RadiusControl)
+		FontSize(Scaled(TextBody)).FontWeight(WeightMedium).Radius(RadiusControl)
 	c.SetTheme(t)
 	return b
 }
@@ -217,7 +232,7 @@ func LinkButton(c *ui.Context, label string, icon ...*ui.SVG) ui.Element {
 // inside a sentence.
 func Kbd(c *ui.Context, key string) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	return ui.Text(c, key).FontSize(Scaled(TextMeta)).FontWeight(500).TextColor(t.TextMuted).
+	return ui.Text(c, key).FontSize(Scaled(TextMeta)).FontWeight(WeightMedium).TextColor(t.TextMuted).
 		Height(HeightKbd).MinWidth(HeightKbd).Padding(0, KbdPaddingX).Radius(RadiusInner).Background(p.Canvas).
 		InsetShadow(0, 0, 0, HairlineWidth, p.Hairline).Center().SingleLine()
 }
@@ -280,7 +295,7 @@ func DestructiveButton(c *ui.Context, label string) ui.Element {
 	face.AccentPressed = p.Danger.Mix(p.Text, 0.22)
 	c.SetTheme(&face)
 	b := ui.PrimaryButton(c, label).Height(HeightControl).Padding(0, Scaled(ControlPaddingX)).
-		FontSize(Scaled(TextBody)).FontWeight(500).Radius(RadiusControl)
+		FontSize(Scaled(TextBody)).FontWeight(WeightMedium).Radius(RadiusControl)
 	c.SetTheme(t)
 	return b
 }
@@ -326,7 +341,7 @@ func SwatchButton(c *ui.Context, label string, color ui.Color, chosen bool) ui.E
 	}
 	return b.Children(func() {
 		if chosen {
-			ui.Text(c, "✓").FontSize(Scaled(TextBody)).FontWeight(500).TextColor(SwatchText)
+			ui.Text(c, "✓").FontSize(Scaled(TextBody)).FontWeight(WeightMedium).TextColor(SwatchText)
 		}
 	})
 }
@@ -514,8 +529,8 @@ func timingCard(c *ui.Context, card ui.Element, total string, timing Timing) {
 				label := ui.Text(c, name).FontSize(Scaled(TextMeta)).TextColor(t.Text).Grow(1)
 				v := ui.Text(c, value).Font(FontMono).FontSize(Scaled(TextMeta)).FontFeatures("tnum").TextColor(t.Text)
 				if strong {
-					label.FontWeight(500)
-					v.FontWeight(500)
+					label.FontWeight(WeightMedium)
+					v.FontWeight(WeightMedium)
 				}
 			})
 		}
@@ -695,6 +710,21 @@ type HoverCardRow struct {
 // The card is wider than a one-line tip and keeps clear of the window's
 // edges through TooltipBase's placement.
 func CardTip(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
+	return cardTip(c, e, card, nil)
+}
+
+// CardTipBeside is CardTip opened beside e: the card's top edge is level with
+// e's and it starts a step to e's right. A sidebar row uses it, so its card
+// lies beside the sidebar rather than over the rows above.
+func CardTipBeside(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
+	return cardTip(c, e, card, func(tip ui.Element) {
+		tip.AttachTo(e, ui.AnchorTopRight, ui.AnchorTopLeft).MarginStart(c.Theme().Space(SpaceS))
+	})
+}
+
+// cardTip is the body of CardTip and CardTipBeside; place, when set, positions
+// the card inside TooltipBase.
+func cardTip(c *ui.Context, e ui.Element, card HoverCard, place func(tip ui.Element)) ui.Element {
 	if card.Title == "" && card.Meta == "" && len(card.Rows) == 0 {
 		return e
 	}
@@ -702,12 +732,15 @@ func CardTip(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
 	ui.TooltipBase(c, e, func(tip ui.Element) {
 		tipFace(c, tip)
 		tip.Padding(CardTipPaddingY, CardTipPaddingX)
+		if place != nil {
+			place(tip)
+		}
 		tip.Children(func() {
 			ui.Column(c).Gap(t.Space(SpaceM)).Children(func() {
 				head := ui.Column(c).Gap(t.Space(SpaceHair))
 				head.Children(func() {
 					if card.Title != "" {
-						ui.Text(c, breakTip(card.Title)).FontSize(Scaled(TextBody)).FontWeight(500).
+						ui.Text(c, breakTip(card.Title)).FontSize(Scaled(TextBody)).FontWeight(WeightMedium).
 							LineHeight(LineBody).TextColor(t.Text)
 					}
 					if card.Meta != "" {
@@ -865,16 +898,16 @@ func StatusPill(c *ui.Context, label string, foreground ui.Color) ui.Element {
 // remove. Both run after the chip is built.
 func QueryChip(c *ui.Context, text string, edit, remove func()) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	return ui.Row(c.Key("query-chip:"+text)).Height(HeightControlSmall).Shrink(0).Padding(0, t.Space(SpaceHair)).Gap(0).
-		AlignItems(ui.Center).Radius(RadiusControl).Background(p.Fill).Children(func() {
+	return ui.Row(c.Key("query-chip:"+text)).Height(HeightChip).Shrink(0).Padding(0, t.Space(SpaceHair)).Gap(0).
+		AlignItems(ui.Center).Radius(RadiusInner).Background(p.Fill).Children(func() {
 		label := func() {
 			ui.Text(c, text).Font(FontMono).FontSize(Scaled(TextData)).TextColor(t.Text).SingleLine()
 		}
 		if edit == nil {
 			ui.Row(c).Padding(0, t.Space(SpaceXS)).Children(label)
 		} else {
-			b := Tip(c, ui.ButtonBase(c).Label("Edit condition: "+text), "Edit "+text).
-				Height(HeightKbd).Padding(0, t.Space(SpaceXS)).Radius(RadiusInner).AlignItems(ui.Center)
+			b := Tip(c, ui.ButtonBase(c).Label(locales.QueryEditLabel(text)), locales.QueryEditTip(text)).
+				Height(HeightChip).Padding(0, t.Space(SpaceXS)).Radius(RadiusInner).AlignItems(ui.Center)
 			if b.Hovered() {
 				b.Background(p.FillHover)
 			}
@@ -883,8 +916,8 @@ func QueryChip(c *ui.Context, text string, edit, remove func()) ui.Element {
 				edit()
 			}
 		}
-		x := Tip(c, ui.ButtonBase(c).Label("Remove condition: "+text), "Remove "+text).
-			Size(HeightKbd, HeightKbd).Radius(RadiusInner).Justify(ui.Center).AlignItems(ui.Center).TextColor(t.TextMuted)
+		x := Tip(c, ui.ButtonBase(c).Label(locales.QueryRemoveLabel(text)), locales.QueryRemoveTip(text)).
+			Size(HeightChip, HeightChip).Radius(RadiusInner).Justify(ui.Center).AlignItems(ui.Center).TextColor(t.TextMuted)
 		if x.Hovered() {
 			x.Background(p.FillHover)
 		}
@@ -896,7 +929,7 @@ func QueryChip(c *ui.Context, text string, edit, remove func()) ui.Element {
 }
 
 func MethodLabel(c *ui.Context, method string) ui.Element {
-	return ui.Text(c, method).Font(FontMono).FontSize(Scaled(TextData)).FontWeight(500).
+	return ui.Text(c, method).Font(FontMono).FontSize(Scaled(TextData)).FontWeight(WeightMedium).
 		TextColor(MethodColor(method, c.Theme())).SingleLine()
 }
 
@@ -1017,9 +1050,9 @@ func Toasts(c *ui.Context) {
 						// disabled control.
 						b := parts.ActionButton().Label(toast.Action).Height(HeightControlSmall).
 							Padding(0, Scaled(ControlPaddingXSmall)).Radius(RadiusInner).AlignItems(ui.Center).
-							FontSize(Scaled(TextBody)).FontWeight(500).TextColor(t.Text)
+							FontSize(Scaled(TextBody)).FontWeight(WeightMedium).TextColor(t.Text)
 						b.Children(func() {
-							ui.Text(c, toast.Action).FontSize(Scaled(TextBody)).FontWeight(500).TextColor(t.Text).Underline()
+							ui.Text(c, toast.Action).FontSize(Scaled(TextBody)).FontWeight(WeightMedium).TextColor(t.Text).Underline()
 						})
 						if b.Hovered() {
 							b.Background(p.FillHover).TextColor(t.Text)
@@ -1195,16 +1228,15 @@ func EdgeFade(c *ui.Context, from bool, fill ui.Color) ui.Element {
 	return edge.Right(0).Gradient(fill.Alpha(0), fill, 90)
 }
 
-// MoreButton is the "⋯" that opens a menu: an icon button with the menu on it
-// and no chevron, since the three dots already say one opens.
+// MoreButton is the toolbar's "⋯": an IconButton with the menu on it and no
+// chevron, since the three dots already say one opens. The title bar uses it.
 func MoreButton(c *ui.Context, label, tip string, menu func(*ui.Menu)) ui.Element {
-	b := IconButton(c, label, tip, lucide.Ellipsis()).PopoverMenuButton(menu, MenuButtonOptions(c))
-	return b
+	return IconButton(c, label, tip, lucide.Ellipsis()).PopoverMenuButton(menu, MenuButtonOptions(c))
 }
 
-// MoreMenu is the quiet "⋯" button that opens a menu of further actions;
-// label names it for assistive technology and in its tooltip. It has no
-// face until hovered, as a toolbar button has none.
+// MoreMenu is the "⋯" of a row, a sidebar heading or a pane header, at the
+// row-action size: HeightRowAction square with RadiusInner. It has no face
+// until hovered, and it keeps its width where a row is full.
 func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	ghost := *t
@@ -1216,14 +1248,11 @@ func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
 	// opens. The menu itself is the library's, panel and motion included.
 	b := ui.ButtonBase(c).Label("⋯").PopoverMenuButton(menu, MenuButtonOptions(c))
 	// ButtonBase is a row with no look: the glyph has to be a child, or the
-	// pane's menu is an empty strip with nothing to click.
+	// row's menu is an empty strip with nothing to click.
 	b.Children(func() { ui.Text(c, "⋯").FontSize(Scaled(TextBody)).SingleLine() })
 	c.SetTheme(t)
-	// A pane header's row is already full of names and tabs: the menu must
-	// keep its width and let them shrink, or it is laid out at nothing and
-	// the pane has no way into its own commands.
-	return Tip(c, b.Label(label), label).Height(HeightControlSmall).Shrink(0).
-		Padding(0, Scaled(ControlPaddingXSmall)).FontSize(Scaled(TextBody)).TextColor(t.TextMuted)
+	return Tip(c, b.Label(label), label).Size(HeightRowAction, HeightRowAction).Shrink(0).
+		Padding(0).Radius(RadiusInner).Justify(ui.Center).AlignItems(ui.Center).TextColor(t.TextMuted)
 }
 
 // TabMenu is a tab that opens a menu instead of choosing a view: where a pane
@@ -1273,7 +1302,7 @@ func PaneTitle(c *ui.Context, title, name string, dot, ink ui.Color, onClick fun
 		if dot.A > 0 {
 			ui.Box(c).Size(DotSize, DotSize).Radius(DotSize / 2).Background(dot).Shrink(0)
 		}
-		ui.Text(c, title).FontSize(Scaled(TextBody)).FontWeight(500).SingleLine()
+		ui.Text(c, title).FontSize(Scaled(TextBody)).FontWeight(WeightMedium).SingleLine()
 	})
 	if b.Clicked() && onClick != nil {
 		onClick()
