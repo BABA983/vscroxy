@@ -688,7 +688,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 							if e.reveal[item.key] {
 								label = fmt.Sprintf("Hide cookie %s %s", item.cookie.Name, item.cookie.Path)
 							}
-							if uikit.IconButton(c, label, locales.CookieValuesAreMaskedBy(), eyeIcon).Clicked() {
+							if uikit.RowIconButton(c, label, locales.CookieValuesAreMaskedBy(), eyeIcon).Clicked() {
 								e.reveal[item.key] = !e.reveal[item.key]
 							}
 							if uikit.SecondaryButton(c, locales.Delete()).Label("Delete cookie " + item.cookie.Name + " " + item.cookie.Path).Clicked() {

@@ -148,7 +148,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 							if uikit.CompactButton(c, label).Clicked() {
 								e.open[row.ID] = !expanded
 							}
-							if uikit.IconButton(c, locales.Remove(), locales.Remove(), closeIcon).Clicked() {
+							if uikit.RowIconButton(c, locales.Remove(), locales.Remove(), closeIcon).Clicked() {
 								remove = i
 							}
 						})

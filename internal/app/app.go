@@ -2441,7 +2441,7 @@ func (a *app) trafficRegion(c *ui.Context, t *ui.Theme) {
 	// scopes or scrolling them away.
 	uikit.SidebarList(c, "traffic-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
 		uikit.SidebarHeading(c, locales.Traffic(), traffic, func() {
-			if uikit.IconButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon).Clicked() {
+			if uikit.RowIconButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon).Clicked() {
 				a.views.capture(a)
 				a.views.newView(a)
 			}
@@ -2521,11 +2521,11 @@ func (a *app) sessionsPane(c *ui.Context, t *ui.Theme) {
 // collectionsHeadingActions are what the Collections heading offers: its menu
 // and, once something is saved, a new request.
 func (a *app) collectionsHeadingActions(c *ui.Context) {
-	uikit.MoreButton(c, locales.CollectionOptions(), locales.CollectionsApisEnvironmentsAndRuns(), a.collectionsMenu)
+	uikit.MoreMenu(c, locales.CollectionOptions(), a.collectionsMenu)
 	// With nothing saved yet the tree's own row is the way to a request:
 	// one entry rather than two.
 	if len(a.requests) > 0 || len(a.folders) > 0 {
-		if uikit.IconButton(c, locales.NewRequest(), locales.NewRequest(), plusIcon).Clicked() {
+		if uikit.RowIconButton(c, locales.NewRequest(), locales.NewRequest(), plusIcon).Clicked() {
 			a.openCompose()
 		}
 	}
@@ -2798,7 +2798,7 @@ func captureCard(f flow) uikit.HoverCard {
 	var meta []string
 	switch {
 	case f.conn.error != "":
-		meta = append(meta, "Failed")
+		meta = append(meta, locales.Failed())
 	case f.kind == "connect" && f.status > 0:
 		meta = append(meta, "Tunnel")
 	case f.status > 0:
@@ -3103,7 +3103,7 @@ func (a *app) table(c *ui.Context) {
 			})
 		case "status":
 			if f.conn.error != "" {
-				uikit.CardTip(c, text("Failed").TextColor(t.Danger), captureCard(f)).PopoverMenu(a.rowMenu(c, f))
+				uikit.CardTip(c, text(locales.Failed()).TextColor(t.Danger), captureCard(f)).PopoverMenu(a.rowMenu(c, f))
 			} else if f.kind == "connect" && f.status < 400 {
 				// A tunnel that opened has no status of its own: the lock
 				// says what the row is, and the card says how the setup
@@ -4675,7 +4675,7 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 									uikit.Body(c, app.Name).SingleLine()
 									uikit.Tip(c, uikit.Meta(c, app.Path).SingleLine(), app.Path)
 								})
-								if uikit.Tip(c, uikit.IconButton(c, locales.RemoveHttpsApp(app.Path), locales.RemoveHttpsApp(app.Path), closeIcon), app.Path).Clicked() {
+								if uikit.Tip(c, uikit.RowIconButton(c, locales.RemoveHttpsApp(app.Path), locales.RemoveHttpsApp(app.Path), closeIcon), app.Path).Clicked() {
 									remove = i
 								}
 							})

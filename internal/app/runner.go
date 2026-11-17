@@ -434,10 +434,10 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 							ui.Row(c.Key(i)).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).
 								Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 								uikit.Checkbox(c, &step.enabled, step.request.Name).Label(locales.RunRequest(i + 1)).Grow(1).Disabled(r.running)
-								if uikit.Tip(c, uikit.IconButton(c, locales.MoveRequestUp(i+1), locales.MoveRequestUp(i+1), lucide.ArrowUp()).Disabled(r.running || i == 0), locales.MoveRequestUp(i+1)).Clicked() {
+								if uikit.Tip(c, uikit.RowIconButton(c, locales.MoveRequestUp(i+1), locales.MoveRequestUp(i+1), lucide.ArrowUp()).Disabled(r.running || i == 0), locales.MoveRequestUp(i+1)).Clicked() {
 									move, delta = i, -1
 								}
-								if uikit.Tip(c, uikit.IconButton(c, locales.MoveRequestDown(i+1), locales.MoveRequestDown(i+1), lucide.ArrowDown()).Disabled(r.running || i == len(r.steps)-1), locales.MoveRequestDown(i+1)).Clicked() {
+								if uikit.Tip(c, uikit.RowIconButton(c, locales.MoveRequestDown(i+1), locales.MoveRequestDown(i+1), lucide.ArrowDown()).Disabled(r.running || i == len(r.steps)-1), locales.MoveRequestDown(i+1)).Clicked() {
 									move, delta = i, 1
 								}
 							})
@@ -534,7 +534,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				}
 				status = locales.RequestsSelected(selected)
 			}
-			uikit.Tip(c, uikit.Meta(c, status), "Displaying latest 1000 results; closing keeps a run active")
+			uikit.Tip(c, uikit.Meta(c, status), locales.RunResultsLimitTip())
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Justify(ui.End).Children(func() {
 				uikit.SecondaryButton(c, locales.LoadTest()).Disabled(r.running || a.remoteRunActive()).OnClick(a.openLoadRunner)
 				if uikit.SecondaryButton(c, locales.Close()).Clicked() {

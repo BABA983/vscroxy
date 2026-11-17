@@ -446,7 +446,7 @@ func (a *app) mqttSubscriptionsTab(c *ui.Context, t *ui.Theme, d *requestDocumen
 							topic.Subscribe = &value
 						}
 					}
-					if uikit.IconButton(c, locales.RemoveTopic(i+1), locales.RemoveThisTopicFilter(), closeIcon).Clicked() {
+					if uikit.RowIconButton(c, locales.RemoveTopic(i+1), locales.RemoveThisTopicFilter(), closeIcon).Clicked() {
 						removeTopic = i
 					}
 				})
@@ -646,7 +646,7 @@ func mqttPropertyEditor(c *ui.Context, t *ui.Theme, props *[]request.MQTTPropert
 		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
 			uikit.Input(c, &property.Key).Placeholder("key").Label(locales.PropertyKey()).Grow(1).MinWidth(0)
 			uikit.Input(c, &property.Value).Placeholder("value").Label(locales.PropertyValue()).Grow(1).MinWidth(0)
-			if uikit.IconButton(c, locales.RemoveProperty(i+1), locales.RemoveThisUserProperty(), closeIcon).Clicked() {
+			if uikit.RowIconButton(c, locales.RemoveProperty(i+1), locales.RemoveThisUserProperty(), closeIcon).Clicked() {
 				*props = slices.Delete(*props, i, i+1)
 				removed = true
 			}

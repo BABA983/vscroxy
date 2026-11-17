@@ -247,7 +247,7 @@ func (a *app) gitPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 	ui.Column(c).Width(330).MinHeight(0).Padding(top, t.Space(uikit.SpaceL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
 			uikit.Heading(c, locales.Git()).TextColor(t.Text).Grow(1)
-			if uikit.IconButton(c, locales.Refresh(), locales.Refresh(), lucide.RefreshCw()).Disabled(a.git.loading).Clicked() {
+			if uikit.RowIconButton(c, locales.Refresh(), locales.Refresh(), lucide.RefreshCw()).Disabled(a.git.loading).Clicked() {
 				a.refreshGit()
 			}
 		})

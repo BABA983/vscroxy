@@ -498,7 +498,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 	ui.Column(c).Width(300).MinHeight(0).Padding(top, t.Space(uikit.SpaceL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
 			uikit.Heading(c, title).TextColor(t.Text).Grow(1)
-			if uikit.IconButton(c, locales.NewRule(), locales.NewRule(), plusIcon).Clicked() {
+			if uikit.RowIconButton(c, locales.NewRule(), locales.NewRule(), plusIcon).Clicked() {
 				a.editRule(-1, capture.Rule{Type: kind})
 			}
 		})
@@ -722,7 +722,7 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview [
 					icon, action = statusMoreIcon, "Expand"
 				}
 				label := action + " folder " + entry.folder
-				if uikit.IconButton(c, label, label, icon).Clicked() {
+				if uikit.RowIconButton(c, label, label, icon).Clicked() {
 					a.ruleUI.collapsed[entry.folder] = !collapsed
 				}
 				uikit.Glyph(c, lucide.Folder()).Size(uikit.IconInline, uikit.IconInline)
@@ -1067,7 +1067,7 @@ func (a *app) ruleHeaderConditions(c *ui.Context, t *ui.Theme) {
 				} else {
 					ui.Spacer(c)
 				}
-				if uikit.IconButton(c, locales.RemoveHeader(i+1), locales.RemoveCondition(), closeIcon).Clicked() {
+				if uikit.RowIconButton(c, locales.RemoveHeader(i+1), locales.RemoveCondition(), closeIcon).Clicked() {
 					remove = i
 				}
 			})

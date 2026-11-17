@@ -360,9 +360,9 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 // into text at the end of the field, so it can be changed and committed again.
 func (a *app) captureConditions(c *ui.Context) {
 	t := c.Theme()
-	note := "All conditions must match"
+	note := locales.ConditionsMatchAll()
 	if a.filterAny {
-		note = "Any content field may match (OR); search, sidebar, protocol and time range still narrow"
+		note = locales.ConditionsMatchAny()
 	}
 	uikit.Tip(c, ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center), note).Children(func() {
 		changed := func() {
@@ -373,14 +373,14 @@ func (a *app) captureConditions(c *ui.Context) {
 			uikit.QueryChip(c, label, nil, func() { clear(); changed() })
 		}
 		if a.filterAny {
-			uikit.QueryChip(c, "Content: OR", a.openFilter, func() { a.filterAny = false; changed() })
+			uikit.QueryChip(c, locales.ChipContentOr(), a.openFilter, func() { a.filterAny = false; changed() })
 		}
 		if a.filter != "all" {
-			label := "Traffic: " + a.filter
+			label := locales.ChipTraffic(a.filter)
 			if host, ok := strings.CutPrefix(a.filter, "host:"); ok {
-				label = "Host: " + host
+				label = locales.ChipHost(host)
 			} else if client, ok := strings.CutPrefix(a.filter, "client:"); ok {
-				label = "App: " + client
+				label = locales.ChipApp(client)
 			}
 			chip(label, func() { a.filter = "all" })
 		}
@@ -388,7 +388,7 @@ func (a *app) captureConditions(c *ui.Context) {
 			chip(captureKinds[a.chip], func() { a.chip = 0 })
 		}
 		if a.activity.active() {
-			chip("Time: "+a.activity.label(), func() { a.activity = activityRange{} })
+			chip(locales.ChipTime(a.activity.label()), func() { a.activity = activityRange{} })
 		}
 		for _, key := range queryKeys {
 			field := key.field(a)

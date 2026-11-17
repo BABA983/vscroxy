@@ -107,7 +107,7 @@ func screenStrings(t *testing.T, path string) []string {
 	// args are the argument positions of UI constructors; variadic labels
 	// start at first and run to the last argument.
 	args := map[string]int{
-		"Text": 1, "Button": 1, "Field": 1, "Alert": 1,
+		"Text": 1, "Button": 1, "Field": 1, "Alert": 1, "Tip": 2,
 		"Heading": 1, "Body": 1, "Prose": 1, "Hint": 1, "Meta": 1, "Mono": 1,
 		"PrimaryButton": 1, "SecondaryButton": 1, "CompactButton": 1, "DestructiveButton": 1,
 		"RowButton": 1, "ToolbarButton": 1, "IconButton": 1, "StatusPill": 1,

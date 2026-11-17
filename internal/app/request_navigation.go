@@ -21,7 +21,7 @@ import (
 func treeRow(c *ui.Context, item ui.TreeItemParts, depth int) ui.Element {
 	t := c.Theme()
 	row := item.Row.Height(uikit.HeightRow).Margin(0, t.Space(uikit.SpaceS)).Padding(0, t.Space(uikit.SpaceS)).
-		PaddingStart(t.Space(1.5 + 2*float32(depth))).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
+		PaddingStart(t.Space(uikit.SpaceS) + float32(depth)*t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
 	if row.Hovered() {
 		row.Background(t.SurfaceHover)
 	}
@@ -140,8 +140,8 @@ func (a *app) collectionTree(c *ui.Context) {
 			row.Children(func() {
 				branchArrow(c, open)
 				uikit.Body(c, name).SingleLine().Grow(1)
-				action := uikit.MoreButton(c, locales.CollectionActionsPrefix(path), locales.CollectionActions(), menu).
-					Absolute().Right(0).Top(2).Background(uikit.Colors(c.Theme()).Chrome)
+				action := uikit.MoreMenu(c, locales.CollectionActionsPrefix(path), menu).
+					Absolute().Right(uikit.RowActionInset).Top(uikit.RowActionInset).Background(uikit.Colors(c.Theme()).Chrome)
 				if !row.Hovered() && !row.FocusWithin() {
 					action.Opacity(0)
 				}
@@ -169,7 +169,7 @@ func (a *app) collectionTree(c *ui.Context) {
 			if r.Collection != "" {
 				card.Meta = method + " · " + r.Collection
 			}
-			row := uikit.CardTip(c, base, card).
+			row := uikit.CardTipBeside(c, base, card).
 				OnClick(func() { a.openSaved(r.key()) }).PopoverMenu(menu)
 			if chosen {
 				uikit.Selected(c, row, !a.windowBehind)
@@ -184,8 +184,8 @@ func (a *app) collectionTree(c *ui.Context) {
 					if edited {
 						unsavedDot(c)
 					}
-					action := uikit.MoreButton(c, locales.RequestActionsPrefix(r.Name), locales.RequestActions(), menu).
-						Absolute().Right(0).Top(2).Background(uikit.Colors(c.Theme()).Chrome)
+					action := uikit.MoreMenu(c, locales.RequestActionsPrefix(r.Name), menu).
+						Absolute().Right(uikit.RowActionInset).Top(uikit.RowActionInset).Background(uikit.Colors(c.Theme()).Chrome)
 					// The request being edited keeps its actions in sight; the others
 					// wait for the pointer or for focus to enter the row.
 					if !chosen && !base.Hovered() && !row.FocusWithin() {

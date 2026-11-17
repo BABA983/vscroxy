@@ -186,7 +186,7 @@ func (a *app) hostProfilesPage(c *ui.Context, t *ui.Theme, window bool) {
 	ui.Column(c).Width(listWidth).MinHeight(0).Padding(top, t.Space(uikit.SpaceL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
 			uikit.Heading(c, locales.HostProfiles()).TextColor(t.Text).Grow(1)
-			if uikit.IconButton(c, locales.NewProfile(), locales.NewProfile(), plusIcon).Clicked() {
+			if uikit.RowIconButton(c, locales.NewProfile(), locales.NewProfile(), plusIcon).Clicked() {
 				if a.newProfile("Untitled", "", "") {
 					h.nameFor = "" // the name field takes the new one
 				}

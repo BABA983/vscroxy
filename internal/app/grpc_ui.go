@@ -554,7 +554,7 @@ func (a *app) grpcSavedMessages(c *ui.Context, t *ui.Theme, d *requestDocument, 
 					Placeholder("{}").Height(48).Font(uikit.FontMono).
 					Grow(1).MinWidth(0)
 				label := locales.RemoveMessage(i + 1)
-				if uikit.IconButton(c, label, label, closeIcon).Clicked() {
+				if uikit.RowIconButton(c, label, label, closeIcon).Clicked() {
 					remove = i
 				}
 			})

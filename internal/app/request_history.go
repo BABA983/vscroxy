@@ -159,7 +159,7 @@ func (a *app) historyResponse(c *ui.Context, t *ui.Theme, d *requestDocument, r 
 				a.openRecord(*r)
 				return
 			}
-			if uikit.IconButton(c, locales.ShowLatestResponse(), locales.BackToThisRequestS(), closeIcon).Clicked() {
+			if uikit.RowIconButton(c, locales.ShowLatestResponse(), locales.BackToThisRequestS(), closeIcon).Clicked() {
 				d.historyPick, d.historyReader = 0, nil
 			}
 		})

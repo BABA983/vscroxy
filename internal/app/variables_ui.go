@@ -152,7 +152,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 					})
 					ui.Row(c).Width(uikit.HeightRow*4 + t.Space(uikit.SpaceXS)).Children(func() {
 						if secret {
-							if uikit.IconButton(c, locales.RevealVariable(i+1), locales.RevealOrHideBothValues(), eyeIcon).Clicked() {
+							if uikit.RowIconButton(c, locales.RevealVariable(i+1), locales.RevealOrHideBothValues(), eyeIcon).Clicked() {
 								r.Revealed = !r.Revealed
 							}
 						} else {
@@ -166,12 +166,12 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 							persistTooltip = "Sensitive values stay local; edit Initial explicitly if you need to export it"
 						}
 						ui.Row(c).Disabled(!r.HasCurrent || r.Current == "" || blocked).Children(func() {
-							if uikit.IconButton(c, locales.PersistCurrentValue(i+1), persistTooltip, persistIcon).Clicked() {
+							if uikit.RowIconButton(c, locales.PersistCurrentValue(i+1), persistTooltip, persistIcon).Clicked() {
 								r.Initial, r.HasInitial, changed = r.Current, true, true
 							}
 						})
 						ui.Row(c).Disabled(!r.HasCurrent).Children(func() {
-							if uikit.IconButton(c, locales.ResetCurrentValue(i+1), locales.ResetCurrentUseTheInitial(), resetIcon).Clicked() {
+							if uikit.RowIconButton(c, locales.ResetCurrentValue(i+1), locales.ResetCurrentUseTheInitial(), resetIcon).Clicked() {
 								if !r.HasInitial && r.Initial == "" {
 									remove = i // nothing shared remains, so the local-only row goes
 								} else {
@@ -182,7 +182,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 						// The action column ends at the table's edge, so keep
 						// its focus ring inside the button instead of clipping
 						// it against the table border.
-						if uikit.IconButton(c, locales.RemoveVariableIndex(i+1), locales.RemoveVariable(), closeIcon).FocusRingOffset(-2).Clicked() {
+						if uikit.RowIconButton(c, locales.RemoveVariableIndex(i+1), locales.RemoveVariable(), closeIcon).FocusRingOffset(-2).Clicked() {
 							remove = i
 						}
 					})

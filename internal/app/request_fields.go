@@ -200,7 +200,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 						if r.Revealed {
 							label = locales.HideRow(noun, i+1)
 						}
-						reveal := uikit.IconButton(c, label, locales.CredentialsAreMaskedByDefault(), eyeIcon)
+						reveal := uikit.RowIconButton(c, label, locales.CredentialsAreMaskedByDefault(), eyeIcon)
 						if r.Revealed {
 							reveal.TextColor(t.Accent)
 						}
@@ -224,7 +224,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 						// The action column ends at the grid's edge, so keep
 						// its focus ring inside the button instead of clipping
 						// it against the table border.
-						button := uikit.IconButton(c, label, label, closeIcon).FocusRingOffset(-2)
+						button := uikit.RowIconButton(c, label, label, closeIcon).FocusRingOffset(-2)
 						// Keep the control mounted, named and in the Tab order even
 						// while quiet. Any focus in the row reveals its action.
 						if !row.Hovered() && !row.FocusWithin() {
@@ -752,7 +752,7 @@ func (a *app) webSocketMessagesEditor(c *ui.Context, d *requestDocument, t *ui.T
 						Placeholder(locales.TextHexBytesOrPadded()).Height(54).Font(uikit.FontMono).
 						Grow(1).MinWidth(0)
 					label := locales.RemoveMessage(i + 1)
-					if uikit.IconButton(c, label, label, closeIcon).Clicked() {
+					if uikit.RowIconButton(c, label, label, closeIcon).Clicked() {
 						remove = i
 					}
 				})

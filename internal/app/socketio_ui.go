@@ -313,7 +313,7 @@ func (a *app) socketIOSavedEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 					uikit.Checkbox(c, &message.WantACK, locales.RequestAck())
 				})
 				label := locales.RemoveMessage(i + 1)
-				if uikit.IconButton(c, label, label, closeIcon).Clicked() {
+				if uikit.RowIconButton(c, label, label, closeIcon).Clicked() {
 					remove = i
 				}
 			})
