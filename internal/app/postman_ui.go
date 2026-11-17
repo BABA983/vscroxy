@@ -286,7 +286,7 @@ func (a *app) reportImport(title string, warnings []string, review ...string) {
 		return
 	}
 	r := importReport{open: true, title: title, lines: warnings,
-		intro: "Everything else was imported. These parts have no equivalent here yet:"}
+		intro: locales.ImportedRemainder()}
 	if len(review) > 0 {
 		r.review = review[0]
 	}

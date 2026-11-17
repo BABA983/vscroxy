@@ -48,7 +48,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 	start := func(reconnect bool) {
 		u, err := url.Parse(s.url)
 		if err != nil || u.Hostname() == "" || u.Scheme != "http" && u.Scheme != "https" || u.User != nil {
-			s.problem = "Enter an absolute HTTP(S) URL without embedded credentials"
+			s.problem = locales.EnterAbsoluteURLNoCredentials()
 			return
 		}
 		s.session = openSSESession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.certificates, a.requestCookies(), reconnect || s.reconnect, a.invalidate)
@@ -145,7 +145,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 						}
 						ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
 							uikit.Body(c, fmt.Sprintf("#%d · %s", e.seq, clamp(head, 48))).TextColor(t.Text).SingleLine()
-							uikit.Meta(c, fmt.Sprintf("%s · %d B", e.at.Format("15:04:05.000"), e.size)).SingleLine()
+							uikit.Meta(c, locales.KindWithSize(e.at.Format("15:04:05.000"), e.size)).SingleLine()
 						})
 					}).Grow(1).MinHeight(0)
 					if s.choice >= 0 && s.choice < len(shown) && shown[s.choice].seq != previous {

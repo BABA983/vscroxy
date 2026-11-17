@@ -129,7 +129,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 							continue
 						}
 						matched++
-						row := uikit.Tip(c, uikit.RowButton(c.Key(strconv.Itoa(i)), fmt.Sprintf("Read exchange %d", f.ID)).Height(uikit.HeightBar).FillWidth(), f.URL)
+						row := uikit.Tip(c, uikit.RowButton(c.Key(strconv.Itoa(i)), locales.ReadExchange(f.ID)).Height(uikit.HeightBar).FillWidth(), f.URL)
 						if item.picked == i {
 							uikit.Selected(c, row, !a.windowBehind)
 						}
@@ -188,17 +188,17 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 			}
 		}
 		uikit.MoreMenu(c, locales.SessionActions(), func(m *ui.Menu) {
-			label := "Pin"
+			label := locales.Pin()
 			if f.Pinned {
-				label = "Unpin"
+				label = locales.Unpin()
 			}
 			if m.Item(label).Chosen() {
 				f.Pinned = !f.Pinned
 				item.persist(a.invalidate)
 			}
-			label = "Reveal credentials"
+			label = locales.RevealCredentials()
 			if item.reveal {
-				label = "Hide credentials"
+				label = locales.HideCredentials()
 			}
 			if m.Item(label).Chosen() {
 				item.reveal, item.reader = !item.reveal, nil

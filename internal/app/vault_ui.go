@@ -173,7 +173,7 @@ func (a *app) saveVault() {
 			continue
 		}
 		if name == "" || seen[name] || strings.ContainsAny(name, "{} ") {
-			v.editProblem = "Secret names must be nonempty, unique and contain no spaces or braces."
+			v.editProblem = locales.SecretNamesRules()
 			return
 		}
 		seen[name] = true

@@ -189,7 +189,7 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 // exchangeResult spells the status as a person reads it, then the two numbers
 // that say how much work the exchange took and carried.
 func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
-	status := fmt.Sprintf("%d %s", f.status, http.StatusText(f.status))
+	status := strconv.Itoa(f.status) + " " + http.StatusText(f.status)
 	if compact && f.conn.error == "" && f.kind == "" {
 		status = strconv.Itoa(f.status)
 	}
@@ -771,7 +771,7 @@ func responseSummaryOf(t *ui.Theme, f flow) responseSummary {
 	p := uikit.Colors(t)
 	title := locales.NoResponse()
 	if f.status != 0 {
-		title = strings.TrimSpace(fmt.Sprintf("%d %s", f.status, http.StatusText(f.status)))
+		title = strings.TrimSpace(strconv.Itoa(f.status) + " " + http.StatusText(f.status))
 	}
 	if f.conn.error != "" {
 		title = locales.Failed()
@@ -789,11 +789,11 @@ func sentSummaryOf(t *ui.Theme, r *capture.Flow, outcome string) responseSummary
 	p := uikit.Colors(t)
 	sum := responseSummary{title: locales.NoResponse(), dot: p.TextMuted, duration: fmt.Sprintf("%d ms", r.Millis), detail: humanBytes(r.Bytes)}
 	if r.Status != 0 {
-		sum.title = strings.TrimSpace(fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status)))
+		sum.title = strings.TrimSpace(strconv.Itoa(r.Status) + " " + http.StatusText(r.Status))
 	}
 	switch {
 	case outcome == "Network error":
-		sum.title = fmt.Sprintf("%d · proxy response", r.Status)
+		sum.title = locales.ProxyResponseNumbered(r.Status)
 		sum.dot, sum.ink = t.Danger, t.Danger
 	case r.Status >= 300:
 		sum.dot, sum.ink = uikit.StatusColor(r.Status, t), uikit.StatusColor(r.Status, t)
@@ -1086,7 +1086,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 		headers, raw, trailers = f.respHeader, f.resHeaders, f.resTrailer
 		line = locales.NoResponse()
 		if f.status != 0 {
-			line = fmt.Sprintf("%d %s", f.status, http.StatusText(f.status))
+			line = strconv.Itoa(f.status) + " " + http.StatusText(f.status)
 			if f.resProto != "" {
 				line = f.resProto + " " + line
 			}
@@ -1249,7 +1249,7 @@ func rawMessage(f flow, side int) string {
 	proto := cmp.Or(f.resProto, "HTTP/1.1")
 	status := "no response"
 	if f.status != 0 {
-		status = fmt.Sprintf("%d %s", f.status, http.StatusText(f.status))
+		status = strconv.Itoa(f.status) + " " + http.StatusText(f.status)
 	}
 	fmt.Fprintf(&b, "%s %s\r\n", proto, status)
 	b.WriteString(request.HeaderBlock(f.respHeader))

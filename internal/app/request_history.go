@@ -96,7 +96,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if f := r.Exchange; f != nil {
 					status, millis = f.Status, f.Millis
 				}
-				row := uikit.Tip(c, uikit.RowButton(c.Key(strconv.Itoa(r.ID)), fmt.Sprintf("Run #%d", r.ID)), r.Summary)
+				row := uikit.Tip(c, uikit.RowButton(c.Key(strconv.Itoa(r.ID)), locales.RunNumberLabel(r.ID)), r.Summary)
 				if r.ID == d.historyPick {
 					uikit.Selected(c, row, !a.windowBehind)
 				}
@@ -173,7 +173,7 @@ func (a *app) historyResponse(c *ui.Context, t *ui.Theme, d *requestDocument, r 
 			uikit.Tip(c, uikit.Meta(c, r.Summary).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).SingleLine(), r.Summary)
 		}
 		if d.historyReader == nil {
-			d.historyReader = &editor.State{Buffer: editor.NewBuffer(r.resultText()), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: fmt.Sprintf("Run #%d result", r.ID)}
+			d.historyReader = &editor.State{Buffer: editor.NewBuffer(r.resultText()), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.RunNumberResult(r.ID)}
 		}
 		requestCodeEditor(c, d.historyReader)
 	})

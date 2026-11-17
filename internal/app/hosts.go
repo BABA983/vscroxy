@@ -332,7 +332,7 @@ func (a *app) newProfile(name, text, url string) bool {
 	h := &a.profiles
 	base := name
 	for n := 2; h.set.Index(name) >= 0; n++ {
-		name = fmt.Sprintf("%s %d", base, n)
+		name = locales.NumberedName(base, n)
 	}
 	if err := a.file(h.path(name)).Write([]byte(text)); err != nil {
 		a.fail(locales.CouldNotCreateHostProfile(name), err)

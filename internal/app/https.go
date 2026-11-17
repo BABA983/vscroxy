@@ -207,7 +207,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 			hint := "Enable a domain or a local app to read its headers, cookies and bodies."
 			switch {
 			case len(a.sslApps) > 0:
-				summary = fmt.Sprintf("%d domain rules · %d local executable rules", len(domains), len(a.sslApps))
+				summary = locales.DomainAndLocalRules(len(domains), len(a.sslApps))
 				hint = "Listed domains or exact local executables are decrypted. Other clients stay encrypted unless a domain rule also matches."
 			case len(domains) > 0:
 				summary = strings.Join(domains, ", ")

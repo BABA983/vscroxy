@@ -162,7 +162,7 @@ func (a *app) startRunner() {
 	}
 	n, err := strconv.Atoi(r.iterations)
 	if err != nil || n < 1 || n > 1000 {
-		r.status = "Iterations must be between 1 and 1000"
+		r.status = locales.IterationsRange()
 		return
 	}
 	delay, err := strconv.Atoi(cmp.Or(r.delay, "0"))
@@ -171,7 +171,7 @@ func (a *app) startRunner() {
 		return
 	}
 	if a.srv == nil || !a.srv.Running() {
-		r.status = "Start the local proxy first"
+		r.status = locales.StartLocalProxyFirst()
 		return
 	}
 	var requests []savedRequest
@@ -183,7 +183,7 @@ func (a *app) startRunner() {
 		}
 	}
 	if len(requests) == 0 {
-		r.status = "Choose at least one saved request"
+		r.status = locales.ChooseSavedRequest()
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -193,7 +193,7 @@ func (a *app) startRunner() {
 	r.viewKey = strconv.Itoa(len(r.history))
 	outcome := &runOutcome{}
 	r.outcome = outcome
-	r.environment, r.status = a.activeEnv, "Running…"
+	r.environment, r.status = a.activeEnv, locales.RunningStatus()
 	events := make(chan runnerEvent, 16)
 	r.events = events
 	vars, stop, srv, env, data := a.activeVars(), r.stopOnFailure, a.srv, r.environment, r.data
@@ -244,7 +244,7 @@ func runnableCollections(requests []savedRequest) []string {
 func (a *app) chooseRunnerData() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.RunnerDataFile(),
-			Filters: []mygo.FileFilter{{Name: "CSV or JSON", Extensions: []string{"csv", "json"}}}})
+			Filters: []mygo.FileFilter{{Name: locales.CsvOrJSON(), Extensions: []string{"csv", "json"}}}})
 		if err != nil || len(paths) == 0 {
 			return
 		}
@@ -273,9 +273,9 @@ func (a *app) drainRunner() {
 		case event, ok := <-r.events:
 			if !ok {
 				r.events, r.cancel, r.running = nil, nil, false
-				r.status = "Finished"
+				r.status = locales.FinishedStatus()
 				if r.cancelled {
-					r.status = "Cancelled"
+					r.status = locales.CancelledStatus()
 				}
 				a.finishRunner()
 				return
@@ -410,7 +410,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				case r.dataProblem != "":
 					text, color = r.dataProblem, t.Danger
 				case len(r.data) > 0:
-					text, color = fmt.Sprintf("%s · %d %s · %s", r.dataName, len(r.data), plural(len(r.data), "row", "rows"), strings.Join(request.DataColumns(r.data), ", ")), t.Text
+					text, color = locales.DataRunSummary(r.dataName, len(r.data), strings.Join(request.DataColumns(r.data), ", ")), t.Text
 				}
 				uikit.Tip(c, uikit.Caption(c, text).TextColor(color).Grow(1).MinWidth(0).SingleLine(), text)
 				if len(r.data) > 0 && uikit.SecondaryButton(c, locales.Remove()).Label(locales.RemoveDataFile()).Disabled(r.running).Clicked() {
@@ -475,7 +475,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						}
 						uikit.Tip(c, ui.Row(c).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 							Border(0, t.Border).BorderWidth(0, 0, 1, 0), row.summary).Children(func() {
-							uikit.Body(c, fmt.Sprintf("%d · %s", row.iteration, row.name)).FontFeatures("tnum").Grow(1).MinWidth(0).SingleLine()
+							uikit.Body(c, locales.IterationName(row.iteration, row.name)).FontFeatures("tnum").Grow(1).MinWidth(0).SingleLine()
 							summary := uikit.Caption(c, row.summary).FontFeatures("tnum").SingleLine().MaxWidth(uikit.WidthWide)
 							summary.TextColor(color)
 						})
@@ -496,7 +496,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 							color = t.Danger
 						}
 						ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceM), 0).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-							uikit.Label(c, fmt.Sprintf("%d · %s", row.iteration, row.name)).FontFeatures("tnum").Grow(1).SingleLine()
+							uikit.Label(c, locales.IterationName(row.iteration, row.name)).FontFeatures("tnum").Grow(1).SingleLine()
 							if uikit.SecondaryButton(c, locales.InspectRetainedRun()).Disabled(row.recordID == 0).Clicked() {
 								a.experiments.scope, a.experiments.draftKey = nil, ""
 								a.experiments.pick(row.recordID)
@@ -544,7 +544,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 					if uikit.PrimaryButton(c, locales.CancelRun()).Clicked() {
 						r.cancelled = true
 						r.cancel()
-						r.status = "Stopping…"
+						r.status = locales.StoppingStatus()
 					}
 					return
 				}

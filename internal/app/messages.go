@@ -214,7 +214,7 @@ func (p *messagePanel) note(list, visible []messageView) string {
 	if len(visible) == len(list) {
 		return note
 	}
-	return fmt.Sprintf("%d of %s", len(visible), note)
+	return locales.CountOfTotal(len(visible), note)
 }
 
 // pruneMessages forgets the messages of the flows the table no longer shows.

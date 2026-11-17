@@ -256,7 +256,7 @@ func (a *app) apiSyncModal(c *ui.Context, t *ui.Theme, d *apiDocument) {
 			if s.problem != "" {
 				uikit.ErrorText(c, s.problem)
 			} else {
-				uikit.Meta(c, fmt.Sprintf("%d added · %d updated · %d unchanged", s.plan.Added, s.plan.Updated, s.plan.Unchanged))
+				uikit.Meta(c, locales.AddedUpdatedUnchanged(s.plan.Added, s.plan.Updated, s.plan.Unchanged))
 			}
 			ui.Box(c).Height(360).Children(func() {
 				requestCodeEditor(c, s.reader)

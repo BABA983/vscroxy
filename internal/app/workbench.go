@@ -2,7 +2,6 @@ package app
 
 import (
 	"cmp"
-	"fmt"
 	"runtime"
 	"strings"
 	"unicode/utf8"
@@ -856,9 +855,9 @@ func (a *app) commandPalette(c *ui.Context) {
 					context = item.detail
 				case a.page.capture():
 					if a.chosen.Len() > 1 {
-						context = fmt.Sprintf("Capture · %d selected requests", a.chosen.Len())
+						context = locales.CaptureSelected(a.chosen.Len())
 					} else if f, ok := a.current(); ok {
-						context = fmt.Sprintf("Capture #%d · %s %s", f.id, f.method, f.path)
+						context = locales.CaptureNumberMethodURL(f.id, f.method, f.path)
 					}
 				case !a.page.capture() && a.requestDocument != nil:
 					context = locales.DraftTitled(a.title())

@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui/editor"
 )
 
@@ -27,12 +28,42 @@ type variableHint struct {
 	Vault     bool
 }
 
-// source names the scope and which of its two values applies.
+// source names the scope and which of its two values applies, in the language
+// the app shows.
 func (h variableHint) source() string {
 	if h.Origin == "" {
-		return h.Scope
+		return variableScopeName(h.Scope)
 	}
-	return h.Scope + " · " + h.Origin
+	return variableScopeName(h.Scope) + " · " + variableOriginName(h.Origin)
+}
+
+// variableScopeName says a scope in the language the app shows. The scope
+// itself stays an identifier, which variableScopeRank compares.
+func variableScopeName(scope string) string {
+	kind, path, _ := strings.Cut(scope, " · ")
+	switch kind {
+	case "Environment":
+		return locales.KindPath(locales.Environment(), path)
+	case "Collection":
+		return locales.KindPath(locales.Collection(), path)
+	case "Folder":
+		return locales.KindPath(locales.FolderName(), path)
+	case "Global":
+		return locales.ScopeGlobal()
+	case "Dynamic":
+		return locales.ScopeDynamic()
+	case "Vault":
+		return locales.ScopeVault()
+	}
+	return scope
+}
+
+// variableOriginName says which of a variable's two values applies.
+func variableOriginName(origin string) string {
+	if origin == "initial" {
+		return locales.OriginInitial()
+	}
+	return locales.OriginCurrent()
 }
 
 // display is the value a preview may show, masked when the name says it holds

@@ -32,13 +32,13 @@ func (a *app) timingView(c *ui.Context, f flow) {
 	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceXL)).Children(func() {
 		uikit.Hint(c, locales.AggregateTimingOnlyNoRequest())
 		if f.conn.dnsFresh && f.conn.resolved != "" {
-			waterfallRow(c, t, "DNS lookup", fmt.Sprintf("%s → %s", hostOnly(f.host), f.conn.resolved),
+			waterfallRow(c, t, locales.TimingDNSLookup(), fmt.Sprintf("%s → %s", hostOnly(f.host), f.conn.resolved),
 				f.conn.lookupMs, 0, total, dns)
 		}
 		// The wait covers the dial and the server's own time; a lookup the
 		// flow made itself is the part of it that can be named.
-		waterfallRow(c, t, "Waiting", "request sent, first byte back", f.wait, 0, total, wait)
-		waterfallRow(c, t, "Download", "rest of the response body", f.download, f.wait, total, download)
+		waterfallRow(c, t, locales.TimingWaiting(), "request sent, first byte back", f.wait, 0, total, wait)
+		waterfallRow(c, t, locales.TimingDownload(), "rest of the response body", f.download, f.wait, total, download)
 		ui.Divider(c)
 		ui.Row(c).FillWidth().Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Padding(t.Space(uikit.SpaceXS), 0).Children(func() {
 			uikit.BodyStrong(c, locales.Total()).TextColor(t.Text).Shrink(0)
@@ -87,7 +87,7 @@ func (f flow) responseMillis() (int, bool) {
 // Captures without a trace retain their aggregate wait/download breakdown.
 func headlineTiming(t *ui.Theme, f flow) uikit.Timing {
 	if f.timing != nil {
-		return uikit.Timing{Phases: []uikit.TimingPhase{{Name: "Proxy-observed", Millis: int(f.timing.TotalNS / 1e6), Color: uikit.Colors(t).Info}},
+		return uikit.Timing{Phases: []uikit.TimingPhase{{Name: locales.TimingProxyObserved(), Millis: int(f.timing.TotalNS / 1e6), Color: uikit.Colors(t).Info}},
 			Note: "Open Timing for actual phase offsets. Phases may overlap; setup before request headers and downstream delivery are excluded."}
 	}
 	if f.wait == 0 && f.download == 0 {
@@ -97,12 +97,12 @@ func headlineTiming(t *ui.Theme, f flow) uikit.Timing {
 	wait := f.wait
 	if f.conn.dnsFresh && f.conn.resolved != "" {
 		lookup := min(f.conn.lookupMs, wait)
-		phases = append(phases, uikit.TimingPhase{Name: "DNS lookup", Millis: lookup, Color: uikit.Colors(t).MethodPatch})
+		phases = append(phases, uikit.TimingPhase{Name: locales.TimingDNSLookup(), Millis: lookup, Color: uikit.Colors(t).MethodPatch})
 		wait -= lookup
 	}
 	phases = append(phases,
-		uikit.TimingPhase{Name: "Waiting", Millis: wait, Color: uikit.Colors(t).Info},
-		uikit.TimingPhase{Name: "Download", Millis: f.download, Color: uikit.Colors(t).Socket})
+		uikit.TimingPhase{Name: locales.TimingWaiting(), Millis: wait, Color: uikit.Colors(t).Info},
+		uikit.TimingPhase{Name: locales.TimingDownload(), Millis: f.download, Color: uikit.Colors(t).Socket})
 	note := connectionNote(f)
 	if f.conn.dnsFresh && f.conn.resolved != "" {
 		// The card lists the lookup on its own row.
@@ -157,7 +157,7 @@ func timingWaterfall(c *ui.Context, timing *capture.Timing) {
 				color, status = t.Danger, status+" · failed"
 			}
 			interval := locales.TimingSpan(timingDuration(p.StartNS), timingDuration(p.StartNS+p.DurationNS), status)
-			description := fmt.Sprintf("%s · %s · %s; exact offset %s, duration %s", p.Name, p.Detail, interval, time.Duration(p.StartNS), time.Duration(p.DurationNS))
+			description := locales.TimingExactOffset(p.Name, p.Detail, interval, time.Duration(p.StartNS).String(), time.Duration(p.DurationNS).String())
 			ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceXS)).Padding(t.Space(uikit.SpaceXS), 0).Children(func() {
 				ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
 					uikit.Body(c, p.Name).Grow(1).MinWidth(0).Shrink(1).SingleLine()

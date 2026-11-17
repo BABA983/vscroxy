@@ -795,7 +795,7 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 		case "Missing":
 			missing++
 		case "Run input":
-			rows[i].Source = "Environment: " + cmp.Or(a.activeEnv, "none")
+			rows[i].Source = locales.EnvironmentSourceNamed(cmp.Or(a.activeEnv, locales.NoneLower()))
 		}
 	}
 	if len(rows) == 0 && !d.variablesOpen {

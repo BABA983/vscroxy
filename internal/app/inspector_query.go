@@ -189,7 +189,7 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 				ui.Spacer(c)
 				if u.job.answers != nil && uikit.SecondaryButton(c, locales.CancelQuery()).Clicked() {
 					u.job.stop()
-					u.job.problem = "Query cancelled"
+					u.job.problem = locales.QueryCancelled()
 				}
 				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					u.open = false

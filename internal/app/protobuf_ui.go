@@ -62,7 +62,7 @@ func (p *protoInspector) init(path string) {
 		p.schema, err = parseProtoSchema(data)
 	}
 	if err != nil {
-		p.problem = "Saved protobuf schema: " + err.Error()
+		p.problem = locales.SavedProtobufSchema(err.Error())
 	}
 }
 
@@ -227,7 +227,7 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 		settleEvent(&p.selected, len(visible))
 		message := p.result.messages[visible[p.selected]]
 		ui.Column(c).Fill().MinHeight(0).Children(func() {
-			detail := fmt.Sprintf("Message %d · %s", visible[p.selected]+1, humanBytes(message.size))
+			detail := locales.MessageIndexName(visible[p.selected]+1, humanBytes(message.size))
 			ui.Row(c).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				uikit.Tip(c, uikit.Meta(c, detail).Grow(1).MinWidth(0).SingleLine(), detail)
 				if uikit.IconButton(c, locales.CopyDecoded(), locales.CopyDecoded(), copyIcon).Clicked() {

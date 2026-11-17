@@ -248,7 +248,7 @@ func (a *app) drainClientSetup() {
 				switch r.action {
 				case "android":
 					if androidProxyIsOurProxy(r.previous, r.port) {
-						s.problem = "The device already points at vscroxy; use Undo proxy to clear it"
+						s.problem = locales.DeviceAlreadyPointsAtVscroxy()
 						a.warn(s.problem)
 						continue
 					}
@@ -461,7 +461,7 @@ func (a *app) applyAndroidProxy() {
 		commands, _ := clientsetup.AndroidProxyCommands(serial, port)
 		results <- clientSetupResult{
 			action:   "android",
-			what:     "Set Android proxy",
+			what:     locales.SetAndroidProxy(),
 			success:  "Android proxy set",
 			command:  clientsetup.JoinCommands(commands, runtime.GOOS == "windows"),
 			err:      err,
@@ -499,7 +499,7 @@ func (a *app) clearAndroidProxy() {
 		commands, _ := clientsetup.AndroidUndoCommands(serial, port, previous)
 		results <- clientSetupResult{
 			action:  "undo",
-			what:    "Undo Android proxy",
+			what:    locales.UndoAndroidProxy(),
 			success: "Android proxy restored",
 			command: clientsetup.JoinCommands(commands, runtime.GOOS == "windows"),
 			err:     err,
@@ -551,7 +551,7 @@ func (a *app) pushAndroidCA() {
 		err := command.Run()
 		results <- clientSetupResult{
 			action:  "push",
-			what:    "Copy CA to Android device",
+			what:    locales.CopyCAAndroidDevice(),
 			success: "Copied CA to Android Downloads",
 			command: commandString(command),
 			err:     err,
@@ -615,7 +615,7 @@ func (a *app) installSimulatorCA() {
 		}
 		results <- clientSetupResult{
 			action:  "ios",
-			what:    "Install CA in iOS simulator",
+			what:    locales.InstallCAIOSSimulator(),
 			success: "Installed CA in iOS simulator",
 			command: commandString(command),
 			err:     err,
@@ -647,7 +647,7 @@ func (a *app) importJavaCA() {
 		commands, err := clientsetup.ImportJavaCA(p, keystore)
 		results <- clientSetupResult{
 			action:  "java",
-			what:    "Import CA into Java truststore",
+			what:    locales.ImportCAJavaTruststore(),
 			success: "Imported CA into Java truststore",
 			command: clientsetup.JoinCommands(commands, runtime.GOOS == "windows"),
 			err:     err,

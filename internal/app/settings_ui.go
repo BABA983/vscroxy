@@ -193,7 +193,7 @@ func (a *app) proxySettings(c *ui.Context, t *ui.Theme) {
 
 func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 	// list is a field of a host or app list: its editor and how many it has.
-	list := func(label, text, unit, about string, open *bool) ui.Element {
+	list := func(label, text string, count func(int) string, about string, open *bool) ui.Element {
 		return settingsCardRow(c, label, func() ui.Element {
 			return ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 				if uikit.SecondaryButton(c, label+"…").Clicked() {
@@ -203,7 +203,7 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 				n := len(splitHosts(text))
 				summary := locales.None()
 				if n > 0 {
-					summary = fmt.Sprintf("%d %s", n, plural(n, unit, unit+"s"))
+					summary = count(n)
 				}
 				uikit.Hint(c, summary)
 			})
@@ -238,12 +238,12 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 					return uikit.ErrorText(c, problem)
 				}, "")
 			}
-			list("Allowed hosts", a.allowText, "host", "Each host with its subdomains.", &a.allowOpen)
-			list("Allowed apps", a.allowAppsText, "app", "As the sidebar's Apps names them.", &a.allowAppsOpen)
+			list("Allowed hosts", a.allowText, locales.HostsCount, "Each host with its subdomains.", &a.allowOpen)
+			list("Allowed apps", a.allowAppsText, locales.AppsCount, "As the sidebar's Apps names them.", &a.allowAppsOpen)
 		})
 		uikit.SettingsCard(c, locales.Ignored(), func() {
-			list("Ignored hosts", a.ignoreText, "host", "Still proxied, but not shown in the table, even when allowed.", &a.ignoreOpen)
-			list("Ignored apps", a.ignoreAppsText, "app", "The same by app.", &a.ignoreAppsOpen)
+			list("Ignored hosts", a.ignoreText, locales.HostsCount, "Still proxied, but not shown in the table, even when allowed.", &a.ignoreOpen)
+			list("Ignored apps", a.ignoreAppsText, locales.AppsCount, "The same by app.", &a.ignoreAppsOpen)
 		})
 		uikit.SettingsCard(c, locales.Memory(), func() {
 			// limit is a field choosing one of options, labelled by label.

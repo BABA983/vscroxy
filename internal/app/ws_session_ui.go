@@ -93,7 +93,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 		connect := func() {
 			header := request.ParseHeaderBlock(s.headers)
 			if s.subprotocols != "" && header.Get("Sec-WebSocket-Protocol") != "" {
-				s.problem = "Enter subprotocols in the dedicated field or headers, not both"
+				s.problem = locales.SubprotocolsNotBoth()
 				return
 			}
 			if s.subprotocols != "" {
@@ -197,7 +197,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 							data, err = base64.StdEncoding.DecodeString(s.message)
 						}
 						if err != nil {
-							s.problem = "Invalid " + s.encoding + " message; nothing sent"
+							s.problem = locales.InvalidMessageNothingSent(optionLabel(s.encoding))
 						} else {
 							s.problem = ""
 							s.sent = make(chan error, 1)
@@ -261,7 +261,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 								}
 								ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
 									uikit.Body(c, clamp(head, 48)).TextColor(t.Text).SingleLine()
-									uikit.Meta(c, fmt.Sprintf("%s · %s · %d B", e.At.Format("15:04:05.000"), kind, e.Size)).SingleLine()
+									uikit.Meta(c, locales.TimeKindSize(e.At.Format("15:04:05.000"), kind, e.Size)).SingleLine()
 								})
 							}).Grow(1).MinHeight(0)
 							if s.choice >= 0 && s.choice < len(shown) && shown[s.choice].Sequence != previous {

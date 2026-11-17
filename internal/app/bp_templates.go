@@ -170,7 +170,7 @@ func (a *app) breakTemplates(c *ui.Context, t *ui.Theme, valid bool) {
 					}
 				}
 				m.Separator()
-				m.Submenu("Delete", func(m *ui.Menu) {
+				m.Submenu(locales.Delete(), func(m *ui.Menu) {
 					for _, o := range mine {
 						if m.Item(o.Name).Chosen() {
 							a.deleteBreakTemplate(o)

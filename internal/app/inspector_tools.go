@@ -35,7 +35,7 @@ func (a *app) openDecoder(reader *editor.State, fallback string) {
 
 func (a *app) decoderMenu(reader *editor.State) {
 	reader.ContextMenu = func(m *ui.Menu) {
-		if m.Item("Decode selection…").Disabled(reader.SelectedText() == "").Chosen() {
+		if m.Item(locales.DecodeSelection()).Disabled(reader.SelectedText() == "").Chosen() {
 			a.openDecoder(reader, "")
 		}
 	}

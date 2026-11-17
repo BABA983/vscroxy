@@ -144,7 +144,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 						uikit.Mono(c, preview+"\n\n"+r.Body).Selectable()
 						if body, notice := f.bodyPreview(true); body != "" {
 							ui.Divider(c)
-							uikit.Meta(c, fmt.Sprintf("Captured response · %d · %s", f.status, cmp.Or(f.contentType(true), "unknown type"))).SingleLine()
+							uikit.Meta(c, locales.CapturedResponseDetail(f.status, cmp.Or(f.contentType(true), locales.UnknownType()))).SingleLine()
 							uikit.Mono(c, body+notice).Selectable().MaxLines(12)
 						}
 					})
@@ -292,8 +292,8 @@ func (a *app) collectionStructureEditor(c *ui.Context, t *ui.Theme) {
 	uikit.Body(c, locales.CollectionName())
 	uikit.Input(c, &w.name).Label(locales.CollectionName()).Disabled(w.destination != "")
 	uikit.Body(c, locales.SaveTo())
-	uikit.MenuSelect(c, cmp.Or(w.destination, "New collection"), func(m *ui.Menu) {
-		if m.Item("New collection").Chosen() {
+	uikit.MenuSelect(c, cmp.Or(w.destination, locales.NewCollectionMenu()), func(m *ui.Menu) {
+		if m.Item(locales.NewCollectionMenu()).Chosen() {
 			w.destination = ""
 		}
 		for _, name := range a.collectionNames() {
@@ -332,8 +332,8 @@ func (a *app) collectionExamplesEditor(c *ui.Context, t *ui.Theme) {
 			for _, i := range g.flows {
 				f := w.flows[i]
 				selected := w.examples[i]
-				uikit.Checkbox(c.Key(i), &selected, fmt.Sprintf("%d · %s · %s", f.status, f.at.Format("15:04:05"), cmp.Or(f.path, "/"))).
-					Label(fmt.Sprintf("Example capture %d", i)).Disabled(f.status < 200 || f.status > 599 || f.conn.error != "").OnClick(func() { w.examples[i] = selected })
+				uikit.Checkbox(c.Key(i), &selected, locales.StatusTimePath(f.status, f.at.Format("15:04:05"), cmp.Or(f.path, "/"))).
+					Label(locales.ExampleCapture(i)).Disabled(f.status < 200 || f.status > 599 || f.conn.error != "").OnClick(func() { w.examples[i] = selected })
 			}
 		})
 	}

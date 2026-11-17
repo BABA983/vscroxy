@@ -345,9 +345,9 @@ drained:
 					}
 					uikit.ProgressBar(c, fraction, locales.ReplayProgress())
 					if r.updates != nil {
-						line := fmt.Sprintf("%d/%d started · %d failed", r.done, r.total, r.failed)
+						line := locales.StartedFailed(r.done, r.total, r.failed)
 						if r.canceled > 0 {
-							line += fmt.Sprintf(" · %d canceled", r.canceled)
+							line += locales.CanceledCount(r.canceled)
 						}
 						uikit.Body(c, line)
 						if r.stopped {

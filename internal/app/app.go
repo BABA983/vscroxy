@@ -1230,28 +1230,28 @@ func (a *app) breakpointError() string {
 			var err error
 			data, err = base64.StdEncoding.Strict().DecodeString(a.bpBody)
 			if err != nil || base64.StdEncoding.EncodeToString(data) != a.bpBody {
-				return "Enter canonical padded base64 for the binary message."
+				return locales.EnterCanonicalBase64()
 			}
 		} else if !utf8.Valid(data) {
-			return "Text messages must be valid UTF-8."
+			return locales.TextMessageUTF8()
 		}
 		if len(data) > 1<<20 {
-			return "Message edits are limited to 1 MiB."
+			return locales.MessageEditLimit()
 		}
 		return ""
 	}
 	if a.bp.Phase == capture.PhaseResponse {
 		n, err := strconv.Atoi(strings.TrimSpace(a.bpStatus))
 		if err != nil || n < 200 || n > 599 {
-			return "Enter a final response status from 200 to 599."
+			return locales.EnterFinalStatus()
 		}
 	} else {
 		if !httpguts.ValidHeaderFieldName(a.bpMethod) {
-			return "Enter a valid HTTP method."
+			return locales.EnterValidHTTPMethod()
 		}
 		u, err := url.Parse(a.bpURL)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
-			return "Enter an absolute http:// or https:// URL."
+			return locales.EnterAbsoluteHTTPURL()
 		}
 	}
 	for i, line := range strings.Split(a.bpHeaders, "\n") {
@@ -1261,7 +1261,7 @@ func (a *app) breakpointError() string {
 		}
 		key, value, ok := strings.Cut(line, ":")
 		if !ok || !httpguts.ValidHeaderFieldName(strings.TrimSpace(key)) || !httpguts.ValidHeaderFieldValue(value) {
-			return fmt.Sprintf("Header line %d must be a valid Name: Value pair.", i+1)
+			return locales.HeaderLineInvalid(i + 1)
 		}
 	}
 	return ""
@@ -1322,7 +1322,7 @@ func (a *app) drain() {
 				}
 			}
 			if err := a.experiments.log.retain(*result.experiment, a.experimentLimits()); err != nil {
-				a.experiments.problem = "Experiment not retained: " + err.Error()
+				a.experiments.problem = locales.ExperimentNotRetained(err.Error())
 			} else {
 				d.experimentID = a.experiments.log.NextID
 				a.experiments.persist()
@@ -1488,7 +1488,7 @@ func (a *app) drain() {
 	}
 	if wireChanged {
 		if _, err := encodeExperiments(checkpoint, a.experimentLimits()); err != nil {
-			a.experiments.problem = "Wire evidence not retained: " + err.Error()
+			a.experiments.problem = locales.WireEvidenceNotRetained(err.Error())
 		} else {
 			a.experiments.log = checkpoint
 			a.experiments.persist()
@@ -1815,7 +1815,7 @@ func (a *app) view(c *ui.Context) {
 	a.replayResults = nil
 	a.mu.Unlock()
 	for _, result := range replays {
-		a.notify(notice{text: fmt.Sprintf("Replayed Capture #%d · %s %s → %d", result.source.id, result.source.method, result.source.path, result.reply.Status), action: locales.InspectReplay(), run: func() {
+		a.notify(notice{text: locales.ReplayedCapture(result.source.id, result.source.method, result.source.path, result.reply.Status), action: locales.InspectReplay(), run: func() {
 			// The response belongs to this exact send, not the next capture of
 			// the same URL. Never move the reader until they ask to inspect it.
 			if d := a.editCapture(result.source); d != nil {
@@ -3826,7 +3826,7 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	// A CONNECT status acknowledges a tunnel; it is not the status of an
 	// HTTP response from the destination.
 	if f.kind != "connect" && f.conn.error == "" && f.status >= 100 && f.status <= 599 {
-		filters = append(filters, do("flow.filter-status", fmt.Sprintf("Status: %d", f.status), func() {
+		filters = append(filters, do("flow.filter-status", locales.StatusCode(f.status), func() {
 			a.filterStatus = strconv.Itoa(f.status)
 			c.AnimationFrame()
 		}))
@@ -3847,7 +3847,7 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	)
 	var saveChosen action
 	if chosen := a.selectedFlows(); len(chosen) > 1 {
-		saveChosen = do("flow.save-chosen", fmt.Sprintf("Save %d requests to collection…", len(chosen)), func() { a.openCollectionSave(chosen) }).in("save")
+		saveChosen = do("flow.save-chosen", locales.SaveRequestsEllipsis(len(chosen)), func() { a.openCollectionSave(chosen) }).in("save")
 	}
 	return append(actions,
 		do("flow.pin", cmp.Or(pinLabel(f), "Pin"), func() { a.togglePin(f) }).in("keep"),
@@ -4066,16 +4066,16 @@ func (a *app) saveVars() {
 	}
 	name := strings.TrimSpace(a.varsName)
 	if name == "" && !a.varsGlobals {
-		a.varsProblem = "The environment needs a name."
+		a.varsProblem = locales.EnvironmentNeedsName()
 		return
 	}
 	if s := a.collectionRecording; s != nil && !a.varsGlobals && name == s.Environment && a.varsChoice != name {
-		a.varsProblem = "Select the recording environment before editing it; this draft does not include its recorded variables."
+		a.varsProblem = locales.SelectRecordingEnvironment()
 		return
 	}
 	initial, current, credentials, err := variablesOf(a.varsRows)
 	if err != nil {
-		a.varsProblem = "Variable names must be nonempty, unique and contain no braces."
+		a.varsProblem = locales.VariableNamesRules()
 		return
 	}
 	if a.varsGlobals {

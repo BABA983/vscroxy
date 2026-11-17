@@ -51,7 +51,7 @@ func (a *app) loadExperiments(path string) {
 	s.limits = a.experimentLimits()
 	log, err := loadExperiments(path, a.experimentLimits())
 	if err != nil {
-		s.problem, s.readOnly = "Experiments: "+err.Error(), true
+		s.problem, s.readOnly = locales.ExperimentsProblem(err.Error()), true
 		return
 	}
 	s.log = log
@@ -124,7 +124,7 @@ func (a *app) checkpointExperiments(c *ui.Context) {
 	select {
 	case err := <-s.results:
 		if err != nil {
-			s.problem = "Experiment checkpoint failed: " + err.Error()
+			s.problem = locales.ExperimentCheckpointFailed(err.Error())
 		} else {
 			s.problem = ""
 		}

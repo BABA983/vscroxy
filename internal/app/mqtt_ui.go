@@ -273,7 +273,7 @@ func mqttQoS(value string) byte {
 }
 
 func mqttMessageLabel(messages []request.MQTTMessage, i int) string {
-	return fmt.Sprintf("%d · %s", i+1, cmp.Or(messages[i].Name, messages[i].Topic, "Untitled message"))
+	return locales.IterationName(i+1, cmp.Or(messages[i].Name, messages[i].Topic, "Untitled message"))
 }
 
 // mqttEditor is the document's own tabs: connection, subscriptions, publish
@@ -925,7 +925,7 @@ func (a *app) subscribeMQTT(d *requestDocument) {
 	}
 	subs := cfg.TopicsToSubscribe()
 	if len(subs) == 0 {
-		u.problem = "Add at least one topic filter, or turn on at least one topic's On connect"
+		u.problem = locales.MqttNeedsTopic()
 		return
 	}
 	u.problem = ""

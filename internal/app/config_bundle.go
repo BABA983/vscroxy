@@ -268,8 +268,7 @@ func (a *app) exportConfigTo(path string) {
 		a.fail(locales.ExportConfiguration(), err)
 		return
 	}
-	text := fmt.Sprintf("Exported %d %s, %d %s and %d Host %s to %s", len(b.Rules), plural(len(b.Rules), "rule", "rules"),
-		len(b.Scripts), plural(len(b.Scripts), "script", "scripts"), len(a.profiles.set.Profiles), plural(len(a.profiles.set.Profiles), "profile", "profiles"), filepath.Base(path))
+	text := locales.ConfigExported(len(b.Rules), len(b.Scripts), len(a.profiles.set.Profiles), filepath.Base(path))
 	if len(notes) > 0 {
 		a.warn(text + " · " + strings.Join(notes, "; "))
 		return

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/locales"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -69,7 +70,7 @@ func (a *app) warn(text string)   { a.notify(notice{level: noticeWarning, text: 
 func (a *app) fail(what string, err error) {
 	n := notice{level: noticeError, text: what, detail: err.Error()}
 	if errors.Is(err, store.ErrChanged) {
-		n.action, n.run = "Reload", a.reloadFromDisk
+		n.action, n.run = locales.ReloadAction(), a.reloadFromDisk
 	}
 	a.notify(n)
 }

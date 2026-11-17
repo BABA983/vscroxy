@@ -50,7 +50,7 @@ func (a *app) drainSocketIO() {
 func (a *app) connectSocketIO(d *requestDocument) {
 	u := d.socketIOState()
 	if a.srv == nil || !a.srv.Running() {
-		u.problem = "Start capture before connecting Socket.IO"
+		u.problem = locales.StartCaptureBeforeSocketIO()
 		return
 	}
 	r := d.value().Request
@@ -93,7 +93,7 @@ func (a *app) sendSocketIOMessage(d *requestDocument, reply bool) {
 	if reply {
 		n, err := strconv.ParseUint(u.ackID, 10, 64)
 		if err != nil {
-			u.problem = "Select a pending server ACK request"
+			u.problem = locales.SelectPendingACK()
 			return
 		}
 		id = new(n)

@@ -49,9 +49,9 @@ func (s *structuredInspector) view(c *ui.Context, a *app, source inspectionBody,
 		if s.job.body != nil {
 			switch s.job.body.Format {
 			case "Form":
-				label = fmt.Sprintf("%d form fields · original order", len(s.job.body.Fields))
+				label = locales.FormFieldsOriginalOrder(len(s.job.body.Fields))
 			case "Multipart":
-				label = fmt.Sprintf("%d parts · files are not previewed", len(s.job.body.Parts))
+				label = locales.PartsNotPreviewed(len(s.job.body.Parts))
 			}
 		}
 		uikit.Tip(c, uikit.Meta(c, label).Grow(1).SingleLine(), label)

@@ -262,7 +262,7 @@ func (a *app) profileList(c *ui.Context, t *ui.Theme) {
 			}
 			if n := conflicts[p.Name]; n > 0 && p.On {
 				uikit.Tip(c, ui.Box(c).Size(7, 7).Radius(uikit.RadiusControl).Background(t.Warning).
-					Label(fmt.Sprintf("%d %s", n, plural(n, "conflict", "conflicts"))), locales.AHigherProfileMapsThe())
+					Label(locales.ConflictCount(n)), locales.AHigherProfileMapsThe())
 			}
 			uikit.Tip(c, uikit.Meta(c, fmt.Sprint(profileHosts(p))).Font(uikit.FontMono).FontFeatures("tnum"), locales.HostsMapped())
 		})
@@ -381,7 +381,7 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 					color, icon = t.Danger, checkFailIcon
 				}
 				line := st.Buffer.Pos(d.Start).Line + 1
-				message := fmt.Sprintf("Line %d · %s", line, d.Message)
+				message := locales.LineName(line, d.Message)
 				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Start).Children(func() {
 					ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline).TextColor(color)
 					uikit.Tip(c, uikit.Caption(c, message).TextColor(color).MaxLines(2), message)

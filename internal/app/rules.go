@@ -136,7 +136,7 @@ func (a *app) loadRuleBody() {
 		e.bodyNote = locales.CannotReadFile(err.Error())
 		return
 	} else if !utf8.Valid(data) {
-		e.bodyNote = "Binary content; edit it outside vscroxy."
+		e.bodyNote = locales.BinaryContentEditOutside()
 		return
 	}
 	e.bodyText = string(data)
@@ -188,7 +188,7 @@ func (a *app) ruleFromFlow(f flow, kind capture.RuleType) {
 
 func (a *app) applyRuleChanges(next []capture.Rule) bool {
 	if a.rulesPath == "" {
-		a.ruleUI.problem = "Rules storage is unavailable"
+		a.ruleUI.problem = locales.RulesStorageUnavailable()
 		return false
 	}
 	if err := a.writeRules(next); err != nil {
@@ -252,14 +252,14 @@ func (a *app) saveRule() {
 		if delay := strings.TrimSpace(e.delay); delay != "" {
 			ms, err := strconv.ParseInt(delay, 10, 64)
 			if err != nil || ms < 0 || ms > 60_000 {
-				e.problem = "Delay must be a whole number from 0 to 60000 ms"
+				e.problem = locales.DelayRange()
 				return
 			}
 			r.DelayMS = ms
 		}
 		status, err := strconv.Atoi(e.status)
 		if err != nil {
-			e.problem = "Response status must be a number between 200 and 599"
+			e.problem = locales.ResponseStatusRange()
 			return
 		}
 		r.Status = status
@@ -267,14 +267,14 @@ func (a *app) saveRule() {
 		// a malformed header line silently.
 		for line := range strings.SplitSeq(e.headers, "\n") {
 			if line = strings.TrimSpace(line); line != "" && !strings.Contains(line, ":") {
-				e.problem = "Response headers must use Name: Value, one per line"
+				e.problem = locales.ResponseHeadersFormat()
 				return
 			}
 		}
 		r.Headers = request.ParseHeaderBlock(e.headers)
 		if r.Target == "" && e.ruleBodyEdited() {
 			if a.rulesPath == "" {
-				e.problem = "Rules storage is unavailable"
+				e.problem = locales.RulesStorageUnavailable()
 				return
 			}
 			ext := ".txt"
@@ -311,11 +311,11 @@ func (a *app) saveRule() {
 			return
 		}
 		if err := os.MkdirAll(filepath.Dir(r.Target), 0o700); err != nil {
-			e.problem = "Write response file: " + err.Error()
+			e.problem = locales.WriteResponseFile(err.Error())
 			return
 		}
 		if err := store.WriteFile(r.Target, []byte(e.body.Buffer.String())); err != nil {
-			e.problem = "Write response file: " + err.Error()
+			e.problem = locales.WriteResponseFile(err.Error())
 			return
 		}
 		if r.Target != strings.TrimSpace(e.draft.Target) { // a new file in mocks
@@ -524,7 +524,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 			}
 			summary := locales.NoRuleActs()
 			if acting > 0 {
-				summary = fmt.Sprintf("%d %s, in the order numbered", acting, plural(acting, "rule acts", "rules act"))
+				summary = locales.RulesActInOrder(acting)
 			}
 			uikit.Meta(c, summary).SingleLine()
 			for _, p := range preview {
@@ -775,13 +775,13 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview [
 					case p.Step > 0:
 						pal := uikit.Colors(t)
 						ui.Box(c).Size(16, 16).Radius(8).Background(pal.Accent).AlignItems(ui.Center).Justify(ui.Center).
-							Label(fmt.Sprintf("Acts %s", ordinal(p.Step))).Children(func() {
+							Label(locales.ActsOrdinal(ordinal(p.Step))).Children(func() {
 							uikit.Caption(c, strconv.Itoa(p.Step)).FontWeight(500).TextColor(pal.AccentText).FontFeatures("tnum")
 						})
 					case preview == nil && a.srv != nil:
 						if n := a.srv.RuleHits(r); n > 0 {
 							uikit.Meta(c, strconv.Itoa(n)).Font(uikit.FontMono).FontFeatures("tnum").
-								Tooltip(fmt.Sprintf("Changed %d %s since launch", n, plural(n, "request", "requests")))
+								Tooltip(locales.RulesChangedSinceLaunch(n))
 						}
 					}
 				})
@@ -802,13 +802,13 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview [
 func ordinal(n int) string {
 	switch n {
 	case 1:
-		return "first"
+		return locales.OrdinalFirst()
 	case 2:
-		return "second"
+		return locales.OrdinalSecond()
 	case 3:
-		return "third"
+		return locales.OrdinalThird()
 	}
-	return fmt.Sprintf("%dth", n)
+	return locales.OrdinalNth(n)
 }
 
 // ruleDetail edits the chosen rule: what it matches, what it does, Save.
@@ -1031,7 +1031,7 @@ func (a *app) ruleScriptField(c *ui.Context, t *ui.Theme) {
 			if len(a.scripts.names) > 0 {
 				m.Separator()
 			}
-			if m.Item("New script").Chosen() {
+			if m.Item(locales.NewScript()).Chosen() {
 				text := newScriptText
 				if e.kind == "Code Mock" {
 					text = newMockScriptText

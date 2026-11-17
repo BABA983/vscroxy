@@ -8,6 +8,14 @@
       }
     }
   },
+  "@actsOrdinal": {
+    "placeholders": {
+      "ordinal": {
+        "type": "String"
+      }
+    }
+  },
+  "actsOrdinal": "Acts {ordinal}",
   "@addNoun": {
     "placeholders": {
       "noun": {
@@ -26,6 +34,20 @@
       }
     }
   },
+  "@addedUpdatedUnchanged": {
+    "placeholders": {
+      "added": {
+        "type": "int"
+      },
+      "updated": {
+        "type": "int"
+      },
+      "unchanged": {
+        "type": "int"
+      }
+    }
+  },
+  "addedUpdatedUnchanged": "{added} added · {updated} updated · {unchanged} unchanged",
   "@addonSavedNoParse": {
     "placeholders": {
       "name": {
@@ -39,6 +61,7 @@
   "addonSavedNoParse": "Addon saved · it does not parse, so require(\"{name}\") fails: {error}",
   "addonsEmptyHint": "Code to share between scripts: what an addon exports, rule scripts import from \"its name\" and request scripts require.",
   "addsToCollectionEnd": "Adds to the end of this collection.",
+  "allowListChip": "Allow list",
   "@allowedDomains": {
     "placeholders": {
       "index": {
@@ -71,6 +94,14 @@
     }
   },
   "appRuleEnabled": "App rule enabled for {app}; reconnect the client · decryption not yet verified",
+  "@appsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "appsCount": "{count, plural, one {# app} other {# apps}}",
   "@argumentsList": {
     "placeholders": {
       "args": {
@@ -102,6 +133,7 @@
   },
   "backToList": "Back to list",
   "bidirectionalStream": "Bidirectional stream",
+  "binaryContentEditOutside": "Binary content; edit it outside vscroxy.",
   "@blockData": {
     "placeholders": {
       "kind": {
@@ -120,6 +152,90 @@
   "breakpointRequestPaused": "Breakpoint · request paused",
   "breakpointResponsePaused": "Breakpoint · response paused",
   "breakpointWebSocketPaused": "Breakpoint · WebSocket message paused",
+  "breakpointsChip": "Breakpoints",
+  "@canceledCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "canceledCount": " · {count} canceled",
+  "cancelledStatus": "Cancelled",
+  "@captureFilterApplied": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "captureFilterApplied": "Applied {name} to this view.",
+  "@captureFilterDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "captureFilterDeleted": "Deleted {name}.",
+  "@captureFilterExists": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "captureFilterExists": "A filter named {name} already exists.",
+  "@captureFilterRenamed": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "to": {
+        "type": "String"
+      }
+    }
+  },
+  "captureFilterRenamed": "Renamed {from} to {to}.",
+  "@captureFilterSaved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "captureFilterSaved": "Saved {name}.",
+  "captureNotAvailable": "Capture is not available",
+  "@captureNumberMethodURL": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      },
+      "method": {
+        "type": "String"
+      },
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "captureNumberMethodURL": "Capture #{number} · {method} {url}",
+  "@captureSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "captureSelected": "Capture · {count} selected requests",
+  "@capturedNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "capturedNumber": "Captured #{number}",
   "@capturedRequestsCount": {
     "placeholders": {
       "count": {
@@ -127,6 +243,17 @@
       }
     }
   },
+  "@capturedResponseDetail": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      },
+      "type": {
+        "type": "String"
+      }
+    }
+  },
+  "capturedResponseDetail": "Captured response · {status} · {type}",
   "@capturedSoFar": {
     "placeholders": {
       "count": {
@@ -134,6 +261,14 @@
       }
     }
   },
+  "@capturesOverview": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "capturesOverview": "{count} captures · session overview",
   "@catalogSummary": {
     "placeholders": {
       "tools": {
@@ -214,7 +349,10 @@
   },
   "chipTraffic": "Traffic: {filter}",
   "chooseLocalResponseFile": "Choose local response file",
+  "choosePortRange": "Choose a proxy port between 1 and 65534; the certificate service uses the next port",
   "chooseResponseFolder": "Choose a folder to answer from",
+  "chooseSavedRequest": "Choose at least one saved request",
+  "chooseToolFirst": "Choose a tool from the catalog first.",
   "@chosenCount": {
     "placeholders": {
       "count": {
@@ -260,6 +398,32 @@
   },
   "conditionsMatchAll": "All conditions must match",
   "conditionsMatchAny": "Any content field may match (OR); search, sidebar, protocol and time range still narrow",
+  "@configExported": {
+    "placeholders": {
+      "rules": {
+        "type": "int"
+      },
+      "scripts": {
+        "type": "int"
+      },
+      "profiles": {
+        "type": "int"
+      },
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "configExported": "Exported {rules, plural, one {# rule} other {# rules}}, {scripts, plural, one {# script} other {# scripts}} and {profiles, plural, one {# Host profile} other {# Host profiles}} to {file}",
+  "confirmTrustNetwork": "Confirm that you trust this network and the allowed devices",
+  "@conflictCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "conflictCount": "{count, plural, one {# conflict} other {# conflicts}}",
   "@conflictsCount": {
     "placeholders": {
       "count": {
@@ -269,6 +433,7 @@
   },
   "connect200Failed": "CONNECT 200 · failed",
   "connectClientToCapture": "Connect a client to start capturing",
+  "connectionDiagnosticsReadOnly": "Connection diagnostics · read-only until you press a fix",
   "@containsValue": {
     "placeholders": {
       "index": {
@@ -313,6 +478,14 @@
       }
     }
   },
+  "@contractsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "contractsCount": "{count} contracts",
   "@cookieFileUnavailable": {
     "placeholders": {
       "problem": {
@@ -330,6 +503,18 @@
   },
   "cookiesInMemory": "Cookies stay in memory until the app quits. Session cookies are never saved.",
   "cookiesPersistentSaved": "Persistent cookies are saved to ~/.vscroxy/cookies.json (0600), outside collections and exports. Session cookies are never saved.",
+  "copyCAAndroidDevice": "Copy CA to Android device",
+  "@countOfTotal": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "countOfTotal": "{count} of {total}",
   "createsNewCollection": "Creates a new collection.",
   "@credentialSummary": {
     "placeholders": {
@@ -348,6 +533,23 @@
       }
     }
   },
+  "credentialsMax255": "Username and password must each be at most 255 bytes",
+  "csvOrJSON": "CSV or JSON",
+  "@dataRunSummary": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      },
+      "columns": {
+        "type": "String"
+      }
+    }
+  },
+  "dataRunSummary": "{name} · {count, plural, one {# row} other {# rows}} · {columns}",
+  "decodeSelection": "Decode selection…",
   "@definesHooks": {
     "placeholders": {
       "hooks": {
@@ -356,6 +558,7 @@
     }
   },
   "definesHooks": "Defines {hooks}",
+  "delayRange": "Delay must be a whole number from 0 to 60000 ms",
   "@deleteConditionConfirm": {
     "placeholders": {
       "name": {
@@ -387,6 +590,14 @@
     }
   },
   "deletedHostProfile": "Deleted Host profile {name}",
+  "deviceAlreadyPointsAtVscroxy": "The device already points at vscroxy; use Undo proxy to clear it",
+  "diagActualTraffic": "Actual traffic",
+  "diagCertificate": "Certificate",
+  "diagClientProxy": "Client proxy",
+  "diagDeviceAccess": "Device access",
+  "diagListener": "Listener",
+  "diagProcessProxy": "Process proxy",
+  "diagSystemProxy": "System proxy",
   "@dirNotRead": {
     "placeholders": {
       "path": {
@@ -403,6 +614,17 @@
     }
   },
   "disableHTTPSFor": "Disable HTTPS for {app}",
+  "@domainAndLocalRules": {
+    "placeholders": {
+      "domains": {
+        "type": "int"
+      },
+      "locals": {
+        "type": "int"
+      }
+    }
+  },
+  "domainAndLocalRules": "{domains} domain rules · {locals} local executable rules",
   "draftContextPreScript": "Draft context · pre-script may generate or replace values",
   "draftContextResolved": "Draft context · resolved from variables and Vault",
   "@draftMatchesAttemptAt": {
@@ -535,6 +757,24 @@
     }
   },
   "engineNoCloseCodes": "{state}. The engine does not provide close codes or an end reason.",
+  "enterAbsoluteHTTPURL": "Enter an absolute http:// or https:// URL.",
+  "enterAbsoluteURLNoCredentials": "Enter an absolute HTTP(S) URL without embedded credentials",
+  "enterCanonicalBase64": "Enter canonical padded base64 for the binary message.",
+  "enterFinalStatus": "Enter a final response status from 200 to 599.",
+  "enterGraphQLEndpointFirst": "Enter the GraphQL endpoint URL first.",
+  "enterPasswordOrOff": "Enter a password, or turn authentication off",
+  "enterPortRange": "Enter a port from 1024 to 65535, or leave empty for automatic selection",
+  "enterUsernameOrOff": "Enter a username, or turn authentication off",
+  "enterValidHTTPMethod": "Enter a valid HTTP method.",
+  "environmentNeedsName": "The environment needs a name.",
+  "@environmentSourceNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "environmentSourceNamed": "Environment: {name}",
   "@errorsCount": {
     "placeholders": {
       "count": {
@@ -571,6 +811,14 @@
       }
     }
   },
+  "@exampleCapture": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "exampleCapture": "Example capture {index}",
   "@exampleEditorName": {
     "placeholders": {
       "name": {
@@ -602,6 +850,14 @@
     }
   },
   "expandAction": "Expand",
+  "@experimentCheckpointFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "experimentCheckpointFailed": "Experiment checkpoint failed: {error}",
   "@experimentEnvironment": {
     "placeholders": {
       "summary": {
@@ -613,6 +869,14 @@
     }
   },
   "experimentEnvironment": "{summary} · Environment: {environment}",
+  "@experimentNotRetained": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "experimentNotRetained": "Experiment not retained: {error}",
   "@experimentNumber": {
     "placeholders": {
       "id": {
@@ -622,6 +886,14 @@
   },
   "experimentsNoRetainedDraft": "No retained sends for this draft. Opening history never sends.",
   "experimentsNoRetainedSource": "No retained experiments for this source. Open a linked draft to continue; opening never sends.",
+  "@experimentsProblem": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "experimentsProblem": "Experiments: {error}",
   "@exportCollectionPostman": {
     "placeholders": {
       "name": {
@@ -684,6 +956,7 @@
   "filterHexRows": "Filter hex rows (hex bytes or text)…",
   "filterJSONPaths": "Filter JSON paths and values…",
   "findInBodyLabel": "Find in body",
+  "finishedStatus": "Finished",
   "focusInspector": "Focus inspector",
   "focusRequestList": "Focus request list",
   "focusRequestURL": "Focus request URL",
@@ -696,6 +969,14 @@
     }
   },
   "folderSettings": "Folder “{name}” settings…",
+  "@formFieldsOriginalOrder": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "formFieldsOriginalOrder": "{count} form fields · original order",
   "formatGraphQLQuery": "Format GraphQL query",
   "@globalsCount": {
     "placeholders": {
@@ -727,6 +1008,7 @@
       }
     }
   },
+  "grpcUnaryOnly": "Scripts and Checks run with unary methods; the streaming client runs without them",
   "@handshakeAccepted": {
     "placeholders": {
       "url": {
@@ -754,6 +1036,14 @@
     }
   },
   "headerExistsNamed": "Header exists: {name}",
+  "@headerLineInvalid": {
+    "placeholders": {
+      "line": {
+        "type": "int"
+      }
+    }
+  },
+  "headerLineInvalid": "Header line {line} must be a valid Name: Value pair.",
   "@headerName": {
     "placeholders": {
       "index": {
@@ -784,6 +1074,7 @@
     }
   },
   "hideCookieValues": "Hide cookie values",
+  "hideCredentials": "Hide credentials",
   "@hideRow": {
     "placeholders": {
       "noun": {
@@ -830,6 +1121,8 @@
       }
     }
   },
+  "importCAJavaTruststore": "Import CA into Java truststore",
+  "importedRemainder": "Everything else was imported. These parts have no equivalent here yet:",
   "@inScenario": {
     "placeholders": {
       "scenario": {
@@ -846,6 +1139,7 @@
     }
   },
   "insertVariable": "Insert '{{'{name}'}}'",
+  "installCAIOSSimulator": "Install CA in iOS simulator",
   "@installationFailed": {
     "placeholders": {
       "error": {
@@ -854,6 +1148,14 @@
     }
   },
   "installationFailed": "Installation failed: {error}",
+  "@invalidMessageNothingSent": {
+    "placeholders": {
+      "encoding": {
+        "type": "String"
+      }
+    }
+  },
+  "invalidMessageNothingSent": "Invalid {encoding} message; nothing sent",
   "invalidSearchPattern": "Invalid search pattern",
   "@isSubscriptionHostProfile": {
     "placeholders": {
@@ -863,6 +1165,18 @@
     }
   },
   "isSubscriptionHostProfile": "{name} is a subscription; add the mapping to another profile",
+  "@iterationName": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "iterationName": "{index} · {name}",
+  "iterationsRange": "Iterations must be between 1 and 1000",
   "@jdkCACerts": {
     "placeholders": {
       "path": {
@@ -906,6 +1220,28 @@
     }
   },
   "kindPath": "{kind} · {path}",
+  "@kindWithSize": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "size": {
+        "type": "int"
+      }
+    }
+  },
+  "kindWithSize": "{kind} · {size} B",
+  "@lineName": {
+    "placeholders": {
+      "line": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "lineName": "Line {line} · {name}",
   "@loadedFrom": {
     "placeholders": {
       "source": {
@@ -934,6 +1270,18 @@
     }
   },
   "mcpVersion": "MCP {version} · {transport}",
+  "messageEditLimit": "Message edits are limited to 1 MiB.",
+  "@messageIndexName": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "messageIndexName": "Message {index} · {name}",
   "@messageTypeNamed": {
     "placeholders": {
       "typeName": {
@@ -968,6 +1316,16 @@
   "mockFromExamples": "Mock “{path}” from examples",
   "mockThisResponse": "Mock this response…",
   "mocksEmptyHint": "Answer requests from local files or JavaScript. Create a Map Local or Code Mock rule here; saved examples can also become mocks.",
+  "mqttNeedsTopic": "Add at least one topic filter, or turn on at least one topic's On connect",
+  "@networkRuleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "networkRuleCount": "Network rules: {count}",
+  "newCollectionMenu": "New collection",
   "noAddons": "No addons",
   "noAuthSet": "No collection or folder sets auth, so none is sent.",
   "noBodyBytes": "No body bytes available; see the capture warning above",
@@ -1012,6 +1370,17 @@
     }
   },
   "nothingToImport": "{what}: nothing to import; {warnings}",
+  "@numberedName": {
+    "placeholders": {
+      "base": {
+        "type": "String"
+      },
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "numberedName": "{base} {number}",
   "@observedFailure": {
     "placeholders": {
       "stage": {
@@ -1020,6 +1389,7 @@
     }
   },
   "observedFailure": "Observed failure · {stage}",
+  "oneContract": "1 contract",
   "openConnectionTab": "Open this exchange's Connection tab: the recorded log, addresses and rules",
   "@openExampleNamed": {
     "placeholders": {
@@ -1037,6 +1407,19 @@
     }
   },
   "operationNamed": "Operation · {name}",
+  "ordinalFirst": "first",
+  "@ordinalNth": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "ordinalNth": "{n}th",
+  "ordinalSecond": "second",
+  "ordinalThird": "third",
+  "originCurrent": "current",
+  "originInitial": "initial",
   "@overviewScopeSession": {
     "placeholders": {
       "count": {
@@ -1067,7 +1450,32 @@
     }
   },
   "parameterSection": "{location} parameters",
+  "@partsNotPreviewed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "partsNotPreviewed": "{count} parts · files are not previewed",
   "pauseView": "Pause view",
+  "pin": "Pin",
+  "@portUsedHTTPProxy": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "portUsedHTTPProxy": "Port {port} is already used by the HTTP proxy",
+  "@portUsedReverseProxy": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "portUsedReverseProxy": "Port {port} is already used by a reverse proxy",
   "preparingRequests": "Preparing requests and examples…",
   "previewOnlyNothingChanged": "Preview only · nothing changed",
   "privateSlotSavedReview": "Private slot saved · review save error",
@@ -1087,6 +1495,15 @@
     }
   },
   "protobufJSONDirection": "{direction} · protobuf JSON",
+  "@proxyResponseNumbered": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "proxyResponseNumbered": "{number} · proxy response",
+  "queryCancelled": "Query cancelled",
   "@queryEditLabel": {
     "placeholders": {
       "condition": {
@@ -1120,6 +1537,14 @@
     }
   },
   "queryRemoveTip": "Remove {condition}",
+  "@readExchange": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "readExchange": "Read exchange {index}",
   "@readOnlyInspection": {
     "placeholders": {
       "format": {
@@ -1144,6 +1569,7 @@
     }
   },
   "recordedFailure": "Recorded failure · {stage}",
+  "reloadAction": "Reload",
   "removeBodiesAndStreams": "Remove request and response bodies, binary payloads and all stream messages.",
   "@removeColumnNamed": {
     "placeholders": {
@@ -1156,6 +1582,23 @@
   "replaceBodyJSONCells": "Replace request and response JSON cells.",
   "replaceHeaderCellsExceptTypeAccept": "Replace header-derived cells except Content-Type and Accept.",
   "replaceHeadersExceptTypeAccept": "Replace every header and trailer value except Content-Type and Accept; remove cookies.",
+  "@replayedCapture": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      },
+      "method": {
+        "type": "String"
+      },
+      "url": {
+        "type": "String"
+      },
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "replayedCapture": "Replayed Capture #{number} · {method} {url} → {status}",
   "@reproBundleSavedTo": {
     "placeholders": {
       "path": {
@@ -1186,6 +1629,8 @@
     }
   },
   "responseFromTime": "Response from {time}",
+  "responseHeadersFormat": "Response headers must use Name: Value, one per line",
+  "responseStatusRange": "Response status must be a number between 200 and 599",
   "resumeView": "Resume",
   "@returnToOriginalTab": {
     "placeholders": {
@@ -1197,9 +1642,76 @@
   "returnToOriginalTab": "Return to the original editable tab without overwriting its current edits: {name}",
   "reveal": "Reveal",
   "revealCookieValues": "Reveal cookie values",
+  "@rulesActInOrder": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "rulesActInOrder": "{count, plural, one {# rule acts, in the order numbered} other {# rules act, in the order numbered}}",
+  "@rulesChangedSinceLaunch": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "rulesChangedSinceLaunch": "{count, plural, one {Changed # request since launch} other {Changed # requests since launch}}",
   "rulesEmptyHint": "Map, redirect, block, script or pause matching requests. Create one here, or from a request’s Tools menu.",
+  "rulesStorageUnavailable": "Rules storage is unavailable",
+  "@runNumberLabel": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "runNumberLabel": "Run #{number}",
+  "@runNumberResult": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "runNumberResult": "Run #{number} result",
   "runResultsLimitTip": "Displaying latest 1000 results; closing keeps a run active",
+  "runningStatus": "Running…",
+  "@saveRequestsEllipsis": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "saveRequestsEllipsis": "Save {count} requests to collection…",
+  "@savedCaptureFiltersProblem": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "savedCaptureFiltersProblem": "Saved capture filters: {error}",
+  "savedFilterNeedsName": "A saved filter needs a name.",
   "savedNoRequestsSent": "Saved · no requests sent",
+  "@savedProtobufSchema": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "savedProtobufSchema": "Saved protobuf schema: {error}",
+  "@savedSessionsEvidence": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "savedSessionsEvidence": "{count} saved sessions · read-only evidence",
   "scenarioOff": "Off: its rules do nothing.",
   "scenarioOn": "On: its rules apply. Rules with no scenario also apply.",
   "schemaFetching": "Schema · fetching…",
@@ -1213,6 +1725,18 @@
     }
   },
   "schemaProblem": "Schema: {problem}",
+  "schemaResponseIgnored": "Schema response ignored: the endpoint URL changed while fetching.",
+  "@schemaTypes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "schemaTypes": "Schema · {count} types",
+  "scopeDynamic": "Dynamic",
+  "scopeGlobal": "Global",
+  "scopeVault": "Vault",
   "@scriptImportAddon": {
     "placeholders": {
       "name": {
@@ -1244,9 +1768,21 @@
     }
   },
   "searchingIn": "{note} · searching…",
+  "secretNamesRules": "Secret names must be nonempty, unique and contain no spaces or braces.",
+  "selectPendingACK": "Select a pending server ACK request",
+  "selectRecordingEnvironment": "Select the recording environment before editing it; this draft does not include its recorded variables.",
   "sendRequestForExperiment": "Send a request to record an experiment.",
   "serverStream": "Server stream",
   "serverToClient": "Server → client",
+  "setDeadlineRange": "Set a deadline between 1 and 3600 seconds",
+  "@settingsNotSaved": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsNotSaved": "Settings were not saved: {error}",
   "@sha256Fingerprint": {
     "placeholders": {
       "fingerprint": {
@@ -1255,6 +1791,7 @@
     }
   },
   "sha256Fingerprint": "SHA-256: {fingerprint}",
+  "shellUpstream": "Upstream",
   "sideRequest": "request",
   "sideResponse": "response",
   "@skippedNamed": {
@@ -1265,6 +1802,23 @@
     }
   },
   "skippedNamed": "{name} · skipped",
+  "@socketIOState": {
+    "placeholders": {
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "socketIOState": "Socket.IO · {state}",
+  "socksLocationUnavailable": "Settings location is unavailable; SOCKS5 settings were not saved",
+  "@socksSettingsNotSaved": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "socksSettingsNotSaved": "SOCKS5 settings were not saved: {error}",
   "@sslCABundleNote": {
     "placeholders": {
       "path": {
@@ -1281,6 +1835,9 @@
     }
   },
   "stageFailed": "{stage} failed",
+  "startCaptureBeforeSocketIO": "Start capture before connecting Socket.IO",
+  "startCaptureProxyFirst": "Start the local capture proxy successfully before enabling device access",
+  "startLocalProxyFirst": "Start the local proxy first",
   "@startedAt": {
     "placeholders": {
       "time": {
@@ -1292,6 +1849,42 @@
     }
   },
   "startedAt": "Started {time} · {state}",
+  "@startedFailed": {
+    "placeholders": {
+      "started": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
+  "startedFailed": "{started}/{total} started · {failed} failed",
+  "@statusCode": {
+    "placeholders": {
+      "code": {
+        "type": "int"
+      }
+    }
+  },
+  "statusCode": "Status: {code}",
+  "@statusTimePath": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "statusTimePath": "{status} · {time} · {path}",
   "@stdioCommand": {
     "placeholders": {
       "command": {
@@ -1301,7 +1894,10 @@
   },
   "stdioCommand": "stdio · {command}",
   "stdioProcess": "stdio process",
+  "stoppingState": "Stopping",
+  "stoppingStatus": "Stopping…",
   "stoppingWaitingForBody": "Stopping · waiting for body read",
+  "subprotocolsNotBoth": "Enter subprotocols in the dedicated field or headers, not both",
   "@subscribedURL": {
     "placeholders": {
       "url": {
@@ -1367,6 +1963,45 @@
     }
   },
   "templateNamed": "Template: {name}",
+  "textMessageUTF8": "Text messages must be valid UTF-8.",
+  "@timeKindSize": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      },
+      "kind": {
+        "type": "String"
+      },
+      "size": {
+        "type": "int"
+      }
+    }
+  },
+  "timeKindSize": "{time} · {kind} · {size} B",
+  "timingDNSLookup": "DNS lookup",
+  "timingDownload": "Download",
+  "@timingExactOffset": {
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      },
+      "third": {
+        "type": "String"
+      },
+      "offset": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "timingExactOffset": "{first} · {second} · {third}; exact offset {offset}, duration {duration}",
+  "timingProxyObserved": "Proxy-observed",
+  "timingWaiting": "Waiting",
   "@titleDraft": {
     "placeholders": {
       "title": {
@@ -1397,6 +2032,7 @@
     }
   },
   "toggleJSON": "{action} {side} JSON {path}",
+  "toolSchemaNotJSON": "The tool's input schema is not valid JSON.",
   "@totalBytes": {
     "placeholders": {
       "bytes": {
@@ -2312,6 +2948,8 @@
   "unidentified": "unidentified",
   "unknownLower": "unknown",
   "unknownStage": "unknown stage",
+  "unknownType": "unknown type",
+  "unpin": "Unpin",
   "unresolvedReviewVariables": "unresolved (review variables)",
   "@updatedAgo": {
     "placeholders": {
@@ -2322,6 +2960,8 @@
   },
   "updatedAgo": "Updated · {ago}",
   "updating": "Updating…",
+  "upstreamError": "Upstream error",
+  "upstreamLoading": "Upstream loading",
   "@usedByChanges": {
     "placeholders": {
       "usedBy": {
@@ -2351,6 +2991,7 @@
       }
     }
   },
+  "variableNamesRules": "Variable names must be nonempty, unique and contain no braces.",
   "@variablesCount": {
     "placeholders": {
       "name": {
@@ -2382,6 +3023,7 @@
       }
     }
   },
+  "waitSchemaDiscovery": "Wait for schema discovery to finish",
   "@waitingResponseTimeout": {
     "placeholders": {
       "seconds": {
@@ -5170,10 +5812,26 @@
   "willQos": "Will QoS",
   "windowTooNarrowForTheSidebar": "The window is too narrow for the sidebar (under {width} points)",
   "wireEvidenceNotCurrentRules": "Wire evidence, not current rules. Redirect hops stay separate; source comparison uses the client result.",
+  "@wireEvidenceNotRetained": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "wireEvidenceNotRetained": "Wire evidence not retained: {error}",
   "wireshark": "Wireshark",
   "workingDirectory": "Working directory",
   "workstation": "Workstation",
   "writeNonSensitiveCurrentValues": "Write non-sensitive Current values into Initial; credentials stay local",
+  "@writeResponseFile": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "writeResponseFile": "Write response file: {error}",
   "writeTlsSecretsToA": "Write TLS secrets to a file Wireshark reads to decrypt this capture. Applies after a restart.",
   "writesTheInitialValuesShown": "Writes the Initial values shown here, saved or not, in Postman's environment format; Current values are excluded",
   "shownOfCaptured": "{shown} of {captured}",

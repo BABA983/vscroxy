@@ -96,3 +96,27 @@ Ctrl K
 <0.01 ms
  · gzip
 from "
+https://
+GET
+%d ms
+%.2f ms
+ · %d B
+#%d · %s
+#%d · %s · %s · %d B
+%s · %d×%d
+%X
+%.0f%%
+%dxx
++%d
+{%d}
+[%d]
+%d × %d px
+vault:
+xml
+json
+cURL (Bash)
+Raw HTTP
+%d · %s · %d · %d ms
+#%d · %s · %d · %d ms
+missing-git
+not-a-repo

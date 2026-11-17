@@ -320,7 +320,7 @@ func (a *app) retryUpstreamNow() {
 func (a *app) applyUpstreamSettings(settings upstream.Settings, secrets map[string]string, message string) {
 	u := &a.upstreamUI
 	if a.srv == nil {
-		u.problem = "Capture is not available"
+		u.problem = locales.CaptureNotAvailable()
 		return
 	}
 	retrying := a.upstreamRetry.retrying

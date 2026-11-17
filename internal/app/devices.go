@@ -82,16 +82,16 @@ func (a *app) openDevices() {
 func (a *app) enableDevices() {
 	d := &a.deviceUI
 	if a.srv == nil || !a.srv.Running() {
-		d.problem = "Start the local capture proxy successfully before enabling device access"
+		d.problem = locales.StartCaptureProxyFirst()
 		return
 	}
 	if !d.consent {
-		d.problem = "Confirm that you trust this network and the allowed devices"
+		d.problem = locales.ConfirmTrustNetwork()
 		return
 	}
 	port, err := strconv.Atoi(strings.TrimSpace(d.port))
 	if err != nil || port < 1 || port > 65534 {
-		d.problem = "Choose a proxy port between 1 and 65534; the certificate service uses the next port"
+		d.problem = locales.ChoosePortRange()
 		return
 	}
 	var ask func(netip.Addr) lan.Verdict

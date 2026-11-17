@@ -184,7 +184,7 @@ func (a *app) grpcTLSConfig(endpoint string) (string, *tls.Config, error) {
 func (a *app) sendGRPC(d *requestDocument) {
 	g := d.grpcState()
 	if g.loading != nil {
-		g.problem = "Wait for schema discovery to finish"
+		g.problem = locales.WaitSchemaDiscovery()
 		return
 	}
 	method, err := g.schema.method(d.grpcConfig.Method)
@@ -197,7 +197,7 @@ func (a *app) sendGRPC(d *requestDocument) {
 		return
 	}
 	if d.composePre != "" || d.composePost != "" || d.checks != (request.Checks{}) {
-		g.problem = "Scripts and Checks run with unary methods; the streaming client runs without them"
+		g.problem = locales.GrpcUnaryOnly()
 		return
 	}
 	r := d.value().Request
@@ -209,7 +209,7 @@ func (a *app) sendGRPC(d *requestDocument) {
 	}
 	seconds := cmp.Or(d.grpcConfig.TimeoutSeconds, 30)
 	if seconds < 1 || seconds > 3600 {
-		g.problem = "Set a deadline between 1 and 3600 seconds"
+		g.problem = locales.SetDeadlineRange()
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(seconds)*time.Second)
@@ -460,7 +460,7 @@ func (a *app) sendUnaryGRPC(d *requestDocument) {
 	g := d.grpcState()
 	seconds := cmp.Or(d.grpcConfig.TimeoutSeconds, 30)
 	if seconds < 1 || seconds > 3600 {
-		g.problem = "Set a deadline between 1 and 3600 seconds"
+		g.problem = locales.SetDeadlineRange()
 		return
 	}
 	d.composeTests, d.composeReplies, d.console, d.composeExchanges = nil, nil, nil, nil

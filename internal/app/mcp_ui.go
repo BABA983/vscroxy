@@ -198,12 +198,12 @@ func (a *app) mcpFillArguments(d *requestDocument) {
 		}
 	}
 	if tool == nil {
-		u.problem = "Choose a tool from the catalog first."
+		u.problem = locales.ChooseToolFirst()
 		return
 	}
 	var schema map[string]any
 	if err := json.Unmarshal([]byte(tool.InputSchema), &schema); err != nil {
-		u.problem = "The tool's input schema is not valid JSON."
+		u.problem = locales.ToolSchemaNotJSON()
 		return
 	}
 	data, err := json.Marshal(mcpSchemaSkeleton(schema), jsontext.WithIndent("  "))

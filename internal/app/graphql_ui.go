@@ -137,7 +137,7 @@ func (a *app) drainGraphQL() {
 				continue
 			}
 			if result.source != d.composeURL {
-				g.problem = "Schema response ignored: the endpoint URL changed while fetching."
+				g.problem = locales.SchemaResponseIgnored()
 				continue
 			}
 			d.graphql.Schema, d.graphql.SchemaSource = result.schema, result.source
@@ -161,7 +161,7 @@ func (a *app) fetchGraphQLSchema(d *requestDocument) {
 		return
 	}
 	if strings.TrimSpace(d.composeURL) == "" {
-		g.problem = "Enter the GraphQL endpoint URL first."
+		g.problem = locales.EnterGraphQLEndpointFirst()
 		return
 	}
 	r := d.draft()
@@ -278,7 +278,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 		case g.loading != nil:
 			statusText, statusTip = locales.SchemaFetching(), ""
 		case schema != nil:
-			statusText = fmt.Sprintf("Schema · %d types", schema.TypeCount())
+			statusText = locales.SchemaTypes(schema.TypeCount())
 			if d.graphql.SchemaSource != "" {
 				statusTip = locales.LoadedFrom(d.graphql.SchemaSource)
 			} else {

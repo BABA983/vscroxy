@@ -373,18 +373,18 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 func (a *app) footerCountsText() string {
 	switch a.page {
 	case pageDiagnostics:
-		return "Connection diagnostics · read-only until you press a fix"
+		return locales.ConnectionDiagnosticsReadOnly()
 	case pageOverview:
-		return fmt.Sprintf("%d captures · session overview", len(a.flows))
+		return locales.CapturesOverview(len(a.flows))
 	case pageSession:
-		return fmt.Sprintf("%d saved sessions · read-only evidence", len(a.sessions.items))
+		return locales.SavedSessionsEvidence(len(a.sessions.items))
 	case pageRequest:
 		if d := a.requestDocument; d != nil && d.protocol == "Socket.IO" {
 			state := "Not connected"
 			if d.socketIOState().session != nil {
 				state = stateLabel(d.socketIOState().session.snapshot().state)
 			}
-			return "Socket.IO · " + state
+			return locales.SocketIOState(state)
 		}
 	case pageRuns:
 		n := 0
@@ -404,9 +404,9 @@ func (a *app) footerCountsText() string {
 		return count
 	case pageAPI:
 		if len(a.apis) == 1 {
-			return "1 contract"
+			return locales.OneContract()
 		}
-		return fmt.Sprintf("%d contracts", len(a.apis))
+		return locales.ContractsCount(len(a.apis))
 	}
 	if !a.page.capture() {
 		env := locales.NoEnvironment()
@@ -486,11 +486,11 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 	networkRules := a.activeNetworkRules()
 	noCaching := a.srv != nil && a.srv.NoCaching()
 	if s := a.collectionRecording; s != nil {
-		state := "Stopped"
+		state := locales.Stopped()
 		if s.Active {
-			state = "Recording"
+			state = locales.RecordingState()
 		} else if s.Busy {
-			state = "Stopping"
+			state = locales.StoppingState()
 		}
 		chip := footerChip{id: "collection-recording", label: state + " → " + s.Collection,
 			openLabel: locales.CollectionRecordingStatus(),
@@ -506,7 +506,7 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 		chips = append(chips, chip)
 	}
 	if a.breakOn {
-		chips = append(chips, footerChip{id: "breakpoints", label: "Breakpoints", tip: "Edit breakpoint rules", icon: breakIcon,
+		chips = append(chips, footerChip{id: "breakpoints", label: locales.BreakpointsChip(), tip: "Edit breakpoint rules", icon: breakIcon,
 			open: a.openRules, off: func() {
 				a.breakOn = false
 				if a.srv != nil {
@@ -519,15 +519,15 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 			open: func() { a.openNetwork() }, off: func() { a.setThrottle(capture.Presets[0]) }})
 	}
 	if networkRules > 0 {
-		chips = append(chips, footerChip{id: "network-rules", label: fmt.Sprintf("Network rules: %d", networkRules),
+		chips = append(chips, footerChip{id: "network-rules", label: locales.NetworkRuleCount(networkRules),
 			tip: "Edit scoped network conditions", icon: networkIcon, open: a.openNetworkRules, off: func() { a.disableNetworkRules() }})
 	}
 	if noCaching {
-		chips = append(chips, footerChip{id: "no-caching", label: "No Caching", tip: "Change caching and network conditions", icon: cacheIcon,
+		chips = append(chips, footerChip{id: "no-caching", label: locales.NoCaching(), tip: "Change caching and network conditions", icon: cacheIcon,
 			open: func() { a.openNetwork() }, off: func() { a.srv.SetNoCaching(false) }})
 	}
 	if a.allowOn {
-		chips = append(chips, footerChip{id: "allow-list", label: "Allow list", tip: "Edit the allow list", icon: filterIcon,
+		chips = append(chips, footerChip{id: "allow-list", label: locales.AllowListChip(), tip: "Edit the allow list", icon: filterIcon,
 			open: func() { a.openSettings(4) }, off: func() {
 				a.allowOn = false
 				a.applyAllow()
@@ -558,14 +558,14 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 		chips = append(chips, hosts)
 	}
 	if a.upstreamProblem != "" {
-		label := "Upstream error"
+		label := locales.UpstreamError()
 		if a.upstreamLoading {
-			label = "Upstream loading"
+			label = locales.UpstreamLoading()
 		}
 		chips = append(chips, footerChip{id: "upstream-error", label: label, tip: a.upstreamProblem, icon: upstreamIcon, danger: true,
 			open: func() { a.openSettings(1) }, off: a.clearUpstream})
 	} else if a.upstream != "" {
-		chips = append(chips, footerChip{id: "upstream", label: "Upstream", tip: "Edit upstream proxy settings", icon: upstreamIcon,
+		chips = append(chips, footerChip{id: "upstream", label: locales.ShellUpstream(), tip: "Edit upstream proxy settings", icon: upstreamIcon,
 			open: func() { a.openSettings(1) }, off: a.clearUpstream})
 	}
 	return chips

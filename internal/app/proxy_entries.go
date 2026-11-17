@@ -96,23 +96,23 @@ func (a *app) saveSOCKS() {
 	if input := strings.TrimSpace(a.socksPortInput); input != "" {
 		n, err := strconv.Atoi(input)
 		if err != nil || n < 1024 || n > 65535 {
-			a.socksProblem = "Enter a port from 1024 to 65535, or leave empty for automatic selection"
+			a.socksProblem = locales.EnterPortRange()
 			return
 		}
 		port = n
 		if port == a.proxyPort {
-			a.socksProblem = fmt.Sprintf("Port %d is already used by the HTTP proxy", port)
+			a.socksProblem = locales.PortUsedHTTPProxy(port)
 			return
 		}
 		if a.srv != nil {
 			if p, err := strconv.Atoi(portOfAddr(a.srv.Addr())); err == nil && p == port {
-				a.socksProblem = fmt.Sprintf("Port %d is already used by the HTTP proxy", port)
+				a.socksProblem = locales.PortUsedHTTPProxy(port)
 				return
 			}
 		}
 		for _, r := range a.reverses {
 			if r.Port == port {
-				a.socksProblem = fmt.Sprintf("Port %d is already used by a reverse proxy", port)
+				a.socksProblem = locales.PortUsedReverseProxy(port)
 				return
 			}
 		}
@@ -122,20 +122,20 @@ func (a *app) saveSOCKS() {
 		user = strings.TrimSpace(a.socksUserDraft)
 		pass = a.socksPassDraft
 		if user == "" {
-			a.socksProblem = "Enter a username, or turn authentication off"
+			a.socksProblem = locales.EnterUsernameOrOff()
 			return
 		}
 		if pass == "" {
-			a.socksProblem = "Enter a password, or turn authentication off"
+			a.socksProblem = locales.EnterPasswordOrOff()
 			return
 		}
 		if len(user) > 255 || len(pass) > 255 {
-			a.socksProblem = "Username and password must each be at most 255 bytes"
+			a.socksProblem = locales.CredentialsMax255()
 			return
 		}
 	}
 	if a.settingsPath == "" {
-		a.socksProblem = "Settings location is unavailable; SOCKS5 settings were not saved"
+		a.socksProblem = locales.SocksLocationUnavailable()
 		return
 	}
 	previous := a.socksEntry()
@@ -143,7 +143,7 @@ func (a *app) saveSOCKS() {
 	a.lastSave = time.Time{}
 	if err := a.persistSettings(); err != nil {
 		a.socksOn, a.socksPort, a.socksAuth, a.socksUsername, a.socksPassword = previous.on, previous.port, previous.auth, previous.username, previous.password
-		a.socksProblem = "SOCKS5 settings were not saved: " + err.Error()
+		a.socksProblem = locales.SocksSettingsNotSaved(err.Error())
 		return
 	}
 	a.resetSOCKSDrafts()
@@ -248,7 +248,7 @@ func (a *app) applyReverseProxies() {
 	}
 	a.lastSave = time.Time{}
 	if err := a.persistSettings(); err != nil && a.reverseProblem == "" {
-		a.reverseProblem = "Settings were not saved: " + err.Error()
+		a.reverseProblem = locales.SettingsNotSaved(err.Error())
 	}
 	a.invalidate()
 }

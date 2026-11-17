@@ -120,7 +120,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 	}
 	checks := make([]diagnosticCheck, 0, 5)
 
-	listener := diagnosticCheck{title: "Listener", fix: "Proxy settings…", run: func(*ui.Context) { a.openSettings(1) }}
+	listener := diagnosticCheck{title: locales.DiagListener(), fix: "Proxy settings…", run: func(*ui.Context) { a.openSettings(1) }}
 	switch {
 	case running:
 		listener.state, listener.result, listener.fix = checkPass, locales.ListeningAddr(cmp.Or(addr, locales.ThisApp())), ""
@@ -135,10 +135,10 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 	}
 	checks = append(checks, listener)
 
-	proxy := diagnosticCheck{title: "Client proxy"}
+	proxy := diagnosticCheck{title: locales.DiagClientProxy()}
 	switch d.client {
 	case diagnoseMac:
-		proxy.title = "System proxy"
+		proxy.title = locales.DiagSystemProxy()
 		status, _ := a.systemProxyStatus(t)
 		line, _ := a.systemProxyDetail(a.systemProxyTarget())
 		proxy.result, proxy.detail = status, []string{line, "Apps may ignore the system proxy or use their own; a matching OS setting does not prove their traffic reaches this app."}
@@ -165,7 +165,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 			proxy.run = func(*ui.Context) { a.setSystemProxy(true) }
 		}
 	case diagnoseDevice:
-		proxy.title, proxy.fix, proxy.run = "Device access", "Device setup…", func(*ui.Context) { a.openDevices() }
+		proxy.title, proxy.fix, proxy.run = locales.DiagDeviceAccess(), "Device setup…", func(*ui.Context) { a.openDevices() }
 		if !running {
 			proxy.state = checkWait
 			proxy.result = "Waiting for capture to start"
@@ -184,14 +184,14 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 			}
 		}
 	default:
-		proxy.title, proxy.fix, proxy.run = "Process proxy", "Client setup…", func(*ui.Context) { a.openClientSetup() }
+		proxy.title, proxy.fix, proxy.run = locales.DiagProcessProxy(), "Client setup…", func(*ui.Context) { a.openClientSetup() }
 		proxy.result = "Set by the process itself; not checkable from here"
 		proxy.detail = []string{"Client setup has an example for cURL, Node.js, Python and Go that sets the proxy and CA for one process only."}
 	}
 	checks = append(checks, proxy)
 
 	https := target.Scheme == "https"
-	cert := diagnosticCheck{title: "Certificate"}
+	cert := diagnosticCheck{title: locales.DiagCertificate()}
 	switch {
 	case !https:
 		cert.result = "Not needed for HTTP"
@@ -242,7 +242,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 // trafficCheck is what this live session recorded for the target's origin:
 // the exchange Explain came from, or the latest one.
 func (a *app) trafficCheck(target *url.URL, https bool) diagnosticCheck {
-	check := diagnosticCheck{title: "Actual traffic"}
+	check := diagnosticCheck{title: locales.DiagActualTraffic()}
 	running := a.diagnostics.demoRunning || a.srv != nil && a.srv.Running()
 	var latest, decrypted *flow
 	matched := 0

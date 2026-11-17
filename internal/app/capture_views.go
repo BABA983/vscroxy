@@ -432,7 +432,7 @@ func (v *captureViews) load(a *app) {
 	}
 	list, err := loadCaptureFilters(a.file(v.path))
 	if err != nil {
-		v.problem = "Saved capture filters: " + err.Error()
+		v.problem = locales.SavedCaptureFiltersProblem(err.Error())
 		return
 	}
 	v.filters = list
@@ -1384,7 +1384,7 @@ func (v *captureViews) applySaved(a *app, name string) {
 	v.bind(a)
 	v.applyFilter(a)
 	v.problem = ""
-	v.note = "Applied " + strconv.Quote(name) + " to this view."
+	v.note = locales.CaptureFilterApplied(strconv.Quote(name))
 	a.inform(locales.FilterApplied(name))
 }
 
@@ -1397,7 +1397,7 @@ func (v *captureViews) saveCurrent(a *app) {
 	case view == nil:
 		return
 	case name == "":
-		v.problem = "A saved filter needs a name."
+		v.problem = locales.SavedFilterNeedsName()
 		return
 	}
 	f := view.saved(name)
@@ -1418,7 +1418,7 @@ func (v *captureViews) saveCurrent(a *app) {
 	v.filters = list
 	v.problem = ""
 	view.preset = name
-	v.note = "Saved " + strconv.Quote(name) + "."
+	v.note = locales.CaptureFilterSaved(strconv.Quote(name))
 	a.done(locales.SavedCaptureFilter(name))
 }
 
@@ -1435,10 +1435,10 @@ func (v *captureViews) renameSaved(a *app) {
 	case from == "":
 		return
 	case to == "":
-		v.problem = "A saved filter needs a name."
+		v.problem = locales.SavedFilterNeedsName()
 		return
 	case to != from && slices.ContainsFunc(v.filters, func(f savedCaptureFilter) bool { return f.Name == to }):
-		v.problem = "A filter named " + strconv.Quote(to) + " already exists."
+		v.problem = locales.CaptureFilterExists(strconv.Quote(to))
 		return
 	}
 	list := slices.Clone(v.filters)
@@ -1459,7 +1459,7 @@ func (v *captureViews) renameSaved(a *app) {
 	}
 	v.renaming = ""
 	v.problem = ""
-	v.note = "Renamed " + strconv.Quote(from) + " to " + strconv.Quote(to) + "."
+	v.note = locales.CaptureFilterRenamed(strconv.Quote(from), strconv.Quote(to))
 	a.done(locales.RenamedCaptureFilter(to))
 }
 
@@ -1478,6 +1478,6 @@ func (v *captureViews) deleteSaved(a *app, name string) {
 		}
 	}
 	v.problem = ""
-	v.note = "Deleted " + strconv.Quote(name) + "."
+	v.note = locales.CaptureFilterDeleted(strconv.Quote(name))
 	a.done(locales.DeletedCaptureFilter(name))
 }
