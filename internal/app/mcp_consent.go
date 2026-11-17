@@ -319,19 +319,19 @@ func (a *app) mcpConsentModal(c *ui.Context, t *ui.Theme) {
 					uikit.Meta(c, "Changed values: "+strings.Join(s.changed, ", ")).SingleLine()
 				}
 			}
-			uikit.Meta(c, locales.Command()).Padding(0, t.Space(1))
-			ui.Text(c, plan.Command).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Selectable()
+			uikit.Meta(c, locales.Command()).Padding(0, t.Space(uikit.SpaceXS))
+			uikit.DataBody(c, plan.Command).Selectable()
 			if len(plan.Args) > 0 {
-				uikit.Meta(c, locales.Arguments()).Padding(0, t.Space(1))
-				ui.Text(c, strings.Join(plan.Args, "\n")).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Selectable()
+				uikit.Meta(c, locales.Arguments()).Padding(0, t.Space(uikit.SpaceXS))
+				uikit.DataBody(c, strings.Join(plan.Args, "\n")).Selectable()
 			}
 			dir := plan.WorkingDir
 			if dir == "" {
 				dir = "(the app's working directory)"
 			}
-			uikit.Meta(c, locales.WorkingDirectory()).Padding(0, t.Space(1))
-			ui.Text(c, dir).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Selectable()
-			uikit.Meta(c, locales.EnvironmentVariablesNamesOnlyValues()).Padding(0, t.Space(1))
+			uikit.Meta(c, locales.WorkingDirectory()).Padding(0, t.Space(uikit.SpaceXS))
+			uikit.DataBody(c, dir).Selectable()
+			uikit.Meta(c, locales.EnvironmentVariablesNamesOnlyValues()).Padding(0, t.Space(uikit.SpaceXS))
 			names := make([]string, 0, len(plan.Env))
 			for _, entry := range plan.Env {
 				name, _, _ := strings.Cut(entry, "=")
@@ -343,8 +343,8 @@ func (a *app) mcpConsentModal(c *ui.Context, t *ui.Theme) {
 			if len(names) == 0 {
 				names = []string{"(none)"}
 			}
-			ui.Text(c, strings.Join(names, ", ")).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Selectable()
-			ui.Spacer(c).Height(t.Space(2))
+			uikit.DataBody(c, strings.Join(names, ", ")).Selectable()
+			ui.Spacer(c).Height(t.Space(uikit.SpaceM))
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					s.open = false

@@ -137,17 +137,17 @@ func readBodyFile(path string) []byte {
 // contractView shows one exchange's drift against every saved contract.
 func (a *app) contractView(c *ui.Context, t *ui.Theme, key string, ex openapi.Exchange) {
 	if !slices.ContainsFunc(a.apis, func(d *apiDocument) bool { return d.saved != nil }) {
-		uikit.Hint(c, locales.ContractNoSpecs()).Padding(t.Space(3))
+		uikit.Hint(c, locales.ContractNoSpecs()).Padding(t.Space(uikit.SpaceL))
 		return
 	}
 	result := a.contractCheck(key, ex)
-	ui.Scroll(c).Grow(1).Padding(t.Space(2), t.Space(3)).Children(func() {
-		ui.Column(c).Gap(t.Space(2)).Children(func() {
+	ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
+		ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			if result.Checked > 0 {
 				uikit.Meta(c, locales.ContractChecked(result.Checked))
 			}
 			for _, failure := range result.Failures {
-				ui.Text(c, failure).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).Selectable()
+				uikit.Caption(c, failure).TextColor(t.Warning).Selectable()
 			}
 			if result.NotCovered {
 				uikit.Hint(c, locales.ContractNotCovered())
@@ -172,7 +172,7 @@ func (a *app) contractView(c *ui.Context, t *ui.Theme, key string, ex openapi.Ex
 				}
 				uikit.Meta(c, locales.ContractDriftCount(len(drift.Problems)))
 				for _, problem := range drift.Problems {
-					ui.Text(c, "• "+problem).FontSize(uikit.Scaled(uikit.TextSmall)).TextColor(t.Danger).Selectable()
+					uikit.ErrorText(c, "• "+problem).Selectable()
 				}
 			}
 		})

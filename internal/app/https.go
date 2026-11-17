@@ -119,10 +119,10 @@ func (a *app) certificateBanner(c *ui.Context, t *ui.Theme) {
 	if !s.checked || s.cert != nil && s.err == nil {
 		return
 	}
-	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
+	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 		Background(t.Warning.Alpha(0.12)).Children(func() {
 		ui.Icon(c, warningIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.Warning)
-		ui.Text(c, locales.HttpsContentIsNotDecrypted()).FontSize(uikit.Scaled(uikit.TextMeta)).
+		uikit.Caption(c, locales.HttpsContentIsNotDecrypted()).
 			TextColor(t.Warning).Grow(1).SingleLine()
 		if uikit.CompactButton(c, locales.InstallCertificate()).Clicked() {
 			a.openSettings(2)
@@ -140,8 +140,8 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 	uikit.SettingsCardPage(c, locales.HttpsDecryption(), locales.TrustingTheCaMakesDecryption(), func() {
 		uikit.SettingsCard(c, locales.Certificate(), func() {
 			settingsCardBlock(c, locales.Trust(), func() ui.Element {
-				return ui.Column(c).Gap(t.Space(1)).Children(func() {
-					ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(color)
+				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+					uikit.BodyStrong(c, status).TextColor(color)
 					if s.cert != nil {
 						uikit.Body(c, cmp.Or(s.cert.Subject.CommonName, s.cert.Subject.String()))
 						uikit.Meta(c, "Valid: "+s.cert.NotBefore.Local().Format("2006-01-02")+" → "+s.cert.NotAfter.Local().Format("2006-01-02"))
@@ -156,13 +156,13 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 						if errors.Is(s.err, os.ErrNotExist) {
 							problem = "CA file not found. Start capture, then check again."
 						}
-						uikit.Tip(c, ui.Text(c, problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).SingleLine(), s.err.Error())
+						uikit.Tip(c, uikit.Caption(c, problem).TextColor(t.Warning).SingleLine(), s.err.Error())
 					}
 					if s.installErr != nil {
 						if errors.Is(s.installErr, system.ErrInstallCancelled) {
 							uikit.Meta(c, locales.InstallationCancelledYouCanTry())
 						} else {
-							uikit.Tip(c, ui.Text(c, "Installation failed: "+s.installErr.Error()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(2), s.installErr.Error())
+							uikit.Tip(c, uikit.ErrorText(c, "Installation failed: "+s.installErr.Error()).MaxLines(2), s.installErr.Error())
 							switch runtime.GOOS {
 							case "darwin":
 								uikit.Meta(c, locales.ManualFallbackUseShowCertificate())
@@ -178,11 +178,11 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 			// The buttons are their own row, so a disabled one does not
 			// gray the Trust label.
 			settingsCardBlock(c, "", func() ui.Element {
-				return ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+				return ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().Children(func() {
 					if uikit.Tip(c, uikit.PrimaryButton(c, locales.InstallTrust()), locales.TrustTheLocalCaOn()).Disabled(s.checking || s.cert == nil || s.checked && s.err == nil).Clicked() {
 						a.checkCertificate(true)
 					}
-					if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(s.checking).Clicked() {
+					if uikit.SecondaryButtonBusy(c, locales.CheckAgain(), s.checking).Clicked() {
 						a.checkCertificate(false)
 					}
 					if uikit.Tip(c, uikit.SecondaryButton(c, locales.ShowCertificate()), a.caPath).Disabled(a.caPath == "").Clicked() {
@@ -214,7 +214,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 				hint = "These domains and their subdomains are decrypted. Every other host stays an encrypted tunnel."
 			}
 			settingsCardBlock(c, locales.DomainsAndApps(), func() ui.Element {
-				return ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+				return ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.ManageDomains()).Clicked() {
 						a.leaveSettings()
 						a.sslOpen = true
@@ -228,7 +228,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 				excludedSummary = strings.Join(excluded, ", ")
 			}
 			uikit.SettingsRow(c, locales.NeverDecrypt(), func() ui.Element {
-				return ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+				return ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.ManageExclusions()).Clicked() {
 						a.leaveSettings()
 						a.sslOpen = true
@@ -242,7 +242,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 				allowedSummary = strings.Join(allowed, ", ")
 			}
 			settingsCardBlock(c, locales.AllowUntrustedUpstream(), func() ui.Element {
-				return ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+				return ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.ManageExceptions()).Clicked() {
 						a.leaveSettings()
 						a.sslOpen = true
@@ -253,7 +253,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 		})
 		uikit.SettingsCard(c, locales.Wireshark(), func() {
 			settingsCardBlock(c, locales.TlsKeyLog(), func() ui.Element {
-				return ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+				return ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.TlsKeyLog2()).Clicked() {
 						a.leaveSettings()
 						a.openKeyLog()
@@ -343,7 +343,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 		// reads in a column of a comfortable measure, not the full width of a
 		// wide window.
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-			ui.Column(c).MaxWidth(880).Padding(padding, t.Space(4)).Gap(gap).Children(func() {
+			ui.Column(c).MaxWidth(880).Padding(padding, t.Space(uikit.SpaceXL)).Gap(gap).Children(func() {
 				// One line says what this row is, and the button beside it
 				// is the way out: everything else about why the tunnel is
 				// closed lives in the Connection tab.
@@ -351,7 +351,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 				if failed {
 					title = e.title
 				}
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					ui.Icon(c, lockIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
 					uikit.Heading(c, title).Label(title + " — not individual requests").Grow(1).SingleLine()
 				})
@@ -360,25 +360,25 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 				}
 				if failed {
 					// What happened: the stage and the raw error, copyable.
-					ui.Column(c).FillWidth().Padding(0, t.Space(3)).Gap(t.Space(1)).BorderWidth(0, 0, 0, 2).BorderColor(t.Danger).Children(func() {
-						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					ui.Column(c).FillWidth().Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceXS)).BorderWidth(0, 0, 0, 2).BorderColor(t.Danger).Children(func() {
+						ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 							uikit.Label(c, "Recorded failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).Grow(1)
-							if uikit.ToolbarButton(c, locales.CopyError(), locales.CopyTheRecordedError(), false).Gap(t.Space(1)).Children(func() {
+							if uikit.ToolbarButton(c, locales.CopyError(), locales.CopyTheRecordedError(), false).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 								ui.Icon(c, copyIcon).Size(uikit.IconInline, uikit.IconInline)
-								ui.Text(c, locales.Copy()).FontSize(uikit.Scaled(uikit.TextMeta))
+								uikit.Caption(c, locales.Copy())
 							}).Clicked() {
 								c.Services().WriteClipboard(f.conn.error)
 								a.done(locales.CopiedTheRecordedError())
 							}
 						})
-						uikit.Tip(c, ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Selectable().SingleLine(), f.conn.error)
+						uikit.Tip(c, uikit.DataMeta(c, f.conn.error).TextColor(t.Danger).Selectable().SingleLine(), f.conn.error)
 					})
 				}
 				// What to do next. A failure is read before anything is
 				// reconfigured, so the record leads and enabling inspection
 				// is an independent configuration step; a healthy tunnel
 				// still leads with the rule that would decrypt it.
-				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 					record := func() {
 						const tip = "Open this exchange's Connection tab: the recorded log, addresses and rules"
 						button := uikit.Tip(c, uikit.SecondaryButton(c, locales.ViewConnectionRecord()), tip)
@@ -409,7 +409,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 	}
 	if !a.workbench.sideBySide && width >= 1100 && (len(f.reqHeader) > 0 || f.reqHeaders != "") {
 		ui.Row(c).Grow(1).Children(func() {
-			ui.Column(c).WidthPercent(44).FillHeight().Padding(t.Space(4), t.Space(4)).Children(func() {
+			ui.Column(c).WidthPercent(44).FillHeight().Padding(t.Space(uikit.SpaceXL), t.Space(uikit.SpaceXL)).Children(func() {
 				a.headerBlock(c, t, "Request", strings.TrimSpace("CONNECT "+f.host+" "+f.conn.proto), "", f.reqHeader, f.reqHeaders, nil)
 			})
 			ui.Box(c).Width(1).FillHeight().Background(t.Border)

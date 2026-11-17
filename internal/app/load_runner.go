@@ -242,12 +242,12 @@ func (a *app) loadRunnerModal(c *ui.Context, t *ui.Theme) {
 	}
 	width, height := c.Size()
 	uikit.Modal(c, &r.open, locales.CollectionLoadTest(), func() {
-		ui.Column(c).Width(min(820, width-100)).Height(min(570, height-100)).Gap(t.Space(2)).Children(func() {
+		ui.Column(c).Width(min(820, width-100)).Height(min(570, height-100)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			uikit.DialogTitle(c, locales.CollectionLoadTest())
 			uikit.Meta(c, locales.FixedConcurrentUsersClosedModel())
-			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
-				ui.Row(c).Gap(t.Space(3)).Children(func() {
-					ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceL)).Children(func() {
+					ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 						uikit.Label(c, locales.SavedCollection())
 						names := runnableCollections(a.requests)
 						if len(names) == 0 {
@@ -255,25 +255,25 @@ func (a *app) loadRunnerModal(c *ui.Context, t *ui.Theme) {
 						}
 						uikit.Select(c, &r.collection, names).Label(locales.LoadCollection()).FillWidth().Disabled(r.running)
 					})
-					ui.Column(c).Width(220).Gap(t.Space(1)).Children(func() {
+					ui.Column(c).Width(220).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 						uikit.Label(c, locales.Environment())
 						names := append([]string{""}, a.envNames()...)
 						uikit.Select(c, &r.environment, names).Label(locales.LoadEnvironment()).FillWidth().Disabled(r.running)
 					})
 				})
-				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.End).Children(func() {
-					ui.Column(c).Width(110).Gap(t.Space(1)).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.End).Children(func() {
+					ui.Column(c).Width(110).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 						uikit.Label(c, locales.Users164())
 						uikit.Input(c, &r.users).Label(locales.LoadUsers()).FillWidth().Disabled(r.running)
 					})
-					ui.Column(c).Width(160).Gap(t.Space(1)).Children(func() {
+					ui.Column(c).Width(uikit.WidthField).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 						uikit.Label(c, locales.Duration1s10m())
 						uikit.Input(c, &r.duration).Label(locales.LoadDuration()).FillWidth().Disabled(r.running)
 					})
-					ui.Checkbox(c, &r.stopOnFailure, "Stop on failure").FontSize(uikit.Scaled(uikit.TextBody)).Disabled(r.running)
+					uikit.Checkbox(c, &r.stopOnFailure, locales.StopOnFailure()).Disabled(r.running)
 				})
 				uikit.Meta(c, locales.Budget30SPerExecution())
-				ui.Column(c).Padding(t.Space(3)).Gap(t.Space(2)).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
+				ui.Column(c).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
 					uikit.Label(c, locales.VolatileAggregatesExecutionTimeIn())
 					m := r.report.Total
 					loadMetricRow(c, t, [][2]string{{"Completed", fmt.Sprint(m.Completed)}, {"Failed", fmt.Sprint(m.Failed)}, {"Skipped", fmt.Sprint(m.Skipped)}, {"Interrupted", fmt.Sprint(m.Interrupted)}, {"Executions/s", fmt.Sprintf("%.1f", m.RequestsPerSec)}})
@@ -283,23 +283,23 @@ func (a *app) loadRunnerModal(c *ui.Context, t *ui.Theme) {
 				uikit.Meta(c, locales.EachUserHasIsolatedVariables())
 			})
 			status := cmp.Or(r.status, "Ready · closing this panel keeps an active load running")
-			uikit.Tip(c, ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine(), status)
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			uikit.Tip(c, uikit.Body(c, status).TextColor(t.Text).SingleLine(), status)
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, locales.CloseKeepsRunningQuitCancels()).Grow(1)
 				uikit.SecondaryButton(c, locales.Close()).OnClick(func() { r.open = false })
 				uikit.SecondaryButton(c, locales.Stop()).Disabled(!r.running || r.stopping).OnClick(a.stopLoadRunner)
-				uikit.PrimaryButton(c, locales.StartLoadTest()).Disabled(r.running || a.runner.running || a.remoteRunActive() || len(a.requests) == 0).OnClick(a.startLoadRunner)
+				uikit.PrimaryButtonBusy(c, locales.StartLoadTest(), r.running).Disabled(r.running || a.runner.running || a.remoteRunActive() || len(a.requests) == 0).OnClick(a.startLoadRunner)
 			})
 		})
 	})
 }
 
 func loadMetricRow(c *ui.Context, t *ui.Theme, metrics [][2]string) {
-	ui.Row(c).Gap(t.Space(2)).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		for _, metric := range metrics {
-			ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(t.Space(1)).Children(func() {
+			ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 				uikit.Meta(c, metric[0])
-				ui.Text(c, metric[1]).FontSize(uikit.Scaled(uikit.TextTitle)).FontFeatures("tnum").SingleLine()
+				uikit.Heading(c, metric[1]).FontFeatures("tnum").SingleLine()
 			})
 		}
 	})

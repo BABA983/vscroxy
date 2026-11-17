@@ -495,16 +495,16 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 	if testing {
 		preview = capture.PreviewRules(a.rules, req, a.breakOn)
 	}
-	ui.Column(c).Width(300).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
-		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, title).FontSize(uikit.Scaled(uikit.TextTitle)).FontWeight(500).TextColor(t.Text).Grow(1)
+	ui.Column(c).Width(300).MinHeight(0).Padding(top, t.Space(uikit.SpaceL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
+			uikit.Heading(c, title).TextColor(t.Text).Grow(1)
 			if uikit.IconButton(c, locales.NewRule(), locales.NewRule(), plusIcon).Clicked() {
 				a.editRule(-1, capture.Rule{Type: kind})
 			}
 		})
 		uikit.Tip(c, uikit.Input(c, &e.test).Label(locales.TestARequest()).Placeholder(locales.TestGetHttpsApiExample()), locales.MethodUrlAppHeaderValue()).Font(uikit.FontMono).FillWidth()
 		if e.draft.Operation != "" || slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Operation != "" }) {
-			uikit.TextArea(c, &e.testBody).Label(locales.TestGraphqlBody()).Placeholder(`{"query":"query Search { items { id } }"}`).Height(80).FillWidth().Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).
+			uikit.TextArea(c, &e.testBody).Label(locales.TestGraphqlBody()).Placeholder(`{"query":"query Search { items { id } }"}`).Height(80).FillWidth().Font(uikit.FontMono).
 				Tooltip(locales.PostUsesJsonByDefault())
 			if testing && e.testProblem != "" {
 				uikit.Hint(c, locales.GraphqlNotVerified(e.testProblem))
@@ -537,7 +537,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 		a.ruleList(c, t, a.ruleListRows(), preview, active)
 	})
 	ui.Divider(c)
-	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(3)).Children(func() {
+	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(uikit.SpaceXL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceL)).Children(func() {
 		if !e.open {
 			empty, hint := "No rules", "Map, redirect, block, script or pause matching requests. Create one here, or from a request’s Tools menu."
 			if mocks {
@@ -708,13 +708,13 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview [
 	pick := *t
 	pick.Accent, pick.AccentText = ui.Color{}, t.Text
 	c.SetTheme(&pick)
-	ui.List(c, &e.list, len(rows)).Label(locales.Rules()).Grow(1).MinHeight(0).Gap(t.Space(0.5)).Rows(func(row ui.ListRow) {
+	ui.List(c, &e.list, len(rows)).Label(locales.Rules()).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceHair)).Rows(func(row ui.ListRow) {
 		c := row.Context
 		c.SetTheme(t)
 		entry := rows[row.Index]
 		if entry.index < 0 {
 			collapsed := a.ruleUI.collapsed[entry.folder]
-			line := ui.Row(c).MinHeight(uikit.HeightLarge+4).Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+			line := ui.Row(c).MinHeight(uikit.HeightTabs).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 			line.Children(func() {
 				ui.Box(c).Width(float32(entry.depth-1) * 16)
 				icon, action := chevronIcon, "Collapse"
@@ -727,14 +727,14 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview [
 				}
 				uikit.Glyph(c, lucide.Folder()).Size(uikit.IconInline, uikit.IconInline)
 				name := entry.folder[strings.LastIndex(entry.folder, "/")+1:]
-				uikit.Tip(c, ui.Text(c, name).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Text).Grow(1).SingleLine(), entry.folder)
+				uikit.Tip(c, uikit.BodyStrong(c, name).TextColor(t.Text).Grow(1).SingleLine(), entry.folder)
 				uikit.Meta(c, strconv.Itoa(a.folderCount(entry.folder))).FontFeatures("tnum")
 			})
 			return
 		}
 		i := entry.index
 		r := a.rules[i]
-		line := ui.Row(c).MinHeight(uikit.HeightLarge+12).Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+		line := ui.Row(c).MinHeight(uikit.HeightControl+12).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 		if row.Selected() {
 			uikit.Selected(c, line, active)
 		}
@@ -767,8 +767,8 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview [
 			}
 			uikit.Tip(c, uikit.Glyph(c, icon), kind)
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Grow(1).SingleLine()
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+					uikit.Body(c, cmp.Or(r.Name, r.Match)).TextColor(t.Text).Grow(1).SingleLine()
 					if r.Scenario != "" {
 						uikit.Tip(c, uikit.Meta(c, r.Scenario).MaxWidth(96).SingleLine(), "In scenario "+r.Scenario)
 					}
@@ -777,7 +777,7 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview [
 						pal := uikit.Colors(t)
 						ui.Box(c).Size(16, 16).Radius(8).Background(pal.Accent).AlignItems(ui.Center).Justify(ui.Center).
 							Label(fmt.Sprintf("Acts %s", ordinal(p.Step))).Children(func() {
-							ui.Text(c, strconv.Itoa(p.Step)).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).TextColor(pal.AccentText).FontFeatures("tnum")
+							uikit.Caption(c, strconv.Itoa(p.Step)).FontWeight(500).TextColor(pal.AccentText).FontFeatures("tnum")
 						})
 					case preview == nil && a.srv != nil:
 						if n := a.srv.RuleHits(r); n > 0 {
@@ -786,7 +786,7 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview [
 						}
 					}
 				})
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					summary := ruleSummary(r)
 					uikit.Tip(c, uikit.Meta(c, summary).Font(uikit.FontMono).Grow(1).MaxLines(2), summary)
 				})
@@ -816,8 +816,8 @@ func ordinal(n int) string {
 func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 	e := &a.ruleUI
 	breakpoint := e.kind == "Request breakpoint" || e.kind == "Response breakpoint" || e.kind == "WebSocket message breakpoint"
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Input(c, &e.draft.Name).Label(locales.RuleName()).Placeholder(cmp.Or(e.draft.Match, "Untitled rule")).Grow(1).MaxWidth(360).FontSize(uikit.Scaled(uikit.TextTitle)).Height(uikit.HeightLarge)
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+		uikit.Input(c, &e.draft.Name).Label(locales.RuleName()).Placeholder(cmp.Or(e.draft.Match, "Untitled rule")).Grow(1).MaxWidth(360).Height(uikit.HeightControl)
 		on := !e.draft.Disabled
 		if uikit.Switch(c, &on).Label(locales.RuleEnabled()).Changed() {
 			e.draft.Disabled = !on
@@ -840,13 +840,13 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 				if a.toolsPage == "mocks" {
 					labels = []string{"Map Local", "Code Mock"}
 				}
-				uikit.Select(c, &e.kind, labels).Label(locales.RuleType()).Width(200)
+				uikit.Select(c, &e.kind, labels).Label(locales.RuleType()).Width(uikit.WidthFieldWide)
 			})
 			uikit.FormRow(c, locales.Method(), "", "", func() {
 				uikit.Input(c, &e.draft.Method).Width(95).Label(locales.MatchMethod()).Placeholder(locales.Any()).Font(uikit.FontMono)
 			})
 			uikit.FormRow(c, locales.Url(), urlHelp()[max(slices.Index([]string{rules.URLContains, rules.URLWildcard, rules.URLRegex}, e.draft.MatchMode), 0)], "", func() {
-				ui.Row(c).Gap(t.Space(2)).FillWidth().Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).FillWidth().Children(func() {
 					modes := []string{rules.URLContains, rules.URLWildcard, rules.URLRegex}
 					mode := max(slices.Index(modes, e.draft.MatchMode), 0)
 					uikit.Segmented(c, &mode, locales.Contains(), locales.Wildcard(), locales.Regex()).Label(locales.UrlMatch())
@@ -866,7 +866,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 					for _, p := range presets {
 						names = append(names, p.Name)
 					}
-					uikit.Select(c, &e.networkPreset, names).Label(locales.NetworkRulePreset()).Placeholder(locales.ChooseAPreset()).Width(240).OnChange(func() {
+					uikit.Select(c, &e.networkPreset, names).Label(locales.NetworkRulePreset()).Placeholder(locales.ChooseAPreset()).Width(uikit.WidthWide).OnChange(func() {
 						for _, p := range a.networkPresets() {
 							if p.Name == e.networkPreset {
 								e.network = newNetworkDraft(p)
@@ -882,8 +882,8 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 			case "Map Local":
 				a.loadRuleBody()
 				uikit.FormRow(c, locales.ResponseFrom(), locales.AFileUpTo8(), "", func() {
-					ui.Column(c).Gap(t.Space(1)).FillWidth().Children(func() {
-						ui.Row(c).Gap(t.Space(2)).FillWidth().Children(func() {
+					ui.Column(c).Gap(t.Space(uikit.SpaceXS)).FillWidth().Children(func() {
+						ui.Row(c).Gap(t.Space(uikit.SpaceM)).FillWidth().Children(func() {
 							uikit.Input(c, &e.draft.Target).Label(locales.ResponseFile()).Placeholder(locales.AFileOrAFolder()).Font(uikit.FontMono).Grow(1)
 							if uikit.SecondaryButton(c, locales.File2()).Clicked() {
 								a.browseRuleFile(false)
@@ -898,7 +898,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 					})
 				})
 				uikit.FormRow(c, locales.Delay(), locales.DelayMapLocalHelp(), "", func() {
-					uikit.Input(c, &e.delay).Label(locales.DelayMs()).Placeholder("0").Font(uikit.FontMono).Width(200)
+					uikit.Input(c, &e.delay).Label(locales.DelayMs()).Placeholder("0").Font(uikit.FontMono).Width(uikit.WidthFieldWide)
 				})
 				if !e.bodyDir {
 					uikit.FormRowTall(c, locales.Body(), cmp.Or(e.bodyNote, "Save rule writes it to the file."), "", func() ui.Element {
@@ -914,28 +914,28 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 				}
 				if e.bodyDir {
 					uikit.FormRow(c, locales.StripPath(), locales.ApiUsers42JsonReads(), "", func() {
-						uikit.Input(c, &e.draft.PathFrom).Label(locales.StripPathPrefix()).Placeholder("/api").Font(uikit.FontMono).Width(200)
+						uikit.Input(c, &e.draft.PathFrom).Label(locales.StripPathPrefix()).Placeholder("/api").Font(uikit.FontMono).Width(uikit.WidthFieldWide)
 					})
 				}
 				uikit.FormRow(c, locales.Status(), "", "", func() {
 					uikit.NumberField(c, &e.status, &e.statusValue, 200, 599, "", locales.ResponseStatus(), "", nil)
 				})
 				uikit.FormRow(c, locales.RequestHeadersLabel(), locales.ConnectionHeadersAreRemovedThe(), "", func() {
-					uikit.TextArea(c, &e.headers).Height(76).FillWidth().Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.ResponseHeaders()).Placeholder("Content-Type: application/json")
+					uikit.TextArea(c, &e.headers).Height(76).FillWidth().Font(uikit.FontMono).Radius(uikit.RadiusControl).Label(locales.ResponseHeaders()).Placeholder("Content-Type: application/json")
 				})
 			case "Map Remote":
 				uikit.FormRow(c, locales.SendTo(), locales.SchemeHostAndPortA(), "", func() {
 					uikit.Input(c, &e.draft.Target).Label(locales.TargetBaseUrl()).Placeholder("http://127.0.0.1:8080").Font(uikit.FontMono).FillWidth()
 				})
 				uikit.FormRow(c, locales.RewritePath(), locales.APathStartingWithThe(), "", func() {
-					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).FillWidth().Children(func() {
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).FillWidth().Children(func() {
 						uikit.Input(c, &e.draft.PathFrom).Label(locales.RewritePathFrom()).Placeholder("/v1/").Font(uikit.FontMono).Grow(1)
 						uikit.Meta(c, "→")
 						uikit.Input(c, &e.draft.PathTo).Label(locales.RewritePathTo()).Placeholder("/api/v1/").Font(uikit.FontMono).Grow(1)
 					})
 				})
 				uikit.FormRow(c, locales.HostHeader(), locales.ForAServerThatServes(), "", func() {
-					ui.Checkbox(c, &e.draft.KeepHost, "Keep the original Host header")
+					uikit.Checkbox(c, &e.draft.KeepHost, locales.KeepOriginalHostHeader())
 				})
 			case "Block":
 				uikit.FormRow(c, locales.Action(), blockHelp[max(slices.Index(capture.BlockActions, e.draft.Block), 0)], "", func() {
@@ -962,10 +962,10 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 			}
 			if !breakpoint {
 				uikit.FormRow(c, locales.MarkColor(), "", "", func() {
-					uikit.Select(c, &e.color, append([]string{"None"}, capture.MarkColorNames...)).Label(locales.MarkColor()).Width(200)
+					uikit.Select(c, &e.color, append([]string{"None"}, capture.MarkColorNames...)).Label(locales.MarkColor()).Width(uikit.WidthFieldWide)
 				})
 				uikit.FormRow(c, locales.Scenario(), locales.ARuleInAScenario(), "", func() {
-					uikit.Input(c, &e.draft.Scenario).Label(locales.RuleScenario()).Placeholder(locales.None()).Width(200)
+					uikit.Input(c, &e.draft.Scenario).Label(locales.RuleScenario()).Placeholder(locales.None()).Width(uikit.WidthFieldWide)
 				})
 			}
 			uikit.FormRow(c, locales.GraphqlOperation(), locales.ExactSelectedOperationNameCase(), "", func() {
@@ -976,9 +976,9 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 			})
 		})
 	})
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		if e.problem != "" {
-			ui.Text(c, e.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Grow(1).MaxLines(2)
+			uikit.ErrorText(c, e.problem).Grow(1).MaxLines(2)
 		} else {
 			uikit.Meta(c, locales.ChangesApplyToNewRequests()).Grow(1).SingleLine()
 		}
@@ -1017,7 +1017,7 @@ func ruleSummary(r capture.Rule) string {
 // ruleScriptField chooses the script a Script rule runs.
 func (a *app) ruleScriptField(c *ui.Context, t *ui.Theme) {
 	e := &a.ruleUI
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).FillWidth().Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).FillWidth().Children(func() {
 		current := strings.TrimSuffix(e.draft.Target, ".js")
 		label := cmp.Or(current, "Choose a script")
 		if current != "" && !slices.Contains(a.scripts.names, current) {
@@ -1041,7 +1041,7 @@ func (a *app) ruleScriptField(c *ui.Context, t *ui.Theme) {
 					e.draft.Target = scriptFile(name)
 				}
 			}
-		}).Label(locales.RuleScript()).Width(240)
+		}).Label(locales.RuleScript()).Width(uikit.WidthWide)
 		if current != "" && slices.Contains(a.scripts.names, current) {
 			if uikit.Tip(c, uikit.SecondaryButton(c, locales.EditScript()), "Defines "+scriptHooks(&a.scripts, current)).Clicked() {
 				a.openScript(current)
@@ -1053,11 +1053,11 @@ func (a *app) ruleScriptField(c *ui.Context, t *ui.Theme) {
 // ruleHeaderConditions edits the request headers the draft needs.
 func (a *app) ruleHeaderConditions(c *ui.Context, t *ui.Theme) {
 	e := &a.ruleUI
-	ui.Column(c).Gap(t.Space(2)).FillWidth().Children(func() {
+	ui.Column(c).Gap(t.Space(uikit.SpaceM)).FillWidth().Children(func() {
 		remove := -1
 		for i := range e.draft.When {
 			h := &e.draft.When[i]
-			ui.Row(c.Key(fmt.Sprint("when", i))).Gap(t.Space(2)).AlignItems(ui.Center).FillWidth().Children(func() {
+			ui.Row(c.Key(fmt.Sprint("when", i))).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).FillWidth().Children(func() {
 				uikit.Input(c, &h.Name).Label(locales.HeaderName(i + 1)).Placeholder(locales.Name()).Font(uikit.FontMono).Width(150)
 				op := cmp.Or(h.Op, rules.HeaderEquals)
 				uikit.SelectLabels(c, &op, rules.HeaderOps, optionLabel).Label(locales.HeaderComparison(i + 1)).Width(100)

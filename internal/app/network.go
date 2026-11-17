@@ -379,11 +379,11 @@ func (a *app) networkModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	uikit.Modal(c.Key("network-presets"), &n.open, locales.CustomNetworkPresets(), func() {
-		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
+		ui.Column(c).Width(560).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			uikit.DialogTitle(c, locales.CustomNetworkPresets())
 			uikit.Meta(c, locales.HttpInspectedHttpsAndSse())
 			uikit.Meta(c, locales.RatesLimitEachBodyBy())
-			ui.Row(c).Gap(t.Space(2)).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				uikit.SecondaryButton(c, locales.NewPreset()).OnClick(func() { n.selectPreset("") })
 				names := make([]string, 0, len(n.presets))
 				for _, p := range n.presets {
@@ -399,12 +399,12 @@ func (a *app) networkModal(c *ui.Context, t *ui.Theme) {
 			uikit.Meta(c, locales.WholeNumbersRates01073741824())
 			if n.deleting {
 				uikit.Meta(c, "Delete “"+n.editing+"”? This cannot be undone. If active, global conditions will turn Off.")
-				ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Justify(ui.End).Children(func() {
 					uikit.SecondaryButton(c, locales.CancelDelete()).OnClick(func() { n.deleting = false })
 					uikit.SecondaryButton(c, locales.ConfirmDelete()).OnClick(func() { a.deleteNetworkPreset(n.editing) })
 				})
 			} else {
-				ui.Row(c).Gap(t.Space(2)).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 					uikit.SecondaryButton(c, locales.CopyActiveConditions()).OnClick(func() { n.draft = newNetworkDraft(a.throttle) })
 					uikit.SecondaryButton(c, locales.Delete()).Disabled(n.editing == "").OnClick(func() { n.deleting = true })
 					ui.Spacer(c)

@@ -231,16 +231,16 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 				uikit.DialogTitle(c, locales.ConnectADevice2())
 				ui.Spacer(c)
 				if d.gateway == nil {
-					ui.Badge(c, "LAN off")
+					uikit.Badge(c, locales.LanOff(), t.TextMuted)
 				} else {
-					ui.Badge(c, "LAN enabled").Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
+					uikit.Badge(c, locales.LanEnabled(), t.Accent)
 				}
 			})
 			uikit.Hint(c, locales.SameWiFiLanOnly())
-			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(6)).AlignItems(ui.Stretch).Children(func() {
-				ui.Scroll(c).BasisPercent(44).Grow(1).MinWidth(0).Gap(t.Space(3)).Padding(0, t.Space(2), 0, t.Space(1)).Children(func() {
+			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.Space2XL)).AlignItems(ui.Stretch).Children(func() {
+				ui.Scroll(c).BasisPercent(44).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceM), 0, t.Space(uikit.SpaceXS)).Children(func() {
 					if d.gateway == nil {
-						ui.Text(c, locales.N1ChooseANetworkAddress()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
+						uikit.Body(c, locales.N1ChooseANetworkAddress()).FontWeight(500)
 						ui.Form(c, func() {
 							ui.Field(c, locales.Address(), func() {
 								uikit.Select(c, &d.ip, d.ips).Label(locales.DeviceFacingAddress())
@@ -250,17 +250,17 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 							})
 						})
 						if len(d.ips) == 0 {
-							ui.Text(c, locales.NoActiveLanAddressConnect()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
+							uikit.Callout(c, uikit.CalloutDanger, locales.NoActiveLanAddressConnect(), nil)
 						}
 						if ip, err := netip.ParseAddr(d.ip); err == nil && ip.IsLinkLocalUnicast() {
 							uikit.Meta(c, locales.LinkLocalAddressTheDevice())
 						}
 						uikit.Meta(c, locales.ProxyPortAboveTheCertificate())
-						ui.Text(c, locales.N2AllowYourDeviceS()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
-						uikit.TextArea(c, &d.allowed).Height(74).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.AllowedDeviceAddresses()).Placeholder("192.168.1.42\nOne IP or CIDR per line")
+						uikit.Body(c, locales.N2AllowYourDeviceS()).FontWeight(500)
+						uikit.TextArea(c, &d.allowed).Height(74).Font(uikit.FontMono).Radius(uikit.RadiusControl).Label(locales.AllowedDeviceAddresses()).Placeholder("192.168.1.42\nOne IP or CIDR per line")
 						uikit.Meta(c, locales.FindItInTheDevice())
-						ui.Checkbox(c, &d.consent, "I trust this network and the allowed devices").FontSize(uikit.Scaled(uikit.TextBody))
-						ui.Checkbox(c, &d.askUnknown, locales.AskWhenUnknownDevice()).FontSize(uikit.Scaled(uikit.TextBody))
+						uikit.Checkbox(c, &d.consent, locales.TrustNetworkAndDevices())
+						uikit.Checkbox(c, &d.askUnknown, locales.AskWhenUnknownDevice())
 						uikit.Meta(c, locales.AskUnknownDeviceHint())
 					} else {
 						uikit.Hint(c, locales.ProxyAddress())
@@ -282,14 +282,14 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 						}
 						uikit.Meta(c, locales.PublicCertificateOnlyTheSigning())
 						ui.Divider(c)
-						ui.Text(c, locales.AllowedSources()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
+						uikit.Body(c, locales.AllowedSources()).FontWeight(500)
 						uikit.Hint(c, d.allowed).Font(uikit.FontMono)
 						uikit.Meta(c, locales.DisableAccessBeforeChangingThe())
 					}
 				})
-				ui.Column(c).BasisPercent(56).Grow(1).MinWidth(0).Gap(t.Space(3)).Children(func() {
+				ui.Column(c).BasisPercent(56).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceL)).Children(func() {
 					uikit.Tabs(c, &d.platform, "Device platform", locales.Ios(), locales.Android())
-					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Padding(0, t.Space(2), 0, 0).Children(func() {
+					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Padding(0, t.Space(uikit.SpaceM), 0, 0).Children(func() {
 						switch d.platform {
 						case 0:
 							uikit.Heading(c, locales.SetUpIphoneIpad())
@@ -311,7 +311,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 				})
 			})
 			if d.problem != "" {
-				ui.Text(c, d.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
+				uikit.Callout(c, uikit.CalloutDanger, d.problem, nil)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				if d.gateway == nil {

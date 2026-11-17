@@ -82,8 +82,8 @@ func (a *app) setupGuide(c *ui.Context) {
 	for current < 3 && done[current] {
 		current++
 	}
-	ui.Scroll(c).Fill().Padding(t.Space(8), t.Space(4)).Children(func() {
-		ui.Column(c).Width(520).MaxWidth(520).AlignSelf(ui.Center).Gap(t.Space(3)).Label(locales.SetupGuide()).Children(func() {
+	ui.Scroll(c).Fill().Padding(t.Space(uikit.Space3XL), t.Space(uikit.SpaceXL)).Children(func() {
+		ui.Column(c).Width(520).MaxWidth(520).AlignSelf(ui.Center).Gap(t.Space(uikit.SpaceL)).Label(locales.SetupGuide()).Children(func() {
 			ui.Column(c).FillWidth().Border(1, t.Border).Radius(uikit.RadiusPanel).Background(t.Background).Children(func() {
 				steps := []struct{ title, summary string }{
 					{"Start capturing", "Point clients at this app's proxy."},
@@ -101,7 +101,7 @@ func (a *app) setupGuide(c *ui.Context) {
 					a.guideStep(c, t, i, step.title, step.summary, done[i], i == current, open)
 				}
 				ui.Divider(c)
-				ui.Row(c).FillWidth().Padding(t.Space(1), t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					if n := len(a.flows); n > 0 {
 						uikit.Meta(c, locales.CapturedSoFar(n))
 					}
@@ -119,7 +119,7 @@ func (a *app) setupGuide(c *ui.Context) {
 // what it asks for while open.
 func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string, done, current, open bool) {
 	p := uikit.Colors(t)
-	row := ui.Row(c.Key(fmt.Sprintf("guide-step-%d", i))).FillWidth().Gap(t.Space(3)).Padding(t.Space(3), t.Space(4)).AlignItems(ui.Start)
+	row := ui.Row(c.Key(fmt.Sprintf("guide-step-%d", i))).FillWidth().Gap(t.Space(uikit.SpaceL)).Padding(t.Space(uikit.SpaceL), t.Space(uikit.SpaceXL)).AlignItems(ui.Start)
 	if current {
 		row.Background(p.AccentTint.Alpha(0.5))
 	}
@@ -134,21 +134,21 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 			})
 		case current:
 			mark.Background(p.Accent).TextColor(p.AccentText).Children(func() {
-				ui.Text(c, fmt.Sprint(i+1)).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500)
+				uikit.Caption(c, fmt.Sprint(i+1)).FontWeight(500)
 			})
 		default:
 			mark.Background(t.Text.Alpha(0.08)).TextColor(t.TextMuted).Children(func() {
-				ui.Text(c, fmt.Sprint(i+1)).FontSize(uikit.Scaled(uikit.TextMeta))
+				uikit.Caption(c, fmt.Sprint(i+1))
 			})
 		}
-		ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
-			heading := ui.Text(c, title).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
+		ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+			heading := uikit.Body(c, title).TextColor(t.Text)
 			if current {
 				heading.FontWeight(500)
 			}
 			uikit.Meta(c, summary)
 			if open {
-				ui.Column(c).FillWidth().Gap(t.Space(2)).Padding(t.Space(1), 0, 0, 0).Children(func() {
+				ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceXS), 0, 0, 0).Children(func() {
 					switch i {
 					case 0:
 						a.guideCapture(c, t)
@@ -167,8 +167,8 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 
 func (a *app) guideCapture(c *ui.Context, t *ui.Theme) {
 	if a.srv == nil || !a.srv.Running() {
-		ui.Text(c, locales.CaptureIsStopped()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
-		ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+		uikit.Callout(c, uikit.CalloutWarning, locales.CaptureIsStopped(), nil)
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 			// The step is called Start capturing, so its main action starts
 			// capture; Diagnostics stays available beside it.
 			if uikit.PrimaryButton(c, locales.StartCapture()).Disabled(a.srv == nil).Clicked() {
@@ -180,13 +180,13 @@ func (a *app) guideCapture(c *ui.Context, t *ui.Theme) {
 		})
 		return
 	}
-	ui.Row(c).Gap(t.Space(1)).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 		uikit.Meta(c, locales.ListeningAt())
 		uikit.Meta(c, a.srv.Addr()).Font(uikit.FontMono).Selectable()
 	})
 	s := &a.systemProxy
-	ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-		if uikit.PrimaryButton(c, locales.TurnOnSystemProxy()).Disabled(s.applying || s.checking).Clicked() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
+		if uikit.PrimaryButtonBusy(c, locales.TurnOnSystemProxy(), s.applying).Disabled(s.applying || s.checking).Clicked() {
 			a.setSystemProxy(true)
 		}
 		if uikit.SecondaryButton(c, locales.CaptureOneAppOnly()).Clicked() {
@@ -195,14 +195,14 @@ func (a *app) guideCapture(c *ui.Context, t *ui.Theme) {
 	})
 	if s.checked || s.applying {
 		status, color := a.systemProxyStatus(t)
-		ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color)
+		uikit.Caption(c, status).TextColor(color)
 	}
 }
 
 func (a *app) guideCertificate(c *ui.Context, t *ui.Theme) {
 	s := &a.certificate
 	status, color := a.certificateStatus(t)
-	ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 		if uikit.PrimaryButton(c, locales.InstallAndTrust()).Disabled(s.checking).Clicked() {
 			a.checkCertificate(true)
 		}
@@ -214,7 +214,7 @@ func (a *app) guideCertificate(c *ui.Context, t *ui.Theme) {
 			}
 		}
 	})
-	ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color)
+	uikit.Caption(c, status).TextColor(color)
 	uikit.Meta(c, locales.SomeAppsKeepTheirOwn())
 }
 
@@ -248,7 +248,7 @@ func (a *app) guideDecrypt(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	box := func(key, label string, on bool, set func(bool)) {
-		ui.Checkbox(c.Key(key), &on, label).FontSize(uikit.Scaled(uikit.TextBody)).OnClick(func() { set(on) })
+		uikit.Checkbox(c.Key(key), &on, label).OnClick(func() { set(on) })
 	}
 	for _, app := range apps {
 		box("guide-app:"+app.Path, app.Name, a.appInspectionEnabled(app.Path), func(on bool) { a.setAppInspection(app, on) })

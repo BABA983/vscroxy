@@ -202,21 +202,21 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 			} {
 				uikit.SidebarItem(c, item.id, item.icon, item.label, a.settingsChoice == item.id, active).Label(locales.SettingsCategory(item.label))
 			}
-		}).Width(188).Padding(t.Space(2)).Gap(t.Space(0.5)).Background(uikit.Colors(t).Chrome)
+		}).Width(188).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceHair)).Background(uikit.Colors(t).Chrome)
 		ui.Divider(c)
 		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
-			top := t.Space(2)
+			top := t.Space(uikit.SpaceM)
 			if a.settingsWin != nil {
-				top = t.Space(6) // no dialog title above it
+				top = t.Space(uikit.Space2XL) // no dialog title above it
 			}
-			bottom := t.Space(6)
+			bottom := t.Space(uikit.Space2XL)
 			if a.settingsTab == 6 {
 				// The certificates footer is fixed under the scroll: leave
 				// its height as content padding so the last client card can
 				// scroll clear of it.
 				bottom += 64
 			}
-			ui.Scroll(c).Grow(1).MinHeight(0).MinWidth(0).Padding(top, t.Space(6), bottom, t.Space(6)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).MinWidth(0).Padding(top, t.Space(uikit.Space2XL), bottom, t.Space(uikit.Space2XL)).Children(func() {
 				switch a.settingsTab {
 				case 0:
 					a.generalSettings(c, t)

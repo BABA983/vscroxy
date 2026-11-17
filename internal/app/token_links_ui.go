@@ -114,14 +114,14 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, locales.TokenLinks())
 			uikit.Hint(c, locales.TokenLinksSelected(len(w.flows)))
 			uikit.Hint(c, locales.EvidenceNotProofOfAuthentication())
-			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				if w.busy {
-					ui.Spinner(c).Size(20, 20)
+					uikit.Spinner(c, locales.AnalyzingCompleteJsonResponses())
 					uikit.Body(c, locales.AnalyzingCompleteJsonResponses())
 					return
 				}
 				if w.problem != "" {
-					ui.Text(c, w.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
+					uikit.Callout(c, uikit.CalloutDanger, w.problem, nil)
 					return
 				}
 				if w.applied {
@@ -141,7 +141,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 						uikit.Body(c, script.label).FontWeight(500)
 						uikit.Mono(c, script.text).Wrap()
 					}
-					ui.Checkbox(c, &w.reviewed, "I reviewed these script and credential changes").FontSize(uikit.Scaled(uikit.TextBody))
+					uikit.Checkbox(c, &w.reviewed, locales.ReviewedScriptAndCredentialChanges())
 					return
 				}
 				if len(w.analysis.Links) == 0 {
@@ -149,7 +149,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 					uikit.Hint(c, locales.SelectALoginResponseAnd())
 				}
 				for i, link := range w.analysis.Links {
-					ui.Column(c.Key(i)).Padding(t.Space(3)).Gap(t.Space(2)).Border(1, t.Border).Radius(uikit.RadiusPanel).Children(func() {
+					ui.Column(c.Key(i)).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Border(1, t.Border).Radius(uikit.RadiusPanel).Children(func() {
 						uikit.Body(c, locales.TokenLinkRow(link.Source, len(link.Consumers))).FontWeight(500)
 						path, _ := json.Marshal(link.Path)
 						uikit.Mono(c, "JSON path segments: "+string(path)).Wrap()
@@ -178,7 +178,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 				}
 			})
 			if w.applyError != "" {
-				ui.Text(c, w.applyError).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).MaxHeight(64)
+				uikit.ErrorText(c, w.applyError).MaxHeight(64)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				state := "Preview only · nothing changed"

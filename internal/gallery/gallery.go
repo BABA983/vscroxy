@@ -185,8 +185,8 @@ func (g *Gallery) catalog(c *ui.Context, inDrawer bool) {
 		width = 268
 	}
 	ui.Column(c).Width(width).Shrink(0).FillHeight().Background(uikit.Colors(t).Chrome).Children(func() {
-		ui.Row(c).Padding(t.Space(4), t.Space(3), t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Column(c).Gap(t.Space(0.5)).Children(func() {
+		ui.Row(c).Padding(t.Space(uikit.SpaceXL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+			ui.Column(c).Gap(t.Space(uikit.SpaceHair)).Children(func() {
 				ui.Text(c, "vscroxy").FontSize(uikit.Scaled(uikit.TextTitle)).FontWeight(500)
 				uikit.Meta(c, "design gallery")
 			})
@@ -197,7 +197,7 @@ func (g *Gallery) catalog(c *ui.Context, inDrawer bool) {
 				}
 			}
 		})
-		ui.Scroll(c).Grow(1).Padding(0, t.Space(2), t.Space(3), t.Space(2)).Children(func() {
+		ui.Scroll(c).Grow(1).Padding(0, t.Space(uikit.SpaceM), t.Space(uikit.SpaceL), t.Space(uikit.SpaceM)).Children(func() {
 			uikit.SidebarList(c, "gallery", &g.choice, g.Choose, func() {
 				for _, group := range g.groups {
 					uikit.SidebarHeading(c, group.Title, nil, func() { uikit.Meta(c, fmt.Sprint(len(group.Entries))) })
@@ -218,7 +218,7 @@ func (g *Gallery) bar(c *ui.Context) {
 	if entry != nil {
 		title, note = entry.Title, entry.Note
 	}
-	ui.Row(c).Height(48).Shrink(0).Padding(0, t.Space(4)).Gap(t.Space(3)).AlignItems(ui.Center).
+	ui.Row(c).Height(48).Shrink(0).Padding(0, t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).
 		Background(uikit.Colors(t).Chrome).Children(func() {
 		ui.Column(c).Gap(0).MinWidth(0).Children(func() {
 			ui.Text(c, title).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).SingleLine()
@@ -241,7 +241,7 @@ func (g *Gallery) bar(c *ui.Context) {
 		if g.dark {
 			dark = 1
 		}
-		uikit.Segmented(c, &dark, "Light", "Dark").Width(120).Label("Appearance")
+		uikit.Segmented(c, &dark, "Light", "Dark").Width(uikit.WidthNarrow).Label("Appearance")
 		if (dark == 1) != g.dark {
 			g.SetDark(dark == 1)
 			g.syncScreens()
@@ -285,7 +285,7 @@ func (g *Gallery) canvas(c *ui.Context) {
 			return
 		}
 		ui.Scroll(c).Grow(1).Padding(32).Children(func() {
-			ui.Column(c).MaxWidth(1120).Gap(c.Theme().Space(6)).Children(func() { entry.build(c) })
+			ui.Column(c).MaxWidth(1120).Gap(c.Theme().Space(uikit.Space2XL)).Children(func() { entry.build(c) })
 		})
 	})
 }

@@ -56,8 +56,8 @@ func (a *app) variableSensitiveTextArea(c *ui.Context, key string, value *string
 // variableGridInput is requestGridInput with the same variable help, for the
 // Params, Headers and form tables. mask hides every hover value.
 func (a *app) variableGridInput(c *ui.Context, key string, value *string, placeholder, label, collection string, mask bool) ui.Element {
-	in := ui.TextInputBase(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
-		FillHeight().Padding(0, c.Theme().Space(2)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).
+	in := uikit.InputControl(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
+		FillHeight().Padding(0, c.Theme().Space(uikit.SpaceM)).Font(uikit.FontMono).
 		Border(1, ui.Color{})
 	a.attachVariables(c, in, key, value, label, collection, mask)
 	return in
@@ -101,12 +101,12 @@ func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variable
 				if i > 0 {
 					ui.Box(c).Height(1).FillWidth().Background(uikit.Colors(t).Hairline)
 				}
-				ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, "{{"+mark.Ref.Name+"}}").Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text)
+				ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
+					uikit.DataMeta(c, "{{"+mark.Ref.Name+"}}").TextColor(t.Text)
 					if mark.Defined {
-						ui.Text(c, mark.Hint.source()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
+						uikit.Meta(c, mark.Hint.source()).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
 					} else {
-						ui.Text(c, "undefined").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Grow(1)
+						uikit.ErrorText(c, "undefined").Grow(1)
 					}
 				})
 				value := "stays literal when sent"
@@ -117,7 +117,7 @@ func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variable
 						value = mark.Hint.display()
 					}
 				}
-				ui.Text(c, value).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text).SingleLine().Ellipsis("…")
+				uikit.DataMeta(c, value).TextColor(t.Text).SingleLine().Ellipsis("…")
 			}
 		})
 	})
@@ -208,18 +208,18 @@ func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, valu
 		return false
 	})
 	panel := ui.PopoverBase(c, anchor, &a.varsComplete.open, func(panel ui.Element) {
-		uikit.PopoverPanel(c, panel).Width(320).Padding(t.Space(1))
+		uikit.PopoverPanel(c, panel).Width(320).Padding(t.Space(uikit.SpaceXS))
 		ui.Scroll(c).MaxHeight(300).Children(func() {
 			for i, hint := range items {
-				item := ui.ButtonBase(c).Label("Insert {{"+hint.Name+"}}").Padding(t.Space(1), t.Space(1.5)).Radius(uikit.RadiusControl).Gap(t.Space(1)).AlignItems(ui.Center)
+				item := uikit.RowButton(c, "Insert {{"+hint.Name+"}}").Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center)
 				if i == a.varsComplete.selected {
 					item.Background(uikit.Colors(t).AccentTint)
 				} else if item.Hovered() {
 					item.Background(t.SurfaceHover)
 				}
 				item.Children(func() {
-					ui.Text(c, hint.Name).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
-					ui.Text(c, hint.source()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
+					uikit.DataBody(c, hint.Name).TextColor(t.Text)
+					uikit.Meta(c, hint.source()).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
 				})
 				if item.Clicked() {
 					a.acceptVariableCompletion(anchor, value, hint.Name)

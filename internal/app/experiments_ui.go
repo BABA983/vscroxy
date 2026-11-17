@@ -284,14 +284,14 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 		}
 	}
 	width, height := c.Size()
-	panel := ui.Column(c).Gap(t.Space(2))
+	panel := ui.Column(c).Gap(t.Space(uikit.SpaceM))
 	if inline {
-		panel.Fill().Padding(t.Space(3))
+		panel.Fill().Padding(t.Space(uikit.SpaceL))
 	} else {
 		panel.Width(min(1200, width-80)).Height(height - 100)
 	}
 	panel.Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Height(uikit.HeightTabs).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			title := locales.RunsPage()
 			if s.scope != nil {
 				title += " · Source"
@@ -311,9 +311,9 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 			}
 		})
 		if s.problem != "" {
-			ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
+			uikit.Callout(c, uikit.CalloutDanger, s.problem, nil)
 		}
-		ui.Row(c).Gap(t.Space(2)).Children(func() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			historyFilters(c, &s.status, &s.sourceFilter)
 		})
 		visible := make([]experimentRecord, 0, len(s.log.Records))
@@ -333,10 +333,10 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 		s.records.Key = func(i int) any { return visible[i].ID }
 		s.records.Label = func(i int) string { return locales.ExperimentNumber(visible[i].ID) }
 		ui.Row(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).AlignItems(ui.Stretch).Children(func() {
-			ui.Scroll(c).Width(220).Padding(t.Space(1)).Children(func() {
+			ui.Scroll(c).Width(220).Padding(t.Space(uikit.SpaceXS)).Children(func() {
 				a.debugDrafts(c)
 				if len(visible) == 0 {
-					uikit.Hint(c, locales.SendARequestToRecord()).Padding(t.Space(2))
+					uikit.Hint(c, locales.SendARequestToRecord()).Padding(t.Space(uikit.SpaceM))
 				}
 				uikit.DataList(c, &s.records, len(visible), func(row ui.ListRow) {
 					r := visible[row.Index]
@@ -344,8 +344,8 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					if r.ID == s.log.Baseline {
 						label += " · " + locales.Baseline()
 					}
-					uikit.Tip(c, ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
-						ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").SingleLine()
+					uikit.Tip(c, ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
+						uikit.Caption(c, label).FontFeatures("tnum").SingleLine()
 						uikit.Meta(c, r.Summary).SingleLine()
 					}), r.Draft.Method+" "+r.Draft.URL+"\n"+r.Summary)
 				}).FillWidth()
@@ -354,7 +354,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				}
 			})
 			ui.Divider(c)
-			ui.Column(c).Grow(1).MinWidth(0).Padding(t.Space(2)).Gap(t.Space(2)).Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				r := s.record(s.picked)
 				if r == nil {
 					message := "Send a request to record an experiment."
@@ -378,12 +378,12 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 					return
 				}
-				uikit.Tip(c, ui.Text(c, locales.RunDraft(r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.Scaled(uikit.TextBody)).FontFeatures("tnum").FontWeight(500).SingleLine(), r.Draft.URL)
+				uikit.Tip(c, uikit.Body(c, locales.RunDraft(r.ID, r.Draft.Method, r.Draft.URL)).FontFeatures("tnum").FontWeight(500).SingleLine(), r.Draft.URL)
 				uikit.Meta(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontFeatures("tnum")
 				if r.Outcome != "" {
 					uikit.Meta(c, r.Outcome)
 				}
-				ui.Row(c).Gap(t.Space(1)).Wrap().Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceXS)).Wrap().Children(func() {
 					if uikit.SecondaryButton(c, locales.OpenAsDraft()).Clicked() {
 						a.openRecord(*r)
 						s.open = false
@@ -411,7 +411,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 						s.comparison.diff = nil
 					}
 				})
-				ui.Row(c).Gap(t.Space(2)).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 					uikit.Input(c, &s.note).Label(locales.ExperimentNote()).Placeholder(locales.WhatDidThisAttemptTest()).Grow(1)
 					if uikit.SecondaryButton(c, locales.SaveNote()).Clicked() {
 						r.Note = s.note
@@ -427,7 +427,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				if s.tab == 5 {
 					uikit.Meta(c, locales.ReferencedValuesAfterPreScript())
 					if r.Variables == nil {
-						ui.Text(c, locales.NoVariableSnapshotRetainedOlder()).FontSize(uikit.Scaled(uikit.TextMeta))
+						uikit.Caption(c, locales.NoVariableSnapshotRetainedOlder())
 					}
 					variableRows(c, r.Variables, &s.revealVars)
 					return

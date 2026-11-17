@@ -63,7 +63,7 @@ func (a *app) diffPool(c *ui.Context, selected []flow) {
 	t := c.Theme()
 	s := &a.analysis
 	flows := a.poolFlows()
-	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Wrap().Children(func() {
 		uikit.Meta(c, locales.DiffPoolCount(len(flows))).Grow(1)
 		if uikit.Tip(c, uikit.SecondaryButton(c, locales.AddSelectionToPool()).Disabled(len(flows) == diffPoolLimit), locales.DiffPoolLimit(diffPoolLimit)).Clicked() {
 			s.addToPool(selected)
@@ -73,14 +73,14 @@ func (a *app) diffPool(c *ui.Context, selected []flow) {
 		}
 	})
 	if len(flows) < 2 {
-		uikit.Hint(c, locales.DiffPoolNeedsTwo()).Padding(t.Space(4))
+		uikit.Hint(c, locales.DiffPoolNeedsTwo()).Padding(t.Space(uikit.SpaceXL))
 		return
 	}
-	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Wrap().Children(func() {
 		for _, f := range flows {
 			label := poolLabel(f)
-			ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(uikit.Colors(t).TextMuted)
+			ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
+				uikit.Caption(c, label).TextColor(uikit.Colors(t).TextMuted)
 				if uikit.Tip(c, uikit.CompactButton(c, "×"), locales.RemoveFromPool()).Clicked() {
 					s.pool = slices.DeleteFunc(s.pool, func(id int) bool { return id == f.id })
 					if s.poolLeft == label || s.poolRight == label {
@@ -103,12 +103,12 @@ func (a *app) diffPool(c *ui.Context, selected []flow) {
 			s.poolRight = labels[0]
 		}
 	}
-	ui.Column(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(1)).Children(func() {
+	ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 		for _, side := range []struct {
 			label string
 			value *string
 		}{{locales.LeftSide(), &s.poolLeft}, {locales.RightSide(), &s.poolRight}} {
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, side.label).Width(70)
 				uikit.SelectLabels(c, side.value, labels, optionLabel).Label(side.label).Grow(1)
 			})

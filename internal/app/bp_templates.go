@@ -137,9 +137,9 @@ func (a *app) breakTemplates(c *ui.Context, t *ui.Theme, valid bool) {
 			mine = append(mine, o)
 		}
 	}
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		if a.bpSaving {
-			input := uikit.Input(c, &a.bpName).Width(200).Label(locales.TemplateName()).Placeholder(locales.TemplateName())
+			input := uikit.Input(c, &a.bpName).Width(uikit.WidthFieldWide).Label(locales.TemplateName()).Placeholder(locales.TemplateName())
 			name := strings.TrimSpace(a.bpName)
 			save := uikit.CompactButton(c, locales.Save()).Disabled(name == "" || !valid)
 			if save.Clicked() || (input.Submitted() && name != "" && valid) {
@@ -169,7 +169,7 @@ func (a *app) breakTemplates(c *ui.Context, t *ui.Theme, valid bool) {
 						}
 					}
 				})
-			}).Height(uikit.HeightControl).Label(locales.BreakpointTemplate()), "Fill this "+phase+" with a saved one; the URL stays as paused")
+			}).Height(uikit.HeightRow).Label(locales.BreakpointTemplate()), "Fill this "+phase+" with a saved one; the URL stays as paused")
 		}
 		save := uikit.CompactButton(c, locales.SaveAsTemplate()).Disabled(!valid).
 			Tooltip("Keep this " + phase + " as edited to apply at a later pause")

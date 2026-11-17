@@ -92,32 +92,32 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 	t := c.Theme()
 	changed, remove := false, -1
 	ui.Column(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
-		ui.Row(c).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+		ui.Row(c).Height(uikit.HeightRow).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
 			if opts.enable {
-				ui.Box(c).Width(uikit.HeightLarge).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
+				ui.Box(c).Width(uikit.HeightControl).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
 			}
 			// Keep the padding inside each column so the title's flex base
 			// matches the rows' cells.
 			ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-				uikit.Label(c, locales.Name()).FillWidth().Padding(t.Space(1), t.Space(2))
+				uikit.Label(c, locales.Name()).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM))
 			})
 			ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-				uikit.Label(c, locales.Initial()).FillWidth().Padding(t.Space(1), t.Space(2))
+				uikit.Label(c, locales.Initial()).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM))
 			})
 			ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-				uikit.Label(c, locales.Current()).FillWidth().Padding(t.Space(1), t.Space(2))
+				uikit.Label(c, locales.Current()).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM))
 			})
-			ui.Box(c).Width(uikit.HeightControl*4 + t.Space(1))
+			ui.Box(c).Width(uikit.HeightRow*4 + t.Space(uikit.SpaceXS))
 		})
 		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 			for i := range *rows {
 				r := &(*rows)[i]
-				row := ui.Row(c.Key(i)).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+				row := ui.Row(c.Key(i)).Height(uikit.HeightRow).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
 				row.Children(func() {
 					if opts.enable {
-						ui.Box(c).Width(uikit.HeightLarge).FillHeight().Center().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+						ui.Box(c).Width(uikit.HeightControl).FillHeight().Center().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 							enabled := !r.Disabled
-							if uikit.Tip(c, ui.Checkbox(c, &enabled, "").Label(locales.EnableVariable(i+1)), locales.UncheckedRowsStayHereAnd()).Changed() {
+							if uikit.Tip(c, uikit.Checkbox(c, &enabled, "").Label(locales.EnableVariable(i+1)), locales.UncheckedRowsStayHereAnd()).Changed() {
 								r.Disabled, changed = !enabled, true
 							}
 						})
@@ -150,7 +150,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 							r.HasCurrent, changed = true, true
 						}
 					})
-					ui.Row(c).Width(uikit.HeightControl*4 + t.Space(1)).Children(func() {
+					ui.Row(c).Width(uikit.HeightRow*4 + t.Space(uikit.SpaceXS)).Children(func() {
 						if secret {
 							if uikit.IconButton(c, locales.RevealVariable(i+1), locales.RevealOrHideBothValues(), eyeIcon).Clicked() {
 								r.Revealed = !r.Revealed
@@ -158,7 +158,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 						} else {
 							// Keep the action column's geometry steady when a
 							// row has no secret to reveal.
-							ui.Box(c).Size(uikit.HeightControl, uikit.HeightControl)
+							ui.Box(c).Size(uikit.HeightRow, uikit.HeightRow)
 						}
 						blocked := r.Credential || sensitiveVariable(r.Name)
 						persistTooltip := "Persist current as initial: writes it to the shared file and exports"

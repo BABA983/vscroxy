@@ -86,6 +86,12 @@ func TestThemesKeepTextReadable(t *testing.T) {
 			check("field focus edge on a chrome field", p.Ring, p.Canvas, 3)
 			check("field focus edge beside the canvas", p.Ring, p.Canvas, 3)
 			check("field focus edge beside chrome", p.Ring, p.Chrome, 3)
+			// An unchecked box or radio draws Ring as its edge on each surface;
+			// its face is a 7% tint, too faint to be the only sign of a box.
+			check("checkbox edge on canvas", p.Ring, p.Canvas, 3)
+			check("checkbox edge on chrome", p.Ring, p.Chrome, 3)
+			check("checkbox edge on its well", p.Ring, p.Well, 3)
+			check("checkbox edge on its face", p.Ring, p.Fill.Over(p.Canvas), 3)
 			if p.Ring == p.Accent || p.Ring == p.TextMuted {
 				t.Fatal("Ring must be its own focus color, not the accent or muted text")
 			}
@@ -139,7 +145,7 @@ func TestFloatingScaleTokens(t *testing.T) {
 	if got := ShadowMenu.Color(true).A; got != 71 {
 		t.Fatalf("dark menu alpha = %d, want 71", got)
 	}
-	if Light.Chrome != ui.Hex("#f2f6ee") || Light.Scrim != ui.RGBA(0, 0, 0, 0.35) {
+	if Light.Chrome != ui.Hex("#edf3ea") || Light.Scrim != ui.RGBA(0, 0, 0, 0.35) {
 		t.Fatalf("Light chrome/scrim = %v/%v", Light.Chrome, Light.Scrim)
 	}
 	if got := Theme(false).TooltipDelay; got != 500*time.Millisecond {

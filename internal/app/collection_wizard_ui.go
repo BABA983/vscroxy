@@ -24,11 +24,11 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 	_, height := c.Size()
 	dialog := uikit.Modal(c, &w.open, locales.CreateCollection2(), func() {
 		c.OnShortcut(0, ui.KeyEscape, func() { w.open = false })
-		uikit.DialogColumn(c, 1080).Height(min(620, height-100)).Gap(t.Space(3)).Children(func() {
+		uikit.DialogColumn(c, 1080).Height(min(620, height-100)).Gap(t.Space(uikit.SpaceL)).Children(func() {
 			uikit.DialogTitle(c, locales.CreateCollection2())
-			ui.Row(c).Gap(t.Space(2)).FillWidth().Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).FillWidth().Children(func() {
 				for i, label := range collectionSteps {
-					ui.Row(c.Key(label)).Grow(1).Gap(t.Space(2)).Height(36).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+					ui.Row(c.Key(label)).Grow(1).Gap(t.Space(uikit.SpaceM)).Height(36).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
 						mark := strconv.Itoa(i + 1)
 						if i < w.step {
 							mark = "✓"
@@ -41,7 +41,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 						} else if i == w.step {
 							color, background = t.AccentText, t.Accent
 						}
-						ui.Box(c).Size(22, 22).Radius(11).Background(background).Border(1, t.Border).Center().Children(func() { ui.Text(c, mark).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color) })
+						ui.Box(c).Size(22, 22).Radius(11).Background(background).Border(1, t.Border).Center().Children(func() { uikit.Caption(c, mark).TextColor(color) })
 						text := uikit.Body(c, label).SingleLine()
 						if i == w.step {
 							text.TextColor(t.Accent).FontWeight(500)
@@ -54,8 +54,8 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 					}())
 				}
 			})
-			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(4)).AlignItems(ui.Stretch).Disabled(w.building != nil).Children(func() {
-				ui.Scroll(c.Key("settings-" + strconv.Itoa(w.step))).Basis(0).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(3)).Children(func() {
+			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceXL)).AlignItems(ui.Stretch).Disabled(w.building != nil).Children(func() {
+				ui.Scroll(c.Key("settings-" + strconv.Itoa(w.step))).Basis(0).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(uikit.SpaceL)).Children(func() {
 					switch w.step {
 					case 0:
 						a.collectionScopeEditor(c, t)
@@ -83,19 +83,19 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 						uikit.Body(c, locales.RequestsAndExamples(n, examples))
 						uikit.Body(c, locales.CollectionLabel(cmp.Or(w.destination, w.name)))
 						uikit.Body(c, locales.EnvironmentLabel(w.environmentLabel()))
-						ui.Checkbox(c, &w.generateAPI, "Also generate OpenAPI draft").FontSize(uikit.Scaled(uikit.TextBody))
+						uikit.Checkbox(c, &w.generateAPI, locales.AlsoGenerateOpenApiDraft())
 						uikit.Hint(c, locales.TheApiDraftOpensIn())
 						uikit.Hint(c, locales.RequestsAndExamplesMayContain())
 					}
 				})
-				ui.Column(c.Key("preview-"+strconv.Itoa(w.step))).Basis(0).Grow(1.15).MinWidth(0).MinHeight(0).Padding(t.Space(3)).Gap(t.Space(3)).Background(uikit.Colors(t).Chrome).Border(1, t.Border).Radius(uikit.RadiusPanel).Children(func() {
+				ui.Column(c.Key("preview-"+strconv.Itoa(w.step))).Basis(0).Grow(1.15).MinWidth(0).MinHeight(0).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceL)).Background(uikit.Colors(t).Chrome).Border(1, t.Border).Radius(uikit.RadiusPanel).Children(func() {
 					if w.step == 3 || w.step == 5 {
 						a.collectionWizardTree(c, t)
 						return
 					}
 					if w.step == 0 {
 						uikit.DialogTitle(c, locales.HostsInScope())
-						ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
+						ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
 							for _, h := range w.hosts {
 								uikit.Mono(c, h.origin).SingleLine()
 							}
@@ -111,12 +111,12 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 					uikit.DialogTitle(c, g.method+" "+g.template).Font(uikit.FontMono).SingleLine()
 					uikit.Meta(c, locales.OriginCapturedRequests(g.origin, len(g.flows))).SingleLine()
 					if w.step == 4 {
-						ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
+						ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
 							for _, i := range g.flows {
 								f := w.flows[i]
-								ui.Row(c.Key(i)).Gap(t.Space(2)).Height(uikit.HeightLarge).Children(func() {
+								ui.Row(c.Key(i)).Gap(t.Space(uikit.SpaceM)).Height(uikit.HeightControl).Children(func() {
 									uikit.Tip(c, uikit.Mono(c, cmp.Or(f.path, f.url)).Grow(1).MinWidth(0).SingleLine(), f.url)
-									ui.Text(c, strconv.Itoa(f.status)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextData)).TextColor(uikit.StatusColor(f.status, t)).Width(32)
+									uikit.Mono(c, strconv.Itoa(f.status)).TextColor(uikit.StatusColor(f.status, t)).Width(32)
 									uikit.Meta(c, fmt.Sprintf("%d ms", f.millis)).Width(52)
 								})
 							}
@@ -152,7 +152,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 				})
 			})
 			if w.problem != "" {
-				ui.Text(c, w.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+				uikit.ErrorText(c, w.problem)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				message := "Nothing is saved until Create."
@@ -190,9 +190,9 @@ func (a *app) collectionScopeEditor(c *ui.Context, t *ui.Theme) {
 	w := &a.collectionUI
 	uikit.DialogTitle(c, locales.ChooseScope())
 	uikit.Body(c, locales.CapturedRequestsCount(len(w.flows)))
-	ui.Checkbox(c, &w.static, "Exclude static resources").FontSize(uikit.Scaled(uikit.TextBody)).OnChange(w.regroup)
-	ui.Checkbox(c, &w.tunnels, "Exclude CONNECT tunnels").FontSize(uikit.Scaled(uikit.TextBody)).OnChange(w.regroup)
-	ui.Checkbox(c, &w.failed, "Exclude network failures").FontSize(uikit.Scaled(uikit.TextBody)).OnChange(w.regroup)
+	uikit.Checkbox(c, &w.static, locales.ExcludeStaticResources()).OnChange(w.regroup)
+	uikit.Checkbox(c, &w.tunnels, locales.ExcludeConnectTunnels()).OnChange(w.regroup)
+	uikit.Checkbox(c, &w.failed, locales.ExcludeNetworkFailures()).OnChange(w.regroup)
 	uikit.Hint(c, locales.Http4xxAnd5xxResponses())
 	uikit.Body(c, locales.ScopeSummary(len(w.scope()), len(w.flows)-len(w.scope()), len(w.groups)))
 }
@@ -202,10 +202,10 @@ func (a *app) collectionEndpointsEditor(c *ui.Context, t *ui.Theme) {
 	uikit.DialogTitle(c, locales.MergeEndpoints())
 	uikit.Hint(c, locales.SameMethodHostAndPath())
 	for i, g := range w.groups {
-		ui.Row(c.Key(g.id)).Gap(t.Space(2)).Height(uikit.HeightLarge).Children(func() {
-			ui.Checkbox(c, &g.include, "").Label("Include " + g.method + " " + g.template)
+		ui.Row(c.Key(g.id)).Gap(t.Space(uikit.SpaceM)).Height(uikit.HeightControl).Children(func() {
+			uikit.Checkbox(c, &g.include, "").Label(locales.IncludeRequest(g.method, g.template))
 			uikit.ToolbarButton(c, "Endpoint "+g.method+" "+g.template, g.origin, i == w.active).Grow(1).MinWidth(0).Children(func() {
-				ui.Text(c, g.method).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextData)).TextColor(uikit.MethodColor(g.method, t)).Width(46)
+				uikit.Mono(c, g.method).TextColor(uikit.MethodColor(g.method, t)).Width(46)
 				uikit.Mono(c, g.template).Grow(1).MinWidth(0).SingleLine()
 				uikit.Meta(c, locales.TimesCount(len(g.flows)))
 			}).OnClick(func() { w.active = i })
@@ -219,7 +219,7 @@ func (a *app) collectionEndpointsEditor(c *ui.Context, t *ui.Theme) {
 	uikit.Body(c, locales.PathTemplate())
 	uikit.Input(c, &g.template).Label(locales.PathTemplate()).Font(uikit.FontMono)
 	uikit.Hint(c, locales.UseIdForAWhole())
-	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().Children(func() {
 		uikit.SecondaryButton(c, locales.Split()).Disabled(len(g.flows) < 2).OnClick(func() { w.split(w.active) })
 		uikit.MenuSelect(c, locales.MergeWith(), func(m *ui.Menu) {
 			for i, other := range w.groups {
@@ -245,8 +245,8 @@ func (a *app) collectionVariablesEditor(c *ui.Context, t *ui.Theme) {
 	}
 	for i := range w.hosts {
 		h := &w.hosts[i]
-		ui.Row(c.Key(h.origin)).Gap(t.Space(2)).Children(func() {
-			uikit.Input(c, &h.variable).Label("Host variable " + h.origin).Width(140).Font(uikit.FontMono)
+		ui.Row(c.Key(h.origin)).Gap(t.Space(uikit.SpaceM)).Children(func() {
+			uikit.Input(c, &h.variable).Label("Host variable " + h.origin).Width(uikit.WidthPicker).Font(uikit.FontMono)
 			uikit.Tip(c, uikit.Mono(c, h.origin).SingleLine().Grow(1).MinWidth(0), h.origin)
 		})
 	}
@@ -255,12 +255,12 @@ func (a *app) collectionVariablesEditor(c *ui.Context, t *ui.Theme) {
 	uikit.Hint(c, locales.MatchingAuthorizationIsInheritedFrom())
 	for i := range w.credentials {
 		credential := &w.credentials[i]
-		ui.Column(c.Key(i)).Gap(t.Space(2)).Padding(0, 0, t.Space(2), 0).Children(func() {
+		ui.Column(c.Key(i)).Gap(t.Space(uikit.SpaceM)).Padding(0, 0, t.Space(uikit.SpaceM), 0).Children(func() {
 			uikit.Body(c, locales.CredentialSummary(credential.header, credential.count))
 			uikit.Input(c, &credential.variable).Label(locales.CredentialVariable(i + 1)).Font(uikit.FontMono)
 			uikit.SelectLabels(c, &credential.storage, []string{credentialCurrent, credentialVault, credentialKeep}, optionLabel).Label(locales.StoreCredential(i + 1))
 			if credential.storage == credentialKeep {
-				ui.Text(c, locales.OriginalCredentialWillBeWritten()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning)
+				uikit.Caption(c, locales.OriginalCredentialWillBeWritten()).TextColor(t.Warning)
 			}
 		})
 	}
@@ -313,7 +313,7 @@ func (a *app) collectionStructureEditor(c *ui.Context, t *ui.Theme) {
 	uikit.Mono(c, g.method+" "+g.template).SingleLine()
 	uikit.Input(c, &g.name).Label(locales.RequestName())
 	uikit.Input(c, &g.folder).Label(locales.RequestFolder()).Placeholder(locales.CollectionRoot())
-	ui.Row(c).Gap(t.Space(2)).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		uikit.SecondaryButton(c, locales.MoveUp()).Disabled(w.active == 0).OnClick(func() { i := w.active; w.groups[i-1], w.groups[i] = w.groups[i], w.groups[i-1]; w.active-- })
 		uikit.SecondaryButton(c, locales.MoveDown()).Disabled(w.active == len(w.groups)-1).OnClick(func() { i := w.active; w.groups[i+1], w.groups[i] = w.groups[i], w.groups[i+1]; w.active++ })
 	})
@@ -327,12 +327,12 @@ func (a *app) collectionExamplesEditor(c *ui.Context, t *ui.Theme) {
 		if !g.include {
 			continue
 		}
-		ui.Column(c.Key(g.id)).Gap(t.Space(2)).Children(func() {
+		ui.Column(c.Key(g.id)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			uikit.ToolbarButton(c, "Examples for "+g.name, g.template, w.active == index).FillWidth().Children(func() { uikit.Mono(c, g.method+" "+g.template).SingleLine() }).OnClick(func() { w.active = index })
 			for _, i := range g.flows {
 				f := w.flows[i]
 				selected := w.examples[i]
-				ui.Checkbox(c.Key(i), &selected, fmt.Sprintf("%d · %s · %s", f.status, f.at.Format("15:04:05"), cmp.Or(f.path, "/"))).FontSize(uikit.Scaled(uikit.TextMeta)).
+				uikit.Checkbox(c.Key(i), &selected, fmt.Sprintf("%d · %s · %s", f.status, f.at.Format("15:04:05"), cmp.Or(f.path, "/"))).
 					Label(fmt.Sprintf("Example capture %d", i)).Disabled(f.status < 200 || f.status > 599 || f.conn.error != "").OnClick(func() { w.examples[i] = selected })
 			}
 		})
@@ -349,9 +349,9 @@ func (a *app) collectionWizardTree(c *ui.Context, t *ui.Theme) {
 		}
 	}
 	moveID, targetID, folder := "", "", ""
-	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(1)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 		for _, name := range folders {
-			heading := ui.Row(c.Key("folder-" + name)).Gap(t.Space(2)).Height(uikit.HeightLarge).AlignItems(ui.Center)
+			heading := ui.Row(c.Key("folder-" + name)).Gap(t.Space(uikit.SpaceM)).Height(uikit.HeightControl).AlignItems(ui.Center)
 			if _, over := ui.DragOver[string](heading); over {
 				heading.Background(t.SurfaceHover)
 			}
@@ -374,8 +374,8 @@ func (a *app) collectionWizardTree(c *ui.Context, t *ui.Theme) {
 					moveID, targetID, folder = id, g.id, name
 				}
 				row.Children(func() {
-					ui.Text(c, "⠿").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted)
-					ui.Text(c, g.method).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextData)).TextColor(uikit.MethodColor(g.method, t)).Width(46)
+					uikit.Meta(c, "⠿")
+					uikit.Mono(c, g.method).TextColor(uikit.MethodColor(g.method, t)).Width(46)
 					uikit.Body(c, g.name).Grow(1).MinWidth(0).SingleLine()
 					n := 0
 					for _, j := range g.flows {

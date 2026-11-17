@@ -256,15 +256,15 @@ func (a *app) mcpEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			locales.Connection(), locales.Tools(), locales.Resources(), locales.Prompts(), locales.RequestHeadersLabel(), locales.Auth(),
 		}, width)
 		if u.problem != "" {
-			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(0, t.Space(3))
+			uikit.ErrorText(c, u.problem).MaxHeight(55).Padding(0, t.Space(uikit.SpaceL))
 		}
 		if s.catalogNotice != "" && !s.busy {
-			ui.Row(c).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, s.catalogNotice).Grow(1).SingleLine()
 				a.actionButton(c, "request.mcp-refresh", "Refresh")
 			})
 		}
-		ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
+		ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			switch u.tab {
 			case mcpTabConnection:
 				a.mcpConnectionEditor(c, t, d, s)
@@ -292,8 +292,8 @@ func (a *app) mcpEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 }
 
 func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument, s mcpSnapshot) {
-	ui.Scroll(c).Grow(1).Gap(t.Space(2)).Padding(0, t.Space(1)).Disabled(d.composeWaiting).Children(func() {
-		ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+	ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceM)).Padding(0, t.Space(uikit.SpaceXS)).Disabled(d.composeWaiting).Children(func() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 			uikit.Select(c, &d.mcpConfig.Transport, []string{request.MCPTransportStreamableHTTP, request.MCPTransportSSE, request.MCPTransportStdio}).
 				Label(locales.McpTransport()).Width(190)
 			timeout := strconv.Itoa(a.mcpEffectiveTimeout(d))
@@ -310,18 +310,18 @@ func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 		if d.mcpConfig.Transport == request.MCPTransportStdio {
 			a.variableInput(c, "mcp-command", &d.mcpConfig.Command, "Command", d.composeCollection).
 				Placeholder("/path/to/mcp-server").Font(uikit.FontMono)
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, locales.ArgumentsOnePerLineVariables()).Grow(1)
 			})
 			a.variableTextArea(c, "mcp-args", &d.mcpConfig.Args, "Command arguments", d.composeCollection).Height(64).Font(uikit.FontMono)
 			a.variableInput(c, "mcp-dir", &d.mcpConfig.WorkingDir, "Working directory", d.composeCollection).
 				Placeholder(locales.OptionalTheAppSDirectory()).Font(uikit.FontMono)
-			uikit.Meta(c, locales.EnvironmentValuesMayUseVariables()).Padding(0, t.Space(1))
+			uikit.Meta(c, locales.EnvironmentValuesMayUseVariables()).Padding(0, t.Space(uikit.SpaceXS))
 			a.requestFieldsEditor(c, &d.mcpConfig.Env, fieldsOptions{secret: true, collection: d.composeCollection}, locales.EnvironmentVariable())
 			uikit.Hint(c, locales.TheCommandStartsOnlyWhen())
 		} else {
 			uikit.Hint(c, locales.TheAddressBarIsThe())
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				verify := a.inheritance(d.composeCollection).InheritSettings(d.settings).Verifies()
 				if uikit.Switch(c, &verify).Label(locales.VerifyTlsCertificate()).Changed() {
 					d.setVerify(verify)
@@ -329,15 +329,14 @@ func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 				uikit.Meta(c, locales.SystemRootsPlusSettingsCertificates()).Grow(1).SingleLine()
 			})
 			if !a.inheritance(d.composeCollection).InheritSettings(d.settings).Verifies() {
-				ui.Row(c).Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).
+				ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).
 					Background(t.Warning.Alpha(0.12)).AlignItems(ui.Start).Children(func() {
 					ui.Icon(c, warningIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.Warning)
-					ui.Text(c, locales.CertificateVerificationIsOffThis2()).
-						FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).Grow(1)
+					uikit.Caption(c, locales.CertificateVerificationIsOffThis2()).TextColor(t.Warning).Grow(1)
 				})
 			}
 			if s.connected {
-				uikit.Meta(c, "Connected to "+s.connection.Endpoint).Padding(0, t.Space(1)).SingleLine()
+				uikit.Meta(c, "Connected to "+s.connection.Endpoint).Padding(0, t.Space(uikit.SpaceXS)).SingleLine()
 			}
 		}
 		uikit.Hint(c, locales.McpDocumentsDoNotRun())
@@ -376,10 +375,9 @@ func mcpToolNames(tools []request.MCPTool) []string {
 
 func (a *app) mcpToolsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpDocument, s mcpSnapshot) {
 	tool := mcpToolByName(s.tools, d.mcpConfig.Tool)
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		field := uikit.Combobox(c, &d.mcpConfig.Tool, mcpToolNames(s.tools)).Label(locales.McpTool()).Placeholder(locales.ChooseATool()).
-			Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextBody)).Disabled(d.composeWaiting)
-		uikit.FieldFace(c, field, field.Focused())
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+		uikit.Combobox(c, &d.mcpConfig.Tool, mcpToolNames(s.tools)).Label(locales.McpTool()).Placeholder(locales.ChooseATool()).
+			Grow(1).MinWidth(0).Disabled(d.composeWaiting)
 		a.actionButton(c, "request.mcp-call", "Call tool")
 	})
 	if tool == nil {
@@ -391,7 +389,7 @@ func (a *app) mcpToolsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 	if tool.Annotations != "" && tool.Annotations != "null" {
 		uikit.Tip(c, uikit.Meta(c, tool.Annotations).SingleLine(), locales.ToolAnnotations())
 	}
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.SubTabs(c, &u.toolTab, "MCP tool", locales.Arguments(), locales.InputSchema())
 		ui.Spacer(c)
 		if u.toolTab == 0 {
@@ -412,7 +410,7 @@ func (a *app) mcpToolsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 		requestCodeEditor(c, u.schemaReader)
 		return
 	}
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Meta(c, locales.ArgumentsJsonObjectVariablesSupported()).Grow(1).SingleLine()
 	})
 	authoredText(c, &d.mcpConfig.ToolArgs, &u.argsEditor, &u.argsFor, "MCP tool arguments", "json")
@@ -450,10 +448,9 @@ func mcpTemplateByURI(templates []request.MCPResourceTemplate, uri string) *requ
 }
 
 func (a *app) mcpResourcesEditor(c *ui.Context, t *ui.Theme, d *requestDocument, s mcpSnapshot) {
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		field := uikit.Combobox(c, &d.mcpConfig.ResourceURI, mcpResourceOptions(s.resources, s.templates)).Label(locales.McpResourceUri()).
-			Placeholder("memo://welcome").Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).Disabled(d.composeWaiting)
-		uikit.FieldFace(c, field, field.Focused())
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+		uikit.Combobox(c, &d.mcpConfig.ResourceURI, mcpResourceOptions(s.resources, s.templates)).Label(locales.McpResourceUri()).
+			Placeholder("memo://welcome").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(d.composeWaiting)
 		a.actionButton(c, "request.mcp-read", "Read resource")
 	})
 	if resource := mcpResourceByURI(s.resources, d.mcpConfig.ResourceURI); resource != nil {
@@ -491,10 +488,9 @@ func mcpPromptByName(prompts []request.MCPPrompt, name string) *request.MCPPromp
 
 func (a *app) mcpPromptsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpDocument, s mcpSnapshot) {
 	prompt := mcpPromptByName(s.prompts, d.mcpConfig.Prompt)
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		field := uikit.Combobox(c, &d.mcpConfig.Prompt, mcpPromptNames(s.prompts)).Label(locales.McpPrompt()).Placeholder(locales.ChooseAPrompt()).
-			Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextBody)).Disabled(d.composeWaiting)
-		uikit.FieldFace(c, field, field.Focused())
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+		uikit.Combobox(c, &d.mcpConfig.Prompt, mcpPromptNames(s.prompts)).Label(locales.McpPrompt()).Placeholder(locales.ChooseAPrompt()).
+			Grow(1).MinWidth(0).Disabled(d.composeWaiting)
 		a.actionButton(c, "request.mcp-prompt", "Get prompt")
 	})
 	if prompt == nil {
@@ -515,7 +511,7 @@ func (a *app) mcpPromptsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u
 		}
 		uikit.Meta(c, "Arguments: "+strings.Join(parts, ", ")).MaxLines(2)
 	}
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Meta(c, locales.ArgumentsJsonObjectStringValues()).Grow(1).SingleLine()
 	})
 	authoredText(c, &d.mcpConfig.PromptArgs, &u.argsEditor, &u.argsFor, "MCP prompt arguments", "json")
@@ -527,7 +523,7 @@ func (a *app) mcpResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	u := d.mcpState()
 	s := u.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			uikit.Tabs(c, &u.responseTab, "MCP response", locales.Timeline(), locales.Result(), locales.CatalogTab(), locales.Session()).Grow(1)
 			if s.busy {
 				a.actionButton(c, "request.mcp-cancel", "Cancel request")
@@ -546,10 +542,10 @@ func (a *app) mcpResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			return
 		}
 		if u.problem != "" {
-			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(0, t.Space(3))
+			uikit.ErrorText(c, u.problem).MaxHeight(55).Padding(0, t.Space(uikit.SpaceL))
 		}
 		if s.problem != "" {
-			ui.Text(c, s.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(0, t.Space(3))
+			uikit.ErrorText(c, s.problem).MaxHeight(55).Padding(0, t.Space(uikit.SpaceL))
 		}
 		switch u.responseTab {
 		case 0:
@@ -565,7 +561,7 @@ func (a *app) mcpResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 }
 
 func (a *app) mcpTimeline(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapshot) {
-	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Input(c, &u.query).Label(locales.SearchMcpTimeline()).Placeholder(locales.SearchKindNameOrPayload()).Grow(1).MinWidth(0)
 		uikit.Meta(c, locales.RetainedPreview2(len(s.events), s.evicted)).SingleLine()
 	})
@@ -588,8 +584,8 @@ func (a *app) mcpTimeline(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnaps
 		}
 		uikit.DataListIndexed(c, &u.list, len(events), func(i int) {
 			event := events[i]
-			ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
-				ui.Text(c, event.kind+" · "+event.name).FontSize(uikit.Scaled(uikit.TextBody)).SingleLine()
+			ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
+				uikit.Body(c, event.kind+" · "+event.name).SingleLine()
 				uikit.Meta(c, locales.EventLineSize(event.seq, event.at.Format("15:04:05.000"), event.size)).SingleLine()
 			})
 		}).Grow(1)
@@ -605,7 +601,7 @@ func (a *app) mcpTimeline(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnaps
 			u.reader = &editor.State{Buffer: editor.NewBuffer(event.text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.McpEventPayload()}
 		}
 		ui.Column(c).Fill().Children(func() {
-			ui.Row(c).Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).Children(func() {
+			ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				uikit.Meta(c, locales.EventLineKind(event.seq, event.kind, event.name, event.at.Format("15:04:05.000"))).Grow(1).SingleLine()
 				uikit.SecondaryButton(c, locales.CopyShownEvent()).OnClick(func() { c.Services().WriteClipboard(u.reader.Buffer.String()) })
 			})
@@ -623,26 +619,26 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 	key := fmt.Sprint(s.resultSeq)
 	a.startMCPImageDecode(u, result, key)
 	if s.progress != "" {
-		uikit.Meta(c, "Progress · "+s.progress).Padding(0, t.Space(3)).SingleLine()
+		uikit.Meta(c, "Progress · "+s.progress).Padding(0, t.Space(uikit.SpaceL)).SingleLine()
 	}
-	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, result.Kind+" · "+cmp.Or(result.Title, "result")).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).SingleLine()
+	ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+		uikit.Body(c, result.Kind+" · "+cmp.Or(result.Title, "result")).Grow(1).SingleLine()
 		if result.IsError {
-			ui.Text(c, "isError").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+			uikit.ErrorText(c, "isError")
 		} else {
 			uikit.Meta(c, locales.Ok()).SingleLine()
 		}
 		uikit.Meta(c, locales.ResultSize(int(result.Bytes), len(result.Content))).SingleLine()
 		uikit.SecondaryButton(c, locales.CopyResult()).OnClick(func() { c.Services().WriteClipboard(result.Text) })
 	})
-	ui.Scroll(c).Grow(1).Padding(0, t.Space(3)).Children(func() {
-		ui.Column(c).Selectable().Gap(t.Space(2)).Children(func() {
+	ui.Scroll(c).Grow(1).Padding(0, t.Space(uikit.SpaceL)).Children(func() {
+		ui.Column(c).Selectable().Gap(t.Space(uikit.SpaceM)).Children(func() {
 			if result.Description != "" {
-				uikit.Meta(c, locales.Description()).Padding(0, 0, t.Space(1), 0)
-				ui.Text(c, request.MCPPreview(result.Description, 64<<10)).FontSize(uikit.Scaled(uikit.TextBody))
+				uikit.Meta(c, locales.Description()).Padding(0, 0, t.Space(uikit.SpaceXS), 0)
+				uikit.Body(c, request.MCPPreview(result.Description, 64<<10))
 			}
 			for i, block := range result.Content {
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					label := block.Kind
 					if block.Role != "" {
 						label = block.Role + " · " + label
@@ -670,10 +666,10 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 						uikit.Hint(c, locales.DecodingKind(block.Kind))
 					} else {
 						uikit.Hint(c, locales.BlockData(block.Kind, len(block.Data)))
-						ui.Text(c, base64Preview(block.Data)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta))
+						uikit.DataMeta(c, base64Preview(block.Data))
 					}
 				case block.Kind == "resource_link":
-					ui.Text(c, cmp.Or(block.Name, block.URI)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody))
+					uikit.DataBody(c, cmp.Or(block.Name, block.URI))
 					if block.Description != "" {
 						uikit.Meta(c, block.Description)
 					}
@@ -682,12 +678,12 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 					if text == "" {
 						text = "(empty)"
 					}
-					ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody))
+					uikit.DataBody(c, text)
 				}
 			}
 			if result.Structured != "" {
-				uikit.Meta(c, "structuredContent").Padding(0, 0, t.Space(1), 0)
-				ui.Text(c, request.MCPPreview(result.Structured, 64<<10)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody))
+				uikit.Meta(c, "structuredContent").Padding(0, 0, t.Space(uikit.SpaceXS), 0)
+				uikit.DataBody(c, request.MCPPreview(result.Structured, 64<<10))
 			}
 			if result.Truncated {
 				uikit.Hint(c, locales.ResultTruncated(request.MCPMaxResultBytes>>20, int(result.Bytes)))
@@ -771,7 +767,7 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 	case mcpTabPrompts:
 		catalog, title = 2, locales.Prompts()
 	}
-	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Label(c, title)
 		ui.Spacer(c)
 		uikit.Meta(c, locales.CatalogSummary(len(s.tools), len(s.resources), len(s.templates), len(s.prompts))).SingleLine()
@@ -789,20 +785,20 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 		catalog := uikit.DataList(c, &u.catalog, len(s.tools), func(row ui.ListRow) {
 			c := row.Context
 			tool := s.tools[row.Index]
-			r := ui.Row(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+			r := ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 			if row.Hovered() {
 				r.Background(t.SurfaceHover)
 			}
 			r.Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					ui.Text(c, cmp.Or(tool.Title, tool.Name)).FontSize(uikit.Scaled(uikit.TextBody))
+					uikit.Body(c, cmp.Or(tool.Title, tool.Name))
 					if tool.Description != "" {
 						uikit.Meta(c, tool.Description).MaxLines(2)
 					}
 				})
 				uikit.Meta(c, tool.Name).SingleLine()
 			})
-		}).Label(locales.Tools()).Grow(1).MinHeight(0).Padding(0, t.Space(2))
+		}).Label(locales.Tools()).Grow(1).MinHeight(0).Padding(0, t.Space(uikit.SpaceM))
 		if catalog.RowClicked() {
 			tool := s.tools[max(0, min(u.catalogRow, len(s.tools)-1))]
 			d.mcpConfig.Tool = tool.Name
@@ -824,18 +820,18 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 				template := s.templates[row.Index-len(s.resources)]
 				title, note, kind = cmp.Or(template.Title, template.Name, template.URITemplate), template.URITemplate+" · "+cmp.Or(template.MIMEType, "unknown type"), "template"
 			}
-			r := ui.Row(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+			r := ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 			if row.Hovered() {
 				r.Background(t.SurfaceHover)
 			}
 			r.Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					ui.Text(c, title).FontSize(uikit.Scaled(uikit.TextBody))
+					uikit.Body(c, title)
 					uikit.Meta(c, note).SingleLine()
 				})
 				uikit.Meta(c, kind).SingleLine()
 			})
-		}).Label(locales.Resources()).Grow(1).MinHeight(0).Padding(0, t.Space(2))
+		}).Label(locales.Resources()).Grow(1).MinHeight(0).Padding(0, t.Space(uikit.SpaceM))
 		if catalog.RowClicked() {
 			if u.catalogRow < len(s.resources) {
 				d.mcpConfig.ResourceURI = s.resources[u.catalogRow].URI
@@ -853,20 +849,20 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 		catalog := uikit.DataList(c, &u.catalog, len(s.prompts), func(row ui.ListRow) {
 			c := row.Context
 			prompt := s.prompts[row.Index]
-			r := ui.Row(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+			r := ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 			if row.Hovered() {
 				r.Background(t.SurfaceHover)
 			}
 			r.Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					ui.Text(c, cmp.Or(prompt.Title, prompt.Name)).FontSize(uikit.Scaled(uikit.TextBody))
+					uikit.Body(c, cmp.Or(prompt.Title, prompt.Name))
 					if prompt.Description != "" {
 						uikit.Meta(c, prompt.Description).MaxLines(2)
 					}
 				})
 				uikit.Meta(c, prompt.Name).SingleLine()
 			})
-		}).Label(locales.Prompts()).Grow(1).MinHeight(0).Padding(0, t.Space(2))
+		}).Label(locales.Prompts()).Grow(1).MinHeight(0).Padding(0, t.Space(uikit.SpaceM))
 		if catalog.RowClicked() {
 			d.mcpConfig.Prompt = s.prompts[max(0, min(u.catalogRow, len(s.prompts)-1))].Name
 			u.tab, u.problem = mcpTabPrompts, ""
@@ -876,10 +872,10 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 
 func (a *app) mcpSessionPane(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapshot) {
 	info := s.connection
-	ui.Scroll(c).Grow(1).Padding(0, t.Space(3)).Children(func() {
-		ui.Column(c).Selectable().Gap(t.Space(2)).Children(func() {
+	ui.Scroll(c).Grow(1).Padding(0, t.Space(uikit.SpaceL)).Children(func() {
+		ui.Column(c).Selectable().Gap(t.Space(uikit.SpaceM)).Children(func() {
 			server := cmp.Or(s.server.Title, s.server.Name, "MCP server")
-			ui.Text(c, server+" "+s.server.Version).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
+			uikit.Body(c, server+" "+s.server.Version).FontWeight(500)
 			uikit.Meta(c, "MCP "+cmp.Or(s.server.ProtocolVersion, "unknown")+" · "+info.Transport).SingleLine()
 			if info.Endpoint != "" {
 				uikit.Meta(c, "Endpoint "+info.Endpoint).SingleLine()
@@ -898,14 +894,14 @@ func (a *app) mcpSessionPane(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSn
 				settings = append(settings, "through capture proxy")
 			}
 			uikit.Meta(c, strings.Join(settings, " · ")).MaxLines(2)
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, locales.Capabilities()).Grow(1)
 				uikit.SecondaryButton(c, locales.CopyCapabilities()).OnClick(func() { c.Services().WriteClipboard(s.server.Capabilities) })
 			})
-			ui.Text(c, s.server.Capabilities).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody))
+			uikit.DataBody(c, s.server.Capabilities)
 			if s.server.Instructions != "" {
-				uikit.Meta(c, locales.ServerInstructions()).Padding(t.Space(2), 0, 0, 0)
-				ui.Text(c, s.server.Instructions).FontSize(uikit.Scaled(uikit.TextBody))
+				uikit.Meta(c, locales.ServerInstructions()).Padding(t.Space(uikit.SpaceM), 0, 0, 0)
+				uikit.Body(c, s.server.Instructions)
 			}
 		})
 	})

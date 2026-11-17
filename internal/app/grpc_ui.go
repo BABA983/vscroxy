@@ -269,7 +269,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		protocolTabRow(c, &g.tab, locales.GrpcEditorTabPrefix(), []string{
 			locales.Message(), locales.Metadata(), locales.Auth(), locales.Schema2(), locales.Checks(), locales.Examples(),
 		}, width)
-		ui.Column(c).Padding(t.Space(2), t.Space(3)).Children(func() {
+		ui.Column(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
 			uikit.SettingsGroup(c, locales.Call(), func() {
 				uikit.SettingsRow(c, locales.Method(), func() ui.Element {
 					var methods []string
@@ -277,16 +277,15 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 						methods = g.schema.methods
 					}
 					field := uikit.Combobox(c, &d.grpcConfig.Method, methods).Label(locales.GrpcMethod()).Placeholder(locales.SelectServiceMethod()).
-						Grow(1).MinWidth(0).Height(uikit.ControlHeight).FontSize(uikit.Scaled(uikit.TextBody)).Disabled(d.composeWaiting || g.loading != nil)
-					uikit.FieldFace(c, field, field.Focused())
+						Grow(1).MinWidth(0).Disabled(d.composeWaiting || g.loading != nil)
 					uikit.Tip(c, field, locales.GrpcTransportHelp())
 					return field
 				}, "")
 				uikit.SettingsRow(c, locales.Deadline(), func() ui.Element {
 					deadline := strconv.Itoa(cmp.Or(d.grpcConfig.TimeoutSeconds, 30))
 					sel := uikit.SelectLabels(c, &deadline, []string{"10", "30", "60", "300", "3600"},
-						func(value string) string { return value + " s" }).Label(locales.GrpcDeadlineSeconds()).Width(120).
-						Height(uikit.ControlHeight).Disabled(d.composeWaiting)
+						func(value string) string { return value + " s" }).Label(locales.GrpcDeadlineSeconds()).Width(uikit.WidthNarrow).
+						Height(uikit.HeightControl).Disabled(d.composeWaiting)
 					uikit.Tip(c, sel, locales.CallDeadlineInSecondsCancelling())
 					if sel.Changed() {
 						d.grpcConfig.TimeoutSeconds, _ = strconv.Atoi(deadline)
@@ -300,19 +299,19 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			})
 		})
 		if g.problem != "" {
-			ui.Text(c, g.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).Padding(0, t.Space(3)).MaxHeight(55)
+			uikit.ErrorText(c, g.problem).Padding(0, t.Space(uikit.SpaceL)).MaxHeight(55)
 		}
 		if g.loading != nil {
-			ui.Row(c).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
+			ui.Row(c).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				uikit.Meta(c, locales.LoadingSchema()).Grow(1)
 				a.actionButton(c, "request.grpc-cancel-discovery", "Cancel discovery")
 			})
 		}
-		ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
+		ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			switch g.tab {
 			case 0:
 				if d.composeWaiting {
-					ui.Row(c).Gap(t.Space(2)).Children(func() {
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 						ui.Spacer(c).Grow(1)
 						a.actionButton(c, "request.grpc-send-message", "Send message")
 						a.actionButton(c, "request.grpc-finish", "Finish sending")
@@ -327,7 +326,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			case 2:
 				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.authEditor(c, d, t) })
 			case 3:
-				ui.Scroll(c).Grow(1).Gap(t.Space(2)).Disabled(d.composeWaiting).Padding(0, t.Space(1)).Children(func() {
+				ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceM)).Disabled(d.composeWaiting).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 					uikit.Meta(c, locales.ImportProtoDescriptorSetOr())
 					uikit.SettingsGroup(c, locales.Schema2(), func() {
 						uikit.SettingsRow(c, locales.SchemaFile(), func() ui.Element {
@@ -337,7 +336,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 							return uikit.TextArea(c, &g.roots).Label(locales.GrpcIncludeRoots()).Placeholder(locales.IncludeRootsOnePerLine()).Height(50).Disabled(g.loading != nil)
 						}, "")
 					})
-					ui.Row(c).Gap(t.Space(2)).Children(func() {
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 						a.actionButton(c, "request.grpc-import", "Import schema")
 						a.actionButton(c, "request.grpc-reflect", "Reflect services")
 					})
@@ -385,7 +384,7 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	g := d.grpcState()
 	s := g.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
+		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			// The tabs scroll rather than clip when the pane is narrow: the
 			// response pane's own row does the same.
 			uikit.TabStrip(c, func() {
@@ -409,25 +408,24 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			if g.responseTab == 1 {
 				text = "Initial metadata\n" + grpcMetadataText(s.header) + "\nFinal trailers\n" + grpcMetadataText(s.trailer)
 			}
-			ui.Scroll(c).Grow(1).Padding(t.Space(3)).Children(func() { ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)) })
+			ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceL)).Children(func() { uikit.DataBody(c, text) })
 			return
 		}
 		if s.problem != "" {
-			ui.Text(c, s.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(t.Space(1), t.Space(3))
+			uikit.ErrorText(c, s.problem).MaxHeight(55).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))
 		}
-		uikit.Meta(c, locales.RetainedPreviewMethods(len(s.events), s.evicted)).Padding(t.Space(1), t.Space(3))
+		uikit.Meta(c, locales.RetainedPreviewMethods(len(s.events), s.evicted)).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))
 		ui.Split(c, &g.split, func() {
 			g.list.Selected = &g.selected
 			g.list.Key = func(i int) any { return s.events[i].seq }
 			g.list.Label = func(i int) string { return fmt.Sprintf("gRPC message %d", s.events[i].seq) }
 			uikit.DataListIndexed(c, &g.list, len(s.events), func(i int) {
 				e := s.events[i]
-				ui.Text(c, locales.GrpcEventLine(e.seq, e.at.Format("15:04:05.000"), e.direction, e.size)).
-					FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text).Padding(t.Space(2)).SingleLine()
+				uikit.Caption(c, locales.GrpcEventLine(e.seq, e.at.Format("15:04:05.000"), e.direction, e.size)).TextColor(t.Text).Padding(t.Space(uikit.SpaceM)).SingleLine()
 			}).Grow(1)
 		}, func() {
 			if len(s.events) == 0 {
-				uikit.Hint(c, locales.WaitingForMessages()).Padding(t.Space(3))
+				uikit.Hint(c, locales.WaitingForMessages()).Padding(t.Space(uikit.SpaceL))
 				return
 			}
 			// The list maps a selected key it no longer has to -1: the event
@@ -445,7 +443,7 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				g.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.GrpcMessagePayload()}
 			}
 			ui.Column(c).Fill().Children(func() {
-				ui.Row(c).Padding(t.Space(1), t.Space(2)).Children(func() {
+				ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
 					uikit.Meta(c, e.direction+" · protobuf JSON").Grow(1)
 					uikit.SecondaryButton(c, locales.CopyShownMessage()).OnClick(func() { c.Services().WriteClipboard(g.reader.Buffer.String()) })
 				})
@@ -535,7 +533,7 @@ func (a *app) grpcSavedMessages(c *ui.Context, t *ui.Theme, d *requestDocument, 
 	remove := -1
 	sent := g.session.sentMessages()
 	uikit.Meta(c, locales.GrpcSavedMessagesHelp())
-	ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 		if uikit.SecondaryButton(c, locales.AddCurrentMessage()).Clicked() {
 			d.grpcConfig.Messages = append(d.grpcConfig.Messages, d.composeBody)
 		}
@@ -545,16 +543,16 @@ func (a *app) grpcSavedMessages(c *ui.Context, t *ui.Theme, d *requestDocument, 
 		}
 		uikit.Meta(c, locales.SavedMessagesCount(len(d.grpcConfig.Messages)))
 	})
-	ui.Scroll(c).MinHeight(0).MaxHeight(140).Gap(t.Space(1)).Children(func() {
+	ui.Scroll(c).MinHeight(0).MaxHeight(140).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 		for i := range d.grpcConfig.Messages {
 			message := &d.grpcConfig.Messages[i]
-			row := ui.Row(c.Key(i)).AlignItems(ui.Start).Gap(t.Space(2))
+			row := ui.Row(c.Key(i)).AlignItems(ui.Start).Gap(t.Space(uikit.SpaceM))
 			row.Children(func() {
-				ui.Text(c, strconv.Itoa(i+1)).FontSize(uikit.Scaled(uikit.TextMeta)).
-					TextColor(t.TextMuted).Width(t.Space(3)).Padding(t.Space(2), 0)
+				uikit.Caption(c, strconv.Itoa(i+1)).
+					TextColor(t.TextMuted).Width(t.Space(uikit.SpaceL)).Padding(t.Space(uikit.SpaceM), 0)
 				uikit.TextArea(c, message).Label(locales.GrpcMessagePayload()).
 					Placeholder("{}").Height(48).Font(uikit.FontMono).
-					FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(0)
+					Grow(1).MinWidth(0)
 				label := locales.RemoveMessage(i + 1)
 				if uikit.IconButton(c, label, label, closeIcon).Clicked() {
 					remove = i

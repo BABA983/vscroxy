@@ -14,7 +14,7 @@ func TestSettingsRowKeepsTheLabelColumnAndWrapsTheHint(t *testing.T) {
 	hint := strings.TrimSpace(strings.Repeat("A sentence that says what the setting changes. ", 6))
 	tt := ui.NewTester(func(c *ui.Context) {
 		SettingsRow(c, "System proxy", func() ui.Element {
-			return ui.Row(c).Height(HeightControl).Children(func() {
+			return ui.Row(c).Height(HeightRow).Children(func() {
 				ui.Text(c, "Control")
 			})
 		}, hint)

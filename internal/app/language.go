@@ -48,7 +48,7 @@ func (a *app) languageSettings(c *ui.Context) {
 	settingsCardRow(c, locales.Language(), func() ui.Element {
 		names := languageNames()
 		choice := max(slices.Index(languages, a.language), 0)
-		sel := uikit.Select(c, &names[choice], names).Label(locales.Language()).Width(160)
+		sel := uikit.Select(c, &names[choice], names).Label(locales.Language()).Width(uikit.WidthField)
 		if sel.Changed() {
 			if i := slices.Index(names, names[choice]); i >= 0 && languages[i] != a.language {
 				a.setLanguage(languages[i])

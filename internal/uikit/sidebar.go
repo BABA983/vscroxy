@@ -201,8 +201,8 @@ func sidebarRow(c *ui.Context, id, label string, chosen, active bool, icon func(
 	if chosen || *hovered {
 		ink, iconInk = t.Text, t.TextMuted
 	}
-	row := ui.Row(c).Key(id).Height(HeightControl).Shrink(0).AlignItems(ui.Center).Gap(t.Space(2)).
-		Padding(0, t.Space(1.5)).Margin(0, t.Space(1.5)).Radius(RadiusControl).
+	row := ui.Row(c).Key(id).Height(HeightRow).Shrink(0).AlignItems(ui.Center).Gap(t.Space(SpaceM)).
+		Padding(0, t.Space(SpaceS)).Margin(0, t.Space(SpaceS)).Radius(RadiusControl).
 		Role(ui.RoleTreeItem).Level(1).TextColor(ink)
 	if chosen {
 		Selected(c, row, active)
@@ -279,11 +279,11 @@ func SidebarPanes(c *ui.Context, key string, available float32, panes []SidebarP
 	least, compactLeast := float32(0), float32(0)
 	open := 0
 	for _, pane := range panes {
-		least += HeightStatus + t.Space(2)
+		least += HeightStatus + t.Space(SpaceM)
 		compactLeast += HeightStatus
 		if pane.Open == nil || *pane.Open {
-			least += max(pane.Min, HeightControl)
-			compactLeast += max(pane.Min, HeightControl)
+			least += max(pane.Min, HeightRow)
+			compactLeast += max(pane.Min, HeightRow)
 			if open > 0 {
 				least += 7
 				compactLeast += 7
@@ -326,7 +326,7 @@ func SidebarPanes(c *ui.Context, key string, available float32, panes []SidebarP
 				if !open {
 					continue
 				}
-				body := ui.Column(c).Key(pane.ID + "-body").MinHeight(max(pane.Min, HeightControl)).Clip()
+				body := ui.Column(c).Key(pane.ID + "-body").MinHeight(max(pane.Min, HeightRow)).Clip()
 				if i == last {
 					body.Grow(1)
 				} else {
@@ -394,5 +394,5 @@ func heightOf(p SidebarPane) float32 {
 	case p.Default > 0:
 		return p.Default
 	}
-	return HeightControl * 3
+	return HeightRow * 3
 }

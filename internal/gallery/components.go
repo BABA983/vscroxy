@@ -45,6 +45,8 @@ const (
 	hoverLists     = "Hover Lists"
 	hoverTooltip   = "Hover Tooltip"
 	hoverCard      = "Hover Card"
+	hoverChecks    = "Hover Checks"
+	focusChecks    = "Focus Checks"
 )
 
 // components is the state every component plate keeps across frames: the
@@ -55,11 +57,15 @@ type components struct {
 	bypass                            string
 	format, pick, labels              string
 	query, flow                       string
+	notes, port, badPort              string
+	disabledNotes, combo              string
+	portValue, badPortValue           float64
 	tab, counted, sub, segment        int
 	sidebar                           string
 	range_                            uikit.ActivityRange
 	open                              bool
-	on, off, check                    bool
+	on, off, check, hovered, focused  bool
+	choice                            string
 	icon                              ui.ImageSource
 }
 
@@ -68,16 +74,18 @@ type components struct {
 // window shows them as the pointer crosses them, and the export puts the
 // tester's pointer on the named sample.
 func (g *Gallery) components() *Group {
-	k := &components{host: "api.example.com", bypass: "localhost\n*.internal.test\n10.0.0.0/8", format: "Pretty", pick: "all", labels: "Pretty", query: "", flow: "20000", on: true, sidebar: "projects", range_: uikit.ActivityRange{From: 22, To: 34}}
+	k := &components{host: "api.example.com", choice: "Medium", bypass: "localhost\n*.internal.test\n10.0.0.0/8", format: "Pretty", pick: "all", labels: "Pretty", query: "", flow: "20000", notes: "api.example.com\nlocalhost:3000", disabledNotes: "localhost:3000", combo: "Medium", port: "8080", portValue: 8080, badPort: "80", badPortValue: 80, on: true, sidebar: "projects", range_: uikit.ActivityRange{From: 22, To: 34}}
 	k.icon = iconBitmap()
 	return &Group{ID: "components", Title: "Components", Entries: []*Entry{
-		{ID: "text", Title: "Text", Note: "Seven roles; a text has no states", Height: 420, build: k.textPlate},
+		{ID: "text", Title: "Text", Note: "Nine roles, including the error sentence and multi-line data; a text has no states", Height: 520, build: k.textPlate},
 		{ID: "buttons", Title: "Buttons", Note: "Primary, secondary, destructive and compact, with their faces", Height: 440, Hover: hoverButtons, Focus: focusButtons, build: k.buttonPlate},
 		{ID: "buttons-quiet", Title: "Quiet buttons", Note: "Toolbar, footer, icon, chip, row and swatch", Height: 560, Hover: hoverQuiet, Focus: focusQuiet, build: k.quietPlate},
 		{ID: "inputs", Title: "Inputs", Note: "Fields, focus, invalid, search and the two selects", Height: 680, Hover: hoverInputs, Focus: focusInputs, build: k.inputPlate},
 		{ID: "tabs", Title: "Tabs", Note: "Tabs, counted tabs, sub-tabs and a scrolling strip", Height: 440, Hover: hoverTabs, Focus: focusTabs, build: k.tabPlate},
 		{ID: "segmented", Title: "Segmented", Note: "A recessed groove and a raised thumb", Height: 280, Hover: hoverSegmented, Focus: focusSegmented, build: k.segmentedPlate},
 		{ID: "menus", Title: "Menus", Note: "A 28-point row, the menu shadow and keycaps", Height: 560, Hover: hoverMenus, Focus: focusMenus, Tip: true, build: k.menuPlate},
+		{ID: "checks", Title: "Checkbox and radio", Note: "Boxes wear a control face: rest, hover, checked, focus and disabled", Height: 420, Hover: hoverChecks, Focus: focusChecks, build: k.checkPlate},
+		{ID: "feedback", Title: "Feedback", Note: "Spinner, progress, callouts, badges and a primary button while it is busy", Height: 600, build: k.feedbackPlate},
 		{ID: "kbd", Title: "Kbd", Note: "Shortcuts as 4-point keycaps on a hairline", Height: 280, build: k.kbdPlate},
 		{ID: "tooltip", Title: "Tooltip", Note: "The one tip face: small text, a shortcut as Kbd, a long URL", Height: 380, Hover: hoverTooltip, Tip: true, build: k.tooltipPlate},
 		{ID: "hover-card", Title: "Hover card", Note: "A title, one meta line and key/value rows over a capture row", Height: 340, Hover: hoverCard, Tip: true, build: k.hoverCardPlate},
@@ -101,9 +109,11 @@ func (g *Gallery) components() *Group {
 // so the pointer and the keyboard land on the control itself.
 func stateRow(c *ui.Context, state string, sample func()) {
 	t := c.Theme()
-	ui.Row(c).MinHeight(uikit.HeightControl).Gap(t.Space(3)).AlignItems(ui.Start).Children(func() {
+	// A row reserves a control's height and a gap below it, so the controls of
+	// one state never overrun the next.
+	ui.Row(c).MinHeight(uikit.HeightControl).Padding(0, 0, t.Space(uikit.SpaceS), 0).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Start).Children(func() {
 		uikit.Meta(c, state).Width(96).Shrink(0).Padding(0, 0, 0, 0)
-		ui.Row(c).Grow(1).Gap(t.Space(2)).AlignItems(ui.Start).Children(sample)
+		ui.Row(c).Grow(1).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Start).Children(sample)
 	})
 }
 
@@ -123,7 +133,7 @@ func labelled(e ui.Element, label string) ui.Element { return e.Label(label) }
 // tipRoom leaves the height a tooltip needs above the row under the pointer,
 // so the plate does not hide the row above it.
 func tipRoom(c *ui.Context) {
-	ui.Box(c).Height(c.Theme().Space(7)).Shrink(0)
+	ui.Box(c).Height(uikit.HeightControl).Shrink(0)
 }
 
 func caption(c *ui.Context, s string) {
@@ -144,9 +154,11 @@ func (k *components) textPlate(c *ui.Context) {
 		{"Hint", func() { uikit.Hint(c, "Captured traffic appears here once the proxy is on.") }},
 		{"Meta", func() { uikit.Meta(c, "12 ms · 4.2 KB · 15:04:05") }},
 		{"Label", func() { uikit.Label(c, "Headers") }},
+		{"ErrorText", func() { uikit.ErrorText(c, "The proxy could not bind 127.0.0.1:7890.") }},
+		{"Code", func() { uikit.Code(c, "Content-Type: application/json\nX-Request-Id: 7f3a9c") }},
 	}
 	for _, row := range rows {
-		ui.Row(c).MinHeight(40).Gap(c.Theme().Space(4)).AlignItems(ui.Center).
+		ui.Row(c).MinHeight(40).Gap(c.Theme().Space(uikit.SpaceXL)).AlignItems(ui.Center).
 			BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
 			uikit.Meta(c, row.role).Width(96)
 			row.sample()
@@ -221,7 +233,7 @@ func (k *components) quietPlate(c *ui.Context) {
 		uikit.SwatchButton(c, "Mark green", uikit.MarkColors[3].Color, false)
 	})
 	stateRow(c, "Disabled", func() {
-		ui.Row(c).Disabled(true).Gap(c.Theme().Space(2)).Children(func() {
+		ui.Row(c).Disabled(true).Gap(c.Theme().Space(uikit.SpaceM)).Children(func() {
 			uikit.ToolbarButton(c, "Breakpoints", "Unavailable", false).Children(func() { ui.Text(c, "Breakpoints") })
 			uikit.IconButton(c, "Settings", "Unavailable", lucide.Settings())
 			uikit.CompactButton(c, "Copy")
@@ -232,35 +244,46 @@ func (k *components) quietPlate(c *ui.Context) {
 
 func (k *components) inputPlate(c *ui.Context) {
 	stateRow(c, "Rest", func() {
-		uikit.Input(c, &k.host).Label("Host").Placeholder("api.example.com").Width(240)
-		uikit.SearchField(c, &k.search, "Search host or path", "Search…", false).Width(240)
-		uikit.Select(c, &k.format, []string{"Pretty", "Raw", "Preview"}).Width(140)
-		uikit.SelectLabels(c, &k.labels, []string{"Pretty", "Raw"}, func(s string) string { return s }).Width(140)
+		uikit.Input(c, &k.host).Label("Host").Placeholder("api.example.com").Width(uikit.WidthWide)
+		uikit.SearchField(c, &k.search, "Search host or path", "Search…", false).Width(uikit.WidthWide)
+		uikit.Select(c, &k.format, []string{"Pretty", "Raw", "Preview"}).Width(uikit.WidthPicker)
+		uikit.SelectLabels(c, &k.labels, []string{"Pretty", "Raw"}, func(s string) string { return s }).Width(uikit.WidthPicker)
 	})
 	stateRow(c, "Hover", func() {
-		labelled(uikit.Input(c, &k.host).Label("Host").Width(240), hoverInputs)
+		labelled(uikit.Input(c, &k.host).Label("Host").Width(uikit.WidthWide), hoverInputs)
 	})
 	stateRow(c, "Focus", func() {
 		// A field's focus face is uikit's, drawn from the field's own state:
 		// force it here so the plate shows the edge and halo without the
 		// keyboard, and Tab shows the same face when it reaches the field.
-		labelled(uikit.FieldFace(c, uikit.InputControl(c, &k.host).Label("Host"), true).Width(240), focusInputs)
+		labelled(uikit.FieldFace(c, uikit.InputControl(c, &k.host).Label("Host"), true).Width(uikit.WidthWide), focusInputs)
 	})
 	stateRow(c, "Empty", func() {
-		uikit.Input(c, &k.empty).Label("Empty").Placeholder("Search host or path").Width(240)
+		uikit.Input(c, &k.empty).Label("Empty").Placeholder("Search host or path").Width(uikit.WidthWide)
 	})
 	stateRow(c, "Invalid", func() {
 		ui.Form(c, func() {
 			uikit.FormRow(c, "Port", "Blank is automatic; 1024–65535.", "Port must be 1024–65535.", func() {
-				uikit.InputState(c, &k.invalid, true).Width(240)
+				uikit.InputState(c, &k.invalid, true).Width(uikit.WidthWide)
 			})
 		})
 	})
 	stateRow(c, "Disabled", func() {
-		uikit.Input(c, &k.host).Label("Disabled").Width(240).Disabled(true)
+		uikit.Input(c, &k.host).Label("Disabled").Width(uikit.WidthWide).Disabled(true)
+		uikit.Combobox(c, &k.combo, []string{"Medium", "High"}).Label("Disabled combobox").Width(uikit.WidthWide).Disabled(true)
+		uikit.TextArea(c, &k.disabledNotes).Label("Disabled notes").Height(64).Width(uikit.WidthWide).Disabled(true)
+	})
+	stateRow(c, "Text area", func() {
+		uikit.TextArea(c, &k.notes).Label("Notes").Placeholder("One host per line").Height(64).Width(uikit.WidthWide)
+	})
+	stateRow(c, "Number", func() {
+		uikit.NumberField(c, &k.port, &k.portValue, 1024, 65535, "", "Port", "", nil)
+	})
+	stateRow(c, "Number invalid", func() {
+		uikit.NumberField(c, &k.badPort, &k.badPortValue, 1024, 65535, "", "Port", "", nil)
 	})
 	stateRow(c, "On chrome", func() {
-		ui.Column(c).Width(280).Padding(c.Theme().Space(2)).Radius(uikit.RadiusPanel).
+		ui.Column(c).Width(280).Padding(c.Theme().Space(uikit.SpaceM)).Radius(uikit.RadiusPanel).
 			Background(uikit.Colors(c.Theme()).Chrome).Children(func() {
 			uikit.SearchField(c, &k.searchChrome, "Search collections", "Search…", true)
 		})
@@ -290,7 +313,7 @@ func (k *components) tabPlate(c *ui.Context) {
 	stateRow(c, "Scrolling", func() {
 		uikit.TabStrip(c, func() {
 			for _, label := range []string{"Body", "Headers", "Cookies", "Timing", "Raw", "Checks", "Console"} {
-				uikit.Body(c, label).Padding(0, c.Theme().Space(2))
+				uikit.Body(c, label).Padding(0, c.Theme().Space(uikit.SpaceM))
 			}
 		}).Width(320)
 	})
@@ -314,14 +337,14 @@ func (k *components) menuPlate(c *ui.Context) {
 			m.Item("Pretty").ID("pretty")
 			m.Item("Raw").ID("raw")
 			m.Item("Preview").ID("preview")
-		}).Width(140)
+		}).Width(uikit.WidthPicker)
 		uikit.MenuSelect(c, "Local", func(m *ui.Menu) {
 			m.Item("Local").ID("local")
 			m.Item("Staging").ID("staging")
-		}).Width(140)
+		}).Width(uikit.WidthPicker)
 	})
 	stateRow(c, "Open menu", func() {
-		uikit.MenuPanel(c, ui.Column(c)).Width(236).Padding(c.Theme().Space(1)).Gap(0).Children(func() {
+		uikit.MenuPanel(c, ui.Column(c)).Width(236).Padding(c.Theme().Space(uikit.SpaceXS)).Gap(0).Children(func() {
 			menuRow(c, "Copy as cURL", "⌘C", false, false)
 			menuRow(c, "Copy as fetch", "⇧⌘C", false, false)
 			menuRow(c, "Replay", "⌘R", true, false)
@@ -329,13 +352,13 @@ func (k *components) menuPlate(c *ui.Context) {
 		})
 	})
 	stateRow(c, "Hover", func() {
-		uikit.MenuSelect(c, "Pretty", func(m *ui.Menu) { m.Item("Pretty").ID("pretty") }).Width(140)
+		uikit.MenuSelect(c, "Pretty", func(m *ui.Menu) { m.Item("Pretty").ID("pretty") }).Width(uikit.WidthPicker)
 	})
 	stateRow(c, "Pressed", func() {
-		uikit.MenuSelect(c, "Pretty", func(m *ui.Menu) { m.Item("Pretty").ID("pretty") }).Width(140)
+		uikit.MenuSelect(c, "Pretty", func(m *ui.Menu) { m.Item("Pretty").ID("pretty") }).Width(uikit.WidthPicker)
 	})
 	stateRow(c, "Focus", func() {
-		labelled(uikit.MenuSelect(c, "Pretty", func(m *ui.Menu) { m.Item("Pretty").ID("pretty") }).Width(140), focusMenus)
+		labelled(uikit.MenuSelect(c, "Pretty", func(m *ui.Menu) { m.Item("Pretty").ID("pretty") }).Width(uikit.WidthPicker), focusMenus)
 	})
 	stateRow(c, "⋯ buttons", func() {
 		uikit.MoreButton(c, "More actions", "More actions", func(m *ui.Menu) { m.Item("Export").ID("export") })
@@ -353,7 +376,7 @@ func (k *components) menuPlate(c *ui.Context) {
 // and this is the face their items take when the app draws them.
 func menuRow(c *ui.Context, label, shortcut string, selected, danger bool) {
 	t, p := c.Theme(), uikit.Colors(c.Theme())
-	row := ui.Row(c).Height(uikit.MenuRowHeight).FillWidth().Padding(0, t.Space(2)).Gap(t.Space(2)).
+	row := ui.Row(c).Height(uikit.MenuRowHeight).FillWidth().Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).
 		Radius(uikit.RadiusControl).AlignItems(ui.Center)
 	color := t.Text
 	if danger {
@@ -377,7 +400,7 @@ func (k *components) kbdPlate(c *ui.Context) {
 		}
 	})
 	stateRow(c, "On chrome", func() {
-		ui.Row(c).Padding(t.Space(2), t.Space(3)).Radius(uikit.RadiusControl).Background(p.Chrome).Gap(t.Space(2)).Children(func() {
+		ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Radius(uikit.RadiusControl).Background(p.Chrome).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			for _, key := range []string{"⌘K", "⇧⌘Z", "⌥←"} {
 				uikit.Kbd(c, key)
 			}
@@ -395,13 +418,13 @@ func (k *components) kbdPlate(c *ui.Context) {
 func (k *components) tooltipPlate(c *ui.Context) {
 	tipRoom(c)
 	stateRow(c, "Text", func() {
-		uikit.Tip(c, uikit.SecondaryButton(c, "Hover for a tip"), "Captured traffic appears here once the proxy is on.").Width(240)
+		uikit.Tip(c, uikit.SecondaryButton(c, "Hover for a tip"), "Captured traffic appears here once the proxy is on.").Width(uikit.WidthWide)
 	})
 	stateRow(c, "Shortcut", func() {
 		labelled(uikit.TipKeys(c, uikit.SecondaryButton(c, "Hide sidebar"), "Hide sidebar", "⌘", "B"), hoverTooltip)
 	})
 	stateRow(c, "Long URL", func() {
-		uikit.Tip(c, uikit.SecondaryButton(c, "Hover a long URL"), "https://api.example.com/v1/projects?include=members&page=2&per_page=50").Width(240)
+		uikit.Tip(c, uikit.SecondaryButton(c, "Hover a long URL"), "https://api.example.com/v1/projects?include=members&page=2&per_page=50").Width(uikit.WidthWide)
 	})
 	caption(c, "A tip is the canvas on the popover shadow, a 1-point hairline, 8-point corners and 6×10 of padding: 12-point text at the normal ink, up to 360 wide, with a shortcut as a Kbd cap. It waits 500ms and does not wait again when the pointer moves to its neighbour.")
 }
@@ -409,7 +432,7 @@ func (k *components) tooltipPlate(c *ui.Context) {
 func (k *components) hoverCardPlate(c *ui.Context) {
 	tipRoom(c)
 	stateRow(c, "Capture row", func() {
-		row := ui.Row(c).Height(uikit.HeightControl).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).
+		row := ui.Row(c).Height(uikit.HeightRow).Padding(0, c.Theme().Space(uikit.SpaceM)).Gap(c.Theme().Space(uikit.SpaceM)).AlignItems(ui.Center).
 			Radius(uikit.RadiusControl).Background(uikit.Colors(c.Theme()).Fill).Children(func() {
 			uikit.MethodLabel(c, "GET")
 			uikit.Body(c, "List projects").SingleLine()
@@ -425,7 +448,7 @@ func (k *components) hoverCardPlate(c *ui.Context) {
 		}), hoverCard)
 	})
 	// The card hangs below the row; leave it room so the caption stays clear.
-	ui.Box(c).Height(c.Theme().Space(40)).Shrink(0)
+	ui.Box(c).Height(uikit.WidthField).Shrink(0)
 	caption(c, "A rich card adds a title, one meta line and key/value rows to the same surface. It is for what a row's width cannot show: the full URL, method, status and client of a captured request, or a saved request's address.")
 }
 
@@ -471,8 +494,8 @@ func (k *components) panePlate(c *ui.Context) {
 
 func (k *components) sidebarPlate(c *ui.Context) {
 	open := true
-	ui.Row(c).Gap(c.Theme().Space(4)).AlignItems(ui.Start).Children(func() {
-		ui.Column(c).Width(240).Padding(c.Theme().Space(1)).Gap(0).Height(300).
+	ui.Row(c).Gap(c.Theme().Space(uikit.SpaceXL)).AlignItems(ui.Start).Children(func() {
+		ui.Column(c).Width(uikit.WidthWide).Padding(c.Theme().Space(uikit.SpaceXS)).Gap(0).Height(300).
 			Background(uikit.Colors(c.Theme()).Chrome).Children(func() {
 			uikit.SidebarList(c, "gallery-sidebar", &k.sidebar, func(string) {}, func() {
 				uikit.SidebarHeading(c, "Traffic", &open, nil)
@@ -485,7 +508,7 @@ func (k *components) sidebarPlate(c *ui.Context) {
 				uikit.SidebarButton(c, "Show all domains", "", lucide.ChevronRight(), false)
 			})
 		})
-		ui.Column(c).Grow(1).Gap(c.Theme().Space(2)).Children(func() {
+		ui.Column(c).Grow(1).Gap(c.Theme().Space(uikit.SpaceM)).Children(func() {
 			caption(c, "Hover a row to see it take the body color; the chosen row keeps the tint when the window is behind, and the neutral fill when it is not.")
 			stateRow(c, "Chosen", func() {
 				ui.Column(c).Width(220).Children(func() {
@@ -559,7 +582,7 @@ func (k *components) statusPlate(c *ui.Context) {
 	})
 	stateRow(c, "Response meta", func() {
 		ui.Column(c).Width(260).Children(func() { uikit.ResponseMeta(c, "1242 ms", "1.8 KB · JSON", uikit.Timing{}) })
-		ui.Column(c).Width(160).Children(func() { uikit.ResponseMeta(c, "47 ms", "83 B", uikit.Timing{}) })
+		ui.Column(c).Width(uikit.WidthField).Children(func() { uikit.ResponseMeta(c, "47 ms", "83 B", uikit.Timing{}) })
 	})
 	stateRow(c, "Sparkline", func() {
 		uikit.Sparkline(c, []int{2, 5, 3, 8, 4, 6, 9, 3, 7}, t.TextMuted)
@@ -589,7 +612,7 @@ func (k *components) emptyPlate(c *ui.Context) {
 	ui.Row(c).Children(func() {
 		ui.Column(c).Width(520).Height(240).Border(1, c.Theme().Border).Radius(uikit.RadiusPanel).Children(func() {
 			uikit.EmptyState(c, "No requests yet", "Enable the system proxy to start capturing.", func() {
-				ui.Row(c).Gap(c.Theme().Space(2)).Children(func() {
+				ui.Row(c).Gap(c.Theme().Space(uikit.SpaceM)).Children(func() {
 					uikit.PrimaryButton(c, "Enable system proxy")
 					uikit.SecondaryButton(c, "Client setup")
 				})
@@ -601,7 +624,7 @@ func (k *components) emptyPlate(c *ui.Context) {
 
 func (k *components) panelPlate(c *ui.Context) {
 	stateRow(c, "Popover", func() {
-		uikit.PopoverPanel(c, ui.Column(c)).Padding(uikit.PopoverPadding).Width(260).Gap(c.Theme().Space(1)).Children(func() {
+		uikit.PopoverPanel(c, ui.Column(c)).Padding(uikit.PopoverPadding).Width(260).Gap(c.Theme().Space(uikit.SpaceXS)).Children(func() {
 			uikit.Body(c, "Popover panel")
 			uikit.Small(c, "12-point corners and a 16-point inset")
 		})
@@ -672,7 +695,7 @@ func (k *components) commandPalettePlate(c *ui.Context) {
 	}
 	ui.Row(c).Children(func() {
 		uikit.PopoverPanel(c, ui.Column(c)).Width(uikit.CommandPaletteWidth).Padding(0).Gap(0).Children(func() {
-			ui.Row(c).Height(uikit.CommandPaletteInputRow).Padding(0, t.Space(4)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Height(uikit.CommandPaletteInputRow).Padding(0, t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, lucide.Search()).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.TextMuted)
 				ui.TextInput(c, &k.query).Height(uikit.CommandPaletteInputRow).Padding(0).FontSize(uikit.Scaled(uikit.CommandPaletteInputSize)).
 					Grow(1).MinWidth(0).FocusRing(false).Background(ui.Color{}).Border(0, ui.Color{}).
@@ -689,7 +712,7 @@ func (k *components) commandPalettePlate(c *ui.Context) {
 					{"Copy as cURL", "The chosen capture, with its headers", key("C")},
 					{"Replay 3 requests", "The selection in the capture table", key("R")},
 				} {
-					row := ui.Row(c).Height(uikit.CommandPaletteRow).FillWidth().Padding(0, t.Space(3)).Gap(t.Space(2)).
+					row := ui.Row(c).Height(uikit.CommandPaletteRow).FillWidth().Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).
 						Radius(uikit.RadiusControl).AlignItems(ui.Center)
 					if i == 0 {
 						row.Background(p.AccentTint)
@@ -705,7 +728,7 @@ func (k *components) commandPalettePlate(c *ui.Context) {
 				}
 			})
 			ui.Divider(c)
-			ui.Row(c).Height(40).Padding(0, t.Space(4)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Height(40).Padding(0, t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Kbd(c, "↑")
 				uikit.Kbd(c, "↓")
 				uikit.Small(c, "Choose")
@@ -723,10 +746,10 @@ func (k *components) settingsCardPlate(c *ui.Context) {
 	uikit.SettingsCardPage(c, "Capture", "What the proxy keeps and what it drops.", func() {
 		uikit.SettingsCard(c, "Storage", func() {
 			uikit.SettingsCardRow(c, "Flow limit", "Rows kept before the oldest spill to disk.", func() {
-				uikit.Input(c, &k.flow).Placeholder("20000").Width(160)
+				uikit.Input(c, &k.flow).Placeholder("20000").Width(uikit.WidthField)
 			})
 			uikit.SettingsCardRow(c, "Memory limit", "Bodies above this are read from disk.", func() {
-				uikit.Input(c, &k.empty).Placeholder("512 MB").Width(160)
+				uikit.Input(c, &k.empty).Placeholder("512 MB").Width(uikit.WidthField)
 			})
 		})
 		uikit.SettingsCard(c, "Behavior", func() {
@@ -745,10 +768,10 @@ func (k *components) settingsPlate(c *ui.Context) {
 	uikit.SettingsPage(c, "Capture", "What the proxy keeps and what it drops.", func() {
 		uikit.SettingsGroup(c, "Storage", func() {
 			uikit.SettingsRow(c, "Flow limit", func() ui.Element {
-				return labelled(uikit.Input(c, &k.flow).Placeholder("20000").Width(160), hoverSettings)
+				return labelled(uikit.Input(c, &k.flow).Placeholder("20000").Width(uikit.WidthField), hoverSettings)
 			}, "Rows kept before the oldest spill to disk.")
 			uikit.SettingsRow(c, "Memory limit", func() ui.Element {
-				return uikit.Input(c, &k.empty).Placeholder("512 MB").Width(160)
+				return uikit.Input(c, &k.empty).Placeholder("512 MB").Width(uikit.WidthField)
 			}, "Bodies above this are read from disk.")
 		})
 		uikit.SettingsGroup(c, "Behavior", func() {
@@ -756,7 +779,7 @@ func (k *components) settingsPlate(c *ui.Context) {
 				return uikit.Switch(c, &k.on).Label("Keep traffic")
 			}, "")
 			uikit.SettingsRowMultiline(c, "Bypass list", func() ui.Element {
-				return ui.Column(c).Gap(c.Theme().Space(2)).Children(func() {
+				return ui.Column(c).Gap(c.Theme().Space(uikit.SpaceM)).Children(func() {
 					labelled(ui.Checkbox(c, &k.check, "Pause on start"), focusSettings)
 					uikit.TextArea(c, &k.bypass).Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(true)
 				})
@@ -791,7 +814,7 @@ func (k *components) listPlate(c *ui.Context) {
 	row := func(focused bool, label string) {
 		theme := uikit.ListTheme(c.Theme(), focused)
 		ui.Themed(c, theme).Background(ui.Transparent).FillWidth().Children(func() {
-			box := ui.Row(c).Height(uikit.HeightControl).FillWidth().Padding(0, c.Theme().Space(2)).AlignItems(ui.Center).Gap(c.Theme().Space(2)).
+			box := ui.Row(c).Height(uikit.HeightRow).FillWidth().Padding(0, c.Theme().Space(uikit.SpaceM)).AlignItems(ui.Center).Gap(c.Theme().Space(uikit.SpaceM)).
 				Background(c.Theme().Accent)
 			if label != "" {
 				box.Label(label)
@@ -809,7 +832,7 @@ func (k *components) listPlate(c *ui.Context) {
 			row(true, "")
 			ui.Column(c).FillWidth().Background(uikit.Colors(c.Theme()).Canvas).Children(func() {
 				uikit.KVRow(c, func() {
-					ui.Text(c, "Accept").Font(uikit.FontMono).Width(140).TextColor(c.Theme().TextMuted)
+					ui.Text(c, "Accept").Font(uikit.FontMono).Width(uikit.WidthPicker).TextColor(c.Theme().TextMuted)
 					ui.Text(c, "application/json").Font(uikit.FontMono)
 				})
 			})
@@ -822,7 +845,7 @@ func (k *components) listPlate(c *ui.Context) {
 		ui.Column(c).Width(560).Children(func() { row(true, hoverLists) })
 	})
 	stateRow(c, "Selected row", func() {
-		ui.Column(c).Width(240).Children(func() {
+		ui.Column(c).Width(uikit.WidthWide).Children(func() {
 			uikit.Selected(c, uikit.RowButton(c, "Row"), true).Children(func() { uikit.Body(c, "Chosen row") })
 			uikit.Selected(c, uikit.RowButton(c, "Row behind"), false).Children(func() { uikit.Body(c, "Chosen, window behind") })
 		})
@@ -848,4 +871,69 @@ func iconBitmap() ui.ImageSource {
 		panic(fmt.Errorf("gallery icon: %w", err))
 	}
 	return bmp
+}
+
+func (k *components) checkPlate(c *ui.Context) {
+	stateRow(c, "Rest", func() {
+		uikit.Checkbox(c, &k.off, "Sync across devices")
+		uikit.Checkbox(c, &k.on, "Checked")
+	})
+	stateRow(c, "Hover", func() {
+		labelled(uikit.Checkbox(c, &k.hovered, "Hover"), hoverChecks)
+	})
+	stateRow(c, "Focus", func() {
+		labelled(uikit.Checkbox(c, &k.focused, "Focus"), focusChecks)
+	})
+	stateRow(c, "Disabled", func() {
+		uikit.Checkbox(c, &k.off, "Disabled").Disabled(true)
+		uikit.Checkbox(c, &k.on, "Disabled and checked").Disabled(true)
+	})
+	stateRow(c, "Radio", func() {
+		uikit.RadioGroup(c, func() {
+			for _, size := range []string{"Small", "Medium", "Large"} {
+				uikit.Radio(c, &k.choice, size, size)
+			}
+		}).Row().Gap(c.Theme().Space(uikit.SpaceL))
+	})
+	caption(c, "A box is a control face, not an outline: unchecked, hovered and pressed are the text color laid thinly, checked is the ink.")
+}
+
+func (k *components) feedbackPlate(c *ui.Context) {
+	t := c.Theme()
+	stateRow(c, "Spinner", func() {
+		uikit.Spinner(c, "Loading messages")
+		uikit.Hint(c, "Work of unknown length")
+	})
+	stateRow(c, "Progress", func() {
+		ui.Column(c).Gap(t.Space(uikit.SpaceM)).Width(uikit.WidthWide + uikit.WidthField).Children(func() {
+			for _, bar := range []struct {
+				name  string
+				value float64
+			}{{"Uploading", 0.4}, {"Connecting", -1}} {
+				ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
+					uikit.Meta(c, bar.name).Width(uikit.WidthNarrow)
+					uikit.ProgressBar(c, bar.value, bar.name).Grow(1)
+				})
+			}
+		})
+	})
+	stateRow(c, "Callouts", func() {
+		ui.Column(c).Gap(t.Space(uikit.SpaceM)).Width(uikit.WidthWide + uikit.WidthField).Children(func() {
+			uikit.Callout(c, uikit.CalloutInfo, "Capture is paused; new requests are not recorded.", nil)
+			uikit.Callout(c, uikit.CalloutSuccess, "The certificate is trusted by this system.", nil)
+			uikit.Callout(c, uikit.CalloutWarning, "The export contains 3 unredacted headers.", nil)
+			uikit.Callout(c, uikit.CalloutDanger, "The proxy could not bind 127.0.0.1:7890.", func() {
+				uikit.LinkButton(c, "Try again")
+			})
+		})
+	})
+	stateRow(c, "Badges", func() {
+		uikit.Badge(c, "12", t.TextMuted)
+		uikit.Badge(c, "2xx", uikit.Colors(t).Success)
+		uikit.Badge(c, "5xx", uikit.Colors(t).Danger)
+	})
+	stateRow(c, "Busy", func() {
+		uikit.PrimaryButton(c, "Save")
+		uikit.PrimaryButtonBusy(c, "Save", true)
+	})
 }

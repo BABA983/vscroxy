@@ -54,12 +54,15 @@ func fills(p Palette, rest, hover, pressed float32) Palette {
 	return p
 }
 
-// Light is the light theme: warm neutral gray-white, with ink for anything
-// selected, primary or on, and green only for what passed or is recording.
-// TextFaint is only for icons and placeholders; it carries no information.
+// Light is the light theme, Amp's Daydream: a green-tinted gray-white, with
+// ink for anything selected, primary or on, and green only for what passed or
+// is recording. Every surface keeps Daydream's green tint, fields included,
+// and the shell is Daydream's own outer shade, a step under the content panel,
+// so the panel's edge reads without a heavier line. TextFaint is only for
+// icons and placeholders; it carries no information.
 var Light = fills(Palette{
-	Chrome: ui.Hex("#f2f6ee"), Canvas: ui.Hex("#f9fdf6"), Well: ui.Hex("#ebebeb"),
-	Hairline: ui.Hex("#ebefe8"),
+	Chrome: ui.Hex("#edf3ea"), Canvas: ui.Hex("#f9fdf6"), Well: ui.Hex("#e9eee5"),
+	Hairline: ui.Hex("#dde4d9"),
 	Text:     ui.Hex("#0b0d0b"), TextMuted: ui.Hex("#595959"), TextFaint: ui.Hex("#8a8f88"),
 	Accent: ui.Hex("#141614"), AccentHover: ui.Hex("#2a2d2a"), AccentPressed: ui.Hex("#3d413d"),
 	AccentText: ui.Hex("#f9fdf6"), AccentTint: ui.Hex("#d6dcd6"),
@@ -80,8 +83,9 @@ var Light = fills(Palette{
 // itself, so the content sits a step above the shell as it does in Light.
 var Dark = fills(Palette{
 	// The shell is the darker of the two in Dark: the cards are raised, so
-	// they are the lighter surfaces, as they are in Light.
-	Chrome: ui.Hex("#070807"), Canvas: ui.Hex("#0c1516"), Well: ui.Hex("#192121"),
+	// they are the lighter surfaces, as they are in Light. It takes the
+	// panel's teal hue, so the window is one material in two depths.
+	Chrome: ui.Hex("#050a0b"), Canvas: ui.Hex("#0c1516"), Well: ui.Hex("#192121"),
 	Hairline: ui.Hex("#1b2324"),
 	Text:     ui.Hex("#f6fff5"), TextMuted: ui.Hex("#9ca49c"), TextFaint: ui.Hex("#6d766e"),
 	Accent: ui.Hex("#eaf3e9"), AccentHover: ui.Hex("#ffffff"), AccentPressed: ui.Hex("#cfd8ce"),
@@ -123,7 +127,7 @@ func Theme(dark bool) *ui.Theme {
 	// Windows; MyGo's warm window, within which the next tip shows at once,
 	// is two thirds of it.
 	t.TooltipDelay = 500 * time.Millisecond
-	t.Font, t.FontSize, t.Radius, t.Spacing = FontUI, TextBody, RadiusControl, 4
+	t.Font, t.FontSize, t.Radius, t.Spacing = FontUI, Scaled(TextBody), RadiusControl, 4
 	t.Selection, t.Focus = p.Accent.Alpha(0.24), p.Ring
 	return t
 }

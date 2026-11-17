@@ -78,12 +78,12 @@ func (o *overview) view(c *ui.Context, dark bool) {
 		o.open, o.sections = true, true
 	}
 	section := func(title string, content func()) {
-		ui.Column(c).Gap(t.Space(2)).Children(func() {
+		ui.Column(c).Gap(t.Space(SpaceM)).Children(func() {
 			Label(c, title)
 			content()
 		})
 	}
-	row := func(content func()) { ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(content) }
+	row := func(content func()) { ui.Row(c).Gap(t.Space(SpaceM)).AlignItems(ui.Center).Wrap().Children(content) }
 	ui.Row(c).Fill().Background(t.Background).Children(func() {
 		ui.Sidebar(c, &o.side, func() {
 			SidebarHeading(c, "Traffic", &o.open, nil)
@@ -94,11 +94,11 @@ func (o *overview) view(c *ui.Context, dark bool) {
 			SidebarItem(c, "behind", lucide.Clock(), "Chosen, window behind", true, false)
 			// A row without an icon keeps the slot, so its label lines up.
 			SidebarItem(c, "host", nil, "api.example.com", false, true).Children(func() { Meta(c, "12") })
-			SidebarHeading(c, "Sources", &o.sections, func() { Segmented(c, &o.sources, "Apps", "Domains").Height(t.Space(5)) })
+			SidebarHeading(c, "Sources", &o.sections, func() { Segmented(c, &o.sources, "Apps", "Domains").Height(t.Space(SpaceXXL)) })
 			SidebarButton(c, "Show all domains", "", lucide.ChevronRight(), false).TextColor(t.TextMuted)
-		}).Padding(t.Space(1), 0).Gap(0).Width(200).FillHeight().Background(Colors(t).Chrome)
+		}).Padding(t.Space(SpaceXS), 0).Gap(0).Width(200).FillHeight().Background(Colors(t).Chrome)
 		ui.Divider(c)
-		ui.Scroll(c).Grow(1).Padding(t.Space(6)).Gap(t.Space(6)).Children(func() {
+		ui.Scroll(c).Grow(1).Padding(t.Space(Space2XL)).Gap(t.Space(Space2XL)).Children(func() {
 			ui.Text(c, "vscroxy uikit").FontSize(Scaled(TextTitle)).FontWeight(500)
 			section("Surfaces", func() {
 				// One control reads the same on chrome, canvas and well; a
@@ -110,7 +110,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 						fill   ui.Color
 						chrome bool
 					}{{"Chrome", Colors(t).Chrome, true}, {"Canvas", Colors(t).Canvas, false}, {"Well", Colors(t).Well, false}} {
-						ui.Column(c).Width(230).Padding(t.Space(3)).Gap(t.Space(2)).Radius(RadiusPanel).
+						ui.Column(c).Width(230).Padding(t.Space(SpaceL)).Gap(t.Space(SpaceM)).Radius(RadiusPanel).
 							Background(s.fill).Children(func() {
 							Label(c, s.name)
 							Body(c, "Body · the draft was replayed")
@@ -119,7 +119,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 								SecondaryButton(c, "Save")
 								PrimaryButton(c, "Send")
 							})
-							field := ui.Row(c).Height(HeightControl).AlignItems(ui.Center).Padding(0, t.Space(2))
+							field := ui.Row(c).Height(HeightRow).AlignItems(ui.Center).Padding(0, t.Space(SpaceM))
 							if s.chrome {
 								ChromeFieldFace(c, field, false)
 							} else {
@@ -274,7 +274,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 			})
 			section("Panels", func() {
 				row(func() {
-					PopoverPanel(c, ui.Column(c)).Padding(t.Space(3)).Width(240).Children(func() {
+					PopoverPanel(c, ui.Column(c)).Padding(t.Space(SpaceL)).Width(240).Children(func() {
 						ui.Text(c, "Popover panel")
 						ui.Text(c, "Menus, popovers and toasts").FontSize(Scaled(TextMeta)).TextColor(t.TextMuted)
 					})

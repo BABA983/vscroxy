@@ -131,18 +131,18 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			locales.Event(), locales.Attachments(), locales.Connection(), locales.RequestHeadersLabel(), locales.HttpAuth(), locales.Saved(),
 		}, width)
 		if u.problem != "" {
-			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(0, t.Space(3))
+			uikit.ErrorText(c, u.problem).MaxHeight(55).Padding(0, t.Space(uikit.SpaceL))
 		}
-		ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
+		ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			switch u.tab {
 			case 0:
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					uikit.Input(c, &d.socketIOConfig.Event).Label(locales.SocketIoEventName()).Placeholder(locales.EventNameEGEcho()).Grow(1).MinWidth(0)
-					ui.Checkbox(c, &d.socketIOConfig.WantACK, "Request ACK")
+					uikit.Checkbox(c, &d.socketIOConfig.WantACK, locales.RequestAck())
 					a.actionButton(c, "request.socketio-emit", "Emit event")
 				})
 				if len(s.owed) > 0 {
-					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 						uikit.Label(c, locales.SocketIoAckRequest())
 						if !slices.Contains(s.owed, u.ackID) {
 							u.ackID = s.owed[0]
@@ -151,10 +151,10 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 						a.actionButton(c, "request.socketio-ack", "Reply ACK")
 					})
 				}
-				uikit.Panel(c).Grow(1).MinHeight(0).Padding(t.Space(2)).Children(func() {
+				uikit.Panel(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM)).Children(func() {
 					authoredText(c, &d.composeBody, &d.bodyEditor, &d.bodyFor, "Socket.IO arguments JSON", "json")
 				})
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					namespace := cmp.Or(d.socketIOConfig.Namespace, "/")
 					uikit.Meta(c, locales.SocketIoSessionLine(stateLabel(s.state), namespace)).Grow(1).SingleLine()
 					if len(s.owed) > 0 {
@@ -165,7 +165,7 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				uikit.Tip(c, uikit.Meta(c, locales.AttachmentsHelp()), locales.BinaryAttachmentsJsonArrayOf())
 				authoredText(c, &d.socketIOConfig.Attachments, &u.attachmentEditor, &u.attachmentsFor, "Socket.IO attachments JSON", "json")
 			case 2:
-				ui.Scroll(c).Grow(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Disabled(d.composeWaiting).Children(func() {
+				ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Disabled(d.composeWaiting).Children(func() {
 					uikit.SettingsGroup(c, locales.Connection(), func() {
 						uikit.SettingsRow(c, locales.Namespace(), func() ui.Element {
 							in := uikit.Input(c, &d.socketIOConfig.Namespace).Label(locales.SocketIoNamespace()).Placeholder(locales.DefaultText())
@@ -194,8 +194,8 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	u := d.socketIOState()
 	s := u.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.SocketIoMessages()).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1)
+		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+			uikit.Body(c, locales.SocketIoMessages()).Grow(1)
 			if u.session != nil {
 				uikit.Meta(c, stateLabel(s.state)).SingleLine()
 			}
@@ -205,9 +205,9 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			return
 		}
 		if s.problem != "" {
-			ui.Text(c, s.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(0, t.Space(3))
+			uikit.ErrorText(c, s.problem).MaxHeight(55).Padding(0, t.Space(uikit.SpaceL))
 		}
-		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			uikit.Input(c, &u.query).Label(locales.SearchSocketIoMessages()).Placeholder(locales.SearchEventOrPayload()).Grow(1).MinWidth(0)
 			uikit.Meta(c, locales.RetainedPreview2(len(s.events), s.evicted)).SingleLine()
 		})
@@ -232,8 +232,8 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			u.list.Label = func(i int) string { return fmt.Sprintf("Socket.IO message %d %s", events[i].seq, events[i].name) }
 			uikit.DataListIndexed(c, &u.list, len(events), func(i int) {
 				e := events[i]
-				ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
-					ui.Text(c, e.direction+" · "+e.name).FontSize(uikit.Scaled(uikit.TextBody)).SingleLine()
+				ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
+					uikit.Body(c, e.direction+" · "+e.name).SingleLine()
 					uikit.Meta(c, locales.EventLineSize(e.seq, e.at.Format("15:04:05.000"), e.size)).SingleLine()
 				})
 			}).Grow(1)
@@ -249,7 +249,7 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				u.reader = &editor.State{Buffer: editor.NewBuffer(e.text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.SocketIoMessagePayload()}
 			}
 			ui.Column(c).Fill().Children(func() {
-				ui.Row(c).Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).Children(func() {
+				ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 					uikit.Meta(c, e.direction+" · "+e.name).Grow(1).SingleLine()
 					services, text := c.Services(), e.text
 					uikit.SecondaryButton(c, locales.CopyShownMessage()).OnClick(func() { services.WriteClipboard(text) })
@@ -281,7 +281,7 @@ func (a *app) emitSocketIOSaved(d *requestDocument) {
 func (a *app) socketIOSavedEditor(c *ui.Context, t *ui.Theme, d *requestDocument, sent []request.SocketIOMessageDoc) {
 	remove := -1
 	uikit.Meta(c, locales.SocketIOSavedMessagesHelp())
-	ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 		if uikit.SecondaryButton(c, locales.AddCurrentEvent()).Clicked() {
 			d.socketIOConfig.Messages = append(d.socketIOConfig.Messages, request.SocketIOMessageDoc{
 				Event: d.socketIOConfig.Event, Args: d.composeBody,
@@ -295,22 +295,22 @@ func (a *app) socketIOSavedEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 		}
 		uikit.Meta(c, locales.SavedMessagesCount(len(d.socketIOConfig.Messages)))
 	})
-	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		for i := range d.socketIOConfig.Messages {
 			message := &d.socketIOConfig.Messages[i]
-			row := ui.Row(c.Key(i)).AlignItems(ui.Start).Gap(t.Space(2))
+			row := ui.Row(c.Key(i)).AlignItems(ui.Start).Gap(t.Space(uikit.SpaceM))
 			row.Children(func() {
-				ui.Text(c, strconv.Itoa(i+1)).FontSize(uikit.Scaled(uikit.TextMeta)).
-					TextColor(t.TextMuted).Width(t.Space(3)).Padding(t.Space(2), 0)
-				ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
+				uikit.Caption(c, strconv.Itoa(i+1)).
+					TextColor(t.TextMuted).Width(t.Space(uikit.SpaceL)).Padding(t.Space(uikit.SpaceM), 0)
+				ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					uikit.Input(c, &message.Event).Label(locales.SocketIoEventName()).
 						Placeholder(locales.EventNameEGEcho()).Font(uikit.FontMono)
 					uikit.TextArea(c, &message.Args).Label(locales.SocketIoArgumentsOf(i + 1)).
 						Placeholder("[]").Height(54).Font(uikit.FontMono).
-						FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(0)
+						Grow(1).MinWidth(0)
 				})
-				ui.Box(c).Width(140).Padding(t.Space(2), 0).Children(func() {
-					ui.Checkbox(c, &message.WantACK, "Request ACK")
+				ui.Box(c).Width(uikit.WidthPicker).Padding(t.Space(uikit.SpaceM), 0).Children(func() {
+					uikit.Checkbox(c, &message.WantACK, locales.RequestAck())
 				})
 				label := locales.RemoveMessage(i + 1)
 				if uikit.IconButton(c, label, label, closeIcon).Clicked() {

@@ -11,6 +11,10 @@ import (
 
 // Shared metrics. Container geometry stays with each screen; these describe
 // controls, not a new layout for the shell or inspector.
+//
+// Units: heights, insets, widths and radii are points the kit fixes. Spacing
+// is the one exception: the Space names are multiples of the theme's grid,
+// read through t.Space, so a local theme can tighten a dense table.
 const (
 	// Five sizes, two weights (400 and 500). Monospace is only for wire
 	// data: paths, header values, numbers and bodies.
@@ -29,29 +33,50 @@ const (
 	LineProse   = 1.6
 	LineTitle   = 24.0 / 16.0
 	LineDisplay = 28.0 / 20.0
+
+	// Spacing names, as multiples of the grid (4 points under the default
+	// theme). Screens use these names, never a bare number, so a gap means
+	// the same thing in every pane.
+	SpaceHair    = 0.5 // 2: a hairline between two marks
+	SpaceXS      = 1   // 4: an icon and its label, tabs in a row
+	SpaceS       = 1.5 // 6: inside a control, between a title and its meta
+	SpaceM       = 2   // 8: controls in one row
+	SpaceCompact = 2.5 // 10: a tip's and a toast's inner gap
+	SpaceL       = 3   // 12: a panel's padding and the gap inside a group
+	SpaceXL      = 4   // 16: between groups
+	SpaceXXL     = 5   // 20: a large group's gap
+	Space2XL     = 6   // 24: between sections
+	Space3XL     = 8   // 32: between the parts of a page
+
 	// Three bar heights, as in Proxyman and Xcode: the title bar, a pane
 	// header or filter bar, and the status bar under everything.
 	HeightBar    = 40
 	HeightTabs   = 32
-	HeightStatus = 24 // the activity strip's one row
+	HeightStatus = 24 // the activity strip's one row and the status bar
 	// HeightFooter is the bar under everything: the window's own actions,
 	// its counts and the tools that are on.
 	HeightFooter = 28
-	// Two control heights. ControlHeight is the default for forms, toolbars
-	// and primary actions; ControlHeightSmall is for inline actions, pane
-	// headers and chips. Both follow the desktop text scale.
-	ControlHeight      = 28
-	ControlHeightSmall = 22
-	// Horizontal control padding: Space(3) for a default control, Space(2)
-	// for a small one. The kit multiplies them by the text scale where used.
-	ControlPaddingX      = 12
-	ControlPaddingXSmall = 8
-	// HeightControl is a table or sidebar row; HeightLarge is a bar or a
-	// field that needs the default control height. HeightFooterControl is
-	// the small control inside the footer.
-	HeightControl       = 24
-	HeightLarge         = 28
-	HeightFooterControl = ControlHeightSmall
+	// Heights of what a person presses, types in or picks. HeightControl is
+	// the default for forms, toolbars and primary actions; HeightControlSmall
+	// is for inline actions, pane tabs, chips and the footer. HeightRow is a
+	// table row, a list row or a sidebar item.
+	HeightControl      = 28
+	HeightControlSmall = 22
+	HeightRow          = 24
+	// Insets: the padding a surface gives its content. A component builds its
+	// own from these; a screen never pads a control itself.
+	ControlPaddingX      = 12 // a default control, left and right
+	ControlPaddingXSmall = 8  // a small control, a chip, a row's sides
+	PanelPadding         = 12 // a panel's content and a pane header's sides
+	TipPaddingX          = 10
+	TipPaddingY          = 6
+	ToastPaddingX        = 16
+	ToastPaddingY        = 8
+	ToastWidth           = 360 // a toast is at most this wide
+	CardTipPaddingX      = 12  // a hover card, left and right
+	CardTipPaddingY      = 10
+	CardPaddingX         = 16 // a settings card row, left and right
+	CardRowPaddingY      = 4
 	// Corners stay concentric: something nested in a padded container takes
 	// the container's radius less the padding, which is RadiusInner. The
 	// workspace stops at RadiusPanel; a menu, card and dialog each take one
@@ -62,19 +87,45 @@ const (
 	RadiusMenu    = 10
 	RadiusCard    = 12
 	RadiusDialog  = 16
+	// HairlineWidth is the one-point edge every hairline, field edge and
+	// separator is drawn with.
+	HairlineWidth = 1
+	FocusHalo     = 3 // the soft ring a focused field draws past its edge
 	IconInline    = 14
 	IconLarge     = 16
-	DialogSmall   = 480
-	DialogMedium  = 640
-	DialogLarge   = 840
+	// Widths for the fields and pickers a form lays out. A screen picks one
+	// of these instead of writing its own number.
+	WidthNarrow    = 120
+	WidthPicker    = 140
+	WidthField     = 160
+	WidthFieldWide = 200
+	WidthWide      = 240 // a wide field, a popover or a timing card
+	WidthNumber    = 88  // a number field: a port, a status, a count
+	DialogSmall    = 480
+	DialogMedium   = 640
+	DialogLarge    = 840
 	// The floating scale. The workspace keeps its 24-point rows and 28/22
 	// controls; menus, popovers, dialogs, toasts and Settings use these.
-	MenuRowHeight           = 28
-	PopoverPadding          = 16
-	DialogPadding           = 24
-	DialogGap               = 16
-	SettingsWidth           = 620
-	SettingsRowHeight       = 44
+	MenuRowHeight     = 28
+	PopoverPadding    = 16
+	DialogPadding     = 24
+	DialogGap         = 16
+	SettingsWidth     = 620
+	SettingsRowHeight = 44
+	// WindowMargin is the space a modal, a toast or a popover keeps from the
+	// window's edge, on each side.
+	WindowMargin = 16
+	// Settings: the label column is as wide as its widest label, between the
+	// default and the most it takes; a hint wraps at SettingsHintWidth.
+	SettingsLabelWidth      = 112
+	SettingsLabelMax        = 180
+	SettingsHintWidth       = 400
+	TipMaxWidth             = 360 // a tip wraps at this width
+	CardKeyWidth            = 52  // a card's key column
+	TabRuleHeight           = 2   // the rule under a selected tab
+	DotSize                 = 6   // a status or a legend dot
+	HeightKbd               = 18  // a key cap, and a chip's inner face
+	KbdPaddingX             = 4
 	SettingsControlHeight   = 36
 	CommandPaletteWidth     = 720
 	CommandPaletteInputRow  = 48

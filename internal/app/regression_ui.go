@@ -11,28 +11,28 @@ import (
 )
 
 func (a *app) checksEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
-	ui.Scroll(c).Grow(1).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
+	ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 		uikit.Meta(c, locales.ResponseChecksAllMustPass())
 		ui.Form(c, func() {
 			ui.Field(c, locales.ExpectedStatus(), func() {
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					uikit.Input(c, &d.checks.Status).Width(90).Label(locales.ExpectedStatus()).Placeholder("200")
 					uikit.Meta(c, locales.EmptyNoStatusAssertion())
 				})
 			})
 			ui.Field(c, locales.ResponseHeaders(), func() {
-				uikit.TextArea(c.Key("check-headers"), &d.checks.Headers).Height(72).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).
+				uikit.TextArea(c.Key("check-headers"), &d.checks.Headers).Height(72).Font(uikit.FontMono).
 					Radius(uikit.RadiusControl).Label(locales.ExpectedResponseHeaders()).Placeholder("Content-Type: application/json")
 				uikit.Meta(c, locales.ResponseHeadersExactValueAny())
 			})
 			ui.Field(c, locales.JsonScalarFields(), func() {
-				uikit.TextArea(c.Key("check-json"), &d.checks.JSON).Height(96).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).
+				uikit.TextArea(c.Key("check-json"), &d.checks.JSON).Height(96).Font(uikit.FontMono).
 					Radius(uikit.RadiusControl).Label(locales.JsonResponseChecks()).Placeholder("/data/id = 42\n/items/0/name = \"example\"\n/ok = true")
 				uikit.Meta(c, locales.JsonScalarFieldsRfc6901())
 			})
 		})
 		if _, _, _, err := d.checks.Parse(); err != nil {
-			ui.Text(c, err.Error()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+			uikit.ErrorText(c, err.Error())
 		}
 		if snapshot := d.checks.Snapshot; snapshot != nil {
 			ui.Divider(c)
@@ -63,7 +63,7 @@ func (a *app) checksEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 					uikit.Mono(c, path).Selectable()
 				}
 			}
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				if uikit.SecondaryButton(c, locales.LearnSnapshotVary()).Clicked() {
 					a.learnSnapshotVary(d)
 				}

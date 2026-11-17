@@ -69,10 +69,10 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &s.open, s.title, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, s.title)
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				uikit.Hint(c, locales.RedactTheExportedCopyYour())
 				before, raw := s.options, s.unredacted
-				ui.Checkbox(c.Key("export-unredacted"), &s.unredacted, "Export unredacted (include original values)")
+				uikit.Checkbox(c.Key("export-unredacted"), &s.unredacted, locales.ExportUnredacted())
 				if !s.unredacted {
 					headersLabel := "Headers, trailers and cookies"
 					headersTip := "Replace every header and trailer value except Content-Type and Accept; remove cookies."
@@ -80,25 +80,25 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 						headersLabel = "Header columns"
 						headersTip = "Replace header-derived cells except Content-Type and Accept."
 					}
-					uikit.Tip(c, ui.Checkbox(c.Key("export-headers"), &s.options.Headers, headersLabel), headersTip)
-					uikit.Tip(c, ui.Checkbox(c.Key("export-query"), &s.options.Query, "URL query values"), locales.ReplaceAllQueryValuesIncluding())
-					uikit.Tip(c, ui.Checkbox(c.Key("export-auth"), &s.options.Auth, "Authorization and URL credentials"), locales.RemoveStructuredAuthUrlUserinfo())
+					uikit.Tip(c, uikit.Checkbox(c.Key("export-headers"), &s.options.Headers, headersLabel), headersTip)
+					uikit.Tip(c, uikit.Checkbox(c.Key("export-query"), &s.options.Query, locales.UrlQueryValues()), locales.ReplaceAllQueryValuesIncluding())
+					uikit.Tip(c, uikit.Checkbox(c.Key("export-auth"), &s.options.Auth, locales.AuthorizationAndUrlCredentials()), locales.RemoveStructuredAuthUrlUserinfo())
 					if s.csv == nil {
-						uikit.Tip(c, ui.Checkbox(c.Key("export-variables"), &s.options.Variables, "Collection, folder and environment variables"), locales.ReplaceEveryVariableValueIncluding())
+						uikit.Tip(c, uikit.Checkbox(c.Key("export-variables"), &s.options.Variables, locales.CollectionFolderEnvironmentVariables()), locales.ReplaceEveryVariableValueIncluding())
 					}
 					bodyLabel, bodyTip := "Bodies and stream messages", "Remove request and response bodies, binary payloads and all stream messages."
 					if s.csv != nil {
 						bodyLabel, bodyTip = "Body-derived columns", "Replace request and response JSON cells."
 					}
-					uikit.Tip(c, ui.Checkbox(c.Key("export-bodies"), &s.options.Bodies, bodyLabel), bodyTip)
+					uikit.Tip(c, uikit.Checkbox(c.Key("export-bodies"), &s.options.Bodies, bodyLabel), bodyTip)
 					if s.csv == nil {
-						uikit.Tip(c, ui.Checkbox(c.Key("export-notes"), &s.options.ScriptsNotes, "Scripts, Checks and private notes"), locales.RemoveScriptsIncludingExportedChecks())
+						uikit.Tip(c, uikit.Checkbox(c.Key("export-notes"), &s.options.ScriptsNotes, locales.ScriptsChecksPrivateNotes()), locales.RemoveScriptsIncludingExportedChecks())
 					}
 				}
 				if before != s.options || raw != s.unredacted {
 					s.reviewed = false
 				}
-				ui.Text(c, locales.FieldBasedRedactionIsNot()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning).
+				uikit.Callout(c, uikit.CalloutWarning, locales.FieldBasedRedactionIsNot(), nil).
 					Tooltip(locales.PathsHostsNamesParameterNames())
 				for _, warning := range s.warnings {
 					uikit.Body(c, "• "+warning)
@@ -107,7 +107,7 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 					uikit.Meta(c, locales.CsvUsesTheTableS())
 				}
 			})
-			ui.Checkbox(c.Key("export-review"), &s.reviewed, "I understand the scope and will review the exported file before sharing")
+			uikit.Checkbox(c.Key("export-review"), &s.reviewed, locales.UnderstandExportScope())
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					s.open = false

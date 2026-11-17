@@ -23,11 +23,11 @@ func (a *app) transferSettings(d *requestDocument) request.Settings {
 // requestDocsEditor edits the request's Markdown description, which the
 // collection's documentation view renders.
 func (a *app) requestDocsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
-	ui.Column(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
+	ui.Column(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		uikit.Meta(c, locales.MarkdownShownInTheCollection())
 		uikit.TextArea(c, &d.description).Label(locales.RequestDescription()).
 			Placeholder(locales.WhatThisRequestDoesIts()).
-			Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).
+			Font(uikit.FontMono).Radius(uikit.RadiusControl).
 			Grow(1).MinHeight(0)
 		uikit.Meta(c, locales.SavedWithTheRequestAnd())
 	})
@@ -37,14 +37,15 @@ func (a *app) requestDocsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 // follow the collection and folder defaults, which the controls show.
 func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	effective := a.inheritance(d.composeCollection).InheritSettings(d.settings)
-	ui.Scroll(c).Grow(1).Gap(t.Space(3)).Children(func() {
+	ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceL)).Children(func() {
 		uikit.Meta(c, locales.TransportAppliesToSendAnd())
 		if request.IsWebSocket(d.composeURL) {
 			uikit.Meta(c, locales.WebsocketSendsUseTheirOwn())
 		}
 		ui.Form(c, func() {
 			ui.Field(c, locales.Timeout(), func() {
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+					// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
 					if ui.NumberInput(c, &d.timeout, 0, 3600, 1).Label(locales.RequestTimeoutInSeconds()).Changed() {
 						seconds := int(d.timeout)
 						d.settings.TimeoutSeconds = &seconds
@@ -61,7 +62,8 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 			})
 			if effective.Follows() {
 				ui.Field(c, locales.MaximumRedirects(), func() {
-					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+						// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
 						if ui.NumberInput(c, &d.maxRedirects, 1, 50, 1).Label(locales.MaximumRedirects()).Changed() {
 							value := int(d.maxRedirects)
 							d.settings.MaxRedirects = &value
@@ -79,7 +81,7 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 			})
 			ui.Field(c, locales.HttpVersion(), func() {
 				choice := httpVersionChoice(effective.HTTPVersion)
-				if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).Width(160).Changed() {
+				if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).Width(uikit.WidthField).Changed() {
 					d.settings.HTTPVersion = httpVersionFromChoice(choice)
 				}
 				uikit.Meta(c, locales.HttpVersionAutoHint())
@@ -107,14 +109,13 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 			})
 		})
 		if !effective.Verifies() {
-			ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Radius(uikit.RadiusControl).
+			ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).
 				Background(t.Warning.Alpha(0.12)).AlignItems(ui.Start).Children(func() {
 				ui.Icon(c, warningIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.Warning)
-				ui.Text(c, locales.CertificateVerificationIsOffThis()).
-					FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).Grow(1)
+				uikit.Caption(c, locales.CertificateVerificationIsOffThis()).TextColor(t.Warning).Grow(1)
 			})
 		}
-		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			if d.settings == (request.Settings{}) {
 				uikit.Meta(c, locales.UsingTheCollectionAndFolder())
 			} else {
@@ -189,11 +190,12 @@ func (d *requestDocument) resetSettings(a *app) {
 // or collection inherit. Unset fields keep inheriting from above.
 func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) {
 	effective := a.ancestorInheritance(f.draft.Path).InheritSettings(f.settings)
-	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceL)).Children(func() {
 		uikit.Meta(c, locales.RequestsUnderItInheritThese())
 		ui.Form(c, func() {
 			ui.Field(c, locales.Timeout(), func() {
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+					// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
 					if ui.NumberInput(c, &f.timeout, 0, 3600, 1).Label(locales.FolderTimeoutInSeconds()).Changed() {
 						seconds := int(f.timeout)
 						f.settings.TimeoutSeconds = &seconds
@@ -209,7 +211,8 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 			})
 			if effective.Follows() {
 				ui.Field(c, locales.MaximumRedirects(), func() {
-					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+						// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
 						if ui.NumberInput(c, &f.maxRedirects, 1, 50, 1).Label(locales.FolderMaximumRedirects()).Changed() {
 							value := int(f.maxRedirects)
 							f.settings.MaxRedirects = &value
@@ -227,7 +230,7 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 			})
 			ui.Field(c, locales.HttpVersion(), func() {
 				choice := httpVersionChoice(effective.HTTPVersion)
-				if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).Width(160).Changed() {
+				if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).Width(uikit.WidthField).Changed() {
 					f.settings.HTTPVersion = httpVersionFromChoice(choice)
 				}
 				uikit.Meta(c, locales.HttpVersionAutoHint())
@@ -250,11 +253,10 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 			})
 		})
 		if !effective.Verifies() {
-			ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Radius(uikit.RadiusControl).
+			ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).
 				Background(t.Warning.Alpha(0.12)).AlignItems(ui.Start).Children(func() {
 				ui.Icon(c, warningIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.Warning)
-				ui.Text(c, locales.CertificateVerificationIsOffFor()).
-					FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).Grow(1)
+				uikit.Caption(c, locales.CertificateVerificationIsOffFor()).TextColor(t.Warning).Grow(1)
 			})
 		}
 		if f.settings != (request.Settings{}) {

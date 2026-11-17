@@ -254,7 +254,7 @@ func (a *app) apiSyncModal(c *ui.Context, t *ui.Theme, d *apiDocument) {
 			uikit.DialogTitle(c, locales.SyncWithCollection())
 			uikit.Segmented(c, &s.direction, locales.SpecToCollection(), locales.CollectionToSpec())
 			if s.problem != "" {
-				ui.Text(c, s.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta))
+				uikit.ErrorText(c, s.problem)
 			} else {
 				uikit.Meta(c, fmt.Sprintf("%d added · %d updated · %d unchanged", s.plan.Added, s.plan.Updated, s.plan.Unchanged))
 			}

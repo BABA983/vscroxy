@@ -50,7 +50,7 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, locales.RecordIntoCollection2())
 			s := a.collectionRecording
 			running := s != nil && (s.Active || s.Busy)
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				if s != nil {
 					state := "Stopped"
 					if s.Active {
@@ -61,7 +61,7 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 					uikit.Body(c, state+" · "+s.Collection).FontWeight(500)
 					uikit.Meta(c, locales.RecordingSummary(s.Added, s.Updated, s.Skipped, s.Discarded, len(s.queue)))
 					if s.Problem != "" {
-						ui.Text(c, s.Problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
+						uikit.Callout(c, uikit.CalloutDanger, s.Problem, nil)
 					}
 					if !running {
 						uikit.SecondaryButton(c, locales.ReviewRecordedTokenLinks()).Disabled(len(s.evidence) == 0).OnClick(func() {
@@ -71,9 +71,9 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 					}
 					uikit.Hint(c, locales.TokenLinkEvidenceIsBounded())
 				}
-				ui.Column(c).Gap(t.Space(3)).Disabled(running).Children(func() {
+				ui.Column(c).Gap(t.Space(uikit.SpaceL)).Disabled(running).Children(func() {
 					ui.Field(c, locales.DestinationCollection(), func() {
-						ui.Row(c).Gap(t.Space(2)).Children(func() {
+						ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 							uikit.Input(c, &w.collection).Label(locales.RecordingCollection()).Grow(1).MinWidth(0)
 							uikit.MenuSelect(c, locales.ChooseExisting(), func(m *ui.Menu) {
 								for _, name := range a.collectionNames() {
@@ -92,19 +92,19 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 					}
 					uikit.SecondaryButton(c, locales.ManageEnvironments()).OnClick(func() { w.open = false; a.openVars() })
 					ui.Field(c, locales.HostsOnePerLine(), func() {
-						uikit.TextArea(c, &w.hosts).Label(locales.RecordingHosts()).Height(60).FontSize(uikit.Scaled(uikit.TextBody)).Placeholder("api.example.com\nlocalhost:3000")
+						uikit.TextArea(c, &w.hosts).Label(locales.RecordingHosts()).Height(60).Placeholder("api.example.com\nlocalhost:3000")
 					}).Description(locales.ExactHostnameAnyPortOr())
 					ui.Field(c, locales.AppsOnePerLine(), func() {
-						uikit.TextArea(c, &w.apps).Label(locales.RecordingApps()).Height(60).FontSize(uikit.Scaled(uikit.TextBody)).Placeholder(locales.Browser())
+						uikit.TextArea(c, &w.apps).Label(locales.RecordingApps()).Height(60).Placeholder(locales.Browser())
 					}).Description(locales.ExactSidebarAppLabelsEmpty())
 				})
 				uikit.Hint(c, locales.NewAmbientHttpTrafficOnly())
 				uikit.Hint(c, locales.AuthCookieApiKeyHeaders())
 				if !running {
-					ui.Checkbox(c, &w.reviewed, "I understand captured content will be saved locally").FontSize(uikit.Scaled(uikit.TextBody))
+					uikit.Checkbox(c, &w.reviewed, locales.UnderstandCaptureSavedLocally())
 				}
 				if w.problem != "" {
-					ui.Text(c, w.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
+					uikit.Callout(c, uikit.CalloutDanger, w.problem, nil)
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {

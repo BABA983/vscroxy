@@ -302,7 +302,7 @@ func (a *app) importReportModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, locales.ImportReview())
 			uikit.Hint(c, r.title)
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				uikit.Hint(c, r.intro)
 				for _, line := range r.lines {
 					uikit.Body(c, "• "+line).Selectable()

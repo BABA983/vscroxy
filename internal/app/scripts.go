@@ -589,9 +589,9 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 	if s.addon {
 		what, base, about = "addon", "helpers", "Modules rule scripts import, and request scripts require, by name."
 	}
-	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
-		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.Scripts()).FontSize(uikit.Scaled(uikit.TextTitle)).FontWeight(500).TextColor(t.Text).Grow(1)
+	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(uikit.SpaceL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
+			uikit.Heading(c, locales.Scripts()).TextColor(t.Text).Grow(1)
 			if uikit.IconButton(c, "New "+what, "New "+what, plusIcon).Clicked() {
 				a.newScript(s, base, newScriptText)
 			}
@@ -606,12 +606,12 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 		})
 		uikit.Meta(c, about)
 		if s.problem != nil {
-			ui.Text(c, "Read-only: "+s.problem.Error()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(3)
+			uikit.ErrorText(c, "Read-only: "+s.problem.Error()).MaxLines(3)
 		}
 		a.scriptList(c, t, s, active)
 	})
 	ui.Divider(c)
-	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(3)).Children(func() {
+	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(uikit.SpaceXL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceL)).Children(func() {
 		if s.choice == "" {
 			title, hint := "No scripts", "Change requests and responses with JavaScript and the pm API, for the traffic a Script rule matches."
 			if s.addon {
@@ -648,20 +648,20 @@ func (a *app) scriptList(c *ui.Context, t *ui.Theme, s *scriptStore, active bool
 	// transient hint, not a second selection.
 	pick.SurfaceHover = ui.Color{}
 	c.SetTheme(&pick)
-	ui.List(c, &s.list, len(s.names)).Label(map[bool]string{false: "Scripts", true: "Addons"}[s.addon]).Grow(1).MinHeight(0).Gap(t.Space(0.5)).Rows(func(row ui.ListRow) {
+	ui.List(c, &s.list, len(s.names)).Label(map[bool]string{false: "Scripts", true: "Addons"}[s.addon]).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceHair)).Rows(func(row ui.ListRow) {
 		c := row.Context
 		c.SetTheme(t)
 		name := s.names[row.Index]
-		r := ui.Row(c).Height(uikit.HeightLarge+12).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+		r := ui.Row(c).Height(uikit.HeightControl+12).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 		if row.Selected() {
 			uikit.Selected(c, r, active)
 		}
 		r.Children(func() {
 			uikit.Glyph(c, scriptsIcon)
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-				ui.Text(c, name).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine()
+				uikit.Body(c, name).TextColor(t.Text).SingleLine()
 				if err := s.problems[name]; err != nil {
-					ui.Text(c, err.Error()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).SingleLine()
+					uikit.ErrorText(c, err.Error()).SingleLine()
 				} else if s.addon {
 					uikit.Meta(c, `from "`+name+`"`).Font(uikit.FontMono).SingleLine()
 				} else {
@@ -718,8 +718,8 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 	}
 	users, usedBy := a.scriptUsers(s, name)
 	what := map[bool]string{false: "Script", true: "Addon"}[s.addon]
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		in := uikit.Input(c, &s.name).Label(what + " name").Grow(1).MaxWidth(320).FontSize(uikit.Scaled(uikit.TextTitle)).Height(uikit.HeightLarge)
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+		in := uikit.Input(c, &s.name).Label(what + " name").Grow(1).MaxWidth(320).Height(uikit.HeightControl)
 		if in.Submitted() {
 			a.renameScript(s, name, strings.TrimSpace(s.name))
 		}
@@ -758,7 +758,7 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 		a.scriptConsole(c, t, name)
 	}
 	_, modified := a.scriptToSave()
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		note := "No rule runs it yet; add a Script or Code Mock rule."
 		switch {
 		case s.addon && users > 0:
@@ -792,7 +792,7 @@ func (a *app) scriptConsole(c *ui.Context, t *ui.Theme, name string) {
 	}
 	s.mu.RUnlock()
 	ui.Column(c).Height(150).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
-		ui.Row(c).Height(uikit.HeightControl+4).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Height(uikit.HeightRow+4).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			uikit.Label(c, locales.Console()).Grow(1)
 			if uikit.CompactButton(c, locales.Clear()).Disabled(len(lines) == 0).Clicked() {
 				s.mu.Lock()
@@ -801,7 +801,7 @@ func (a *app) scriptConsole(c *ui.Context, t *ui.Theme, name string) {
 			}
 		})
 		ui.Divider(c)
-		ui.Scroll(c.Key("script-console-"+name)).Grow(1).FillWidth().Padding(t.Space(1), t.Space(2)).Gap(t.Space(1)).Children(func() {
+		ui.Scroll(c.Key("script-console-"+name)).Grow(1).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 			if len(lines) == 0 {
 				uikit.Hint(c, locales.ConsoleLogAndErrorsShow())
 			}
@@ -814,7 +814,7 @@ func (a *app) scriptConsole(c *ui.Context, t *ui.Theme, name string) {
 					color = t.Warning
 				}
 				text := fmt.Sprintf("%s  %s · %s  %s", l.at.Format("15:04:05"), l.rule, l.phase, l.text)
-				ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color).Selectable().FillWidth()
+				uikit.DataMeta(c, text).TextColor(color).Selectable().FillWidth()
 			}
 		})
 	})

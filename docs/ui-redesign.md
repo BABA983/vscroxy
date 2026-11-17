@@ -117,7 +117,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **选中保留形状。** 列表失焦时，选中底从强调浅底换成中性面（6%），表格行同时把标记线换成 faint 色，位置和形状都不变。
 - **等宽只用于线上数据：** 路径、header 值、URL、数字、body。host、client、标签用界面字体。会变的数字开 `tnum`。
 - **五个字号，两个字重：** 20（展示）／16（标题）／13（正文和控件）／12（次要文字和等宽数据）／11（元信息），只有 400 和 500，没有 600。
-- **三档栏高，两档控件：** 栏 40／32／24，控件 `ControlHeight` 28／`ControlHeightSmall` 22，行 `HeightControl` 24；工作区圆角 4／6／8，浮层再取 10／12／16；间距 4／8／12／16／24，左右边距统一 12。
+- **三档栏高，两档控件：** 栏 40／32／24，控件 `HeightControl` 28／`HeightControlSmall` 22，行 `HeightRow` 24；工作区圆角 4／6／8，浮层再取 10／12／16；间距 4／8／12／16／24，左右边距统一 12。
 - **线只画在区域之间。** 侧栏与内容、列表与检查器、请求面板与响应面板、状态栏上沿；区域内部靠间距和表面区分，面板头、抓包信息行、URL 行都没有底线。流量表表头没有列分隔线，拖动列宽的命中区还在，指针停在那一列边缘时才画出强调色细线。
 - **输入框只有两种：** 在 chrome 上的是 canvas 底加 1px 细线（`ChromeFieldFace`），在 canvas 上的是 well 填充（`FieldFace`）。标题栏的命令入口不是输入框，是一个 24 高的按钮（放大镜加 `⌘K`／`Ctrl K`）。
 - **侧栏退后。** 未选中行的文字用次要色、图标再低一档（faint），悬停和选中时回到正文色；计数为 0 不显示。侧栏的四个分区标题（Traffic、Sources、Sessions、Collections）都可以点击折叠，折叠状态和中间三段的高度记在 settings 里。
@@ -125,7 +125,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **选中分两种形状，都是选中浅底（`AccentTint`）、正常文字颜色：**
   - 选位置或选东西的行（侧栏、集合树、各种挑选列表）是离边缘内缩的圆角块，不画标记线，和 macOS 的 source list 一样。侧栏的选中表示"现在在哪"，不是键盘光标，焦点在别处时仍是强调浅底。
   - 表格和数据列表（流量表、消息、Protobuf、Runner 结果）的行占满宽度，左侧加 2px 强调色标记线。列表失焦时浅底变成中性面、标记线变成 faint 色，靠标记线和中性底区分开。选中浅底 `AccentTint` 比悬停面明显深一档（Light `#d8d4cb`，Dark `#45443f`），所以一眼能看出选中的是哪一行，标记线则说明列表有没有焦点。
-  - 菜单和命令面板的高亮只有浅底。
+  - 浮动的选择列表（菜单、`Select`、`Combobox` 的弹层）的高亮是强调色实底、反色文字，和 MyGo 菜单一致。命令面板和数据列表的选中是选中浅底（`AccentTint`），各有各的规则，不混用。
 - **形状靠近 macOS：** 圆角 4／6／10（第 6.3 节），嵌套的圆角同心（内层 = 外层 − 内边距），浮层是细边框加柔和的大阴影。不做胶囊按钮：控件高 24 时胶囊显得像玩具。
 - **macOS 上的原生感（3.5，保留）：** 参考了 onegit／onevra、kero、mygo-cloudmusic 三个 MyGo 应用、Telegram 和 Apple HIG，共同点是窗口外壳原生、控件用中性色叠加、少画线。
   - 只在 macOS 上：界面字体用系统字体（SF Pro）。侧栏仍挂着 `VibrancySidebar`，但外壳的每一块（标题栏、底栏、侧栏、内容）都画自己的实色，桌面不透出来：标题栏曾经因为没有自己的底色而让壁纸透上来，标题栏和其余外壳不是一个色（2026-11-13 修）。Windows、Linux 用内嵌的 Geist 和平涂。
@@ -144,10 +144,10 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 | Token | Light | Dark | 说明 |
 | --- | --- | --- | --- |
-| `Chrome` | `#f2f6ee` | `#070807` | 外壳：标题栏、侧栏、底栏，以及内容卡片四周 2px 的缝；标题栏和侧栏是一块底，左上角没有接缝 |
+| `Chrome` | `#edf3ea` | `#050a0b` | 外壳：标题栏、侧栏、底栏，以及内容卡片四周 2px 的缝；标题栏和侧栏是一块底，左上角没有接缝 |
 | `Canvas` | `#f9fdf6` | `#0c1516` | 内容卡片，也是 MyGo 的 Background 和 Surface |
-| `Well` | `#ebebeb` | `#192121` | canvas 上的输入框 |
-| `Hairline` | `#ebefe8` | `#1b2324` | 面板的 1px 边、同一表面的分隔线、表头边框、对话框边缘 |
+| `Well` | `#e9eee5` | `#192121` | canvas 上的输入框；Light 也带 Daydream 的绿调，不再是纯灰 |
+| `Hairline` | `#dde4d9` | `#1b2324` | 面板的 1px 边、同一表面的分隔线、表头边框、对话框边缘 |
 | `Fill`／`FillHover`／`FillPressed` | 文字色 7%／11%／15% | 文字色 7%／11%／15% | 控件、tab、chip 的面；失焦选中底用 `Fill` |
 | `Text` | `#0b0d0b` | `#f6fff5` | 正文 |
 | `TextMuted` | `#595959` | `#9ca49c` | 次要文字、2xx 的颜色，也是输入框聚焦时那 1px 边和编辑器里的标点 |
@@ -183,7 +183,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **主题 = 语义 token 表。** `Palette` 是一张表，Light、Dark 是内置的两张，`Theme(dark)` 由它生成 `ui.Theme`，`Colors(t)` 取回当前表。界面代码只引用语义 token，不能假设强调色是哪种颜色。字号、高度、圆角、间距由 uikit 导出，主题不能改。
 - **界面只用 uikit。** `internal/app` 不直接调用 `ui.Button`、`ui.PrimaryButton`、`ui.ButtonBase`、`ui.TextInput`、`ui.Select`，不写 `ui.Hex`、数字字号和手写 hover／pressed。uikit 的组件建在 MyGo 的 Base 上，键盘、焦点和无障碍由 MyGo 负责；每个可交互组件都要传无障碍标签。
 - **组件按变体设计，** 调用方选角色和变体，不调样式。布局（Grow、Width、SingleLine、Tooltip）照常在返回值上链式设置。
-- **禁用放在外层：** uikit 按钮在构建时就决定 hover 外观，MyGo 的 `Hovered()` 也只看那一刻是否禁用。可能被禁用的按钮，用外层元素禁用（`ui.Row(c).Disabled(x).Children(...)`），不要在返回值上再调 `Disabled`。
+- **禁用由组件自己处理：** uikit 按钮在构建时就决定 hover 外观，所以组件在构建时检查 `IsDisabled()`（`LinkButton`、`SwatchButton`、`QueryChip` 和 `ToolbarButton` 都这样做）。忙碌中的按钮用 `PrimaryButtonBusy`：它禁用自己，并让转圈代替标签、保留标签的宽度。外层 `ui.Row(c).Disabled(x)` 仍可用于一组控件，但不要在返回值上再调 `Disabled`。
 - 不做防回退的检查脚本；写死值靠评审和组件总览发现。
 
 ### 6.2 字体
@@ -204,7 +204,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `TextMeta`／`TextData`／`TextSmall`／`TextBody`／`TextTitle`／`TextDisplay` | 11／12／12／13／16／20 | 元信息／等宽数据／次要文字／正文、控件／标题／展示。行高分别 15／16／20／24／28 |
 | `LineMeta`／`LineSmall`／`LineBody`／`LineProse`／`LineTitle`／`LineDisplay` | 15/11／16/12／20/13／1.6／24/16／28/20 | 元信息／次要文字／正文／说明文字／标题／展示的行高倍数 |
 | `HeightBar`／`HeightTabs`／`HeightStatus` | 40／32／24 | 标题栏／面板头和过滤栏／状态栏。只有这三档栏高 |
-| `ControlHeight`／`ControlHeightSmall`／`HeightControl` | 28／22／24 | 按钮、输入框、tab／chip、行内动作／表格行、侧栏条目和栏内的一行。`HeightLarge` 仍是 28，只在个别历史布局里用；`HeightCompact`（20）已删掉 |
+| `HeightControl`／`HeightControlSmall`／`HeightRow` | 28／22／24 | 按钮、输入框、tab／chip、行内动作／表格行、侧栏条目和栏内的一行。`HeightLarge` 和 `HeightFooterControl` 已并入前两者；`HeightCompact`（20）已删掉 |
 | `RadiusInner`／`RadiusControl`／`RadiusPanel`／`RadiusMenu`／`RadiusCard`／`RadiusDialog` | 4／6／8／10／12／16 | 控件内的面／控件和 tab／工作区面板／菜单／卡片和弹层／对话框和 toast |
 | `IconInline`／`IconLarge` | 14／16 | 行内和按钮／rail 和空状态 |
 | 动效 | 无 | 界面没有过渡 token：悬停、浮层、toast、对话框、分区折叠和面板尺寸都立即到位。保留的只有录制点的脉动（状态）和用户自己拖动的分隔条、滚动 |
@@ -212,7 +212,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | 工具提示 | 圆角 8、内边距 6×10、最大宽 360、12 号正文 | 面是 canvas + hairline + `ShadowPopover`；快捷键用 `Kbd`，富卡片见 6.7 |
 | `DialogSmall`／`DialogMedium`／`DialogLarge` | 480／640／840 | 对话框宽度档，随窗口收缩 |
 
-- 间距用 `t.Space(n)`，网格 4px，只用 4／8／12／16／24（细缝可用 `t.Space(0.5)`），每档有固定用途：
+- 间距用 `uikit` 的命名值（`SpaceHair` 2、`SpaceXS` 4、`SpaceS` 6、`SpaceM` 8、`SpaceCompact` 10、`SpaceL` 12、`SpaceXL` 16、`SpaceXXL` 20、`Space2XL` 24、`Space3XL` 32），写成 `t.Space(uikit.SpaceM)`，不写数字。它们是 4 点网格的倍数，乘主题的 `Spacing`（默认 4；表格局部主题可以收紧）。界面只用 4／8／12／16／24，细缝用 2，每档有固定用途：
 
 | 间距 | 用途 |
 | --- | --- |
@@ -222,6 +222,9 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | 16 | 分组之间 |
 | 24 | 区块之间 |
 
+- 内边距（pt，组件内部使用，屏幕不自己加 padding）：控件 `ControlPaddingX` 12、小号 `ControlPaddingXSmall` 8，面板和面板头 `PanelPadding` 12，弹层 `PopoverPadding` 16，对话框 `DialogPadding` 24，tooltip `TipPaddingX／Y` 10／6，hover 卡片 `CardTipPaddingX／Y` 12／10，toast `ToastPaddingX／Y` 16／8，设置卡片行 `CardPaddingX` 16、`CardRowPaddingY` 4。
+- 常用字段宽度（pt）：`WidthNarrow` 120、`WidthPicker` 140（选择器的最小宽度）、`WidthField` 160、`WidthFieldWide` 200、`WidthWide` 240（宽字段、弹层和时序卡片）。
+- 边框宽度 `HairlineWidth` 1；禁用的透明度由 MyGo 决定，禁用的元素整体画到一半透明。
 - 表格行高 24。MyGo 的 `ui.Table` 最小行高是 `t.Space(8)`，所以流量表格在局部主题里设 `Spacing = 3`。
 - 分隔统一 1px `Hairline`，不靠色块分区。只有菜单、弹层、对话框有阴影：1px 边框画边缘，阴影只做柔和的浮起（`ShadowMenu 0 8 24 .14`、`ShadowPopover 0 12 32 .16`、`ShadowDialog 0 16 48 .18`；Dark 透明度 ×2）。工作区不加阴影。
 - 菜单的面由 uikit 接管：`MenuPanel` 给 `MenuSelect` 和所有 `PopoverMenuButton` 用 canvas、hairline、`RadiusMenu` 和 `ShadowMenu`，不挂过渡；`actionMenu` 用 `Content` 把快捷键画成 `Kbd`。`ContextMenu` 和 `PopoverMenu` 的面板仍是 MyGo 内部固定样式，见第 12 节。
@@ -237,6 +240,8 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `Hint` | 13，次要色，行高 1.5 | 控件下或空面板里的一句说明，也是长句和中文正文的角色 |
 | `Meta` | 11，次要色，行高 1.45，`tnum` | 计数、时间、大小；数字默认等宽，不再逐个调用点开 |
 | `Label` | Meta + 500 | 字段名、分组标题（标题式大小写，不全大写，和 Finder 侧栏一致） |
+| `ErrorText` | 13 与 12 之间：12，危险色，行高 16／12 | 页面或面板里没有字段可挂的错误句子。字段错误走 `FormRow`，绑定到控件。 |
+| `Code` | 等宽 12，行高 16／12 | 多行的线上数据：header 块、原始报文，不放说明文字。 |
 
 等宽的次要信息写成 `Meta(c, s).Font(uikit.FontMono)`。`TextData`（12）只给等宽数据；界面文字最小 11、正文 13。
 
@@ -246,15 +251,17 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 | 类别 | 组件 |
 | --- | --- |
-| 按钮 | `PrimaryButton`（`ControlHeight` 28，强调色底、500 字重）、`ChipButton`（22，中性面，内容由调用方画：图标加快捷键）、`SecondaryButton`（28，无边框，面是文字色 7%／11%／15%）、`DestructiveButton`（28，危险色实底，只用于破坏性确认对话框）、`CompactButton`（22，同样的面，11 号字）、`ToolbarButton`（透明底，hover／按下是中性面，active 是强调浅底）、`IconButton`（28 正方形，必带 tooltip）、`RowButton`（列表里的整行，没有 hover）、`SwatchButton`（标记色） |
+| 按钮 | `PrimaryButton`（`HeightControl` 28，强调色底、500 字重；忙碌时用 `PrimaryButtonBusy`，禁用并让转圈代替标签）、`ChipButton`（22，中性面，内容由调用方画：图标加快捷键）、`SecondaryButton`（28，无边框，面是文字色 7%／11%／15%）、`DestructiveButton`（28，危险色实底，只用于破坏性确认对话框）、`CompactButton`（22，同样的面，11 号字）、`ToolbarButton`（透明底，hover／按下是中性面，active 是强调浅底）、`IconButton`（28 正方形，必带 tooltip）、`RowButton`（列表里的整行，没有 hover）、`SwatchButton`（标记色） |
 | 输入 | `Input`／`InputState`（well，无边框；聚焦时 1px `Ring` 内边和 3px `Ring` 光晕；invalid 时用 `Danger` 内边）、`FormRow`／`FormRowTall`（标签、说明和错误绑定到控件）、`TextArea`（多行输入，聚焦边用 `Ring`）、`FieldFace`（同样的面给自带控件的输入行，如搜索框和 URL 栏）、`ChromeFieldFace`（chrome 上的输入框：canvas 底加 1px 细线）、`Select`／`MenuSelect`（按钮的面；后者给用菜单做的选择，如 body 格式）、`Segmented`（中性凹槽加浮起的滑块，选中是 canvas 底加细线，只用于互斥的模式）、`Tabs`／`CountedTabs`（选中是中性面圆角块加正文色文字，可带计数；放在 `TabStrip` 里横向滚动，有藏起来的 tab 的一侧渐隐）、`SubTabs`（嵌在另一行 tab 选中内容里、或列表头上的第二层，纯文字，标签之间 Space(2)，选中加 2px 强调色下划线，下划线只画在文字宽度下） |
+| 选择 | `Checkbox`、`Radio`／`RadioGroup`（方框和圆点都是控件面，不描边：静止、悬停、按下是文字色的低透明度叠加，选中是强调色，勾或点是强调色的反色）；`Select`、`SelectLabels`、`MenuSelect`、`Combobox` 共用一种触发器（28 高、12 内边距、chevron）和一种弹层面 |
 | 列表和侧栏 | `DataList`／`DataListIndexed`（数据列表的选中色和行首标记，组件内固定 `ListTheme` 和 `RowMarker`）、`ListTheme`（MyGo 表格／列表／树的选中色）、`Marker`／`RowMarker`、`Selected`（失焦换成中性面；选择列表用）、`SidebarHeading`（11 号、次要色、500，右端可带开关或加号）、`SidebarItem`（24 高、内缩 6 的圆角行，图标／圆点／箭头占同一个槽，右侧可带计数）、`SidebarButton`（同样的行，做动作而不是选中，`on` 时图标用强调色）、`SidebarDot`（没有图标时占住槽的圆点）、`SearchField`（带放大镜的单行搜索框，canvas 上是 well、chrome 上是 canvas 加细线） |
 | 信号 | `Sparkline`（录制 pill 的速率曲线）、`ResponseMeta`（面板头右侧的耗时和大小，耗时悬停显示分段）、`StatusPill`（只有文字色，不填底；2xx／304 是次要色）、`MethodLabel`（12 等宽 500）、`MethodColor`、`StatusColor`、`MarkColors`、`BadgeColors` |
+| 反馈 | `Spinner`（忙碌，未知长度，正文次要色）、`ProgressBar`（确定或未知，4 高的细条，名字由调用方在旁边写）、`Callout`（信息／成功／警告／危险：图标加一行正文，动作在行尾，没有底）、`Badge`（计数或状态，中性面上的小标签） |
 | 结构和反馈 | `Kbd`（18 高、4 圆角、1px hairline、11 号字）、`MenuPanel`／`MenuButtonOptions`（宽松菜单面）、`ToastPanel`、`ModalFlush`（无内边距的浮层模态）、`SettingsCardPage`／`SettingsCard`／`SettingsCardBlock`／`SettingsCardRow`／`SettingsSwitch`、`EdgeFade`（滚动条被裁掉的一侧渐隐到表面色，`TabStrip` 和标题栏的 chip 用它）、`PaneHeader`（面板头的 32 高一行：内容 + 右侧）、`PaneTitle`（面板名，带状态点，点它把共享读取器交给这一侧）、`TabMenu`（长得像 tab 的菜单，放 More）、`KVRow`（只读）、`EmptyState`、`Toasts`、`Modal`、`DialogColumn`、`DialogTitle`、`DialogFooter`、`PopoverPanel`、`EditorTheme` |
 
-待做（随用到它们的步骤加入）：
+已完成（第 6 阶段，见 `design-audit.md` 第 (f) 节）：`Checkbox`、`Radio`／`RadioGroup`（`controls.go`）、`Spinner`、`ProgressBar`、`Callout`、`Badge`、`PrimaryButtonBusy`（`feedback.go`）。尚未做，原因见审计：
 
-- 控件：Checkbox／Switch 包装、LayoutToggle。Input 的错误态、`FormRow`／`FormRowTall` 和两档控件高度已完成。
+- 控件：`LayoutToggle`。Input 的错误态、`FormRow`／`FormRowTall` 和两档控件高度已完成；`Switch` 已在 uikit 中。
 - 结构：可编辑 KVGrid（现在是 Key／Value 表头加行、没有外框）、FormRow（标签左、控件右、说明在控件下一行）、Splitter。
 - 反馈：Callout（信息／警告／错误，一行文字加文字操作）、StatusText、CountBadge、CheckResult。
 - 标志性组件：QueryBar（v3 的 chip 已改成中性面）、TimingBar、SourceBadge、EnvironmentSelect。`ActivityStrip` 在 v3 里是 24 高的一行：摘要、堆叠柱（14 高）和结束时间，没有单独的时间刻度行。
@@ -587,6 +594,8 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 99. uikit AD（2026-11-16）：MCP catalog 去掉自己的 Tools/Resources/Prompts 分段，目录跟随请求面板的 tab，只留一套导航；集合向导 Endpoints 预览显示将生成的请求和捕获响应；Postman 导入报告的主操作改成 Review collection，Done 次要；SSE 连接中 Stop 是主操作、Reconnect 次要，事件列表和 payload 放进填满高度的 Panel；Protobuf 在窄 inspector 改成上下布局，宽时仍左右；Certificates 滚动区底部留出 footer 高度。设置格式回到未版本化，开发阶段直接改格式（见 AGENTS.md）。
 
 100. uikit AE（2026-11-16）：调查板先给慢请求列表，方法学收成一行、全文进 Tip；首次启动引导打开时占据整个内容区，不再露出抓包工具栏和列表外框，第一步的 `Start capture` 是主操作，`Skip guide` 收进卡片底部；Scenarios 的名称改成带可见标签的 `FormRow`，状态文案改成 `On: its rules apply. Rules with no scenario also apply.`，规则顺序说明移到标题下；SSE 和 WebSocket 的事件列表改用 `DataList`，文字左对齐，只有选中行有底色和 `RowMarker`。重放结果通知的测试改为等待提示真正出现，不再假定一帧就够。
+
+101. Daydream 收口（2026-11-16）：按 frontend-design skill 复查配色，保留 Amp Daydream（试过一套冷钢灰的自有配色，DA DA 决定保留 Daydream），只修它在本应用里的三处弱点：Light 的 `Well` 从纯灰 `#ebebeb` 改成同绿调的 `#e9eee5`，输入框和表面是一种材料；外壳 `Chrome` 从 `#f2f6ee` 改回 Daydream 自己的外壳色 `#edf3ea`，`Hairline` 从 `#ebefe8` 深到 `#dde4d9`，内容面板的边缘不再几乎看不见；Dark 的外壳从中性黑 `#070807` 改成带面板青调的 `#050a0b`，外壳和面板不再是两种色相。对比度契约不变，`theme_test` 全部通过。录制 pill 是外壳里唯一花颜色的地方：正在录制时面是 `Success` 14%，停止和暂停仍是中性面，只靠圆点说明原因。
 
 ## 13. 仍与设计稿不一致的地方
 

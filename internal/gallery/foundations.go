@@ -14,7 +14,8 @@ func (g *Gallery) foundations() *Group {
 	return &Group{ID: "foundations", Title: "Foundations", Entries: []*Entry{
 		{ID: "palette", Title: "Palette", Note: "Every Palette field, Light and Dark side by side", Height: 1120, build: palettePlate},
 		{ID: "type", Title: "Type", Note: "Five sizes, two weights; monospace is wire data only", Height: 620, build: typePlate},
-		{ID: "space", Title: "Space and corners", Note: "One spacing unit, six radii, the bar and control heights", Height: 700, build: spacePlate},
+		{ID: "space", Title: "Space, corners and sizes", Note: "Named spacing, six radii, bar, control and row heights, and field widths", Height: 1000, build: spacePlate},
+		{ID: "insets", Title: "Insets", Note: "The padding each surface gives its content", Height: 560, build: insetPlate},
 		{ID: "elevation", Title: "Elevation", Note: "Three shadows and the dialog scrim, Light and Dark", Height: 520, build: elevationPlate},
 		{ID: "icons", Title: "Icons", Note: "16 inline with a label, 14 inline in text", Height: 420, build: iconPlate},
 		{ID: "motion", Title: "Motion", Note: "No decorative transition; what still moves is state or the user's own drag", Height: 360, build: motionPlate},
@@ -58,17 +59,17 @@ var paletteFields = []struct {
 
 func palettePlate(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).Gap(t.Space(6)).AlignItems(ui.Start).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.Space2XL)).AlignItems(ui.Start).Children(func() {
 		for _, theme := range []struct {
 			name string
 			dark bool
 		}{{"Light", false}, {"Dark", true}} {
-			ui.Themed(c, uikit.Theme(theme.dark)).Grow(1).MinWidth(0).Gap(t.Space(1)).Padding(t.Space(3)).Radius(uikit.RadiusPanel).Children(func() {
+			ui.Themed(c, uikit.Theme(theme.dark)).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceXS)).Padding(t.Space(uikit.SpaceL)).Radius(uikit.RadiusPanel).Children(func() {
 				uikit.Label(c, theme.name)
 				ui.Column(c).Gap(0).BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Children(func() {
 					for _, field := range paletteFields {
 						pal := uikit.Colors(c.Theme())
-						ui.Row(c).Height(32).Gap(t.Space(3)).AlignItems(ui.Center).
+						ui.Row(c).Height(32).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).
 							BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
 							ui.Text(c, field.name).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).SingleLine()
 							swatch(c, field.color(pal), pal)
@@ -114,11 +115,11 @@ func typePlate(c *ui.Context) {
 		{"Title", uikit.TextTitle, uikit.Heading, "Request editor"},
 		{"Display", uikit.TextDisplay, uikit.Display, "Choose where to start"},
 	}
-	ui.Column(c).Gap(t.Space(1)).Children(func() {
+	ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 		for _, row := range rows {
-			ui.Row(c).MinHeight(44).Gap(t.Space(4)).AlignItems(ui.Center).
+			ui.Row(c).MinHeight(44).Gap(t.Space(uikit.SpaceXL)).AlignItems(ui.Center).
 				BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-				ui.Column(c).Width(120).Gap(0).Children(func() {
+				ui.Column(c).Width(uikit.WidthNarrow).Gap(0).Children(func() {
 					uikit.Label(c, row.role)
 					uikit.Meta(c, fmt.Sprintf("%g px · %g at 1.35×", row.size, uikit.Scaled(row.size)))
 				})
@@ -126,7 +127,7 @@ func typePlate(c *ui.Context) {
 			})
 		}
 	})
-	ui.Row(c).Gap(t.Space(4)).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceXL)).Children(func() {
 		uikit.Body(c, "Body 400").Grow(1)
 		ui.Text(c, "Body 500").FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).Grow(1)
 		uikit.Mono(c, "Mono 400 · 0O1lI").Grow(1)
@@ -135,42 +136,90 @@ func typePlate(c *ui.Context) {
 
 func spacePlate(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Gap(t.Space(2)).Children(func() {
-		uikit.Label(c, "Spacing · Space(n) is n × 4")
-		for _, n := range []float32{0.5, 1, 1.5, 2, 3, 4, 6, 8} {
-			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-				uikit.Meta(c, fmt.Sprintf("Space(%g)", n)).Width(88)
-				ui.Box(c).Height(12).Width(t.Space(n)).Radius(2).Background(uikit.Colors(t).FillPressed)
-				uikit.Meta(c, fmt.Sprintf("%g px", t.Space(n)))
+	ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
+		uikit.Label(c, "Spacing · each name is a multiple of the 4-point grid")
+		for _, s := range []struct {
+			name string
+			n    float32
+		}{{"SpaceHair", uikit.SpaceHair}, {"SpaceXS", uikit.SpaceXS}, {"SpaceS", uikit.SpaceS}, {"SpaceM", uikit.SpaceM}, {"SpaceCompact", uikit.SpaceCompact}, {"SpaceL", uikit.SpaceL}, {"SpaceXL", uikit.SpaceXL}, {"SpaceXXL", uikit.SpaceXXL}, {"Space2XL", uikit.Space2XL}, {"Space3XL", uikit.Space3XL}} {
+			ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
+				uikit.Meta(c, s.name).Width(uikit.WidthNarrow)
+				ui.Box(c).Height(12).Width(t.Space(s.n)).Radius(2).Background(uikit.Colors(t).FillPressed)
+				uikit.Meta(c, fmt.Sprintf("%g px", t.Space(s.n)))
 			})
 		}
 	})
-	ui.Column(c).Gap(t.Space(2)).Children(func() {
+	ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		uikit.Label(c, "Corners")
-		ui.Row(c).Gap(t.Space(4)).Children(func() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceXL)).Children(func() {
 			for _, r := range []struct {
 				name   string
 				radius float32
 			}{{"RadiusInner", uikit.RadiusInner}, {"RadiusControl", uikit.RadiusControl}, {"RadiusPanel", uikit.RadiusPanel}, {"RadiusMenu", uikit.RadiusMenu}, {"RadiusCard", uikit.RadiusCard}, {"RadiusDialog", uikit.RadiusDialog}} {
-				ui.Column(c).Gap(t.Space(1)).Children(func() {
+				ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					ui.Box(c).Size(96, 56).Radius(r.radius).Background(uikit.Colors(t).Fill).
-						Border(1, t.Border)
+						Border(uikit.HairlineWidth, t.Border)
 					uikit.Label(c, r.name)
 					uikit.Meta(c, fmt.Sprintf("%g px", r.radius))
 				})
 			}
 		})
 	})
-	ui.Column(c).Gap(t.Space(2)).Children(func() {
-		uikit.Label(c, "Bars and controls")
+	ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
+		uikit.Label(c, "Bars, controls and rows")
 		for _, h := range []struct {
 			name   string
 			height float32
-		}{{"ControlHeight", uikit.ControlHeight}, {"ControlHeightSmall", uikit.ControlHeightSmall}, {"HeightBar", uikit.HeightBar}, {"HeightTabs", uikit.HeightTabs}, {"HeightLarge", uikit.HeightLarge}, {"HeightFooter", uikit.HeightFooter}, {"HeightControl", uikit.HeightControl}, {"HeightStatus", uikit.HeightStatus}} {
-			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-				uikit.Meta(c, h.name).Width(120)
-				ui.Box(c).Height(h.height).Width(160).Radius(2).Background(uikit.Colors(t).Fill)
+		}{{"HeightBar", uikit.HeightBar}, {"HeightTabs", uikit.HeightTabs}, {"HeightStatus", uikit.HeightStatus}, {"HeightFooter", uikit.HeightFooter}, {"HeightControl", uikit.HeightControl}, {"HeightControlSmall", uikit.HeightControlSmall}, {"HeightRow", uikit.HeightRow}} {
+			ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
+				uikit.Meta(c, h.name).Width(uikit.WidthNarrow)
+				ui.Box(c).Height(h.height).Width(uikit.WidthField).Radius(2).Background(uikit.Colors(t).Fill)
 				uikit.Meta(c, fmt.Sprintf("%g px", h.height))
+			})
+		}
+	})
+	ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
+		uikit.Label(c, "Widths for fields and pickers")
+		for _, w := range []struct {
+			name  string
+			width float32
+		}{{"WidthNarrow", uikit.WidthNarrow}, {"WidthPicker", uikit.WidthPicker}, {"WidthField", uikit.WidthField}, {"WidthFieldWide", uikit.WidthFieldWide}, {"WidthWide", uikit.WidthWide}} {
+			ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
+				uikit.Meta(c, w.name).Width(uikit.WidthNarrow)
+				ui.Box(c).Height(uikit.HeightControlSmall).Width(w.width).Radius(2).Background(uikit.Colors(t).Fill)
+				uikit.Meta(c, fmt.Sprintf("%g px", w.width))
+			})
+		}
+	})
+}
+
+// insetPlate shows each inset: the padding a surface gives its content, drawn
+// as the surface with a block of content inside it.
+func insetPlate(c *ui.Context) {
+	t, p := c.Theme(), uikit.Colors(c.Theme())
+	insets := []struct {
+		name string
+		x, y float32
+	}{
+		{"ControlPaddingX · default control", uikit.ControlPaddingX, 0},
+		{"ControlPaddingXSmall · small control, chip", uikit.ControlPaddingXSmall, 0},
+		{"PanelPadding · panel and pane header", uikit.PanelPadding, uikit.PanelPadding},
+		{"PopoverPadding · popover", uikit.PopoverPadding, uikit.PopoverPadding},
+		{"DialogPadding · dialog", uikit.DialogPadding, uikit.DialogPadding},
+		{"TipPadding · tooltip", uikit.TipPaddingX, uikit.TipPaddingY},
+		{"CardTipPadding · hover card", uikit.CardTipPaddingX, uikit.CardTipPaddingY},
+		{"ToastPadding · toast", uikit.ToastPaddingX, uikit.ToastPaddingY},
+		{"CardPadding · settings row", uikit.CardPaddingX, uikit.CardRowPaddingY},
+	}
+	ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
+		uikit.Label(c, "Insets · the padding a surface gives its content, in points")
+		for _, in := range insets {
+			ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
+				uikit.Meta(c, fmt.Sprintf("%s · %g × %g", in.name, in.x, in.y)).Width(300)
+				ui.Row(c).Padding(in.y, in.x).Background(p.Chrome).Radius(uikit.RadiusPanel).
+					InsetShadow(0, 0, 0, uikit.HairlineWidth, p.Hairline).Children(func() {
+					ui.Box(c).Size(72, 12).Radius(uikit.RadiusInner).Background(p.Fill)
+				})
 			})
 		}
 	})
@@ -179,13 +228,13 @@ func spacePlate(c *ui.Context) {
 // elevationPlate shows the three floating shadows and the scrim in both
 // themes, each on the canvas it would cover.
 func elevationPlate(c *ui.Context) {
-	ui.Row(c).Gap(c.Theme().Space(6)).AlignItems(ui.Start).Children(func() {
+	ui.Row(c).Gap(c.Theme().Space(uikit.Space2XL)).AlignItems(ui.Start).Children(func() {
 		for _, theme := range []struct {
 			name string
 			dark bool
 		}{{"Light", false}, {"Dark", true}} {
-			ui.Themed(c, uikit.Theme(theme.dark)).Width(480).Padding(c.Theme().Space(6)).
-				Gap(c.Theme().Space(4)).Radius(uikit.RadiusCard).Children(func() {
+			ui.Themed(c, uikit.Theme(theme.dark)).Width(480).Padding(c.Theme().Space(uikit.Space2XL)).
+				Gap(c.Theme().Space(uikit.SpaceXL)).Radius(uikit.RadiusCard).Children(func() {
 				uikit.Label(c, theme.name)
 				for _, s := range []struct {
 					name   string
@@ -196,13 +245,13 @@ func elevationPlate(c *ui.Context) {
 					{"ShadowPopover · RadiusCard", uikit.ShadowPopover, uikit.RadiusCard},
 					{"ShadowDialog · RadiusDialog", uikit.ShadowDialog, uikit.RadiusDialog},
 				} {
-					s.shadow.Apply(ui.Column(c).Height(58).Padding(c.Theme().Space(2), c.Theme().Space(3)).
+					s.shadow.Apply(ui.Column(c).Height(58).Padding(c.Theme().Space(uikit.SpaceM), c.Theme().Space(uikit.SpaceL)).
 						Radius(s.radius).Background(uikit.Colors(c.Theme()).Canvas).
 						Border(1, uikit.Colors(c.Theme()).Hairline), theme.dark).Children(func() {
 						uikit.Meta(c, s.name).SingleLine()
 					})
 				}
-				ui.Row(c).Gap(c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(c.Theme().Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 					swatch(c, uikit.Colors(c.Theme()).Scrim, uikit.Colors(c.Theme()))
 					uikit.Mono(c, "Scrim · black 35%")
 					uikit.Hint(c, "dims the screen under a dialog")
@@ -226,23 +275,23 @@ func iconPlate(c *ui.Context) {
 		{"ChevronDown", lucide.ChevronDown()},
 		{"X", lucide.X()},
 	}
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Label(c, "Size").Width(120)
-		uikit.Label(c, "16 · IconLarge").Width(160)
-		uikit.Label(c, "14 · IconInline").Width(160)
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+		uikit.Label(c, "Size").Width(uikit.WidthNarrow)
+		uikit.Label(c, "16 · IconLarge").Width(uikit.WidthField)
+		uikit.Label(c, "14 · IconInline").Width(uikit.WidthField)
 	})
 	ui.Column(c).Gap(0).Children(func() {
 		for _, i := range icons {
-			ui.Row(c).Height(36).Gap(t.Space(2)).AlignItems(ui.Center).
+			ui.Row(c).Height(36).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 				BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-				uikit.Mono(c, i.name).Width(120)
-				ui.Icon(c, i.icon).Size(uikit.IconLarge, uikit.IconLarge).Width(160).TextColor(t.Text)
-				ui.Icon(c, i.icon).Size(uikit.IconInline, uikit.IconInline).Width(160).TextColor(t.Text)
+				uikit.Mono(c, i.name).Width(uikit.WidthNarrow)
+				ui.Icon(c, i.icon).Size(uikit.IconLarge, uikit.IconLarge).Width(uikit.WidthField).TextColor(t.Text)
+				ui.Icon(c, i.icon).Size(uikit.IconInline, uikit.IconInline).Width(uikit.WidthField).TextColor(t.Text)
 			})
 		}
 	})
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Hint(c, "An icon takes the ink of the text it sits in:").Width(200)
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+		uikit.Hint(c, "An icon takes the ink of the text it sits in:").Width(uikit.WidthFieldWide)
 		uikit.Body(c, "Search").TextColor(t.Text)
 		ui.Icon(c, lucide.Search()).Size(uikit.IconInline, uikit.IconInline)
 		uikit.Meta(c, "12 results")
@@ -251,10 +300,10 @@ func iconPlate(c *ui.Context) {
 
 func motionPlate(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Gap(t.Space(3)).Children(func() {
+	ui.Column(c).Gap(t.Space(uikit.SpaceL)).Children(func() {
 		uikit.Heading(c, "No decorative motion")
 		uikit.Prose(c, "A hover face, a tip, a menu, a toast, a dialog and a sidebar region arrive and leave at once. The kit has no transition tokens: a screen cannot name a duration, because there is none to name.")
-		ui.Column(c).Gap(t.Space(2)).Padding(t.Space(3)).Radius(uikit.RadiusPanel).Background(uikit.Colors(t).Canvas).
+		ui.Column(c).Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceL)).Radius(uikit.RadiusPanel).Background(uikit.Colors(t).Canvas).
 			Border(1, uikit.Colors(t).Hairline).Children(func() {
 			for _, line := range []string{
 				"Removed: hover fades, popover rises, toast entrances, dialog fades, region collapse and pane springs.",

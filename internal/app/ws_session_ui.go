@@ -133,14 +133,14 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					}, "")
 					uikit.SettingsRowMultiline(c, locales.Headers(), func() ui.Element {
 						return uikit.TextArea(c, &s.headers).Label(locales.WebsocketHandshakeHeaders()).Placeholder("Authorization: Bearer …").
-							Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+							Height(54).Font(uikit.FontMono).Radius(uikit.RadiusControl)
 					}, locales.WebsocketHeadersHelp())
 				})
 			}
 			if s.problem != "" {
-				ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
+				uikit.Callout(c, uikit.CalloutDanger, s.problem, nil)
 			}
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				if uikit.Tip(c, uikit.SecondaryButton(c, locales.SendSavedMessages()).Disabled(state != "Connected" || len(s.saved) == 0 || s.sendingAll || s.sending), locales.SavedMessagesHelp()).Clicked() {
 					s.sendingAll, s.problem = true, ""
 					s.sentAll = make(chan error, 1)
@@ -170,7 +170,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 				}
 			})
 			if active || len(events) > 0 {
-				ui.Row(c).Gap(t.Space(2)).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 					if s.encoding == "" {
 						s.encoding = "Text"
 					}
@@ -207,8 +207,8 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 						}
 					}
 				})
-				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-					uikit.Input(c, &s.query).Label(locales.SearchSessionMessages()).Placeholder(locales.SearchRetainedPayloadsAndEvents()).Grow(1).MinWidth(160)
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().Children(func() {
+					uikit.Input(c, &s.query).Label(locales.SearchSessionMessages()).Placeholder(locales.SearchRetainedPayloadsAndEvents()).Grow(1).MinWidth(uikit.WidthField)
 					if s.direction == "" {
 						s.direction = "All"
 					}
@@ -232,10 +232,10 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 						}
 						shown = append(shown, e)
 					}
-					ui.Row(c).Grow(1).MinHeight(84).Gap(t.Space(4)).AlignItems(ui.Stretch).Children(func() {
+					ui.Row(c).Grow(1).MinHeight(84).Gap(t.Space(uikit.SpaceXL)).AlignItems(ui.Stretch).Children(func() {
 						ui.Box(c).Width(280).MinWidth(0).Shrink(1).MinHeight(0).Children(func() {
 							if len(shown) == 0 {
-								uikit.Hint(c, locales.NoMatchingWebSocketMessages()).Padding(t.Space(2))
+								uikit.Hint(c, locales.NoMatchingWebSocketMessages()).Padding(t.Space(uikit.SpaceM))
 								return
 							}
 							previous := s.picked
@@ -259,8 +259,8 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 								if e.Kind == websocket.BinaryMessage {
 									kind = "Binary"
 								}
-								ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
-									ui.Text(c, clamp(head, 48)).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine()
+								ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
+									uikit.Body(c, clamp(head, 48)).TextColor(t.Text).SingleLine()
 									uikit.Meta(c, fmt.Sprintf("%s · %s · %d B", e.At.Format("15:04:05.000"), kind, e.Size)).SingleLine()
 								})
 							}).Grow(1).MinHeight(0)

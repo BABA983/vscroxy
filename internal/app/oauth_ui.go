@@ -47,7 +47,7 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 	password := func(value *string, label string) ui.Element {
 		return a.variablePasswordInput(c, "oauth-"+label, value, label, collection)
 	}
-	ui.Field(c, locales.GrantType(), func() { uikit.Select(c, &o.Grant, request.Grants).Width(240) })
+	ui.Field(c, locales.GrantType(), func() { uikit.Select(c, &o.Grant, request.Grants).Width(uikit.WidthWide) })
 	if interactive {
 		ui.Field(c, locales.AuthorizationUrl(), func() {
 			input(&o.AuthURL, "Authorization URL").Placeholder("https://login.example.com/authorize")
@@ -73,7 +73,7 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 		}).Description(locales.RegisterItWithTheProvider())
 	}
 	ui.Field(c, locales.ClientAuthentication(), func() {
-		if uikit.SelectLabels(c, &clientAuth, []string{"Basic header", "In body"}, optionLabel).Width(160).Changed() {
+		if uikit.SelectLabels(c, &clientAuth, []string{"Basic header", "In body"}, optionLabel).Width(uikit.WidthField).Changed() {
 			o.ClientAuth = ""
 			if clientAuth == "In body" {
 				o.ClientAuth = "Body"
@@ -115,8 +115,8 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 		status, color = s.problem, t.Danger
 	}
 	ui.Field(c, locales.AccessToken(), func() {
-		ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color).Selectable()
-		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		uikit.Caption(c, status).TextColor(color).Selectable()
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			busy := s.key == cfg.Key() && s.busy
 			if busy && uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 				s.cancel()
@@ -136,10 +136,10 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 // uses the token's saved configuration; delete removes only the token.
 func (a *app) savedOAuthTokens(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
-		ui.Text(c, locales.SavedAccessTokens()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Text)
+	ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceXS)).Children(func() {
+		uikit.BodyStrong(c, locales.SavedAccessTokens()).TextColor(t.Text)
 		if err := a.ensureOAuthTokens(); err != nil {
-			ui.Text(c, locales.TokenStoreProblem(err.Error())).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(3)
+			uikit.ErrorText(c, locales.TokenStoreProblem(err.Error())).MaxLines(3)
 			return
 		}
 		tokens := a.tokens.All()
@@ -149,12 +149,12 @@ func (a *app) savedOAuthTokens(c *ui.Context) {
 		}
 		for _, tok := range tokens {
 			c.Key("oauth-token-" + tok.Key)
-			ui.Column(c).FillWidth().Gap(t.Space(0.5)).Padding(t.Space(1), 0).Children(func() {
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, cmpOr(tok.Label, tok.Key)).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Grow(1).SingleLine()
+			ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceHair)).Padding(t.Space(uikit.SpaceXS), 0).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+					uikit.Body(c, cmpOr(tok.Label, tok.Key)).TextColor(t.Text).Grow(1).SingleLine()
 					uikit.Meta(c, maskToken(tok.Access)).Font(uikit.FontMono)
 				})
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					uikit.Meta(c, tokenStatus(tok)).Grow(1).SingleLine()
 					busy := a.oauth.key == tok.Key && a.oauth.busy
 					if uikit.SecondaryButton(c, locales.Refresh()).Disabled(busy).Clicked() {

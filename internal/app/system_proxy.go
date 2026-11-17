@@ -450,18 +450,18 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 		// The switch stays at the row's trailing edge like every other
 		// card row. The status and its check share the second line; the
 		// OS's own summary follows as the quiet third line.
-		ui.Row(c).FillWidth().MinHeight(uikit.SettingsRowHeight).Padding(t.Space(1), t.Space(4)).
-			Gap(t.Space(4)).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).
+		ui.Row(c).FillWidth().MinHeight(uikit.SettingsRowHeight).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceXL)).
+			Gap(t.Space(uikit.SpaceXL)).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).
 			Children(func() {
-				left := ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1))
+				left := ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceXS))
 				left.Children(func() {
 					uikit.Body(c, locales.UseSystemProxy())
-					ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 						uikit.Small(c, status).TextColor(statusColor)
 						if busy {
-							ui.Spinner(c).Label(locales.SystemProxy())
+							uikit.Spinner(c, locales.SystemProxy())
 						}
-						if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(busy).Clicked() {
+						if uikit.SecondaryButtonBusy(c, locales.CheckAgain(), busy).Clicked() {
 							a.checkSystemProxy(true)
 						}
 					})
@@ -483,10 +483,10 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 				}
 			})
 		settingsCardBlock(c, locales.BypassList(), func() ui.Element {
-			return ui.Column(c).Gap(t.Space(2)).Children(func() {
-				ui.Checkbox(c, &a.systemProxyBypassSet, "Replace the system bypass list")
-				uikit.TextArea(c, &a.systemProxyBypassText).Label(locales.SystemProxyBypassList()).Placeholder("localhost, *.internal.test, 10.0.0.0/8").Height(64).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(!a.systemProxyBypassSet)
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			return ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
+				uikit.Checkbox(c, &a.systemProxyBypassSet, locales.ReplaceSystemBypassList())
+				uikit.TextArea(c, &a.systemProxyBypassText).Label(locales.SystemProxyBypassList()).Placeholder("localhost, *.internal.test, 10.0.0.0/8").Height(64).Font(uikit.FontMono).Radius(uikit.RadiusControl).Disabled(!a.systemProxyBypassSet)
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.SaveBypassList()).Clicked() {
 						a.saveSystemProxyBypass()
 					}

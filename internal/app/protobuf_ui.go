@@ -117,7 +117,7 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 		return inspectProto(ctx, f, response, schema, name)
 	})
 	if grpcContentType(f.contentType(response)) {
-		uikit.Meta(c, grpcStatus(f)).Padding(0, c.Theme().Space(3), c.Theme().Space(2), c.Theme().Space(3))
+		uikit.Meta(c, grpcStatus(f)).Padding(0, c.Theme().Space(uikit.SpaceL), c.Theme().Space(uikit.SpaceM), c.Theme().Space(uikit.SpaceL))
 	}
 	p.resultView(c, a)
 }
@@ -141,8 +141,8 @@ func (p *protoInspector) controls(c *ui.Context, a *app, registry *protoInspecto
 	t := c.Theme()
 	// Keep the type and its schema together; only search wraps in a narrow
 	// inspector. Both fields share the surrounding controls' density.
-	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-		ui.Row(c).Grow(1).Basis(280).MinWidth(0).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Grow(1).Basis(280).MinWidth(0).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			options := []string{"Auto"}
 			if p.schema != nil {
 				options = append(options, p.schema.names...)
@@ -150,22 +150,16 @@ func (p *protoInspector) controls(c *ui.Context, a *app, registry *protoInspecto
 			if p.name == "" {
 				p.name = "Auto"
 			}
-			field := uikit.Combobox(c, &p.name, options).Label(locales.ProtobufMessageType()).
-				Tooltip(locales.AutoResolvesHttpGrpcMethods()).
-				Grow(1).MinWidth(0).Height(uikit.HeightControl).Padding(0, t.Space(2)).
-				FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FocusRing(false)
-			uikit.FieldFace(c, field, field.Focused())
+			uikit.Tip(c, uikit.Combobox(c, &p.name, options).Label(locales.ProtobufMessageType()).Grow(1).MinWidth(0),
+				locales.AutoResolvesHttpGrpcMethods())
 			if uikit.SecondaryButton(c, locales.Schema()).Shrink(0).Clicked() {
 				registry.open = true
 			}
 		})
-		search := ui.SearchField(c, &p.query).Label(locales.SearchProtobufMessages()).Placeholder(locales.SearchMessages2()).
-			Grow(1).Basis(180).MinWidth(0).Height(uikit.HeightControl).Padding(0, t.Space(2)).
-			FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FocusRing(false).Border(0, ui.Color{})
-		uikit.FieldFace(c, search, search.Focused())
+		uikit.SearchField(c, &p.query, locales.SearchProtobufMessages(), locales.SearchMessages2(), false).Grow(1).Basis(180).MinWidth(0)
 	})
 	if p.url != "" && p.name != "" && p.name != "Auto" {
-		ui.Row(c).Padding(0, t.Space(3), t.Space(1), t.Space(3)).Gap(t.Space(2)).Wrap().Children(func() {
+		ui.Row(c).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Wrap().Children(func() {
 			if uikit.SecondaryButton(c, locales.SaveForThisUrl()).Clicked() && a.saveProtoTypeRule(p.url, p.name) {
 				a.done(locales.SavedProtobufTypeForUrl())
 			}
@@ -182,11 +176,11 @@ func (p *protoInspector) controls(c *ui.Context, a *app, registry *protoInspecto
 func (p *protoInspector) resultView(c *ui.Context, a *app) {
 	t := c.Theme()
 	if p.answers != nil {
-		uikit.Hint(c, locales.ReadingCompleteRetainedPayload()).Padding(t.Space(3))
+		uikit.Hint(c, locales.ReadingCompleteRetainedPayload()).Padding(t.Space(uikit.SpaceL))
 		return
 	}
 	if p.result.problem != "" {
-		ui.Text(c, p.result.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+		uikit.ErrorText(c, p.result.problem).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
 		if len(p.result.messages) == 0 {
 			return
 		}
@@ -195,20 +189,20 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 	if p.result.typeName != "" {
 		note = "Message type: " + p.result.typeName
 	}
-	uikit.Tip(c, uikit.Meta(c, note).SingleLine(), note).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+	uikit.Tip(c, uikit.Meta(c, note).SingleLine(), note).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
 	var visible []int
 	for i, message := range p.result.messages {
 		if p.query == "" || strings.Contains(strings.ToLower(message.text), strings.ToLower(p.query)) {
 			visible = append(visible, i)
 		}
 	}
-	uikit.Meta(c, locales.ProtobufMessages(len(visible), len(p.result.messages))).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+	uikit.Meta(c, locales.ProtobufMessages(len(visible), len(p.result.messages))).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
 	if len(visible) == 0 {
 		note := "No message matches"
 		if len(p.result.messages) == 0 && p.result.problem == "" {
 			note = "No messages in this body (a trailers-only gRPC response is valid)"
 		}
-		uikit.Hint(c, note).Padding(t.Space(3))
+		uikit.Hint(c, note).Padding(t.Space(uikit.SpaceL))
 		return
 	}
 	if p.selected >= len(visible) {
@@ -224,7 +218,7 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 			if message.compressed {
 				note += " · gzip"
 			}
-			ui.Text(c, note).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text).Padding(t.Space(2), t.Space(3)).SingleLine()
+			uikit.Caption(c, note).TextColor(t.Text).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).SingleLine()
 		}).Grow(1)
 	}
 	detail := func() {
@@ -234,7 +228,7 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 		message := p.result.messages[visible[p.selected]]
 		ui.Column(c).Fill().MinHeight(0).Children(func() {
 			detail := fmt.Sprintf("Message %d · %s", visible[p.selected]+1, humanBytes(message.size))
-			ui.Row(c).Padding(0, t.Space(3), t.Space(1), t.Space(3)).AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+			ui.Row(c).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				uikit.Tip(c, uikit.Meta(c, detail).Grow(1).MinWidth(0).SingleLine(), detail)
 				if uikit.IconButton(c, locales.CopyDecoded(), locales.CopyDecoded(), copyIcon).Clicked() {
 					c.Services().WriteClipboard(message.text)
@@ -245,9 +239,9 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 			if len(text) > maxMessageText {
 				text = text[:maxMessageText] + "\n\n… Text preview limited to 64 KiB; Copy decoded keeps the full text."
 			}
-			ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(3)).Children(func() {
-				ui.Column(c).Padding(0, 0, t.Space(2), 0).Children(func() {
-					ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
+			ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceL)).Children(func() {
+				ui.Column(c).Padding(0, 0, t.Space(uikit.SpaceM), 0).Children(func() {
+					uikit.DataBody(c, text).TextColor(t.Text)
 				})
 			})
 		})
@@ -330,12 +324,12 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 	uikit.Modal(c, &p.open, locales.ProtobufSchema2(), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, locales.ProtobufSchema2())
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				uikit.Hint(c, locales.ImportAProtoSourceOr())
 				if p.schema != nil {
 					uikit.Meta(c, locales.ProtobufLoaded(len(p.schema.names)))
 				}
-				ui.Row(c).Gap(t.Space(2)).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 					uikit.Input(c, &p.source).Label(locales.SchemaFile()).Placeholder("/path/to/service.proto or descriptors.pb").Grow(1).MinWidth(0)
 					if uikit.SecondaryButton(c, locales.Browse()).Disabled(p.loading).Clicked() && a.win != nil {
 						go func() {
@@ -347,9 +341,9 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 					}
 				})
 				uikit.Hint(c, locales.IncludeRootsOptionalOnePer())
-				uikit.TextArea(c, &p.roots).Height(70).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.ProtobufIncludeRoots())
+				uikit.TextArea(c, &p.roots).Height(70).Font(uikit.FontMono).Radius(uikit.RadiusControl).Label(locales.ProtobufIncludeRoots())
 				if p.problem != "" {
-					ui.Text(c, p.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
+					uikit.Callout(c, uikit.CalloutDanger, p.problem, nil)
 				}
 				if p.loading {
 					uikit.Meta(c, locales.CompilingAndLinkingSchema())

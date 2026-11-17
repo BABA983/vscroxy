@@ -139,7 +139,7 @@ func (a *app) editCapture(f flow) *requestDocument {
 // produced, with the actions that read or copy it.
 func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocument) {
 	compact := a.inspectorWidth(c) < 600
-	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		source := locales.CapturedAt(f.at.Local().Format("15:04:05"))
 		if f.at.IsZero() {
 			source = fmt.Sprintf("Captured #%d", f.id)
@@ -158,13 +158,13 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 		}
 		if a.edited(f.id) {
 			// The source names give way first; the mark and the status stay.
-			ui.Text(c, locales.Edited()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Accent).SingleLine().Shrink(0)
+			uikit.Caption(c, locales.Edited()).TextColor(t.Accent).SingleLine().Shrink(0)
 		}
 		if f.dns != "" {
 			// Which Host profile sent it elsewhere, as the Remote IP says.
 			profile, _, _ := strings.CutLast(f.hostProfile, ":")
 			_, ip, _ := strings.Cut(f.dns, " → ")
-			uikit.Tip(c, ui.Text(c, locales.MappedTo(profile, ip)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(uikit.Colors(t).Accent).
+			uikit.Tip(c, uikit.Caption(c, locales.MappedTo(profile, ip)).TextColor(uikit.Colors(t).Accent).
 				SingleLine().MinWidth(0), mappedBy(f))
 		}
 		ui.Spacer(c)
@@ -261,7 +261,7 @@ func (a *app) capturedReadOnly(c *ui.Context, t *ui.Theme, f flow, problem strin
 	if problem == "" {
 		return
 	}
-	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		if problem == "spilled" {
 			uikit.Hint(c, locales.LargeRequestBodyKeptOn()).Grow(1)
 			if uikit.Tip(c, uikit.SecondaryButton(c, locales.EditRequest()), locales.ReadTheBodyFromDisk()).Clicked() {

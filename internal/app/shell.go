@@ -28,7 +28,7 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 		ui.Spacer(c)
 		// The switch sits with the state it reports: on macOS the brand is in
 		// the sidebar, so the bar would otherwise start with a lone button.
-		ui.Row(c).Shrink(0).Gap(t.Space(1.5)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Children(func() {
 			if a.macChrome && a.sidebarShown() {
 				a.recordButton(c, t)
 			}
@@ -38,7 +38,7 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 		// Four at most: the palette, the layout, the tools and everything
 		// else. Settings is in the app menu and in ⋯, so the bar does not
 		// carry a third way to it.
-		ui.Row(c).Shrink(0).Gap(t.Space(0.5)).AlignItems(ui.Center).PaddingEnd(max(bar.Right, t.Space(3))).Children(func() {
+		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceHair)).AlignItems(ui.Center).PaddingEnd(max(bar.Right, t.Space(uikit.SpaceL))).Children(func() {
 			a.commandButton(c, t)
 			a.layoutToggle(c)
 			uikit.IconButton(c, locales.Tools(), locales.ManageDebuggingRulesAndNetwork(), toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
@@ -55,11 +55,11 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 // far end of the bar with the tools.
 func (a *app) barLeading(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
-	start := t.Space(2)
+	start := t.Space(uikit.SpaceM)
 	if bar.Left > 0 {
 		start += bar.Left
 	}
-	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(1)).AlignItems(ui.Center).
+	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).
 		DragWindow().Children(func() {
 		a.sidebarToggle(c)
 		a.recordButton(c, t)
@@ -100,7 +100,7 @@ func (a *app) commandButton(c *ui.Context, t *ui.Theme) {
 	b := uikit.ChipButton(c, locales.Commands2(), locales.SearchEveryActionCtrlCmd()).Shrink(0)
 	b.Children(func() {
 		ui.Icon(c, searchIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
-		ui.Text(c, commandShortcut()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted).NoWrap()
+		uikit.Meta(c, commandShortcut()).NoWrap()
 	})
 	if b.Clicked() {
 		a.workbench.openPalette()
@@ -114,11 +114,11 @@ func (a *app) brandBar(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
 	// bar.Left ends at the last window control's edge; the switch and the
 	// brand keep a gap from it rather than touching the zoom button.
-	start := t.Space(3)
+	start := t.Space(uikit.SpaceL)
 	if bar.Left > 0 {
 		start += bar.Left
 	}
-	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(2)).AlignItems(ui.Center).
+	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 		DragWindow().Children(func() {
 		a.sidebarToggle(c)
 		a.brand(c, t)
@@ -128,7 +128,7 @@ func (a *app) brandBar(c *ui.Context, t *ui.Theme) {
 // brand is the app's icon and name.
 func (a *app) brand(c *ui.Context, t *ui.Theme) {
 	ui.Icon(c, brandIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
-	ui.Text(c, "vscroxy").FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Text).SingleLine()
+	uikit.BodyStrong(c, "vscroxy").TextColor(t.Text).SingleLine()
 }
 
 // sidebarToggle hides the sidebar or brings it back: the same choice Cmd+B
@@ -197,12 +197,19 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	case running:
 		state, dot = locales.ListeningOn(), t.Success
 	}
-	tip := locales.ProxyTipOff()
+	tip, face := locales.ProxyTipOff(), pal.Fill
 	if running {
 		tip = locales.ProxyTipOn()
 	}
+	// The pill is the window's live lamp and the one place the shell spends
+	// color: while it records, its face takes a wash of the recording green,
+	// so "is it on?" is answered from across the room. Stopped and paused
+	// stay on the neutral face, with only their dot to say why.
+	if running && !a.recordingPaused {
+		face = t.Success.Alpha(0.14)
+	}
 	b := uikit.ToolbarButton(c, locales.ProxyStatus(), tip, false).
-		Padding(0, t.Space(2)).Gap(t.Space(1.5)).Radius(uikit.RadiusControl).Background(pal.Fill)
+		Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceS)).Radius(uikit.RadiusControl).Background(face)
 	b.Children(func() {
 		mark := ui.Box(c).Size(7, 7).Shrink(0)
 		// Recording with traffic arriving: the dot breathes. Nothing
@@ -222,7 +229,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 		} else {
 			mark.Radius(uikit.RadiusControl).Background(dot)
 		}
-		ui.Text(c, state).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text).SingleLine()
+		uikit.Caption(c, state).TextColor(t.Text).SingleLine()
 		if !running {
 			return
 		}
@@ -233,7 +240,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 		if a.deviceUI.gateway != nil {
 			addr += " · LAN"
 		}
-		ui.Text(c, addr).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").SingleLine()
+		uikit.DataMeta(c, addr).FontFeatures("tnum").SingleLine()
 	})
 	b.PopoverMenuButton(func(m *ui.Menu) {
 		start := do("capture.start", locales.StartCapture(), func() { go a.startCapture() })
@@ -312,10 +319,10 @@ func (a *app) networkTools() []action {
 // and the sidebar, so the window reads as one frame around the panel.
 func (a *app) footer(c *ui.Context, t *ui.Theme) {
 	p := uikit.Colors(t)
-	ui.Row(c).Height(uikit.HeightFooter).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
+	ui.Row(c).Height(uikit.HeightFooter).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 		Background(p.Chrome).Children(func() {
 		if a.page.capture() {
-			ui.Row(c).Shrink(0).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
 				if uikit.FooterButton(c, locales.Clear(), locales.ClearRecords(), false).Disabled(len(a.flows) == 0).Clicked() {
 					a.clearOpen = true
 				}
@@ -324,14 +331,14 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 				if !on {
 					tip = locales.AutoSelectOffTip()
 				}
-				follow := uikit.FooterButton(c, locales.AutoSelect(), tip, on).Gap(t.Space(1))
+				follow := uikit.FooterButton(c, locales.AutoSelect(), tip, on).Gap(t.Space(uikit.SpaceXS))
 				// New traffic that is not being followed says so on the
 				// button, so the count is not hidden behind a tint. The count
 				// is its own run: run into the label it reads "Auto-follow6
 				// new".
 				if n := a.newRows; n > 0 {
 					follow.Children(func() {
-						ui.Text(c, locales.AutoSelectCount(n)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted)
+						uikit.Meta(c, locales.AutoSelectCount(n))
 					})
 				}
 				if follow.Clicked() {
@@ -343,16 +350,16 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 			})
 		}
 		ui.Spacer(c)
-		ui.Row(c).Shrink(1).MinWidth(0).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Shrink(1).MinWidth(0).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			counts := uikit.Meta(c, a.footerCountsText()).FontFeatures("tnum").SingleLine()
 			if a.page == pageDiagnostics {
 				counts = uikit.Tip(c, counts, locales.EvidenceFromThisLiveSession())
 			}
 			if a.dropped > 0 {
-				ui.Text(c, locales.DroppedCount(int(a.dropped))).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
+				uikit.Caption(c, locales.DroppedCount(int(a.dropped))).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 			}
 			if a.scriptErrs > 0 {
-				ui.Text(c, locales.ScriptErrors(int(a.scriptErrs))).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
+				uikit.Caption(c, locales.ScriptErrors(int(a.scriptErrs))).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 			}
 		})
 		ui.Spacer(c)
@@ -543,8 +550,8 @@ func (a *app) footerChips(c *ui.Context) []footerChip {
 		hosts.open = func() { a.profiles.menuOpen = !a.profiles.menuOpen }
 		hosts.panel = func(anchor ui.Element) {
 			ui.PopoverBase(c, anchor, &a.profiles.menuOpen, func(panel ui.Element) {
-				uikit.PopoverPanel(c, panel).Width(320).Padding(c.Theme().Space(2)).Gap(c.Theme().Space(1)).
-					Margin(c.Theme().Space(1.5), 0, 0, 0)
+				uikit.PopoverPanel(c, panel).Width(320).Padding(c.Theme().Space(uikit.SpaceM)).Gap(c.Theme().Space(uikit.SpaceXS)).
+					Margin(c.Theme().Space(uikit.SpaceS), 0, 0, 0)
 				a.hostsMenu(c, c.Theme())
 			})
 		}
@@ -572,7 +579,7 @@ func (a *app) footerTools(c *ui.Context, t *ui.Theme) {
 	if len(chips) == 0 {
 		return
 	}
-	gap := t.Space(1)
+	gap := t.Space(uikit.SpaceXS)
 	room := a.footerRoom(c, t)
 	used, show := float32(0), len(chips)
 	for i, chip := range chips {
@@ -614,11 +621,11 @@ func (a *app) footerTools(c *ui.Context, t *ui.Theme) {
 // footerRoom is how much of the footer's end the tools may take: the window
 // less its padding, the actions at the start and the counts in the middle.
 func (a *app) footerRoom(c *ui.Context, t *ui.Theme) float32 {
-	padding, gap := 2*t.Space(3), t.Space(2)
+	padding, gap := 2*t.Space(uikit.SpaceL), t.Space(uikit.SpaceM)
 	room := a.windowWidth - padding - 4*gap
 	if a.page.capture() {
 		for _, label := range []string{locales.Clear(), locales.AutoSelect()} {
-			room -= paneTextWidth(c, label, uikit.TextMeta, 400) + 2*t.Space(2) + gap
+			room -= paneTextWidth(c, label, uikit.TextMeta, 400) + 2*t.Space(uikit.SpaceM) + gap
 		}
 	}
 	room -= paneTextWidth(c, a.footerCountsText(), uikit.TextMeta, 400)
@@ -628,12 +635,12 @@ func (a *app) footerRoom(c *ui.Context, t *ui.Theme) float32 {
 // footerChipWidth is how wide one tool chip is: its icon, its label, the
 // button that turns it off and the chip's own padding.
 func footerChipWidth(c *ui.Context, chip footerChip) float32 {
-	return 2*c.Theme().Space(1.5) + uikit.IconInline + c.Theme().Space(1) + paneTextWidth(c, chip.label, uikit.TextMeta, 400) + 20
+	return 2*c.Theme().Space(uikit.SpaceS) + uikit.IconInline + c.Theme().Space(uikit.SpaceXS) + paneTextWidth(c, chip.label, uikit.TextMeta, 400) + 20
 }
 
 // footerMoreWidth is how wide the count of folded tools is.
 func footerMoreWidth(c *ui.Context, n int) float32 {
-	return paneTextWidth(c, footerMoreLabel(n), uikit.TextMeta, 400) + 2*c.Theme().Space(2)
+	return paneTextWidth(c, footerMoreLabel(n), uikit.TextMeta, 400) + 2*c.Theme().Space(uikit.SpaceM)
 }
 
 func footerMoreLabel(n int) string { return fmt.Sprintf("+%d", n) }
@@ -646,16 +653,16 @@ func footerChipRow(c *ui.Context, t *ui.Theme, chip footerChip) {
 	if chip.danger {
 		background, ink = t.Danger.Alpha(0.12), t.Danger
 	}
-	ui.Row(c.Key(chip.id)).Height(uikit.HeightFooterControl).AlignItems(ui.Center).Background(background).
+	ui.Row(c.Key(chip.id)).Height(uikit.HeightControlSmall).AlignItems(ui.Center).Background(background).
 		Radius(uikit.RadiusInner).Children(func() {
 		open := chip.openLabel
 		if open == "" {
 			open = locales.ActiveTool(chip.label)
 		}
-		label := uikit.ToolbarButton(c, open, chip.tip, false, chip.keys...).Height(uikit.HeightFooterControl).
-			PaddingStart(t.Space(1.5)).PaddingEnd(t.Space(0.5)).Children(func() {
+		label := uikit.ToolbarButton(c, open, chip.tip, false, chip.keys...).Height(uikit.HeightControlSmall).
+			PaddingStart(t.Space(uikit.SpaceS)).PaddingEnd(t.Space(uikit.SpaceHair)).Children(func() {
 			ui.Icon(c, chip.icon).Size(uikit.IconInline, uikit.IconInline)
-			ui.Text(c, chip.label).FontSize(uikit.Scaled(uikit.TextMeta)).MaxWidth(180).SingleLine()
+			uikit.Caption(c, chip.label).MaxWidth(180).SingleLine()
 			if chip.panel != nil {
 				ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline)
 			}
@@ -677,7 +684,7 @@ func footerChipRow(c *ui.Context, t *ui.Theme, chip footerChip) {
 			offLabel, offTip = locales.DisableTool(chip.label), locales.TurnOffTool(chip.label)
 		}
 		close := uikit.IconButton(c, offLabel, offTip, closeIcon).
-			Size(uikit.HeightFooterControl-4, uikit.HeightFooterControl-4).Radius(uikit.RadiusInner)
+			Size(uikit.HeightControlSmall-4, uikit.HeightControlSmall-4).Radius(uikit.RadiusInner)
 		if chip.danger {
 			close.TextColor(ink)
 		}

@@ -231,7 +231,7 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 			uikit.Meta(c, locales.UseVaultNameInA())
 			if v.problem != "" {
 				ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
-					ui.Text(c, v.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
+					uikit.Callout(c, uikit.CalloutDanger, v.problem, nil)
 				})
 				uikit.DialogFooter(c).Children(func() {
 					if uikit.SecondaryButton(c, locales.Close()).Clicked() {
@@ -253,23 +253,23 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 			}
 			uikit.Meta(c, where)
 			// The rows' scroll leaves the same side room for input halos.
-			ui.Row(c).Gap(t.Space(2)).Padding(0, t.Space(2), 0, t.Space(1)).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Padding(0, t.Space(uikit.SpaceM), 0, t.Space(uikit.SpaceXS)).Children(func() {
 				for i, label := range []string{"NAME", "VALUE", "ALLOWED DOMAINS"} {
 					grow := float32(2)
 					if i == 0 {
 						grow = 1
 					}
 					ui.Box(c).Basis(0).Grow(grow).MinWidth(0).Children(func() {
-						uikit.Label(c, label).FillWidth().Padding(0, t.Space(2))
+						uikit.Label(c, label).FillWidth().Padding(0, t.Space(uikit.SpaceM))
 					})
 				}
 				ui.Box(c).Width(76) // the two row buttons and the gap between them
 			})
-			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(2)).Padding(0, t.Space(2), 0, t.Space(1)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(uikit.SpaceM)).Padding(0, t.Space(uikit.SpaceM), 0, t.Space(uikit.SpaceXS)).Children(func() {
 				remove := -1
 				for i := range v.rows {
 					r := &v.rows[i]
-					ui.Row(c.Key(i)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					ui.Row(c.Key(i)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 						ui.Box(c).Basis(0).Grow(1).MinWidth(0).Children(func() {
 							uikit.Input(c, &r.name).Label(locales.SecretName(i + 1)).Placeholder("api_token").FillWidth().MinWidth(0)
 						})
@@ -301,10 +301,10 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 					v.rows = append(v.rows, vaultRow{})
 				}
 			})
-			ui.Checkbox(c, &v.scriptsDraft, "Let scripts use pm.vault").
+			uikit.Checkbox(c, &v.scriptsDraft, locales.LetScriptsUsePmVault()).
 				Tooltip(locales.ScriptsCanThenReadAny())
 			if v.editProblem != "" {
-				ui.Text(c, v.editProblem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+				uikit.ErrorText(c, v.editProblem)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {

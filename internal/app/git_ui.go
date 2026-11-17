@@ -244,9 +244,9 @@ func (a *app) gitPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 		a.gitProblem(c, t)
 		return
 	}
-	ui.Column(c).Width(330).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
-		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.Git()).FontSize(uikit.Scaled(uikit.TextTitle)).FontWeight(500).TextColor(t.Text).Grow(1)
+	ui.Column(c).Width(330).MinHeight(0).Padding(top, t.Space(uikit.SpaceL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
+			uikit.Heading(c, locales.Git()).TextColor(t.Text).Grow(1)
 			if uikit.IconButton(c, locales.Refresh(), locales.Refresh(), lucide.RefreshCw()).Disabled(a.git.loading).Clicked() {
 				a.refreshGit()
 			}
@@ -257,7 +257,7 @@ func (a *app) gitPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 			return
 		}
 		if a.git.problem != "" {
-			ui.Text(c, a.git.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(4)
+			uikit.ErrorText(c, a.git.problem).MaxLines(4)
 			return
 		}
 		switch {
@@ -278,21 +278,21 @@ func (a *app) gitPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 		}
 	})
 	ui.Divider(c)
-	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(2)).Children(func() {
+	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(uikit.SpaceXL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		file, ok := a.gitChosenFile()
 		if !ok {
 			uikit.EmptyState(c, locales.GitSelectAChangedFile(), locales.GitSelectAChangedFileHint(), func() {})
 			return
 		}
-		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, gitStatusLabel(file.Code)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(gitStatusColor(t, file.Code))
-			ui.Text(c, file.Path).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Grow(1).SingleLine()
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+			uikit.Caption(c, gitStatusLabel(file.Code)).TextColor(gitStatusColor(t, file.Code))
+			uikit.DataBody(c, file.Path).TextColor(t.Text).Grow(1).SingleLine()
 		})
 		if file.Orig != "" {
 			uikit.Meta(c, locales.GitRenamedFrom(file.Orig)).Font(uikit.FontMono).SingleLine()
 		}
 		if a.git.diffProblem != "" {
-			ui.Text(c, a.git.diffProblem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(4)
+			uikit.ErrorText(c, a.git.diffProblem).MaxLines(4)
 			return
 		}
 		if a.git.diffBusy {
@@ -303,7 +303,7 @@ func (a *app) gitPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 		}
 		c.Key("git-diff-" + file.Path)
 		uikit.TextArea(c, &a.git.diff).ReadOnly(true).Font(uikit.FontMono).
-			FontSize(uikit.Scaled(uikit.TextBody)).Label(locales.GitDiff()).Grow(1).MinHeight(0).FillWidth()
+			Label(locales.GitDiff()).Grow(1).MinHeight(0).FillWidth()
 	})
 }
 
@@ -341,20 +341,20 @@ func (a *app) gitFileList(c *ui.Context, t *ui.Theme, active bool) {
 	pick.Accent, pick.AccentText = ui.Color{}, t.Text
 	pick.SurfaceHover = ui.Color{}
 	c.SetTheme(&pick)
-	list := ui.List(c, &a.git.list, len(files)).Label(locales.GitChangedFiles()).Grow(1).MinHeight(0).Gap(t.Space(0.5)).Rows(func(row ui.ListRow) {
+	list := ui.List(c, &a.git.list, len(files)).Label(locales.GitChangedFiles()).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceHair)).Rows(func(row ui.ListRow) {
 		c := row.Context
 		c.SetTheme(t)
 		file := &a.git.files[row.Index]
-		r := ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(1.5)).Gap(t.Space(1.5)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+		r := ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(uikit.SpaceS)).Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 		if row.Selected() {
 			uikit.Selected(c, r, active)
 		}
 		r.Children(func() {
-			ui.Checkbox(c, &file.Selected, "").Label(locales.GitSelectFile(file.Path))
-			ui.Text(c, gitLetter(file.Code)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).
+			uikit.Checkbox(c, &file.Selected, "").Label(locales.GitSelectFile(file.Path))
+			uikit.DataMeta(c, gitLetter(file.Code)).
 				TextColor(gitStatusColor(t, file.Code)).Width(18)
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-				ui.Text(c, file.Path).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine()
+				uikit.Body(c, file.Path).TextColor(t.Text).SingleLine()
 				if file.Orig != "" {
 					uikit.Meta(c, locales.GitRenamedFrom(file.Orig)).SingleLine()
 				}

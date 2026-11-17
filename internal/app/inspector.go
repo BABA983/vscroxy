@@ -101,11 +101,11 @@ func (a *app) detailWith(c *ui.Context, detached bool) {
 			return
 		}
 		if !ok {
-			ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 				uikit.Hint(c, locales.NoRequestChosen())
 			})
 			ui.Divider(c)
-			uikit.Hint(c, locales.CaptureARequestToInspect()).Padding(t.Space(4))
+			uikit.Hint(c, locales.CaptureARequestToInspect()).Padding(t.Space(uikit.SpaceXL))
 			return
 		}
 		d, problem := a.liveDocument(f)
@@ -114,7 +114,7 @@ func (a *app) detailWith(c *ui.Context, detached bool) {
 		if len(f.actions) > 0 {
 			// A note about what rules did, not a state: the accent is ink
 			// now, so it would read as ordinary body text.
-			uikit.Tip(c, ui.Text(c, locales.AppliedActions(strings.Join(f.actions, " · "))).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted).
+			uikit.Tip(c, uikit.Meta(c, locales.AppliedActions(strings.Join(f.actions, " · "))).
 				Padding(4, 14).SingleLine(), strings.Join(f.actions, "\n"))
 		}
 		switch a.inspect.pane {
@@ -147,7 +147,7 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 	// One row, as every other pane header: the tunnel's name, its views, and
 	// what the exchange says on the right. Nothing here is the page's main
 	// action, so nothing wears the primary button.
-	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		// The client that opened the tunnel, if the capture knows it: a name
 		// with no icon was the placeholder this row used to spell out.
 		if f.process != "" {
@@ -156,12 +156,12 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 			} else {
 				clientBadge(c, f.process)
 			}
-			uikit.Tip(c, ui.Text(c, f.process).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).SingleLine().Shrink(0), f.processPath)
+			uikit.Tip(c, uikit.Body(c, f.process).FontWeight(500).SingleLine().Shrink(0), f.processPath)
 		}
 		uikit.Tabs(c, &a.tab, "", locales.HttpsSetup(), locales.Connection())
 		ui.Spacer(c)
 		if f.conn.error != "" {
-			uikit.Tip(c, ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).SingleLine().Shrink(0), f.conn.error)
+			uikit.Tip(c, uikit.ErrorText(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").SingleLine().Shrink(0), f.conn.error)
 		}
 		uikit.Tip(c, uikit.Meta(c, f.host).Font(uikit.FontMono).SingleLine().MinWidth(0).Shrink(1), f.url)
 		// The pane's own commands, where every other pane keeps them: a
@@ -210,9 +210,9 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 		chip = uikit.Tip(c, chip, doc)
 	}
 	if !compact {
-		ui.Text(c, "·").FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Border)
+		uikit.Body(c, "·").TextColor(t.Border)
 		uikit.Hint(c, fmt.Sprintf("%d ms", f.millis)).FontFeatures("tnum").SingleLine()
-		ui.Text(c, "·").FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Border)
+		uikit.Body(c, "·").TextColor(t.Border)
 		uikit.Hint(c, humanBytes(f.bytes)).FontFeatures("tnum").SingleLine()
 	}
 }
@@ -402,7 +402,7 @@ func paneTitleWidth(c *ui.Context, title string, dot bool) float32 {
 	if !dot {
 		return paneTextWidth(c, title, uikit.TextBody, 500)
 	}
-	return 6 + c.Theme().Space(1.5) + paneTextWidth(c, title, uikit.TextBody, 500)
+	return 6 + c.Theme().Space(uikit.SpaceS) + paneTextWidth(c, title, uikit.TextBody, 500)
 }
 
 // paneTabsWidth is the room the tabs take, as uikit lays them out: each chip's
@@ -412,11 +412,11 @@ func paneTabsWidth(c *ui.Context, labels, counts []string) float32 {
 	var w float32
 	for i, label := range labels {
 		if i > 0 {
-			w += t.Space(0.5)
+			w += t.Space(uikit.SpaceHair)
 		}
-		w += 2*t.Space(1.5) + paneTextWidth(c, label, uikit.TextBody, 400)
+		w += 2*t.Space(uikit.SpaceS) + paneTextWidth(c, label, uikit.TextBody, 400)
 		if i < len(counts) && counts[i] != "" && counts[i] != "0" {
-			w += t.Space(1) + paneTextWidth(c, counts[i], uikit.TextMeta, 400)
+			w += t.Space(uikit.SpaceXS) + paneTextWidth(c, counts[i], uikit.TextMeta, 400)
 		}
 	}
 	return w
@@ -426,14 +426,14 @@ func paneTabsWidth(c *ui.Context, labels, counts []string) float32 {
 // have theirs.
 func paneRoomFor(c *ui.Context, width float32, title string, dot bool, labels, counts []string, menu float32) paneRoom {
 	t := c.Theme()
-	return paneRoom{left: width - 2*t.Space(3) - paneTitleWidth(c, title, dot) - paneTabsWidth(c, labels, counts) - 2*t.Space(2) - menu}
+	return paneRoom{left: width - 2*t.Space(uikit.SpaceL) - paneTitleWidth(c, title, dot) - paneTabsWidth(c, labels, counts) - 2*t.Space(uikit.SpaceM) - menu}
 }
 
 // paneMoreWidth is the room the request pane's More tab takes: it is a word
 // with a chevron, where the response pane's menu is a single glyph.
 func paneMoreWidth(c *ui.Context) float32 {
 	t := c.Theme()
-	return paneTextWidth(c, locales.More(), uikit.TextBody, 400) + 2*t.Space(1.5) + t.Space(1) + 10
+	return paneTextWidth(c, locales.More(), uikit.TextBody, 400) + 2*t.Space(uikit.SpaceS) + t.Space(uikit.SpaceXS) + 10
 }
 
 // paneMenuWidth is the room the pane's own ⋯ takes at the row's end.
@@ -461,7 +461,7 @@ func (a *app) paneFormatWidth(c *ui.Context, side int) float32 {
 	if !ok {
 		return 0
 	}
-	return paneTextWidth(c, label, uikit.TextBody, 400) + 2*c.Theme().Space(2) + 14
+	return paneTextWidth(c, label, uikit.TextBody, 400) + 2*c.Theme().Space(uikit.SpaceM) + 14
 }
 
 // requestPaneTabs are the views the request pane's row starts with.
@@ -498,7 +498,7 @@ func (a *app) requestTabsFit(c *ui.Context, d *requestDocument, width float32) b
 	for i, v := range views {
 		labels[i], counts[i] = v.label, v.count
 	}
-	need := 2*t.Space(3) + paneTabsWidth(c, labels, counts) + 2*t.Space(2) + paneMoreWidth(c)
+	need := 2*t.Space(uikit.SpaceL) + paneTabsWidth(c, labels, counts) + 2*t.Space(uikit.SpaceM) + paneMoreWidth(c)
 	return width >= need
 }
 
@@ -602,7 +602,7 @@ func protocolTabRow(c *ui.Context, selected *int, prefix string, labels []string
 	for i, label := range labels {
 		views[i] = paneView{view: i, label: label}
 	}
-	room := width - 2*t.Space(3) - paneMoreWidth(c) - t.Space(2)
+	room := width - 2*t.Space(uikit.SpaceL) - paneMoreWidth(c) - t.Space(uikit.SpaceM)
 	kept := slices.Clone(views)
 	for len(kept) > 1 && paneTabsWidth(c, paneLabels(kept), nil) > room {
 		at := -1
@@ -620,7 +620,7 @@ func protocolTabRow(c *ui.Context, selected *int, prefix string, labels []string
 	dropped := slices.DeleteFunc(slices.Clone(views), func(v paneView) bool { return slices.Contains(kept, v) })
 	shown := max(0, slices.IndexFunc(kept, func(v paneView) bool { return v.view == *selected }))
 	before := *selected
-	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
+	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		uikit.Tabs(c, &shown, prefix, paneLabels(kept)...).Grow(1)
 		if len(dropped) > 0 {
 			uikit.TabMenu(c, locales.More(), prefix+": "+locales.More(), func(m *ui.Menu) {
@@ -854,7 +854,7 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 		// What came back is a fact about the row, not a title before it: the
 		// status sits at the row's end, beside the numbers it belongs with.
 		if sum.title != "" {
-			status := ui.Row(c).Gap(t.Space(1.5)).Shrink(0).AlignItems(ui.Center).Label(locales.ResponsePaneName())
+			status := ui.Row(c).Gap(t.Space(uikit.SpaceS)).Shrink(0).AlignItems(ui.Center).Label(locales.ResponsePaneName())
 			if !showNumbers && sum.duration != "" {
 				// What the row has no room for, the status says on hover.
 				uikit.Tip(c, status, sum.title+" · "+strings.TrimSpace(sum.duration+" · "+sum.detail))
@@ -865,7 +865,7 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 				if sum.ink != (ui.Color{}) {
 					ink = sum.ink
 				}
-				ui.Text(c, sum.title).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(ink).SingleLine()
+				uikit.Caption(c, sum.title).TextColor(ink).SingleLine()
 			})
 		}
 		if showNumbers {
@@ -1057,11 +1057,11 @@ func bodyFormatLabel(side int) string {
 
 // inspectorPaneBar names an exchange-wide view and gives the way back.
 func (a *app) inspectorPaneBar(c *ui.Context, t *ui.Theme, title, note string) {
-	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		if uikit.IconButton(c, locales.BackToRequestAndResponse(), locales.RequestAndResponse(), backIcon).Clicked() {
 			a.inspect.pane = inspectorSplit
 		}
-		ui.Text(c, title).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Text)
+		uikit.BodyStrong(c, title).TextColor(t.Text)
 		uikit.Tip(c, uikit.Meta(c, note).SingleLine(), note)
 		ui.Spacer(c)
 	})
@@ -1094,7 +1094,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 		note = statusDoc(f.status)
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			// The response pane names its status already; the request's start
 			// line is the one thing the row adds.
 			if side == 1 {
@@ -1121,9 +1121,9 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 		ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).FillWidth().Children(func() {
 			if len(headers) == 0 {
 				if raw == "" {
-					uikit.Hint(c, locales.NoHeadersRecorded()).Padding(t.Space(3))
+					uikit.Hint(c, locales.NoHeadersRecorded()).Padding(t.Space(uikit.SpaceL))
 				} else {
-					ui.Text(c, raw).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text).Selectable().Padding(t.Space(3))
+					uikit.DataBody(c, raw).TextColor(t.Text).Selectable().Padding(t.Space(uikit.SpaceL))
 				}
 			}
 			for _, key := range slices.Sorted(maps.Keys(headers)) {
@@ -1136,16 +1136,16 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 						Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key))).PopoverMenu(
 						a.headerFilterMenu(c, key, headers[key]))
 
-					ui.Text(c, value).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable().PopoverMenu(a.headerFilterMenu(c, key, headers[key]))
+					uikit.DataBody(c, value).TextColor(t.Text).Grow(1).Selectable().PopoverMenu(a.headerFilterMenu(c, key, headers[key]))
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}
 			if len(trailers) > 0 {
-				uikit.Label(c, locales.Trailers()).Padding(t.Space(2), t.Space(3), t.Space(1)).FillWidth()
+				uikit.Label(c, locales.Trailers()).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL), t.Space(uikit.SpaceXS)).FillWidth()
 				for _, key := range slices.Sorted(maps.Keys(trailers)) {
 					uikit.KVRow(c, func() {
 						uikit.Hint(c, key).Font(uikit.FontMono).Width(124).SingleLine()
-						ui.Text(c, strings.Join(trailers[key], "\n")).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable()
+						uikit.DataBody(c, strings.Join(trailers[key], "\n")).TextColor(t.Text).Grow(1).Selectable()
 					})
 				}
 			}
@@ -1159,15 +1159,15 @@ func (a *app) paramsSide(c *ui.Context, f flow) {
 	t := c.Theme()
 	parsed, err := url.Parse(cmp.Or(f.url, f.scheme+"://"+f.host+f.path))
 	if err != nil || len(parsed.Query()) == 0 {
-		uikit.Hint(c, locales.NoQueryParametersInThis()).Padding(t.Space(4))
+		uikit.Hint(c, locales.NoQueryParametersInThis()).Padding(t.Space(uikit.SpaceXL))
 		return
 	}
 	ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 		for _, key := range slices.Sorted(maps.Keys(parsed.Query())) {
 			for _, value := range parsed.Query()[key] {
 				uikit.KVRow(c, func() {
-					uikit.Hint(c, key).Font(uikit.FontMono).Width(140).SingleLine()
-					ui.Text(c, value).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable()
+					uikit.Hint(c, key).Font(uikit.FontMono).Width(uikit.WidthPicker).SingleLine()
+					uikit.DataBody(c, value).TextColor(t.Text).Grow(1).Selectable()
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}
@@ -1184,7 +1184,7 @@ func (a *app) rawSide(c *ui.Context, f flow, side int) {
 		buf.SetLanguage(editor.LanguageNamed("http"))
 		a.rawEditor[side] = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.RawMessage()}
 	}
-	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Meta(c, locales.AsSentAndReceivedCapture()).Grow(1)
 		if uikit.SecondaryButton(c, locales.CopyRaw()).Disabled(a.rawText[side] == "").Clicked() {
 			c.Services().WriteClipboard(a.rawText[side])
@@ -1201,10 +1201,10 @@ func (a *app) rawSide(c *ui.Context, f flow, side int) {
 func (a *app) diffPane(c *ui.Context, f flow) {
 	t := c.Theme()
 	if !a.diffBaseline {
-		uikit.Hint(c, locales.NoPreviousResponseForThis()).Padding(t.Space(4))
+		uikit.Hint(c, locales.NoPreviousResponseForThis()).Padding(t.Space(uikit.SpaceXL))
 		return
 	}
-	ui.Row(c).Padding(t.Space(2), t.Space(3)).Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
 		uikit.Meta(c, locales.PreviousResponseLeft()).Grow(1)
 		uikit.Meta(c, locales.CurrentResponseRight()).Grow(1)
 	})

@@ -422,8 +422,8 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 	uikit.SettingsCard(c, locales.Upstream2(), func() {
 		if a.upstreamProblem != "" {
 			settingsCardBlock(c, "", func() ui.Element {
-				return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, a.upstreamProblem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable().Grow(1)
+				return ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+					uikit.Callout(c, uikit.CalloutDanger, a.upstreamProblem, nil).Grow(1)
 					if !a.upstreamLoading && uikit.SecondaryButton(c, locales.Retry()).Clicked() {
 						a.retryUpstreamNow()
 					}
@@ -432,44 +432,44 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 		}
 		if u.problem != "" {
 			settingsCardBlock(c, "", func() ui.Element {
-				return ui.Text(c, u.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
+				return uikit.Callout(c, uikit.CalloutDanger, u.problem, nil)
 			}, "")
 		}
 		settingsCardRow(c, locales.DefaultText2(), func() ui.Element {
-			in := uikit.Input(c, &u.defaultAddr).Label(locales.DefaultUpstream()).Placeholder(locales.DirectConnection()).Grow(1).MinWidth(160)
+			in := uikit.Input(c, &u.defaultAddr).Label(locales.DefaultUpstream()).Placeholder(locales.DirectConnection()).Grow(1).MinWidth(uikit.WidthField)
 			if in.Changed() {
 				u.dirty = true
 			}
 			return in
 		}, locales.EmptyConnectsDirectlyAHost())
 		settingsCardBlock(c, locales.HostRules(), func() ui.Element {
-			area := uikit.TextArea(c, &u.rules).Label(locales.HostRules()).Placeholder("*.internal.test socks5://127.0.0.1:1080\napi.example.com:443 direct").Height(60).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+			area := uikit.TextArea(c, &u.rules).Label(locales.HostRules()).Placeholder("*.internal.test socks5://127.0.0.1:1080\napi.example.com:443 direct").Height(60).Font(uikit.FontMono).Radius(uikit.RadiusControl)
 			if area.Changed() {
 				u.dirty = true
 			}
 			return area
 		}, locales.OnePerLineHostPattern())
 		settingsCardBlock(c, locales.Bypass(), func() ui.Element {
-			area := uikit.TextArea(c, &u.bypass).Label(locales.BypassList()).Placeholder("localhost\n*.internal.test\n10.0.0.0/8").Height(50).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+			area := uikit.TextArea(c, &u.bypass).Label(locales.BypassList()).Placeholder("localhost\n*.internal.test\n10.0.0.0/8").Height(50).Font(uikit.FontMono).Radius(uikit.RadiusControl)
 			if area.Changed() {
 				u.dirty = true
 			}
 			return area
 		}, locales.HostsExampleComCidrLocalhost())
 		settingsCardRow(c, locales.Pac(), func() ui.Element {
-			in := uikit.Input(c, &u.pac).Label(locales.PacFileOrUrl()).Placeholder("https://example.com/proxy.pac").Grow(1).MinWidth(200)
+			in := uikit.Input(c, &u.pac).Label(locales.PacFileOrUrl()).Placeholder("https://example.com/proxy.pac").Grow(1).MinWidth(uikit.WidthFieldWide)
 			if in.Changed() {
 				u.dirty = true
 			}
 			return in
 		}, locales.ALocalPacFileOr())
 		settingsCardBlock(c, locales.Credentials(), func() ui.Element {
-			return ui.Column(c).Gap(t.Space(1)).Children(func() {
+			return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 				remove := -1
 				for i := range u.credentials {
 					row := &u.credentials[i]
-					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Wrap().Children(func() {
-						if uikit.Input(c, &row.Proxy).Label(locales.ProxyAddress()).Placeholder("http://proxy.example:8080").Width(200).MinWidth(160).Changed() {
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.End).Wrap().Children(func() {
+						if uikit.Input(c, &row.Proxy).Label(locales.ProxyAddress()).Placeholder("http://proxy.example:8080").Width(uikit.WidthFieldWide).MinWidth(uikit.WidthField).Changed() {
 							u.dirty = true
 						}
 						if uikit.Input(c, &row.Username).Label(locales.Username()).Placeholder(locales.Username()).Width(110).Changed() {
@@ -483,7 +483,7 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 						}
 					})
 					if row.Clear || row.Saved {
-						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+						ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 							switch {
 							case row.Clear:
 								uikit.Hint(c, locales.SavedPasswordWillBeRemoved())
@@ -511,16 +511,12 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 			})
 		}, locales.UsernameAndPasswordForOne())
 		settingsCardBlock(c, "", func() ui.Element {
-			return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				save := uikit.PrimaryButton(c, locales.SaveUpstream()).Disabled(u.saving)
-				if save.Clicked() {
+			return ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+				if uikit.PrimaryButtonBusy(c, locales.SaveUpstream(), u.saving).Clicked() {
 					a.saveUpstream()
 				}
 				if u.dirty && uikit.SecondaryButton(c, locales.DiscardChanges()).Disabled(u.saving).Clicked() {
 					u.loaded, u.dirty, u.problem = false, false, ""
-				}
-				if u.saving {
-					ui.Spinner(c).Label(locales.SavingUpstream())
 				}
 				uikit.Meta(c, locales.AChangeAppliesToNew())
 			})

@@ -1084,7 +1084,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 		}
 	}
 	if len(v.filters) > 0 {
-		uikit.Label(c, locales.SavedFilters2()).Padding(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
+		uikit.Label(c, locales.SavedFilters2()).Padding(t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM))
 	}
 	for _, f := range v.filters {
 		active := v.activeView().saved(f.Name) == f
@@ -1103,7 +1103,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 		if failure {
 			color = t.Danger
 		}
-		uikit.Tip(c, ui.Text(c, note).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color), v.statusDetail()).Padding(t.Space(1), t.Space(3))
+		uikit.Tip(c, uikit.Caption(c, note).TextColor(color), v.statusDetail()).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))
 	}
 	if closing >= 0 {
 		v.closeView(a, closing)
@@ -1127,14 +1127,14 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 		return
 	}
 	uikit.Modal(c, &v.filterOpen, locales.FilterNamed(v.label(v.active)), func() {
-		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
+		ui.Column(c).Width(560).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			uikit.DialogTitle(c, locales.FilterNamed(v.label(v.active)))
 			ui.Field(c, locales.MatchPopulatedFields(), func() {
 				uikit.SelectLabels(c, &v.editMatch, []string{"All (AND)", "Any (OR)"}, optionLabel).Label(locales.FilterCombination())
 			}).Description(locales.SearchSidebarProtocolAndTime())
 			uikit.Meta(c, locales.HostAndAppMatchExactly())
 			problem := ""
-			ui.Row(c).Gap(t.Space(3)).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceL)).Children(func() {
 				ui.Field(c, locales.HostExactIncludingPort(), func() {
 					uikit.Input(c, &v.editTriage.Host).Label(locales.FilterHost()).Placeholder("api.example.com")
 				}).Grow(1)
@@ -1153,7 +1153,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 					problem = text
 				}
 			}
-			ui.Row(c).Gap(t.Space(3)).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceL)).Children(func() {
 				ui.Field(c, locales.MethodCommaSeparated(), func() {
 					uikit.Input(c, &v.editTriage.Method).Label(locales.FilterMethod()).Placeholder("GET, POST")
 				}).Grow(1)
@@ -1171,7 +1171,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 					}
 				}).Width(150)
 			})
-			ui.Row(c).Gap(t.Space(3)).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceL)).Children(func() {
 				for _, field := range []struct {
 					label string
 					value *string
@@ -1194,7 +1194,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 					}
 				}
 			}
-			ui.Row(c).Gap(t.Space(3)).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceL)).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 					uikit.FormRow(c, locales.Status(), "", problem, func() {
 						uikit.InputState(c, &v.editStatus, problem != "").Label(locales.FilterStatus()).Placeholder(locales.N4xx5xx())
@@ -1206,7 +1206,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 					})
 				})
 			})
-			ui.Row(c).Gap(t.Space(3)).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceL)).Children(func() {
 				ui.Field(c, locales.NoteContains(), func() {
 					uikit.Input(c, &v.editTriage.Note).Label(locales.FilterNote()).Placeholder(locales.CaseInsensitiveText())
 				}).Grow(1)
@@ -1219,9 +1219,9 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 				if failure {
 					color = t.Danger
 				}
-				uikit.Tip(c, ui.Text(c, note).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color), v.statusDetail())
+				uikit.Tip(c, uikit.Caption(c, note).TextColor(color), v.statusDetail())
 			}
-			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Justify(ui.End).Children(func() {
 				if uikit.SecondaryButton(c, locales.Clear()).Clicked() {
 					v.editStatus, v.editHeader, v.editBody = "", "", ""
 					v.editTriage = captureTriage{}
@@ -1271,7 +1271,7 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 		return
 	}
 	uikit.Modal(c, &v.savedOpen, locales.SavedCaptureFilters(), func() {
-		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
+		ui.Column(c).Width(560).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			uikit.DialogTitle(c, locales.SavedCaptureFilters())
 			uikit.Meta(c, locales.AFilterKeepsThisView())
 			if len(v.filters) == 0 {
@@ -1279,7 +1279,7 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 			}
 			for _, f := range v.filters {
 				name := f.Name
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					uikit.Tip(c, uikit.Body(c, name).Grow(1).SingleLine(), name)
 					if uikit.CompactButton(c, locales.Apply()).Label(locales.ApplyNamed(strconv.Quote(name))).Clicked() {
 						v.applySaved(a, name)
@@ -1300,12 +1300,12 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 				uikit.Meta(c, locales.RenamingFilter(strconv.Quote(v.renaming)))
 			}
 			if v.problem != "" {
-				ui.Text(c, v.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+				uikit.ErrorText(c, v.problem)
 			}
 			if v.note != "" {
 				uikit.Meta(c, v.note)
 			}
-			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Justify(ui.End).Children(func() {
 				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					v.savedOpen = false
 					v.renaming = ""
@@ -1334,7 +1334,7 @@ func (v *captureViews) renameViewModal(c *ui.Context, t *ui.Theme) {
 	}
 	open := true
 	uikit.Modal(c, &open, locales.RenameView(), func() {
-		ui.Column(c).Width(420).Gap(t.Space(2)).Children(func() {
+		ui.Column(c).Width(420).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			uikit.DialogTitle(c, locales.RenameView())
 			ui.Field(c, locales.FilterName(), func() {
 				input := uikit.Input(c, &v.viewName).Label(locales.FilterName()).Placeholder(locales.NameThisViewSConditions())
@@ -1342,7 +1342,7 @@ func (v *captureViews) renameViewModal(c *ui.Context, t *ui.Theme) {
 					v.nameView("")
 				}
 			})
-			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Justify(ui.End).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					v.renamingView = -1
 				}

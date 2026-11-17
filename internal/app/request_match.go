@@ -151,11 +151,12 @@ func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
 	if len(matches) > 1 {
 		label = locales.MatchesCount(len(matches))
 	}
-	anchor := uikit.Tip(c, ui.Link(c.Key("captured-request-match"), label, "").FontSize(uikit.Scaled(uikit.TextMeta)).
+	// Bare: a text link that runs an action inside a tip, not a button, so the kit's LinkButton does not fit.
+	anchor := uikit.Tip(c, ui.Link(c.Key("captured-request-match"), label, "").
 		Bind(&a.matchUI.anchor).SingleLine().MinWidth(0), locales.SavedRequestsMatchingThisMethod())
 	anchor.OnClick(func() {
 		a.matchUI.open = !a.matchUI.open
-		a.matchUI.gap = t.Space(1)
+		a.matchUI.gap = t.Space(uikit.SpaceXS)
 		// If MyGo must flip below the header, leave the existing URL/Send
 		// row exposed. Read committed geometry in the action, not an element
 		// from the previous build. The same gap is harmless above the header.
@@ -163,7 +164,7 @@ func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
 			bar := d.urlInput.Bounds(c)
 			link := a.matchUI.anchor.Bounds(c)
 			if bar.H > 0 && link.H > 0 {
-				a.matchUI.gap = max(a.matchUI.gap, bar.Y+bar.H-link.Y-link.H+t.Space(3))
+				a.matchUI.gap = max(a.matchUI.gap, bar.Y+bar.H-link.Y-link.H+t.Space(uikit.SpaceL))
 			}
 		}
 	})
@@ -172,16 +173,16 @@ func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
 		// MyGo flips only when there is insufficient room above the anchor.
 		width, height := c.Size()
 		uikit.PopoverPanel(c, panel).AttachTo(anchor, ui.AnchorTopLeft, ui.AnchorBottomLeft).
-			Margin(0, 0, a.matchUI.gap, 0).Padding(t.Space(3)).Width(min(400, width-32)).MaxHeight(height - 32).Gap(t.Space(2))
+			Margin(0, 0, a.matchUI.gap, 0).Padding(t.Space(uikit.SpaceL)).Width(min(400, width-32)).MaxHeight(height - 32).Gap(t.Space(uikit.SpaceM))
 		uikit.Meta(c, locales.MatchesMethodFullPathSegments())
 		ui.Scroll(c).MaxHeight(min(280, height-120)).MinHeight(0).Children(func() {
-			ui.Column(c).Gap(t.Space(3)).Children(func() {
+			ui.Column(c).Gap(t.Space(uikit.SpaceL)).Children(func() {
 				for _, r := range matches {
-					ui.Column(c.Key(r.key())).Gap(t.Space(1)).Children(func() {
+					ui.Column(c.Key(r.key())).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 						uikit.Body(c, r.Name)
 						uikit.Tip(c, uikit.Meta(c, locales.CollectionPath(cmp.Or(r.Collection, locales.Unfiled()))).SingleLine(), r.Collection)
 						uikit.Tip(c, uikit.Mono(c, cmp.Or(r.Method, "GET")+" "+r.URL).SingleLine(), r.URL)
-						ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+						ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().Children(func() {
 							uikit.SecondaryButton(c, locales.OpenRequest()).Label("Open request: " + r.Name).OnClick(func() {
 								a.matchUI.open = false
 								a.openSaved(r.key())

@@ -47,8 +47,8 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 		})
 		uikit.SettingsCard(c, locales.Collections(), func() {
 			settingsCardBlock(c, locales.ProjectFolder(), func() ui.Element {
-				return ui.Column(c).Gap(t.Space(1)).Children(func() {
-					ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 						uikit.Input(c, &a.projectInput).Label(locales.ProjectFolder()).Placeholder(locales.Automatic()).Width(260)
 						if uikit.SecondaryButton(c, locales.Save()).Clicked() {
 							a.setProjectDir(a.projectInput)
@@ -77,7 +77,7 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, locales.ReadRulesScriptsHostProfiles())
 			settingsCardRow(c, locales.BackUpAndShare(), func() ui.Element {
-				return ui.Row(c).Gap(t.Space(2)).Children(func() {
+				return ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 					if uikit.SecondaryButton(c, locales.Export()).Clicked() {
 						a.chooseConfigExport()
 					}
@@ -126,7 +126,7 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 		})
 		uikit.SettingsCard(c, locales.AboutVscroxy(), func() {
 			settingsCardRow(c, locales.Version(), func() ui.Element {
-				return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				return ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					uikit.Meta(c, version.String())
 					if uikit.SecondaryButton(c, locales.AboutVscroxy()).Clicked() {
 						a.leaveSettings()
@@ -166,11 +166,11 @@ func (a *app) proxySettings(c *ui.Context, t *ui.Theme) {
 				if a.srv != nil && a.srv.Running() {
 					return uikit.Mono(c, a.srv.Addr()).Selectable()
 				}
-				return ui.Text(c, locales.CaptureIsNotRunning()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
+				return uikit.Body(c, locales.CaptureIsNotRunning()).TextColor(t.Warning)
 			}, "")
 			settingsCardBlock(c, locales.Port(), func() ui.Element {
-				return ui.Column(c).Gap(t.Space(1)).Children(func() {
-					ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 						uikit.Input(c, &a.proxyPortInput).Label(locales.ProxyPort()).Placeholder(locales.Automatic()).Width(100).
 							Invalid(a.proxyPortProblem != "")
 						if uikit.SecondaryButton(c, locales.SaveForNextLaunch()).Clicked() {
@@ -179,7 +179,7 @@ func (a *app) proxySettings(c *ui.Context, t *ui.Theme) {
 						restartPending(c, a.proxyPort != a.launchPort)
 					})
 					if a.proxyPortProblem != "" {
-						ui.Text(c, a.proxyPortProblem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+						uikit.ErrorText(c, a.proxyPortProblem)
 					}
 				})
 			}, locales.BlankIsAutomaticPrefers7890())
@@ -195,7 +195,7 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 	// list is a field of a host or app list: its editor and how many it has.
 	list := func(label, text, unit, about string, open *bool) ui.Element {
 		return settingsCardRow(c, label, func() ui.Element {
-			return ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+			return ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 				if uikit.SecondaryButton(c, label+"…").Clicked() {
 					a.leaveSettings()
 					*open = true
@@ -235,7 +235,7 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 			}, locales.ShowOnlyTheHostsAnd())
 			if problem != "" {
 				settingsCardBlock(c, "", func() ui.Element {
-					return uikit.Hint(c, problem).TextColor(t.Danger)
+					return uikit.ErrorText(c, problem)
 				}, "")
 			}
 			list("Allowed hosts", a.allowText, "host", "Each host with its subdomains.", &a.allowOpen)
@@ -254,7 +254,7 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 						labels[i] = label(n)
 					}
 					choice := label(cmp.Or(*value, fallback))
-					sel := uikit.Select(c, &choice, labels).Label(name).Width(160)
+					sel := uikit.Select(c, &choice, labels).Label(name).Width(uikit.WidthField)
 					if i := slices.Index(labels, choice); i >= 0 && options[i] != cmp.Or(*value, fallback) {
 						*value = options[i]
 						a.trimFlows()

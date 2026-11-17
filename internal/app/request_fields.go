@@ -28,12 +28,12 @@ func (a *app) pathEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		return
 	}
 	noun := locales.Parameter()
-	ui.Column(c).Gap(t.Space(2)).Children(func() {
+	ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		uikit.Label(c, locales.PathParameters())
 		for i := range d.pathRows {
 			r := &d.pathRows[i]
-			ui.Row(c.Key(fmt.Sprintf("path-row-%d", i))).Height(uikit.HeightControl).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, ":"+r.Name).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Width(t.Space(27)).SingleLine()
+			ui.Row(c.Key(fmt.Sprintf("path-row-%d", i))).Height(uikit.HeightRow).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+				uikit.DataBody(c, ":"+r.Name).Width(uikit.WidthNarrow).SingleLine()
 				ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().Children(func() {
 					a.variableGridInput(c, fmt.Sprintf("path-value-%d", i), &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), d.composeCollection, false)
 				})
@@ -88,7 +88,7 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	}
 	uikit.Meta(c, locales.EditsUpdateTheUrlRepeated())
 	if d.queryError != "" {
-		ui.Text(c, d.queryError).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+		uikit.ErrorText(c, d.queryError)
 	}
 	if a.requestFieldsEditor(c, &d.queryRows, fieldsOptions{collection: d.composeCollection}, locales.Parameter()) {
 		u, err := url.Parse(d.composeURL)
@@ -130,40 +130,40 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 		// Column titles stay above the rows as they scroll, so every cell
 		// reads as a column rather than its own form.
-		ui.Row(c).Height(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Width(uikit.HeightLarge).FillHeight()
+		ui.Row(c).Height(uikit.HeightRow).AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Width(uikit.HeightControl).FillHeight()
 			// The cell's padding stays on the label inside it. On the flex
 			// item itself, padding joins its base size and would make the
 			// header columns wider than the rows' cells.
 			// The key column keeps room for a common header name and the
 			// value column for a common media type: neither is squeezed to a
 			// cut-off word, and a longer value reads in full on hover.
-			ui.Box(c).Basis(0).Grow(1).MinWidth(t.Space(27)).FillHeight().Children(func() {
-				uikit.Label(c, locales.Key()).FillWidth().Padding(t.Space(1), t.Space(2))
+			ui.Box(c).Basis(0).Grow(1).MinWidth(uikit.WidthNarrow).FillHeight().Children(func() {
+				uikit.Label(c, locales.Key()).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM))
 			})
-			ui.Box(c).Basis(0).Grow(2).MinWidth(t.Space(30)).FillHeight().Children(func() {
-				uikit.Label(c, locales.Value()).FillWidth().Padding(t.Space(1), t.Space(2))
+			ui.Box(c).Basis(0).Grow(2).MinWidth(uikit.WidthNarrow).FillHeight().Children(func() {
+				uikit.Label(c, locales.Value()).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM))
 			})
 			if opts.secret {
-				ui.Box(c).Width(uikit.HeightControl)
+				ui.Box(c).Width(uikit.HeightRow)
 			}
 			if opts.file {
 				uikit.Label(c, locales.File()).Width(64)
 			}
-			ui.Box(c).Width(uikit.HeightLarge)
+			ui.Box(c).Width(uikit.HeightControl)
 		})
 		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 			for i := range *rows {
 				r := &(*rows)[i]
-				row := ui.Row(c.Key(i)).Height(uikit.HeightControl).AlignItems(ui.Center)
+				row := ui.Row(c.Key(i)).Height(uikit.HeightRow).AlignItems(ui.Center)
 				row.Children(func() {
-					ui.Box(c).Width(uikit.HeightLarge).FillHeight().Center().Children(func() {
+					ui.Box(c).Width(uikit.HeightControl).FillHeight().Center().Children(func() {
 						enabled := !r.Disabled
-						if uikit.Tip(c, ui.Checkbox(c, &enabled, "").Label(locales.EnableRow(noun, i+1)), locales.UncheckedRowsStayHereAnd()).Changed() {
+						if uikit.Tip(c, uikit.Checkbox(c, &enabled, "").Label(locales.EnableRow(noun, i+1)), locales.UncheckedRowsStayHereAnd()).Changed() {
 							r.Disabled, changed = !enabled, true
 						}
 					})
-					ui.Box(c).Basis(0).Grow(1).MinWidth(t.Space(27)).FillHeight().Children(func() {
+					ui.Box(c).Basis(0).Grow(1).MinWidth(uikit.WidthNarrow).FillHeight().Children(func() {
 						field := a.variableGridInput(c, fmt.Sprintf("%s-key-%d", noun, i+1), &r.Name, locales.Key(), locales.KeyOfRow(noun, i+1), opts.collection, false)
 						cellBorder(t, field, false, false)
 						if values, ok := opts.filters[r.Name]; ok {
@@ -180,7 +180,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 					// through a table cannot put one on a shared screen.
 					secret := opts.secret && sensitiveHeader(r.Name)
 					masked := secret && !r.Revealed
-					ui.Box(c).Basis(0).Grow(2).MinWidth(t.Space(30)).FillHeight().Children(func() {
+					ui.Box(c).Basis(0).Grow(2).MinWidth(uikit.WidthNarrow).FillHeight().Children(func() {
 						value := a.variableGridInput(c, fmt.Sprintf("%s-value-%d", noun, i+1), &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), opts.collection, masked)
 						if masked {
 							value.Password()
@@ -210,16 +210,16 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 					} else if opts.secret {
 						// Every header keeps the same action column, even when
 						// its value does not need an explicit reveal control.
-						ui.Box(c).Width(uikit.HeightControl)
+						ui.Box(c).Width(uikit.HeightRow)
 					}
 					if opts.file {
 						ui.Box(c).Width(64).Children(func() {
-							if ui.Checkbox(c, &r.File, "File").Label(locales.FilePartLabel(i + 1)).Changed() {
+							if uikit.Checkbox(c, &r.File, locales.File()).Label(locales.FilePartLabel(i + 1)).Changed() {
 								changed = true
 							}
 						})
 					}
-					ui.Box(c).Width(uikit.HeightLarge).Center().Children(func() {
+					ui.Box(c).Width(uikit.HeightControl).Center().Children(func() {
 						label := locales.RemoveRow(noun, i+1)
 						// The action column ends at the grid's edge, so keep
 						// its focus ring inside the button instead of clipping
@@ -238,7 +238,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 			}
 			// The spacer carries the row to the full width, so the action stays
 			// at the table's left edge rather than in the middle.
-			ui.Row(c).MinHeight(uikit.HeightControl).Gap(t.Space(2)).Children(func() {
+			ui.Row(c).MinHeight(uikit.HeightRow).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				// The row sits on the scroll's bottom edge; keep the focus
 				// ring inside it instead of clipping it against the border.
 				if uikit.ToolbarButton(c, locales.AddNoun(noun), locales.AddNoun(noun), false).FocusRingOffset(-2).Children(func() {
@@ -265,8 +265,8 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 // Base inputs keep the grid's cells borderless at rest without losing native
 // text editing, password handling, accessibility or keyboard focus rings.
 func requestGridInput(c *ui.Context, value *string, placeholder, label string) ui.Element {
-	return ui.TextInputBase(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
-		FillHeight().Padding(0, c.Theme().Space(2)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).
+	return uikit.InputControl(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
+		FillHeight().Padding(0, c.Theme().Space(uikit.SpaceM)).Font(uikit.FontMono).
 		Border(1, ui.Color{})
 }
 
@@ -382,7 +382,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 }
 
 func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
-	ui.Scroll(c).Grow(1).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
+	ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 		a.authFields(c, &d.auth, append([]string{request.AuthInherit}, authTypes...), d.composeCollection)
 		if d.auth.Type == request.AuthOAuth2 {
 			a.savedOAuthTokens(c)
@@ -393,7 +393,7 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			if from != "" {
 				text = "Uses " + resolved.Type + " auth from " + from + "."
 			}
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, text)
 				if path := cmp.Or(from, d.composeCollection); path != "" && uikit.SecondaryButton(c, settingsLabel(path)).Clicked() {
 					a.openFolder(path)
@@ -428,7 +428,7 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 	}
 	ui.Form(c, func() {
 		ui.Field(c, locales.TypeText(), func() {
-			uikit.Select(c, &auth.Type, types).Label(locales.AuthorizationType()).Width(240)
+			uikit.Select(c, &auth.Type, types).Label(locales.AuthorizationType()).Width(uikit.WidthWide)
 		})
 		switch auth.Type {
 		case "Bearer":
@@ -442,7 +442,7 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			ui.Field(c, locales.ApiKeyName(), func() { input(&auth.Key, "API key name") })
 			ui.Field(c, locales.ApiKeyValue(), func() { password(&auth.Value, "API key value") })
 			ui.Field(c, locales.Location(), func() {
-				uikit.SelectLabels(c, &auth.Location, []string{"Header", "Query"}, optionLabel).Label(locales.ApiKeyLocation()).Width(160)
+				uikit.SelectLabels(c, &auth.Location, []string{"Header", "Query"}, optionLabel).Label(locales.ApiKeyLocation()).Width(uikit.WidthField)
 			})
 		case request.AuthOAuth2:
 			a.oauthFields(c, auth, collection)
@@ -466,7 +466,7 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			})
 			if strings.HasPrefix(o.SignatureMethod, "RSA-") {
 				ui.Field(c, locales.PrivateKey(), func() {
-					sensitiveArea(&o.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:oauth1_key}}")
+					sensitiveArea(&o.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:oauth1_key}}")
 				})
 			}
 			ui.Field(c, locales.AddAuthorizationTo(), func() {
@@ -480,14 +480,14 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 				}
 			}).Description(locales.AutomaticUsesAFormBody())
 			ui.Field(c, locales.BodyHash(), func() {
-				ui.Checkbox(c, &o.IncludeBodyHash, "Hash a non-form body")
+				uikit.Checkbox(c, &o.IncludeBodyHash, locales.HashNonFormBody())
 			}).Description(locales.AddsOauthBodyHashForm())
 			ui.Field(c, locales.EmptyParameters(), func() {
-				ui.Checkbox(c, &o.AddEmptyParamsToSign, "Include in the signature")
+				uikit.Checkbox(c, &o.AddEmptyParamsToSign, locales.IncludeInSignature())
 			})
-			ui.Field(c, locales.Timestamp(), func() { input(&o.Timestamp, "Timestamp").Placeholder(locales.Now()).Width(200) })
-			ui.Field(c, locales.Nonce(), func() { input(&o.Nonce, "Nonce").Placeholder(locales.Random()).Width(200) })
-			ui.Field(c, locales.Version(), func() { input(&o.Version, "Version").Placeholder("1.0").Width(120) })
+			ui.Field(c, locales.Timestamp(), func() { input(&o.Timestamp, "Timestamp").Placeholder(locales.Now()).Width(uikit.WidthFieldWide) })
+			ui.Field(c, locales.Nonce(), func() { input(&o.Nonce, "Nonce").Placeholder(locales.Random()).Width(uikit.WidthFieldWide) })
+			ui.Field(c, locales.Version(), func() { input(&o.Version, "Version").Placeholder("1.0").Width(uikit.WidthNarrow) })
 			ui.Field(c, locales.Realm(), func() { input(&o.Realm, "Realm").Placeholder(locales.Optional()) })
 			ui.Field(c, locales.CallbackUrl(), func() { input(&o.Callback, "Callback URL").Placeholder(locales.OptionalOauthCallback()) })
 			ui.Field(c, locales.Verifier(), func() { input(&o.Verifier, "Verifier").Placeholder(locales.OptionalOauthVerifier()) })
@@ -505,7 +505,7 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			ui.Field(c, locales.Domain(), func() { input(&n.Domain, "Domain").Placeholder(locales.Optional()) })
 			ui.Field(c, locales.Workstation(), func() { input(&n.Workstation, "Workstation").Placeholder(locales.OptionalWorkstationExample()) })
 			ui.Field(c, locales.Retry(), func() {
-				ui.Checkbox(c, &n.DisableRetry, locales.DisableRetryingTheRequest())
+				uikit.Checkbox(c, &n.DisableRetry, locales.DisableRetryingTheRequest())
 			}).Description(locales.NtlmDisableRetryHint())
 		case request.AuthAWS:
 			aws := &auth.AWS
@@ -529,25 +529,25 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			if jwt.AddTo == "Query" {
 				addTo = "Query"
 			}
-			ui.Field(c, locales.Algorithm(), func() { uikit.Select(c, &jwt.Algorithm, request.JWTAlgorithms).Width(160) })
+			ui.Field(c, locales.Algorithm(), func() { uikit.Select(c, &jwt.Algorithm, request.JWTAlgorithms).Width(uikit.WidthField) })
 			if strings.HasPrefix(jwt.Algorithm, "HS") {
 				ui.Field(c, locales.Secret(), func() {
 					password(&jwt.Secret, "Secret").Placeholder("{{vault:jwt_secret}}")
 				})
-				ui.Field(c, "", func() { ui.Checkbox(c, &jwt.SecretBase64, "Secret is base64-encoded") })
+				ui.Field(c, "", func() { uikit.Checkbox(c, &jwt.SecretBase64, locales.SecretIsBase64()) })
 			} else {
 				ui.Field(c, locales.PrivateKey(), func() {
-					sensitiveArea(&jwt.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
+					sensitiveArea(&jwt.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
 				})
 			}
 			ui.Field(c, locales.Payload(), func() {
-				area(&jwt.Payload, "Payload").Height(72).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Placeholder("{\"sub\": \"{{user_id}}\"}")
+				area(&jwt.Payload, "Payload").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder("{\"sub\": \"{{user_id}}\"}")
 			})
 			ui.Field(c, locales.ExtraHeader(), func() {
 				input(&jwt.Header, "Extra header").Placeholder(locales.OptionalEGKidKey()).Font(uikit.FontMono)
 			})
 			ui.Field(c, locales.AddTokenTo(), func() {
-				if uikit.SelectLabels(c, &addTo, []string{"Header", "Query"}, optionLabel).Width(160).Changed() {
+				if uikit.SelectLabels(c, &addTo, []string{"Header", "Query"}, optionLabel).Width(uikit.WidthField).Changed() {
 					jwt.AddTo = ""
 					if addTo == "Query" {
 						jwt.AddTo = "Query"
@@ -555,7 +555,7 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 				}
 			})
 			if jwt.AddTo == "Query" {
-				ui.Field(c, locales.QueryParameter(), func() { input(&jwt.QueryParam, "Query parameter").Placeholder("token").Width(200) })
+				ui.Field(c, locales.QueryParameter(), func() { input(&jwt.QueryParam, "Query parameter").Placeholder("token").Width(uikit.WidthFieldWide) })
 			} else {
 				ui.Field(c, locales.HeaderPrefix(), func() { input(&jwt.Prefix, "Header prefix").Placeholder(locales.Bearer()).Width(150) })
 			}
@@ -569,13 +569,13 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 				password(&h.AuthKey, "Auth key").Placeholder("{{vault:hawk_key}}")
 			})
 			ui.Field(c, locales.Algorithm(), func() {
-				uikit.Select(c, &h.Algorithm, request.HawkAlgorithms).Width(160)
+				uikit.Select(c, &h.Algorithm, request.HawkAlgorithms).Width(uikit.WidthField)
 			})
 			ui.Field(c, locales.PayloadHash(), func() {
-				ui.Checkbox(c, &h.IncludePayloadHash, "Include payload hash")
+				uikit.Checkbox(c, &h.IncludePayloadHash, locales.IncludePayloadHash())
 			}).Description(locales.CoversContentTypeAndThe())
-			ui.Field(c, locales.Timestamp(), func() { input(&h.Timestamp, "Timestamp").Placeholder(locales.Now()).Width(200) })
-			ui.Field(c, locales.Nonce(), func() { input(&h.Nonce, "Nonce").Placeholder(locales.Random()).Width(200) })
+			ui.Field(c, locales.Timestamp(), func() { input(&h.Timestamp, "Timestamp").Placeholder(locales.Now()).Width(uikit.WidthFieldWide) })
+			ui.Field(c, locales.Nonce(), func() { input(&h.Nonce, "Nonce").Placeholder(locales.Random()).Width(uikit.WidthFieldWide) })
 			ui.Field(c, locales.Ext(), func() { input(&h.ExtraData, "ext").Placeholder(locales.ApplicationSpecificDataOptional()) })
 			ui.Field(c, locales.App(), func() { input(&h.App, "App").Placeholder(locales.OzApplicationIdOptional()) })
 			ui.Field(c, locales.Delegation(), func() { input(&h.Delegation, "Delegation").Placeholder(locales.OzDelegatedByIdOptional()) })
@@ -588,19 +588,20 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			if s.Algorithm == "" {
 				s.Algorithm = request.ASAPAlgorithms[0]
 			}
-			ui.Field(c, locales.Algorithm(), func() { uikit.Select(c, &s.Algorithm, request.ASAPAlgorithms).Width(160) })
+			ui.Field(c, locales.Algorithm(), func() { uikit.Select(c, &s.Algorithm, request.ASAPAlgorithms).Width(uikit.WidthField) })
 			ui.Field(c, locales.Issuer(), func() { input(&s.Issuer, "Issuer") })
 			ui.Field(c, locales.Audience(), func() { input(&s.Audience, "Audience") })
 			ui.Field(c, locales.KeyId(), func() { input(&s.KeyID, "Key ID") })
 			ui.Field(c, locales.PrivateKey(), func() {
-				sensitiveArea(&s.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:asap_key}}")
+				sensitiveArea(&s.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:asap_key}}")
 			})
 			ui.Field(c, locales.Subject(), func() { input(&s.Subject, "Subject").Placeholder(locales.OptionalDefaultsToTheIssuer()) })
 			ui.Field(c, locales.AdditionalClaims(), func() {
-				area(&s.Claims, "Additional claims").Height(72).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Placeholder(`{"custom": "{{value}}"}`)
+				area(&s.Claims, "Additional claims").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder(`{"custom": "{{value}}"}`)
 			})
 			ui.Field(c, locales.Expiry(), func() {
 				expiry := float64(cmp.Or(s.Expiry, 3600))
+				// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
 				if ui.NumberInput(c, &expiry, 1, 86400, 1).Label(locales.Expiry()).Changed() {
 					s.Expiry = int(expiry)
 				}
@@ -616,13 +617,13 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			ui.Field(c, locales.BaseUrl(), func() {
 				input(&e.BaseURL, "Base URL").Placeholder(locales.RequestHostByDefault())
 			}).Description(locales.TheHostTheSignatureCovers())
-			ui.Field(c, locales.Timestamp(), func() { input(&e.Timestamp, "Timestamp").Placeholder(locales.Now()).Width(240) })
-			ui.Field(c, locales.Nonce(), func() { input(&e.Nonce, "Nonce").Placeholder(locales.RandomUuid()).Width(240) })
+			ui.Field(c, locales.Timestamp(), func() { input(&e.Timestamp, "Timestamp").Placeholder(locales.Now()).Width(uikit.WidthWide) })
+			ui.Field(c, locales.Nonce(), func() { input(&e.Nonce, "Nonce").Placeholder(locales.RandomUuid()).Width(uikit.WidthWide) })
 			ui.Field(c, locales.HeadersToSign(), func() {
 				input(&e.HeadersToSign, "Headers to sign").Placeholder(locales.CommaSeparatedEGX())
 			}).Description(locales.NamesAreSignedInThis())
 		}
-	}).Gap(t.Space(3))
+	}).Gap(t.Space(uikit.SpaceL))
 }
 
 func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
@@ -656,7 +657,7 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 			if transport != "" {
 				label = transport
 			}
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, locales.GraphqlTransport()).Grow(1)
 				if uikit.Select(c, &label, []string{"HTTP POST", "graphql-ws", "graphql-transport-ws"}).Width(190).Changed() {
 					if label == "HTTP POST" {
@@ -667,7 +668,8 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 				}
 				if d.graphql.Transport != "" {
 					wait := float64(cmp.Or(d.graphql.WaitMS, 5000))
-					if ui.NumberInput(c, &wait, 100, 60000, 100).Label(locales.WaitMilliseconds()).Width(140).Changed() {
+					// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
+					if ui.NumberInput(c, &wait, 100, 60000, 100).Label(locales.WaitMilliseconds()).Width(uikit.WidthPicker).Changed() {
 						d.graphql.WaitMS = int(wait)
 					}
 				}
@@ -689,8 +691,8 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		}
 	} else if d.bodyMode == "Binary" {
 		uikit.Meta(c, locales.BinaryFileUpTo16())
-		ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-			a.variableInput(c, "body-file", &d.bodyFile, "Binary body file", d.composeCollection).Placeholder(locales.LocalPathOrUploadPath()).Font(uikit.FontMono).Grow(1).MinWidth(120)
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
+			a.variableInput(c, "body-file", &d.bodyFile, "Binary body file", d.composeCollection).Placeholder(locales.LocalPathOrUploadPath()).Font(uikit.FontMono).Grow(1).MinWidth(uikit.WidthNarrow)
 			if uikit.SecondaryButton(c, locales.ChooseFile()).Label(locales.ChooseBinaryBodyFile()).Clicked() && a.win != nil {
 				win, before := a.win, d.bodyFile
 				go func() {
@@ -729,17 +731,18 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 func (a *app) webSocketMessagesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	remove := -1
 	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
-		ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-			uikit.Meta(c, locales.WebSocketMessagesHelp()).Grow(1).MinWidth(200)
-			ui.NumberInput(c, &d.wsWait, 0, 60000, 100).Label(locales.WebSocketReplyWindowMs()).Width(160)
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
+			uikit.Meta(c, locales.WebSocketMessagesHelp()).Grow(1).MinWidth(uikit.WidthFieldWide)
+			// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
+			ui.NumberInput(c, &d.wsWait, 0, 60000, 100).Label(locales.WebSocketReplyWindowMs()).Width(uikit.WidthField)
 		})
-		ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			for i := range d.wsMessages {
 				message := &d.wsMessages[i]
-				row := ui.Row(c.Key(i)).AlignItems(ui.Start).Gap(t.Space(2))
+				row := ui.Row(c.Key(i)).AlignItems(ui.Start).Gap(t.Space(uikit.SpaceM))
 				row.Children(func() {
-					ui.Text(c, strconv.Itoa(i+1)).FontSize(uikit.Scaled(uikit.TextMeta)).
-						TextColor(t.TextMuted).Width(t.Space(3)).Padding(t.Space(2), 0)
+					uikit.Caption(c, strconv.Itoa(i+1)).
+						TextColor(t.TextMuted).Width(t.Space(uikit.SpaceL)).Padding(t.Space(uikit.SpaceM), 0)
 					if message.Encoding == "" {
 						message.Encoding = "Text"
 					}
@@ -747,14 +750,14 @@ func (a *app) webSocketMessagesEditor(c *ui.Context, d *requestDocument, t *ui.T
 						Label(locales.WebsocketMessageEncoding()).Width(104)
 					uikit.TextArea(c, &message.Payload).Label(locales.WebSocketMessageOf(i + 1)).
 						Placeholder(locales.TextHexBytesOrPadded()).Height(54).Font(uikit.FontMono).
-						FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(0)
+						Grow(1).MinWidth(0)
 					label := locales.RemoveMessage(i + 1)
 					if uikit.IconButton(c, label, label, closeIcon).Clicked() {
 						remove = i
 					}
 				})
 			}
-			ui.Row(c).MinHeight(uikit.HeightControl).Children(func() {
+			ui.Row(c).MinHeight(uikit.HeightRow).Children(func() {
 				if uikit.ToolbarButton(c, locales.AddMessage(), locales.AddMessage(), false).Children(func() {
 					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
 					uikit.Body(c, locales.AddMessage())

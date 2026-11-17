@@ -228,26 +228,26 @@ func (a *app) hostsLabel() string {
 // Tools.
 func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 	h := &a.profiles
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), t.Space(1), t.Space(1), t.Space(2)).Children(func() {
-		ui.Text(c, locales.HostProfiles()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Text).Grow(1)
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceXS), t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
+		uikit.BodyStrong(c, locales.HostProfiles()).TextColor(t.Text).Grow(1)
 		a.hostsMode(c)
 	})
 	if len(h.set.Profiles) == 0 {
-		uikit.Meta(c, locales.NoProfilesYetMapHosts()).Padding(t.Space(1), t.Space(2))
+		uikit.Meta(c, locales.NoProfilesYetMapHosts()).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM))
 	}
 	conflicts := a.profileConflicts()
 	for i, p := range h.set.Profiles {
-		ui.Row(c.Key("hosts-menu-"+p.Name)).Height(uikit.HeightLarge).Gap(t.Space(2)).AlignItems(ui.Center).Padding(0, t.Space(2)).Children(func() {
+		ui.Row(c.Key("hosts-menu-"+p.Name)).Height(uikit.HeightControl).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Padding(0, t.Space(uikit.SpaceM)).Children(func() {
 			on := p.On
 			if uikit.Switch(c, &on).Label("Host profile: " + p.Name).Changed() {
 				a.switchProfile(i, on)
 			}
-			ui.Text(c, p.Name).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine().MinWidth(0)
+			uikit.Body(c, p.Name).TextColor(t.Text).SingleLine().MinWidth(0)
 			if p.URL != "" {
 				uikit.Tip(c, uikit.Glyph(c, subscribeIcon), "Subscribed: "+p.URL)
 			}
 			if n := conflicts[p.Name]; n > 0 && p.On {
-				ui.Text(c, locales.ConflictsCount(n)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).SingleLine().
+				uikit.Caption(c, locales.ConflictsCount(n)).TextColor(t.Warning).SingleLine().
 					Tooltip(locales.AHigherProfileMapsThe())
 			}
 			ui.Spacer(c)
@@ -255,7 +255,7 @@ func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 			uikit.Meta(c, locales.HostsCount(n)).Font(uikit.FontMono).FontFeatures("tnum").SingleLine()
 		})
 	}
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), t.Space(2)).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
 		uikit.Meta(c, locales.AppliesToNewConnections()).Grow(1).SingleLine()
 		ui.Row(c).Disabled(a.srv == nil).Children(func() {
 			if uikit.Tip(c, uikit.CompactButton(c, locales.DropOpenConnections()), locales.CloseTheClientsOpenConnections()).Clicked() {
@@ -266,7 +266,7 @@ func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 	ui.Divider(c)
 	manage := pick(a.hostsActions(), "hosts.manage")
 	if uikit.RowButton(c, locales.ManageProfiles()).Children(func() {
-		ui.Text(c, locales.ManageProfiles()).Grow(1)
+		uikit.Body(c, locales.ManageProfiles()).Grow(1)
 		uikit.Meta(c, manage.shortcut.String())
 	}).Clicked() {
 		h.menuOpen = false

@@ -592,11 +592,11 @@ func (a *app) configImportDialog(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, locales.ImportConfiguration())
 			uikit.Meta(c, locales.ExportedFile(filepath.Base(in.path), b.Exported.Local().Format("2006-01-02 15:04")))
 			uikit.Prose(c, locales.ThePartsYouChooseReplace())
-			ui.Column(c).Gap(t.Space(2)).Children(func() {
+			ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				part := func(i int, available bool, label, detail string) {
-					ui.Column(c).Gap(t.Space(0.5)).Disabled(!available).Children(func() {
-						ui.Checkbox(c, &in.parts[i], label)
-						uikit.Meta(c, detail).Padding(0, 0, 0, t.Space(6))
+					ui.Column(c).Gap(t.Space(uikit.SpaceHair)).Disabled(!available).Children(func() {
+						uikit.Checkbox(c, &in.parts[i], label)
+						uikit.Meta(c, detail).Padding(0, 0, 0, t.Space(uikit.Space2XL))
 					})
 					if !available {
 						in.parts[i] = false
@@ -617,11 +617,8 @@ func (a *app) configImportDialog(c *ui.Context, t *ui.Theme) {
 				if uikit.SecondaryButton(c, locales.Cancel()).Disabled(in.importing).Clicked() {
 					in.open = false
 				}
-				if in.importing {
-					ui.Spinner(c).Label(locales.ImportingConfiguration())
-				}
 				ui.Row(c).Disabled(in.parts == [3]bool{} || in.importing).Children(func() {
-					if uikit.PrimaryButton(c, locales.Replace()).Clicked() {
+					if uikit.PrimaryButtonBusy(c, locales.Replace(), in.importing).Clicked() {
 						if a.win == nil {
 							if err := a.importConfig(b, in.parts); err != nil {
 								a.fail(locales.ImportConfiguration(), err)

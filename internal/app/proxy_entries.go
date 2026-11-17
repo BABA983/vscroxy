@@ -152,10 +152,10 @@ func (a *app) saveSOCKS() {
 
 func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
 	uikit.SettingsCard(c, locales.Socks5(), func() {
-		ui.Row(c).FillWidth().MinHeight(uikit.SettingsRowHeight).Padding(t.Space(1), t.Space(4)).
-			Gap(t.Space(4)).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).
+		ui.Row(c).FillWidth().MinHeight(uikit.SettingsRowHeight).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceXL)).
+			Gap(t.Space(uikit.SpaceXL)).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).
 			Children(func() {
-				left := ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1))
+				left := ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceXS))
 				left.Children(func() {
 					uikit.Body(c, locales.Enable())
 					uikit.Small(c, locales.ASecondEntryForClients()).TextColor(t.TextMuted)
@@ -164,7 +164,7 @@ func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
 					case a.srv != nil && a.srv.SOCKSAddr() != "":
 						uikit.Mono(c, a.srv.SOCKSAddr()).Selectable().TextColor(t.TextMuted)
 					case err != nil:
-						uikit.Hint(c, err.Error()).TextColor(t.Danger)
+						uikit.ErrorText(c, err.Error())
 					case a.socksDraft() != a.socksEntry():
 						uikit.Hint(c, locales.NotSaved())
 					case a.socksEntry() != a.launchSOCKS:
@@ -177,11 +177,11 @@ func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
 			})
 		if a.socksOnDraft {
 			settingsCardBlock(c, locales.Port(), func() ui.Element {
-				return ui.Column(c).Gap(t.Space(1)).Children(func() {
+				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					uikit.Input(c, &a.socksPortInput).Label(locales.Socks5Port()).Placeholder(locales.Automatic()).Width(100).
 						Invalid(a.socksProblem != "")
 					if a.socksProblem != "" {
-						ui.Text(c, a.socksProblem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+						uikit.ErrorText(c, a.socksProblem)
 					}
 				})
 			}, locales.BlankIsAutomaticAnOs())
@@ -198,7 +198,7 @@ func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
 			}
 		}
 		settingsCardBlock(c, "", func() ui.Element {
-			return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			return ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				if uikit.SecondaryButton(c, locales.SaveSocks5Settings()).Clicked() {
 					a.saveSOCKS()
 				}
@@ -382,8 +382,8 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 				}
 			}
 			settingsCardBlock(c, locales.PortNumber(r.Port), func() ui.Element {
-				return ui.Column(c).Gap(t.Space(1)).Children(func() {
-					ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 						enabled := r.Enabled
 						if uikit.SettingsSwitch(c, &enabled, "Reverse proxy on port "+strconv.Itoa(r.Port)).Changed() {
 							a.setReverseEnabled(r.ID, enabled)
@@ -397,18 +397,18 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 						})
 					})
 					if st.Error != "" && r.Enabled {
-						ui.Text(c, st.Error).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+						uikit.ErrorText(c, st.Error)
 					}
 				})
 			}, mode+" · "+tlsMode+" · "+state)
 		}
 		settingsCardBlock(c, "", func() ui.Element {
-			return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			return ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				if uikit.SecondaryButton(c, locales.AddReverseProxy()).Clicked() {
 					a.openReverseProxy("")
 				}
 				if a.reverseProblem != "" {
-					uikit.Hint(c, a.reverseProblem).TextColor(t.Danger)
+					uikit.ErrorText(c, a.reverseProblem)
 				}
 			})
 		}, locales.TheLocalPathIsAppended())
@@ -446,9 +446,9 @@ func (a *app) reverseProxyModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &d.open, title, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, title)
-			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Gap(t.Space(uikit.SpaceL)).Children(func() {
 				uikit.FormRow(c, locales.LocalPort(), locales.TheLoopbackPortClientsConnect(), d.problem, func() {
-					uikit.InputState(c, &d.port, d.problem != "").Label(locales.LocalPort()).Placeholder("9000").Width(120)
+					uikit.InputState(c, &d.port, d.problem != "").Label(locales.LocalPort()).Placeholder("9000").Width(uikit.WidthNarrow)
 				})
 				ui.Field(c, locales.RemoteUrl(), func() {
 					uikit.Input(c, &d.target).Label(locales.RemoteUrl()).Placeholder("https://api.example.com")

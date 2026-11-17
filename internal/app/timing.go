@@ -20,7 +20,7 @@ func (a *app) timingView(c *ui.Context, f flow) {
 	}
 	t := c.Theme()
 	if f.wait == 0 && f.download == 0 {
-		uikit.Hint(c, locales.NoTimingForThisFlow()).Padding(t.Space(4))
+		uikit.Hint(c, locales.NoTimingForThisFlow()).Padding(t.Space(uikit.SpaceXL))
 		return
 	}
 	total := max(f.millis, 1)
@@ -29,7 +29,7 @@ func (a *app) timingView(c *ui.Context, f flow) {
 	dns := uikit.Colors(t).MethodPatch
 	wait := uikit.Colors(t).Info
 	download := uikit.Colors(t).Socket
-	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(2)).Padding(t.Space(4)).Children(func() {
+	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceXL)).Children(func() {
 		uikit.Hint(c, locales.AggregateTimingOnlyNoRequest())
 		if f.conn.dnsFresh && f.conn.resolved != "" {
 			waterfallRow(c, t, "DNS lookup", fmt.Sprintf("%s → %s", hostOnly(f.host), f.conn.resolved),
@@ -40,13 +40,13 @@ func (a *app) timingView(c *ui.Context, f flow) {
 		waterfallRow(c, t, "Waiting", "request sent, first byte back", f.wait, 0, total, wait)
 		waterfallRow(c, t, "Download", "rest of the response body", f.download, f.wait, total, download)
 		ui.Divider(c)
-		ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), 0).Children(func() {
-			ui.Text(c, locales.Total()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Text).Shrink(0)
+		ui.Row(c).FillWidth().Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Padding(t.Space(uikit.SpaceXS), 0).Children(func() {
+			uikit.BodyStrong(c, locales.Total()).TextColor(t.Text).Shrink(0)
 			target := f.method + " " + f.host + f.path
 			uikit.Tip(c, uikit.Meta(c, target).Grow(1).Shrink(1).MinWidth(0).SingleLine(), target)
-			ui.Text(c, fmt.Sprintf("%d ms", f.millis)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").FontWeight(500).TextColor(t.Text).Shrink(0)
+			uikit.DataMeta(c, fmt.Sprintf("%d ms", f.millis)).FontFeatures("tnum").FontWeight(500).TextColor(t.Text).Shrink(0)
 		})
-		uikit.Meta(c, connectionNote(f)).Padding(t.Space(1), 0, 0, 0)
+		uikit.Meta(c, connectionNote(f)).Padding(t.Space(uikit.SpaceXS), 0, 0, 0)
 	})
 }
 
@@ -121,11 +121,11 @@ func timingWaterfall(c *ui.Context, timing *capture.Timing) {
 		valid = valid && p.StartNS >= 0 && p.StartNS <= timing.TotalNS && p.DurationNS >= 0 && p.DurationNS <= timing.TotalNS-p.StartNS && len(p.Name) <= 64 && len(p.Detail) <= 1024
 	}
 	if !valid {
-		uikit.Hint(c, locales.InvalidTimingDataRecordedOffsets()).Padding(t.Space(4))
+		uikit.Hint(c, locales.InvalidTimingDataRecordedOffsets()).Padding(t.Space(uikit.SpaceXL))
 		return
 	}
-	ui.Scroll(c).Grow(1).FillWidth().Padding(t.Space(3)).Gap(t.Space(1)).Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+	ui.Scroll(c).Grow(1).FillWidth().Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			uikit.Body(c, locales.TimingWaterfall()).Grow(1)
 			uikit.Meta(c, timingDuration(timing.TotalNS)).Font(uikit.FontMono).FontFeatures("tnum")
 		})
@@ -158,8 +158,8 @@ func timingWaterfall(c *ui.Context, timing *capture.Timing) {
 			}
 			interval := locales.TimingSpan(timingDuration(p.StartNS), timingDuration(p.StartNS+p.DurationNS), status)
 			description := fmt.Sprintf("%s · %s · %s; exact offset %s, duration %s", p.Name, p.Detail, interval, time.Duration(p.StartNS), time.Duration(p.DurationNS))
-			ui.Column(c).FillWidth().Gap(t.Space(1)).Padding(t.Space(1), 0).Children(func() {
-				ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+			ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceXS)).Padding(t.Space(uikit.SpaceXS), 0).Children(func() {
+				ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
 					uikit.Body(c, p.Name).Grow(1).MinWidth(0).Shrink(1).SingleLine()
 					if p.Failed {
 						uikit.Meta(c, locales.Failed()).TextColor(t.Danger)
@@ -216,9 +216,9 @@ func timingDuration(ns int64) string {
 func waterfallRow(c *ui.Context, t *ui.Theme, label, detail string, ms, offset, total int, color ui.Color) {
 	// The name and milliseconds lead, the detail gives way in a narrow
 	// inspector, and the bar takes the full width below them.
-	ui.Column(c).FillWidth().Gap(t.Space(1)).Padding(t.Space(1), 0).Children(func() {
-		ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Shrink(0)
+	ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceXS)).Padding(t.Space(uikit.SpaceXS), 0).Children(func() {
+		ui.Row(c).FillWidth().Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+			uikit.Body(c, label).TextColor(t.Text).Shrink(0)
 			uikit.Tip(c, uikit.Meta(c, detail).Grow(1).Shrink(1).MinWidth(0).SingleLine(), detail)
 			uikit.Meta(c, fmt.Sprintf("%d ms", ms)).Font(uikit.FontMono).FontFeatures("tnum").Shrink(0)
 		})

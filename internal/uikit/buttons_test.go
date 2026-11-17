@@ -36,14 +36,14 @@ func TestControlHeights(t *testing.T) {
 		label string
 		want  float32
 	}{
-		{"Primary", ControlHeight},
-		{"Secondary", ControlHeight},
-		{"Toolbar", ControlHeight},
-		{"Chip", ControlHeightSmall},
-		{"Compact", ControlHeightSmall},
-		{"Link", ControlHeightSmall},
-		{"Footer", ControlHeightSmall},
-		{"Icon", ControlHeight},
+		{"Primary", HeightControl},
+		{"Secondary", HeightControl},
+		{"Toolbar", HeightControl},
+		{"Chip", HeightControlSmall},
+		{"Compact", HeightControlSmall},
+		{"Link", HeightControlSmall},
+		{"Footer", HeightControlSmall},
+		{"Icon", HeightControl},
 	} {
 		r, ok := tt.Find(tc.label)
 		if !ok {

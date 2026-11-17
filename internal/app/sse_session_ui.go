@@ -67,16 +67,16 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 	connected := !finished
 	if uikit.Modal(c, &s.open, locales.SseSessionTitle(), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(h - 100).Children(func() {
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				uikit.DialogTitle(c, locales.SseSessionTitle())
 				uikit.StatusPill(c, stateLabel(state), stateColor)
 			})
 			// The connection form is fixed above the stream: its URL, headers
 			// and search stay in reach while the event list and payload take
 			// the room the window has.
-			ui.Column(c).Shrink(0).Gap(t.Space(2)).Children(func() {
+			ui.Column(c).Shrink(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				uikit.Hint(c, locales.GetEventStreamsThroughThe())
-				ui.Row(c).Gap(t.Space(2)).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 					uikit.Input(c, &s.url).Label(locales.SseUrl()).Placeholder("https://api.example.com/events").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(connected)
 					if finished {
 						if uikit.PrimaryButton(c, locales.ConnectSse()).Disabled(a.srv == nil || !a.srv.Running() || strings.TrimSpace(s.url) == "").Clicked() {
@@ -95,12 +95,12 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 						}
 					}
 				})
-				uikit.TextArea(c, &s.headers).Label(locales.SseRequestHeaders()).Placeholder("Authorization: Bearer …\nLast-Event-ID: …").Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(connected)
-				ui.Checkbox(c, &s.reconnect, "Reconnect on EOF / network failure").Disabled(connected)
+				uikit.TextArea(c, &s.headers).Label(locales.SseRequestHeaders()).Placeholder("Authorization: Bearer …\nLast-Event-ID: …").Height(54).Font(uikit.FontMono).Radius(uikit.RadiusControl).Disabled(connected)
+				uikit.Checkbox(c, &s.reconnect, locales.ReconnectOnEofOrNetworkFailure()).Disabled(connected)
 				if s.problem != "" {
-					ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
+					uikit.Callout(c, uikit.CalloutDanger, s.problem, nil)
 				}
-				ui.Row(c).Gap(t.Space(2)).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 					uikit.Input(c, &s.query).Label(locales.SearchSseEvents()).Placeholder(locales.SearchTypeIdPayloadAnd()).Grow(1).MinWidth(0)
 					uikit.Tip(c, uikit.Meta(c, locales.RetainedEvicted(len(events), evicted)).FontFeatures("tnum"), locales.Latest200Events64Kib())
 					if uikit.SecondaryButton(c, locales.LatestEvent()).Clicked() {
@@ -108,14 +108,14 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			})
-			ui.Row(c).Grow(1).MinHeight(84).Gap(t.Space(4)).AlignItems(ui.Stretch).Children(func() {
+			ui.Row(c).Grow(1).MinHeight(84).Gap(t.Space(uikit.SpaceXL)).AlignItems(ui.Stretch).Children(func() {
 				var shown []sseSessionEvent
 				for _, e := range events {
 					if strings.Contains(strings.ToLower(e.eventType+"\n"+e.id+"\n"+e.data+"\n"+e.detail), strings.ToLower(s.query)) {
 						shown = append(shown, e)
 					}
 				}
-				uikit.Panel(c).Width(280).MinWidth(0).Shrink(1).Grow(1).MinHeight(0).Padding(t.Space(2)).Children(func() {
+				uikit.Panel(c).Width(280).MinWidth(0).Shrink(1).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM)).Children(func() {
 					if len(shown) == 0 {
 						uikit.Hint(c, locales.NoMatchingEventsYet())
 						return
@@ -143,9 +143,8 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 						if head == "" {
 							head = "Event"
 						}
-						ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
-							ui.Text(c, fmt.Sprintf("#%d · %s", e.seq, clamp(head, 48))).
-								FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine()
+						ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
+							uikit.Body(c, fmt.Sprintf("#%d · %s", e.seq, clamp(head, 48))).TextColor(t.Text).SingleLine()
 							uikit.Meta(c, fmt.Sprintf("%s · %d B", e.at.Format("15:04:05.000"), e.size)).SingleLine()
 						})
 					}).Grow(1).MinHeight(0)
@@ -154,8 +153,8 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 						s.reader = nil
 					}
 				})
-				uikit.Panel(c).Grow(1).MinWidth(0).MinHeight(0).Padding(t.Space(2)).Children(func() {
-					ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(2)).Children(func() {
+				uikit.Panel(c).Grow(1).MinWidth(0).MinHeight(0).Padding(t.Space(uikit.SpaceM)).Children(func() {
+					ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
 						for _, e := range events {
 							if e.seq != s.picked {
 								continue
@@ -163,7 +162,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 							text := e.detail
 							if e.detail == "" {
 								text = e.data
-								ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+								ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
 									uikit.Meta(c, "Type: "+clamp(e.eventType, 80)+" · ID: "+clamp(e.id, 80)).Grow(1).MinWidth(0)
 									if uikit.IconButton(c, locales.CopyEventId(), locales.CopyEventId(), copyIcon).Clicked() {
 										c.Services().WriteClipboard(e.id)

@@ -111,7 +111,7 @@ func (a *app) desktopContent(c *ui.Context) {
 		default:
 			ui.Column(c).Fill().Children(func() {
 				if w.focused && !a.inspectorDetached {
-					ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
+					ui.Row(c).Height(uikit.HeightControl).Padding(0, c.Theme().Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 						a.actionButton(c, "view.focus-inspector", "Back to list")
 						uikit.Meta(c, locales.InspectorFocusCtrlCmdShift())
 					})
@@ -132,8 +132,8 @@ func (a *app) desktopContent(c *ui.Context) {
 							a.activityStrip(c)
 						}
 						if a.chosen.Len() > 1 {
-							ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
-								ui.Text(c, locales.SelectedCount(a.chosen.Len())).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).Grow(1)
+							ui.Row(c).Height(uikit.HeightControl).Padding(0, c.Theme().Space(uikit.SpaceM)).Gap(c.Theme().Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+								uikit.Caption(c, locales.SelectedCount(a.chosen.Len())).FontWeight(500).Grow(1)
 								replay := pick(a.actions(c), "flow.replay")
 								if uikit.PrimaryButton(c, locales.ReplaySelected()).Disabled(!replay.enabled).Clicked() {
 									replay.run()
@@ -211,9 +211,9 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 		protocolWidth = 128
 	}
 	// A filter bar is the pane header's height: 32, with the controls at 24.
-	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
+	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 		Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-		box := ui.Row(c).Grow(1).MinWidth(160).Height(uikit.HeightControl).Gap(t.Space(1)).Padding(0, t.Space(1)).AlignItems(ui.Center)
+		box := ui.Row(c).Grow(1).MinWidth(uikit.WidthField).Height(uikit.HeightRow).Gap(t.Space(uikit.SpaceXS)).Padding(0, t.Space(uikit.SpaceXS)).AlignItems(ui.Center)
 		uikit.FieldFace(c, box, a.search.Focused(c)).Children(func() {
 			// Chips first, then the input: a condition is narrowed one
 			// token at a time and stays where it was put.
@@ -226,10 +226,11 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				})
 			}
 			placeholder := a.searchPlaceholder(c)
+			// Bare: the query field carries its own tokens and completion popup, which uikit.Combobox does not model.
 			cb := ui.ComboboxBase(c.Key("capture-search"), &a.query)
 			search := cb.Input.Bind(&a.search).Label(locales.SearchHostOrPath()).Placeholder(placeholder).
 				Tooltip(cmp.Or(a.queryProblem, a.searchProblem, "Search host and path (including query) · key:value chips narrow it · /regex/ and * wildcards match the whole field · Ctrl/Cmd+F")).
-				Height(uikit.HeightControl).Padding(0, t.Space(1)).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(min(200, width/5)).FocusRing(false).Border(0, ui.Color{}).
+				Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceXS)).Grow(1).MinWidth(min(200, width/5)).FocusRing(false).Border(0, ui.Color{}).
 				OnShortcut(0, ui.KeyEscape, func() { a.clearQuery(c) })
 			if a.queryProblem != "" || a.searchProblem != "" {
 				search.TextColor(t.Danger)
@@ -243,15 +244,15 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			suggestions := a.querySuggestions(prefix, !cb.Filtering())
 			first := false
 			cb.Popup(func(panel ui.Element) {
-				uikit.PopoverPanel(c, panel).Padding(t.Space(1)).Margin(t.Space(1.5), 0, 0, 0)
+				uikit.PopoverPanel(c, panel).Padding(t.Space(uikit.SpaceXS)).Margin(t.Space(uikit.SpaceS), 0, 0, 0)
 				for _, s := range suggestions[:min(len(suggestions), maxQuerySuggestions)] {
-					item := cb.Item(s.text).Label(s.text).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(3)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
+					item := cb.Item(s.text).Label(s.text).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceL)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
 					if item.Highlighted() {
 						item.Background(t.SurfaceHover)
 						first = first || s == suggestions[0]
 					}
 					item.Children(func() {
-						ui.Text(c, s.text).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextData)).TextColor(t.Text).SingleLine().Grow(1)
+						uikit.Mono(c, s.text).TextColor(t.Text).SingleLine().Grow(1)
 						uikit.Meta(c, s.hint).SingleLine()
 					})
 				}
@@ -309,20 +310,21 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				a.openFilter()
 			}
 		})
-		ui.ScrollHorizontal(c).Width(protocolWidth).Height(uikit.HeightControl).Children(func() {
+		ui.ScrollHorizontal(c).Width(protocolWidth).Height(uikit.HeightRow).Children(func() {
 			// Images and HTML live in the menu but remain valid selections.
 			// The kinds read as tabs over the list: the chosen one is the
 			// tabs' tinted chip, with no track behind them.
 			p := uikit.Colors(t)
+			// Bare: each protocol chip has a count and a short label, which uikit.Segmented does not take.
 			segments := ui.SegmentedBase(c, &a.chip, len(captureKinds))
-			segments.Track.Label(locales.ProtocolAndContentTypeLabel()).Height(uikit.HeightControl).Gap(t.Space(0.5)).Children(func() {
+			segments.Track.Label(locales.ProtocolAndContentTypeLabel()).Height(uikit.HeightRow).Gap(t.Space(uikit.SpaceHair)).Children(func() {
 				for i, name := range captureProtocols {
 					label := optionLabel(name)
 					if name == "WebSocket" {
 						label = "WS"
 					}
-					segment := segments.Segment(i).Label(locales.ProtocolAndContentType(name)).Height(uikit.HeightControl).
-						Padding(0, t.Space(1.5)).Radius(uikit.RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
+					segment := segments.Segment(i).Label(locales.ProtocolAndContentType(name)).Height(uikit.HeightRow).
+						Padding(0, t.Space(uikit.SpaceS)).Radius(uikit.RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
 					switch {
 					case a.chip == i:
 						// A filter's chosen tab is a neutral face: green is
@@ -334,7 +336,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 						segment.Background(t.SurfaceHover)
 					}
 					segment.Children(func() {
-						ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextMeta))
+						uikit.Caption(c, label)
 					})
 				}
 			})
@@ -362,7 +364,7 @@ func (a *app) captureConditions(c *ui.Context) {
 	if a.filterAny {
 		note = "Any content field may match (OR); search, sidebar, protocol and time range still narrow"
 	}
-	uikit.Tip(c, ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center), note).Children(func() {
+	uikit.Tip(c, ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center), note).Children(func() {
 		changed := func() {
 			a.views.capture(a)
 			a.applyFilter()
@@ -729,11 +731,12 @@ func (a *app) commandPalette(c *ui.Context) {
 		t := c.Theme()
 		ui.Column(c).Width(min(uikit.CommandPaletteWidth, width-32)).Gap(0).Children(func() {
 			var input ui.Element
-			ui.Row(c).Height(uikit.CommandPaletteInputRow).Padding(0, t.Space(4)).Gap(t.Space(2)).
+			ui.Row(c).Height(uikit.CommandPaletteInputRow).Padding(0, t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceM)).
 				AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, searchIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.TextMuted)
 				// Modal focuses its first input after remembering the opener.
 				// An explicit AutoFocus here would replace that focus.
+				// Bare: the palette's input is 48 points in its own row, taller than the kit's 28-point field.
 				input = ui.TextInput(c, &w.query).Height(uikit.CommandPaletteInputRow).Padding(0).
 					FontSize(uikit.Scaled(uikit.CommandPaletteInputSize)).Grow(1).MinWidth(0).
 					FocusRing(false).Background(ui.Color{}).Border(0, ui.Color{}).
@@ -801,7 +804,7 @@ func (a *app) commandPalette(c *ui.Context) {
 					list = ui.List(c, &w.commands, len(matches), func(i int) {
 						item := matches[i]
 						b := uikit.RowButton(c, item.label).Disabled(!item.enabled).
-							Height(uikit.CommandPaletteRow).Padding(0, t.Space(3))
+							Height(uikit.CommandPaletteRow).Padding(0, t.Space(uikit.SpaceL))
 						if !item.enabled {
 							b.Background(ui.Transparent)
 						}
@@ -811,7 +814,7 @@ func (a *app) commandPalette(c *ui.Context) {
 								color = uikit.Colors(t).TextFaint
 							}
 							ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
-								ui.Text(c, item.label).FontSize(uikit.Scaled(uikit.CommandPaletteRowSize)).
+								uikit.Body(c, item.label).
 									LineHeight(20.0 / 14.0).TextColor(color).SingleLine()
 								if item.detail != "" {
 									uikit.Small(c, item.detail).TextColor(t.TextMuted).SingleLine()
@@ -828,7 +831,7 @@ func (a *app) commandPalette(c *ui.Context) {
 					}).Height(listHeight).FillWidth()
 				})
 			} else {
-				ui.Row(c).Padding(t.Space(4)).Children(func() {
+				ui.Row(c).Padding(t.Space(uikit.SpaceXL)).Children(func() {
 					uikit.Hint(c, locales.NoMatchingCommandsRequestsOr())
 				})
 			}
@@ -837,7 +840,7 @@ func (a *app) commandPalette(c *ui.Context) {
 				run()
 			}
 			if assets.more > 0 {
-				ui.Row(c).Padding(0, t.Space(4)).Children(func() {
+				ui.Row(c).Padding(0, t.Space(uikit.SpaceXL)).Children(func() {
 					uikit.Meta(c, locales.MoreResults(assets.more)).SingleLine()
 				})
 			}
@@ -864,7 +867,7 @@ func (a *app) commandPalette(c *ui.Context) {
 			if runtime.GOOS == "darwin" {
 				enter = "↩"
 			}
-			ui.Row(c).Height(40).Padding(0, t.Space(4)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Height(40).Padding(0, t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				if context != "" {
 					uikit.Meta(c, context).SingleLine().MinWidth(0).Shrink(1)
 				}

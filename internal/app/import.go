@@ -319,14 +319,15 @@ func (a *app) collectionSaveModal(c *ui.Context, t *ui.Theme) {
 			if slices.Contains(names, name) {
 				hint = "Adds to the end of this collection."
 			}
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				uikit.Hint(c, locales.SavedInCaptureOrderNot())
 				ui.Form(c, func() {
 					ui.Field(c, locales.Collection(), func() {
-						ui.Autocomplete(c, &s.name, names).Label(locales.CollectionName()).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextBody))
+						// Bare: a collection name is free text with suggestions; uikit.Combobox only takes one of its options.
+						ui.Autocomplete(c, &s.name, names).Label(locales.CollectionName()).Height(uikit.HeightRow).FontSize(uikit.Scaled(uikit.TextBody))
 					}).Description(hint)
 					ui.Field(c, locales.Folders(), func() {
-						ui.Checkbox(c, &s.perHost, "One folder per host").FontSize(uikit.Scaled(uikit.TextBody))
+						uikit.Checkbox(c, &s.perHost, locales.OnePerHost())
 					})
 				})
 			})

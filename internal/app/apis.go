@@ -170,8 +170,8 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 	current := d.code.Buffer.String() == d.checked
 	valid := current && d.parsed != nil
 	ui.Column(c.Key(d.spec.ID)).Fill().Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, d.title()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).Grow(1).MinWidth(0).SingleLine()
+		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+			uikit.Body(c, d.title()).FontWeight(500).Grow(1).MinWidth(0).SingleLine()
 			if uikit.SecondaryButton(c, locales.Validate()).Clicked() {
 				d.validate()
 			}
@@ -209,10 +209,10 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 				status += fmt.Sprintf("  ·  Lint: %d", len(d.lint))
 			}
 		}
-		ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").TextColor(color).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+		uikit.Caption(c, status).FontFeatures("tnum").TextColor(color).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
 		if d.spec.Fingerprint != "" {
 			changed := d.spec.Fingerprint != collectionFingerprint(collectionRequests(a.requests, d.spec.Collection))
-			ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
+			ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 				Border(0, t.Border).BorderWidth(1, 0, 1, 0).Children(func() {
 				message := "Source: " + cmp.Or(d.spec.Collection, "Saved") + " · independent draft"
 				if changed {
@@ -224,7 +224,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 				}
 			})
 		}
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(1)).AlignItems(ui.Center).
+		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceXS)).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 			uikit.Tabs(c, &d.tab, "API", locales.Endpoints(), locales.Openapi(), locales.ReviewNotes())
 		})
@@ -241,16 +241,16 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			}
 		case 1:
 			if current && d.problem != "" {
-				ui.Scroll(c).Height(90).Padding(t.Space(2), t.Space(3)).Children(func() {
-					ui.Text(c, d.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+				ui.Scroll(c).Height(90).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
+					uikit.ErrorText(c, d.problem)
 				})
 				ui.Divider(c)
 			}
-			ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(3)).Children(func() {
+			ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceL)).Children(func() {
 				requestCodeEditor(c, d.code)
 			})
 		case 2:
-			ui.Scroll(c).Grow(1).Padding(t.Space(4)).Gap(t.Space(4)).Children(func() {
+			ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceXL)).Children(func() {
 				uikit.Heading(c, locales.ReviewBeforePublishing())
 				uikit.Hint(c, locales.ValidationChecksOpenapiStructureNot())
 				for _, note := range d.spec.Notes {
@@ -273,12 +273,12 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 		d.endpoint = endpoints[0].method + " " + endpoints[0].path
 	}
 	ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
-		ui.Scroll(c).Width(210).FillHeight().Padding(t.Space(2)).Background(uikit.Colors(t).Chrome).Children(func() {
+		ui.Scroll(c).Width(210).FillHeight().Padding(t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Chrome).Children(func() {
 			uikit.SidebarList(c, "api-endpoints", &d.endpoint, func(id string) { d.endpoint = id }, func() {
 				for _, endpoint := range endpoints {
 					label := endpoint.method + " " + endpoint.path
 					uikit.SidebarItem(c, label, nil, endpoint.path, d.endpoint == label, !a.windowBehind).Label("Endpoint: " + label).Children(func() {
-						method := ui.Text(c, endpoint.method).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).SingleLine().Width(48)
+						method := uikit.DataMeta(c, endpoint.method).SingleLine().Width(48)
 						if d.endpoint != label {
 							method.TextColor(uikit.MethodColor(endpoint.method, t))
 						}
@@ -295,11 +295,11 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 		}
 		endpoint := endpoints[selected]
 		d.endpoint = endpoint.method + " " + endpoint.path
-		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Padding(t.Space(3)).Gap(t.Space(3)).Children(func() {
-			ui.Row(c).Height(uikit.HeightTabs).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceL)).Children(func() {
+			ui.Row(c).Height(uikit.HeightTabs).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.MethodLabel(c, endpoint.method)
 				uikit.Heading(c, endpoint.path).Font(uikit.FontMono).SingleLine().Grow(1).MinWidth(0)
-				open := uikit.Tip(c, uikit.PrimaryButton(c, locales.OpenInRequests()).Width(160), locales.UsesTheFirstEffectiveServer())
+				open := uikit.Tip(c, uikit.PrimaryButton(c, locales.OpenInRequests()).Width(uikit.WidthField), locales.UsesTheFirstEffectiveServer())
 				if open.Clicked() {
 					a.openAPIRequest(d, endpoint)
 				}
@@ -312,14 +312,14 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 				a.apiRawOperation(c, d, endpoint)
 				return
 			}
-			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(4)).Children(func() {
-				ui.Column(c).Gap(t.Space(1.5)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceXL)).Children(func() {
+				ui.Column(c).Gap(t.Space(uikit.SpaceS)).Children(func() {
 					apiParameterSections(c, t, endpoint)
 				})
-				ui.Column(c).Gap(t.Space(1.5)).Children(func() {
+				ui.Column(c).Gap(t.Space(uikit.SpaceS)).Children(func() {
 					apiRequestBodySection(c, t, endpoint.op.RequestBody)
 				})
-				ui.Column(c).Gap(t.Space(1.5)).Children(func() {
+				ui.Column(c).Gap(t.Space(uikit.SpaceS)).Children(func() {
 					apiResponsesSection(c, t, endpoint.op.Responses)
 				})
 			})
@@ -406,7 +406,7 @@ func apiParameterGroup(in string) string {
 // declares. It does not synthesize a payload when the contract only names a
 // schema; Open in Requests is where a draft is made.
 func apiRequestBodySection(c *ui.Context, t *ui.Theme, body *openapi3.RequestBodyRef) {
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Heading(c, locales.RequestBody())
 		if body != nil && body.Value != nil && body.Value.Required {
 			uikit.Label(c, locales.Required())
@@ -445,7 +445,7 @@ func apiResponsesSection(c *ui.Context, t *ui.Theme, responses *openapi3.Respons
 		if ref.Value.Description != nil {
 			description = *ref.Value.Description
 		}
-		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Start).Children(func() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Start).Children(func() {
 			uikit.Mono(c, code).Width(72).TextColor(uikit.StatusColor(apiStatus(code), t))
 			uikit.Hint(c, description).Grow(1)
 		})
@@ -468,7 +468,7 @@ func apiSchemaLine(c *ui.Context, media string, ref *openapi3.SchemaRef) {
 	if typ := apiTypeName(ref); typ != "—" {
 		value += " · " + typ
 	}
-	ui.Row(c).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(c.Theme().Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Label(c, locales.Schema2())
 		uikit.Mono(c, value).Grow(1).MinWidth(0)
 	})
@@ -482,9 +482,9 @@ func apiStatus(code string) int {
 }
 
 func apiFieldHeader(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Label(c, locales.Name()).Width(160)
-		uikit.Label(c, locales.TypeText()).Width(120)
+	ui.Row(c).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+		uikit.Label(c, locales.Name()).Width(uikit.WidthField)
+		uikit.Label(c, locales.TypeText()).Width(uikit.WidthNarrow)
 		uikit.Label(c, locales.Required()).Width(80)
 		uikit.Label(c, locales.Description()).Grow(1)
 	})
@@ -493,12 +493,12 @@ func apiFieldHeader(c *ui.Context, t *ui.Theme) {
 // apiDataRow is one read-only field line. Descriptions wrap rather than
 // truncate, because a schema's prose is part of what the reader came for.
 func apiDataRow(c *ui.Context, t *ui.Theme, name, typ, description string, required bool, indent float32) {
-	ui.Row(c).MinHeight(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Start).Children(func() {
+	ui.Row(c).MinHeight(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Start).Children(func() {
 		if indent > 0 {
 			ui.Box(c).Width(indent).Shrink(0)
 		}
-		uikit.Mono(c, name).Width(160).SingleLine()
-		uikit.Mono(c, typ).Width(120).SingleLine()
+		uikit.Mono(c, name).Width(uikit.WidthField).SingleLine()
+		uikit.Mono(c, typ).Width(uikit.WidthNarrow).SingleLine()
 		ui.Box(c).Width(80).Shrink(0).Children(func() {
 			if required {
 				uikit.Label(c, locales.Required())
@@ -529,7 +529,7 @@ func apiSchemaTree(c *ui.Context, t *ui.Theme, ref *openapi3.SchemaRef, depth in
 		seen[ref.Ref] = true
 		defer delete(seen, ref.Ref)
 	}
-	indent := float32(depth) * t.Space(3)
+	indent := float32(depth) * t.Space(uikit.SpaceL)
 	if len(schema.Properties) > 0 {
 		required := map[string]bool{}
 		for _, name := range schema.Required {
@@ -613,7 +613,7 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &a.apiGenerateOpen, locales.GenerateOpenapiDraft(), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, locales.GenerateOpenapiDraft())
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceXL)).Children(func() {
 				uikit.Hint(c, locales.ChooseASavedCollectionUnsaved())
 				uikit.MenuSelect(c, cmp.Or(a.apiCollection, "Saved (ungrouped)"), func(m *ui.Menu) {
 					for _, name := range slices.Sorted(maps.Keys(groupRequests(a.requests))) {

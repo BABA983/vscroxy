@@ -362,10 +362,10 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 			})
 			uikit.Meta(c, locales.RenamingMovesItsRequestsFolders())
 			uikit.Tabs(c, &f.tab, "", locales.Auth(), locales.Scripts(), locales.Variables(), locales.Description(), locales.RequestDefaults())
-			ui.Column(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
+			ui.Column(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				switch f.tab {
 				case 0:
-					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Padding(0, t.Space(1)).Children(func() {
+					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 						a.authFields(c, &f.draft.Auth, a.folderAuthTypes(f.draft.Path), f.draft.Path)
 					})
 					uikit.Meta(c, locales.RequestsWhoseAuthIsInherit())
@@ -382,7 +382,7 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 					uikit.Hint(c, locales.InitialValuesAreSharedAnd2())
 					a.variableTable(c, &f.variables, variableTableOptions{enable: true})
 				case 3:
-					uikit.TextArea(c, &f.draft.Description).Label(locales.Description()).Placeholder(locales.WhatTheseRequestsAreFor()).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)
+					uikit.TextArea(c, &f.draft.Description).Label(locales.Description()).Placeholder(locales.WhatTheseRequestsAreFor()).Font(uikit.FontMono).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)
 				case 4:
 					a.folderSettingsEditor(c, f, t)
 				}

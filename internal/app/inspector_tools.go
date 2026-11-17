@@ -51,7 +51,7 @@ func (a *app) decoderModal(c *ui.Context) {
 	uikit.Modal(c, &u.open, locales.DecodeText2(), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Height(min(530, height-70)).Children(func() {
 			uikit.DialogTitle(c, locales.DecodeText2())
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.SelectLabels(c, &u.kind, []string{"Base64", "Base64 image", "JWT", "JSON", "XML", "Key-value", "URL component", "URL query", "Unix seconds", "Unix milliseconds"}, optionLabel).Label(locales.Decoder()).Width(185)
 				uikit.Meta(c, locales.LocalPreviewDoesNotChange()).Grow(1)
 			})
@@ -59,7 +59,7 @@ func (a *app) decoderModal(c *ui.Context) {
 				authoredText(c, &u.input, &u.inputEditor, &u.inputFor, "Decode input", "")
 			})
 			if u.error != "" {
-				ui.Text(c, u.error).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+				uikit.ErrorText(c, u.error)
 			}
 			switch {
 			case len(u.fields) > 0:
@@ -122,11 +122,11 @@ func (a *app) decoderModal(c *ui.Context) {
 // decodedFields shows key-value pairs as a table instead of one text blob.
 func decodedFields(c *ui.Context, fields []inspect.FormField) {
 	t := c.Theme()
-	ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(2)).Gap(t.Space(1)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 		for _, field := range fields {
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, field.Key).Width(200).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(uikit.Colors(t).TextMuted)
-				ui.Text(c, field.Value).Grow(1).FontSize(uikit.Scaled(uikit.TextMeta))
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+				uikit.Caption(c, field.Key).Width(uikit.WidthFieldWide).TextColor(uikit.Colors(t).TextMuted)
+				uikit.Caption(c, field.Value).Grow(1)
 			})
 		}
 	})
@@ -137,7 +137,7 @@ func decodedFields(c *ui.Context, fields []inspect.FormField) {
 func decodedImage(c *ui.Context, bitmap *ui.Bitmap, mediaType string) {
 	t := c.Theme()
 	width, height := bitmap.Size()
-	ui.Column(c).Grow(1).AlignItems(ui.Center).Padding(t.Space(3)).Gap(t.Space(2)).Children(func() {
+	ui.Column(c).Grow(1).AlignItems(ui.Center).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		ui.Image(c, bitmap).MaxWidthPercent(100).MaxHeight(320)
 		uikit.Meta(c, fmt.Sprintf("%s · %d×%d", mediaType, width, height))
 	})
@@ -169,10 +169,10 @@ func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool,
 		}
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(t.Space(2), t.Space(3)).Children(func() {
+		ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
 			uikit.Meta(c, locales.CookiesCaptured(len(cookies))).Grow(1)
 		})
-		ui.Row(c).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			ui.Spacer(c)
 			if save != nil && len(cookies) > 0 && uikit.SecondaryButton(c, locales.SaveCookiesToJar()).Clicked() {
 				save()
@@ -188,19 +188,19 @@ func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool,
 			})
 		})
 		if invalid > 0 {
-			ui.Text(c, locales.InvalidCookies(invalid)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).Padding(0, t.Space(3))
+			uikit.Caption(c, locales.InvalidCookies(invalid)).TextColor(t.Warning).Padding(0, t.Space(uikit.SpaceL))
 		}
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			if len(cookies) == 0 {
-				uikit.Hint(c, locales.NoCookiesRecordedOnThis()).Padding(t.Space(3))
+				uikit.Hint(c, locales.NoCookiesRecordedOnThis()).Padding(t.Space(uikit.SpaceL))
 			}
 			for i, cookie := range cookies {
-				ui.Column(c.Key(i)).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
+				ui.Column(c.Key(i)).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					value := "••••••••  masked"
 					if *reveal {
 						value = cookie.Value
 					}
-					ui.Text(c, cookie.Name+" = "+value).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Selectable().FillWidth()
+					uikit.DataBody(c, cookie.Name+" = "+value).Selectable().FillWidth()
 					if response {
 						expires := "Session"
 						if !cookie.Expires.IsZero() {

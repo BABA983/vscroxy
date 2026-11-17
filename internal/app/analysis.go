@@ -70,7 +70,7 @@ func (a *app) replayLinks(c *ui.Context, f flow) {
 		return
 	}
 	t := c.Theme()
-	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Wrap().Children(func() {
 		if f.replayOf != 0 {
 			_, present := a.tally.known[f.replayOf]
 			if uikit.SecondaryButton(c, locales.ReplayOf(f.replayOf)).Disabled(!present).
@@ -99,8 +99,8 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 	t := c.Theme()
 	s := &a.analysis
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
-		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).MinHeight(uikit.HeightLarge).AlignItems(ui.Center).Wrap().Children(func() {
-			ui.Text(c, locales.RequestsSelected(len(selected))).FontSize(uikit.Scaled(uikit.TextBody)).FontFeatures("tnum").FontWeight(500).NoWrap().Grow(1)
+		ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Wrap().Children(func() {
+			uikit.Body(c, locales.RequestsSelected(len(selected))).FontFeatures("tnum").FontWeight(500).NoWrap().Grow(1)
 			before := s.tab
 			if uikit.Tabs(c, &s.tab, "", locales.Summary(), locales.CompareTwo(), locales.DiffPool()).Changed() {
 				switch {
@@ -137,7 +137,7 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 			a.diffPool(c, selected)
 			return
 		}
-		ui.Scroll(c).Grow(1).Padding(t.Space(3)).Gap(t.Space(3)).Children(func() {
+		ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceL)).Children(func() {
 			var bytes, duration int64
 			errors, incomplete := 0, 0
 			times := make([]int, 0, len(selected))
@@ -153,23 +153,23 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 				}
 			}
 			slices.Sort(times)
-			ui.Row(c).Gap(t.Space(4)).Wrap().Children(func() {
-				ui.Text(c, locales.ResponseBytes(int(bytes))).FontSize(uikit.Scaled(uikit.TextBody)).FontFeatures("tnum").FontWeight(500)
-				ui.Text(c, locales.ErrorsCount(errors)).FontSize(uikit.Scaled(uikit.TextBody)).FontFeatures("tnum").TextColor(t.Danger)
+			ui.Row(c).Gap(t.Space(uikit.SpaceXL)).Wrap().Children(func() {
+				uikit.Body(c, locales.ResponseBytes(int(bytes))).FontFeatures("tnum").FontWeight(500)
+				uikit.Body(c, locales.ErrorsCount(errors)).FontFeatures("tnum").TextColor(t.Danger)
 				uikit.Hint(c, locales.IncompleteBodies(incomplete)).FontFeatures("tnum")
 			})
 			uikit.Body(c, locales.AverageTiming(fmt.Sprintf("%.1f", float64(duration)/float64(len(selected))), times[(len(times)-1)/2], times[len(times)-1])).FontFeatures("tnum")
 			ui.Divider(c)
-			ui.Text(c, locales.SlowestRequests()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
+			uikit.Body(c, locales.SlowestRequests()).FontWeight(500)
 			slowest := slices.Clone(selected)
 			slices.SortStableFunc(slowest, func(a, b flow) int { return cmp.Compare(b.millis, a.millis) })
 			for _, f := range slowest[:min(5, len(slowest))] {
-				ui.Row(c).Gap(t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).MinHeight(uikit.HeightRow).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.InspectNumbered(f.id)).Clicked() {
 						a.inspectCapture(f.id)
 					}
 					uikit.Tip(c, uikit.Body(c, f.method+" "+f.host+f.path).SingleLine().Grow(1), f.url)
-					ui.Text(c, locales.Millis(f.millis)).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").FontWeight(500).Width(65)
+					uikit.Caption(c, locales.Millis(f.millis)).FontFeatures("tnum").FontWeight(500).Width(65)
 				})
 			}
 			// The numbers come first; how they were recorded is one line,
@@ -197,9 +197,9 @@ func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]str
 	if s.part == "" {
 		s.part = "Response body"
 	}
-	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Wrap().Children(func() {
 		uikit.SelectLabels(c, &s.part, []string{"Response body", "Response headers", "Request body", "Request headers"}, optionLabel).
-			Label(locales.CompareContent()).Width(165).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+			Label(locales.CompareContent()).Width(165).Height(uikit.HeightRow).Radius(uikit.RadiusControl)
 		if uikit.SecondaryButton(c, locales.SwapSides()).Clicked() {
 			s.swapped = !s.swapped
 			left, right = right, left
@@ -236,17 +236,16 @@ func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]str
 		s.diff = &editor.DiffState{Old: editor.NewBuffer(text(left)), New: editor.NewBuffer(text(right)), Layout: layout, SplitPercent: *split}
 		s.pair, s.diffPart = pair, s.part
 	}
-	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(3)).Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceL)).Children(func() {
 		for i, f := range []flow{left, right} {
 			label := "Left"
 			if i == 1 {
 				label = "Right"
 			}
-			uikit.Tip(c, ui.Text(c, fmt.Sprintf("%s %s · %s %s · %d · %d ms", label, labels[i], f.method, f.path, f.status, f.millis)).
-				FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").SingleLine().Grow(1), f.url)
+			uikit.Tip(c, uikit.Caption(c, fmt.Sprintf("%s %s · %s %s · %d · %d ms", label, labels[i], f.method, f.path, f.status, f.millis)).FontFeatures("tnum").SingleLine().Grow(1), f.url)
 		}
 	})
-	uikit.Meta(c, locales.ReadOnlyComparisonBodiesLimited()).Padding(t.Space(1), t.Space(3))
+	uikit.Meta(c, locales.ReadOnlyComparisonBodiesLimited()).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))
 	s.diff.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
 	s.diff.Theme = uikit.EditorTheme(t)
 	editor.DiffView(c, s.diff).Grow(1).FillWidth()

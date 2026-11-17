@@ -90,13 +90,13 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 	_, h := c.Size()
 	uikit.Modal(c, &s.open, locales.Code(), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(520, h-80)).Children(func() {
-			ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 				uikit.DialogTitle(c, locales.Code()).Grow(1)
-				if uikit.Select(c, &s.language, codeLanguages).Label(locales.CodeLanguage()).Width(200).Changed() {
+				if uikit.Select(c, &s.language, codeLanguages).Label(locales.CodeLanguage()).Width(uikit.WidthFieldWide).Changed() {
 					s.view = nil
 				}
 			})
-			ui.Scroll(c).MinHeight(0).Shrink(1).MaxHeight(100).Gap(t.Space(2)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).MaxHeight(100).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				uikit.Hint(c, locales.VariablesStayAsWrittenAnd())
 				if s.language == "JavaScript (fetch)" {
 					uikit.Hint(c, locales.BrowserFetchFollowsBrowserCookie())
@@ -114,7 +114,7 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 					uikit.Hint(c, hint)
 				}
 				if s.problem != "" {
-					ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
+					uikit.Callout(c, uikit.CalloutDanger, s.problem, nil)
 				}
 			})
 			if s.view != nil {

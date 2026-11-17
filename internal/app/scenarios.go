@@ -98,8 +98,8 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 		}
 	}
 	current := capture.ActiveScenario(a.rules)
-	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
-		ui.Text(c, locales.Scenarios()).FontSize(uikit.Scaled(uikit.TextTitle)).FontWeight(500).TextColor(t.Text)
+	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(uikit.SpaceL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
+		uikit.Heading(c, locales.Scenarios()).TextColor(t.Text)
 		uikit.Meta(c, locales.OneAtATimeIts())
 		choice := slices.Index(names, s.choice)
 		s.list.Selected = &choice
@@ -108,11 +108,11 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 		pick := *t
 		pick.Accent, pick.AccentText = ui.Color{}, t.Text
 		c.SetTheme(&pick)
-		ui.List(c, &s.list, len(names)).Label(locales.Scenarios()).Grow(1).MinHeight(0).Gap(t.Space(0.5)).Rows(func(row ui.ListRow) {
+		ui.List(c, &s.list, len(names)).Label(locales.Scenarios()).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceHair)).Rows(func(row ui.ListRow) {
 			c := row.Context
 			c.SetTheme(t)
 			name := names[row.Index]
-			r := ui.Row(c).Height(uikit.HeightLarge+4).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+			r := ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 			if row.Selected() {
 				uikit.Selected(c, r, active)
 			}
@@ -121,7 +121,7 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 				if uikit.Switch(c, &on).Label("Scenario active: " + name).Changed() {
 					a.selectRuleScenario(map[bool]string{true: name}[on])
 				}
-				ui.Text(c, name).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Grow(1).SingleLine()
+				uikit.Body(c, name).TextColor(t.Text).Grow(1).SingleLine()
 				n := 0
 				for _, rule := range a.rules {
 					if rule.Scenario == name {
@@ -137,7 +137,7 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 		}
 	})
 	ui.Divider(c)
-	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(3)).Children(func() {
+	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(uikit.SpaceXL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceL)).Children(func() {
 		if s.choice == "" {
 			uikit.EmptyState(c, locales.NoScenarios(), locales.AScenarioIsRulesSwitched(), func() {
 				if uikit.PrimaryButton(c, locales.OpenRules()).Clicked() {
@@ -162,8 +162,8 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 	// The name is a field like any other page's, with its label above it,
 	// not a title that happens to accept typing.
 	uikit.FormRow(c, locales.ScenarioName(), "", "", func() {
-		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			if uikit.Input(c, &s.name).Label(locales.ScenarioName()).Grow(1).MaxWidth(360).FontSize(uikit.Scaled(uikit.TextTitle)).Height(uikit.HeightLarge).Submitted() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+			if uikit.Input(c, &s.name).Label(locales.ScenarioName()).Grow(1).MaxWidth(360).Height(uikit.HeightControl).Submitted() {
 				a.renameScenario(name, strings.TrimSpace(s.name))
 			}
 			on := name == current
@@ -176,7 +176,7 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 	if name == current {
 		status = "On: its rules apply. Rules with no scenario also apply."
 	}
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Meta(c, status).Grow(1).SingleLine()
 		uikit.MoreMenu(c, locales.ScenarioActions(), func(m *ui.Menu) {
 			actionMenu(m, []action{
@@ -192,12 +192,12 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 		})
 	})
 	uikit.Meta(c, locales.RulesKeepTheirPlaceIn()).SingleLine()
-	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(0.5)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceHair)).Children(func() {
 		for i, r := range a.rules {
 			if r.Scenario != name {
 				continue
 			}
-			row := ui.Row(c.Key(fmt.Sprint("scenario-rule", i))).Height(uikit.HeightLarge+12).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+			row := ui.Row(c.Key(fmt.Sprint("scenario-rule", i))).Height(uikit.HeightControl+12).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 			if name != current || r.Disabled {
 				row.Opacity(0.6)
 			}
@@ -208,7 +208,7 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 				}
 				uikit.Tip(c, uikit.Glyph(c, ruleIcons[max(slices.Index(ruleTypes, r.Type), 0)]), ruleLabel(r.Type))
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine()
+					uikit.Body(c, cmp.Or(r.Name, r.Match)).TextColor(t.Text).SingleLine()
 					uikit.Meta(c, ruleSummary(r)).Font(uikit.FontMono).SingleLine()
 				})
 				if uikit.CompactButton(c, locales.Edit2()).Label(locales.EditRule(i + 1)).Clicked() {

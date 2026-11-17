@@ -271,7 +271,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 	t := c.Theme()
 	ops, opsErr := d.graphqlOperations()
 	matchesSaved := slices.ContainsFunc(ops, func(op graphql.Operation) bool { return op.Name == d.graphql.OperationName })
-	ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 		schema := d.graphqlSchema()
 		statusText, statusTip, statusDanger := "No schema", "Fetch introspection or load an SDL or introspection JSON file to complete and check fields.", false
 		switch {
@@ -298,7 +298,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 		if schema != nil && d.graphql.SchemaSource == d.composeURL {
 			fetchLabel = "Refresh schema"
 		}
-		fetch := uikit.SecondaryButton(c, fetchLabel).Disabled(g.loading != nil || d.composeWaiting)
+		fetch := uikit.SecondaryButtonBusy(c, fetchLabel, g.loading != nil).Disabled(g.loading != nil || d.composeWaiting)
 		if fetch.Clicked() {
 			a.fetchGraphQLSchema(d)
 		}
@@ -317,7 +317,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 				if choice == "" || !slices.Contains(names, choice) {
 					choice = "Select operation"
 				}
-				selectElement := uikit.Select(c, &choice, names).Label(locales.GraphqlOperation()).Width(170).FontSize(uikit.Scaled(uikit.TextMeta))
+				selectElement := uikit.Select(c, &choice, names).Label(locales.GraphqlOperation()).Width(170)
 				if selectElement.Changed() && choice != "Select operation" {
 					d.graphql.OperationName = choice
 				}
@@ -340,8 +340,8 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 		}
 	})
 	if g.problem != "" {
-		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Tip(c, ui.Text(c, "Schema: "+oneLine(g.problem)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).SingleLine().MinWidth(0).Ellipsis("…"), g.problem)
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+			uikit.Tip(c, uikit.ErrorText(c, "Schema: "+oneLine(g.problem)).SingleLine().MinWidth(0).Ellipsis("…"), g.problem)
 		})
 	}
 }

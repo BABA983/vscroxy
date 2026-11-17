@@ -131,36 +131,36 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		return
 	}
 	d.example = min(max(d.example, 0), len(d.examples)-1)
-	ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(3)).AlignItems(ui.Stretch).Children(func() {
+	ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Stretch).Children(func() {
 		ui.Column(c).Width(168).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-			ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, t.Space(2), 0, 0).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, t.Space(uikit.SpaceM), 0, 0).Children(func() {
 				for i, e := range d.examples {
 					item := uikit.ToolbarButton(c.Key(e.ID), "Example: "+e.Name, e.Name, false).FillWidth()
 					if i == d.example {
 						item.Background(t.SurfaceHover)
 					}
 					if item.Children(func() {
-						ui.Text(c, strconv.Itoa(e.Status)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).TextColor(uikit.StatusColor(e.Status, t)).Width(28)
-						ui.Text(c, e.Name).FontSize(uikit.Scaled(uikit.TextBody)).SingleLine().Grow(1).MinWidth(0).TextColor(t.Text)
+						uikit.DataMeta(c, strconv.Itoa(e.Status)).FontWeight(500).TextColor(uikit.StatusColor(e.Status, t)).Width(28)
+						uikit.Body(c, e.Name).SingleLine().Grow(1).MinWidth(0).TextColor(t.Text)
 					}).Clicked() {
 						d.example, d.exampleEditor = i, nil
 					}
 				}
 			})
-			ui.Column(c).Padding(t.Space(2)).Children(func() {
+			ui.Column(c).Padding(t.Space(uikit.SpaceM)).Children(func() {
 				if uikit.SecondaryButton(c, locales.NewExample()).FillWidth().Clicked() {
 					d.addExample(d.blankExample())
 				}
 			})
 		})
 		e := &d.examples[d.example]
-		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(2)).Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			ui.Form(c, func() {
 				ui.Field(c, locales.ExampleName(), func() { uikit.Input(c, &e.Name).Label(locales.ExampleName()) })
 			})
 			// Beside the response the editor has half the width: the actions
 			// take their own line rather than run off the pane.
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Wrap().Children(func() {
 				// The status is typed; NumberField keeps values outside 100 to 599 out.
 				status := float64(e.Status)
 				uikit.NumberField(c, &d.exampleStatusText, &status, 100, 599, "", locales.Status(), "", nil)

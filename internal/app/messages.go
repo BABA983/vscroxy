@@ -361,16 +361,16 @@ func (m messageView) row(c *ui.Context) {
 	if m.direction == "in" {
 		color = uikit.Colors(t).Socket
 	}
-	ui.Row(c).Gap(t.Space(2)).Padding(t.Space(1), t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, m.arrow()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(color).Width(uikit.IconInline)
+	ui.Row(c).Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).MinHeight(uikit.HeightRow).AlignItems(ui.Center).Children(func() {
+		uikit.Body(c, m.arrow()).TextColor(color).Width(uikit.IconInline)
 		muted := t.TextMuted
-		ui.Text(c, m.stamp()).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").TextColor(muted).Width(80).SingleLine()
-		label := ui.Text(c, m.label()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(muted).Width(52).SingleLine()
+		uikit.Caption(c, m.stamp()).FontFeatures("tnum").TextColor(muted).Width(80).SingleLine()
+		label := uikit.Caption(c, m.label()).TextColor(muted).Width(52).SingleLine()
 		label = uikit.Tip(c, label, m.kindLine())
-		preview := ui.Text(c, m.preview()).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).
+		preview := uikit.DataBody(c, m.preview()).
 			TextColor(t.Text).SingleLine().Grow(1)
 		uikit.Tip(c, preview, m.preview())
-		ui.Text(c, humanBytes(m.size)).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").TextColor(muted).Width(48).SingleLine()
+		uikit.Caption(c, humanBytes(m.size)).FontFeatures("tnum").TextColor(muted).Width(48).SingleLine()
 	})
 }
 
@@ -391,15 +391,15 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 		}
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).MinHeight(uikit.HeightLarge).AlignItems(ui.Center).Children(func() {
-			uikit.Tip(c, ui.Text(c, m.headline()).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).FontFeatures("tnum").TextColor(t.Text).
+		ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
+			uikit.Tip(c, uikit.DataBody(c, m.headline()).FontFeatures("tnum").TextColor(t.Text).
 				SingleLine().Grow(1), m.headline())
 			if uikit.SecondaryButton(c, locales.Copy()).Clicked() {
 				c.Services().WriteClipboard(payload)
 				a.done(locales.CopiedMessage(m.label(), humanBytes(len(payload))))
 			}
 		})
-		ui.Row(c).Padding(0, t.Space(3), t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			modes := []string{optionLabel("Text"), optionLabel("Hex")}
 			if kind := strings.TrimPrefix(m.kind, "dropped "); f.kind == "ws" && (kind == "text" || kind == "binary") {
 				modes = append(modes, "Protobuf")
@@ -409,8 +409,8 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 		})
 		ui.Divider(c)
 		if p.loadedError != "" {
-			ui.Text(c, locales.PayloadUnavailable(p.loadedError)).FontSize(uikit.Scaled(uikit.TextMeta)).
-				TextColor(t.Danger).Background(t.Danger.Alpha(0.12)).Padding(t.Space(1), t.Space(3)).FillWidth()
+			uikit.Caption(c, locales.PayloadUnavailable(p.loadedError)).
+				TextColor(t.Danger).Background(t.Danger.Alpha(0.12)).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).FillWidth()
 		}
 		if p.mode == 2 {
 			a.protobuf.url = f.url
@@ -419,7 +419,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 			return
 		}
 		if len(payload) == 0 {
-			uikit.Hint(c, locales.EmptyMessage()).Padding(t.Space(3))
+			uikit.Hint(c, locales.EmptyMessage()).Padding(t.Space(uikit.SpaceL))
 			return
 		}
 		if p.mode == 1 {
@@ -446,8 +446,8 @@ func (m messageView) textView(c *ui.Context, payload string) {
 		}
 		text = cut + "\n\n" + locales.ShowingFirstOf(humanBytes(maxMessageText), humanBytes(len(text)))
 	}
-	ui.Scroll(c).Grow(1).Padding(t.Space(3)).Children(func() {
-		ui.Text(c, text).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text)
+	ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceL)).Children(func() {
+		uikit.DataBody(c, text).TextColor(t.Text)
 	})
 }
 
@@ -456,8 +456,8 @@ func (m messageView) textView(c *ui.Context, payload string) {
 func (m messageView) hexView(c *ui.Context, payload string) {
 	t := c.Theme()
 	ui.List(c, nil, (len(payload)+15)/16, func(i int) {
-		ui.Text(c, hexLine(payload, i)).FontSize(uikit.Scaled(uikit.TextMeta)).Font(uikit.FontMono).
-			TextColor(t.Text).Padding(t.Space(1), t.Space(3)).SingleLine()
+		uikit.DataMeta(c, hexLine(payload, i)).
+			TextColor(t.Text).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).SingleLine()
 	}).Grow(1)
 }
 
@@ -543,7 +543,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 	if f.live && f.streamEnd.At.IsZero() && a.srv != nil {
 		c.After(250 * time.Millisecond)
 	}
-	ui.Row(c).Padding(t.Space(1), t.Space(3), 0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL), 0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		state := "End not yet observed"
 		if !f.live {
 			state = "Historical · no end recorded"
@@ -583,15 +583,16 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		}
 		note := locales.PausedViewNote(max(newer, 0))
 		uikit.Tip(c, uikit.Meta(c, note).FontFeatures("tnum").
-			Background(uikit.Colors(t).Chrome).Padding(t.Space(1), t.Space(3)).SingleLine(), note)
+			Background(uikit.Colors(t).Chrome).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).SingleLine(), note)
 		list = p.frozen
 	}
 	// The search and the direction filter are built first: they change what
 	// the list shows, and the line after them reads it.
 	var visible []messageView
-	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+		// Bare: the search reads Changed() on its input to follow the stream, which uikit.SearchField's row does not expose.
 		search := ui.SearchField(c, &p.query).Placeholder(locales.SearchMessagesPlaceholder()).Label(locales.SearchMessages()).
-			Width(180).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+			Width(180).Height(uikit.HeightRow).Radius(uikit.RadiusControl)
 		uikit.Tip(c, search, locales.SearchesMetadataAndTheFull())
 		if search.Changed() {
 			p.follow = true
@@ -659,12 +660,12 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 				if len(list) == 0 {
 					text = "No messages retained"
 				}
-				uikit.Hint(c, text).Padding(t.Space(4))
+				uikit.Hint(c, text).Padding(t.Space(uikit.SpaceXL))
 			}
 		})
 	}, func() {
 		if len(visible) == 0 {
-			uikit.Hint(c, locales.ChooseAMessageToSee()).Padding(t.Space(4))
+			uikit.Hint(c, locales.ChooseAMessageToSee()).Padding(t.Space(uikit.SpaceXL))
 			return
 		}
 		// List remaps a disappeared selected key to -1 during filtering.
@@ -742,11 +743,11 @@ func (e messageExport) write(path string, list []messageView) error {
 
 func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible []messageView) {
 	uikit.Modal(c, &p.exportOpen, locales.ExportRetainedMessages(), func() {
-		ui.Column(c).Width(470).Gap(c.Theme().Space(3)).Children(func() {
+		ui.Column(c).Width(470).Gap(c.Theme().Space(uikit.SpaceL)).Children(func() {
 			uikit.DialogTitle(c, locales.ExportRetainedMessages())
 			uikit.Body(c, locales.ExportMessagesNote(len(visible), len(list)))
-			ui.Text(c, locales.PayloadsAndUrlsCanContain()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(c.Theme().Danger)
-			ui.Row(c).Gap(c.Theme().Space(2)).Justify(ui.End).Children(func() {
+			uikit.Callout(c, uikit.CalloutDanger, locales.PayloadsAndUrlsCanContain(), nil)
+			ui.Row(c).Gap(c.Theme().Space(uikit.SpaceM)).Justify(ui.End).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					p.exportOpen = false
 				}

@@ -146,9 +146,9 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 	uikit.Modal(c, &u.open, locales.QueryJson2(), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(570, height-70)).Children(func() {
 			uikit.DialogTitle(c, locales.QueryJson2())
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				before := u.dialect
-				uikit.Select(c, &u.dialect, []string{"JSONPath", "jq"}).Label(locales.QueryDialect()).Width(140)
+				uikit.Select(c, &u.dialect, []string{"JSONPath", "jq"}).Label(locales.QueryDialect()).Width(uikit.WidthPicker)
 				if before != u.dialect {
 					u.job.stop()
 					u.job.result, u.job.problem = nil, ""
@@ -165,7 +165,7 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 				}
 			})
 			if u.job.problem != "" {
-				ui.Text(c, u.job.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).FillWidth()
+				uikit.ErrorText(c, u.job.problem).FillWidth()
 			}
 			if u.job.result != nil {
 				if u.job.result.Buffer.Len() == 0 {
@@ -229,16 +229,16 @@ func (a *app) jsonQueryPanel(c *ui.Context, side int) {
 	}
 	u.job.poll(c)
 	t := c.Theme()
-	panel := ui.Column(c).MinHeight(0).Gap(t.Space(1)).Padding(t.Space(1), t.Space(2)).Background(uikit.Colors(t).Chrome)
+	panel := ui.Column(c).MinHeight(0).Gap(t.Space(uikit.SpaceXS)).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Chrome)
 	if a.paneWidth(c) >= 620 {
 		panel.Width(300)
 	} else {
 		panel.FillWidth()
 	}
 	panel.Children(func() {
-		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
 			before := u.dialect
-			uikit.Select(c, &u.dialect, []string{"JSONPath", "jq"}).Label(locales.QueryDialect()).Width(120)
+			uikit.Select(c, &u.dialect, []string{"JSONPath", "jq"}).Label(locales.QueryDialect()).Width(uikit.WidthNarrow)
 			if before != u.dialect {
 				u.job.stop()
 				u.job.result, u.job.problem = nil, ""
@@ -254,7 +254,7 @@ func (a *app) jsonQueryPanel(c *ui.Context, side int) {
 			u.job.stop()
 			u.job.result, u.job.problem = nil, ""
 		}
-		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
 			uikit.MenuSelect(c, cmp.Or(u.saved, locales.SavedQuery()), func(m *ui.Menu) {
 				for _, q := range a.queries {
 					if m.Item(q.Name).Radio(q.Name == u.saved).Chosen() {
@@ -269,8 +269,8 @@ func (a *app) jsonQueryPanel(c *ui.Context, side int) {
 				u.saved = ""
 			}
 		})
-		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			uikit.Input(c, &u.name).Label(locales.QueryName()).Placeholder(locales.Name()).Width(140)
+		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
+			uikit.Input(c, &u.name).Label(locales.QueryName()).Placeholder(locales.Name()).Width(uikit.WidthPicker)
 			if uikit.SecondaryButton(c, locales.Save()).Disabled(u.name == "" || u.expression == "").Clicked() {
 				if a.saveQuery(u.name, u.dialect, u.expression) {
 					u.saved, u.name = strings.TrimSpace(u.name), ""
@@ -278,10 +278,10 @@ func (a *app) jsonQueryPanel(c *ui.Context, side int) {
 			}
 		})
 		if a.queriesProblem != "" {
-			ui.Text(c, a.queriesProblem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(3)
+			uikit.ErrorText(c, a.queriesProblem).MaxLines(3)
 		}
 		if u.job.problem != "" {
-			ui.Text(c, u.job.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(3)
+			uikit.ErrorText(c, u.job.problem).MaxLines(3)
 		}
 		if u.job.result != nil {
 			ui.Box(c).Grow(1).MinHeight(80).FillWidth().Children(func() { requestCodeEditor(c, u.job.result) })

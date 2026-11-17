@@ -67,10 +67,10 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		// The tabs sit at the row's bottom, so their rule is the row's edge:
 		// the list below keeps the same gap under it that an editor keeps
 		// under its own tab row.
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(2)).AlignItems(ui.End).Children(func() {
+		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceM)).AlignItems(ui.End).Children(func() {
 			uikit.SubTabs(c, &d.historyTab, locales.RequestHistory(), locales.History(), locales.Examples())
 		})
-		ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(2), t.Space(2), t.Space(2)).Gap(t.Space(0.5)).Children(func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceM), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceHair)).Children(func() {
 			if d.historyTab == 1 {
 				a.historyExamples(c, t, d)
 				return
@@ -85,7 +85,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			if len(records) == 0 {
 				// Nothing to narrow yet: the column says how a run gets
 				// here, and nothing else.
-				ui.Column(c).Fill().Center().Gap(t.Space(2)).Children(func() {
+				ui.Column(c).Fill().Center().Gap(t.Space(uikit.SpaceM)).Children(func() {
 					ui.Icon(c, sendHistoryIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(uikit.Colors(t).TextFaint)
 					uikit.Hint(c, sendShortcut()+"  "+locales.Send())
 				})
@@ -105,7 +105,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					if status != 0 {
 						shown = strconv.Itoa(status)
 					}
-					ui.Text(c, shown).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(uikit.StatusColor(status, t)).Width(28)
+					uikit.DataMeta(c, shown).TextColor(uikit.StatusColor(status, t)).Width(28)
 					uikit.Body(c, runTime(r.At)).FontFeatures("tnum").SingleLine().Grow(1).MinWidth(0)
 					if r.ID == a.experiments.log.Baseline {
 						uikit.Tip(c, uikit.Glyph(c, pinIcon), locales.Baseline())
@@ -124,7 +124,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 
 func (a *app) historyExamples(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	if len(d.examples) == 0 {
-		uikit.Hint(c, locales.SendTheRequestThenSave()).Padding(t.Space(2))
+		uikit.Hint(c, locales.SendTheRequestThenSave()).Padding(t.Space(uikit.SpaceM))
 		return
 	}
 	for i, e := range d.examples {
@@ -133,7 +133,7 @@ func (a *app) historyExamples(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			uikit.Selected(c, row, !a.windowBehind)
 		}
 		row.Children(func() {
-			ui.Text(c, strconv.Itoa(e.Status)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(uikit.StatusColor(e.Status, t)).Width(28)
+			uikit.DataMeta(c, strconv.Itoa(e.Status)).TextColor(uikit.StatusColor(e.Status, t)).Width(28)
 			uikit.Body(c, e.Name).SingleLine().Grow(1).MinWidth(0)
 		})
 		if row.Clicked() {
@@ -146,12 +146,12 @@ func (a *app) historyExamples(c *ui.Context, t *ui.Theme, d *requestDocument) {
 // until the reader goes back to the latest response or sends again.
 func (a *app) historyResponse(c *ui.Context, t *ui.Theme, d *requestDocument, r *experimentRecord) {
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
+		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			ui.Text(c, locales.RunNumber(r.ID, runTime(r.At))).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).FontFeatures("tnum").SingleLine()
+			uikit.Body(c, locales.RunNumber(r.ID, runTime(r.At))).FontWeight(500).FontFeatures("tnum").SingleLine()
 			uikit.Meta(c, locales.ReadOnly()).Grow(1)
 			if f := r.Exchange; f != nil && f.Status != 0 {
-				uikit.StatusPill(c, strconv.Itoa(f.Status), uikit.StatusColor(f.Status, t)).FontSize(uikit.Scaled(uikit.TextMeta))
+				uikit.StatusPill(c, strconv.Itoa(f.Status), uikit.StatusColor(f.Status, t))
 				uikit.Meta(c, fmt.Sprintf("%d ms", f.Millis)).FontFeatures("tnum")
 				uikit.Meta(c, humanBytes(f.Bytes)).FontFeatures("tnum")
 			}
@@ -163,14 +163,14 @@ func (a *app) historyResponse(c *ui.Context, t *ui.Theme, d *requestDocument, r 
 				d.historyPick, d.historyReader = 0, nil
 			}
 		})
-		ui.Row(c).Padding(t.Space(1), t.Space(3)).Children(func() {
+		ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Children(func() {
 			if uikit.Tip(c, uikit.CompactButton(c, locales.RunDetails()), locales.NotesBaselineAndComparisonIn()).Clicked() {
 				a.openSendHistory(d)
 				a.experiments.pick(r.ID)
 			}
 		})
 		if r.Outcome != "" || r.Summary != "" {
-			uikit.Tip(c, uikit.Meta(c, r.Summary).Padding(t.Space(1), t.Space(3)).SingleLine(), r.Summary)
+			uikit.Tip(c, uikit.Meta(c, r.Summary).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).SingleLine(), r.Summary)
 		}
 		if d.historyReader == nil {
 			d.historyReader = &editor.State{Buffer: editor.NewBuffer(r.resultText()), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: fmt.Sprintf("Run #%d result", r.ID)}

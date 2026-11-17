@@ -76,7 +76,7 @@ func (a *app) inspectorWindowView(c *ui.Context) {
 	a.inspectorInWindow = true
 	defer func() { a.inspectorInWindow = false }()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
-		ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			uikit.Glyph(c, detachIcon)
 			uikit.Body(c, locales.RequestInspector()).Grow(1)
 			if uikit.Tip(c, uikit.SecondaryButton(c, locales.DockInspector()).Label(locales.DockInspector()), locales.DockInspectorHint()).Clicked() {

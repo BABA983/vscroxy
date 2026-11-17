@@ -317,22 +317,22 @@ func (a *app) trafficCheck(target *url.URL, https bool) diagnosticCheck {
 
 func (a *app) diagnosticsView(c *ui.Context, t *ui.Theme) {
 	d := &a.diagnostics
-	ui.Scroll(c).Fill().Padding(t.Space(6)).Children(func() {
-		ui.Column(c).FillWidth().MaxWidth(uikit.SettingsWidth).Gap(t.Space(4)).Children(func() {
-			ui.Column(c).Gap(t.Space(1)).Children(func() {
+	ui.Scroll(c).Fill().Padding(t.Space(uikit.Space2XL)).Children(func() {
+		ui.Column(c).FillWidth().MaxWidth(uikit.SettingsWidth).Gap(t.Space(uikit.SpaceXL)).Children(func() {
+			ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 				uikit.Display(c, locales.ConnectionDiagnostics())
 				uikit.Hint(c, locales.ChecksWhatLiesBetweenA())
 			})
-			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Wrap().Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Wrap().Children(func() {
 				if uikit.Segmented(c, &d.client, locales.ThisMac(), locales.PhoneOrTablet(), locales.OneProcess()).Changed() {
 					d.open = diagnoseAuto
 				}
 			})
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				if uikit.Input(c, &d.target).Label(locales.TargetUrl()).Placeholder("https://api.example.com/").Grow(1).MinWidth(200).Changed() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+				if uikit.Input(c, &d.target).Label(locales.TargetUrl()).Placeholder("https://api.example.com/").Grow(1).MinWidth(uikit.WidthFieldWide).Changed() {
 					d.flowID, d.open = 0, diagnoseAuto
 				}
-				if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(a.systemProxy.checking || a.systemProxy.applying || a.certificate.checking).Clicked() {
+				if uikit.SecondaryButtonBusy(c, locales.CheckAgain(), a.systemProxy.checking || a.systemProxy.applying || a.certificate.checking).Clicked() {
 					a.refreshDiagnostics()
 				}
 				if uikit.SecondaryButton(c, locales.ExportDiagnostics()).Clicked() {
@@ -343,7 +343,7 @@ func (a *app) diagnosticsView(c *ui.Context, t *ui.Theme) {
 			})
 			u, err := url.Parse(strings.TrimSpace(d.target))
 			if err != nil || u.Hostname() == "" || u.User != nil || (u.Scheme != "http" && u.Scheme != "https") {
-				ui.Text(c, locales.EnterAnHttpOrHttps()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
+				uikit.Body(c, locales.EnterAnHttpOrHttps()).TextColor(t.Warning)
 				return
 			}
 			checks := a.diagnosticChecks(t, u)
@@ -387,7 +387,7 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 	tip := strings.Join(tipParts, "\n\n")
 	expandable := check.failure != nil || len(check.detail) > 0
 	uikit.SettingsCard(c, "", func() {
-		row := uikit.RowButton(c, check.title).FillWidth().Height(uikit.SettingsRowHeight).Padding(0, t.Space(4)).Gap(t.Space(3))
+		row := uikit.RowButton(c, check.title).FillWidth().Height(uikit.SettingsRowHeight).Padding(0, t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceL))
 		row.Children(func() {
 			if expandable {
 				arrow := statusMoreIcon
@@ -398,7 +398,7 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 			}
 			ui.Icon(c, icon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(color)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
-				ui.Text(c, strconv.Itoa(i+1)+".  "+check.title).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
+				uikit.Body(c, strconv.Itoa(i+1)+".  "+check.title).FontWeight(500)
 				status := uikit.Small(c, check.result).TextColor(color).SingleLine()
 				if tip != "" {
 					uikit.Tip(c, status, tip)
@@ -424,7 +424,7 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 		if !expanded || !expandable {
 			return
 		}
-		details := ui.Column(c).Padding(0, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(2))
+		details := ui.Column(c).Padding(0, t.Space(uikit.SpaceXL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceM))
 		if d.reveal {
 			c.CloseToast("") // an earlier toast would cover the fix buttons
 			details.ScrollIntoView()
@@ -446,16 +446,16 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 // possibilities; the observed error is the only fact.
 func (a *app) explainFailure(c *ui.Context, t *ui.Theme, f flow) {
 	e := f.conn.explanation()
-	ui.Column(c).Padding(t.Space(3)).Gap(t.Space(2)).Radius(uikit.RadiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
+	ui.Column(c).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
 		uikit.Label(c, "Observed failure · "+cmp.Or(f.conn.errorStage, "unknown stage"))
-		ui.Text(c, e.title).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
-		ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Selectable()
+		uikit.Body(c, e.title).FontWeight(500)
+		uikit.DataMeta(c, f.conn.error).TextColor(t.Danger).Selectable()
 		uikit.Hint(c, e.summary)
-		ui.Text(c, locales.PossibleCausesNotConfirmed()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
+		uikit.Body(c, locales.PossibleCausesNotConfirmed()).FontWeight(500)
 		uikit.Hint(c, e.causes)
-		ui.Text(c, locales.WhatToTry()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
+		uikit.Body(c, locales.WhatToTry()).FontWeight(500)
 		uikit.Body(c, e.steps)
-		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			uikit.Meta(c, locales.ReviewUrlsAddressesAndRaw()).Grow(1)
 			if uikit.SecondaryButton(c, locales.CopyDiagnostics()).Clicked() {
 				c.Services().WriteClipboard(f.connectionDiagnostics())

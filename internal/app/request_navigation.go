@@ -20,8 +20,8 @@ import (
 // no empty slot between them.
 func treeRow(c *ui.Context, item ui.TreeItemParts, depth int) ui.Element {
 	t := c.Theme()
-	row := item.Row.Height(uikit.HeightControl).Margin(0, t.Space(1.5)).Padding(0, t.Space(1.5)).
-		PaddingStart(t.Space(1.5 + 2*float32(depth))).Gap(t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
+	row := item.Row.Height(uikit.HeightRow).Margin(0, t.Space(uikit.SpaceS)).Padding(0, t.Space(uikit.SpaceS)).
+		PaddingStart(t.Space(1.5 + 2*float32(depth))).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
 	if row.Hovered() {
 		row.Background(t.SurfaceHover)
 	}
@@ -33,7 +33,7 @@ func treeRow(c *ui.Context, item ui.TreeItemParts, depth int) ui.Element {
 // the two is the row's gap alone.
 func methodCell(c *ui.Context, method string, slot float32) {
 	ui.Row(c).Width(slot).Shrink(0).Justify(ui.End).Children(func() {
-		uikit.MethodLabel(c, method).FontSize(uikit.Scaled(uikit.TextMeta)).Height(16)
+		uikit.MethodLabel(c, method).Height(16)
 	})
 }
 
@@ -64,7 +64,7 @@ func branchArrow(c *ui.Context, open *bool) {
 	if *open {
 		icon = chevronIcon
 	}
-	arrow := ui.Box(c).Size(uikit.HeightControl-8, uikit.HeightControl-8).Shrink(0).OnClick(func() { *open = !*open })
+	arrow := ui.Box(c).Size(uikit.HeightRow-8, uikit.HeightRow-8).Shrink(0).OnClick(func() { *open = !*open })
 	arrow.Children(func() {
 		ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline).TextColor(c.Theme().TextMuted)
 	})
@@ -178,7 +178,7 @@ func (a *app) collectionTree(c *ui.Context) {
 				// The arrow's slot, empty: a request's method and name start
 				// where a folder's name does, at every depth.
 				ui.Box(c).Size(uikit.IconLarge, uikit.IconLarge).Shrink(0)
-				ui.Row(c).Grow(1).FillHeight().Gap(c.Theme().Space(2)).AlignItems(ui.Center).Label(method + "  " + r.Name).Children(func() {
+				ui.Row(c).Grow(1).FillHeight().Gap(c.Theme().Space(uikit.SpaceM)).AlignItems(ui.Center).Label(method + "  " + r.Name).Children(func() {
 					methodCell(c, method, a.treeMethodSlot())
 					uikit.Body(c, r.Name).SingleLine().Grow(1)
 					if edited {

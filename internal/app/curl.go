@@ -289,10 +289,10 @@ func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &a.curlOpen, locales.ImportCurl2(), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, locales.ImportCurl2())
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				uikit.Hint(c, locales.PasteOneCurlCommandBash())
 				uikit.FormRow(c, locales.CurlCommand(), "", a.curlProblem, func() {
-					if uikit.TextArea(c, &a.curlInput).Height(190).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.CurlCommand()).Placeholder("curl 'https://api.example.com/projects' \\\\\\n  -H 'Accept: application/json'").AutoFocus().Changed() {
+					if uikit.TextArea(c, &a.curlInput).Height(190).Font(uikit.FontMono).Radius(uikit.RadiusControl).Label(locales.CurlCommand()).Placeholder("curl 'https://api.example.com/projects' \\\\\\n  -H 'Accept: application/json'").AutoFocus().Changed() {
 						a.curlProblem = ""
 					}
 				})

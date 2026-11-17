@@ -44,7 +44,7 @@ func (s *structuredInspector) view(c *ui.Context, a *app, source inspectionBody,
 	}
 	s.job.poll(c)
 	t := c.Theme()
-	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		label := inspect.BodyFormat(contentType) + " · read-only inspection"
 		if s.job.body != nil {
 			switch s.job.body.Format {
@@ -62,12 +62,12 @@ func (s *structuredInspector) view(c *ui.Context, a *app, source inspectionBody,
 		})
 	})
 	if s.job.problem != "" {
-		ui.Text(c, s.job.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning).Padding(t.Space(3)).FillWidth()
-		uikit.Hint(c, locales.ChoosePrettyRawOrHex()).Padding(t.Space(3))
+		uikit.Callout(c, uikit.CalloutWarning, s.job.problem, nil).Padding(t.Space(uikit.SpaceL))
+		uikit.Hint(c, locales.ChoosePrettyRawOrHex()).Padding(t.Space(uikit.SpaceL))
 		return
 	}
 	if s.job.body == nil {
-		uikit.Hint(c, locales.InspectingRetainedBody()).Padding(t.Space(3))
+		uikit.Hint(c, locales.InspectingRetainedBody()).Padding(t.Space(uikit.SpaceL))
 		return
 	}
 	body := s.job.body
@@ -97,7 +97,7 @@ func (s *structuredInspector) view(c *ui.Context, a *app, source inspectionBody,
 	case "Multipart":
 		ui.List(c, &s.list, len(body.Parts), func(i int) {
 			part := body.Parts[i]
-			ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).FillWidth().Children(func() {
+			ui.Column(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceXS)).FillWidth().Children(func() {
 				uikit.Body(c, locales.PartInfo(i+1, fmt.Sprintf("%q", part.Name), part.Size)).FillWidth()
 				if part.File {
 					uikit.Meta(c, locales.FilePart(fmt.Sprintf("%q", part.Filename))).FillWidth()

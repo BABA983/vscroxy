@@ -57,7 +57,7 @@ func (a *app) aboutModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(680, height-80)).Children(func() {
 			uikit.DialogTitle(c, locales.AboutVscroxy())
 			uikit.Tabs(c, &a.aboutTab, "About vscroxy", locales.License(), locales.ThirdPartyNotices())
-			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceL)).Children(func() {
 				if a.aboutTab == 1 {
 					uikit.Meta(c, locales.AboutNoticesHint())
 					if a.aboutNotices == "" {
@@ -68,7 +68,7 @@ func (a *app) aboutModal(c *ui.Context, t *ui.Theme) {
 					return
 				}
 				row := func(label, value string) {
-					uikit.SettingsRow(c, label, func() ui.Element { return ui.Text(c, value) }, "")
+					uikit.SettingsRow(c, label, func() ui.Element { return uikit.Body(c, value) }, "")
 				}
 				row(locales.Version(), version.String())
 				row(locales.Commit(), valueOrUnknown(version.CommitString()))

@@ -43,7 +43,7 @@ func (a *app) docsModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(680, height-80)).Children(func() {
 			uikit.DialogTitle(c, locales.DocumentationPath(path))
 			uikit.Meta(c, locales.ReadOnlyMarkdownFromThe())
-			ui.Scroll(c).Grow(1).MinHeight(0).PaddingY(t.Space(2)).Gap(t.Space(3)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).PaddingY(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceL)).Children(func() {
 				if strings.TrimSpace(description) == "" {
 					uikit.Hint(c, locales.NoDescriptionYet(docsLevel(path)))
 				} else {
@@ -76,9 +76,9 @@ func (a *app) docsModal(c *ui.Context, t *ui.Theme) {
 
 // docsEntryView is one request's entry in the documentation view.
 func (a *app) docsEntryView(c *ui.Context, t *ui.Theme, entry docsEntry) {
-	ui.Column(c).Padding(t.Space(2), 0).Gap(t.Space(1)).Children(func() {
-		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.MethodLabel(c, entry.Method).FontSize(uikit.Scaled(uikit.TextMeta)).MinWidth(38).Shrink(0).Height(16)
+	ui.Column(c).Padding(t.Space(uikit.SpaceM), 0).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+			uikit.MethodLabel(c, entry.Method).MinWidth(38).Shrink(0).Height(16)
 			uikit.Body(c, entry.Name).FontWeight(500).Grow(1)
 			if entry.Collection != "" {
 				uikit.Meta(c, entry.Collection)
@@ -92,8 +92,8 @@ func (a *app) docsEntryView(c *ui.Context, t *ui.Theme, entry docsEntry) {
 		if len(entry.Headers) > 0 {
 			uikit.Label(c, locales.Headers())
 			for _, header := range entry.Headers {
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Start).Children(func() {
-					uikit.Mono(c, header.Name).TextColor(t.TextMuted).MinWidth(120).Shrink(0)
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Start).Children(func() {
+					uikit.Mono(c, header.Name).TextColor(t.TextMuted).MinWidth(uikit.WidthNarrow).Shrink(0)
 					uikit.Mono(c, header.Value).Selectable().Grow(1)
 				})
 			}
@@ -132,10 +132,10 @@ func (a *app) docsEntryView(c *ui.Context, t *ui.Theme, entry docsEntry) {
 			if chosen < 0 || chosen >= len(entry.Samples) {
 				chosen = 0
 			}
-			ui.Row(c).Gap(t.Space(1)).Wrap().Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceXS)).Wrap().Children(func() {
 				for i, sample := range entry.Samples {
 					button := uikit.ToolbarButton(c, sample.Language, sample.Language, i == chosen).Children(func() {
-						ui.Text(c, sample.Language).FontSize(uikit.Scaled(uikit.TextMeta))
+						uikit.Caption(c, sample.Language)
 					})
 					if button.Clicked() {
 						a.docsSampleLang[key] = i

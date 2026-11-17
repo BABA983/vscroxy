@@ -70,8 +70,8 @@ func TestDataListDrawsTheSelectionMarker(t *testing.T) {
 		c.SetTheme(Theme(false))
 		ui.Column(c).Fill().Background(Colors(c.Theme()).Canvas).Children(func() {
 			DataListIndexed(c, &state, 2, func(i int) {
-				ui.Text(c, []string{"First", "Second"}[i]).Height(HeightControl).Padding(0, 8)
-			}).Height(HeightControl * 2)
+				ui.Text(c, []string{"First", "Second"}[i]).Height(HeightRow).Padding(0, 8)
+			}).Height(HeightRow * 2)
 		})
 	}, 320, 120)
 	tt.Frame()

@@ -63,14 +63,14 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 		if !item.loaded {
 			ui.Column(c).Grow(1).Center().Children(func() {
 				if item.saveErr != "" {
-					ui.Text(c, item.saveErr).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+					uikit.ErrorText(c, item.saveErr)
 				} else {
 					uikit.Hint(c, locales.OpeningSession())
 				}
 			})
 			return
 		}
-		ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			if uikit.Input(c, &item.data.Title).Label(locales.SessionTitle()).Grow(1).MinWidth(0).Changed() {
 				item.persist(a.invalidate)
 			}
@@ -92,7 +92,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 		})
 		for _, problem := range []string{s.problem, item.saveErr} {
 			if problem != "" {
-				ui.Text(c, problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Padding(t.Space(2))
+				uikit.ErrorText(c, problem).Padding(t.Space(uikit.SpaceM))
 			}
 		}
 		if s.comparing && s.left != nil && len(item.data.Flows) > 0 {
@@ -105,7 +105,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 			return
 		}
 		ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-			ui.Column(c).Width(min(340, a.contentWidth(c)*0.36)).FillHeight().Padding(t.Space(2)).Gap(t.Space(1)).Children(func() {
+			ui.Column(c).Width(min(340, a.contentWidth(c)*0.36)).FillHeight().Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 				uikit.Input(c, &item.query).Label(locales.SearchSession()).Placeholder(locales.UrlStatusOrNote()).FillWidth()
 				uikit.Meta(c, locales.ExchangesCount(len(item.data.Flows)))
 				ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
@@ -137,8 +137,8 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 							if f.Pinned {
 								uikit.Glyph(c, pinIcon)
 							}
-							ui.Text(c, cmp.Or(f.Method, "—")).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Width(46).TextColor(uikit.MethodColor(f.Method, t))
-							ui.Text(c, strconv.Itoa(f.Status)).FontSize(uikit.Scaled(uikit.TextMeta)).Width(30).TextColor(uikit.StatusColor(f.Status, t))
+							uikit.DataMeta(c, cmp.Or(f.Method, "—")).Width(46).TextColor(uikit.MethodColor(f.Method, t))
+							uikit.Caption(c, strconv.Itoa(f.Status)).Width(30).TextColor(uikit.StatusColor(f.Status, t))
 							uikit.Meta(c, cmp.Or(f.URL, f.Path)).SingleLine().Grow(1).MinWidth(0)
 							if dot, ok := highlightColor(f.Color); ok {
 								uikit.Tip(c, ui.Box(c).Size(8, 8).Radius(uikit.RadiusControl).Background(dot), f.Color)
@@ -169,7 +169,7 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 	}
 	f := &item.data.Flows[item.picked]
 	s := &a.sessions
-	ui.Row(c).Padding(t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		useAsLeft := func() {
 			left := f.flow()
 			s.left, s.leftLabel = &left, item.data.Title
@@ -205,8 +205,8 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 			}
 		})
 	})
-	uikit.Tip(c, uikit.Meta(c, f.URL).Padding(0, t.Space(2)).SingleLine(), f.URL)
-	ui.Row(c).Padding(t.Space(2)).Gap(t.Space(2)).Children(func() {
+	uikit.Tip(c, uikit.Meta(c, f.URL).Padding(0, t.Space(uikit.SpaceM)).SingleLine(), f.URL)
+	ui.Row(c).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		if uikit.Input(c, &f.Note).Label(locales.SessionExchangeNote()).Placeholder(locales.AddANote()).Grow(1).Changed() {
 			item.persist(a.invalidate)
 		}
@@ -222,7 +222,7 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 			}
 		}).Label(locales.SessionColor()).Width(90)
 	})
-	if uikit.Input(c, &item.data.Notes).Label(locales.SessionNotes2()).Placeholder(locales.SessionNotes()).Margin(0, t.Space(2), t.Space(2)).Changed() {
+	if uikit.Input(c, &item.data.Notes).Label(locales.SessionNotes2()).Placeholder(locales.SessionNotes()).Margin(0, t.Space(uikit.SpaceM), t.Space(uikit.SpaceM)).Changed() {
 		item.persist(a.invalidate)
 	}
 	// The exchange is the outer choice, as a request's own tabs are: Tabs
@@ -231,7 +231,7 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 	side := item.side
 	uikit.TabStrip(c, func() {
 		uikit.Tabs(c, &item.side, "", locales.Request(), locales.Response())
-	}).FillWidth().Padding(0, t.Space(2))
+	}).FillWidth().Padding(0, t.Space(uikit.SpaceM))
 	if item.side != side {
 		item.reader = nil
 	}
@@ -240,7 +240,7 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 	if item.side == 1 {
 		headers = locales.ResponseHeadersLabel()
 	}
-	ui.Row(c).Padding(t.Space(2), t.Space(2), t.Space(2)).Gap(t.Space(2)).Children(func() {
+	ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceM), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		if uikit.SubTabs(c, &item.tab, "Session exchange", headers, locales.Body(), locales.MessagesTab(), locales.Connection()).Changed() {
 			item.reader = nil
 		}

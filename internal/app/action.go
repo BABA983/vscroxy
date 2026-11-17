@@ -175,8 +175,8 @@ func actionMenu(m *ui.Menu, actions []action) {
 			// keycap replaces that text; the app still owns the keys.
 			item.Content(func(content ui.MenuItemContent) {
 				ctx := content.Context
-				ui.Row(ctx).FillWidth().Gap(ctx.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
-					ui.Text(ctx, x.label).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(content.Text).Grow(1).SingleLine()
+				ui.Row(ctx).FillWidth().Gap(ctx.Theme().Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+					uikit.Body(ctx, x.label).TextColor(content.Text).Grow(1).SingleLine()
 					uikit.Kbd(ctx, key)
 				})
 			})

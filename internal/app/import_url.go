@@ -29,7 +29,7 @@ func (a *app) urlImportModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &a.urlImportOpen, locales.ImportFromUrl2(), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, locales.ImportFromUrl2())
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				uikit.Hint(c, locales.ImportUrlHint())
 				uikit.FormRow(c, locales.Url(), "", a.urlImportProblem, func() {
 					if uikit.Input(c, &a.urlImportText).Label(locales.Url()).Placeholder("https://example.com/collection.json").
@@ -42,7 +42,7 @@ func (a *app) urlImportModal(c *ui.Context, t *ui.Theme) {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.urlImportOpen = false
 				}
-				if uikit.PrimaryButton(c, locales.ImportAction()).Disabled(a.urlImportBusy || strings.TrimSpace(a.urlImportText) == "").Clicked() {
+				if uikit.PrimaryButtonBusy(c, locales.ImportAction(), a.urlImportBusy).Disabled(a.urlImportBusy || strings.TrimSpace(a.urlImportText) == "").Clicked() {
 					a.fetchImportURL()
 				}
 			})

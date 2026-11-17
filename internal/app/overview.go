@@ -169,8 +169,8 @@ func (a *app) overviewView(c *ui.Context, t *ui.Theme) {
 	stats := a.cachedOverview()
 	p := uikit.Colors(t)
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).MinHeight(uikit.HeightLarge).AlignItems(ui.Center).Wrap().Children(func() {
-			ui.Text(c, locales.Overview()).FontSize(uikit.Scaled(uikit.TextTitle)).FontWeight(600).NoWrap()
+		ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Wrap().Children(func() {
+			uikit.Heading(c, locales.Overview()).NoWrap()
 			uikit.Segmented(c, (*int)(&a.overviewScope), locales.Session(), locales.Selection())
 			ui.Spacer(c)
 			disabled := len(flows) == 0
@@ -184,12 +184,12 @@ func (a *app) overviewView(c *ui.Context, t *ui.Theme) {
 		})
 		ui.Divider(c)
 		if len(flows) == 0 {
-			uikit.Hint(c, locales.OverviewEmpty()).Padding(t.Space(4))
+			uikit.Hint(c, locales.OverviewEmpty()).Padding(t.Space(uikit.SpaceXL))
 			return
 		}
-		ui.Scroll(c).Grow(1).Padding(t.Space(3)).Gap(t.Space(4)).Children(func() {
+		ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceXL)).Children(func() {
 			uikit.Meta(c, a.overviewScopeLine(len(flows))).FontFeatures("tnum")
-			ui.Row(c).Gap(t.Space(3)).Wrap().Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceL)).Wrap().Children(func() {
 				overviewStat(c, t, locales.Captures(), fmt.Sprint(stats.captures))
 				overviewStat(c, t, locales.ResponseBytesLabel(), fmt.Sprint(stats.resBytes))
 				overviewStat(c, t, locales.Errors(), fmt.Sprint(stats.errors))
@@ -208,21 +208,21 @@ func (a *app) overviewView(c *ui.Context, t *ui.Theme) {
 }
 
 func overviewStat(c *ui.Context, t *ui.Theme, label, value string) {
-	ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(0.5)).MinWidth(140).Radius(uikit.RadiusControl).Background(uikit.Colors(t).Chrome).Children(func() {
-		ui.Text(c, value).FontSize(uikit.Scaled(uikit.TextTitle)).FontWeight(600).FontFeatures("tnum")
+	ui.Column(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceHair)).MinWidth(uikit.WidthPicker).Radius(uikit.RadiusControl).Background(uikit.Colors(t).Chrome).Children(func() {
+		uikit.Heading(c, value).FontFeatures("tnum")
 		uikit.Meta(c, label).FontFeatures("tnum")
 	})
 }
 
 func overviewSection(c *ui.Context, t *ui.Theme, title string) {
-	ui.Text(c, title).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(600).Margin(t.Space(1), 0, 0, 0)
+	uikit.BodyStrong(c, title).Margin(t.Space(uikit.SpaceXS), 0, 0, 0)
 }
 
 // overviewBars lists the busiest rows with a share bar; zero counts draw
 // nothing, so a quiet session does not show empty tracks.
 func overviewBars(c *ui.Context, t *ui.Theme, rows []overviewCount, limit int, withBytes, byBytes bool, color ui.Color) {
 	if len(rows) == 0 {
-		uikit.Hint(c, locales.None()).FontSize(uikit.Scaled(uikit.TextMeta))
+		uikit.Hint(c, locales.None())
 		return
 	}
 	var total int64
@@ -233,14 +233,14 @@ func overviewBars(c *ui.Context, t *ui.Theme, rows []overviewCount, limit int, w
 		}
 		total += int64(row.count)
 	}
-	ui.Column(c).Gap(t.Space(1.5)).Children(func() {
+	ui.Column(c).Gap(t.Space(uikit.SpaceS)).Children(func() {
 		for _, row := range rows[:min(limit, len(rows))] {
 			name := row.name
 			if name == "" {
 				name = locales.UnknownApp()
 			}
-			ui.Column(c).Gap(t.Space(0.5)).Children(func() {
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Column(c).Gap(t.Space(uikit.SpaceHair)).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					uikit.Body(c, name).SingleLine().Grow(1)
 					uikit.Meta(c, fmt.Sprint(row.count)).FontFeatures("tnum")
 					if withBytes {
@@ -275,7 +275,7 @@ func overviewStatuses(c *ui.Context, t *ui.Theme, stats overviewStats) {
 	for _, count := range stats.statuses {
 		total += count
 	}
-	ui.Column(c).Gap(t.Space(1.5)).Children(func() {
+	ui.Column(c).Gap(t.Space(uikit.SpaceS)).Children(func() {
 		for i, count := range stats.statuses {
 			if count == 0 {
 				continue
@@ -293,8 +293,8 @@ func overviewStatuses(c *ui.Context, t *ui.Theme, stats overviewStats) {
 			case 5:
 				label, color = locales.NoResponse(), p.Danger
 			}
-			ui.Column(c).Gap(t.Space(0.5)).Children(func() {
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Column(c).Gap(t.Space(uikit.SpaceHair)).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					uikit.Mono(c, label).Width(90)
 					uikit.Meta(c, fmt.Sprint(count)).FontFeatures("tnum").Grow(1)
 					uikit.Meta(c, fmt.Sprintf("%.0f%%", 100*float64(count)/float64(total))).FontFeatures("tnum").Width(45)
@@ -309,7 +309,7 @@ func overviewStatuses(c *ui.Context, t *ui.Theme, stats overviewStats) {
 }
 
 func overviewBandwidth(c *ui.Context, t *ui.Theme, stats overviewStats) {
-	ui.Column(c).Gap(t.Space(1)).Children(func() {
+	ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 		uikit.Body(c, locales.RequestBytes(int(stats.reqBytes))).FontFeatures("tnum")
 		uikit.Body(c, locales.ResponseBytes(int(stats.resBytes))).FontFeatures("tnum")
 		uikit.Body(c, locales.TotalBytes(int(stats.reqBytes+stats.resBytes))).FontFeatures("tnum").FontWeight(500)

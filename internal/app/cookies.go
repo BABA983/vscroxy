@@ -634,7 +634,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, locales.Cookies2())
 			uikit.Meta(c, locales.SharedByRequestsRunnerScripts())
 			keep := a.cookiePersistence
-			if ui.Checkbox(c, &keep, "Keep cookies after quitting").Changed() {
+			if uikit.Checkbox(c, &keep, locales.KeepCookiesAfterQuitting()).Changed() {
 				a.setCookiePersistence(keep)
 			}
 			hint := "Cookies stay in memory until the app quits. Session cookies are never saved."
@@ -643,9 +643,9 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 			}
 			uikit.Hint(c, hint)
 			if problem := a.requestCookies().problemText(); problem != "" {
-				ui.Text(c, "The local cookie file was not read or written: "+problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+				uikit.ErrorText(c, "The local cookie file was not read or written: "+problem)
 			}
-			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				items := a.requestCookies().snapshot()
 				if len(items) == 0 {
 					uikit.Hint(c, locales.NoCookiesYetSendA())
@@ -656,7 +656,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 					groups[domain] = append(groups[domain], item)
 				}
 				for _, domain := range slices.Sorted(maps.Keys(groups)) {
-					ui.Row(c.Key("domain:" + domain)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					ui.Row(c.Key("domain:" + domain)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 						uikit.Tip(c, uikit.Label(c, domain).SingleLine().Grow(1), "Cookies for "+domain)
 						if uikit.CompactButton(c, locales.Clear()).Label("Clear cookies for " + domain).Clicked() {
 							a.requestCookies().clearDomain(domain)
@@ -664,8 +664,8 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 						}
 					})
 					for _, item := range groups[domain] {
-						ui.Row(c.Key(item.key)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-							ui.Column(c).Grow(1).Gap(t.Space(1)).Children(func() {
+						ui.Row(c.Key(item.key)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+							ui.Column(c).Grow(1).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 								value := "••••••••"
 								if e.reveal[item.key] {
 									value = item.cookie.Value
@@ -713,10 +713,10 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 						uikit.Input(c, &e.domain).Label(locales.CookieDomain()).Placeholder(locales.DomainOptional())
 					})
 					ui.Field(c, locales.CookiePath(), func() {
-						ui.Row(c).Gap(t.Space(3)).Children(func() {
+						ui.Row(c).Gap(t.Space(uikit.SpaceL)).Children(func() {
 							uikit.Input(c, &e.path).Width(100).Label(locales.CookiePath()).Placeholder("/")
-							ui.Checkbox(c, &e.secure, "Secure")
-							ui.Checkbox(c, &e.httpOnly, "HttpOnly")
+							uikit.Checkbox(c, &e.secure, locales.CookieSecure())
+							uikit.Checkbox(c, &e.httpOnly, locales.CookieHttpOnly())
 						})
 					})
 				})

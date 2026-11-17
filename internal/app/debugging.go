@@ -310,7 +310,7 @@ drained:
 			uikit.DialogTitle(c, locales.ReplayRequests(len(r.flows)))
 			// Leave room for the input's focus halo: a scroll clips what
 			// reaches past its content edge.
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				uikit.Hint(c, locales.SendsInCaptureOrderThrough())
 				uikit.FormRow(c, locales.TimeoutPerRequestSeconds0(), "", timeoutProblem, func() {
 					uikit.InputState(c, &r.timeout, timeoutProblem != "").Label(locales.ReplayTimeout()).Disabled(r.updates != nil)
@@ -318,7 +318,7 @@ drained:
 				uikit.FormRow(c, locales.RepeatEachRequest(), locales.RepeatDescription(replayMaxRepeat), "", func() {
 					uikit.Input(c, &r.repeat).Label(locales.ReplayRepeats()).Disabled(r.updates != nil)
 				})
-				ui.Row(c).Gap(t.Space(3)).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceL)).Children(func() {
 					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 						uikit.FormRow(c, locales.Concurrency(), locales.ConcurrencyDescription(replayMaxConcurrency), "", func() {
 							uikit.Input(c, &r.concurrency).Label(locales.ReplayConcurrency()).Disabled(r.updates != nil)
@@ -331,19 +331,19 @@ drained:
 					})
 				})
 				if inputProblem != "" {
-					ui.Text(c, inputProblem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
+					uikit.Callout(c, uikit.CalloutDanger, inputProblem, nil)
 				} else {
 					uikit.Meta(c, locales.TotalSends(total))
 				}
 				if a.srv != nil && a.srv.NoCaching() {
-					ui.Text(c, locales.NoCachingIsOnConditional()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Accent)
+					uikit.Body(c, locales.NoCachingIsOnConditional()).TextColor(t.Accent)
 				}
 				if r.updates != nil || r.finished {
 					fraction := 0.0
 					if r.total > 0 {
 						fraction = float64(r.done) / float64(r.total)
 					}
-					ui.Progress(c, fraction).Label(locales.ReplayProgress())
+					uikit.ProgressBar(c, fraction, locales.ReplayProgress())
 					if r.updates != nil {
 						line := fmt.Sprintf("%d/%d started · %d failed", r.done, r.total, r.failed)
 						if r.canceled > 0 {
@@ -359,7 +359,7 @@ drained:
 					uikit.Body(c, r.summary())
 				}
 				if r.problem != "" {
-					uikit.Tip(c, ui.Text(c, r.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).MaxLines(3), r.problem)
+					uikit.Tip(c, uikit.ErrorText(c, r.problem).MaxLines(3), r.problem)
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {

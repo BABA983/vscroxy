@@ -378,10 +378,10 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 	}
 	width, height := c.Size()
 	uikit.Modal(c, &r.open, locales.CollectionRunner(), func() {
-		ui.Column(c).Width(min(840, width-80)).Height(min(560, height-100)).Gap(t.Space(2)).Children(func() {
+		ui.Column(c).Width(min(840, width-80)).Height(min(560, height-100)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			uikit.DialogTitle(c, locales.CollectionRunner())
 			uikit.Meta(c, locales.RunsSavedRequestsInOrder())
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Start).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Start).Children(func() {
 				uikit.FormRow(c, locales.RunnerCollection(), "", "", func() {
 					names := runnableCollections(a.requests)
 					if len(names) == 0 {
@@ -393,18 +393,18 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				}).Grow(1)
 				uikit.FormRow(c, locales.Iterations(), "", "", func() {
 					uikit.Input(c, &r.iterations).FillWidth().Disabled(r.running)
-				}).Width(120)
+				}).Width(uikit.WidthNarrow)
 				uikit.FormRow(c, locales.DelayMs(), "", "", func() {
 					uikit.Tip(c, uikit.Input(c, &r.delay).FillWidth().Disabled(r.running), locales.RunnerDelay())
-				}).Width(120)
+				}).Width(uikit.WidthNarrow)
 			})
-			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-				ui.Checkbox(c, &r.stopOnFailure, "Stop on failure").FontSize(uikit.Scaled(uikit.TextBody)).Disabled(r.running)
+			ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
+				uikit.Checkbox(c, &r.stopOnFailure, locales.StopOnFailure()).Disabled(r.running)
 				keep := !r.discardVars
-				ui.Checkbox(c, &keep, locales.KeepVariableValues()).FontSize(uikit.Scaled(uikit.TextBody)).Disabled(r.running)
+				uikit.Checkbox(c, &keep, locales.KeepVariableValues()).Disabled(r.running)
 				r.discardVars = !keep
 			})
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				text, color := "No data file: every iteration uses the same variables.", t.TextMuted
 				switch {
 				case r.dataProblem != "":
@@ -412,7 +412,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				case len(r.data) > 0:
 					text, color = fmt.Sprintf("%s · %d %s · %s", r.dataName, len(r.data), plural(len(r.data), "row", "rows"), strings.Join(request.DataColumns(r.data), ", ")), t.Text
 				}
-				uikit.Tip(c, ui.Text(c, text).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color).Grow(1).MinWidth(0).SingleLine(), text)
+				uikit.Tip(c, uikit.Caption(c, text).TextColor(color).Grow(1).MinWidth(0).SingleLine(), text)
 				if len(r.data) > 0 && uikit.SecondaryButton(c, locales.Remove()).Label(locales.RemoveDataFile()).Disabled(r.running).Clicked() {
 					r.data, r.dataName, r.iterations = nil, "", "1"
 				}
@@ -422,7 +422,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 			})
 			ui.Row(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).Width(300).Children(func() {
-					uikit.Label(c, locales.ExecutionOrder()).Height(uikit.HeightTabs).Padding(t.Space(2)).
+					uikit.Label(c, locales.ExecutionOrder()).Height(uikit.HeightTabs).Padding(t.Space(uikit.SpaceM)).
 						Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					move, delta := -1, 0
 					ui.Scroll(c).Grow(1).Children(func() {
@@ -431,9 +431,9 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						}
 						for i := range r.steps {
 							step := &r.steps[i]
-							ui.Row(c.Key(i)).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).
+							ui.Row(c.Key(i)).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).
 								Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-								ui.Checkbox(c, &step.enabled, step.request.Name).Label(locales.RunRequest(i + 1)).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).Disabled(r.running)
+								uikit.Checkbox(c, &step.enabled, step.request.Name).Label(locales.RunRequest(i + 1)).Grow(1).Disabled(r.running)
 								if uikit.Tip(c, uikit.IconButton(c, locales.MoveRequestUp(i+1), locales.MoveRequestUp(i+1), lucide.ArrowUp()).Disabled(r.running || i == 0), locales.MoveRequestUp(i+1)).Clicked() {
 									move, delta = i, -1
 								}
@@ -449,7 +449,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				})
 				ui.Divider(c)
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					uikit.Label(c, locales.RunnerResults(r.completed, r.failures)).Height(uikit.HeightTabs).Padding(t.Space(2)).FontFeatures("tnum").Border(0, t.Border).BorderWidth(0, 0, 1, 0)
+					uikit.Label(c, locales.RunnerResults(r.completed, r.failures)).Height(uikit.HeightTabs).Padding(t.Space(uikit.SpaceM)).FontFeatures("tnum").Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					if len(r.history) > 0 || r.running {
 						keys := make([]string, 0, len(r.history)+1)
 						for i := range r.history {
@@ -473,10 +473,10 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						if row.failed {
 							color = t.Danger
 						}
-						uikit.Tip(c, ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
+						uikit.Tip(c, ui.Row(c).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 							Border(0, t.Border).BorderWidth(0, 0, 1, 0), row.summary).Children(func() {
 							uikit.Body(c, fmt.Sprintf("%d · %s", row.iteration, row.name)).FontFeatures("tnum").Grow(1).MinWidth(0).SingleLine()
-							summary := ui.Text(c, row.summary).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").SingleLine().MaxWidth(240)
+							summary := uikit.Caption(c, row.summary).FontFeatures("tnum").SingleLine().MaxWidth(uikit.WidthWide)
 							summary.TextColor(color)
 						})
 					}).Grow(1).Children(func() {
@@ -495,7 +495,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						if row.failed {
 							color = t.Danger
 						}
-						ui.Row(c).Padding(t.Space(2), t.Space(2), 0).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+						ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceM), 0).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 							uikit.Label(c, fmt.Sprintf("%d · %s", row.iteration, row.name)).FontFeatures("tnum").Grow(1).SingleLine()
 							if uikit.SecondaryButton(c, locales.InspectRetainedRun()).Disabled(row.recordID == 0).Clicked() {
 								a.experiments.scope, a.experiments.draftKey = nil, ""
@@ -503,8 +503,8 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 								a.experiments.open, r.open = true, false
 							}
 						})
-						uikit.Meta(c, row.summary).TextColor(color).Padding(0, t.Space(2)).SingleLine()
-						ui.Scroll(c).MaxHeight(150).Padding(0, t.Space(2)).Gap(t.Space(1)).Children(func() {
+						uikit.Meta(c, row.summary).TextColor(color).Padding(0, t.Space(uikit.SpaceM)).SingleLine()
+						ui.Scroll(c).MaxHeight(150).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 							for _, test := range row.tests {
 								testResultRow(c, test)
 							}
@@ -513,7 +513,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 							}
 						})
 					}
-					ui.Row(c).Padding(t.Space(2)).Gap(t.Space(2)).Children(func() {
+					ui.Row(c).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 						disabled := r.running || r.report.StartedAt.IsZero()
 						if uikit.SecondaryButton(c, locales.ExportRunJSON()).Disabled(disabled).Clicked() {
 							a.exportRunReport(false)
@@ -535,7 +535,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				status = locales.RequestsSelected(selected)
 			}
 			uikit.Tip(c, uikit.Meta(c, status), "Displaying latest 1000 results; closing keeps a run active")
-			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Justify(ui.End).Children(func() {
 				uikit.SecondaryButton(c, locales.LoadTest()).Disabled(r.running || a.remoteRunActive()).OnClick(a.openLoadRunner)
 				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					r.open = false

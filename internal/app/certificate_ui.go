@@ -41,10 +41,10 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 	e.load(a)
 	uikit.SettingsCardPage(c, locales.Certificates(), locales.ClientCertificatesAndExtraRoots(), func() {
 		if a.certProblem != "" {
-			ui.Text(c, a.certProblem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
+			uikit.Callout(c, uikit.CalloutDanger, a.certProblem, nil)
 		}
 		if e.problem != "" {
-			ui.Text(c, e.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
+			uikit.Callout(c, uikit.CalloutDanger, e.problem, nil)
 		}
 		uikit.SettingsCard(c, locales.SigningCa(), func() {
 			settingsCardBlock(c, "", func() ui.Element {
@@ -62,15 +62,15 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 				state = locales.CustomCaSubject(subject)
 			}
 			settingsCardBlock(c, "", func() ui.Element {
-				return ui.Column(c).Gap(t.Space(1)).Children(func() {
-					ui.Text(c, state).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
+				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+					uikit.Body(c, state).TextColor(t.Text)
 					if e.signingSaved && !e.signingClear {
 						uikit.Tip(c, uikit.Meta(c, e.signingCert).SingleLine(), e.signingCert)
 					}
 				})
 			}, "")
 			settingsCardBlock(c, locales.SigningCaCertificate(), func() ui.Element {
-				return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
+				return ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.End).Children(func() {
 					if uikit.Input(c, &e.signingCert).Label(locales.CertificateFile()).Placeholder(locales.PemRootCertificate()).Grow(1).Changed() {
 						e.dirty = true
 					}
@@ -80,7 +80,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, "")
 			settingsCardBlock(c, locales.SigningCaPrivateKey(), func() ui.Element {
-				return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
+				return ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.End).Children(func() {
 					if uikit.Input(c, &e.signingKey).Label(locales.SigningCaPrivateKey()).Placeholder(locales.PemPrivateKey()).Grow(1).Changed() {
 						e.dirty = true
 					}
@@ -93,7 +93,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 				e.signingClear && a.certificates.SigningCA != nil
 			if showActions {
 				settingsCardBlock(c, "", func() ui.Element {
-					return ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+					return ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().Children(func() {
 						if !e.signingClear && (e.signingSaved || e.signingCert != "" || e.signingKey != "") {
 							if uikit.SecondaryButton(c, locales.UseGeneratedCa()).Clicked() {
 								e.signingClear, e.signingSaved = true, false
@@ -130,8 +130,8 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 				}
 				expanded := e.open[row.ID]
 				settingsCardBlock(c, "", func() ui.Element {
-					return ui.Column(c).Gap(t.Space(2)).Children(func() {
-						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					return ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
+						ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 							if uikit.Input(c, &row.Host).Label(locales.Host()).Placeholder("api.example.com or *.example.com:8443").Grow(1).MinWidth(0).Changed() {
 								e.dirty = true
 							}
@@ -159,7 +159,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 						if row.Format == certs.FormatPKCS12 {
 							format = 1
 						}
-						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+						ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 							uikit.Meta(c, locales.CertificateFormat()).Grow(1)
 							if uikit.Segmented(c, &format, locales.Pem(), locales.Pkcs12()).Label(locales.CertificateFormat()).Changed() {
 								row.Format = certs.FormatPEM
@@ -169,7 +169,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 								e.dirty = true
 							}
 						})
-						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
+						ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.End).Children(func() {
 							if uikit.Input(c, &row.CertFile).Label(locales.CertificateFile()).Placeholder(locales.PemChainOrP12Pfx()).Grow(1).Changed() {
 								e.dirty = true
 							}
@@ -178,7 +178,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 							}
 						})
 						if row.Format != certs.FormatPKCS12 {
-							ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
+							ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.End).Children(func() {
 								if uikit.Input(c, &row.KeyFile).Label(locales.KeyFile()).Placeholder(locales.PemPrivateKey()).Grow(1).Changed() {
 									e.dirty = true
 								}
@@ -187,12 +187,12 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 								}
 							})
 						}
-						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
+						ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.End).Children(func() {
 							if uikit.Input(c, &row.Passphrase).Password().Label(locales.Passphrase()).Placeholder(locales.Optional()).Grow(1).Changed() {
 								row.Clear, e.dirty = false, true
 							}
 						})
-						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+						ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 							switch {
 							case row.Clear:
 								uikit.Hint(c, locales.SavedPassphraseWillBeRemoved()).Grow(1)
@@ -242,7 +242,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 			for i := range e.roots {
 				root := &e.roots[i]
 				settingsCardBlock(c, "", func() ui.Element {
-					return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
+					return ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.End).Children(func() {
 						if uikit.Input(c, &root.Path).Label(locales.CustomCaFile()).Placeholder(locales.PemRootCertificate()).Grow(1).Changed() {
 							e.dirty = true
 						}
@@ -277,7 +277,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 // roots, where a 560-point Settings window cut it off.
 func (a *app) certificateFooter(c *ui.Context, t *ui.Theme) {
 	e := &a.certificateUI
-	uikit.DialogFooter(c).Shrink(0).Padding(t.Space(2), t.Space(6)).Children(func() {
+	uikit.DialogFooter(c).Shrink(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.Space2XL)).Children(func() {
 		uikit.Meta(c, locales.PassphrasesAreSealedInA()).Grow(1).MinWidth(0)
 		if e.dirty && uikit.SecondaryButton(c, locales.DiscardChanges()).Clicked() {
 			e.loaded, e.dirty, e.problem = false, false, ""

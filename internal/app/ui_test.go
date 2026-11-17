@@ -132,7 +132,7 @@ func choosePaneView(t *testing.T, tt *ui.Tester, pane, label string) {
 	// The pointer stays where the More button was, and a submenu item can
 	// open under it. Move onto a top-level item before choosing by label, so
 	// the submenu closes and the top-level menu is current.
-	for _, anchor := range []string{"Scripts", "Decode…", "Open request History", "Cookies"} {
+	for _, anchor := range []string{"Scripts", "Decode…", "Open request runs", "Cookies"} {
 		if r, ok := tt.Find(anchor); ok {
 			tt.Move(r.X+r.W/2, r.Y+r.H/2)
 			break
@@ -2286,7 +2286,7 @@ func TestCaptureStartsBelowFourBars(t *testing.T) {
 	const height = 800
 	tt := ui.NewTester(a.view, 1280, height)
 	search, ok := tt.Find("Search host or path")
-	if !ok || search.H != uikit.HeightControl || search.Y < uikit.HeightBar {
+	if !ok || search.H != uikit.HeightRow || search.Y < uikit.HeightBar {
 		t.Fatalf("the filter bar's field is not a control under the title bar: %v", search)
 	}
 	activity, ok := tt.Find("Activity strip")
@@ -2294,10 +2294,10 @@ func TestCaptureStartsBelowFourBars(t *testing.T) {
 		t.Fatalf("the activity row is not 24 high: %v", activity)
 	}
 	head, ok := tt.Find("#")
-	if !ok || head.H != uikit.HeightControl {
+	if !ok || head.H != uikit.HeightRow {
 		t.Fatalf("the table's head is not 24 high: %v", head)
 	}
-	want := float32(uikit.HeightBar + uikit.HeightTabs + uikit.HeightStatus + uikit.HeightControl)
+	want := float32(uikit.HeightBar + uikit.HeightTabs + uikit.HeightStatus + uikit.HeightRow)
 	if top := head.Y + head.H; top < want {
 		t.Fatalf("the first request row starts at %g, above the %g the four bars take", top, want)
 	}
@@ -2850,7 +2850,7 @@ func TestHistoryColumnYieldsToTheRequestTabs(t *testing.T) {
 		tt := ui.NewTester(func(c *ui.Context) {
 			a.view(c)
 			for _, label := range []string{"Headers", "Params", "Body", "Auth"} {
-				need[label] = paneTextWidth(c, label, uikit.TextBody, 400) + 2*c.Theme().Space(1.5)
+				need[label] = paneTextWidth(c, label, uikit.TextBody, 400) + 2*c.Theme().Space(uikit.SpaceS)
 			}
 		}, tc.width, 800)
 		tt.SetLocale("en-US")
@@ -2862,7 +2862,7 @@ func TestHistoryColumnYieldsToTheRequestTabs(t *testing.T) {
 		d.responseArrived()
 		tt.Frame()
 		tt.Frame()
-		if got := tt.HasText("Request history"); got != tc.history {
+		if got := tt.HasText("Request runs"); got != tc.history {
 			t.Fatalf("width %d: history column shown = %t, want %t", tc.width, got, tc.history)
 		}
 		for _, label := range []string{"Headers", "Params", "Body", "Auth"} {
@@ -2885,7 +2885,7 @@ func TestEditorRequestTabsStayWholeWords(t *testing.T) {
 	tt := ui.NewTester(func(c *ui.Context) {
 		a.view(c)
 		for _, label := range []string{"Headers", "Params", "Body", "Auth"} {
-			labelWidth[label] = paneTextWidth(c, label, uikit.TextBody, 400) + 2*c.Theme().Space(1.5)
+			labelWidth[label] = paneTextWidth(c, label, uikit.TextBody, 400) + 2*c.Theme().Space(uikit.SpaceS)
 		}
 	}, 1280, 800)
 	openEditorResponse(t, tt, a)
@@ -3375,24 +3375,24 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 	if _, other := tt.Find("Run #2"); !ok1 || !ok3 || other || latest.Y >= first.Y {
 		t.Fatalf("history is not the linked runs, newest first: #3 %v, #1 %v, unlinked shown %t", latest, first, other)
 	}
-	click("History source")
+	click("Run source")
 	click("Capture-linked")
 	if _, first := tt.Find("Run #1"); first || !tt.HasText("Run #3") {
 		t.Fatal("capture source filter mixed authored attempts")
 	}
-	click("History status")
+	click("Run status")
 	click("2xx")
 	if tt.HasText("Run #3") || tt.HasText("Run #1") {
 		t.Fatal("status and source filters did not intersect")
 	}
-	click("History status")
+	click("Run status")
 	click("4xx")
 	if !tt.HasText("Run #3") || tt.HasText("Run #2") {
 		t.Fatal("status filter lost a match or admitted an unrelated request")
 	}
-	click("History status")
+	click("Run status")
 	click("All statuses")
-	click("History source")
+	click("Run source")
 	click("All sources")
 	click("Run #1")
 	click("Run #1 result")
@@ -6214,7 +6214,7 @@ func TestRunRecordTabsRemainReadableAtMinimumWidth(t *testing.T) {
 			t.Fatal("missing variables tab")
 		}
 		tt := ui.NewTester(a.view, 960, 800)
-		for _, label := range []string{"History status", "History source"} {
+		for _, label := range []string{"Run status", "Run source"} {
 			bounds, ok := tt.Find(label)
 			if !ok || bounds.W < 24 || bounds.X < 0 || bounds.X+bounds.W > 960 {
 				t.Fatalf("dark=%t: history filter unavailable at minimum width: %s %v", dark, label, bounds)
@@ -6433,7 +6433,7 @@ func TestSendCancellationKeepsTheSentSnapshotAndDoesNotRetry(t *testing.T) {
 	if a.composeURL != upstream.URL+"/unsent" {
 		t.Fatal("cancelling overwrote in-flight edits")
 	}
-	if err := tt.Click("Open request History"); err != nil {
+	if err := tt.Click("Open request runs"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("Cancelled") || !tt.HasText("Experiment #1") {
@@ -6461,7 +6461,7 @@ func TestSendCancellationKeepsTheSentSnapshotAndDoesNotRetry(t *testing.T) {
 		tt.Frame()
 		runtime.Gosched()
 	}
-	if err := tt.Click("Open request History"); err != nil {
+	if err := tt.Click("Open request runs"); err != nil {
 		t.Fatal(err)
 	}
 	if _, found := tt.Find("Experiment #1"); found || !tt.HasText("Pre-request script failed") || hits.Load() != 1 {
@@ -6572,7 +6572,7 @@ func TestSendResultsSeparateFailuresAndLinkTheExactAttempt(t *testing.T) {
 			if tc.name == "network" && tt.HasText("502 · proxy response") || tc.name == "http" && !tt.HasText("502 Bad Gateway") {
 				t.Fatalf("response origin is ambiguous: %q", tt.Texts())
 			}
-			if err := tt.Click("Open request History"); err != nil {
+			if err := tt.Click("Open request runs"); err != nil {
 				t.Fatal(err)
 			}
 			if !tt.HasText(tc.outcome) {
