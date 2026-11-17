@@ -49,7 +49,7 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 			settingsCardBlock(c, locales.ProjectFolder(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
-						uikit.Input(c, &a.projectInput).Label(locales.ProjectFolder()).Placeholder(locales.Automatic()).Width(260)
+						uikit.Input(c, &a.projectInput).Label(locales.ProjectFolder()).Placeholder(locales.Automatic()).MinWidth(260).Grow(1)
 						if uikit.SecondaryButton(c, locales.Save()).Clicked() {
 							a.setProjectDir(a.projectInput)
 						}
