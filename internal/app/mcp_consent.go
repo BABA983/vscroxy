@@ -319,19 +319,19 @@ func (a *app) mcpConsentModal(c *ui.Context, t *ui.Theme) {
 					uikit.Meta(c, locales.ChangedValues(strings.Join(s.changed, ", "))).SingleLine()
 				}
 			}
-			uikit.Meta(c, locales.Command()).Padding(0, t.Space(uikit.SpaceXS))
+			uikit.Meta(c, locales.Command())
 			uikit.DataBody(c, plan.Command).Selectable()
 			if len(plan.Args) > 0 {
-				uikit.Meta(c, locales.Arguments()).Padding(0, t.Space(uikit.SpaceXS))
+				uikit.Meta(c, locales.Arguments())
 				uikit.DataBody(c, strings.Join(plan.Args, "\n")).Selectable()
 			}
 			dir := plan.WorkingDir
 			if dir == "" {
 				dir = "(the app's working directory)"
 			}
-			uikit.Meta(c, locales.WorkingDirectory()).Padding(0, t.Space(uikit.SpaceXS))
+			uikit.Meta(c, locales.WorkingDirectory())
 			uikit.DataBody(c, dir).Selectable()
-			uikit.Meta(c, locales.EnvironmentVariablesNamesOnlyValues()).Padding(0, t.Space(uikit.SpaceXS))
+			uikit.Meta(c, locales.EnvironmentVariablesNamesOnlyValues())
 			names := make([]string, 0, len(plan.Env))
 			for _, entry := range plan.Env {
 				name, _, _ := strings.Cut(entry, "=")

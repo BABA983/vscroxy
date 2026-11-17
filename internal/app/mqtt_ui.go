@@ -739,8 +739,12 @@ func (a *app) mqttResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					if e.direction != "System" {
 						uikit.Tabs(c, &u.payloadView, "MQTT payload view", locales.Text(), locales.Json(), locales.Hex()).Width(170)
 					}
+					// The payload tabs keep their width beside the copy, so the
+					// copy is its icon, as in the protobuf and SSE views.
 					services, text := c.Services(), u.readerText
-					uikit.SecondaryButton(c, locales.CopyShownMessage()).OnClick(func() { services.WriteClipboard(text) })
+					if uikit.IconButton(c, locales.CopyShownMessage(), locales.CopyShownMessage(), copyIcon).Clicked() {
+						services.WriteClipboard(text)
+					}
 				})
 				if e.properties != "" {
 					uikit.DataMeta(c, e.properties).TextColor(t.TextMuted).MaxHeight(90).Padding(0, t.Space(uikit.SpaceM))

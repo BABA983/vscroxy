@@ -249,15 +249,17 @@ func (a *app) profileList(c *ui.Context, t *ui.Theme) {
 			if uikit.Switch(c, &on).Label(locales.HostProfileNamed(p.Name)).Changed() {
 				a.switchProfile(row.Index, on)
 			}
-			if p.URL != "" {
-				uikit.Tip(c, uikit.Glyph(c, subscribeIcon), locales.SubscribedUrl(p.URL))
-			}
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 				uikit.Body(c, p.Name).TextColor(t.Text).SingleLine()
 				if p.URL != "" {
 					uikit.Meta(c, profileFreshness(p, h.fetching[p.Name])).SingleLine()
 				}
 			})
+			// The subscription mark sits with the trailing marks, so only the
+			// names share the column the switch leaves.
+			if p.URL != "" {
+				uikit.Tip(c, uikit.Glyph(c, subscribeIcon), locales.SubscribedUrl(p.URL))
+			}
 			if n := conflicts[p.Name]; n > 0 && p.On {
 				uikit.Tip(c, ui.Box(c).Size(7, 7).Radius(uikit.RadiusControl).Background(t.Warning).
 					Label(fmt.Sprintf("%d %s", n, plural(n, "conflict", "conflicts"))), locales.AHigherProfileMapsThe())

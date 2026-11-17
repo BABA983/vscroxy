@@ -965,8 +965,8 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 				placeholder = "https://host/socket.io"
 			}
 			// Bare: the URL bar is one face with the method and Send beside it, which the kit's field face does not cover.
-			input := ui.TextInputBase(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceM)).Label(locales.Url()).
-				Placeholder(placeholder).Font(uikit.FontMono)
+			input := uikit.TextInset(ui.TextInputBase(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(uikit.HeightRow).Label(locales.Url()).
+				Placeholder(placeholder).Font(uikit.FontMono), t.Space(uikit.SpaceM))
 			var set variableSet
 			var marks []variableMark
 			if strings.Contains(d.composeURL, "{{") {
@@ -1241,10 +1241,18 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 			formatLabel, formatHelp = locales.FormatGraphQLQuery(), "Format the GraphQL document without expanding variables or changing its operations"
 		}
 		ui.Row(c).Disabled(!query && (!isJSON || !canFormat)).Children(func() {
-			if uikit.ToolbarButton(c, formatLabel, formatHelp, false).Children(func() {
-				ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
-				uikit.Caption(c, locales.Format())
-			}).Clicked() {
+			// Beside a response the mode and reader selects take the row, so
+			// Format is its icon alone, with the same label and tip.
+			var clicked bool
+			if wide {
+				clicked = uikit.ToolbarButton(c, formatLabel, formatHelp, false).Children(func() {
+					ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
+					uikit.Caption(c, locales.Format())
+				}).Clicked()
+			} else {
+				clicked = uikit.IconButton(c, formatLabel, formatHelp, formatIcon).Clicked()
+			}
+			if clicked {
 				if query {
 					value, err := graphql.Format(d.graphql.Query)
 					if err != nil {

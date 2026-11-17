@@ -44,12 +44,16 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 		}
 		ui.Form(c, func() {
 			ui.Field(c, locales.Timeout(), func() {
-				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-					// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-					if ui.NumberInput(c, &d.timeout, 0, 3600, 1).Label(locales.RequestTimeoutInSeconds()).Changed() {
-						seconds := int(d.timeout)
-						d.settings.TimeoutSeconds = &seconds
-					}
+				// The hint sits under the stepper: beside it, the form's field
+				// column leaves it a few points, too narrow for a word.
+				ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+						// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
+						if ui.NumberInput(c, &d.timeout, 0, 3600, 1).Label(locales.RequestTimeoutInSeconds()).Changed() {
+							seconds := int(d.timeout)
+							d.settings.TimeoutSeconds = &seconds
+						}
+					})
 					uikit.Meta(c, locales.Seconds0WaitsWithNo())
 				})
 			})
@@ -62,12 +66,14 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 			})
 			if effective.Follows() {
 				ui.Field(c, locales.MaximumRedirects(), func() {
-					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-						// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-						if ui.NumberInput(c, &d.maxRedirects, 1, 50, 1).Label(locales.MaximumRedirects()).Changed() {
-							value := int(d.maxRedirects)
-							d.settings.MaxRedirects = &value
-						}
+					ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+						ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+							// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
+							if ui.NumberInput(c, &d.maxRedirects, 1, 50, 1).Label(locales.MaximumRedirects()).Changed() {
+								value := int(d.maxRedirects)
+								d.settings.MaxRedirects = &value
+							}
+						})
 						uikit.Meta(c, locales.HttpSHops())
 					})
 				})
@@ -194,12 +200,14 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 		uikit.Meta(c, locales.RequestsUnderItInheritThese())
 		ui.Form(c, func() {
 			ui.Field(c, locales.Timeout(), func() {
-				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-					// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-					if ui.NumberInput(c, &f.timeout, 0, 3600, 1).Label(locales.FolderTimeoutInSeconds()).Changed() {
-						seconds := int(f.timeout)
-						f.settings.TimeoutSeconds = &seconds
-					}
+				ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+						// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
+						if ui.NumberInput(c, &f.timeout, 0, 3600, 1).Label(locales.FolderTimeoutInSeconds()).Changed() {
+							seconds := int(f.timeout)
+							f.settings.TimeoutSeconds = &seconds
+						}
+					})
 					uikit.Meta(c, locales.Seconds0WaitsWithNo())
 				})
 			})

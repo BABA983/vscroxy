@@ -389,12 +389,16 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 	uikit.SettingsCard(c, "", func() {
 		row := uikit.RowButton(c, check.title).FillWidth().Height(uikit.SettingsRowHeight).Padding(0, t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceL))
 		row.Children(func() {
+			// A row that does not expand keeps the disclosure's slot empty, so
+			// its status mark and title sit where the other rows' do.
 			if expandable {
 				arrow := statusMoreIcon
 				if expanded {
 					arrow = chevronIcon
 				}
 				ui.Icon(c, arrow).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
+			} else {
+				ui.Box(c).Size(uikit.IconInline, uikit.IconInline)
 			}
 			ui.Icon(c, icon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(color)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
