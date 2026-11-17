@@ -1428,6 +1428,11 @@
       }
     }
   },
+  "grantAuthorizationCode": "Authorization code",
+  "grantAuthorizationCodePKCE": "Authorization code (PKCE)",
+  "grantClientCredentials": "Client credentials",
+  "grantImplicit": "Implicit",
+  "grantPassword": "Password",
   "graphqlQuery": "GraphQL query",
   "graphqlVariables": "GraphQL variables",
   "@grpcEventLine": {
@@ -1990,6 +1995,7 @@
   },
   "markSwatch": "Mark {name}",
   "maskedValue": "••••••••  masked",
+  "maskedValueShort": "•••••••• masked",
   "mcpPromptArguments": "MCP prompt arguments",
   "mcpServer": "MCP server",
   "mcpToolArguments": "MCP tool arguments",

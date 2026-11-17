@@ -259,7 +259,7 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 			for _, pair := range pairs {
 				value := pair.Value
 				if !item.reveal && sensitiveHeader(pair.Name) {
-					value = locales.MaskedValue()
+					value = locales.MaskedValueShort()
 				}
 				lines = append(lines, pair.Name+": "+value)
 			}

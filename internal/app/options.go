@@ -59,6 +59,16 @@ func optionLabelFor(msgs locales.Messages, value string) string {
 		return msgs.Auto()
 	case "Pretty":
 		return msgs.Pretty()
+	case "Authorization code (PKCE)":
+		return msgs.GrantAuthorizationCodePKCE()
+	case "Authorization code":
+		return msgs.GrantAuthorizationCode()
+	case "Implicit":
+		return msgs.GrantImplicit()
+	case "Client credentials":
+		return msgs.GrantClientCredentials()
+	case "Password":
+		return msgs.GrantPassword()
 	case "Preview":
 		return msgs.Preview()
 	case "Form":

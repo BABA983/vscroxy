@@ -47,7 +47,7 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 	password := func(value *string, label string) ui.Element {
 		return a.variablePasswordInput(c, "oauth-"+label, value, label, collection)
 	}
-	ui.Field(c, locales.GrantType(), func() { uikit.Select(c, &o.Grant, request.Grants).Width(uikit.WidthWide) })
+	ui.Field(c, locales.GrantType(), func() { uikit.SelectLabels(c, &o.Grant, request.Grants, optionLabel).Width(uikit.WidthWide) })
 	if interactive {
 		ui.Field(c, locales.AuthorizationUrl(), func() {
 			input(&o.AuthURL, "Authorization URL").Placeholder("https://login.example.com/authorize")

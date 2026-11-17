@@ -3030,6 +3030,56 @@ func (msgs Messages) GlobalVariable() string {
 	return Catalog.Format(msgs.locale, "globalVariable", nil)
 }
 
+// GrantAuthorizationCode says "Authorization code"
+// in the language the app shows.
+func GrantAuthorizationCode() string { return In(i18n.Locale()).GrantAuthorizationCode() }
+
+// GrantAuthorizationCode says "Authorization code"
+// in the language of msgs.
+func (msgs Messages) GrantAuthorizationCode() string {
+	return Catalog.Format(msgs.locale, "grantAuthorizationCode", nil)
+}
+
+// GrantAuthorizationCodePKCE says "Authorization code (PKCE)"
+// in the language the app shows.
+func GrantAuthorizationCodePKCE() string { return In(i18n.Locale()).GrantAuthorizationCodePKCE() }
+
+// GrantAuthorizationCodePKCE says "Authorization code (PKCE)"
+// in the language of msgs.
+func (msgs Messages) GrantAuthorizationCodePKCE() string {
+	return Catalog.Format(msgs.locale, "grantAuthorizationCodePKCE", nil)
+}
+
+// GrantClientCredentials says "Client credentials"
+// in the language the app shows.
+func GrantClientCredentials() string { return In(i18n.Locale()).GrantClientCredentials() }
+
+// GrantClientCredentials says "Client credentials"
+// in the language of msgs.
+func (msgs Messages) GrantClientCredentials() string {
+	return Catalog.Format(msgs.locale, "grantClientCredentials", nil)
+}
+
+// GrantImplicit says "Implicit"
+// in the language the app shows.
+func GrantImplicit() string { return In(i18n.Locale()).GrantImplicit() }
+
+// GrantImplicit says "Implicit"
+// in the language of msgs.
+func (msgs Messages) GrantImplicit() string {
+	return Catalog.Format(msgs.locale, "grantImplicit", nil)
+}
+
+// GrantPassword says "Password"
+// in the language the app shows.
+func GrantPassword() string { return In(i18n.Locale()).GrantPassword() }
+
+// GrantPassword says "Password"
+// in the language of msgs.
+func (msgs Messages) GrantPassword() string {
+	return Catalog.Format(msgs.locale, "grantPassword", nil)
+}
+
 // GraphqlQuery says "GraphQL query"
 // in the language the app shows.
 func GraphqlQuery() string { return In(i18n.Locale()).GraphqlQuery() }
@@ -4074,6 +4124,16 @@ func MaskedValue() string { return In(i18n.Locale()).MaskedValue() }
 // in the language of msgs.
 func (msgs Messages) MaskedValue() string {
 	return Catalog.Format(msgs.locale, "maskedValue", nil)
+}
+
+// MaskedValueShort says "•••••••• masked"
+// in the language the app shows.
+func MaskedValueShort() string { return In(i18n.Locale()).MaskedValueShort() }
+
+// MaskedValueShort says "•••••••• masked"
+// in the language of msgs.
+func (msgs Messages) MaskedValueShort() string {
+	return Catalog.Format(msgs.locale, "maskedValueShort", nil)
 }
 
 // McpPromptArguments says "MCP prompt arguments"
