@@ -1129,7 +1129,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 			for _, key := range slices.Sorted(maps.Keys(headers)) {
 				value := strings.Join(headers[key], "\n")
 				if sensitiveHeader(key) && !a.inspect.reveal[side] {
-					value = "••••••••  masked"
+					value = locales.MaskedValue()
 				}
 				uikit.KVRow(c, func() {
 					uikit.Hint(c, key).Font(uikit.FontMono).Width(124).SingleLine().

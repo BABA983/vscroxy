@@ -153,7 +153,7 @@ func redactedHeaderBlock(block string) http.Header {
 func authSummary(auth request.Auth) string {
 	switch auth.Type {
 	case "", "None":
-		return "None"
+		return optionLabel("None")
 	case "Inherit":
 		return locales.InheritedFromTheFolderOr()
 	case "Bearer":
@@ -161,15 +161,15 @@ func authSummary(auth request.Auth) string {
 	case "Basic":
 		return locales.BasicUsernameHidden(cmp.Or(auth.Username, locales.HiddenValue()))
 	case "API key":
-		return "API key · " + cmp.Or(auth.Location, "header") + " · value hidden"
+		return locales.ApiKeyAuthSummary(optionLabel(cmp.Or(auth.Location, "Header")))
 	case "OAuth 2.0":
-		return "OAuth 2.0 · " + cmp.Or(auth.OAuth2.Grant, "grant") + " · client secret and tokens hidden"
+		return locales.Oauth2AuthSummary(cmp.Or(auth.OAuth2.Grant, locales.GrantType()))
 	case "OAuth 1.0":
 		return locales.Oauth1ConsumerKeyHidden(cmp.Or(auth.OAuth1.ConsumerKey, locales.HiddenValue()))
 	case "AWS Signature":
 		return locales.AwsSignatureAccessKeyHidden()
 	case "JWT":
-		return "JWT · " + cmp.Or(auth.JWT.Algorithm, "algorithm") + " · secret and private key hidden"
+		return locales.JwtAuthSummary(cmp.Or(auth.JWT.Algorithm, locales.Algorithm()))
 	case "Hawk":
 		return locales.HawkCredentialsHidden()
 	case "Akamai EdgeGrid":

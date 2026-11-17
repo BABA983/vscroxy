@@ -75,7 +75,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 						e.dirty = true
 					}
 					if uikit.SecondaryButton(c, locales.Choose()).Clicked() {
-						a.chooseCertificateFile(&e.signingCert, "Signing CA certificate", []string{"pem", "crt", "cer"})
+						a.chooseCertificateFile(&e.signingCert, locales.SigningCaCertificateFile(), []string{"pem", "crt", "cer"})
 					}
 				})
 			}, "")
@@ -85,7 +85,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 						e.dirty = true
 					}
 					if uikit.SecondaryButton(c, locales.Choose()).Clicked() {
-						a.chooseCertificateFile(&e.signingKey, "Signing CA private key", []string{"pem", "key"})
+						a.chooseCertificateFile(&e.signingKey, locales.SigningCaPrivateKeyFile(), []string{"pem", "key"})
 					}
 				})
 			}, locales.SigningCaKeyHint())
@@ -183,7 +183,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 									e.dirty = true
 								}
 								if uikit.SecondaryButton(c, locales.Choose()).Clicked() {
-									a.chooseCertificateFile(&row.KeyFile, "Private key file", []string{"key", "pem"})
+									a.chooseCertificateFile(&row.KeyFile, locales.PrivateKeyFile(), []string{"key", "pem"})
 								}
 							})
 						}
@@ -247,7 +247,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 							e.dirty = true
 						}
 						if uikit.SecondaryButton(c, locales.Choose()).Clicked() {
-							a.chooseCertificateFile(&root.Path, "Custom CA file", []string{"pem", "crt", "cer"})
+							a.chooseCertificateFile(&root.Path, locales.CustomCaFile(), []string{"pem", "crt", "cer"})
 						}
 						if uikit.SecondaryButton(c, locales.Remove()).Clicked() {
 							remove = i

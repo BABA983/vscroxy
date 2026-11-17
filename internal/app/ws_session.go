@@ -116,7 +116,7 @@ func (s *wsSession) finish(err error) {
 	if closed, ok := errors.AsType[*websocket.CloseError](err); ok && closed.Code != websocket.CloseAbnormalClosure {
 		e.PeerClose = true
 		if closed.Code == websocket.CloseNoStatusReceived {
-			e.Detail = "Peer close frame without a status code"
+			e.Detail = locales.PeerCloseWithoutStatus()
 		} else {
 			e.CloseCode = closed.Code
 			e.Detail = locales.PeerClose(closed.Code, closed.Text)

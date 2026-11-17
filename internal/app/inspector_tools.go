@@ -196,7 +196,7 @@ func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool,
 			}
 			for i, cookie := range cookies {
 				ui.Column(c.Key(i)).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
-					value := "••••••••  masked"
+					value := locales.MaskedValue()
 					if *reveal {
 						value = cookie.Value
 					}

@@ -274,6 +274,16 @@ func (msgs Messages) ApiDraftSource(collection string) string {
 	return Catalog.Format(msgs.locale, "apiDraftSource", map[string]any{"collection": collection})
 }
 
+// ApiKeyAuthSummary says "API key · {location} · value hidden"
+// in the language the app shows.
+func ApiKeyAuthSummary(location string) string { return In(i18n.Locale()).ApiKeyAuthSummary(location) }
+
+// ApiKeyAuthSummary says "API key · {location} · value hidden"
+// in the language of msgs.
+func (msgs Messages) ApiKeyAuthSummary(location string) string {
+	return Catalog.Format(msgs.locale, "apiKeyAuthSummary", map[string]any{"location": location})
+}
+
 // ApiSourceChanged says "Source collection changed — review before updating this contract."
 // in the language the app shows.
 func ApiSourceChanged() string { return In(i18n.Locale()).ApiSourceChanged() }
@@ -3822,6 +3832,16 @@ func (msgs Messages) JsonQueryExpression() string {
 	return Catalog.Format(msgs.locale, "jsonQueryExpression", nil)
 }
 
+// JwtAuthSummary says "JWT · {algorithm} · secret and private key hidden"
+// in the language the app shows.
+func JwtAuthSummary(algorithm string) string { return In(i18n.Locale()).JwtAuthSummary(algorithm) }
+
+// JwtAuthSummary says "JWT · {algorithm} · secret and private key hidden"
+// in the language of msgs.
+func (msgs Messages) JwtAuthSummary(algorithm string) string {
+	return Catalog.Format(msgs.locale, "jwtAuthSummary", map[string]any{"algorithm": algorithm})
+}
+
 // KeepOriginalHost says "Keep original Host"
 // in the language the app shows.
 func KeepOriginalHost() string { return In(i18n.Locale()).KeepOriginalHost() }
@@ -4044,6 +4064,16 @@ func MarkSwatch(name string) string { return In(i18n.Locale()).MarkSwatch(name) 
 // in the language of msgs.
 func (msgs Messages) MarkSwatch(name string) string {
 	return Catalog.Format(msgs.locale, "markSwatch", map[string]any{"name": name})
+}
+
+// MaskedValue says "••••••••  masked"
+// in the language the app shows.
+func MaskedValue() string { return In(i18n.Locale()).MaskedValue() }
+
+// MaskedValue says "••••••••  masked"
+// in the language of msgs.
+func (msgs Messages) MaskedValue() string {
+	return Catalog.Format(msgs.locale, "maskedValue", nil)
 }
 
 // McpPromptArguments says "MCP prompt arguments"
@@ -4988,6 +5018,16 @@ func (msgs Messages) Oauth1ConsumerKeyHidden(key string) string {
 	return Catalog.Format(msgs.locale, "oauth1ConsumerKeyHidden", map[string]any{"key": key})
 }
 
+// Oauth2AuthSummary says "OAuth 2.0 · {grant} · client secret and tokens hidden"
+// in the language the app shows.
+func Oauth2AuthSummary(grant string) string { return In(i18n.Locale()).Oauth2AuthSummary(grant) }
+
+// Oauth2AuthSummary says "OAuth 2.0 · {grant} · client secret and tokens hidden"
+// in the language of msgs.
+func (msgs Messages) Oauth2AuthSummary(grant string) string {
+	return Catalog.Format(msgs.locale, "oauth2AuthSummary", map[string]any{"grant": grant})
+}
+
 // ObservedFailure says "Observed failure · {stage}"
 // in the language the app shows.
 func ObservedFailure(stage string) string { return In(i18n.Locale()).ObservedFailure(stage) }
@@ -5334,6 +5374,16 @@ func (msgs Messages) PeerClose(code int, text string) string {
 	return Catalog.Format(msgs.locale, "peerClose", map[string]any{"code": code, "text": text})
 }
 
+// PeerCloseWithoutStatus says "Peer close frame without a status code"
+// in the language the app shows.
+func PeerCloseWithoutStatus() string { return In(i18n.Locale()).PeerCloseWithoutStatus() }
+
+// PeerCloseWithoutStatus says "Peer close frame without a status code"
+// in the language of msgs.
+func (msgs Messages) PeerCloseWithoutStatus() string {
+	return Catalog.Format(msgs.locale, "peerCloseWithoutStatus", nil)
+}
+
 // PersistCurrentAsInitialWrites says "Persist current as initial: writes it to the shared file and exports"
 // in the language the app shows.
 func PersistCurrentAsInitialWrites() string { return In(i18n.Locale()).PersistCurrentAsInitialWrites() }
@@ -5514,6 +5564,16 @@ func PreviousAndCurrentResponseFor() string { return In(i18n.Locale()).PreviousA
 // in the language of msgs.
 func (msgs Messages) PreviousAndCurrentResponseFor() string {
 	return Catalog.Format(msgs.locale, "previousAndCurrentResponseFor", nil)
+}
+
+// PrivateKeyFile says "Private key file"
+// in the language the app shows.
+func PrivateKeyFile() string { return In(i18n.Locale()).PrivateKeyFile() }
+
+// PrivateKeyFile says "Private key file"
+// in the language of msgs.
+func (msgs Messages) PrivateKeyFile() string {
+	return Catalog.Format(msgs.locale, "privateKeyFile", nil)
 }
 
 // PrivateSlotSavedReview says "Private slot saved · review save error"
@@ -6960,6 +7020,26 @@ func SideResponse() string { return In(i18n.Locale()).SideResponse() }
 // in the language of msgs.
 func (msgs Messages) SideResponse() string {
 	return Catalog.Format(msgs.locale, "sideResponse", nil)
+}
+
+// SigningCaCertificateFile says "Signing CA certificate"
+// in the language the app shows.
+func SigningCaCertificateFile() string { return In(i18n.Locale()).SigningCaCertificateFile() }
+
+// SigningCaCertificateFile says "Signing CA certificate"
+// in the language of msgs.
+func (msgs Messages) SigningCaCertificateFile() string {
+	return Catalog.Format(msgs.locale, "signingCaCertificateFile", nil)
+}
+
+// SigningCaPrivateKeyFile says "Signing CA private key"
+// in the language the app shows.
+func SigningCaPrivateKeyFile() string { return In(i18n.Locale()).SigningCaPrivateKeyFile() }
+
+// SigningCaPrivateKeyFile says "Signing CA private key"
+// in the language of msgs.
+func (msgs Messages) SigningCaPrivateKeyFile() string {
+	return Catalog.Format(msgs.locale, "signingCaPrivateKeyFile", nil)
 }
 
 // SkippedByItsPreRequest says "Skipped by its pre-request script"
