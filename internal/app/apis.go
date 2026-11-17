@@ -617,7 +617,7 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 				uikit.Hint(c, locales.ChooseASavedCollectionUnsaved())
 				uikit.MenuSelect(c, cmp.Or(a.apiCollection, locales.SavedUngrouped()), func(m *ui.Menu) {
 					for _, name := range slices.Sorted(maps.Keys(groupRequests(a.requests))) {
-						if m.Item(cmp.Or(name, "Saved (ungrouped)")).Checked(name == a.apiCollection).Chosen() {
+						if m.Item(cmp.Or(name, locales.SavedUngrouped())).Checked(name == a.apiCollection).Chosen() {
 							a.apiCollection = name
 						}
 					}

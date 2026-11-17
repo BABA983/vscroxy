@@ -736,7 +736,7 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 		snippetMenu(c, st, map[bool]string{false: "rule", true: "addon"}[s.addon])
 		uikit.MoreMenu(c, actionsLabel, func(m *ui.Menu) {
 			actions := []action{do("scripts.rename", locales.Rename(), func() { a.renameScript(s, name, strings.TrimSpace(s.name)) }).
-				when(strings.TrimSpace(s.name) != name, "Type the new name first").in("edit")}
+				when(strings.TrimSpace(s.name) != name, locales.TypeNewNameFirst()).in("edit")}
 			if !s.addon {
 				actions = append(actions, do("scripts.rule", locales.NewRuleRunningIt(), func() {
 					a.editRule(-1, capture.Rule{Name: name, Type: capture.RuleScript, Target: scriptFile(name)})

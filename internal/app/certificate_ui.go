@@ -174,7 +174,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 								e.dirty = true
 							}
 							if uikit.SecondaryButton(c, locales.Choose()).Clicked() {
-								a.chooseCertificateFile(&row.CertFile, "Certificate file", []string{"pem", "crt", "cer", "p12", "pfx"})
+								a.chooseCertificateFile(&row.CertFile, locales.CertificateFile(), []string{"pem", "crt", "cer", "p12", "pfx"})
 							}
 						})
 						if row.Format != certs.FormatPKCS12 {

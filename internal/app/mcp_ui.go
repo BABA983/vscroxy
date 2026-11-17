@@ -170,18 +170,18 @@ func (a *app) mcpActions(d *requestDocument, editing bool) []action {
 			if _, err := u.session.callTool(d.mcpConfig); err != nil {
 				u.problem = err.Error()
 			}
-		}).when(idle && d.mcpConfig.Tool != "", "Choose a tool and connect first"),
+		}).when(idle && d.mcpConfig.Tool != "", locales.ChooseToolAndConnectFirst()),
 		do("request.mcp-read", locales.ReadMcpResource(), func() {
 			if _, err := u.session.readResource(d.mcpConfig); err != nil {
 				u.problem = err.Error()
 			}
-		}).when(idle && d.mcpConfig.ResourceURI != "", "Enter a resource URI and connect first"),
+		}).when(idle && d.mcpConfig.ResourceURI != "", locales.EnterResourceURIAndConnectFirst()),
 		do("request.mcp-prompt", locales.GetMcpPrompt(), func() {
 			if _, err := u.session.getPrompt(d.mcpConfig); err != nil {
 				u.problem = err.Error()
 			}
-		}).when(idle && d.mcpConfig.Prompt != "", "Choose a prompt and connect first"),
-		do("request.mcp-fill-args", locales.FillMcpArgumentsFromSchema(), func() { a.mcpFillArguments(d) }).when(d.mcpConfig.Tool != "", "Choose a tool first"),
+		}).when(idle && d.mcpConfig.Prompt != "", locales.ChoosePromptAndConnectFirst()),
+		do("request.mcp-fill-args", locales.FillMcpArgumentsFromSchema(), func() { a.mcpFillArguments(d) }).when(d.mcpConfig.Tool != "", locales.ChooseToolFirstAction()),
 	}
 }
 
@@ -378,7 +378,7 @@ func (a *app) mcpToolsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Combobox(c, &d.mcpConfig.Tool, mcpToolNames(s.tools)).Label(locales.McpTool()).Placeholder(locales.ChooseATool()).
 			Grow(1).MinWidth(0).Disabled(d.composeWaiting)
-		a.actionButton(c, "request.mcp-call", "Call tool")
+		a.actionButton(c, "request.mcp-call", locales.CallTool())
 	})
 	if tool == nil {
 		uikit.Hint(c, locales.ConnectAndRefreshTheCatalog())
@@ -491,7 +491,7 @@ func (a *app) mcpPromptsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		uikit.Combobox(c, &d.mcpConfig.Prompt, mcpPromptNames(s.prompts)).Label(locales.McpPrompt()).Placeholder(locales.ChooseAPrompt()).
 			Grow(1).MinWidth(0).Disabled(d.composeWaiting)
-		a.actionButton(c, "request.mcp-prompt", "Get prompt")
+		a.actionButton(c, "request.mcp-prompt", locales.GetPrompt())
 	})
 	if prompt == nil {
 		uikit.Hint(c, locales.ConnectAndRefreshTheCatalog2())

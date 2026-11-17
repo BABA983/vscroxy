@@ -341,7 +341,7 @@ func (a *app) collectionExamplesEditor(c *ui.Context, t *ui.Theme) {
 
 func (a *app) collectionWizardTree(c *ui.Context, t *ui.Theme) {
 	w := &a.collectionUI
-	uikit.DialogTitle(c, cmp.Or(w.destination, w.name, "Collection"))
+	uikit.DialogTitle(c, cmp.Or(w.destination, w.name, locales.Collection()))
 	folders := []string{""}
 	for _, g := range w.groups {
 		if g.include && !slices.Contains(folders, g.folder) {

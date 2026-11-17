@@ -182,7 +182,7 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 		uikit.MoreMenu(c, locales.ScenarioActions(), func(m *ui.Menu) {
 			actionMenu(m, []action{
 				do("scenarios.rename", locales.Rename(), func() { a.renameScenario(name, strings.TrimSpace(s.name)) }).
-					when(strings.TrimSpace(s.name) != name, "Type the new name first").in("edit"),
+					when(strings.TrimSpace(s.name) != name, locales.TypeNewNameFirst()).in("edit"),
 				do("scenarios.rebuild", locales.RebuildFromExamples(), func() { a.scenarioFromExamples(name) }).
 					when(a.examplesUnder(name), locales.OnlyAScenarioNamedFor()).in("edit"),
 				do("scenarios.ungroup", locales.UngroupRules(), func() {

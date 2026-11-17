@@ -426,8 +426,8 @@ func (a *app) captureConditions(c *ui.Context) {
 // captureActions are the capture toolbar's ⋯ menu.
 func (a *app) captureActions() []action {
 	actions := []action{
-		do("capture.stop", locales.StopCapture(), a.stopCapture).when(a.srv != nil && a.srv.Running(), "Capture is not running").keys(ui.Cmd, ui.KeyPeriod),
-		do("capture.start", locales.StartCapture(), func() { go a.startCapture() }).when(a.srv != nil && !a.srv.Running(), "Capture is already running").keys(ui.Cmd, ui.KeyPeriod),
+		do("capture.stop", locales.StopCapture(), a.stopCapture).when(a.srv != nil && a.srv.Running(), locales.CaptureIsNotRunning()).keys(ui.Cmd, ui.KeyPeriod),
+		do("capture.start", locales.StartCapture(), func() { go a.startCapture() }).when(a.srv != nil && !a.srv.Running(), locales.CaptureIsAlreadyRunning()).keys(ui.Cmd, ui.KeyPeriod),
 		do("tools.rules", locales.DebuggingRules2(), a.openRules),
 		do("collection.record", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", "") }),
 		do("tokens.analyze", locales.RecognizeTokenLinks(), func() { a.openTokenLinks(a.tokenLinkScope()) }),
@@ -540,7 +540,7 @@ func (a *app) actions(c *ui.Context) []action {
 			}
 		}).when(capturing && len(a.visible) > 0 || editing, "").keys(ui.Cmd, ui.KeyL),
 		do("request.send", locales.SendRequest(), a.sendComposed).
-			when(editing && !d.composeWaiting && (d.protocol == "gRPC" || d.protocol == "MQTT" || d.protocol == "MCP" || a.srv != nil && a.srv.Running()), "Open a request draft; HTTP sends require capture running").keys(ui.Cmd, ui.KeyEnter),
+			when(editing && !d.composeWaiting && (d.protocol == "gRPC" || d.protocol == "MQTT" || d.protocol == "MCP" || a.srv != nil && a.srv.Running()), locales.OpenDraftNeedsCapture()).keys(ui.Cmd, ui.KeyEnter),
 		do("request.cancel-send", locales.CancelSend(), func() { d.cancelSend() }).
 			when(editing && d.composeWaiting && d.sendCancel != nil && !d.sendCancelling, ""),
 		do("request.duplicate", locales.DuplicateAsNewRequest(), func() { a.duplicateDocument(d) }).
@@ -560,7 +560,7 @@ func (a *app) actions(c *ui.Context) []action {
 				// it in the inspector, where Escape returns to the list.
 				a.workbench.inspector.Focus(c)
 			}
-		}).when(editing && d.source != nil && d.response != nil && !d.composeWaiting, "Send a draft opened from Capture before comparing it with its source").keys(ui.Cmd|ui.Shift, ui.KeyD),
+		}).when(editing && d.source != nil && d.response != nil && !d.composeWaiting, locales.SendDraftBeforeCompare()).keys(ui.Cmd|ui.Shift, ui.KeyD),
 		do("request.close", locales.CloseRequest(), func() { a.requestClose(d) }).
 			when(tab && !d.composeWaiting, locales.OpenARequestDraftWait()).keys(ui.Cmd, ui.KeyW),
 		do("request.next-tab", locales.NextOpenRequest(), func() { a.cycleDocument(1) }).
@@ -595,7 +595,7 @@ func (a *app) actions(c *ui.Context) []action {
 			a.srv.SetBreak(a.breakOn)
 		}).when(a.srv != nil, ""),
 		do("capture.stop", locales.StopCapture(), a.stopCapture).when(proxyReady, locales.CaptureIsNotRunning()).keys(ui.Cmd, ui.KeyPeriod),
-		do("capture.start", locales.StartCapture(), func() { go a.startCapture() }).when(a.srv != nil && !proxyReady, "Capture is already running").keys(ui.Cmd, ui.KeyPeriod),
+		do("capture.start", locales.StartCapture(), func() { go a.startCapture() }).when(a.srv != nil && !proxyReady, locales.CaptureIsAlreadyRunning()).keys(ui.Cmd, ui.KeyPeriod),
 		do("capture.recording", recording, func() { a.recordingPaused = !a.recordingPaused }).
 			when(a.srv != nil && a.srv.Running(), ""),
 		do("collection.record", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", "") }),
@@ -628,7 +628,7 @@ func (a *app) actions(c *ui.Context) []action {
 		do("network.firefox", locales.OpenProxiedFirefox(), a.openProxiedFirefox).when(proxyReady, locales.StartCaptureFirst()),
 		do("network.android", locales.SetUpAnAndroidEmulator(), func() { a.openClientSetupTarget(clientTargetAndroid) }),
 		do("network.ios", locales.InstallCaInIosSimulator(), func() { a.openClientSetupTarget(clientTargetIOS) }).
-			when(runtime.GOOS == "darwin", "iOS simulators are available only on macOS"),
+			when(runtime.GOOS == "darwin", locales.IosSimulatorsOnlyOnMacOS()),
 		do("network.java", locales.ImportCaIntoJavaTruststore(), func() { a.openClientSetupTarget(clientTargetJava) }),
 		do("network.electron", locales.LaunchAnElectronApp(), func() { a.openClientSetupTarget(clientTargetElectron) }),
 		do("network.devices", locales.ConnectADevice(), a.openDevices).when(a.srv != nil, ""),

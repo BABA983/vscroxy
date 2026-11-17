@@ -777,7 +777,7 @@ func (a *app) documentActions(c *ui.Context, d *requestDocument) []action {
 		do("request.code", locales.GenerateCode(), a.openCode),
 		do("request.history", locales.History(), func() { a.openSendHistory(d) }),
 		do("collection.settings", settingsLabel(d.composeCollection), func() { a.openFolder(d.composeCollection) }).
-			when(d.composeCollection != "", "Save the request to a collection first").in("context"),
+			when(d.composeCollection != "", locales.SaveRequestToCollectionFirst()).in("context"),
 		do("environment.manage", locales.ManageEnvironments(), a.openVars).in("context"),
 		do("request.variables", locales.RequestVariables(), func() { d.variablesOpen = !d.variablesOpen }).in("context"),
 		do("vault.open", locales.Vault(), a.openVault).in("context"),

@@ -263,6 +263,7 @@
   },
   "bytesNotShown": "\n… {count, number, ::group-off} bytes not shown",
   "caFileNotFoundStart": "CA file not found. Start capture, then check again.",
+  "callTool": "Call tool",
   "cancelDiscovery": "Cancel discovery",
   "cancelRequest": "Cancel request",
   "@canceledCount": {
@@ -320,6 +321,7 @@
   },
   "captureFilterSaved": "Saved {name}.",
   "captureHasNoAddressYet": "Capture has no address yet",
+  "captureIsAlreadyRunning": "Capture is already running",
   "captureNotAvailable": "Capture is not available",
   "@captureNumber": {
     "placeholders": {
@@ -524,10 +526,13 @@
   "chooseHttpRequestsOnlyTunnels": "Choose HTTP requests only; tunnels and streams cannot be replayed",
   "chooseLocalResponseFile": "Choose local response file",
   "choosePortRange": "Choose a proxy port between 1 and 65534; the certificate service uses the next port",
+  "choosePromptAndConnectFirst": "Choose a prompt and connect first",
   "chooseRequestsFirst": "Choose requests first",
   "chooseResponseFolder": "Choose a folder to answer from",
   "chooseSavedRequest": "Choose at least one saved request",
+  "chooseToolAndConnectFirst": "Choose a tool and connect first",
   "chooseToolFirst": "Choose a tool from the catalog first.",
+  "chooseToolFirstAction": "Choose a tool first",
   "@chosenCount": {
     "placeholders": {
       "count": {
@@ -1142,6 +1147,8 @@
     }
   },
   "enterRepeatRange": "Enter 1–{max, number, ::group-off} repeats.",
+  "enterResourceURIAndConnectFirst": "Enter a resource URI and connect first",
+  "enterSchemaFileInTab": "Enter a schema file in the gRPC Schema tab",
   "enterUsernameOrOff": "Enter a username, or turn authentication off",
   "enterValidHTTPMethod": "Enter a valid HTTP method.",
   "@environmentDotName": {
@@ -1403,6 +1410,7 @@
   "formatGraphQLQuery": "Format GraphQL query",
   "formatTheGraphqlDocumentWithout": "Format the GraphQL document without expanding variables or changing its operations",
   "generatedAtSend": "generated at send",
+  "getPrompt": "Get prompt",
   "gettingAnAccessToken": "Getting an access token…",
   "globalVariable": "Global variable",
   "@globalsCount": {
@@ -1780,6 +1788,7 @@
   },
   "invalidSearchPatternWith": "Invalid search pattern: {error}",
   "invalidStatus": "Invalid status",
+  "iosSimulatorsOnlyOnMacOS": "iOS simulators are available only on macOS",
   "@isDecryptedOnNewConnections": {
     "placeholders": {
       "host": {
@@ -2161,6 +2170,7 @@
   "mqttUsername": "MQTT username",
   "n1Message": "1 message",
   "n1NetworkServiceHasNo": "1 network service has no proxy",
+  "needsFinishedExchange": "Needs a finished HTTP exchange",
   "@needsValueSuchAs": {
     "placeholders": {
       "key": {
@@ -2255,6 +2265,7 @@
     }
   },
   "noResponseBodyExpected": "No response body expected for {method} / {status}",
+  "noResponseReceived": "No response was received",
   "noRuleActs": "No rule acts · it goes upstream unchanged",
   "noRuleRunsYet": "No rule runs it yet; add a Script or Code Mock rule.",
   "noRules": "No rules",
@@ -2263,6 +2274,7 @@
   "noScripts": "No scripts",
   "noSystemProxyIsSet": "No system proxy is set",
   "noTemplate": "No template",
+  "noUpstreamProxy": "No upstream proxy is set",
   "noVisibleRequestsToExport": "No visible requests to export",
   "noneLower": "none",
   "noneRecordedOnExchange": "None recorded on this exchange",
@@ -2356,6 +2368,7 @@
   "onWindowsTrustsCurrentUser": " On Windows, installation trusts it for the current user, not other accounts or services.",
   "oneContract": "1 contract",
   "onlyAScenarioNamedFor": "Only a scenario named for a collection with examples",
+  "onlySubscribedRefresh": "Only subscribed profiles refresh",
   "@openAPIEndpoints": {
     "placeholders": {
       "state": {
@@ -2375,6 +2388,7 @@
   "openARequestFirst": "Open a request first",
   "openAnIdleGrpcDocument": "Open an idle gRPC document",
   "openConnectionTab": "Open this exchange's Connection tab: the recorded log, addresses and rules",
+  "openDraftNeedsCapture": "Open a request draft; HTTP sends require capture running",
   "@openExampleNamed": {
     "placeholders": {
       "name": {
@@ -2652,6 +2666,7 @@
   },
   "readOnlyInspection": "{format} · read-only inspection",
   "readResource": "Read resource",
+  "readyClosingKeepsLoad": "Ready · closing this panel keeps an active load running",
   "@rebuildScenarioFromExamples": {
     "placeholders": {
       "path": {
@@ -2704,6 +2719,7 @@
   "reflectServices": "Reflect services",
   "refreshSchema": "Refresh schema",
   "reloadAction": "Reload",
+  "remoteURLMustUseHTTP": "The remote URL must start with http:// or https://",
   "removeBodiesAndStreams": "Remove request and response bodies, binary payloads and all stream messages.",
   "@removeColumnNamed": {
     "placeholders": {
@@ -2750,6 +2766,7 @@
       }
     }
   },
+  "requestHasNoEdits": "This request has no edits",
   "@requestReused": {
     "placeholders": {
       "number": {
@@ -2797,6 +2814,7 @@
     }
   },
   "responseFromTime": "Response from {time}",
+  "responseHasNoBody": "The response has no body",
   "responseHeadersFormat": "Response headers must use Name: Value, one per line",
   "responseLimit": "Response limit",
   "responseStatusRange": "Response status must be a number between 200 and 599",
@@ -2906,6 +2924,7 @@
   "runningStatus": "Running…",
   "saveARequestToA": "Save a request to a collection first",
   "saveAResponseAsAn": "Save a response as an example first",
+  "saveRequestToCollectionFirst": "Save the request to a collection first",
   "@saveRequestsEllipsis": {
     "placeholders": {
       "count": {
@@ -3047,6 +3066,7 @@
   "selectPendingACK": "Select a pending server ACK request",
   "selectRecordingEnvironment": "Select the recording environment before editing it; this draft does not include its recorded variables.",
   "selfSignedAllowed": "Self-signed allowed",
+  "sendDraftBeforeCompare": "Send a draft opened from Capture before comparing it with its source",
   "sendMessage": "Send message",
   "sendRequestForExperiment": "Send a request to record an experiment.",
   "sensitiveValuesStayLocalEdit": "Sensitive values stay local; edit Initial explicitly if you need to export it",
@@ -4317,6 +4337,8 @@
       }
     }
   },
+  "tunnelsCannotBeSaved": "Tunnels cannot be saved as requests",
+  "tunnelsHaveNoRequest": "Tunnels have no request to match",
   "turningOneOn": "Turning one on turns the others off.",
   "@typeAndID": {
     "placeholders": {
@@ -4329,6 +4351,7 @@
     }
   },
   "typeAndID": "Type: {eventType} · ID: {id}",
+  "typeNewNameFirst": "Type the new name first",
   "unary": "Unary",
   "unavailableForWhatIsShown": "Unavailable for what is shown or selected",
   "unidentified": "unidentified",

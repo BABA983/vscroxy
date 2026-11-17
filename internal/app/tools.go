@@ -333,10 +333,10 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 		uikit.MoreMenu(c, locales.ProfileActions(), func(m *ui.Menu) {
 			actions := []action{
 				do("hosts.rename", locales.Rename(), func() { a.renameProfile(i, strings.TrimSpace(h.name)) }).
-					when(strings.TrimSpace(h.name) != p.Name, "Type the new name first").in("edit"),
+					when(strings.TrimSpace(h.name) != p.Name, locales.TypeNewNameFirst()).in("edit"),
 				do("hosts.duplicate", locales.Duplicate(), func() { a.duplicateProfile(i) }).in("edit"),
 				do("hosts.refresh", locales.RefreshNow(), func() { a.refreshProfile(i) }).
-					when(p.URL != "" && !h.fetching[p.Name], "Only subscribed profiles refresh").in("edit"),
+					when(p.URL != "" && !h.fetching[p.Name], locales.OnlySubscribedRefresh()).in("edit"),
 				do("hosts.delete", locales.Delete(), func() { a.deleteProfile(i) }).in("danger"),
 			}
 			actionMenu(m, actions)

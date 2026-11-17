@@ -3812,7 +3812,7 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	copyItems = append(copyItems, do("flow.copy-response", locales.ResponseBody(), func() {
 		services.WriteClipboard(f.body(true))
 		a.done(locales.CopiedResponseBody())
-	}).when(f.resBody != "", "The response has no body"))
+	}).when(f.resBody != "", locales.ResponseHasNoBody()))
 	// Sync the conditions on the next frame; changing visible rows while the
 	// table is building would invalidate its row indices.
 	filters := []action{
@@ -3838,7 +3838,7 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 			label = locales.MockThisResponse()
 		}
 		tools = append(tools, do("flow.rule", label, func() { a.ruleFromFlow(f, kind) }).
-			when(f.url != "" && f.method != "CONNECT", "Tunnels have no request to match"))
+			when(f.url != "" && f.method != "CONNECT", locales.TunnelsHaveNoRequest()))
 	}
 	tools = append(tools,
 		do("flow.map-host", locales.MapThisHost(), func() { a.openDNSRule(hostOnly(f.host), f.process) }).in("host"),
@@ -3854,10 +3854,10 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 		do("flow.mark", locales.Mark(), func() { a.openMark(f) }).in("keep"),
 		submenu(locales.FilterCaptures(), filters...).in("keep"),
 		do("flow.save-request", locales.SaveAsRequest(), func() { a.saveCapture(f) }).
-			when(f.kind != "connect" && f.method != "CONNECT", "Tunnels cannot be saved as requests").in("save"),
+			when(f.kind != "connect" && f.method != "CONNECT", locales.TunnelsCannotBeSaved()).in("save"),
 		saveChosen,
 		do("flow.regression", locales.SaveAsRegression(), func() { a.regressionFrom(f) }).
-			when(f.status != 0 && f.method != "CONNECT" && f.kind != "ws", "Needs a finished HTTP exchange").in("save"),
+			when(f.status != 0 && f.method != "CONNECT" && f.kind != "ws", locales.NeedsFinishedExchange()).in("save"),
 		do("flow.save-evidence", locales.SaveEvidenceToSessions(), func() { a.saveEvidence(f) }).in("save"),
 		pick(requests, "collection.from-capture").in("save"),
 		submenu(locales.Copy(), copyItems...).in("copy"),
@@ -4166,7 +4166,7 @@ func (a *app) sendComposed() {
 	// has nothing left to stand on.
 	d.comparing = false
 	d.sendOutcome, d.sendCancelling, d.sendDetails = "", false, false
-	d.composeWaiting, d.composeResult = true, "Sending…"
+	d.composeWaiting, d.composeResult = true, locales.Sending()
 	r, env, vars, srv, jar := d.draft(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
 	in := a.sendContext(r.Request)
 	d.sent, d.sentAt, d.sentSet = r, time.Now(), true

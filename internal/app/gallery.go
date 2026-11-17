@@ -23,6 +23,7 @@ import (
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/rules"
 	"github.com/baba983/vscroxy/internal/system"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"google.golang.org/grpc/metadata"
@@ -625,7 +626,7 @@ func galleryRunner(a *app, running bool) {
 	r.load(a.requests)
 	r.picked = 1
 	if running {
-		r.running, r.status, r.completed = true, "Running…", 1
+		r.running, r.status, r.completed = true, locales.RunningStatus(), 1
 		r.rows = []runnerRow{{name: "Create project", iteration: 1, summary: "201 · 43 B · 47 ms · 1/1 tests", recordID: 1,
 			tests: []request.TestResult{{Name: "Created", Pass: true}}}}
 		return

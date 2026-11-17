@@ -290,7 +290,7 @@ func (a *app) hostsActions() []action {
 	actions := []action{
 		do("hosts.manage", locales.ManageHostProfiles(), func() { a.openTools("hosts") }).keys(ui.Cmd|ui.Shift, ui.KeyH).in("hosts"),
 		do("hosts.drop-connections", locales.DropOpenConnections(), a.dropConnections).
-			when(a.srv != nil, "Start capture first").in("hosts"),
+			when(a.srv != nil, locales.StartCaptureFirst()).in("hosts"),
 		do("hosts.off", locales.TurnOffHostProfiles(), a.hostsOff).
 			when(len(a.profiles.set.On()) > 0, locales.NoHostProfileIsOn()).in("hosts"),
 	}

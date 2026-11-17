@@ -291,7 +291,7 @@ func commandShortcut() string {
 func (a *app) networkTools() []action {
 	actions := []action{
 		do("network.no-caching", locales.NoCaching(), func() { a.srv.SetNoCaching(!a.srv.NoCaching()) }).
-			when(a.srv != nil, "Start capture first").checked(checkbox(a.srv != nil && a.srv.NoCaching())).in("caching"),
+			when(a.srv != nil, locales.StartCaptureFirst()).checked(checkbox(a.srv != nil && a.srv.NoCaching())).in("caching"),
 	}
 	for _, preset := range a.networkPresets() {
 		selected := a.throttle.Name == preset.Name || a.throttle.Name == "" && preset.Name == "Off"
@@ -310,7 +310,7 @@ func (a *app) networkTools() []action {
 		do("network.custom", locales.CustomPresets(), a.openNetwork).in("throttle"),
 		do("network.rules", locales.NetworkRules(), a.openNetworkRules).in("throttle"),
 		do("network.upstream", locales.Upstream(), func() { a.openSettings(1) }).in("upstream"),
-		do("network.upstream-off", locales.UpstreamOff(), a.clearUpstream).when(a.upstream != "" || a.upstreamProblem != "" || a.upstreamCfg.Enabled(), "No upstream proxy is set").in("upstream"),
+		do("network.upstream-off", locales.UpstreamOff(), a.clearUpstream).when(a.upstream != "" || a.upstreamProblem != "" || a.upstreamCfg.Enabled(), locales.NoUpstreamProxy()).in("upstream"),
 	)
 }
 

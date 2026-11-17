@@ -238,7 +238,7 @@ func (a *app) grpcActions(d *requestDocument, editing bool) []action {
 		canWrite = !s.finished && !s.sending && !s.halfClosed
 	}
 	return []action{
-		do("request.grpc-import", locales.ImportGrpcSchema(), func() { a.loadGRPCSchema(d, false, false) }).when(idle && g.source != "", "Enter a schema file in the gRPC Schema tab"),
+		do("request.grpc-import", locales.ImportGrpcSchema(), func() { a.loadGRPCSchema(d, false, false) }).when(idle && g.source != "", locales.EnterSchemaFileInTab()),
 		do("request.grpc-reflect", locales.ReflectGrpcServices(), func() { a.loadGRPCSchema(d, true, false) }).when(idle, locales.OpenAnIdleGrpcDocument()),
 		do("request.grpc-cancel-discovery", locales.CancelGrpcDiscovery(), func() { g.cancelImport() }).when(ready && g.loading != nil, ""),
 		do("request.grpc-send-message", locales.SendGrpcMessage(), func() {
@@ -464,7 +464,7 @@ func (a *app) sendUnaryGRPC(d *requestDocument) {
 		return
 	}
 	d.composeTests, d.composeReplies, d.console, d.composeExchanges = nil, nil, nil, nil
-	d.composeWaiting, d.composeResult, d.sendOutcome = true, "Sending…", ""
+	d.composeWaiting, d.composeResult, d.sendOutcome = true, locales.Sending(), ""
 	r, env, vars, srv, jar := d.draft(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
 	in := a.sendContext(r.Request)
 	d.sent, d.sentAt, d.sentSet = r, time.Now(), true

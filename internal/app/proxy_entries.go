@@ -284,7 +284,7 @@ func (a *app) saveReverseProxy() {
 		return
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		d.problem = "The remote URL must start with http:// or https://"
+		d.problem = locales.RemoteURLMustUseHTTP()
 		return
 	}
 	if u.User != nil || u.RawQuery != "" || u.Fragment != "" {

@@ -964,7 +964,7 @@ func (a *app) bodyPaneActions(c *ui.Context, side int) []action {
 		items = append(items, do("body.save", locales.SaveBody(), func() {
 			a.saveResponseBody(capture.Flow{Status: f.status, ResponseBody: f.resBody,
 				ResponseBodyFile: f.resFile, ResponseBodySize: f.resSize, ResponseBodyError: f.resError})
-		}).when(ok && f.status != 0, "No response was received"))
+		}).when(ok && f.status != 0, locales.NoResponseReceived()))
 	}
 	return items
 }
@@ -1287,7 +1287,7 @@ func (a *app) inspectorActions(c *ui.Context, f flow) []action {
 		do("flow.discard-edits", locales.DiscardEdits(), func() {
 			delete(a.flowDrafts, f.id)
 			a.liveFor = 0 // The capture opens unchanged again.
-		}).when(a.flowDrafts[f.id] != nil, "This request has no edits").in("edit"),
+		}).when(a.flowDrafts[f.id] != nil, locales.RequestHasNoEdits()).in("edit"),
 	)
 	return append(actions, a.flowActions(c, f)...)
 }

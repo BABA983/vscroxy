@@ -136,7 +136,7 @@ func (a *app) startLoadRunner() {
 	generation := r.generation
 	events, done := make(chan loadRunnerEvent, 1), make(chan struct{})
 	r.cancel, r.events, r.done = cancel, events, done
-	r.running, r.stopping, r.status, r.report = true, false, "Running…", runner.LoadReport{}
+	r.running, r.stopping, r.status, r.report = true, false, locales.RunningStatus(), runner.LoadReport{}
 	// Capture the window, never app/UI state, in the worker. Invalidate is
 	// asynchronous; neither progress nor shutdown depends on UI draining.
 	srv, win := a.srv, a.win
@@ -181,7 +181,7 @@ func (a *app) startLoadRunner() {
 func (a *app) stopLoadRunner() {
 	r := &a.loadRunner
 	if r.running && r.cancel != nil {
-		r.stopping, r.status = true, "Stopping…"
+		r.stopping, r.status = true, locales.StoppingStatus()
 		r.cancel()
 	}
 }
@@ -282,7 +282,7 @@ func (a *app) loadRunnerModal(c *ui.Context, t *ui.Theme) {
 				uikit.Prose(c, locales.RealRequestsMayHaveSide())
 				uikit.Meta(c, locales.EachUserHasIsolatedVariables())
 			})
-			status := cmp.Or(r.status, "Ready · closing this panel keeps an active load running")
+			status := cmp.Or(r.status, locales.ReadyClosingKeepsLoad())
 			uikit.Tip(c, uikit.Body(c, status).TextColor(t.Text).SingleLine(), status)
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, locales.CloseKeepsRunningQuitCancels()).Grow(1)
