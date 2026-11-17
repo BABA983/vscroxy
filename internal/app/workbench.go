@@ -213,7 +213,9 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	// A filter bar is the pane header's height: 32, with the controls at 24.
 	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 		Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-		box := ui.Row(c).Grow(1).MinWidth(uikit.WidthField).Height(uikit.HeightRow).Gap(t.Space(uikit.SpaceXS)).Padding(0, t.Space(uikit.SpaceXS)).AlignItems(ui.Center)
+		// The field's sides take SearchField's inset, so chips and the
+		// placeholder clear its edge.
+		box := ui.Row(c).Grow(1).MinWidth(uikit.WidthField).Height(uikit.HeightRow).Gap(t.Space(uikit.SpaceXS)).Padding(0, t.Space(uikit.SpaceM)).AlignItems(ui.Center)
 		uikit.FieldFace(c, box, a.search.Focused(c)).Children(func() {
 			// Chips first, then the input: a condition is narrowed one
 			// token at a time and stays where it was put.
@@ -299,14 +301,14 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				}
 			}
 			if a.filtersActive() {
-				if uikit.IconButton(c, locales.ResetAll(), locales.ResetAllConditions(), closeIcon).Clicked() {
+				if uikit.RowIconButton(c, locales.ResetAll(), locales.ResetAllConditions(), closeIcon).Clicked() {
 					a.views.resetFilters(a)
 				}
 			}
 			// The conditions the field cannot spell -- the dialog's own
 			// fields, the time range -- open from the field's end, so the
 			// search is the one way to narrow the list.
-			if uikit.IconButton(c, locales.Filters(), locales.StatusHeaderBodyMethodDuration(), filterIcon).Clicked() {
+			if uikit.RowIconButton(c, locales.Filters(), locales.StatusHeaderBodyMethodDuration(), filterIcon).Clicked() {
 				a.openFilter()
 			}
 		})
@@ -349,7 +351,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
 		}
-		uikit.MoreMenu(c, locales.MoreCaptureOptions(), func(m *ui.Menu) { actionMenu(m, a.captureActions()) })
+		uikit.MoreButton(c, locales.MoreCaptureOptions(), locales.MoreCaptureOptions(), func(m *ui.Menu) { actionMenu(m, a.captureActions()) })
 	})
 	ui.Divider(c)
 }

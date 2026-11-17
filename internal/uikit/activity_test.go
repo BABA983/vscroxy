@@ -87,8 +87,8 @@ func TestActivityStripDrawsReadableBarsAndABand(t *testing.T) {
 	}
 }
 
-// The pane's menu and its extra tab are words, not empty strips: ButtonBase
-// has no look of its own, so both have to draw their label.
+// The pane's menu and its extra tab are drawn, not empty strips: ButtonBase
+// has no look of its own, so both have to draw their icon or label.
 func TestPaneMenusDrawTheirWords(t *testing.T) {
 	tt := ui.NewTester(func(c *ui.Context) {
 		ui.Row(c).Gap(8).Children(func() {
@@ -97,8 +97,8 @@ func TestPaneMenusDrawTheirWords(t *testing.T) {
 		})
 	}, 300, 60)
 	tt.Frame()
-	if _, ok := tt.Find("⋯"); !ok {
-		t.Fatalf("the menu has no glyph: %q", tt.Texts())
+	if r, ok := tt.Find("Inspector options"); !ok || r.W == 0 || r.H == 0 {
+		t.Fatalf("the menu has no drawn box: %+v %q", r, tt.Texts())
 	}
 	if _, ok := tt.Find("More"); !ok {
 		t.Fatalf("the tab has no label: %q", tt.Texts())

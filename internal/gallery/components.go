@@ -93,6 +93,7 @@ func (g *Gallery) components() *Group {
 		{ID: "hover-card", Title: "Hover card", Note: "A title, one meta line and key/value rows over a capture row", Height: 340, Hover: hoverCard, Tip: true, build: k.hoverCardPlate},
 		{ID: "sidebar-hover-card", Title: "Sidebar hover card", Note: "A sidebar request's card opens beside the sidebar; its ⋯ is the row-action size", Height: 360, Hover: hoverSidebarCard, Tip: true, build: k.sidebarCardPlate},
 		{ID: "query-chips", Title: "Query chips", Note: "Chips inside the search field: centred, with the field's inset and a keycap-height remove", Height: 300, Hover: hoverQueryChip, build: k.queryChipPlate},
+		{ID: "query-chip-options", Title: "Query chip options", Note: "Three ways to give the chips room at the field's start; the chosen one is the query chips plate", Height: 340, build: k.queryChipOptionsPlate},
 		{ID: "select-open", Title: "Open select", Note: "A select's popup open under its trigger, with the chosen option checked", Height: 400, Click: "Format", build: k.openSelectPlate},
 		{ID: "menu-select-open", Title: "Open menu select", Note: "A menu select's menu open under its trigger", Height: 400, Click: "Environment", build: k.openMenuSelectPlate},
 		{ID: "panes", Title: "Pane headers", Note: "A title, its tabs and what the pane reports", Height: 380, Hover: hoverPanes, Focus: focusPanes, Tip: true, build: k.panePlate},
@@ -478,11 +479,12 @@ func (k *components) sidebarCardPlate(c *ui.Context) {
 	caption(c, "Hover the row: its card opens to the right, beside the sidebar, and does not cover the rows above. The ⋯ is a 20-point row action with a 2-point inset in the 24-point row.")
 }
 
-// queryField is the search field with three query chips in it. hover names the
-// first chip for the export's pointer.
-func queryField(c *ui.Context, hover string) {
+// queryField is the search field with three query chips in it, at the height
+// and side inset the capture bar gives it. hover names the first chip for the
+// export's pointer.
+func queryField(c *ui.Context, height, side float32, hover string) {
 	t := c.Theme()
-	row := ui.Row(c).Width(uikit.WidthWide*2).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceXS)).
+	row := ui.Row(c).Width(uikit.WidthWide*2).Height(height).Padding(0, side).
 		Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center)
 	uikit.FieldFace(c, row, false).Children(func() {
 		first := uikit.QueryChip(c, `app:"Spotify Helper"`, func() {}, func() {})
@@ -495,9 +497,20 @@ func queryField(c *ui.Context, hover string) {
 }
 
 func (k *components) queryChipPlate(c *ui.Context) {
-	stateRow(c, "Chips", func() { queryField(c, "") })
-	stateRow(c, "Hover", func() { queryField(c, hoverQueryChip) })
-	caption(c, "A chip is 18 points high with 4-point corners, centred in the field's 24 points, so the field's inset shows on every side. Its text is the query syntax, and its × is the same height as the chip.")
+	t := c.Theme()
+	stateRow(c, "Chips", func() { queryField(c, uikit.HeightRow, t.Space(uikit.SpaceM), "") })
+	stateRow(c, "Hover", func() { queryField(c, uikit.HeightRow, t.Space(uikit.SpaceM), hoverQueryChip) })
+	caption(c, "A chip is 18 points high with 4-point corners, centred in the field's 24 points, which leave 3 above and below. The field's sides are 8 points, SearchField's inset, so the first chip and the placeholder clear its edge. Its × is the same height as the chip.")
+}
+
+// queryChipOptionsPlate compares the three ways the design considered for the
+// chips' start room. The chosen one is the query chips plate's.
+func (k *components) queryChipOptionsPlate(c *ui.Context) {
+	t := c.Theme()
+	stateRow(c, "A: 4 from the edge (before)", func() { queryField(c, uikit.HeightRow, t.Space(uikit.SpaceXS), "") })
+	stateRow(c, "B: 8, SearchField's inset (chosen)", func() { queryField(c, uikit.HeightRow, t.Space(uikit.SpaceM), "") })
+	stateRow(c, "C: a 28-point field", func() { queryField(c, uikit.HeightControl, t.Space(uikit.SpaceXS), "") })
+	caption(c, "B gives the first chip and the placeholder 8 points of field before them, as SearchField does, and keeps the 24-point field beside the 24-point protocol tabs. A makes the chips cramped against the edge. C is taller than the tabs in the same bar, so the row would not line up.")
 }
 
 func (k *components) openSelectPlate(c *ui.Context) {

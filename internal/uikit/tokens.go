@@ -75,8 +75,10 @@ const (
 	// the row's RadiusControl less that inset.
 	HeightRowAction = 20
 	RowActionInset  = (HeightRow - HeightRowAction) / 2
-	// HeightChip is a query chip in a search field: centered in the field's
-	// 24 points, it leaves 3 above and below, and its corners are RadiusInner.
+	// HeightChip is a query chip in a search field: the field is HeightRow
+	// (24) tall, the chip is centered in it and leaves 3 above and below, and
+	// its corners are RadiusInner. The field's sides take SpaceM, as
+	// SearchField's do, so the first chip clears the edge.
 	HeightChip = 18
 	// Insets: the padding a surface gives its content. A component builds its
 	// own from these; a screen never pads a control itself.

@@ -1235,8 +1235,9 @@ func MoreButton(c *ui.Context, label, tip string, menu func(*ui.Menu)) ui.Elemen
 }
 
 // MoreMenu is the "⋯" of a row, a sidebar heading or a pane header, at the
-// row-action size: HeightRowAction square with RadiusInner. It has no face
-// until hovered, and it keeps its width where a row is full.
+// row-action size: HeightRowAction square with RadiusInner. It draws the same
+// Ellipsis icon as MoreButton, has no face until hovered, and keeps its width
+// where a row is full.
 func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	ghost := *t
@@ -1246,12 +1247,12 @@ func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
 	// A button of our own with a menu on it, not the library's menu button:
 	// that one draws a chevron after its label, and a ⋯ already says a menu
 	// opens. The menu itself is the library's, panel and motion included.
-	b := ui.ButtonBase(c).Label("⋯").PopoverMenuButton(menu, MenuButtonOptions(c))
-	// ButtonBase is a row with no look: the glyph has to be a child, or the
+	b := ui.ButtonBase(c).Label(label).PopoverMenuButton(menu, MenuButtonOptions(c))
+	// ButtonBase is a row with no look: the icon has to be a child, or the
 	// row's menu is an empty strip with nothing to click.
-	b.Children(func() { ui.Text(c, "⋯").FontSize(Scaled(TextBody)).SingleLine() })
+	b.Children(func() { ui.Icon(c, lucide.Ellipsis()).Size(IconInline, IconInline) })
 	c.SetTheme(t)
-	return Tip(c, b.Label(label), label).Size(HeightRowAction, HeightRowAction).Shrink(0).
+	return Tip(c, b, label).Size(HeightRowAction, HeightRowAction).Shrink(0).
 		Padding(0).Radius(RadiusInner).Justify(ui.Center).AlignItems(ui.Center).TextColor(t.TextMuted)
 }
 

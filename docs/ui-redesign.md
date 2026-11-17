@@ -243,7 +243,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `HeightRow` | 24 | 表格行、列表行、侧栏条目、分段控件的轨道 |
 | `HeightKbd` | 18 | 快捷键键帽 |
 | `HeightRowAction` | 20 | 行内的图标动作和 `⋯`（`RowIconButton`、`MoreMenu`），以及侧栏标题和面板头里的同款动作；离行的上下左右边各 `RowActionInset`（2），即 `(HeightRow − HeightRowAction)／2` |
-| `HeightChip` | 18 | 查询 chip（`QueryChip`），居中于 `HeightRow` 的字段内，上下各留 3 |
+| `HeightChip` | 18 | 查询 chip（`QueryChip`），居中于 `HeightRow`（24）的字段内，上下各留 3；字段两侧留 `SpaceM`（8），与 `SearchField` 相同 |
 | `MenuRowHeight` | 28 | 菜单行（MyGo 当前画 24，见第 12 节） |
 | `SettingsControlHeight` | 36 | 设置页开关的宽（轨道 36×20） |
 | `SettingsRowHeight` | 44 | 设置卡片行的最小高 |
@@ -442,7 +442,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `LinkButton` | 行内动作，如“添加属性” | 22 高，11 字，文字是次要色，可带 14 的图标，圆角 4；无面 | 静止（无面）、悬停（中性面，文字正文色）、禁用 | 不要当主要操作；不要放进表单的控件位 |
 | `ToolbarButton` | 工具栏和标题栏的动作 | 28 高，`ControlPaddingX` 12，13 字，圆角 6；active 是强调浅底 | 静止（次要文字色）、悬停（中性面）、按下、active、禁用 | 不要用来代替主按钮 |
 | `IconButton` | 只有图标的动作 | 28 正方形，图标 14 | 同 `ToolbarButton` | 必须带 `tip`（它是唯一的说明）；行内用 `RowIconButton` |
-| `RowIconButton` | 行内、侧栏标题和列表头里的图标动作 | `HeightRowAction`（20）正方形，图标 14，圆角 `RadiusInner`，离行边 `RowActionInset`（2） | 同 `ToolbarButton` | 不用于工具栏（用 `IconButton`）；必须带 `tip` |
+| `RowIconButton` | 行内、侧栏标题、列表头和搜索框里（清除、筛选）的图标动作 | `HeightRowAction`（20）正方形，图标 14，圆角 `RadiusInner`，离行边 `RowActionInset`（2） | 同 `ToolbarButton` | 不用于工具栏（用 `IconButton`）；必须带 `tip` |
 | `FooterButton` | 底栏的动作 | 22 高，8 内边距，11 字，圆角 4 | 静止（只有文字）、悬停、按下、on（凹进的选中面） | 不要用于底栏之外 |
 | `RowButton` | 列表中的整行，如命令面板的结果 | 最小 28 高，内边距 4×8，13 字，圆角 6，撑满宽 | 按下时出面；没有悬停面（列表不随指针亮） | 不要自己画选中；选中用 `Selected` 或 `DataList` |
 | `SwatchButton` | 挑选颜色 | 28 正方形，圆角 6，颜色本身不变 | 选中（对勾）、悬停（1 pt 文字色描边）、禁用 | 不改颜色本身 |
@@ -480,7 +480,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `Tabs`／`CountedTabs` | 面板内的标签页（切换视图或过滤） | 22 高，左右 8，13 字，圆角 6；计数是 `Meta` | 静止（次要色）、悬停（中性面）、按下、选中（中性面 `Fill`，正文色） | 不用强调色；不要两层同名 |
 | `TabStrip` | 放不下时横向滚动的标签行 | 同 `Tabs`；缺的一侧边缘渐隐（`EdgeFade`） | 同 `Tabs` | 不要在宽处使用 |
 | `SubTabs` | 第二层标签（在一个 tab 里面，或列表头） | 22 高，标签间距 8，选中加 2 pt 强调色下划线（只在字宽下） | 静止、悬停（正文色）、选中（下划线） | 不要和 `Tabs` 放在同一层 |
-| `MoreButton`／`MoreMenu`／`TabMenu` | 放不下的选项收进菜单 | `MoreButton` 是工具栏的 28 正方形 `IconButton`，画图标 `⋯`，直接打开菜单（不带 chevron）；`MoreMenu` 是行、侧栏标题和面板头里的 `⋯`，`HeightRowAction`（20）正方形、圆角 `RadiusInner`，离行边 `RowActionInset`（2）；`TabMenu` 是长得像 tab 的菜单入口 | 同菜单 | 不要收进主要动作 |
+| `MoreButton`／`MoreMenu`／`TabMenu` | 放不下的选项收进菜单 | `MoreButton` 是标题栏和过滤栏的 28 正方形 `IconButton`，画图标 `⋯`，直接打开菜单（不带 chevron）；`MoreMenu` 是行、侧栏标题和面板头里的 `⋯`，`HeightRowAction`（20）正方形、圆角 `RadiusInner`，离行边 `RowActionInset`（2）；`TabMenu` 是长得像 tab 的菜单入口 | 同菜单 | 不要收进主要动作 |
 
 #### 反馈
 
@@ -514,9 +514,11 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `KVRow` | 只读的键值行，内容由调用方排 | 不画底线 | 无 | 不用于可编辑的表 |
 | `StatusPill` | 状态文字（如“已停止”） | 只有文字色，不填底；颜色由调用方给（2xx 和 304 用次要色） | 无 | 不给状态加底色或圆点 |
 | `MethodLabel` | HTTP 方法 | 12 等宽 500，方法色文字 | 无 | 不做成 chip（列表里是界面字体，树里是等宽） |
-| `QueryChip` | 过滤语法的 chip（`status:>=400`） | `HeightChip`（18）高，圆角 `RadiusInner`，居中于 24 高的字段内（字段内边距 4）；chip 左右内边距 2，标签的左右内边距 4；× 与 chip 同高 | 静止、悬停、按下 | 不做成输入框 |
+| `QueryChip` | 过滤语法的 chip（`status:>=400`） | `HeightChip`（18）高，圆角 `RadiusInner`，居中于 24 高的字段内，字段两侧留 `SpaceM`（8）；chip 左右内边距 2，标签的左右内边距 4；× 与 chip 同高 | 静止、悬停、按下 | 不做成输入框 |
 | `Glyph` | 装饰图标 | 尺寸由调用方给（14 或 16） | 无 | 不带焦点 |
 | `Divider`（MyGo `ui.Divider`） | 分隔线：横向，或在横排里变成竖线 | 颜色即 `Hairline`，1 pt | 无 | 不要用色块分区 |
+
+查询 chip 的字段方案（图版 `query-chip-options`）：原来字段两侧是 4，chip 离边 4、文字离边 10，看上去贴边。考虑过三种：A 保持 4；B 两侧改为 `SpaceM`（8），与 `SearchField` 相同，chip 离边 8、文字离边 14，占位文字随之内移，字段高度不变，选用 B；C 把字段加高到 28，会比同一栏的协议分段（24）高，整栏高度不一致，不选。只缩小 chip 不能给文字留出位置，也不选。过滤栏里的 ⋯ 原是 `MoreMenu` 的 20 正方形，比断点按钮窄，协议分段随之右移；现在用 `MoreButton`（28），与断点按钮同高。字段内的清除和筛选原是 28 高的 `IconButton`，被 24 高的字段裁成 24，现在用 `RowIconButton`（20）。
 
 #### 列表和侧栏
 
