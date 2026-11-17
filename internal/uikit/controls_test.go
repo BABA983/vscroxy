@@ -201,3 +201,34 @@ func TestProgressBarReportsItsValue(t *testing.T) {
 		t.Fatalf("progress = min %v, now %v, max %v; want 0, 0.25, 1", info.Min, info.Now, info.Max)
 	}
 }
+
+// A select's popup keeps its options inside the panel: the panel has its
+// inset and each option its own, so an option's text never sits on the
+// popup's edge.
+func TestSelectPopupInsetsItsOptions(t *testing.T) {
+	selected := "Pretty"
+	theme := Theme(false)
+	tt := ui.NewTester(func(c *ui.Context) {
+		c.SetTheme(theme)
+		ui.Column(c).Padding(20).Children(func() {
+			Select(c, &selected, []string{"Pretty", "Raw"}).Label("Format").Width(160)
+		})
+	}, 320, 200)
+	tt.Frame()
+	trigger, ok := tt.Access("Format")
+	if !ok {
+		t.Fatal("no trigger named Format")
+	}
+	if err := tt.Click("Format"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	option, ok := tt.Find("Raw")
+	if !ok {
+		t.Fatalf("the popup did not open; texts=%q", tt.Texts())
+	}
+	want := theme.Space(SpaceXS) + theme.Space(SpaceCompact)
+	if inset := option.X - trigger.Bounds.X; inset < want-1 {
+		t.Fatalf("option text starts %.1f from the popup's edge, want about %.1f", inset, want)
+	}
+}

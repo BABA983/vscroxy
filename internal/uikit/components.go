@@ -1723,12 +1723,12 @@ func SelectLabels(c *ui.Context, selected *string, options []string, label func(
 		chevron(c)
 	})
 	sel.Popup(func(panel ui.Element) {
-		popoverFace(c, panel.Padding(SpaceXS).Gap(SpaceHair))
+		popoverFace(c, panel.Padding(t.Space(SpaceXS)).Gap(t.Space(SpaceHair)))
 		for _, option := range options {
 			// The keyboard's highlight is the only fill in the popup; the
 			// chosen option is marked with a check, so two rows never look
 			// selected while the highlight moves.
-			item := sel.Item(option).Padding(SpaceS, SpaceCompact).Radius(RadiusControl).AlignItems(ui.Center).Gap(t.Space(SpaceS))
+			item := sel.Item(option).Padding(t.Space(SpaceS), t.Space(SpaceCompact)).Radius(RadiusControl).AlignItems(ui.Center).Gap(t.Space(SpaceS))
 			ink := t.Text
 			if item.Highlighted() {
 				item.Background(t.Accent).TextColor(t.AccentText)
