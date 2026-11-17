@@ -86,6 +86,29 @@
   "allowedHosts": "Allowed hosts",
   "alreadyTriedFirst": "Already tried first",
   "alreadyTriedLast": "Already tried last",
+  "@analysisLine": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      },
+      "method": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      },
+      "ms": {
+        "type": "String"
+      }
+    }
+  },
+  "analysisLine": "{label} {name} · {method} {path} · {status} · {ms} ms",
   "androidProxyRestored": "Android proxy restored",
   "androidProxySet": "Android proxy set",
   "anotherReverseProxy": "another reverse proxy",
@@ -583,6 +606,14 @@
     }
   },
   "columnResponseJSON": "{name} (response JSON)",
+  "@commaLine": {
+    "placeholders": {
+      "line": {
+        "type": "String"
+      }
+    }
+  },
+  "commaLine": ", line {line}",
   "commandArguments": "Command arguments",
   "@concurrencyDescription": {
     "placeholders": {
@@ -1626,6 +1657,22 @@
     }
   },
   "importedEnvironmentVariables": "Imported environment “{name}” · {count, plural, one {{count, number, ::group-off} variable} other {{count, number, ::group-off} variables}}",
+  "@importedEnvironments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importedEnvironments": "Imported {count, plural, one {{count, number, ::group-off} environment} other {{count, number, ::group-off} environments}}",
+  "@importedParts": {
+    "placeholders": {
+      "parts": {
+        "type": "String"
+      }
+    }
+  },
+  "importedParts": "Imported {parts}",
   "importedRemainder": "Everything else was imported. These parts have no equivalent here yet:",
   "@importedVariablesIntoGlobals": {
     "placeholders": {
@@ -1908,6 +1955,14 @@
     }
   },
   "mapHostFor": "Map a host for {name}…",
+  "@markSwatch": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "markSwatch": "Mark {name}",
   "mcpPromptArguments": "MCP prompt arguments",
   "mcpServer": "MCP server",
   "mcpToolArguments": "MCP tool arguments",

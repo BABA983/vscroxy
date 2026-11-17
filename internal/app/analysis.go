@@ -242,7 +242,7 @@ func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]str
 			if i == 1 {
 				label = "Right"
 			}
-			uikit.Tip(c, uikit.Caption(c, fmt.Sprintf("%s %s · %s %s · %d · %d ms", label, labels[i], f.method, f.path, f.status, f.millis)).FontFeatures("tnum").SingleLine().Grow(1), f.url)
+			uikit.Tip(c, uikit.Caption(c, locales.AnalysisLine(label, labels[i], f.method, f.path, fmt.Sprint(f.status), fmt.Sprint(f.millis))).FontFeatures("tnum").SingleLine().Grow(1), f.url)
 		}
 	})
 	uikit.Meta(c, locales.ReadOnlyComparisonBodiesLimited()).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))

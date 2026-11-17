@@ -222,6 +222,18 @@ func (msgs Messages) AlreadyTriedLast() string {
 	return Catalog.Format(msgs.locale, "alreadyTriedLast", nil)
 }
 
+// AnalysisLine says "{label} {name} · {method} {path} · {status} · {ms} ms"
+// in the language the app shows.
+func AnalysisLine(label string, name string, method string, path string, status string, ms string) string {
+	return In(i18n.Locale()).AnalysisLine(label, name, method, path, status, ms)
+}
+
+// AnalysisLine says "{label} {name} · {method} {path} · {status} · {ms} ms"
+// in the language of msgs.
+func (msgs Messages) AnalysisLine(label string, name string, method string, path string, status string, ms string) string {
+	return Catalog.Format(msgs.locale, "analysisLine", map[string]any{"label": label, "name": name, "method": method, "path": path, "status": status, "ms": ms})
+}
+
 // AndroidProxyRestored says "Android proxy restored"
 // in the language the app shows.
 func AndroidProxyRestored() string { return In(i18n.Locale()).AndroidProxyRestored() }
@@ -1276,6 +1288,16 @@ func ColumnResponseJSON(name string) string { return In(i18n.Locale()).ColumnRes
 // in the language of msgs.
 func (msgs Messages) ColumnResponseJSON(name string) string {
 	return Catalog.Format(msgs.locale, "columnResponseJSON", map[string]any{"name": name})
+}
+
+// CommaLine says ", line {line}"
+// in the language the app shows.
+func CommaLine(line string) string { return In(i18n.Locale()).CommaLine(line) }
+
+// CommaLine says ", line {line}"
+// in the language of msgs.
+func (msgs Messages) CommaLine(line string) string {
+	return Catalog.Format(msgs.locale, "commaLine", map[string]any{"line": line})
 }
 
 // CommandArguments says "Command arguments"
@@ -3348,6 +3370,26 @@ func (msgs Messages) ImportedEnvironmentVariables(name string, count int) string
 	return Catalog.Format(msgs.locale, "importedEnvironmentVariables", map[string]any{"name": name, "count": count})
 }
 
+// ImportedEnvironments says "Imported {count, plural, one {{count, number, ::group-off} environment} other {{count, number, ::group-off} environme…"
+// in the language the app shows.
+func ImportedEnvironments(count int) string { return In(i18n.Locale()).ImportedEnvironments(count) }
+
+// ImportedEnvironments says "Imported {count, plural, one {{count, number, ::group-off} environment} other {{count, number, ::group-off} environme…"
+// in the language of msgs.
+func (msgs Messages) ImportedEnvironments(count int) string {
+	return Catalog.Format(msgs.locale, "importedEnvironments", map[string]any{"count": count})
+}
+
+// ImportedParts says "Imported {parts}"
+// in the language the app shows.
+func ImportedParts(parts string) string { return In(i18n.Locale()).ImportedParts(parts) }
+
+// ImportedParts says "Imported {parts}"
+// in the language of msgs.
+func (msgs Messages) ImportedParts(parts string) string {
+	return Catalog.Format(msgs.locale, "importedParts", map[string]any{"parts": parts})
+}
+
 // ImportedRemainder says "Everything else was imported. These parts have no equivalent here yet:"
 // in the language the app shows.
 func ImportedRemainder() string { return In(i18n.Locale()).ImportedRemainder() }
@@ -3890,6 +3932,16 @@ func MapHostFor(name string) string { return In(i18n.Locale()).MapHostFor(name) 
 // in the language of msgs.
 func (msgs Messages) MapHostFor(name string) string {
 	return Catalog.Format(msgs.locale, "mapHostFor", map[string]any{"name": name})
+}
+
+// MarkSwatch says "Mark {name}"
+// in the language the app shows.
+func MarkSwatch(name string) string { return In(i18n.Locale()).MarkSwatch(name) }
+
+// MarkSwatch says "Mark {name}"
+// in the language of msgs.
+func (msgs Messages) MarkSwatch(name string) string {
+	return Catalog.Format(msgs.locale, "markSwatch", map[string]any{"name": name})
 }
 
 // McpPromptArguments says "MCP prompt arguments"

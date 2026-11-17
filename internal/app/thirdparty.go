@@ -126,7 +126,7 @@ func importTitle(result imports.Result, requests int) string {
 	if len(result.Collections) == 1 {
 		return locales.ImportedCollectionParts(result.Collections[0].Name, strings.Join(parts, " · "))
 	}
-	return "Imported " + strings.Join(parts, " · ")
+	return locales.ImportedParts(strings.Join(parts, " · "))
 }
 
 // uniqueWarnings keeps the first of each warning, so the report does not
@@ -279,7 +279,7 @@ func (a *app) mergeImportedEnvironments(incoming []imports.Environment) (title s
 	case len(incoming) == 1:
 		return locales.ImportedEnvironmentVariables(strings.TrimSpace(incoming[0].Name), len(incoming[0].Values)), warnings, nil
 	case added > 0 && updated == 0:
-		return fmt.Sprintf("Imported %d %s", added, plural(added, "environment", "environments")), warnings, nil
+		return locales.ImportedEnvironments(added), warnings, nil
 	default:
 		return locales.MergedEnvironments(len(incoming)), warnings, nil
 	}

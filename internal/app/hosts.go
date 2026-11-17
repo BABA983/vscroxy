@@ -323,7 +323,7 @@ func hostProfileLabel(source string) string {
 	if !ok {
 		return source
 	}
-	return name + ", line " + line
+	return name + locales.CommaLine(line)
 }
 
 // newProfile adds a profile below the others, saves its file, and shows it

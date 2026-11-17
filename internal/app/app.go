@@ -3331,7 +3331,7 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 					for _, color := range uikit.MarkColors {
 						selected := a.markColor == color.Name
-						uikit.Tip(c, uikit.SwatchButton(c, "Mark "+color.Name, color.Color, selected), color.Name).
+						uikit.Tip(c, uikit.SwatchButton(c, locales.MarkSwatch(color.Name), color.Color, selected), color.Name).
 							OnClick(func() { a.markColor = color.Name })
 					}
 					if uikit.SecondaryButton(c, locales.None()).Clicked() {
