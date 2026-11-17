@@ -150,7 +150,9 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 							r.HasCurrent, changed = true, true
 						}
 					})
-					ui.Row(c).Width(uikit.HeightRow*4 + t.Space(uikit.SpaceXS)).Children(func() {
+					// Four 20-point actions with a standard 4-point gap, and the
+					// Remove icon 8 points inside the column's edge on every row.
+					ui.Row(c).Width(uikit.HeightRow*4 + t.Space(uikit.SpaceXS)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 						if secret {
 							if uikit.RowIconButton(c, locales.RevealVariable(i+1), locales.RevealOrHideBothValues(), eyeIcon).Clicked() {
 								r.Revealed = !r.Revealed
@@ -158,7 +160,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 						} else {
 							// Keep the action column's geometry steady when a
 							// row has no secret to reveal.
-							ui.Box(c).Size(uikit.HeightRow, uikit.HeightRow)
+							ui.Box(c).Size(uikit.HeightRowAction, uikit.HeightRowAction)
 						}
 						blocked := r.Credential || sensitiveVariable(r.Name)
 						persistTooltip := locales.PersistCurrentAsInitialWrites()
