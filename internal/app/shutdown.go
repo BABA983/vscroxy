@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"log/slog"
 	"sync"
 
 	"github.com/baba983/vscroxy/internal/lifecycle"
@@ -99,8 +100,15 @@ func (a *app) finishQuit(err error) {
 		a.warn(err.Error())
 		return
 	}
-	a.fail(locales.QuitCancelledSystemProxyCleanup(), err)
-	a.reportQuitError(err)
+	if errors.Is(err, lifecycle.ErrShutdownAborted) {
+		a.fail(locales.QuitCancelledSystemProxyCleanup(), err)
+		a.reportQuitError(err)
+		return
+	}
+	// A Last joiner ran after the proxy was released and teardown has already
+	// happened: log the error through applog's default logger and still exit.
+	slog.Error(locales.Failed(), "detail", err)
+	a.quit()
 }
 
 func (a *app) onMain(fn func()) {

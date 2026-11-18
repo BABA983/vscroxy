@@ -13,6 +13,16 @@ import (
 // shutdown. Use errors.Is to recognize it; the wrapped message lists the ids.
 var ErrShutdownVetoed = errors.New("shutdown vetoed")
 
+// ErrShutdownAborted reports that a shutdown stopped before Last joiners ran,
+// usually because a default joiner failed to release something the app still
+// needs. Last joiner errors do not wrap it: they are completed shutdowns whose
+// errors the caller can still act on.
+var ErrShutdownAborted = errors.New("shutdown aborted")
+
+func abortError(err error) error {
+	return fmt.Errorf("%w: %w", ErrShutdownAborted, err)
+}
+
 func vetoError(ids []string) error {
 	return fmt.Errorf("%w: %s", ErrShutdownVetoed, strings.Join(ids, ", "))
 }
@@ -394,10 +404,10 @@ func (l *Lifecycle) OnWillShutdown(fn func(*WillShutdownEvent)) {
 	l.will = append(l.will, fn)
 }
 
-// WillShutdown reports whether shutdown passed the veto phase and is still
-// going to finish. It is false again after a failed join phase, so it must not
-// be used as a signal that the app is exiting; use ShuttingDown or
-// ShutdownSucceeded instead.
+// WillShutdown reports whether shutdown passed the veto phase without being
+// aborted. Last joiner errors and Force do not clear it: by then teardown has
+// started and cannot be retried. Use ShuttingDown or ShutdownSucceeded for
+// the caller's own state.
 func (l *Lifecycle) WillShutdown() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -411,8 +421,9 @@ func (l *Lifecycle) ShuttingDown() bool {
 	return l.active != nil
 }
 
-// ShutdownSucceeded reports whether the last shutdown finished without vetoes
-// or errors. A failed shutdown is not cached, so another attempt can run.
+// ShutdownSucceeded reports whether shutdown completed the will phase without
+// being aborted. It stays true when a Last joiner returned an error: teardown
+// already ran, so a later caller gets the same result instead of retrying it.
 func (l *Lifecycle) ShutdownSucceeded() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -425,13 +436,15 @@ func (l *Lifecycle) ShutdownSucceeded() bool {
 // happens on a package-owned goroutine; done is also called there with the
 // result, so the caller must marshal any UI work back to the UI thread.
 //
-// A default joiner error aborts the shutdown: Last joiners are skipped,
-// WillShutdown becomes false again, and the app keeps running so it can retry.
-// This is a deliberate divergence from VS Code's irreversible will phase,
-// because releasing an OS setting such as the system proxy can fail.
+// A default joiner failure aborts the shutdown: the returned error wraps
+// ErrShutdownAborted, Last joiners are skipped, WillShutdown becomes false,
+// and the app can retry. This deliberately diverges from VS Code's
+// irreversible will phase because releasing an OS setting such as the system
+// proxy can fail. Errors from Last joiners, and Force, still complete the will
+// phase: they are returned, but the run is cached instead of retried.
 //
 // A concurrent call waits for the in-flight shutdown and gets its result. A
-// call after a successful shutdown gets the same result; a vetoed or failed
+// call after a completed shutdown gets the same result; a vetoed or aborted
 // one can be retried. A nil done discards the result.
 func (l *Lifecycle) ShutdownAsync(reason ShutdownReason, done func(error)) {
 	l.mu.Lock()
@@ -491,12 +504,15 @@ func (l *Lifecycle) notifyWhenDone(run *shutdownRun, done func(error)) {
 
 func (l *Lifecycle) finishShutdown(run *shutdownRun, err error, reachedWill bool, done func(error)) {
 	run.err = err
+	aborted := errors.Is(err, ErrShutdownAborted)
 	l.mu.Lock()
 	l.active = nil
-	if err != nil {
+	if aborted {
 		l.willShutdown = false
 	}
-	if reachedWill && err == nil {
+	// A Last joiner error or Force still completes the will phase: keep the
+	// result cached so a later caller cannot restart teardown.
+	if reachedWill && !aborted {
 		l.completed = run
 	}
 	l.mu.Unlock()
@@ -509,7 +525,7 @@ func (l *Lifecycle) finishShutdown(run *shutdownRun, err error, reachedWill bool
 func (l *Lifecycle) finishPhases(reason ShutdownReason, before *BeforeShutdownEvent, beforeCtx context.Context, final func(*InternalBeforeShutdownEvent), will []func(*WillShutdownEvent)) (err error, reachedWill bool) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = panicError("shutdown", r)
+			err = abortError(panicError("shutdown", r))
 		}
 	}()
 	if vetoed, ids := before.settle(beforeCtx); vetoed {
@@ -537,21 +553,22 @@ func (l *Lifecycle) finishPhases(reason ShutdownReason, before *BeforeShutdownEv
 	errs := willEvent.run(willEvent.defaults)
 	// Unlike VS Code's irreversible will phase, a failed default joiner
 	// aborts here: Last joiners must not tear down an app that stays running.
-	if len(errs) == 0 {
-		errs = append(errs, willEvent.run(willEvent.lasts)...)
+	// Errors from Last joiners are different: the will phase completed.
+	if len(errs) > 0 {
+		return abortError(errors.Join(errs...)), true
 	}
-	return errors.Join(errs...), true
+	return errors.Join(willEvent.run(willEvent.lasts)...), true
 }
 
 // Shutdown runs the veto phase and then, unless vetoed, the join phase. It
 // returns ErrShutdownVetoed when a participant stopped the shutdown, or joins
-// the errors returned by joiners. A default joiner error aborts the shutdown,
-// skips Last joiners, clears WillShutdown, and leaves the shutdown retryable:
-// a deliberate divergence from VS Code because a failed OS setting release
-// must keep the app running. It blocks until shutdown settles, so callers on
-// the UI thread should use ShutdownAsync when a veto or joiner needs the UI
-// thread to keep running. Concurrent and later calls get the same result on
-// success.
+// the errors returned by joiners. A default joiner failure wraps
+// ErrShutdownAborted: Last joiners are skipped, WillShutdown is cleared, and
+// the shutdown is retryable, deliberately diverging from VS Code because a
+// failed OS setting release must keep the app running. Errors from Last
+// joiners still complete the will phase and are cached for later callers. It
+// blocks until shutdown settles, so callers on the UI thread should use
+// ShutdownAsync when a veto or joiner needs the UI thread to keep running.
 func (l *Lifecycle) Shutdown(reason ShutdownReason) error {
 	result := make(chan error, 1)
 	l.ShutdownAsync(reason, func(err error) { result <- err })

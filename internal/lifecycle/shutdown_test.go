@@ -467,6 +467,36 @@ func TestFailedDefaultJoinerAbortsAndRetries(t *testing.T) {
 	}
 }
 
+func TestLastJoinerFailureCompletesShutdown(t *testing.T) {
+	busy := errors.New("settings busy")
+	var defaults, lasts atomic.Int32
+	var lc Lifecycle
+	lc.OnWillShutdown(func(e *WillShutdownEvent) {
+		e.Join(func() error {
+			defaults.Add(1)
+			return nil
+		}, WillShutdownEventJoiner{ID: "system-proxy", Label: "Releasing system proxy"})
+		e.Join(func() error {
+			lasts.Add(1)
+			return busy
+		}, WillShutdownEventJoiner{ID: "settings", Label: "Saving settings", Order: WillShutdownJoinerOrderLast})
+	})
+
+	err := lc.Shutdown(ShutdownReasonQuit)
+	if !errors.Is(err, busy) || errors.Is(err, ErrShutdownAborted) {
+		t.Fatalf("Shutdown error = %v, want the Last joiner's error without an abort", err)
+	}
+	if !lc.WillShutdown() || !lc.ShutdownSucceeded() {
+		t.Fatal("a Last joiner error must still complete the shutdown")
+	}
+	if err := lc.Shutdown(ShutdownReasonQuit); !errors.Is(err, busy) {
+		t.Fatalf("later Shutdown = %v, want the cached Last joiner error", err)
+	}
+	if defaults.Load() != 1 || lasts.Load() != 1 {
+		t.Fatalf("joiners ran %d defaults and %d lasts, want 1 and 1", defaults.Load(), lasts.Load())
+	}
+}
+
 func TestShutdownAsyncRunsBeforeCallbacksOnCallerThenWaits(t *testing.T) {
 	beforeStarted := make(chan struct{})
 	beforeRelease := make(chan struct{})

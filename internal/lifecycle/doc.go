@@ -37,8 +37,14 @@
 // # Failed shutdowns
 //
 // In VS Code the will-shutdown phase is irreversible. Here a failing default
-// joiner aborts the shutdown: Last joiners are skipped, WillShutdown returns
-// false again, and a later Shutdown runs both phases from the start. This
-// matters when a default joiner releases an OS setting such as the system
-// proxy, which can fail and leave the app running with capture still active.
+// joiner aborts the shutdown: the error wraps ErrShutdownAborted, Last joiners
+// are skipped, WillShutdown returns false again, and a later Shutdown runs
+// both phases from the start. This matters when a default joiner releases an
+// OS setting such as the system proxy, which can fail and leave the app
+// running with capture still active.
+//
+// Once the defaults succeed, the will phase is complete. An error from a Last
+// joiner (or Force ending the wait) is returned but does not abort: the run is
+// cached, WillShutdown stays true, and later callers get the same result
+// instead of repeating teardown. Callers distinguish the two with errors.Is.
 package lifecycle

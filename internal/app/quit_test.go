@@ -111,3 +111,44 @@ func TestQuitProxyReleaseFailureCanBeRetried(t *testing.T) {
 		t.Fatalf("status message = %q, want the quit-cancelled notice", a.message)
 	}
 }
+
+func TestQuitLastJoinerFailureStillQuits(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	a := newApp()
+	a.installShutdown()
+	a.quitOnMain = func(fn func()) { fn() }
+	quits := make(chan struct{}, 1)
+	a.quitApp = func() { quits <- struct{}{} }
+	failures := make(chan error, 1)
+	a.quitError = func(err error) { failures <- err }
+	a.systemProxy.clear = func(string) error { return nil }
+	a.systemProxy.mu.Lock()
+	a.systemProxy.ownedTarget = "127.0.0.1:7890"
+	a.systemProxy.ownedNow.Store(true)
+	a.systemProxy.mu.Unlock()
+
+	lastErr := errors.New("settings flush failed")
+	a.lifecycle.OnWillShutdown(func(e *lifecycle.WillShutdownEvent) {
+		e.Join(func() error { return lastErr }, lifecycle.WillShutdownEventJoiner{
+			ID: "last-failure", Label: "Saving settings", Order: lifecycle.WillShutdownJoinerOrderLast,
+		})
+	})
+
+	a.requestQuit(&mygo.QuitEvent{})
+	select {
+	case <-quits:
+	case <-time.After(5 * time.Second):
+		t.Fatal("a Last joiner error did not quit")
+	}
+	select {
+	case err := <-failures:
+		t.Fatalf("Last joiner error showed the proxy failure dialog: %v", err)
+	default:
+	}
+	if !a.lifecycle.WillShutdown() || !a.lifecycle.ShutdownSucceeded() {
+		t.Fatal("a Last joiner error should still complete shutdown")
+	}
+	if strings.Contains(a.message, locales.QuitCancelledSystemProxyCleanup()) {
+		t.Fatalf("status message = %q, want no quit-cancelled notice", a.message)
+	}
+}
