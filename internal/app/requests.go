@@ -768,20 +768,22 @@ func (a *app) duplicateDocument(d *requestDocument) {
 	a.addDocument(r, "")
 }
 
-// documentActions are an open request's, beside Save.
+// documentActions are an open request's, beside Save. Shared commands come
+// from the registry, built for this tab rather than the active document, so
+// their shortcut and enabled state cannot drift from the menu item's.
 func (a *app) documentActions(c *ui.Context, d *requestDocument) []action {
+	global := a.actionsFor(c, d)
 	return []action{
 		do("request.duplicate", locales.DuplicateAsNewRequest(), func() { a.duplicateDocument(d) }).keys(ui.Cmd, ui.KeyD),
 		do("request.copy-curl", locales.CopyAsCurl(), func() { a.copyRequest(c, flow{}, d, "cURL") }),
-		do("request.export-http", locales.ExportAsHttp(), func() { a.exportHTTPDocument(d) }),
+		pick(global, "request.export-http"),
 		copyAsMenu(a.requestCopyActions(c, flow{}, d)),
-		do("request.code", locales.GenerateCode(), a.openCode),
+		pick(global, "request.code"),
 		do("request.history", locales.History(), func() { a.openSendHistory(d) }),
-		do("collection.settings", settingsLabel(d.composeCollection), func() { a.openFolder(d.composeCollection) }).
-			when(d.composeCollection != "", locales.SaveRequestToCollectionFirst()).in("context"),
-		do("environment.manage", locales.ManageEnvironments(), a.openVars).in("context"),
+		pick(global, "collection.settings").as(settingsLabel(d.composeCollection)).in("context"),
+		pick(global, "environment.manage").in("context"),
 		do("request.variables", locales.RequestVariables(), func() { d.variablesOpen = !d.variablesOpen }).in("context"),
-		do("vault.open", locales.Vault(), a.openVault).in("context"),
+		pick(global, "vault.open").in("context"),
 	}
 }
 

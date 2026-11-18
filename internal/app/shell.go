@@ -246,9 +246,10 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	})
 	uikit.MenuFace(c, func() {
 		b.PopoverMenuButton(func(m *ui.Menu) {
-			start := do("capture.start", locales.StartCapture(), func() { go a.startCapture() })
-			stop := do("capture.stop", locales.StopCapture(), a.stopCapture)
-			settings := do("app.settings", locales.OpenSettings(), func() { a.openSettings(-1) })
+			global := a.actions(c)
+			start := pick(global, "capture.start")
+			stop := pick(global, "capture.stop")
+			settings := pick(global, "app.settings")
 			if running {
 				actionMenu(m, []action{stop, settings})
 			} else {
@@ -714,7 +715,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 		pick(global, "network.electron"),
 	}
 	network := []action{
-		do("network.diagnostics", locales.ConnectionDiagnostics(), func() { a.openDiagnostics(nil, diagnoseMac) }).in("tools"),
+		pick(global, "network.diagnostics").in("tools"),
 		do("network.client", locales.SetUpALocalClient(), a.openClientSetup).in("tools"),
 		submenu(locales.OneClickSetup(), oneClick...).in("tools"),
 		pick(global, "network.websocket").in("tools"),
@@ -748,15 +749,15 @@ func (a *app) moreActions(c *ui.Context) []action {
 		}).in("files"),
 		do("capture.clear-choice", locales.ClearChoice(), a.chosen.Clear).in("files"),
 		do("session.save-as", locales.SaveSession(), a.saveSession).in("files"),
-		do("session.open", locales.OpenSession(), a.openSession).in("files"),
+		pick(global, "session.open").in("files"),
 		do("capture.import-har", locales.ImportHar(), a.importHAR).in("files"),
-		do("capture.import-session", locales.ImportCaptureSession(), a.importCaptureSession).in("import"),
-		do("capture.import-proxyman-folder", locales.ImportProxymanLogFolder(), a.importCaptureFolder).in("import"),
-		do("rules.import-charles", locales.ImportCharlesSettings(), a.importCharlesSettings).in("import"),
-		do("collection.import", locales.ImportText(), a.importRequests),
-		do("collection.import-url", locales.ImportFromUrl(), a.openImportURL).in("import"),
-		do("collection.import-folder", locales.ImportCollectionFolder(), a.importCollectionFolder).in("import"),
-		do("request.import-curl", locales.ImportCurl(), a.openCurlImport).in("import"),
+		pick(global, "capture.import-session").in("import"),
+		pick(global, "capture.import-proxyman-folder").in("import"),
+		pick(global, "rules.import-charles").in("import"),
+		pick(global, "collection.import"),
+		pick(global, "collection.import-url").in("import"),
+		pick(global, "collection.import-folder").in("import"),
+		pick(global, "request.import-curl").in("import"),
 		do("api.generate", locales.GenerateOpenapi(), a.openAPIGeneration).
 			when(len(a.requests) > 0, locales.SaveARequestToA()).in("api"),
 	}
@@ -770,14 +771,14 @@ func (a *app) moreActions(c *ui.Context) []action {
 		do("protobuf.schema", locales.ProtobufSchema(), func() { a.protobuf.open = true }).in("protobuf"),
 	)
 	return []action{
-		do("tools.rules", locales.DebuggingRules2(), a.openRules),
+		pick(global, "tools.rules").as(locales.DebuggingRules2()),
 		do("tools.git", locales.Git(), func() { a.openTools("git") }),
 		submenu(locales.Network(), network...),
 		submenu(locales.Session(), session...),
 		submenu(locales.View(), view...),
 		// The window's settings, beside the app menu's ⌘, and the palette's:
 		// one place in the window rather than a button of its own.
-		do("app.settings", locales.OpenSettings(), func() { a.openSettings(-1) }).keys(ui.Cmd, ui.KeyComma).in("settings"),
+		pick(global, "app.settings").in("settings"),
 	}
 }
 
