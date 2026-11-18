@@ -15,6 +15,11 @@
 // never sent to a UI thread and this package does not import MyGo: callers that
 // need to touch the UI must marshal there themselves. Panics in callbacks are
 // recovered and returned as errors.
+//
+// Timers that fire at the same instant have no defined order. Do not depend on
+// the order of two real-clock timers due together or of two FakeClock timers
+// that come due during one Advance. VS Code runs equal-time timers in
+// registration order.
 package async
 
 import (

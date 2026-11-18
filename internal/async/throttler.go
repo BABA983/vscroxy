@@ -126,7 +126,10 @@ func (t *Throttler[T]) cancelCaller(group *throttlerGroup[T], c *caller[T], err 
 }
 
 // Dispose corresponds to Throttler.dispose. The active task's context is
-// canceled, queued work is dropped, and later Queue calls fail with ErrDisposed.
+// canceled, but its caller still receives that task's result, as in VS Code.
+// Dropped queued callers settle immediately with ErrDisposed; VS Code instead
+// resolves them with undefined once the active task settles. Later Queue calls
+// also fail with ErrDisposed.
 func (t *Throttler[T]) Dispose() {
 	t.mu.Lock()
 	t.disposed = true

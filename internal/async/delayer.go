@@ -175,10 +175,12 @@ func NewThrottledDelayer[T any](defaultDelay time.Duration, opts ...Option) *Thr
 }
 
 // Trigger corresponds to ThrottledDelayer.trigger. The returned channel
-// carries the result of the throttled task; after Dispose it carries
-// ErrDisposed. Each caller's context cancels only that caller. The delayed task
-// reads the throttler's single result and returns it to the Delayer, which
-// fans the value out to every coalesced caller.
+// carries the result of the throttled task. After Dispose it carries
+// ErrDisposed immediately; in VS Code a later trigger instead waits its delay
+// and then rejects with "Throttler is disposed" (or CancellationError if
+// cancel runs first). Each caller's context cancels only that caller. The
+// delayed task reads the throttler's single result and returns it to the
+// Delayer, which fans the value out to every coalesced caller.
 func (td *ThrottledDelayer[T]) Trigger(ctx context.Context, task Task[T], delay ...time.Duration) <-chan Result[T] {
 	td.mu.Lock()
 	disposed := td.disposed
@@ -195,11 +197,14 @@ func (td *ThrottledDelayer[T]) Trigger(ctx context.Context, task Task[T], delay 
 	}, delay...)
 }
 
-// IsTriggered, Cancel and Dispose correspond to their VS Code counterparts.
+// IsTriggered and Cancel correspond to their VS Code counterparts.
 func (td *ThrottledDelayer[T]) IsTriggered() bool { return td.delayer.IsTriggered() }
 
 func (td *ThrottledDelayer[T]) Cancel() { td.delayer.Cancel() }
 
+// Dispose releases the delayer and the throttler. Unlike VS Code, where a
+// disposed ThrottledDelayer can be triggered again, this instance is no longer
+// usable: Trigger settles immediately with ErrDisposed.
 func (td *ThrottledDelayer[T]) Dispose() {
 	td.mu.Lock()
 	td.disposed = true
