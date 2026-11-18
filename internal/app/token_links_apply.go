@@ -143,7 +143,7 @@ func (a *app) planTokenLink(w *tokenLinkPreview, index int, config tokenLinkConf
 }
 
 func (a *app) checkTokenLinkPlan(p *tokenLinkPlan) error {
-	if a.envsProblem != "" || a.requestsProblem != "" || a.systemProxy.quitting || a.systemProxy.quitReady {
+	if a.envsProblem != "" || a.requestsProblem != "" || a.quitting() {
 		return errors.New("storage or application is unavailable")
 	}
 	if s := a.collectionRecording; s != nil && (s.Active || s.Busy) {

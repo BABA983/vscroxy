@@ -15,7 +15,6 @@ import (
 
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/baba983/vscroxy/locales"
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -54,8 +53,6 @@ type proxySetup struct {
 	ownedTarget string
 	ownedNow    atomic.Bool
 	closing     bool
-	quitting    bool // UI thread only
-	quitReady   bool // UI thread only
 }
 
 // systemProxyTarget is the address applications are pointed at: the capture
@@ -174,7 +171,7 @@ func parseSystemProxyBypass(text string) []string {
 // block on an authorization prompt, so they run off the UI thread.
 func (a *app) setSystemProxy(on bool) {
 	s := &a.systemProxy
-	if s.checking || s.applying || s.quitting {
+	if s.checking || s.applying || a.quitting() {
 		return
 	}
 	var addr string
@@ -223,8 +220,9 @@ func (s *proxySetup) change(on bool, addr string, write func(bool, string) error
 	return err
 }
 
-// close waits for an in-flight write before releasing our proxy. It is also
-// called synchronously from OnQuit and the main defer as an idempotent fallback.
+// close waits for an in-flight write before releasing our proxy. It is the
+// graceful shutdown joiner, and is also called from OnQuit and the main defer
+// as an idempotent fallback for native termination.
 func (s *proxySetup) close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -246,35 +244,6 @@ func (s *proxySetup) close() error {
 	s.ownedTarget = ""
 	s.ownedNow.Store(false)
 	return nil
-}
-
-// beforeProxyQuit cancels the first quit while OS cleanup runs without
-// blocking the native event loop (networksetup may need authorization).
-func (a *app) beforeProxyQuit(e *mygo.QuitEvent) {
-	s := &a.systemProxy
-	if s.quitReady || e.DefaultPrevented() {
-		return
-	}
-	e.PreventDefault()
-	if s.quitting {
-		return
-	}
-	s.quitting = true
-	a.invalidate()
-	go func() {
-		err := s.close()
-		mygo.RunOnMain(func() {
-			s.quitting = false
-			if err != nil {
-				a.fail(locales.QuitCancelledSystemProxyCleanup(), err)
-				a.invalidate()
-				go mygo.Dialog.Error(locales.CouldNotReleaseSystemProxy(), "Capture is still running to keep your network working. Disable the system proxy in Settings and retry quitting.\n\n"+err.Error())
-				return
-			}
-			s.quitReady = true
-			mygo.App.Quit()
-		})
-	}()
 }
 
 // drainSystemProxy applies a finished worker's result to the panel.
@@ -442,7 +411,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 		a.checkSystemProxy(true)
 	}
 	running := a.srv != nil && a.srv.Running()
-	busy := s.checking || s.applying || s.quitting
+	busy := s.checking || s.applying || a.quitting()
 	status, statusColor := a.systemProxyStatus(t)
 	detail, detailTip := a.systemProxyDetail(target)
 	uikit.SettingsCard(c, locales.SystemProxy(), func() {

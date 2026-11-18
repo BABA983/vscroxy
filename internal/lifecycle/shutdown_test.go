@@ -398,6 +398,36 @@ func TestFinalVetoCannotBeDefinedTwice(t *testing.T) {
 	}
 }
 
+func TestFailedShutdownCanBeRetried(t *testing.T) {
+	busy := errors.New("busy")
+	var attempts int
+	var lc Lifecycle
+	lc.OnWillShutdown(func(e *WillShutdownEvent) {
+		attempts++
+		err := error(nil)
+		if attempts == 1 {
+			err = busy
+		}
+		e.Join(func() error { return err }, WillShutdownEventJoiner{ID: "settings", Label: "Saving settings"})
+	})
+
+	if err := lc.Shutdown(ShutdownReasonQuit); !errors.Is(err, busy) {
+		t.Fatalf("first Shutdown = %v, want busy", err)
+	}
+	if lc.ShutdownSucceeded() {
+		t.Fatal("a failed shutdown must not be cached as ready")
+	}
+	if err := lc.Shutdown(ShutdownReasonQuit); err != nil {
+		t.Fatalf("retry after failure: %v", err)
+	}
+	if !lc.ShutdownSucceeded() {
+		t.Fatal("successful retry should be cached as ready")
+	}
+	if attempts != 2 {
+		t.Fatalf("will-shutdown participants ran %d times, want 2", attempts)
+	}
+}
+
 func TestShutdownAsyncRunsBeforeCallbacksOnCallerThenWaits(t *testing.T) {
 	beforeStarted := make(chan struct{})
 	beforeRelease := make(chan struct{})

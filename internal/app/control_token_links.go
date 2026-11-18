@@ -11,7 +11,7 @@ import (
 // Analysis and proposals are UI-owned, bounded staging, never credentials or
 // a durable job queue. All clients share the same latest analysis and proposal.
 func (a *app) controlTokenLinks(command control.Command) (any, error) {
-	if a.systemProxy.quitting || a.systemProxy.quitReady {
+	if a.quitting() {
 		return nil, errors.New("application is quitting")
 	}
 	if command.Action == "token-links.analyze" {

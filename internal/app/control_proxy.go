@@ -37,7 +37,7 @@ func (a *app) controlSystemProxy(command control.Command) (any, error) {
 			return nil, err
 		}
 		a.drainSystemProxy()
-		if (p.Refresh || !s.checked) && !s.quitting && !s.quitReady {
+		if (p.Refresh || !s.checked) && !a.quitting() {
 			a.checkSystemProxy(false)
 		}
 		return a.controlProxySnapshot(), nil
@@ -50,14 +50,14 @@ func (a *app) controlSystemProxy(command control.Command) (any, error) {
 			return nil, errors.New("enabled and confirm:true are required")
 		}
 		a.drainSystemProxy()
-		if s.quitting || s.quitReady {
+		if a.quitting() {
 			return nil, errors.New("application is quitting")
 		}
 		if s.checking || s.applying {
 			return nil, errors.New("system proxy operation is already active")
 		}
 		// close owns this mutex across OS cleanup. Never wait for it on the
-		// UI thread, even when shutdown was initiated outside beforeProxyQuit.
+		// UI thread while a graceful shutdown is in progress.
 		if !s.mu.TryLock() {
 			return nil, errors.New("system proxy operation is already active")
 		}

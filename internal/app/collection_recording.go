@@ -99,7 +99,7 @@ func (a *app) startCollectionRecording(config collectionRecordingConfig) error {
 	if s := a.collectionRecording; s != nil && (s.Active || s.Busy) {
 		return errors.New("collection recording is already active or stopping")
 	}
-	if a.systemProxy.quitting || a.systemProxy.quitReady || a.srv == nil || !a.srv.Running() || a.recordingPaused {
+	if a.quitting() || a.srv == nil || !a.srv.Running() || a.recordingPaused {
 		return errors.New("resume live capture before recording a collection")
 	}
 	if config.Collection == "" || config.Collection != cleanPath(config.Collection) || len(config.Collection) > 256 {
@@ -223,7 +223,7 @@ func (a *app) nextCollectionRecording() {
 	if s == nil || !s.Active || s.Busy || len(s.queue) == 0 {
 		return
 	}
-	if a.systemProxy.quitting || a.systemProxy.quitReady || a.recordingPaused {
+	if a.quitting() || a.recordingPaused {
 		a.stopCollectionRecording(locales.CaptureWasPausedOrThe())
 		return
 	}
@@ -281,7 +281,7 @@ func (a *app) finishRecordedCapture(s *collectionRecording, f flow, result recor
 		a.stopCollectionRecording(locales.CaptureDroppedTrafficReduceLoad())
 		return
 	}
-	if a.systemProxy.quitting || a.systemProxy.quitReady || a.recordingPaused {
+	if a.quitting() || a.recordingPaused {
 		s.Discarded++
 		a.stopCollectionRecording(locales.CaptureWasPausedOrThe())
 		return

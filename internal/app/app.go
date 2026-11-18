@@ -30,6 +30,7 @@ import (
 	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/certs"
+	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/system"
@@ -348,18 +349,24 @@ type app struct {
 	// this run: it is a statement of the state, not a dialog to answer.
 	certBannerOff bool
 	systemProxy   proxySetup
-	rulesPath     string
-	files         map[string]*store.File // see file
-	scripts       scriptStore
-	addons        scriptStore
-	addonsShown   bool // the Scripts page shows the addons
-	rules         []capture.Rule
-	ruleUI        ruleEditor
-	configImport  configImport
-	scenarioUI    scenarioUI
-	throttle      capture.Throttle
-	network       networkWorkbench
-	upstream      string // the active configuration's summary, for the chip
+	// lifecycle owns graceful cleanup. The hooks let tests drive quit without
+	// starting MyGo's native event loop; nil means use the real MyGo calls.
+	lifecycle    *lifecycle.Lifecycle
+	quitOnMain   func(func())
+	quitApp      func()
+	quitError    func(error)
+	rulesPath    string
+	files        map[string]*store.File // see file
+	scripts      scriptStore
+	addons       scriptStore
+	addonsShown  bool // the Scripts page shows the addons
+	rules        []capture.Rule
+	ruleUI       ruleEditor
+	configImport configImport
+	scenarioUI   scenarioUI
+	throttle     capture.Throttle
+	network      networkWorkbench
+	upstream     string // the active configuration's summary, for the chip
 	// upstreamCfg is the active configuration without passwords; the sealed
 	// passwords are in upstreamSecrets. upstreamUI is the Settings draft.
 	upstreamCfg     upstream.Settings
@@ -886,6 +893,7 @@ func newApp() *app {
 	// check starts with the app rather than with the first tunnel clicked.
 	a.checkCertificate(false)
 	go cleanupClientDirs()
+	a.lifecycle = &lifecycle.Lifecycle{}
 	return a
 }
 
@@ -3574,35 +3582,39 @@ func Run() error {
 	if a.srv != nil {
 		defer a.srv.Close()
 	}
+	cleanup := a.installShutdown()
 	defer a.closeControl()
 	mygo.App.OnQuit(a.closeControl)
 	mygo.App.OnQuit(a.closeLoadRunner)
 	mygo.App.OnQuit(a.stopCollectionMocks)
 	defer a.closeLoadRunner()
-	mygo.App.OnQuit(a.flushCookies)
-	defer a.flushCookies()
-	mygo.App.OnQuit(func() { a.stopCollectionRecording("") })
+	mygo.App.OnQuit(cleanup.flushCookies)
+	defer cleanup.flushCookies()
 	cleanupProxy := func() {
 		if err := a.systemProxy.close(); err != nil {
 			slog.Error(locales.ReleaseSystemProxy(), "err", err)
 		}
 	}
-	defer cleanupProxy() // before the listener closes, even if Run returns an error
-	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.flushSettings() })
-	mygo.App.OnBeforeQuit(a.beforeProxyQuit)
+	defer cleanupProxy()          // before the listener closes, even if Run returns an error
 	mygo.App.OnQuit(cleanupProxy) // native termination may not return from Run
-	mygo.App.OnQuit(a.experiments.close)
-	defer a.experiments.close()
-	mygo.App.OnQuit(a.sessions.close)
-	defer a.sessions.close()
-	cancelRequests := func() {
-		a.columnRead.stop()
-		a.structured[0].stop()
-		a.structured[1].stop()
-		a.stopDocuments()
-	}
-	mygo.App.OnQuit(cancelRequests)
-	defer cancelRequests()
+	mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
+		if e.SessionEnding {
+			// The process may end before a goroutine reports back.
+			cleanup.flushSettings()
+			return
+		}
+		a.requestQuit(e)
+	})
+	mygo.App.OnQuit(cleanup.flushSettings)
+	defer cleanup.flushSettings()
+	mygo.App.OnQuit(cleanup.closeExperiments)
+	defer cleanup.closeExperiments()
+	mygo.App.OnQuit(cleanup.closeSessions)
+	defer cleanup.closeSessions()
+	mygo.App.OnQuit(cleanup.stopRecording)
+	defer cleanup.stopRecording()
+	mygo.App.OnQuit(cleanup.cancelRequests)
+	defer cleanup.cancelRequests()
 	mygo.App.OnQuit(func() { a.socket.session.disconnect() })
 	defer func() { a.socket.session.disconnect() }()
 	mygo.App.OnQuit(func() { a.sse.session.stop() })
@@ -3653,7 +3665,7 @@ func Run() error {
 		a.win.OnFileDrop(func(e *mygo.FileDropEvent) { a.importDropped(e.Paths) })
 		a.startProjectWatch()
 		a.win.OnClose(func(e *mygo.CloseEvent) {
-			if !a.systemProxy.quitReady {
+			if a.lifecycle == nil || !a.lifecycle.ShutdownSucceeded() {
 				e.PreventDefault()
 				mygo.App.Quit()
 			}

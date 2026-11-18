@@ -274,19 +274,22 @@ func TestDesktopControlSystemProxyClosedParametersAndGuards(t *testing.T) {
 	a.srv.Close()
 	proxyControlError(t, client, "system-proxy.set-enabled", params, "local proxy is not running")
 	params["enabled"] = false
-	a.systemProxy.quitting = true
+	finishQuit := startQuitForTest(t, a)
 	proxyControlError(t, client, "system-proxy.set-enabled", params, "application is quitting")
-	a.systemProxy.quitting, a.systemProxy.quitReady = false, true
+	finishQuit()
 	proxyControlError(t, client, "system-proxy.set-enabled", params, "application is quitting")
-	a.systemProxy.quitReady = false
 	// The shutdown mutex may be held by a helper blocked on authorization;
-	// the API must reject rather than wait for it on the UI thread.
+	// the API must reject rather than wait for it on the UI thread. Drop the
+	// lifecycle guard here so this probe exercises only the mutex guard.
+	a.lifecycle = nil
 	a.systemProxy.mu.Lock()
 	proxyControlError(t, client, "system-proxy.set-enabled", params, "system proxy operation is already active")
 	a.systemProxy.mu.Unlock()
 	if err := a.systemProxy.close(); err != nil {
 		t.Fatal(err)
 	}
+	readyAgain := startQuitForTest(t, a)
+	readyAgain()
 	proxyControlError(t, client, "system-proxy.set-enabled", params, "application is quitting")
 	select {
 	case <-f.reads:

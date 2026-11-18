@@ -394,11 +394,28 @@ func (l *Lifecycle) OnWillShutdown(fn func(*WillShutdownEvent)) {
 	l.will = append(l.will, fn)
 }
 
-// WillShutdown reports whether shutdown passed the veto phase.
+// WillShutdown reports whether shutdown passed the veto phase. It stays true
+// after a failed join phase; use ShutdownSucceeded to know whether the app can
+// safely exit.
 func (l *Lifecycle) WillShutdown() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.willShutdown
+}
+
+// ShuttingDown reports whether a shutdown is currently in progress.
+func (l *Lifecycle) ShuttingDown() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.active != nil
+}
+
+// ShutdownSucceeded reports whether the last shutdown finished without vetoes
+// or errors. A failed shutdown is not cached, so another attempt can run.
+func (l *Lifecycle) ShutdownSucceeded() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.completed != nil
 }
 
 // ShutdownAsync starts a shutdown and returns once the synchronous
@@ -408,8 +425,8 @@ func (l *Lifecycle) WillShutdown() bool {
 // result, so the caller must marshal any UI work back to the UI thread.
 //
 // A concurrent call waits for the in-flight shutdown and gets its result. A
-// call after a completed shutdown gets the same result. A veto is not cached,
-// so the shutdown can be retried. A nil done discards the result.
+// call after a successful shutdown gets the same result; a vetoed or failed
+// one can be retried. A nil done discards the result.
 func (l *Lifecycle) ShutdownAsync(reason ShutdownReason, done func(error)) {
 	l.mu.Lock()
 	run := l.active
@@ -470,7 +487,7 @@ func (l *Lifecycle) finishShutdown(run *shutdownRun, err error, reachedWill bool
 	run.err = err
 	l.mu.Lock()
 	l.active = nil
-	if reachedWill {
+	if reachedWill && err == nil {
 		l.completed = run
 	}
 	l.mu.Unlock()
