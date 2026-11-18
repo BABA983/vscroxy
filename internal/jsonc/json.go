@@ -153,13 +153,15 @@ type JSONVisitor struct {
 }
 
 // Scanner is JSONScanner in VS Code's json.ts: a scanner positioned somewhere
-// in the input text. It reuses one buffer for token values; GetTokenValue
-// returns a copy, so keeping that string is safe after the next scan.
+// in the input text. An unescaped token value is a substring of the input;
+// only strings with escapes allocate a new value. Values stay valid after
+// subsequent scans.
 type Scanner struct {
 	text         string
 	pos          int
 	size         int
-	value        []byte
+	value        string
+	scratch      []byte
 	tokenOffset  int
 	token        SyntaxKind
 	tokenError   ScanError
@@ -181,7 +183,7 @@ func (s *Scanner) SetPosition(pos int) {
 		pos = s.size
 	}
 	s.pos = pos
-	s.value = s.value[:0]
+	s.value = ""
 	s.tokenOffset = 0
 	s.token = SyntaxKindUnknown
 	s.tokenError = ScanErrorNone
@@ -210,7 +212,8 @@ func (s *Scanner) GetToken() SyntaxKind { return s.token }
 
 // GetTokenValue is JSONScanner.getTokenValue in VS Code's json.ts. Strings are
 // decoded, numbers are the raw numeric text, and trivia is the source text.
-func (s *Scanner) GetTokenValue() string { return string(s.value) }
+// The returned string is a substring for unescaped tokens.
+func (s *Scanner) GetTokenValue() string { return s.value }
 
 // GetTokenOffset is JSONScanner.getTokenOffset in VS Code's json.ts: the byte
 // offset where the last token starts.
@@ -305,16 +308,15 @@ func (s *Scanner) appendCodePoint(first int) {
 		s.pos += 2
 		low := s.scanHexDigits(4)
 		if low >= 0 && rune(low) >= 0xDC00 && rune(low) <= 0xDFFF {
-			s.value = utf8.AppendRune(s.value, utf16.DecodeRune(r, rune(low)))
+			s.scratch = utf8.AppendRune(s.scratch, utf16.DecodeRune(r, rune(low)))
 			return
 		}
 		s.pos = save
 	}
-	s.value = utf8.AppendRune(s.value, r)
+	s.scratch = utf8.AppendRune(s.scratch, r)
 }
 
 func (s *Scanner) scanNumber() string {
-	start := s.pos
 	if s.text[s.pos] == '0' {
 		s.pos++
 	} else {
@@ -332,7 +334,7 @@ func (s *Scanner) scanNumber() string {
 			}
 		} else {
 			s.tokenError = ScanErrorUnexpectedEndOfNumber
-			return s.text[start:s.pos]
+			return s.text[s.tokenOffset:s.pos]
 		}
 	}
 	end := s.pos
@@ -351,23 +353,39 @@ func (s *Scanner) scanNumber() string {
 			s.tokenError = ScanErrorUnexpectedEndOfNumber
 		}
 	}
-	return s.text[start:end]
+	return s.text[s.tokenOffset:end]
+}
+
+// finishStringValue avoids copying plain strings: they are already a
+// substring of the input. Escaped strings are decoded into scratch and only
+// converted to a string once.
+func (s *Scanner) finishStringValue(start, end int, escaped bool) {
+	if escaped {
+		s.scratch = append(s.scratch, s.text[start:end]...)
+		s.value = string(s.scratch)
+	} else {
+		s.value = s.text[start:end]
+	}
 }
 
 func (s *Scanner) scanString() {
 	start := s.pos
-	s.value = s.value[:0]
+	s.value = ""
+	s.scratch = s.scratch[:0]
+	escaped := false
 	for s.pos < s.size {
 		ch := s.text[s.pos]
 		if ch == '"' {
-			s.value = append(s.value, s.text[start:s.pos]...)
+			s.finishStringValue(start, s.pos, escaped)
 			s.pos++
 			return
 		}
 		if ch == '\\' {
-			s.value = append(s.value, s.text[start:s.pos]...)
+			s.scratch = append(s.scratch, s.text[start:s.pos]...)
+			escaped = true
 			s.pos++
 			if s.pos >= s.size {
+				s.finishStringValue(start, s.pos, true)
 				s.tokenError = ScanErrorUnexpectedEndOfString
 				return
 			}
@@ -375,21 +393,21 @@ func (s *Scanner) scanString() {
 			s.pos++
 			switch ch2 {
 			case '"':
-				s.value = append(s.value, '"')
+				s.scratch = append(s.scratch, '"')
 			case '\\':
-				s.value = append(s.value, '\\')
+				s.scratch = append(s.scratch, '\\')
 			case '/':
-				s.value = append(s.value, '/')
+				s.scratch = append(s.scratch, '/')
 			case 'b':
-				s.value = append(s.value, '\b')
+				s.scratch = append(s.scratch, '\b')
 			case 'f':
-				s.value = append(s.value, '\f')
+				s.scratch = append(s.scratch, '\f')
 			case 'n':
-				s.value = append(s.value, '\n')
+				s.scratch = append(s.scratch, '\n')
 			case 'r':
-				s.value = append(s.value, '\r')
+				s.scratch = append(s.scratch, '\r')
 			case 't':
-				s.value = append(s.value, '\t')
+				s.scratch = append(s.scratch, '\t')
 			case 'u':
 				ch3 := s.scanHexDigits(4)
 				if ch3 >= 0 {
@@ -405,8 +423,8 @@ func (s *Scanner) scanString() {
 		}
 		r, size := runeAt(s.text, s.pos)
 		if r < 0x20 {
-			s.value = append(s.value, s.text[start:s.pos]...)
 			if isLineBreakRune(r) {
+				s.finishStringValue(start, s.pos, escaped)
 				s.tokenError = ScanErrorUnexpectedEndOfString
 				return
 			}
@@ -415,12 +433,12 @@ func (s *Scanner) scanString() {
 		}
 		s.pos += size
 	}
-	s.value = append(s.value, s.text[start:s.pos]...)
+	s.finishStringValue(start, s.pos, escaped)
 	s.tokenError = ScanErrorUnexpectedEndOfString
 }
 
 func (s *Scanner) scanNext() SyntaxKind {
-	s.value = s.value[:0]
+	s.value = ""
 	s.tokenError = ScanErrorNone
 	s.tokenOffset = s.pos
 
@@ -440,16 +458,17 @@ func (s *Scanner) scanNext() SyntaxKind {
 			}
 			s.pos += n
 		}
-		s.value = append(s.value, s.text[start:s.pos]...)
+		s.value = s.text[start:s.pos]
 		return s.setToken(SyntaxKindTrivia)
 	}
 	if r, size := runeAt(s.text, s.pos); isLineBreakRune(r) {
 		start := s.pos
 		s.pos += size
-		s.value = append(s.value, s.text[start:s.pos]...)
 		if r == '\r' && s.pos < s.size && s.text[s.pos] == '\n' {
 			s.pos++
-			s.value = append(s.value[:0], '\n')
+			s.value = "\n"
+		} else {
+			s.value = s.text[start:s.pos]
 		}
 		return s.setToken(SyntaxKindLineBreakTrivia)
 	}
@@ -488,7 +507,7 @@ func (s *Scanner) scanNext() SyntaxKind {
 				}
 				s.pos += size
 			}
-			s.value = append(s.value, s.text[start:s.pos]...)
+			s.value = s.text[start:s.pos]
 			return s.setToken(SyntaxKindLineCommentTrivia)
 		}
 		if s.pos+1 < s.size && s.text[s.pos+1] == '*' {
@@ -506,21 +525,21 @@ func (s *Scanner) scanNext() SyntaxKind {
 				s.pos = s.size
 				s.tokenError = ScanErrorUnexpectedEndOfComment
 			}
-			s.value = append(s.value, s.text[start:s.pos]...)
+			s.value = s.text[start:s.pos]
 			return s.setToken(SyntaxKindBlockCommentTrivia)
 		}
-		s.value = append(s.value, '/')
+		s.value = "/"
 		s.pos++
 		return s.setToken(SyntaxKindUnknown)
 	case '-':
-		s.value = append(s.value, '-')
+		s.value = "-"
 		s.pos++
 		if s.pos == s.size || s.text[s.pos] < '0' || s.text[s.pos] > '9' {
 			return s.setToken(SyntaxKindUnknown)
 		}
 		fallthrough
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		s.value = append(s.value, s.scanNumber()...)
+		s.value = s.scanNumber()
 		return s.setToken(SyntaxKindNumericLiteral)
 	default:
 		for s.pos < s.size {
@@ -531,8 +550,8 @@ func (s *Scanner) scanNext() SyntaxKind {
 			s.pos += size
 		}
 		if s.pos != s.tokenOffset {
-			s.value = append(s.value, s.text[s.tokenOffset:s.pos]...)
-			switch string(s.value) {
+			s.value = s.text[s.tokenOffset:s.pos]
+			switch s.value {
 			case "true":
 				return s.setToken(SyntaxKindTrueKeyword)
 			case "false":
@@ -543,7 +562,7 @@ func (s *Scanner) scanNext() SyntaxKind {
 			return s.setToken(SyntaxKindUnknown)
 		}
 		_, size := runeAt(s.text, s.pos)
-		s.value = append(s.value, s.text[s.pos:s.pos+size]...)
+		s.value = s.text[s.pos : s.pos+size]
 		s.pos += size
 		return s.setToken(SyntaxKindUnknown)
 	}
@@ -554,34 +573,116 @@ func (s *Scanner) setToken(token SyntaxKind) SyntaxKind {
 	return token
 }
 
-type visitorHooks struct {
-	onObjectBegin    func(offset, length int) bool
-	onObjectProperty func(property string, offset, length int) bool
-	onObjectEnd      func(offset, length int) bool
-	onArrayBegin     func(offset, length int) bool
-	onArrayEnd       func(offset, length int) bool
-	onLiteralValue   func(value any, offset, length int) bool
-	onSeparator      func(character string, offset, length int) bool
-	onComment        func(offset, length int) bool
-	onError          func(error ParseErrorCode, offset, length int) bool
+// visitObserver receives the parse events. Returning false stops the visit,
+// the Go equivalent of VS Code's private early-return exception in getLocation.
+type visitObserver interface {
+	onObjectBegin(offset, length int) bool
+	onObjectProperty(property string, offset, length int) bool
+	onObjectEnd(offset, length int) bool
+	onArrayBegin(offset, length int) bool
+	onArrayEnd(offset, length int) bool
+	onLiteralValue(value any, offset, length int) bool
+	onSeparator(character string, offset, length int) bool
+	onComment(offset, length int) bool
+	onError(code ParseErrorCode, offset, length int) bool
 }
 
-// parser owns the scanner and the hooks for one Visit call. Hook callbacks
-// return false to stop the visit, the Go equivalent of VS Code's private
-// early-return exception in getLocation.
+// noopObserver supplies the events an observer does not care about.
+type noopObserver struct{}
+
+func (noopObserver) onObjectBegin(int, int) bool            { return true }
+func (noopObserver) onObjectProperty(string, int, int) bool { return true }
+func (noopObserver) onObjectEnd(int, int) bool              { return true }
+func (noopObserver) onArrayBegin(int, int) bool             { return true }
+func (noopObserver) onArrayEnd(int, int) bool               { return true }
+func (noopObserver) onLiteralValue(any, int, int) bool      { return true }
+func (noopObserver) onSeparator(string, int, int) bool      { return true }
+func (noopObserver) onComment(int, int) bool                { return true }
+func (noopObserver) onError(ParseErrorCode, int, int) bool  { return true }
+
+// visitorObserver forwards events to an exported JSONVisitor.
+type visitorObserver struct{ visitor JSONVisitor }
+
+func (o *visitorObserver) onObjectBegin(offset, length int) bool {
+	if f := o.visitor.OnObjectBegin; f != nil {
+		f(offset, length)
+	}
+	return true
+}
+
+func (o *visitorObserver) onObjectProperty(property string, offset, length int) bool {
+	if f := o.visitor.OnObjectProperty; f != nil {
+		f(property, offset, length)
+	}
+	return true
+}
+
+func (o *visitorObserver) onObjectEnd(offset, length int) bool {
+	if f := o.visitor.OnObjectEnd; f != nil {
+		f(offset, length)
+	}
+	return true
+}
+
+func (o *visitorObserver) onArrayBegin(offset, length int) bool {
+	if f := o.visitor.OnArrayBegin; f != nil {
+		f(offset, length)
+	}
+	return true
+}
+
+func (o *visitorObserver) onArrayEnd(offset, length int) bool {
+	if f := o.visitor.OnArrayEnd; f != nil {
+		f(offset, length)
+	}
+	return true
+}
+
+func (o *visitorObserver) onLiteralValue(value any, offset, length int) bool {
+	if f := o.visitor.OnLiteralValue; f != nil {
+		f(value, offset, length)
+	}
+	return true
+}
+
+func (o *visitorObserver) onSeparator(character string, offset, length int) bool {
+	if f := o.visitor.OnSeparator; f != nil {
+		f(character, offset, length)
+	}
+	return true
+}
+
+func (o *visitorObserver) onComment(offset, length int) bool {
+	if f := o.visitor.OnComment; f != nil {
+		f(offset, length)
+	}
+	return true
+}
+
+func (o *visitorObserver) onError(code ParseErrorCode, offset, length int) bool {
+	if f := o.visitor.OnError; f != nil {
+		f(code, offset, length)
+	}
+	return true
+}
+
+// parser owns the scanner and the observer for one Visit call.
 type parser struct {
 	scanner            *Scanner
-	hooks              visitorHooks
+	observer           visitObserver
 	disallowComments   bool
 	allowTrailingComma bool
 	allowEmptyContent  bool
 	aborted            bool
 }
 
-func newParser(text string, hooks visitorHooks, options ParseOptions) *parser {
+func newParser(text string, observer visitObserver, options ParseOptions) *parser {
+	if observer == nil {
+		observer = noopObserver{}
+	}
 	return &parser{
 		scanner:            CreateScanner(text, false),
-		hooks:              hooks,
+		observer:           observer,
 		disallowComments:   options.DisallowComments,
 		allowTrailingComma: options.AllowTrailingComma,
 		allowEmptyContent:  options.AllowEmptyContent,
@@ -589,55 +690,55 @@ func newParser(text string, hooks visitorHooks, options ParseOptions) *parser {
 }
 
 func (p *parser) objectBegin(offset, length int) {
-	if h := p.hooks.onObjectBegin; h != nil && !h(offset, length) {
+	if !p.observer.onObjectBegin(offset, length) {
 		p.aborted = true
 	}
 }
 
 func (p *parser) objectProperty(property string, offset, length int) {
-	if h := p.hooks.onObjectProperty; h != nil && !h(property, offset, length) {
+	if !p.observer.onObjectProperty(property, offset, length) {
 		p.aborted = true
 	}
 }
 
 func (p *parser) objectEnd(offset, length int) {
-	if h := p.hooks.onObjectEnd; h != nil && !h(offset, length) {
+	if !p.observer.onObjectEnd(offset, length) {
 		p.aborted = true
 	}
 }
 
 func (p *parser) arrayBegin(offset, length int) {
-	if h := p.hooks.onArrayBegin; h != nil && !h(offset, length) {
+	if !p.observer.onArrayBegin(offset, length) {
 		p.aborted = true
 	}
 }
 
 func (p *parser) arrayEnd(offset, length int) {
-	if h := p.hooks.onArrayEnd; h != nil && !h(offset, length) {
+	if !p.observer.onArrayEnd(offset, length) {
 		p.aborted = true
 	}
 }
 
 func (p *parser) literalValue(value any, offset, length int) {
-	if h := p.hooks.onLiteralValue; h != nil && !h(value, offset, length) {
+	if !p.observer.onLiteralValue(value, offset, length) {
 		p.aborted = true
 	}
 }
 
 func (p *parser) separator(character string, offset, length int) {
-	if h := p.hooks.onSeparator; h != nil && !h(character, offset, length) {
+	if !p.observer.onSeparator(character, offset, length) {
 		p.aborted = true
 	}
 }
 
 func (p *parser) comment(offset, length int) {
-	if h := p.hooks.onComment; h != nil && !h(offset, length) {
+	if !p.observer.onComment(offset, length) {
 		p.aborted = true
 	}
 }
 
 func (p *parser) handleError(code ParseErrorCode, skipUntilAfter, skipUntil []SyntaxKind) {
-	if h := p.hooks.onError; h != nil && !h(code, p.scanner.GetTokenOffset(), p.scanner.GetTokenLength()) {
+	if !p.observer.onError(code, p.scanner.GetTokenOffset(), p.scanner.GetTokenLength()) {
 		p.aborted = true
 		return
 	}
@@ -932,131 +1033,89 @@ func (p *parser) run() {
 // Visit is visit in VS Code's json.ts: it invokes the visitor's callbacks for
 // each object, array, property, literal, separator and comment it reaches.
 func Visit(text string, visitor JSONVisitor, options ...ParseOptions) {
-	hooks := visitorHooks{}
-	if visitor.OnObjectBegin != nil {
-		hooks.onObjectBegin = func(offset, length int) bool {
-			visitor.OnObjectBegin(offset, length)
-			return true
-		}
-	}
-	if visitor.OnObjectProperty != nil {
-		hooks.onObjectProperty = func(property string, offset, length int) bool {
-			visitor.OnObjectProperty(property, offset, length)
-			return true
-		}
-	}
-	if visitor.OnObjectEnd != nil {
-		hooks.onObjectEnd = func(offset, length int) bool {
-			visitor.OnObjectEnd(offset, length)
-			return true
-		}
-	}
-	if visitor.OnArrayBegin != nil {
-		hooks.onArrayBegin = func(offset, length int) bool {
-			visitor.OnArrayBegin(offset, length)
-			return true
-		}
-	}
-	if visitor.OnArrayEnd != nil {
-		hooks.onArrayEnd = func(offset, length int) bool {
-			visitor.OnArrayEnd(offset, length)
-			return true
-		}
-	}
-	if visitor.OnLiteralValue != nil {
-		hooks.onLiteralValue = func(value any, offset, length int) bool {
-			visitor.OnLiteralValue(value, offset, length)
-			return true
-		}
-	}
-	if visitor.OnSeparator != nil {
-		hooks.onSeparator = func(character string, offset, length int) bool {
-			visitor.OnSeparator(character, offset, length)
-			return true
-		}
-	}
-	if visitor.OnComment != nil {
-		hooks.onComment = func(offset, length int) bool {
-			visitor.OnComment(offset, length)
-			return true
-		}
-	}
-	if visitor.OnError != nil {
-		hooks.onError = func(code ParseErrorCode, offset, length int) bool {
-			visitor.OnError(code, offset, length)
-			return true
-		}
-	}
-	newParser(text, hooks, parseOptions(options)).run()
+	newParser(text, &visitorObserver{visitor: visitor}, parseOptions(options)).run()
 }
 
 // Parse is parse in VS Code's json.ts. Unlike the JS version it returns the
 // errors instead of appending to a caller-owned slice. Decoded values use
 // map[string]any for objects, []any for arrays and float64 for numbers.
-func Parse(text string, options ...ParseOptions) (any, []ParseError) {
-	opts := parseOptions(options)
-	type parent struct {
-		array       *[]any
-		object      map[string]any
-		property    string
-		hasProperty bool
-	}
-	rootArray := new([]any)
-	current := parent{array: rootArray}
-	previousParents := make([]parent, 0)
-	errs := make([]ParseError, 0)
+type parseParent struct {
+	array       *[]any
+	object      map[string]any
+	property    string
+	hasProperty bool
+}
 
-	onValue := func(value any) {
-		if current.array != nil {
-			*current.array = append(*current.array, value)
-		} else if current.object != nil && current.hasProperty {
-			current.object[current.property] = value
-		}
+// parseObserver builds a decoded value. It owns its state instead of using
+// per-callback closures.
+type parseObserver struct {
+	noopObserver
+	rootArray       *[]any
+	current         parseParent
+	previousParents []parseParent
+	errs            []ParseError
+}
+
+func (o *parseObserver) addValue(value any) {
+	if o.current.array != nil {
+		*o.current.array = append(*o.current.array, value)
+	} else if o.current.object != nil && o.current.hasProperty {
+		o.current.object[o.current.property] = value
 	}
-	hooks := visitorHooks{
-		onObjectBegin: func(_, _ int) bool {
-			object := make(map[string]any)
-			onValue(object)
-			previousParents = append(previousParents, current)
-			current = parent{object: object}
-			return true
-		},
-		onObjectProperty: func(property string, _, _ int) bool {
-			current.property = property
-			current.hasProperty = true
-			return true
-		},
-		onObjectEnd: func(_, _ int) bool {
-			current = previousParents[len(previousParents)-1]
-			previousParents = previousParents[:len(previousParents)-1]
-			return true
-		},
-		onArrayBegin: func(_, _ int) bool {
-			array := new([]any)
-			onValue(array)
-			previousParents = append(previousParents, current)
-			current = parent{array: array}
-			return true
-		},
-		onArrayEnd: func(_, _ int) bool {
-			current = previousParents[len(previousParents)-1]
-			previousParents = previousParents[:len(previousParents)-1]
-			return true
-		},
-		onLiteralValue: func(value any, _, _ int) bool {
-			onValue(value)
-			return true
-		},
-		onError: func(code ParseErrorCode, offset, length int) bool {
-			errs = append(errs, ParseError{Error: code, Offset: offset, Length: length})
-			return true
-		},
+}
+
+func (o *parseObserver) onObjectBegin(int, int) bool {
+	object := make(map[string]any)
+	o.addValue(object)
+	o.previousParents = append(o.previousParents, o.current)
+	o.current = parseParent{object: object}
+	return true
+}
+
+func (o *parseObserver) onObjectProperty(property string, _, _ int) bool {
+	o.current.property = property
+	o.current.hasProperty = true
+	return true
+}
+
+func (o *parseObserver) onObjectEnd(int, int) bool {
+	o.current = o.previousParents[len(o.previousParents)-1]
+	o.previousParents = o.previousParents[:len(o.previousParents)-1]
+	return true
+}
+
+func (o *parseObserver) onArrayBegin(int, int) bool {
+	array := new([]any)
+	o.addValue(array)
+	o.previousParents = append(o.previousParents, o.current)
+	o.current = parseParent{array: array}
+	return true
+}
+
+func (o *parseObserver) onArrayEnd(int, int) bool {
+	o.current = o.previousParents[len(o.previousParents)-1]
+	o.previousParents = o.previousParents[:len(o.previousParents)-1]
+	return true
+}
+
+func (o *parseObserver) onLiteralValue(value any, _, _ int) bool {
+	o.addValue(value)
+	return true
+}
+
+func (o *parseObserver) onError(code ParseErrorCode, offset, length int) bool {
+	o.errs = append(o.errs, ParseError{Error: code, Offset: offset, Length: length})
+	return true
+}
+
+func Parse(text string, options ...ParseOptions) (any, []ParseError) {
+	observer := parseObserver{rootArray: new([]any)}
+	observer.current = parseParent{array: observer.rootArray}
+	newParser(text, &observer, parseOptions(options)).run()
+	if len(*observer.rootArray) == 0 {
+		return nil, observer.errs
 	}
-	newParser(text, hooks, opts).run()
-	if len(*rootArray) == 0 {
-		return nil, errs
-	}
-	return finalizeValue((*rootArray)[0]), errs
+	return finalizeValue((*observer.rootArray)[0]), observer.errs
 }
 
 // finalizeValue unwraps the *[]any placeholders that give JS-style arrays

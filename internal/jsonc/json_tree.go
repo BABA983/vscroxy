@@ -132,81 +132,123 @@ func GetNodeType(value any) NodeType {
 // the parse errors; unlike the JS version it returns the errors instead of
 // appending to a caller-owned slice. Broken input still produces the nodes
 // that could be read, including unclosed objects and arrays.
-func ParseTree(text string, options ...ParseOptions) (*Node, []ParseError) {
-	opts := parseOptions(options)
-	root := &Node{Type: NodeTypeArray, Offset: -1, Length: -1, ColonOffset: -1}
-	current := root
+// nodeSlab hands out nodes from fixed-size chunks. Pointers into earlier
+// chunks stay valid as the slab grows, so one chunk replaces one heap object
+// per node.
+type nodeSlab struct {
+	chunks  [][]Node
+	current []Node
+}
 
-	onValue := func(node *Node) *Node {
-		node.Parent = current
-		current.Children = append(current.Children, node)
-		return node
+const nodeSlabSize = 512
+
+func (s *nodeSlab) alloc() *Node {
+	if len(s.current) == cap(s.current) {
+		s.current = make([]Node, 1, nodeSlabSize)
+		s.chunks = append(s.chunks, s.current)
+	} else {
+		s.current = s.current[:len(s.current)+1]
 	}
-	ensurePropertyComplete := func(endOffset int) {
-		if current.Type == NodeTypeProperty {
-			current.Length = endOffset - current.Offset
-			current = current.Parent
+	return &s.current[len(s.current)-1]
+}
+
+// treeObserver builds the node tree from parse events without per-node
+// closures or per-node heap allocations.
+type treeObserver struct {
+	noopObserver
+	slab    nodeSlab
+	current *Node
+	errs    []ParseError
+}
+
+// addChild reserves space for common child counts up front: properties have
+// exactly two children, and object/array nodes in response bodies are usually
+// small. This avoids repeated slice growth for every node.
+func (o *treeObserver) addChild(node Node, childCap int) *Node {
+	if childCap > 0 {
+		node.Children = make([]*Node, 0, childCap)
+	}
+	node.Parent = o.current
+	result := o.slab.alloc()
+	*result = node
+	o.current.Children = append(o.current.Children, result)
+	return result
+}
+
+func (o *treeObserver) ensurePropertyComplete(endOffset int) {
+	if o.current.Type == NodeTypeProperty {
+		o.current.Length = endOffset - o.current.Offset
+		o.current = o.current.Parent
+	}
+}
+
+func (o *treeObserver) onObjectBegin(offset, _ int) bool {
+	o.current = o.addChild(Node{Type: NodeTypeObject, Offset: offset, Length: -1, ColonOffset: -1}, 4)
+	return true
+}
+
+func (o *treeObserver) onObjectProperty(name string, offset, length int) bool {
+	o.current = o.addChild(Node{Type: NodeTypeProperty, Offset: offset, Length: -1, ColonOffset: -1}, 2)
+	o.addChild(Node{Type: NodeTypeString, Value: name, Offset: offset, Length: length, ColonOffset: -1}, 0)
+	return true
+}
+
+func (o *treeObserver) onObjectEnd(offset, length int) bool {
+	end := offset + length
+	o.current.Length = end - o.current.Offset
+	o.current = o.current.Parent
+	o.ensurePropertyComplete(end)
+	return true
+}
+
+func (o *treeObserver) onArrayBegin(offset, _ int) bool {
+	o.current = o.addChild(Node{Type: NodeTypeArray, Offset: offset, Length: -1, ColonOffset: -1}, 4)
+	return true
+}
+
+func (o *treeObserver) onArrayEnd(offset, length int) bool {
+	end := offset + length
+	o.current.Length = end - o.current.Offset
+	o.current = o.current.Parent
+	o.ensurePropertyComplete(end)
+	return true
+}
+
+func (o *treeObserver) onLiteralValue(value any, offset, length int) bool {
+	o.addChild(Node{Type: GetNodeType(value), Value: value, Offset: offset, Length: length, ColonOffset: -1}, 0)
+	o.ensurePropertyComplete(offset + length)
+	return true
+}
+
+func (o *treeObserver) onSeparator(separator string, offset, _ int) bool {
+	if o.current.Type == NodeTypeProperty {
+		switch separator {
+		case ":":
+			o.current.ColonOffset = offset
+		case ",":
+			o.ensurePropertyComplete(offset)
 		}
 	}
-	errs := make([]ParseError, 0)
-	hooks := visitorHooks{
-		onObjectBegin: func(offset, _ int) bool {
-			current = onValue(&Node{Type: NodeTypeObject, Offset: offset, Length: -1, ColonOffset: -1})
-			return true
-		},
-		onObjectProperty: func(name string, offset, length int) bool {
-			current = onValue(&Node{Type: NodeTypeProperty, Offset: offset, Length: -1, ColonOffset: -1})
-			current.Children = append(current.Children, &Node{
-				Type: NodeTypeString, Value: name, Offset: offset, Length: length, ColonOffset: -1, Parent: current,
-			})
-			return true
-		},
-		onObjectEnd: func(offset, length int) bool {
-			end := offset + length
-			current.Length = end - current.Offset
-			current = current.Parent
-			ensurePropertyComplete(end)
-			return true
-		},
-		onArrayBegin: func(offset, _ int) bool {
-			current = onValue(&Node{Type: NodeTypeArray, Offset: offset, Length: -1, ColonOffset: -1})
-			return true
-		},
-		onArrayEnd: func(offset, length int) bool {
-			end := offset + length
-			current.Length = end - current.Offset
-			current = current.Parent
-			ensurePropertyComplete(end)
-			return true
-		},
-		onLiteralValue: func(value any, offset, length int) bool {
-			onValue(&Node{Type: GetNodeType(value), Value: value, Offset: offset, Length: length, ColonOffset: -1})
-			ensurePropertyComplete(offset + length)
-			return true
-		},
-		onSeparator: func(separator string, offset, _ int) bool {
-			if current.Type == NodeTypeProperty {
-				switch separator {
-				case ":":
-					current.ColonOffset = offset
-				case ",":
-					ensurePropertyComplete(offset)
-				}
-			}
-			return true
-		},
-		onError: func(code ParseErrorCode, offset, length int) bool {
-			errs = append(errs, ParseError{Error: code, Offset: offset, Length: length})
-			return true
-		},
-	}
-	newParser(text, hooks, opts).run()
+	return true
+}
+
+func (o *treeObserver) onError(code ParseErrorCode, offset, length int) bool {
+	o.errs = append(o.errs, ParseError{Error: code, Offset: offset, Length: length})
+	return true
+}
+
+func ParseTree(text string, options ...ParseOptions) (*Node, []ParseError) {
+	observer := treeObserver{}
+	root := observer.slab.alloc()
+	*root = Node{Type: NodeTypeArray, Offset: -1, Length: -1, ColonOffset: -1}
+	observer.current = root
+	newParser(text, &observer, parseOptions(options)).run()
 	if len(root.Children) == 0 {
-		return nil, errs
+		return nil, observer.errs
 	}
 	result := root.Children[0]
 	result.Parent = nil
-	return result, errs
+	return result, observer.errs
 }
 
 // FindNodeAtLocation is findNodeAtLocation in VS Code's json.ts.
@@ -334,88 +376,112 @@ func FindNodeAtOffset(node *Node, offset int, includeRightBound bool) *Node {
 
 // GetLocation is getLocation in VS Code's json.ts: it reports the path at the
 // byte position and the nearest preceding property key or literal value.
+// locationObserver tracks the path at a position. One Node is reused for the
+// previous-node reports, like VS Code's single previousNode instance.
+type locationObserver struct {
+	noopObserver
+	position        int
+	segments        JSONPath
+	previousNode    *Node
+	previousStorage *Node
+	isAtPropertyKey bool
+}
+
+func (o *locationObserver) setPreviousNode(value any, offset, length int, nodeType NodeType) {
+	if o.previousStorage == nil {
+		o.previousStorage = &Node{}
+	}
+	node := o.previousStorage
+	node.Value = value
+	node.Offset = offset
+	node.Length = length
+	node.Type = nodeType
+	node.ColonOffset = -1
+	o.previousNode = node
+}
+
+func (o *locationObserver) onObjectBegin(offset, _ int) bool {
+	if o.position <= offset {
+		return false
+	}
+	o.previousNode = nil
+	o.isAtPropertyKey = o.position > offset
+	o.segments = append(o.segments, Segment{})
+	return true
+}
+
+func (o *locationObserver) onObjectProperty(name string, offset, length int) bool {
+	if o.position < offset {
+		return false
+	}
+	o.setPreviousNode(name, offset, length, NodeTypeProperty)
+	o.segments[len(o.segments)-1] = KeySegment(name)
+	return o.position > offset+length
+}
+
+func (o *locationObserver) onObjectEnd(offset, _ int) bool {
+	if o.position <= offset {
+		return false
+	}
+	o.previousNode = nil
+	o.segments = o.segments[:len(o.segments)-1]
+	return true
+}
+
+func (o *locationObserver) onArrayBegin(offset, _ int) bool {
+	if o.position <= offset {
+		return false
+	}
+	o.previousNode = nil
+	o.segments = append(o.segments, IndexSegment(0))
+	return true
+}
+
+func (o *locationObserver) onArrayEnd(offset, _ int) bool {
+	if o.position <= offset {
+		return false
+	}
+	o.previousNode = nil
+	o.segments = o.segments[:len(o.segments)-1]
+	return true
+}
+
+func (o *locationObserver) onLiteralValue(value any, offset, length int) bool {
+	if o.position < offset {
+		return false
+	}
+	o.setPreviousNode(value, offset, length, GetNodeType(value))
+	return o.position > offset+length
+}
+
+func (o *locationObserver) onSeparator(separator string, offset, _ int) bool {
+	if o.position <= offset {
+		return false
+	}
+	switch separator {
+	case ":":
+		if o.previousNode != nil && o.previousNode.Type == NodeTypeProperty {
+			o.previousNode.ColonOffset = offset
+			o.isAtPropertyKey = false
+			o.previousNode = nil
+		}
+	case ",":
+		if len(o.segments) > 0 {
+			last := o.segments[len(o.segments)-1]
+			if last.IsIndex {
+				o.segments[len(o.segments)-1] = IndexSegment(last.Index + 1)
+			} else {
+				o.isAtPropertyKey = true
+				o.segments[len(o.segments)-1] = Segment{}
+			}
+		}
+		o.previousNode = nil
+	}
+	return true
+}
+
 func GetLocation(text string, position int) Location {
-	segments := make(JSONPath, 0)
-	var previousNode *Node
-	setPreviousNode := func(value any, offset, length int, nodeType NodeType) {
-		previousNode = &Node{Value: value, Offset: offset, Length: length, Type: nodeType, ColonOffset: -1}
-	}
-	isAtPropertyKey := false
-	hooks := visitorHooks{
-		onObjectBegin: func(offset, _ int) bool {
-			if position <= offset {
-				return false
-			}
-			previousNode = nil
-			isAtPropertyKey = position > offset
-			segments = append(segments, Segment{})
-			return true
-		},
-		onObjectProperty: func(name string, offset, length int) bool {
-			if position < offset {
-				return false
-			}
-			setPreviousNode(name, offset, length, NodeTypeProperty)
-			segments[len(segments)-1] = KeySegment(name)
-			return position > offset+length
-		},
-		onObjectEnd: func(offset, _ int) bool {
-			if position <= offset {
-				return false
-			}
-			previousNode = nil
-			segments = segments[:len(segments)-1]
-			return true
-		},
-		onArrayBegin: func(offset, _ int) bool {
-			if position <= offset {
-				return false
-			}
-			previousNode = nil
-			segments = append(segments, IndexSegment(0))
-			return true
-		},
-		onArrayEnd: func(offset, _ int) bool {
-			if position <= offset {
-				return false
-			}
-			previousNode = nil
-			segments = segments[:len(segments)-1]
-			return true
-		},
-		onLiteralValue: func(value any, offset, length int) bool {
-			if position < offset {
-				return false
-			}
-			setPreviousNode(value, offset, length, GetNodeType(value))
-			return position > offset+length
-		},
-		onSeparator: func(separator string, offset, _ int) bool {
-			if position <= offset {
-				return false
-			}
-			switch separator {
-			case ":":
-				if previousNode != nil && previousNode.Type == NodeTypeProperty {
-					previousNode.ColonOffset = offset
-					isAtPropertyKey = false
-					previousNode = nil
-				}
-			case ",":
-				if len(segments) > 0 {
-					last := segments[len(segments)-1]
-					if last.IsIndex {
-						segments[len(segments)-1] = IndexSegment(last.Index + 1)
-					} else {
-						isAtPropertyKey = true
-						segments[len(segments)-1] = Segment{}
-					}
-				}
-				previousNode = nil
-			}
-			return true
-		},
-	}
-	newParser(text, hooks, DefaultParseOptions).run()
-	return Location{Path: segments, PreviousNode: previousNode, IsAtPropertyKey: isAtPropertyKey}
+	observer := locationObserver{position: position}
+	newParser(text, &observer, DefaultParseOptions).run()
+	return Location{Path: observer.segments, PreviousNode: observer.previousNode, IsAtPropertyKey: observer.isAtPropertyKey}
 }
