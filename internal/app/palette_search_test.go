@@ -150,6 +150,31 @@ func TestCommandPaletteOpensRequestAndEnvironmentResults(t *testing.T) {
 	}
 }
 
+func TestPaletteUnavailableCommandKeepsReasonDetail(t *testing.T) {
+	a := workspaceApp()
+	var unavailable action
+	for _, item := range a.actions(nil) {
+		if !item.enabled && item.reason != "" {
+			unavailable = item
+			break
+		}
+	}
+	if unavailable.label == "" {
+		t.Fatal("no unavailable command to test")
+	}
+	result := a.paletteRankedResults(unavailable.label, a.actions(nil))
+	for _, entry := range result.entries {
+		if entry.label != unavailable.label || entry.enabled {
+			continue
+		}
+		if entry.detail != entry.why {
+			t.Fatalf("unavailable %q detail = %q, want %q", entry.label, entry.detail, entry.why)
+		}
+		return
+	}
+	t.Fatalf("unavailable command %q was not ranked", unavailable.label)
+}
+
 func TestPaletteFuzzyRanksGetUserAndRecentRows(t *testing.T) {
 	a := paletteTestApp()
 	getUser := savedRequest{ID: "get", Name: "Get User", Method: "GET", URL: "https://api.example.com/users/1"}
@@ -247,75 +272,57 @@ func TestPaletteSearchIndexUpdatesWithTheLibrary(t *testing.T) {
 	}
 }
 
-// TestPaletteFuzzySnapshots uses the repository's Tester/screenshot workflow.
-// Set VSCROXY_PALETTE_SNAPSHOTS to write the three review captures; an
-// ordinary go test run does not publish files.
-func TestPaletteFuzzySnapshots(t *testing.T) {
+// TestPaletteHighlightSnapshots uses the repository's Tester/screenshot
+// workflow. Set VSCROXY_PALETTE_SNAPSHOTS to an absolute output directory to
+// capture the matched label on selected and unselected rows in both themes.
+func TestPaletteHighlightSnapshots(t *testing.T) {
 	dir := os.Getenv("VSCROXY_PALETTE_SNAPSHOTS")
 	if dir == "" {
 		t.Skip("set VSCROXY_PALETTE_SNAPSHOTS to an output directory")
 	}
-	// go test runs in the package directory; a relative output directory is
-	// relative to the repository root, as in snapshots_test.go.
-	if !filepath.IsAbs(dir) {
-		dir = filepath.Join("..", "..", dir)
-	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	cases := []struct {
-		name, query string
-		setup       func(*app)
-		want        string
-	}{
-		{name: "palette-fuzzy-empty", want: "Find command"},
-		{
-			name: "palette-fuzzy-highlights", query: "getusr", want: "Get User",
-			setup: func(a *app) {
-				a.requests = append(a.requests, savedRequest{
-					ID: "get", Name: "Get User", Method: "GET", URL: "https://api.example.com/users/1",
-				})
+	for _, dark := range []bool{false, true} {
+		appearance := "light"
+		selected := "unselected"
+		if dark {
+			appearance = "dark"
+		}
+		for _, rowSelected := range []bool{false, true} {
+			if rowSelected {
+				selected = "selected"
+			}
+			t.Run(appearance+"-"+selected, func(t *testing.T) {
+				a := workspaceApp()
+				a.appearance = appearance
+				a.requests = append(a.requests,
+					savedRequest{ID: "get", Name: "Get User", Method: "GET", URL: "https://api.example.com/users/1"},
+					savedRequest{ID: "get2", Name: "Get user details", Method: "GET", URL: "https://api.example.com/users/2"},
+				)
 				a.requestGen++
-			},
-		},
-		{
-			name: "palette-fuzzy-overflow", query: "entry", want: "30 more results",
-			setup: func(a *app) {
-				a.requests = make([]savedRequest, 80)
-				for i := range a.requests {
-					a.requests[i] = savedRequest{
-						ID: fmt.Sprintf("r%d", i), Name: fmt.Sprintf("Entry %02d", i),
-						Method: "GET", URL: "https://api.example.com/entry",
-					}
+				tt := ui.NewTester(func(c *ui.Context) { a.view(c) }, 1100, 800)
+				tt.SetScale(2)
+				tt.Key(ui.Cmd, ui.KeyK)
+				tt.Type("getusr")
+				a.workbench.command = 0
+				if rowSelected {
+					a.workbench.command = 1
 				}
-				a.requestGen++
-			},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			a := workspaceApp()
-			if tc.setup != nil {
-				tc.setup(a)
-			}
-			tt := ui.NewTester(func(c *ui.Context) { a.view(c) }, 1100, 800)
-			tt.SetScale(2)
-			tt.Key(ui.Cmd, ui.KeyK)
-			if tc.query != "" {
-				tt.Type(tc.query)
-			}
-			tt.Frame()
-			if !tt.HasText(tc.want) {
-				t.Fatalf("missing %q: %v", tc.want, tt.Texts())
-			}
-			var b bytes.Buffer
-			if err := png.Encode(&b, tt.Image()); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(filepath.Join(dir, tc.name+".png"), b.Bytes(), 0o644); err != nil {
-				t.Fatal(err)
-			}
-		})
+				tt.Frame()
+				if !tt.HasText("Get User") {
+					t.Fatalf("missing highlighted row: %v", tt.Texts())
+				}
+				var b bytes.Buffer
+				if err := png.Encode(&b, tt.Image()); err != nil {
+					t.Fatal(err)
+				}
+				name := "palette-highlight-" + appearance + "-" + selected + ".png"
+				if err := os.WriteFile(filepath.Join(dir, name), b.Bytes(), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
 	}
 }
 

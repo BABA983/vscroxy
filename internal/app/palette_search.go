@@ -2,8 +2,10 @@ package app
 
 import (
 	"cmp"
+	"hash/fnv"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/fuzzy"
@@ -107,6 +109,29 @@ const paletteResultLimit = 50
 // no palette field in the persisted settings, so it does not survive restart.
 const paletteHistoryLimit = 100
 
+// paletteAssetCacheLimit bounds how many distinct queries keep their sorted
+// resource candidates around. Clearing the map is enough: every result is
+// rebuilt from requestIndex and the current variables on the next query.
+const paletteAssetCacheLimit = 16
+
+// paletteAssetCacheKey includes everything that can change the scored and
+// sorted resources. Variable names, not values, take part: the palette never
+// reads values, and keeping them out of a key avoids retaining secrets.
+type paletteAssetCacheKey struct {
+	query      string
+	requestGen int
+	varsGen    uint64
+	historyGen uint64
+}
+
+// paletteAssetResult is the cached ranking plus the overflow count. Storing
+// overflow here lets a repeated frame stop at the visible rows instead of
+// walking thousands of resource candidates again.
+type paletteAssetResult struct {
+	candidates []paletteCandidate
+	overflow   int
+}
+
 type paletteSearch struct {
 	entries []paletteEntry
 	more    int
@@ -167,7 +192,26 @@ const (
 	paletteRunAction
 )
 
+// paletteCanMatch runs fuzzy's cheap subsequence check first. A no-match
+// query is otherwise the slowest case: ScoreItemFuzzy would build a scoring
+// matrix for every library row just to return zero.
+func paletteCanMatch(item paletteScoreItem, query fuzzy.IPreparedQuery) bool {
+	target := strings.ToLower(item.label + "\x00" + item.detail + "\x00" + item.path)
+	if len(query.Values) == 0 {
+		return fuzzy.PatternInWord(query.NormalizedLowercase, target)
+	}
+	for _, piece := range query.Values {
+		if !fuzzy.PatternInWord(piece.NormalizedLowercase, target) {
+			return false
+		}
+	}
+	return true
+}
+
 func scorePaletteItem(item paletteScoreItem, query fuzzy.IPreparedQuery, cache fuzzy.FuzzyScorerCache) (int, []fuzzy.Match) {
+	if !paletteCanMatch(item, query) {
+		return 0, nil
+	}
 	result := fuzzy.ScoreItemFuzzy(item, query, true, paletteAccessor{}, cache)
 	return result.Score, result.LabelMatch
 }
@@ -175,6 +219,108 @@ func scorePaletteItem(item paletteScoreItem, query fuzzy.IPreparedQuery, cache f
 func paletteCandidateFor(label, detail, path, key string, prepared fuzzy.IPreparedQuery, cache fuzzy.FuzzyScorerCache) paletteCandidate {
 	score, matches := scorePaletteItem(paletteScoreItem{label: label, detail: detail, path: path}, prepared, cache)
 	return paletteCandidate{key: key, label: label, detail: detail, path: path, score: score, matches: matches, enabled: true}
+}
+
+// paletteQueryKey distinguishes queries that score differently even when
+// their normalized text is the same: quoted contiguous pieces and path
+// separators change how VS Code's scorer treats them.
+func paletteQueryKey(query fuzzy.IPreparedQuery) string {
+	var key strings.Builder
+	appendPart := func(s string) {
+		key.WriteString(strconv.Itoa(len(s)))
+		key.WriteByte(':')
+		key.WriteString(s)
+		key.WriteByte('|')
+	}
+	appendPart(query.Normalized)
+	appendPart(strconv.FormatBool(query.ExpectContiguousMatch))
+	appendPart(strconv.FormatBool(query.ContainsPathSeparator))
+	pieces := query.Values
+	if len(pieces) == 0 {
+		pieces = []fuzzy.IPreparedQueryPiece{query.IPreparedQueryPiece}
+	}
+	for _, piece := range pieces {
+		appendPart(piece.Normalized)
+		appendPart(strconv.FormatBool(piece.ExpectContiguousMatch))
+	}
+	return key.String()
+}
+
+// paletteVarsGen is the environment/globals generation for the asset cache.
+// The palette only names environments and variables, so the signature hashes
+// names rather than values. Direct map edits need no explicit bump.
+func (a *app) paletteVarsGen() uint64 {
+	hash := fnv.New64a()
+	write := func(s string) {
+		hash.Write([]byte(s))
+		hash.Write([]byte{0})
+	}
+	// Map order is not stable, so hash each name and combine the results
+	// commutatively. No sorted key slices, and no value ever enters the hash.
+	names := func(values map[string]string) (uint64, int) {
+		var digest uint64
+		count := 0
+		for name := range values {
+			h := fnv.New64a()
+			h.Write([]byte(name))
+			digest ^= h.Sum64()
+			count++
+		}
+		return digest, count
+	}
+	writeNumber := func(value uint64) {
+		var bytes [8]byte
+		for i := range 8 {
+			bytes[i] = byte(value >> (i * 8))
+		}
+		hash.Write(bytes[:])
+	}
+
+	write(strconv.Itoa(len(a.envs)))
+	for _, env := range a.envs {
+		write(env.Name)
+		for _, values := range []map[string]string{env.Vars, env.Current} {
+			digest, count := names(values)
+			writeNumber(uint64(count))
+			writeNumber(digest)
+		}
+	}
+	for _, values := range []map[string]string{a.globals, a.globalsCurrent} {
+		digest, count := names(values)
+		writeNumber(uint64(count))
+		writeNumber(digest)
+	}
+	return hash.Sum64()
+}
+
+// paletteAssetsFor returns scored, zero-filtered and ranked resource
+// candidates. An unchanged query on a frame costs a map lookup.
+func (a *app) paletteAssetsFor(query fuzzy.IPreparedQuery) paletteAssetResult {
+	key := paletteAssetCacheKey{
+		query:      paletteQueryKey(query),
+		requestGen: a.requestGen,
+		varsGen:    a.paletteVarsGen(),
+		historyGen: a.workbench.paletteHistoryGen,
+	}
+	if cached, ok := a.paletteAssets[key]; ok {
+		return cached
+	}
+	if a.paletteAssets == nil {
+		a.paletteAssets = make(map[paletteAssetCacheKey]paletteAssetResult)
+	}
+	if len(a.paletteAssets) >= paletteAssetCacheLimit {
+		clear(a.paletteAssets)
+	}
+
+	candidates := a.paletteAssetCandidates(query, fuzzy.NewFuzzyScorerCache())
+	candidates = slices.DeleteFunc(candidates, func(c paletteCandidate) bool { return c.score == 0 })
+	sortPaletteCandidates(candidates, a.workbench.paletteHistoryRanks())
+	result := paletteAssetResult{
+		candidates: candidates,
+		overflow:   max(0, len(candidates)-paletteResultLimit),
+	}
+	a.paletteAssets[key] = result
+	return result
 }
 
 // paletteAssetCandidates scores every collection, request, environment and
@@ -249,7 +395,7 @@ func paletteCommandCandidates(actions []action, available bool, query fuzzy.IPre
 		}
 		candidates = append(candidates, paletteCandidate{
 			kind: paletteRunAction, key: "command:" + item.id, label: item.label,
-			meta: item.shortcut.keycap(), why: item.why(), action: item,
+			detail: item.why(), meta: item.shortcut.keycap(), why: item.why(), action: item,
 			enabled: item.enabled, isAction: true, score: score, matches: matches,
 		})
 	}
@@ -280,24 +426,29 @@ func (w *desktopWorkbench) rememberPalette(key string) {
 		w.paletteHistory = linkedmap.NewLRUCache[string, struct{}](paletteHistoryLimit)
 	}
 	w.paletteHistory.Set(key, struct{}{})
+	w.paletteHistoryGen++
+}
+
+func comparePaletteCandidates(x, y paletteCandidate, ranks map[string]int) int {
+	xr, xok := ranks[x.key]
+	yr, yok := ranks[y.key]
+	switch {
+	case xok && !yok:
+		return -1
+	case !xok && yok:
+		return 1
+	case xok && xr != yr:
+		return cmp.Compare(xr, yr)
+	}
+	if x.score != y.score {
+		return cmp.Compare(y.score, x.score)
+	}
+	return cmp.Compare(x.label, y.label)
 }
 
 func sortPaletteCandidates(candidates []paletteCandidate, ranks map[string]int) {
 	slices.SortStableFunc(candidates, func(x, y paletteCandidate) int {
-		xr, xok := ranks[x.key]
-		yr, yok := ranks[y.key]
-		switch {
-		case xok && !yok:
-			return -1
-		case !xok && yok:
-			return 1
-		case xok && xr != yr:
-			return cmp.Compare(xr, yr)
-		}
-		if x.score != y.score {
-			return cmp.Compare(y.score, x.score)
-		}
-		return cmp.Compare(x.label, y.label)
+		return comparePaletteCandidates(x, y, ranks)
 	})
 }
 
@@ -363,6 +514,43 @@ func (a *app) paletteFinalize(candidates []paletteCandidate) paletteSearch {
 	return out
 }
 
+// paletteMergeFinalize merges two already ranked candidate lists without
+// allocating a row for every possible asset. Only rows that fit become
+// paletteEntry values; extra resources are counted for the overflow caption.
+func (a *app) paletteMergeFinalize(assets paletteAssetResult, commands []paletteCandidate, ranks map[string]int) paletteSearch {
+	out := paletteSearch{more: assets.overflow}
+	assetIndex, commandIndex, resources := 0, 0, 0
+	for assetIndex < len(assets.candidates) || commandIndex < len(commands) {
+		takeAsset := commandIndex >= len(commands) ||
+			assetIndex < len(assets.candidates) &&
+				comparePaletteCandidates(assets.candidates[assetIndex], commands[commandIndex], ranks) <= 0
+		if takeAsset {
+			candidate := assets.candidates[assetIndex]
+			assetIndex++
+			resources++
+			if resources > paletteResultLimit {
+				// The remaining resource candidates cannot be shown. Every
+				// remaining command ranks below the last shown row, so append
+				// them and stop instead of walking thousands of assets.
+				for ; commandIndex < len(commands); commandIndex++ {
+					if commands[commandIndex].score != 0 {
+						out.entries = append(out.entries, commands[commandIndex].entry(a))
+					}
+				}
+				return out
+			}
+			out.entries = append(out.entries, candidate.entry(a))
+			continue
+		}
+		candidate := commands[commandIndex]
+		commandIndex++
+		if candidate.score != 0 {
+			out.entries = append(out.entries, candidate.entry(a))
+		}
+	}
+	return out
+}
+
 // paletteSearch finds collections, folders, requests, environments and
 // variable names with VS Code's fuzzy scorer. Variable values are never part
 // of a label, detail or score, so typing a secret cannot reveal it exists.
@@ -371,11 +559,14 @@ func (a *app) paletteSearch(query string) paletteSearch {
 	if prepared.Normalized == "" {
 		return paletteSearch{}
 	}
-	cache := fuzzy.NewFuzzyScorerCache()
-	candidates := a.paletteAssetCandidates(prepared, cache)
-	candidates = slices.DeleteFunc(candidates, func(c paletteCandidate) bool { return c.score == 0 })
-	sortPaletteCandidates(candidates, a.workbench.paletteHistoryRanks())
-	return a.paletteFinalize(candidates)
+	assets := a.paletteAssetsFor(prepared)
+	visible := assets.candidates
+	if len(visible) > paletteResultLimit {
+		visible = visible[:paletteResultLimit]
+	}
+	out := a.paletteFinalize(visible)
+	out.more = assets.overflow
+	return out
 }
 
 // paletteRankedResults ranks commands and saved entries together. Empty
@@ -401,11 +592,9 @@ func (a *app) paletteRankedResults(query string, actions []action) paletteSearch
 		return a.paletteFinalize(enabled)
 	}
 
-	candidates := a.paletteAssetCandidates(prepared, cache)
-	candidates = append(candidates, paletteCommandCandidates(actions, true, prepared, cache)...)
-	candidates = slices.DeleteFunc(candidates, func(c paletteCandidate) bool { return c.score == 0 })
-	sortPaletteCandidates(candidates, ranks)
-	result := a.paletteFinalize(candidates)
+	commands := paletteCommandCandidates(actions, true, prepared, cache)
+	sortPaletteCandidates(commands, ranks)
+	result := a.paletteMergeFinalize(a.paletteAssetsFor(prepared), commands, ranks)
 
 	unavailable := paletteCommandCandidates(actions, false, prepared, cache)
 	sortPaletteCandidates(unavailable, ranks)
@@ -414,15 +603,19 @@ func (a *app) paletteRankedResults(query string, actions []action) paletteSearch
 }
 
 // paletteLabel draws the row label with fuzzy's rune-offset matches. RichText
-// keeps one readable label for the tester and assistive technology while the
-// matched spans carry the theme's quiet accent wash.
+// keeps one readable label for the tester and assistive technology. Matches
+// use the theme's accent ink and medium weight, as quick open does: no chip
+// background to fight the selected row's tint.
 func paletteLabel(c *ui.Context, item paletteEntry, color ui.Color) ui.Element {
 	if len(item.matches) == 0 {
 		return uikit.Body(c, item.label).TextColor(color)
 	}
 	runes := []rune(item.label)
 	size := uikit.Scaled(uikit.TextBody)
-	palette := uikit.Colors(c.Theme())
+	// ListTheme rewrites Theme.Accent into the row's selection wash. Info is
+	// the palette's blue foreground role, so matches stay legible over both
+	// the plain and the selected row tint without a background chip.
+	accent := uikit.Colors(c.Theme()).Info
 	spans := make([]ui.Span, 0, len(item.matches)*2+1)
 	at := 0
 	for _, match := range item.matches {
@@ -434,7 +627,7 @@ func paletteLabel(c *ui.Context, item paletteEntry, color ui.Color) ui.Element {
 		}
 		spans = append(spans, ui.Span{
 			Text: string(runes[match.Start:match.End]), Size: size,
-			Weight: uikit.WeightMedium, Background: palette.Accent, Radius: uikit.RadiusInner,
+			Color: accent, Weight: uikit.WeightMedium,
 		})
 		at = match.End
 	}

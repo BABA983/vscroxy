@@ -30,10 +30,13 @@ type desktopWorkbench struct {
 	// keeps the oldest entries at the front, so ranking walks its keys in
 	// reverse to put the most recently chosen row first.
 	paletteHistory *linkedmap.LRUCache[string, struct{}]
-	inspector      ui.Handle
-	content        ui.Handle
-	menuAction     string
-	menuItems      map[string]*mygo.MenuItem
+	// paletteHistoryGen changes when a row is used so cached asset rankings
+	// are re-sorted as recency changes.
+	paletteHistoryGen uint64
+	inspector         ui.Handle
+	content           ui.Handle
+	menuAction        string
+	menuItems         map[string]*mygo.MenuItem
 	// listFocusAsked is set once the traffic list took the keys for this
 	// visit to LIVE, so Tab can leave it again.
 	listFocusAsked bool

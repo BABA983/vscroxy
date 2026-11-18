@@ -171,12 +171,31 @@ func fuzzyScore(pattern, patternLow string, patternStart int, word, lowWord stri
 	return result
 }
 
+// PatternInWord corresponds to the cheap subsequence test in filters.ts's
+// isPatternInWord. A false result means fuzzyScore cannot match; callers can
+// use it to skip building the scoring matrix. Both strings must be lowercase.
+// The scan is over UTF-8 bytes: for any rune that really occurs in the word,
+// its bytes occur there too, so this may only over-approximate Unicode
+// matches, never reject a match that the rune-based scorer would find.
+func PatternInWord(patternLower, wordLower string) bool {
+	patternPos, wordPos := 0, 0
+	for patternPos < len(patternLower) && wordPos < len(wordLower) {
+		if patternLower[patternPos] == wordLower[wordPos] {
+			patternPos++
+		}
+		wordPos++
+	}
+	return patternPos == len(patternLower)
+}
+
 // isPatternInWord corresponds to isPatternInWord in filters.ts. It also fills
 // minWordMatchPos, like the fillMinWordPosArr argument does in VS Code.
 func isPatternInWord(patternLow []rune, patternPos, patternLen int, wordLow []rune, wordPos, wordLen int, minWordMatchPos *[2 * maxFuzzyLen]int) bool {
 	for patternPos < patternLen && wordPos < wordLen {
 		if patternLow[patternPos] == wordLow[wordPos] {
-			minWordMatchPos[patternPos] = wordPos
+			if minWordMatchPos != nil {
+				minWordMatchPos[patternPos] = wordPos
+			}
 			patternPos++
 		}
 		wordPos++

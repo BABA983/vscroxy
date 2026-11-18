@@ -103,7 +103,11 @@ type app struct {
 	// its request index only when the requests do.
 	requestGen   int
 	requestIndex requestSearchIndex
-	renameOpen   bool
+	// paletteAssets caches scored and sorted resource candidates for one
+	// query/library/variables/history key. Repeated palette frames with an
+	// unchanged query are lookups, not rescans of the request library.
+	paletteAssets map[paletteAssetCacheKey]paletteAssetResult
+	renameOpen    bool
 	// saveAfterRename makes the rename dialog Save to collection.
 	saveAfterRename bool
 	settingsOpen    bool
