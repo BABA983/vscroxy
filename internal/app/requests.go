@@ -774,7 +774,7 @@ func (a *app) duplicateDocument(d *requestDocument) {
 func (a *app) documentActions(c *ui.Context, d *requestDocument) []action {
 	global := a.actionsFor(c, d)
 	return []action{
-		do("request.duplicate", locales.DuplicateAsNewRequest(), func() { a.duplicateDocument(d) }).keys(ui.Cmd, ui.KeyD),
+		pick(global, "request.duplicate"),
 		do("request.copy-curl", locales.CopyAsCurl(), func() { a.copyRequest(c, flow{}, d, "cURL") }),
 		pick(global, "request.export-http"),
 		copyAsMenu(a.requestCopyActions(c, flow{}, d)),

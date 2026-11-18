@@ -382,7 +382,7 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("session.save", locales.SaveCaptureToSessions(), func(x *commandContext) { x.a.saveSession() }).
 		when(func(x *commandContext) bool { return x.capturing }, "")
 	r.add("network.client", locales.SetUpALocalClient(), func(x *commandContext) { x.a.openClientSetup() }).
-		when(func(x *commandContext) bool { return x.a.srv != nil }, "")
+		when(func(x *commandContext) bool { return x.a.srv != nil }, locales.StartCaptureFirst())
 	r.add("network.terminal", locales.OpenAProxiedTerminal(), func(x *commandContext) { x.a.openProxiedTerminal() }).
 		when(func(x *commandContext) bool { return x.proxyReady }, locales.StartCaptureFirst())
 	r.add("network.chrome", locales.OpenProxiedChrome(), func(x *commandContext) { x.a.openProxiedChrome() }).
@@ -402,7 +402,7 @@ func registerGlobalCommands() *commandRegistry {
 		x.a.openClientSetupTarget(clientTargetElectron)
 	})
 	r.add("network.devices", locales.ConnectADevice(), func(x *commandContext) { x.a.openDevices() }).
-		when(func(x *commandContext) bool { return x.a.srv != nil }, "")
+		when(func(x *commandContext) bool { return x.a.srv != nil }, locales.StartCaptureFirst())
 	r.add("tools.rules", locales.ManageDebuggingRules(), func(x *commandContext) { x.a.openRules() })
 
 	r.source("hosts", func(x *commandContext, c *ui.Context) []action { return x.a.hostsActions() })

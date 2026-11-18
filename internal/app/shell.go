@@ -716,7 +716,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 	}
 	network := []action{
 		pick(global, "network.diagnostics").in("tools"),
-		do("network.client", locales.SetUpALocalClient(), a.openClientSetup).in("tools"),
+		pick(global, "network.client").in("tools"),
 		submenu(locales.OneClickSetup(), oneClick...).in("tools"),
 		pick(global, "network.websocket").in("tools"),
 		pick(global, "network.sse").in("tools"),
@@ -728,7 +728,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 		network = append(network, x)
 	}
 	network = append(network,
-		do("network.devices", locales.ConnectADevice(), a.openDevices).checked(checkbox(a.deviceUI.gateway != nil)).in("devices"),
+		pick(global, "network.devices").checked(checkbox(a.deviceUI.gateway != nil)).in("devices"),
 		do("https.rules", locales.SslProxying2(), func() { a.sslOpen = true }).in("lists"),
 		do("capture.ignored-hosts", locales.IgnoredHosts(), func() { a.ignoreOpen = true }).in("lists"),
 		do("capture.ignored-apps", locales.IgnoredApps(), func() { a.ignoreAppsOpen = true }).in("lists"),
@@ -739,7 +739,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 		pick(global, "flow.replay").as(locales.ReplayChosen()),
 		do("capture.export-har", locales.ExportHar(), a.exportHAR).in("files"),
 		pick(global, "capture.export-chosen").as(locales.ExportChosenHar()).in("files"),
-		do("capture.export-csv", locales.ExportCsv(), a.exportCSV).in("files"),
+		pick(global, "capture.export-csv").in("files"),
 		pick(global, "capture.export-chosen-csv").as(locales.ExportChosenCsv()).in("files"),
 		do("capture.choose-shown", locales.ChooseAllShown(), func() {
 			for _, at := range a.visible {
@@ -762,7 +762,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 			when(len(a.requests) > 0, locales.SaveARequestToA()).in("api"),
 	}
 	view := a.pickActions(c, "view.focus-inspector", "view.layout-right", "view.layout-bottom", "view.sidebar")
-	view = append(view, do("capture.filter", locales.Filter(), a.openFilter).in("filter"))
+	view = append(view, pick(global, "capture.filter").as(locales.Filter()).in("filter"))
 	if a.filtersActive() {
 		view = append(view, do("capture.clear-filters", locales.ClearFilters(), a.clearFilters).in("filter"))
 	}
