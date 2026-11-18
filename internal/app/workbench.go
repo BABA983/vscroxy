@@ -815,7 +815,7 @@ func (a *app) commandPalette(c *ui.Context) {
 								paletteLabel(c, item, color).
 									LineHeight(20.0 / 14.0).SingleLine().MinWidth(0)
 								if item.detail != "" {
-									uikit.Small(c, item.detail).TextColor(t.TextMuted).SingleLine()
+									paletteDetail(c, item).SingleLine()
 								}
 							})
 							if item.action && item.meta != "" {

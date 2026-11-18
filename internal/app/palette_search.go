@@ -17,17 +17,19 @@ import (
 
 // paletteEntry is one row of the command palette: a command or a search
 // result. detail is a tooltip and the status line; it never holds a variable
-// value or a cookie value. matches are the highlighted runes of label, in
-// fuzzy's rune offsets.
+// value or a cookie value. matches and detailMatches are highlighted runes of
+// label and detail respectively, in fuzzy's rune offsets. Detail matches are
+// only set for rows whose scored description is exactly this detail.
 type paletteEntry struct {
-	label   string
-	detail  string
-	meta    string // the shortcut of a command, or the kind of a result
-	enabled bool
-	why     string
-	action  bool
-	matches []fuzzy.Match
-	run     func()
+	label         string
+	detail        string
+	meta          string // the shortcut of a command, or the kind of a result
+	enabled       bool
+	why           string
+	action        bool
+	matches       []fuzzy.Match
+	detailMatches []fuzzy.Match
+	run           func()
 }
 
 type requestSearchEntry struct {
@@ -88,7 +90,9 @@ func (a *app) requestSearch() requestSearchIndex {
 		method := cmp.Or(r.Protocol, r.Method)
 		detail := strings.TrimSpace(method + " " + r.URL)
 		if r.Collection != "" {
-			detail += " · " + r.Collection
+			// The collection leads, so typing it first highlights the name
+			// rather than scattered letters earlier in the URL.
+			detail = r.Collection + " · " + detail
 		}
 		// Request descriptions are not part of the model yet; add them here
 		// when they are. Values of {{variables}} stay authored, as in the URL.
@@ -166,23 +170,24 @@ func (paletteAccessor) GetItemPath(item paletteScoreItem) (string, bool) {
 // paletteCandidate holds what scoring needs, without building a row closure
 // until the candidate is known to fit in the palette.
 type paletteCandidate struct {
-	kind      uint8
-	key       string
-	label     string
-	detail    string
-	meta      string
-	why       string
-	path      string
-	request   string
-	env       string
-	action    action
-	enabled   bool
-	isAction  bool
-	resource  bool
-	global    bool
-	score     int
-	matches   []fuzzy.Match
-	itemScore *fuzzy.IItemScore
+	kind          uint8
+	key           string
+	label         string
+	detail        string
+	meta          string
+	why           string
+	path          string
+	request       string
+	env           string
+	action        action
+	enabled       bool
+	isAction      bool
+	resource      bool
+	global        bool
+	score         int
+	matches       []fuzzy.Match
+	detailMatches []fuzzy.Match
+	itemScore     *fuzzy.IItemScore
 }
 
 const (
@@ -242,7 +247,8 @@ func paletteCandidateFor(label, detail, path, key string, prepared fuzzy.IPrepar
 	score := scorePaletteItem(paletteScoreItem{label: label, detail: detail, path: path}, prepared, cache)
 	return paletteCandidate{
 		key: key, label: label, detail: detail, path: path,
-		score: score.Score, matches: score.LabelMatch, itemScore: score, enabled: true,
+		score: score.Score, matches: score.LabelMatch,
+		detailMatches: score.DescriptionMatch, itemScore: score, enabled: true,
 	}
 }
 
@@ -362,6 +368,10 @@ func (a *app) paletteAssetCandidates(prepared fuzzy.IPreparedQuery, cache fuzzy.
 		}
 		c := paletteCandidateFor(p.label, detail, p.path, "path:"+p.path, prepared, cache)
 		c.kind, c.resource, c.meta = paletteRevealPath, true, p.kind
+		// ScoreItemFuzzy appends a separator to a description when a path is
+		// present, so its detail offsets can run one rune past the displayed
+		// detail. Skip description highlighting on path rows instead.
+		c.detailMatches = nil
 		candidates = append(candidates, c)
 	}
 	for _, r := range idx.requests {
@@ -490,6 +500,7 @@ func (c paletteCandidate) entry(a *app) paletteEntry {
 	entry := paletteEntry{
 		label: c.label, detail: c.detail, meta: c.meta, why: c.why,
 		enabled: c.enabled, action: c.isAction, matches: c.matches,
+		detailMatches: c.detailMatches,
 	}
 	switch c.kind {
 	case paletteRunAction:
@@ -637,23 +648,26 @@ func (a *app) paletteRankedResults(query string, actions []action) paletteSearch
 	return result
 }
 
-// paletteLabel draws the row label with fuzzy's rune-offset matches. RichText
-// keeps one readable label for the tester and assistive technology. Matches
-// use the theme's accent ink and medium weight, as quick open does: no chip
-// background to fight the selected row's tint.
-func paletteLabel(c *ui.Context, item paletteEntry, color ui.Color) ui.Element {
-	if len(item.matches) == 0 {
-		return uikit.Body(c, item.label).TextColor(color)
+// Geist's semibold step is 600; uikit only names the 500 medium role, so the
+// highlight keeps its own weight constant. The theme supplies all colors.
+const paletteMatchWeight = 600
+
+func paletteHighlightInk(c *ui.Context, enabled bool) ui.Color {
+	palette := uikit.Colors(c.Theme())
+	if !enabled {
+		return palette.Faint
 	}
-	runes := []rune(item.label)
-	size := uikit.Scaled(uikit.TextBody)
-	// ListTheme rewrites Theme.Accent into the row's selection wash. Info is
-	// the palette's blue foreground role, so matches stay legible over both
-	// the plain and the selected row tint without a background chip.
-	accent := uikit.Colors(c.Theme()).Info
-	spans := make([]ui.Span, 0, len(item.matches)*2+1)
+	return palette.Primary
+}
+
+// paletteSpans splits plain into spans that always concatenate back to plain.
+// The matched runs are ink at semibold weight: no background chip, so the
+// selected row's tint shows through.
+func paletteSpans(plain string, matches []fuzzy.Match, ink ui.Color, size float32) []ui.Span {
+	runes := []rune(plain)
+	spans := make([]ui.Span, 0, len(matches)*2+1)
 	at := 0
-	for _, match := range item.matches {
+	for _, match := range matches {
 		if match.Start < at || match.End <= match.Start || match.End > len(runes) {
 			continue
 		}
@@ -662,14 +676,35 @@ func paletteLabel(c *ui.Context, item paletteEntry, color ui.Color) ui.Element {
 		}
 		spans = append(spans, ui.Span{
 			Text: string(runes[match.Start:match.End]), Size: size,
-			Color: accent, Weight: uikit.WeightMedium,
+			Color: ink, Weight: paletteMatchWeight,
 		})
 		at = match.End
 	}
 	if at < len(runes) {
 		spans = append(spans, ui.Span{Text: string(runes[at:]), Size: size})
 	}
-	return ui.RichText(c, spans...).TextColor(color)
+	return spans
+}
+
+// paletteLabel draws the row label with fuzzy's rune-offset matches. RichText
+// keeps one readable label for the tester and assistive technology.
+func paletteLabel(c *ui.Context, item paletteEntry, color ui.Color) ui.Element {
+	if len(item.matches) == 0 {
+		return uikit.Body(c, item.label).TextColor(color)
+	}
+	spans := paletteSpans(item.label, item.matches, paletteHighlightInk(c, item.enabled), uikit.Scaled(uikit.TextBody))
+	return ui.RichText(c, spans...).TextColor(color).Label(item.label)
+}
+
+// paletteDetail keeps the muted small style for unmatched text. Only rows
+// whose scored description is exactly this detail carry detailMatches.
+func paletteDetail(c *ui.Context, item paletteEntry) ui.Element {
+	muted := c.Theme().TextMuted
+	if len(item.detailMatches) == 0 {
+		return uikit.Small(c, item.detail).TextColor(muted)
+	}
+	spans := paletteSpans(item.detail, item.detailMatches, paletteHighlightInk(c, item.enabled), uikit.Scaled(uikit.TextSmall))
+	return ui.RichText(c, spans...).TextColor(muted).LineHeight(uikit.LineSmall).Label(item.detail)
 }
 
 // revealCollection shows a collection or folder in the sidebar without
