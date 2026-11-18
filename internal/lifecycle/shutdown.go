@@ -13,6 +13,10 @@ import (
 // shutdown. Use errors.Is to recognize it; the wrapped message lists the ids.
 var ErrShutdownVetoed = errors.New("shutdown vetoed")
 
+func vetoError(ids []string) error {
+	return fmt.Errorf("%w: %s", ErrShutdownVetoed, strings.Join(ids, ", "))
+}
+
 // ShutdownReason tells participants why the application is closing.
 type ShutdownReason uint8
 
@@ -74,8 +78,9 @@ type BeforeShutdownEvent struct {
 // value is a bool or a VetoFunc (also written as
 // func(context.Context) (bool, error), func() (bool, error), or func() bool).
 // Async checks start on package-owned goroutines and run in parallel; their
-// results are collected before the final veto runs. An error or a panic counts
-// as a veto. Unsupported value types are a programming error.
+// results are collected before the final veto runs. A synchronous Veto(true)
+// short-circuits them and the final veto. An error or a panic counts as a
+// veto. Unsupported value types are a programming error.
 func (e *BeforeShutdownEvent) Veto(value any, id string) {
 	if v, ok := value.(bool); ok {
 		if !v {
@@ -93,8 +98,17 @@ func (e *BeforeShutdownEvent) Veto(value any, id string) {
 	e.vetoes = append(e.vetoes, vetoRecord{fn: fn, id: id})
 }
 
+// hasVeto reports a synchronous veto without starting any registered async
+// checks. A synchronous veto short-circuits the before-shutdown phase.
+func (e *BeforeShutdownEvent) hasVeto() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.vetoed
+}
+
 // settle waits for all async vetoes registered so far and returns the veto
-// state and ids in registration order.
+// state and ids in registration order. A synchronous veto skips the async
+// checks entirely, like VS Code's handleVetos.
 func (e *BeforeShutdownEvent) settle(ctx context.Context) (bool, []string) {
 	e.mu.Lock()
 	vetoed := e.vetoed
@@ -102,7 +116,7 @@ func (e *BeforeShutdownEvent) settle(ctx context.Context) (bool, []string) {
 	vetoes := e.vetoes
 	e.vetoes = nil
 	e.mu.Unlock()
-	if len(vetoes) == 0 {
+	if vetoed || len(vetoes) == 0 {
 		return vetoed, ids
 	}
 
@@ -393,62 +407,100 @@ func (l *Lifecycle) WillShutdown() bool {
 	return l.willShutdown
 }
 
-// Shutdown runs the veto phase and then, unless vetoed, the join phase. It
-// returns ErrShutdownVetoed when a participant stopped the shutdown, or joins
-// the errors returned by joiners. A concurrent call waits for the in-flight
-// shutdown and gets its result; a call after a completed shutdown gets the
-// same result. A veto is not cached, so the shutdown can be retried.
-func (l *Lifecycle) Shutdown(reason ShutdownReason) (err error) {
+// ShutdownAsync starts a shutdown and returns once the synchronous
+// OnBeforeShutdown callbacks have run. Waiting for async vetoes and joiners,
+// plus the later OnFinalVeto registration and OnWillShutdown callbacks,
+// happens on a package-owned goroutine; done is also called there with the
+// result, so the caller must marshal any UI work back to the UI thread.
+//
+// A concurrent call waits for the in-flight shutdown and gets its result. A
+// call after a completed shutdown gets the same result. A veto is not cached,
+// so the shutdown can be retried. A nil done discards the result.
+func (l *Lifecycle) ShutdownAsync(reason ShutdownReason, done func(error)) {
 	l.mu.Lock()
-	if run := l.active; run != nil {
-		l.mu.Unlock()
-		<-run.done
-		return run.err
+	run := l.active
+	if run == nil {
+		run = l.completed
 	}
-	if run := l.completed; run != nil {
+	if run != nil {
 		l.mu.Unlock()
-		return run.err
+		l.notifyWhenDone(run, done)
+		return
 	}
-	run := &shutdownRun{done: make(chan struct{})}
+	run = &shutdownRun{done: make(chan struct{})}
 	l.active = run
 	before := slices.Clone(l.before)
 	final := l.finalVeto
 	will := slices.Clone(l.will)
 	l.mu.Unlock()
 
-	defer func() {
-		recovered := recover()
-		if recovered != nil {
-			err = panicError("shutdown", recovered)
-		}
-		run.err = err
-		l.mu.Lock()
-		l.active = nil
-		if recovered == nil && l.willShutdown {
-			l.completed = run
-		}
-		l.mu.Unlock()
-		close(run.done)
-		if recovered != nil {
-			panic(recovered)
+	beforeCtx, cancelBefore := context.WithCancel(context.Background())
+	beforeEvent := &BeforeShutdownEvent{Reason: reason}
+	var recovered any
+	func() {
+		defer func() { recovered = recover() }()
+		for _, fn := range before {
+			fn(beforeEvent)
 		}
 	}()
-
-	beforeCtx, cancelBefore := context.WithCancel(context.Background())
-	defer cancelBefore()
-	beforeEvent := &BeforeShutdownEvent{Reason: reason}
-	for _, fn := range before {
-		fn(beforeEvent)
+	if recovered != nil {
+		cancelBefore()
+		l.finishShutdown(run, panicError("shutdown", recovered), false, done)
+		return
 	}
-	if vetoed, ids := beforeEvent.settle(beforeCtx); vetoed {
-		return fmt.Errorf("%w: %s", ErrShutdownVetoed, strings.Join(ids, ", "))
+	if beforeEvent.hasVeto() {
+		_, ids := beforeEvent.settle(beforeCtx)
+		cancelBefore()
+		l.finishShutdown(run, vetoError(ids), false, done)
+		return
+	}
+
+	go func() {
+		defer cancelBefore()
+		err, reachedWill := l.finishPhases(reason, beforeEvent, beforeCtx, final, will)
+		l.finishShutdown(run, err, reachedWill, done)
+	}()
+}
+
+func (l *Lifecycle) notifyWhenDone(run *shutdownRun, done func(error)) {
+	if done == nil {
+		return
+	}
+	go func() {
+		<-run.done
+		done(run.err)
+	}()
+}
+
+func (l *Lifecycle) finishShutdown(run *shutdownRun, err error, reachedWill bool, done func(error)) {
+	run.err = err
+	l.mu.Lock()
+	l.active = nil
+	if reachedWill {
+		l.completed = run
+	}
+	l.mu.Unlock()
+	close(run.done)
+	if done != nil {
+		go done(err)
+	}
+}
+
+func (l *Lifecycle) finishPhases(reason ShutdownReason, before *BeforeShutdownEvent, beforeCtx context.Context, final func(*InternalBeforeShutdownEvent), will []func(*WillShutdownEvent)) (err error, reachedWill bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = panicError("shutdown", r)
+		}
+	}()
+	if vetoed, ids := before.settle(beforeCtx); vetoed {
+		return vetoError(ids), false
 	}
 	if final != nil {
-		internal := &InternalBeforeShutdownEvent{BeforeShutdownEvent: beforeEvent}
+		internal := &InternalBeforeShutdownEvent{BeforeShutdownEvent: before}
 		final(internal)
 		internal.runFinal(beforeCtx)
-		if vetoed, ids := beforeEvent.settle(beforeCtx); vetoed {
-			return fmt.Errorf("%w: %s", ErrShutdownVetoed, strings.Join(ids, ", "))
+		if vetoed, ids := before.settle(beforeCtx); vetoed {
+			return vetoError(ids), false
 		}
 	}
 
@@ -464,5 +516,16 @@ func (l *Lifecycle) Shutdown(reason ShutdownReason) (err error) {
 	}
 	errs := willEvent.run(willEvent.defaults)
 	errs = append(errs, willEvent.run(willEvent.lasts)...)
-	return errors.Join(errs...)
+	return errors.Join(errs...), true
+}
+
+// Shutdown runs the veto phase and then, unless vetoed, the join phase. It
+// returns ErrShutdownVetoed when a participant stopped the shutdown, or joins
+// the errors returned by joiners. It blocks until shutdown settles, so callers
+// on the UI thread should use ShutdownAsync when a veto or joiner needs the UI
+// thread to keep running. Concurrent and later calls get the same result.
+func (l *Lifecycle) Shutdown(reason ShutdownReason) error {
+	result := make(chan error, 1)
+	l.ShutdownAsync(reason, func(err error) { result <- err })
+	return <-result
 }

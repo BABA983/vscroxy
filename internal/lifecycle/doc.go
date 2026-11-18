@@ -11,17 +11,25 @@
 //
 // # Threading model
 //
-// OnBeforeShutdown and OnWillShutdown participant callbacks, and the callback
-// that installs FinalVeto, run synchronously on the goroutine calling
-// Shutdown. Call Shutdown from the UI thread when those callbacks read app
-// state; if Shutdown must be called from a worker, marshal such callbacks back
-// to the UI thread. Long work does not belong in the callbacks.
+// ShutdownAsync starts a shutdown without blocking the UI thread. Its
+// OnBeforeShutdown callbacks run synchronously on the calling goroutine before
+// it returns and may read UI state. After that, a goroutine owned by this
+// package settles the async vetoes, then runs the OnFinalVeto registration
+// callback and the OnWillShutdown callbacks, since those phases can only start
+// after earlier phases settle. Those later callbacks therefore also run on the
+// package goroutine, not the UI thread: they must capture the state they need
+// or marshal UI access themselves. done is called on that goroutine too, and
+// the caller marshals its result back to the UI thread. Long work belongs in
+// VetoFunc and Join functions, never in the participant callbacks.
 //
-// Async veto functions passed to Veto or FinalVeto, and join work passed to
-// Join, run on goroutines owned by this package. Veto functions run in
-// parallel; join work also runs in parallel within each phase. Those functions
-// must not read or write UI state directly: capture the values the callback
-// already gathered on the UI thread and marshal any results back. A joiner
-// that ignores its canceled Token may keep running after Force; Shutdown stops
-// waiting for it instead of killing it.
+// Shutdown is the blocking form built on ShutdownAsync: it waits for the done
+// result instead of taking one. The same goroutine rules apply; do not call it
+// on the UI thread when async work needs that thread to keep running, such as
+// showing an "unsaved requests?" dialog.
+//
+// Async veto functions and join work run on package-owned goroutines. Veto
+// functions run in parallel; join work also runs in parallel within each
+// phase. A synchronous Veto(true) skips the async checks and the final veto.
+// A joiner that ignores its canceled Token may keep running after Force;
+// Shutdown stops waiting for it instead of killing it.
 package lifecycle

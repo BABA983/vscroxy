@@ -397,3 +397,112 @@ func TestFinalVetoCannotBeDefinedTwice(t *testing.T) {
 		t.Fatal("a second FinalVeto slot did not panic")
 	}
 }
+
+func TestShutdownAsyncRunsBeforeCallbacksOnCallerThenWaits(t *testing.T) {
+	beforeStarted := make(chan struct{})
+	beforeRelease := make(chan struct{})
+	vetoStarted := make(chan struct{})
+	releaseVeto := make(chan bool, 1)
+	returned := make(chan struct{})
+	done := make(chan error, 1)
+	var willRan atomic.Bool
+	var lc Lifecycle
+	lc.OnBeforeShutdown(func(e *BeforeShutdownEvent) {
+		close(beforeStarted)
+		<-beforeRelease
+		e.Veto(func(ctx context.Context) (bool, error) {
+			close(vetoStarted)
+			return <-releaseVeto, nil
+		}, "dialog")
+	})
+	lc.OnWillShutdown(func(e *WillShutdownEvent) { willRan.Store(true) })
+
+	go func() {
+		lc.ShutdownAsync(ShutdownReasonQuit, func(err error) { done <- err })
+		close(returned)
+	}()
+	receive(t, beforeStarted)
+	select {
+	case <-returned:
+		t.Fatal("ShutdownAsync returned before the before-shutdown callback finished")
+	default:
+	}
+	close(beforeRelease)
+	receive(t, vetoStarted)
+	receive(t, returned)
+	if willRan.Load() {
+		t.Fatal("will-shutdown participant ran before the async veto settled")
+	}
+
+	releaseVeto <- true
+	if err := receive(t, done); !errors.Is(err, ErrShutdownVetoed) {
+		t.Fatalf("ShutdownAsync error = %v, want ErrShutdownVetoed", err)
+	}
+	if willRan.Load() {
+		t.Fatal("will-shutdown participant ran after a veto")
+	}
+}
+
+func TestSyncVetoSkipsAsyncAndFinalVeto(t *testing.T) {
+	var asyncRan, finalRegistered, finalRan, willRan atomic.Int32
+	var lc Lifecycle
+	lc.OnBeforeShutdown(func(e *BeforeShutdownEvent) {
+		e.Veto(func(ctx context.Context) (bool, error) {
+			asyncRan.Add(1)
+			return true, nil
+		}, "async")
+		e.Veto(true, "sync")
+	})
+	lc.OnFinalVeto(func(e *InternalBeforeShutdownEvent) {
+		finalRegistered.Add(1)
+		e.FinalVeto(func() bool {
+			finalRan.Add(1)
+			return true
+		}, "final")
+	})
+	lc.OnWillShutdown(func(e *WillShutdownEvent) { willRan.Add(1) })
+
+	err := lc.Shutdown(ShutdownReasonQuit)
+	if !errors.Is(err, ErrShutdownVetoed) || !strings.Contains(err.Error(), "sync") {
+		t.Fatalf("Shutdown error = %v, want the sync veto", err)
+	}
+	if strings.Contains(err.Error(), "async") {
+		t.Fatalf("Shutdown error = %v, want no async veto id", err)
+	}
+	if asyncRan.Load() != 0 || finalRegistered.Load() != 0 || finalRan.Load() != 0 || willRan.Load() != 0 {
+		t.Fatalf("after a sync veto: async=%d final registration=%d final=%d will=%d, want all 0",
+			asyncRan.Load(), finalRegistered.Load(), finalRan.Load(), willRan.Load())
+	}
+}
+
+func TestShutdownAsyncConcurrentCallersGetSameResult(t *testing.T) {
+	busy := errors.New("disk busy")
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	defer unblock()
+	var lc Lifecycle
+	lc.OnBeforeShutdown(func(e *BeforeShutdownEvent) {
+		close(started)
+		<-release
+	})
+	lc.OnWillShutdown(func(e *WillShutdownEvent) {
+		e.Join(func() error { return busy }, WillShutdownEventJoiner{ID: "settings", Label: "Saving settings"})
+	})
+
+	first := make(chan error, 1)
+	go func() {
+		lc.ShutdownAsync(ShutdownReasonQuit, func(err error) { first <- err })
+	}()
+	receive(t, started)
+	second := make(chan error, 1)
+	lc.ShutdownAsync(ShutdownReasonQuit, func(err error) { second <- err })
+	unblock()
+
+	for _, result := range []<-chan error{first, second} {
+		if err := receive(t, result); !errors.Is(err, busy) {
+			t.Fatalf("ShutdownAsync error = %v, want busy", err)
+		}
+	}
+}
