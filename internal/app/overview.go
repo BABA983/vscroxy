@@ -196,7 +196,7 @@ func (a *app) overviewView(c *ui.Context, t *ui.Theme) {
 				overviewStat(c, t, locales.IncompleteBodiesLabel(), fmt.Sprint(stats.incomplete))
 			})
 			overviewSection(c, t, locales.TopApps())
-			overviewBars(c, t, stats.apps, 8, false, false, p.Accent)
+			overviewBars(c, t, stats.apps, 8, false, false, p.Primary)
 			overviewSection(c, t, locales.TopDomains())
 			overviewBars(c, t, stats.domains, 8, true, true, p.Info)
 			overviewSection(c, t, locales.StatusCodes())
@@ -208,7 +208,7 @@ func (a *app) overviewView(c *ui.Context, t *ui.Theme) {
 }
 
 func overviewStat(c *ui.Context, t *ui.Theme, label, value string) {
-	ui.Column(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceHair)).MinWidth(uikit.WidthPicker).Radius(uikit.RadiusControl).Background(uikit.Colors(t).Chrome).Children(func() {
+	ui.Column(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceHair)).MinWidth(uikit.WidthPicker).Radius(uikit.RadiusControl).Background(uikit.Colors(t).Window).Children(func() {
 		uikit.Heading(c, value).FontFeatures("tnum")
 		uikit.Meta(c, label).FontFeatures("tnum")
 	})
@@ -258,7 +258,7 @@ func overviewBars(c *ui.Context, t *ui.Theme, rows []overviewCount, limit int, w
 						share = float32(row.bytes)
 					}
 					if share > 0 {
-						ui.Row(c).Height(4).Radius(2).Background(uikit.Colors(t).Fill).Children(func() {
+						ui.Row(c).Height(4).Radius(2).Background(uikit.Colors(t).Muted).Children(func() {
 							ui.Box(c).Grow(share).Height(4).Radius(2).Background(color)
 							ui.Box(c).Grow(float32(total) - share).Height(4)
 						})
@@ -280,10 +280,10 @@ func overviewStatuses(c *ui.Context, t *ui.Theme, stats overviewStats) {
 			if count == 0 {
 				continue
 			}
-			label, color := fmt.Sprintf("%dxx", i+1), p.TextMuted
+			label, color := fmt.Sprintf("%dxx", i+1), p.MutedForeground
 			switch i {
 			case 1:
-				color = p.Accent
+				color = p.Primary
 			case 2:
 				color = p.Info
 			case 3:
@@ -299,7 +299,7 @@ func overviewStatuses(c *ui.Context, t *ui.Theme, stats overviewStats) {
 					uikit.Meta(c, fmt.Sprint(count)).FontFeatures("tnum").Grow(1)
 					uikit.Meta(c, fmt.Sprintf("%.0f%%", 100*float64(count)/float64(total))).FontFeatures("tnum").Width(45)
 				})
-				ui.Row(c).Height(4).Radius(2).Background(p.Fill).Children(func() {
+				ui.Row(c).Height(4).Radius(2).Background(p.Muted).Children(func() {
 					ui.Box(c).Grow(float32(count)).Height(4).Radius(2).Background(color)
 					ui.Box(c).Grow(float32(total - count)).Height(4)
 				})

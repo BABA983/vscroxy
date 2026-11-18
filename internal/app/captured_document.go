@@ -171,7 +171,7 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 			// Which Host profile sent it elsewhere, as the Remote IP says.
 			profile, _, _ := strings.CutLast(f.hostProfile, ":")
 			_, ip, _ := strings.Cut(f.dns, " → ")
-			uikit.Tip(c, uikit.Caption(c, locales.MappedTo(profile, ip)).TextColor(uikit.Colors(t).Accent).
+			uikit.Tip(c, uikit.Caption(c, locales.MappedTo(profile, ip)).TextColor(uikit.Colors(t).Primary).
 				SingleLine().MinWidth(0), mappedBy(f))
 		}
 		ui.Spacer(c)

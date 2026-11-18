@@ -87,8 +87,8 @@ vscroxy 的 `uikit.Tip` 已经建在 MyGo 的 `TooltipBase` 上，而 MyGo 0.9 �
 同时只显示一个、指针穿过提示。所以不需要自己写 hover 服务；要改的是**外观**
 和**内容**：
 
-- 外观从“黑底反色、等宽 11、圆角 6”改成浮层表面：`Canvas` 底、1px
-  `Hairline`、`ShadowPopover`、`RadiusPanel`（6 与 10 之间）、6×10 内边距、
+- 外观从“黑底反色、等宽 11、圆角 6”改成浮层表面：`Background` 底、1px
+  `Border`、`ShadowPopover`、`RadiusPanel`（6 与 10 之间）、6×10 内边距、
   正文 `TextSmall` 12、普通文字色、最大宽度 360；URL 仍按 `/ ? & = - _ .`
   断行，但不再整段用等宽。
 - 快捷键用 `Kbd`，不再拼进正文。

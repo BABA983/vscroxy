@@ -586,7 +586,7 @@ func (a *app) prettyBody(c *ui.Context, body string, side int) {
 // Keep the library's search semantics, with controls that fit a side inspector.
 func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 	t := c.Theme()
-	bar.Row().Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Background(uikit.Colors(t).Chrome).Border(1, t.Border).Radius(uikit.RadiusControl)
+	bar.Row().Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Background(uikit.Colors(t).Window).Border(1, t.Border).Radius(uikit.RadiusControl)
 	bar.Children(func() {
 		find.QueryInput(uikit.Input(c, find.Query()).Label(locales.SearchBody()).Placeholder(locales.FindInBody()).Width(uikit.WidthPicker))
 		uikit.Meta(c, find.Status()).FontFeatures("tnum").MinWidth(40).Role(ui.RoleStatus)

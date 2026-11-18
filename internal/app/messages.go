@@ -583,7 +583,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		}
 		note := locales.PausedViewNote(max(newer, 0))
 		uikit.Tip(c, uikit.Meta(c, note).FontFeatures("tnum").
-			Background(uikit.Colors(t).Chrome).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).SingleLine(), note)
+			Background(uikit.Colors(t).Window).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).SingleLine(), note)
 		list = p.frozen
 	}
 	// The search and the direction filter are built first: they change what

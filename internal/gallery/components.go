@@ -291,7 +291,7 @@ func (k *components) inputPlate(c *ui.Context) {
 	})
 	stateRow(c, "On chrome", func() {
 		ui.Column(c).Width(280).Padding(c.Theme().Space(uikit.SpaceM)).Radius(uikit.RadiusPanel).
-			Background(uikit.Colors(c.Theme()).Chrome).Children(func() {
+			Background(uikit.Colors(c.Theme()).Window).Children(func() {
 			uikit.SearchField(c, &k.searchChrome, "Search collections", "Search…", true)
 		})
 	})
@@ -390,7 +390,7 @@ func menuRow(c *ui.Context, label, shortcut string, selected, danger bool) {
 		color = p.Danger
 	}
 	if selected {
-		row.Background(p.Accent)
+		row.Background(p.Primary)
 		color = t.AccentText
 	}
 	row.Children(func() {
@@ -407,7 +407,7 @@ func (k *components) kbdPlate(c *ui.Context) {
 		}
 	})
 	stateRow(c, "On chrome", func() {
-		ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Radius(uikit.RadiusControl).Background(p.Chrome).Gap(t.Space(uikit.SpaceM)).Children(func() {
+		ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Radius(uikit.RadiusControl).Background(p.Window).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			for _, key := range []string{"⌘K", "⇧⌘Z", "⌥←"} {
 				uikit.Kbd(c, key)
 			}
@@ -440,7 +440,7 @@ func (k *components) hoverCardPlate(c *ui.Context) {
 	tipRoom(c)
 	stateRow(c, "Capture row", func() {
 		row := ui.Row(c).Height(uikit.HeightRow).Padding(0, c.Theme().Space(uikit.SpaceM)).Gap(c.Theme().Space(uikit.SpaceM)).AlignItems(ui.Center).
-			Radius(uikit.RadiusControl).Background(uikit.Colors(c.Theme()).Fill).Children(func() {
+			Radius(uikit.RadiusControl).Background(uikit.Colors(c.Theme()).Muted).Children(func() {
 			uikit.MethodLabel(c, "GET")
 			uikit.Body(c, "List projects").SingleLine()
 		})
@@ -462,7 +462,7 @@ func (k *components) hoverCardPlate(c *ui.Context) {
 func (k *components) sidebarCardPlate(c *ui.Context) {
 	t, p := c.Theme(), uikit.Colors(c.Theme())
 	stateRow(c, "Request row", func() {
-		ui.Column(c).Width(300).Padding(t.Space(uikit.SpaceXS)).Background(p.Chrome).Radius(uikit.RadiusPanel).Children(func() {
+		ui.Column(c).Width(300).Padding(t.Space(uikit.SpaceXS)).Background(p.Window).Radius(uikit.RadiusPanel).Children(func() {
 			row := ui.Row(c).FillWidth().Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceS)).Gap(t.Space(uikit.SpaceM)).
 				AlignItems(ui.Center).Radius(uikit.RadiusControl)
 			card := uikit.CardTipBeside(c, row, uikit.HoverCard{Title: "List projects", Meta: "GET · Workspace", Rows: []uikit.HoverCardRow{{Key: "URL", Value: "https://api.example.com/v1/projects?page=2"}}})
@@ -471,7 +471,7 @@ func (k *components) sidebarCardPlate(c *ui.Context) {
 				uikit.MethodLabel(c, "GET")
 				uikit.Body(c, "List projects").SingleLine().Grow(1)
 				uikit.MoreMenu(c, "List projects actions", func(m *ui.Menu) { m.Item("Copy as cURL").ID("curl") }).
-					Absolute().Right(uikit.RowActionInset).Top(uikit.RowActionInset).Background(p.Chrome)
+					Absolute().Right(uikit.RowActionInset).Top(uikit.RowActionInset).Background(p.Window)
 			})
 		})
 	})
@@ -576,7 +576,7 @@ func (k *components) sidebarPlate(c *ui.Context) {
 	open := true
 	ui.Row(c).Gap(c.Theme().Space(uikit.SpaceXL)).AlignItems(ui.Start).Children(func() {
 		ui.Column(c).Width(uikit.WidthWide).Padding(c.Theme().Space(uikit.SpaceXS)).Gap(0).Height(300).
-			Background(uikit.Colors(c.Theme()).Chrome).Children(func() {
+			Background(uikit.Colors(c.Theme()).Window).Children(func() {
 			uikit.SidebarList(c, "gallery-sidebar", &k.sidebar, func(string) {}, func() {
 				uikit.SidebarHeading(c, "Traffic", &open, nil)
 				uikit.SidebarItem(c, "projects", lucide.LayoutList(), "All requests", k.sidebar == "projects", true).Children(func() { uikit.Meta(c, "1,159") })
@@ -712,7 +712,7 @@ func (k *components) panelPlate(c *ui.Context) {
 	stateRow(c, "Dialog", func() {
 		p := uikit.Colors(c.Theme())
 		panel := ui.Column(c).Width(420).Padding(uikit.DialogPadding).Gap(uikit.DialogGap).Radius(uikit.RadiusDialog).
-			Background(p.Canvas).InsetShadow(0, 0, 0, 1, p.Hairline)
+			Background(p.Background).InsetShadow(0, 0, 0, 1, p.Border)
 		uikit.ShadowDialog.Apply(panel, c.Theme().Dark).Children(func() {
 			uikit.DialogTitle(c, "Delete 3 requests?")
 			uikit.Hint(c, "They leave this collection; captured traffic is not touched.")
@@ -795,7 +795,7 @@ func (k *components) commandPalettePlate(c *ui.Context) {
 					row := ui.Row(c).Height(uikit.CommandPaletteRow).FillWidth().Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).
 						Radius(uikit.RadiusControl).AlignItems(ui.Center)
 					if i == 0 {
-						row.Background(p.AccentTint)
+						row.Background(p.Accent)
 					}
 					row.Children(func() {
 						ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
@@ -910,7 +910,7 @@ func (k *components) listPlate(c *ui.Context) {
 	stateRow(c, "Focused", func() {
 		ui.Column(c).Width(560).Children(func() {
 			row(true, "")
-			ui.Column(c).FillWidth().Background(uikit.Colors(c.Theme()).Canvas).Children(func() {
+			ui.Column(c).FillWidth().Background(uikit.Colors(c.Theme()).Background).Children(func() {
 				uikit.KVRow(c, func() {
 					ui.Text(c, "Accept").Font(uikit.FontMono).Width(uikit.WidthPicker).TextColor(c.Theme().TextMuted)
 					ui.Text(c, "application/json").Font(uikit.FontMono)

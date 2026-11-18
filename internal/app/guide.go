@@ -121,7 +121,7 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 	p := uikit.Colors(t)
 	row := ui.Row(c.Key(fmt.Sprintf("guide-step-%d", i))).FillWidth().Gap(t.Space(uikit.SpaceL)).Padding(t.Space(uikit.SpaceL), t.Space(uikit.SpaceXL)).AlignItems(ui.Start)
 	if current {
-		row.Background(p.AccentTint.Alpha(0.5))
+		row.Background(p.Accent)
 	}
 	row.Label(locales.StepTitle(i+1, title)).Children(func() {
 		mark := ui.Row(c).Size(20, 20).Shrink(0).Radius(10).Justify(ui.Center).AlignItems(ui.Center)
@@ -129,11 +129,11 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 		case done:
 			// A step that is behind you passed: green is that, and nothing
 			// else in the checklist is.
-			mark.Background(p.Success).TextColor(p.AccentText).Label(locales.Done()).Children(func() {
+			mark.Background(p.Success).TextColor(p.PrimaryForeground).Label(locales.Done()).Children(func() {
 				ui.Icon(c, checkIcon).Size(uikit.IconInline, uikit.IconInline)
 			})
 		case current:
-			mark.Background(p.Accent).TextColor(p.AccentText).Children(func() {
+			mark.Background(p.Primary).TextColor(p.PrimaryForeground).Children(func() {
 				uikit.Caption(c, fmt.Sprint(i+1)).FontWeight(500)
 			})
 		default:

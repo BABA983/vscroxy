@@ -27,21 +27,21 @@ var paletteFields = []struct {
 	name  string
 	color func(*uikit.Palette) ui.Color
 }{
-	{"Chrome", func(p *uikit.Palette) ui.Color { return p.Chrome }},
-	{"Canvas", func(p *uikit.Palette) ui.Color { return p.Canvas }},
-	{"Well", func(p *uikit.Palette) ui.Color { return p.Well }},
-	{"Hairline", func(p *uikit.Palette) ui.Color { return p.Hairline }},
-	{"Fill", func(p *uikit.Palette) ui.Color { return p.Fill }},
-	{"FillHover", func(p *uikit.Palette) ui.Color { return p.FillHover }},
-	{"FillPressed", func(p *uikit.Palette) ui.Color { return p.FillPressed }},
-	{"Text", func(p *uikit.Palette) ui.Color { return p.Text }},
-	{"TextMuted", func(p *uikit.Palette) ui.Color { return p.TextMuted }},
-	{"TextFaint", func(p *uikit.Palette) ui.Color { return p.TextFaint }},
+	{"Window", func(p *uikit.Palette) ui.Color { return p.Window }},
+	{"Background", func(p *uikit.Palette) ui.Color { return p.Background }},
+	{"Input", func(p *uikit.Palette) ui.Color { return p.Input }},
+	{"Border", func(p *uikit.Palette) ui.Color { return p.Border }},
+	{"Muted", func(p *uikit.Palette) ui.Color { return p.Muted }},
+	{"MutedHover", func(p *uikit.Palette) ui.Color { return p.MutedHover }},
+	{"MutedPressed", func(p *uikit.Palette) ui.Color { return p.MutedPressed }},
+	{"Foreground", func(p *uikit.Palette) ui.Color { return p.Foreground }},
+	{"MutedForeground", func(p *uikit.Palette) ui.Color { return p.MutedForeground }},
+	{"Faint", func(p *uikit.Palette) ui.Color { return p.Faint }},
+	{"Primary", func(p *uikit.Palette) ui.Color { return p.Primary }},
+	{"PrimaryHover", func(p *uikit.Palette) ui.Color { return p.PrimaryHover }},
+	{"PrimaryPressed", func(p *uikit.Palette) ui.Color { return p.PrimaryPressed }},
+	{"PrimaryForeground", func(p *uikit.Palette) ui.Color { return p.PrimaryForeground }},
 	{"Accent", func(p *uikit.Palette) ui.Color { return p.Accent }},
-	{"AccentHover", func(p *uikit.Palette) ui.Color { return p.AccentHover }},
-	{"AccentPressed", func(p *uikit.Palette) ui.Color { return p.AccentPressed }},
-	{"AccentText", func(p *uikit.Palette) ui.Color { return p.AccentText }},
-	{"AccentTint", func(p *uikit.Palette) ui.Color { return p.AccentTint }},
 	{"Ring", func(p *uikit.Palette) ui.Color { return p.Ring }},
 	{"Success", func(p *uikit.Palette) ui.Color { return p.Success }},
 	{"Info", func(p *uikit.Palette) ui.Color { return p.Info }},
@@ -85,8 +85,8 @@ func palettePlate(c *ui.Context) {
 // swatch is one color over the surface it is used on, edged so a light color
 // on a light canvas still has an edge.
 func swatch(c *ui.Context, color ui.Color, pal *uikit.Palette) {
-	ui.Box(c).Size(20, 20).Shrink(0).Radius(uikit.RadiusInner).Background(pal.Canvas).
-		Border(1, pal.Hairline).Children(func() {
+	ui.Box(c).Size(20, 20).Shrink(0).Radius(uikit.RadiusInner).Background(pal.Background).
+		Border(1, pal.Border).Children(func() {
 		ui.Box(c).Fill().Radius(uikit.RadiusInner).Background(color)
 	})
 }
@@ -144,7 +144,7 @@ func spacePlate(c *ui.Context) {
 		}{{"SpaceHair", uikit.SpaceHair}, {"SpaceXS", uikit.SpaceXS}, {"SpaceS", uikit.SpaceS}, {"SpaceM", uikit.SpaceM}, {"SpaceCompact", uikit.SpaceCompact}, {"SpaceL", uikit.SpaceL}, {"SpaceXL", uikit.SpaceXL}, {"SpaceXXL", uikit.SpaceXXL}, {"Space2XL", uikit.Space2XL}, {"Space3XL", uikit.Space3XL}} {
 			ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, s.name).Width(uikit.WidthNarrow)
-				ui.Box(c).Height(12).Width(t.Space(s.n)).Radius(2).Background(uikit.Colors(t).FillPressed)
+				ui.Box(c).Height(12).Width(t.Space(s.n)).Radius(2).Background(uikit.Colors(t).MutedPressed)
 				uikit.Meta(c, fmt.Sprintf("%g px", t.Space(s.n)))
 			})
 		}
@@ -157,7 +157,7 @@ func spacePlate(c *ui.Context) {
 				radius float32
 			}{{"RadiusInner", uikit.RadiusInner}, {"RadiusControl", uikit.RadiusControl}, {"RadiusPanel", uikit.RadiusPanel}, {"RadiusMenu", uikit.RadiusMenu}, {"RadiusCard", uikit.RadiusCard}, {"RadiusDialog", uikit.RadiusDialog}} {
 				ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
-					ui.Box(c).Size(96, 56).Radius(r.radius).Background(uikit.Colors(t).Fill).
+					ui.Box(c).Size(96, 56).Radius(r.radius).Background(uikit.Colors(t).Muted).
 						Border(uikit.HairlineWidth, t.Border)
 					uikit.Label(c, r.name)
 					uikit.Meta(c, fmt.Sprintf("%g px", r.radius))
@@ -173,7 +173,7 @@ func spacePlate(c *ui.Context) {
 		}{{"HeightBar", uikit.HeightBar}, {"HeightTabs", uikit.HeightTabs}, {"HeightStatus", uikit.HeightStatus}, {"HeightFooter", uikit.HeightFooter}, {"HeightControl", uikit.HeightControl}, {"HeightControlSmall", uikit.HeightControlSmall}, {"HeightRow", uikit.HeightRow}} {
 			ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, h.name).Width(uikit.WidthNarrow)
-				ui.Box(c).Height(h.height).Width(uikit.WidthField).Radius(2).Background(uikit.Colors(t).Fill)
+				ui.Box(c).Height(h.height).Width(uikit.WidthField).Radius(2).Background(uikit.Colors(t).Muted)
 				uikit.Meta(c, fmt.Sprintf("%g px", h.height))
 			})
 		}
@@ -186,7 +186,7 @@ func spacePlate(c *ui.Context) {
 		}{{"WidthNarrow", uikit.WidthNarrow}, {"WidthPicker", uikit.WidthPicker}, {"WidthField", uikit.WidthField}, {"WidthFieldWide", uikit.WidthFieldWide}, {"WidthWide", uikit.WidthWide}} {
 			ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, w.name).Width(uikit.WidthNarrow)
-				ui.Box(c).Height(uikit.HeightControlSmall).Width(w.width).Radius(2).Background(uikit.Colors(t).Fill)
+				ui.Box(c).Height(uikit.HeightControlSmall).Width(w.width).Radius(2).Background(uikit.Colors(t).Muted)
 				uikit.Meta(c, fmt.Sprintf("%g px", w.width))
 			})
 		}
@@ -216,9 +216,9 @@ func insetPlate(c *ui.Context) {
 		for _, in := range insets {
 			ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, fmt.Sprintf("%s · %g × %g", in.name, in.x, in.y)).Width(300)
-				ui.Row(c).Padding(in.y, in.x).Background(p.Chrome).Radius(uikit.RadiusPanel).
-					InsetShadow(0, 0, 0, uikit.HairlineWidth, p.Hairline).Children(func() {
-					ui.Box(c).Size(72, 12).Radius(uikit.RadiusInner).Background(p.Fill)
+				ui.Row(c).Padding(in.y, in.x).Background(p.Window).Radius(uikit.RadiusPanel).
+					InsetShadow(0, 0, 0, uikit.HairlineWidth, p.Border).Children(func() {
+					ui.Box(c).Size(72, 12).Radius(uikit.RadiusInner).Background(p.Muted)
 				})
 			})
 		}
@@ -246,8 +246,8 @@ func elevationPlate(c *ui.Context) {
 					{"ShadowDialog · RadiusDialog", uikit.ShadowDialog, uikit.RadiusDialog},
 				} {
 					s.shadow.Apply(ui.Column(c).Height(58).Padding(c.Theme().Space(uikit.SpaceM), c.Theme().Space(uikit.SpaceL)).
-						Radius(s.radius).Background(uikit.Colors(c.Theme()).Canvas).
-						Border(1, uikit.Colors(c.Theme()).Hairline), theme.dark).Children(func() {
+						Radius(s.radius).Background(uikit.Colors(c.Theme()).Background).
+						Border(1, uikit.Colors(c.Theme()).Border), theme.dark).Children(func() {
 						uikit.Meta(c, s.name).SingleLine()
 					})
 				}
@@ -303,8 +303,8 @@ func motionPlate(c *ui.Context) {
 	ui.Column(c).Gap(t.Space(uikit.SpaceL)).Children(func() {
 		uikit.Heading(c, "No decorative motion")
 		uikit.Prose(c, "A hover face, a tip, a menu, a toast, a dialog and a sidebar region arrive and leave at once. The kit has no transition tokens: a screen cannot name a duration, because there is none to name.")
-		ui.Column(c).Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceL)).Radius(uikit.RadiusPanel).Background(uikit.Colors(t).Canvas).
-			Border(1, uikit.Colors(t).Hairline).Children(func() {
+		ui.Column(c).Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceL)).Radius(uikit.RadiusPanel).Background(uikit.Colors(t).Background).
+			Border(1, uikit.Colors(t).Border).Children(func() {
 			for _, line := range []string{
 				"Removed: hover fades, popover rises, toast entrances, dialog fades, region collapse and pane springs.",
 				"Kept: the recording dot's pulse, which reports a state rather than a transition.",

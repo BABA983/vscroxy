@@ -152,12 +152,12 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 			if active {
 				// The chosen window is a face of its own under the bars, so a
 				// range with little traffic in it still reads as chosen.
-				p.Fill(ui.Rect{X: r.X + width*float32(rangeNow.From), Y: r.Y, W: width * float32(rangeNow.To-rangeNow.From), H: r.H}, palette.AccentTint, 0)
+				p.Fill(ui.Rect{X: r.X + width*float32(rangeNow.From), Y: r.Y, W: width * float32(rangeNow.To-rangeNow.From), H: r.H}, palette.Accent, 0)
 			}
 			// Normal traffic is a neutral face, dark enough to read on the
 			// canvas at a glance; redirects, client and server errors and
 			// slow requests carry their signal color.
-			inks := [5]ui.Color{palette.TextMuted, palette.Info, palette.Warning, palette.Danger, palette.Danger}
+			inks := [5]ui.Color{palette.MutedForeground, palette.Info, palette.Warning, palette.Danger, palette.Danger}
 			for i, bucket := range buckets {
 				total := 0
 				for _, count := range bucket {
@@ -195,8 +195,8 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 			if active {
 				for _, at := range []int{rangeNow.From, rangeNow.To} {
 					x := r.X + width*float32(at)
-					p.Line(x, r.Y, x, r.Y+r.H, 1, palette.Accent)
-					p.Fill(ui.Rect{X: x - 2, Y: r.Y + 5, W: 4, H: r.H - 10}, palette.Accent, 1)
+					p.Line(x, r.Y, x, r.Y+r.H, 1, palette.Primary)
+					p.Fill(ui.Rect{X: x - 2, Y: r.Y + 5, W: 4, H: r.H - 10}, palette.Primary, 1)
 				}
 			}
 		})

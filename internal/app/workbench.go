@@ -330,7 +330,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 					case a.chip == i:
 						// A filter's chosen tab is a neutral face: green is
 						// only for what is selected as data, primary or on.
-						segment.Background(p.Fill).TextColor(t.Text)
+						segment.Background(p.Muted).TextColor(t.Text)
 					case segment.Pressed():
 						segment.Background(t.SurfacePressed)
 					case segment.Hovered():
@@ -814,7 +814,7 @@ func (a *app) commandPalette(c *ui.Context) {
 						b.Children(func() {
 							color := t.Text
 							if !item.enabled {
-								color = uikit.Colors(t).TextFaint
+								color = uikit.Colors(t).Faint
 							}
 							ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
 								uikit.Body(c, item.label).

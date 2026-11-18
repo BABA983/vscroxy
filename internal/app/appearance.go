@@ -202,7 +202,7 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 			} {
 				uikit.SidebarItem(c, item.id, item.icon, item.label, a.settingsChoice == item.id, active).Label(locales.SettingsCategory(item.label))
 			}
-		}).Width(188).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceHair)).Background(uikit.Colors(t).Chrome)
+		}).Width(188).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceHair)).Background(uikit.Colors(t).Window)
 		ui.Divider(c)
 		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
 			top := t.Space(uikit.SpaceM)

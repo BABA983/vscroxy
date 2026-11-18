@@ -96,7 +96,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 			SidebarItem(c, "host", nil, "api.example.com", false, true).Children(func() { Meta(c, "12") })
 			SidebarHeading(c, "Sources", &o.sections, func() { Segmented(c, &o.sources, "Apps", "Domains").Height(t.Space(SpaceXXL)) })
 			SidebarButton(c, "Show all domains", "", lucide.ChevronRight(), false).TextColor(t.TextMuted)
-		}).Padding(t.Space(SpaceXS), 0).Gap(0).Width(200).FillHeight().Background(Colors(t).Chrome)
+		}).Padding(t.Space(SpaceXS), 0).Gap(0).Width(200).FillHeight().Background(Colors(t).Window)
 		ui.Divider(c)
 		ui.Scroll(c).Grow(1).Padding(t.Space(Space2XL)).Gap(t.Space(Space2XL)).Children(func() {
 			ui.Text(c, "vscroxy uikit").FontSize(Scaled(TextTitle)).FontWeight(500)
@@ -109,7 +109,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 						name   string
 						fill   ui.Color
 						chrome bool
-					}{{"Chrome", Colors(t).Chrome, true}, {"Canvas", Colors(t).Canvas, false}, {"Well", Colors(t).Well, false}} {
+					}{{"Window", Colors(t).Window, true}, {"Background", Colors(t).Background, false}, {"Input", Colors(t).Input, false}} {
 						ui.Column(c).Width(230).Padding(t.Space(SpaceL)).Gap(t.Space(SpaceM)).Radius(RadiusPanel).
 							Background(s.fill).Children(func() {
 							Label(c, s.name)

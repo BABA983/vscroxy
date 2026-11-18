@@ -57,11 +57,11 @@ func ToolbarButton(c *ui.Context, label, tip string, active bool, keys ...string
 		}
 		switch {
 		case b.Pressed():
-			b.Background(p.FillPressed)
+			b.Background(p.MutedPressed)
 		case b.Hovered():
-			b.Background(p.FillHover)
+			b.Background(p.MutedHover)
 		case active:
-			b.Background(p.AccentTint)
+			b.Background(p.Accent)
 		}
 	}
 	// A disabled control keeps its own text color: MyGo already draws disabled
@@ -82,12 +82,12 @@ func FooterButton(c *ui.Context, label, tip string, on bool) ui.Element {
 	b.Children(func() { ui.Text(c, label).FontSize(Scaled(TextMeta)) })
 	switch {
 	case b.Pressed():
-		b.Background(p.FillPressed)
+		b.Background(p.MutedPressed)
 	case b.Hovered():
-		b.Background(p.FillHover)
+		b.Background(p.MutedHover)
 	case on:
 		// The selected segment's face: raised canvas with its hairline.
-		b.Background(p.Canvas).InsetShadow(0, 0, 0, HairlineWidth, p.Hairline)
+		b.Background(p.Background).InsetShadow(0, 0, 0, HairlineWidth, p.Border)
 	}
 	return b
 }
@@ -221,7 +221,7 @@ func LinkButton(c *ui.Context, label string, icon ...*ui.SVG) ui.Element {
 		ui.Text(c, label).FontSize(Scaled(TextMeta))
 	})
 	if b.Hovered() && !b.IsDisabled() {
-		b.Background(p.FillHover).TextColor(t.Text)
+		b.Background(p.MutedHover).TextColor(t.Text)
 	}
 	return b
 }
@@ -233,8 +233,8 @@ func LinkButton(c *ui.Context, label string, icon ...*ui.SVG) ui.Element {
 func Kbd(c *ui.Context, key string) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	return ui.Text(c, key).FontSize(Scaled(TextMeta)).FontWeight(WeightMedium).TextColor(t.TextMuted).
-		Height(HeightKbd).MinWidth(HeightKbd).Padding(0, KbdPaddingX).Radius(RadiusInner).Background(p.Canvas).
-		InsetShadow(0, 0, 0, HairlineWidth, p.Hairline).Center().SingleLine()
+		Height(HeightKbd).MinWidth(HeightKbd).Padding(0, KbdPaddingX).Radius(RadiusInner).Background(p.Background).
+		InsetShadow(0, 0, 0, HairlineWidth, p.Border).Center().SingleLine()
 }
 
 // numberInvalid reports text that is not a number in range, so the field
@@ -290,9 +290,9 @@ func NumberField(c *ui.Context, text *string, value *float64, lo, hi float64, un
 func DestructiveButton(c *ui.Context, label string) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	face := *t
-	face.Accent, face.AccentText = p.Danger, p.AccentText
-	face.AccentHover = p.Danger.Mix(p.Text, 0.12)
-	face.AccentPressed = p.Danger.Mix(p.Text, 0.22)
+	face.Accent, face.AccentText = p.Danger, p.PrimaryForeground
+	face.AccentHover = p.Danger.Mix(p.Foreground, 0.12)
+	face.AccentPressed = p.Danger.Mix(p.Foreground, 0.22)
 	c.SetTheme(&face)
 	b := ui.PrimaryButton(c, label).Height(HeightControl).Padding(0, Scaled(ControlPaddingX)).
 		FontSize(Scaled(TextBody)).FontWeight(WeightMedium).Radius(RadiusControl)
@@ -307,7 +307,7 @@ func DestructiveButton(c *ui.Context, label string) ui.Element {
 func faced(c *ui.Context, build func() ui.Element) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	face := *t
-	face.Surface, face.SurfaceHover, face.SurfacePressed = p.Fill, p.FillHover, p.FillPressed
+	face.Surface, face.SurfaceHover, face.SurfacePressed = p.Muted, p.MutedHover, p.MutedPressed
 	face.Border = ui.Color{}
 	c.SetTheme(&face)
 	e := build()
@@ -326,7 +326,7 @@ func RowButton(c *ui.Context, label string) ui.Element {
 	switch {
 	case b.IsDisabled():
 	case b.Pressed():
-		b.Background(p.FillPressed)
+		b.Background(p.MutedPressed)
 	}
 	return b
 }
@@ -464,9 +464,9 @@ func SearchField(c *ui.Context, value *string, label, placeholder string, onChro
 // to the kit: MyGo's Draw is a single slot, so the edge replaces any Draw a
 // caller set, and a Draw set after it would drop the edge.
 func fieldFace(p *Palette, field ui.Element, onChrome, focused, invalid bool) ui.Element {
-	face := p.Well
+	face := p.Input
 	if onChrome {
-		face = p.Canvas
+		face = p.Background
 	}
 	// The face's radius also clips what sits inside it: a method control's
 	// hover or a chip's fill follows the field's corners instead of squaring
@@ -482,7 +482,7 @@ func fieldFace(p *Palette, field ui.Element, onChrome, focused, invalid bool) ui
 		fieldEdge(field, p.Ring)
 		field.Shadow(0, 0, 0, FocusHalo, p.Ring.Alpha(0.16))
 	case onChrome:
-		fieldEdge(field, p.Hairline)
+		fieldEdge(field, p.Border)
 	}
 	return field
 }
@@ -549,7 +549,7 @@ func timingCard(c *ui.Context, card ui.Element, total string, timing Timing) {
 		sum += max(p.Millis, 0)
 	}
 	PopoverPanel(c, card).Width(WidthWide).Padding(PopoverPadding).Gap(t.Space(SpaceS)).Children(func() {
-		ui.Row(c).FillWidth().Height(timingBarHeight).Radius(timingBarHeight / 2).Background(pal.Fill).Children(func() {
+		ui.Row(c).FillWidth().Height(timingBarHeight).Radius(timingBarHeight / 2).Background(pal.Muted).Children(func() {
 			for _, p := range timing.Phases {
 				if p.Millis > 0 {
 					ui.Box(c).Grow(float32(p.Millis)).FillHeight().Background(p.Color)
@@ -712,8 +712,8 @@ func tipDescription(text string, keys []string) string {
 // popover shadow, a hairline edge, and the panel's 8-point corners.
 func tipFace(c *ui.Context, tip ui.Element) {
 	t, p := c.Theme(), Colors(c.Theme())
-	tip.Background(p.Canvas).TextColor(t.Text).Radius(RadiusPanel).MaxWidth(Scaled(TipMaxWidth)).
-		Padding(TipPaddingY, TipPaddingX).InsetShadow(0, 0, 0, HairlineWidth, p.Hairline)
+	tip.Background(p.Background).TextColor(t.Text).Radius(RadiusPanel).MaxWidth(Scaled(TipMaxWidth)).
+		Padding(TipPaddingY, TipPaddingX).InsetShadow(0, 0, 0, HairlineWidth, p.Border)
 	ShadowPopover.Apply(tip, t.Dark)
 }
 
@@ -883,7 +883,7 @@ func DialogFooter(c *ui.Context) ui.Element {
 // would otherwise float on the dialog's canvas, not for every group.
 func Panel(c *ui.Context) ui.Element {
 	p := Colors(c.Theme())
-	return ui.Column(c).Background(p.Chrome).Border(HairlineWidth, p.Hairline).Radius(RadiusPanel)
+	return ui.Column(c).Background(p.Window).Border(HairlineWidth, p.Border).Radius(RadiusPanel)
 }
 
 // PopoverPanel is the chrome of anything floating above the window short of
@@ -892,7 +892,7 @@ func Panel(c *ui.Context) ui.Element {
 func PopoverPanel(c *ui.Context, panel ui.Element) ui.Element {
 	p := Colors(c.Theme())
 	overlayShown(c)
-	return ShadowPopover.Apply(panel.Radius(RadiusCard).Background(p.Canvas).InsetShadow(0, 0, 0, HairlineWidth, p.Hairline), c.Theme().Dark)
+	return ShadowPopover.Apply(panel.Radius(RadiusCard).Background(p.Background).InsetShadow(0, 0, 0, HairlineWidth, p.Border), c.Theme().Dark)
 }
 
 // ToastPanel is the chrome of a toast: the dialog's 16-point corner and the
@@ -900,7 +900,7 @@ func PopoverPanel(c *ui.Context, panel ui.Element) ui.Element {
 // than a second dialog.
 func ToastPanel(c *ui.Context, panel ui.Element) ui.Element {
 	p := Colors(c.Theme())
-	return ShadowPopover.Apply(panel.Radius(RadiusDialog).Background(p.Canvas).InsetShadow(0, 0, 0, HairlineWidth, p.Hairline), c.Theme().Dark)
+	return ShadowPopover.Apply(panel.Radius(RadiusDialog).Background(p.Background).InsetShadow(0, 0, 0, HairlineWidth, p.Border), c.Theme().Dark)
 }
 
 // MenuPanel is the chrome of a drawn menu: a 10-point canvas panel on the
@@ -908,8 +908,8 @@ func ToastPanel(c *ui.Context, panel ui.Element) ui.Element {
 func MenuPanel(c *ui.Context, panel ui.Element) ui.Element {
 	p := Colors(c.Theme())
 	overlayShown(c)
-	return ShadowMenu.Apply(panel.Border(0, ui.Color{}).Radius(RadiusMenu).Background(p.Canvas).
-		InsetShadow(0, 0, 0, HairlineWidth, p.Hairline), c.Theme().Dark)
+	return ShadowMenu.Apply(panel.Border(0, ui.Color{}).Radius(RadiusMenu).Background(p.Background).
+		InsetShadow(0, 0, 0, HairlineWidth, p.Border), c.Theme().Dark)
 }
 
 // MenuButtonOptions gives a PopoverMenuButton the kit's menu face. Use it
@@ -935,7 +935,7 @@ func StatusPill(c *ui.Context, label string, foreground ui.Color) ui.Element {
 func QueryChip(c *ui.Context, text string, edit, remove func()) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	return ui.Row(c.Key("query-chip:"+text)).Height(HeightChip).Shrink(0).Padding(0, t.Space(SpaceHair)).Gap(0).
-		AlignItems(ui.Center).Radius(RadiusInner).Background(p.Fill).Children(func() {
+		AlignItems(ui.Center).Radius(RadiusInner).Background(p.Muted).Children(func() {
 		label := func() {
 			ui.Text(c, text).Font(FontMono).FontSize(Scaled(TextData)).TextColor(t.Text).SingleLine()
 		}
@@ -945,7 +945,7 @@ func QueryChip(c *ui.Context, text string, edit, remove func()) ui.Element {
 			b := Tip(c, ui.ButtonBase(c).Label(locales.QueryEditLabel(text)), locales.QueryEditTip(text)).
 				Height(HeightChip).Padding(0, t.Space(SpaceXS)).Radius(RadiusInner).AlignItems(ui.Center)
 			if b.Hovered() {
-				b.Background(p.FillHover)
+				b.Background(p.MutedHover)
 			}
 			b.Children(label)
 			if b.Clicked() {
@@ -955,7 +955,7 @@ func QueryChip(c *ui.Context, text string, edit, remove func()) ui.Element {
 		x := Tip(c, ui.ButtonBase(c).Label(locales.QueryRemoveLabel(text)), locales.QueryRemoveTip(text)).
 			Size(HeightChip, HeightChip).Radius(RadiusInner).Justify(ui.Center).AlignItems(ui.Center).TextColor(t.TextMuted)
 		if x.Hovered() {
-			x.Background(p.FillHover)
+			x.Background(p.MutedHover)
 		}
 		x.Children(func() { ui.Icon(c, closeIcon).Size(IconInline, IconInline) })
 		if x.Clicked() {
@@ -1091,15 +1091,15 @@ func Toasts(c *ui.Context) {
 							ui.Text(c, toast.Action).FontSize(Scaled(TextBody)).FontWeight(WeightMedium).TextColor(t.Text).Underline()
 						})
 						if b.Hovered() {
-							b.Background(p.FillHover).TextColor(t.Text)
+							b.Background(p.MutedHover).TextColor(t.Text)
 						}
 					}
 					close := Tip(c, parts.CloseButton().Label(locales.DismissNotification()), locales.DismissNotification()).
 						Size(HeightControlSmall, HeightControlSmall).Radius(RadiusControl).Center().TextColor(t.TextMuted)
 					if close.Pressed() {
-						close.Background(p.FillPressed)
+						close.Background(p.MutedPressed)
 					} else if close.Hovered() {
-						close.Background(p.FillHover)
+						close.Background(p.MutedHover)
 					}
 					close.Children(func() { ui.Icon(c, closeIcon).Size(IconInline, IconInline) })
 				})
@@ -1115,8 +1115,8 @@ func ModalFlush(c *ui.Context, open *bool, title string, content func()) ui.Elem
 	width, height := c.Size()
 	dialog := ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
 		backdrop.Background(p.Scrim)
-		panel.Label(title).Padding(0).Radius(RadiusCard).Background(p.Canvas).Clip().
-			InsetShadow(0, 0, 0, HairlineWidth, p.Hairline).
+		panel.Label(title).Padding(0).Radius(RadiusCard).Background(p.Background).Clip().
+			InsetShadow(0, 0, 0, HairlineWidth, p.Border).
 			MaxWidth(max(0, width-2*WindowMargin)).MaxHeight(max(0, height-2*WindowMargin))
 		ShadowPopover.Apply(panel, t.Dark)
 		seen := ui.Local(panel, "modal-in", func() bool { return false })
@@ -1140,8 +1140,8 @@ func Modal(c *ui.Context, open *bool, title string, content func()) ui.Element {
 	width, height := c.Size()
 	dialog := ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
 		backdrop.Background(p.Scrim)
-		panel.Label(title).Padding(DialogPadding).Gap(DialogGap).Radius(RadiusDialog).Background(p.Canvas).
-			InsetShadow(0, 0, 0, HairlineWidth, p.Hairline).
+		panel.Label(title).Padding(DialogPadding).Gap(DialogGap).Radius(RadiusDialog).Background(p.Background).
+			InsetShadow(0, 0, 0, HairlineWidth, p.Border).
 			MaxWidth(max(0, width-2*WindowMargin)).MaxHeight(max(0, height-2*WindowMargin))
 		ShadowDialog.Apply(panel, t.Dark)
 		content()
@@ -1210,13 +1210,13 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 				// tabs that chose it, and the accent says which one.
 				tab.TextColor(t.Text).Radius(0)
 			case chosen:
-				tab.Background(p.Fill).TextColor(t.Text)
+				tab.Background(p.Muted).TextColor(t.Text)
 			case sub && (tab.Pressed() || tab.Hovered()):
 				tab.TextColor(t.Text)
 			case tab.Pressed():
-				tab.Background(p.FillPressed)
+				tab.Background(p.MutedPressed)
 			case tab.Hovered():
-				tab.Background(p.FillHover)
+				tab.Background(p.MutedHover)
 			}
 			tab.Children(func() {
 				ui.Text(c, label).FontSize(Scaled(TextBody))
@@ -1227,7 +1227,7 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 					// The rule spans the word, not the tab's hit area, so
 					// it starts where the word does.
 					ui.Box(c).Absolute().Left(Scaled(ControlPaddingXSmall)).Right(Scaled(ControlPaddingXSmall)).Bottom(0).
-						Height(TabRuleHeight).Background(p.Accent)
+						Height(TabRuleHeight).Background(p.Primary)
 				}
 			})
 		}
@@ -1277,7 +1277,7 @@ func MoreButton(c *ui.Context, label, tip string, menu func(*ui.Menu)) ui.Elemen
 func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	ghost := *t
-	ghost.Surface, ghost.SurfaceHover, ghost.SurfacePressed = ui.Color{}, p.FillHover, p.FillPressed
+	ghost.Surface, ghost.SurfaceHover, ghost.SurfacePressed = ui.Color{}, p.MutedHover, p.MutedPressed
 	ghost.Border = ui.Color{}
 	c.SetTheme(&ghost)
 	// A button of our own with a menu on it, not the library's menu button:
@@ -1298,7 +1298,7 @@ func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
 func TabMenu(c *ui.Context, label, name string, menu func(*ui.Menu)) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	ghost := *t
-	ghost.Surface, ghost.SurfaceHover, ghost.SurfacePressed = ui.Color{}, p.FillHover, p.FillPressed
+	ghost.Surface, ghost.SurfaceHover, ghost.SurfacePressed = ui.Color{}, p.MutedHover, p.MutedPressed
 	ghost.Border = ui.Color{}
 	c.SetTheme(&ghost)
 	b := ui.ButtonBase(c).Label(label).PopoverMenuButton(menu, MenuButtonOptions(c))
@@ -1360,13 +1360,13 @@ func Segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	parts := ui.SegmentedBase(c, selected, len(labels))
 	parts.Track.AlignItems(ui.Stretch).Height(HeightRow).Padding(t.Space(SpaceHair)).
-		Radius(RadiusControl).Background(p.Fill).Children(func() {
+		Radius(RadiusControl).Background(p.Muted).Children(func() {
 		for i, label := range labels {
 			s := parts.Segment(i).Label(label).Padding(0, t.Space(SpaceM)).Radius(RadiusInner).
 				AlignItems(ui.Center).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted)
 			switch {
 			case i == *selected:
-				s.Background(p.Canvas).InsetShadow(0, 0, 0, HairlineWidth, p.Hairline).TextColor(t.Text)
+				s.Background(p.Background).InsetShadow(0, 0, 0, HairlineWidth, p.Border).TextColor(t.Text)
 			case s.Pressed() || s.Hovered():
 				s.TextColor(t.Text)
 			}
@@ -1392,9 +1392,9 @@ func Segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 func ListTheme(t *ui.Theme, focused bool) *ui.Theme {
 	p := Colors(t)
 	list := *t
-	list.Accent, list.AccentText = p.AccentTint, t.Text
+	list.Accent, list.AccentText = p.Accent, t.Text
 	if !focused {
-		list.Accent = p.Fill
+		list.Accent = p.Muted
 	}
 	return &list
 }
@@ -1437,9 +1437,9 @@ func DataListIndexed(c *ui.Context, state *ui.ListState, count int, row func(int
 func marker(t *ui.Theme, focused bool) func(p *ui.Painter, r ui.Rect) {
 	// The palette's accent, not t.Accent: inside ListTheme that is the fill.
 	pal := Colors(t)
-	color := pal.Accent
+	color := pal.Primary
 	if !focused {
-		color = pal.TextFaint
+		color = pal.Faint
 	}
 	return func(p *ui.Painter, r ui.Rect) {
 		inset := min(t.Space(SpaceS), r.H/4)
@@ -1456,9 +1456,9 @@ func RowMarker(c *ui.Context, focused bool) {
 // Selected gives a rounded row the selection look.
 func Selected(c *ui.Context, e ui.Element, focused bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	fill := p.AccentTint
+	fill := p.Accent
 	if !focused {
-		fill = p.Fill
+		fill = p.Muted
 	}
 	return e.Background(fill).TextColor(t.Text)
 }
@@ -1564,8 +1564,8 @@ func SettingsCard(c *ui.Context, legend string, rows func()) ui.Element {
 		if legend != "" {
 			Label(c, legend)
 		}
-		ui.Column(c).FillWidth().Clip().Radius(RadiusCard).Background(p.Canvas).
-			Border(HairlineWidth, p.Hairline).Children(rows)
+		ui.Column(c).FillWidth().Clip().Radius(RadiusCard).Background(p.Background).
+			Border(HairlineWidth, p.Border).Children(rows)
 	})
 }
 
@@ -1819,11 +1819,11 @@ func selectTrigger(c *ui.Context, b ui.Element, open bool) ui.Element {
 	p := Colors(c.Theme())
 	switch {
 	case b.Pressed():
-		b.Background(p.FillPressed)
+		b.Background(p.MutedPressed)
 	case b.Hovered() || open:
-		b.Background(p.FillHover)
+		b.Background(p.MutedHover)
 	default:
-		b.Background(p.Fill)
+		b.Background(p.Muted)
 	}
 	return b.Height(HeightControl).Padding(0, Scaled(ControlPaddingX)).FontSize(Scaled(TextBody)).
 		Radius(RadiusControl).AlignItems(ui.Center).MinWidth(WidthPicker)

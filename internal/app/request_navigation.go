@@ -141,7 +141,7 @@ func (a *app) collectionTree(c *ui.Context) {
 				branchArrow(c, open)
 				uikit.Body(c, name).SingleLine().Grow(1)
 				action := uikit.MoreMenu(c, locales.CollectionActionsPrefix(path), menu).
-					Absolute().Right(uikit.RowActionInset).Top(uikit.RowActionInset).Background(uikit.Colors(c.Theme()).Chrome)
+					Absolute().Right(uikit.RowActionInset).Top(uikit.RowActionInset).Background(uikit.Colors(c.Theme()).Window)
 				if !row.Hovered() && !row.FocusWithin() {
 					action.Opacity(0)
 				}
@@ -185,7 +185,7 @@ func (a *app) collectionTree(c *ui.Context) {
 						unsavedDot(c)
 					}
 					action := uikit.MoreMenu(c, locales.RequestActionsPrefix(r.Name), menu).
-						Absolute().Right(uikit.RowActionInset).Top(uikit.RowActionInset).Background(uikit.Colors(c.Theme()).Chrome)
+						Absolute().Right(uikit.RowActionInset).Top(uikit.RowActionInset).Background(uikit.Colors(c.Theme()).Window)
 					// The request being edited keeps its actions in sight; the others
 					// wait for the pointer or for focus to enter the row.
 					if !chosen && !base.Hovered() && !row.FocusWithin() {

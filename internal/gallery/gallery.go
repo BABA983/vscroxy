@@ -148,7 +148,7 @@ func (g *Gallery) View(c *ui.Context) {
 	if screen {
 		// The app's view is the screen, at the window's size: the bar above
 		// it takes height, and the catalog comes over it as a drawer.
-		ui.Column(c).Fill().Background(pal.Chrome).Children(func() {
+		ui.Column(c).Fill().Background(pal.Window).Children(func() {
 			g.bar(c)
 			g.canvas(c)
 		})
@@ -156,7 +156,7 @@ func (g *Gallery) View(c *ui.Context) {
 			g.drawer(c)
 		}
 	} else {
-		ui.Row(c).Fill().Background(pal.Chrome).Children(func() {
+		ui.Row(c).Fill().Background(pal.Window).Children(func() {
 			g.catalog(c, false)
 			ui.Divider(c)
 			ui.Column(c).Grow(1).MinWidth(0).FillHeight().Children(func() {
@@ -173,7 +173,7 @@ func (g *Gallery) View(c *ui.Context) {
 func (g *Gallery) drawer(c *ui.Context) {
 	pal := uikit.Colors(c.Theme())
 	ui.Box(c).Absolute().Left(0).Top(0).Bottom(0).Width(268).Shadow(8, 0, 28, 0, pal.Shadow).
-		Background(pal.Chrome).Children(func() { g.catalog(c, true) })
+		Background(pal.Window).Children(func() { g.catalog(c, true) })
 }
 
 // catalog is the left column: the three groups and their plates. In the
@@ -184,7 +184,7 @@ func (g *Gallery) catalog(c *ui.Context, inDrawer bool) {
 	if inDrawer {
 		width = 268
 	}
-	ui.Column(c).Width(width).Shrink(0).FillHeight().Background(uikit.Colors(t).Chrome).Children(func() {
+	ui.Column(c).Width(width).Shrink(0).FillHeight().Background(uikit.Colors(t).Window).Children(func() {
 		ui.Row(c).Padding(t.Space(uikit.SpaceXL), t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			ui.Column(c).Gap(t.Space(uikit.SpaceHair)).Children(func() {
 				ui.Text(c, "vscroxy").FontSize(uikit.Scaled(uikit.TextTitle)).FontWeight(500)
@@ -219,7 +219,7 @@ func (g *Gallery) bar(c *ui.Context) {
 		title, note = entry.Title, entry.Note
 	}
 	ui.Row(c).Height(48).Shrink(0).Padding(0, t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).
-		Background(uikit.Colors(t).Chrome).Children(func() {
+		Background(uikit.Colors(t).Window).Children(func() {
 		ui.Column(c).Gap(0).MinWidth(0).Children(func() {
 			ui.Text(c, title).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).SingleLine()
 			if note != "" {
@@ -267,7 +267,7 @@ func (g *Gallery) bar(c *ui.Context) {
 func (g *Gallery) canvas(c *ui.Context) {
 	pal := uikit.Colors(c.Theme())
 	entry := g.Entry(g.choice)
-	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Background(pal.Canvas).Children(func() {
+	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Background(pal.Background).Children(func() {
 		if entry == nil {
 			return
 		}

@@ -821,7 +821,7 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 	if !d.variablesOpen {
 		return
 	}
-	ui.Column(c).Height(160).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Chrome).Children(func() {
+	ui.Column(c).Height(160).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Window).Children(func() {
 		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			uikit.Meta(c, contextLabel).Grow(1)
 			if uikit.CompactButton(c, locales.EditEnvironments()).Clicked() {
@@ -1368,7 +1368,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Column(c).Fill().Bind(&a.editorRespPane).Children(func() {
 		// Nothing came back yet, so the row says nothing about a response:
 		// the pane's tabs already name what it would show.
-		sum := responseSummary{dot: uikit.Colors(t).TextMuted}
+		sum := responseSummary{dot: uikit.Colors(t).MutedForeground}
 		if r := d.response; r != nil {
 			sum = sentSummaryOf(t, r, outcome)
 		}
@@ -1499,7 +1499,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 			})
 			if d.lastAttemptOpen {
-				ui.Column(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Chrome).Children(func() {
+				ui.Column(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Window).Children(func() {
 					uikit.Body(c, d.sent.Method+" "+d.sent.URL).Label(locales.LastSentDraftUrl()).Selectable()
 					uikit.Meta(c, locales.DraftSnapshotVariablesScriptsRedirects())
 					if d.response != nil {
@@ -1572,7 +1572,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				} else {
 					// What a response needs is the key that sends for it,
 					// not a sentence about what a send would do.
-					ui.Icon(c, sendIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(uikit.Colors(t).TextFaint)
+					ui.Icon(c, sendIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(uikit.Colors(t).Faint)
 					uikit.Hint(c, sendShortcut()+"  "+locales.Send())
 				}
 				if d.composeWaiting || d.sendOutcome == "Timed out" {

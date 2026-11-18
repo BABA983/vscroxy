@@ -774,9 +774,9 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview [
 					switch {
 					case p.Step > 0:
 						pal := uikit.Colors(t)
-						ui.Box(c).Size(16, 16).Radius(8).Background(pal.Accent).AlignItems(ui.Center).Justify(ui.Center).
+						ui.Box(c).Size(16, 16).Radius(8).Background(pal.Primary).AlignItems(ui.Center).Justify(ui.Center).
 							Label(locales.ActsOrdinal(ordinal(p.Step))).Children(func() {
-							uikit.Caption(c, strconv.Itoa(p.Step)).FontWeight(500).TextColor(pal.AccentText).FontFeatures("tnum")
+							uikit.Caption(c, strconv.Itoa(p.Step)).FontWeight(500).TextColor(pal.PrimaryForeground).FontFeatures("tnum")
 						})
 					case preview == nil && a.srv != nil:
 						if n := a.srv.RuleHits(r); n > 0 {

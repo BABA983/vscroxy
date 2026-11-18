@@ -1882,7 +1882,7 @@ func (a *app) view(c *ui.Context) {
 	// each part of the frame paints its own share of chrome.
 	// The root paints chrome itself: a clear root let the desktop's wallpaper
 	// through the title bar and the gutters between the cards.
-	frame := uikit.Colors(t).Chrome
+	frame := uikit.Colors(t).Window
 	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Background(frame).Children(func() {
 		if !a.macChrome {
 			a.shell(c, t)
@@ -1991,7 +1991,7 @@ func (a *app) view(c *ui.Context) {
 	a.views.capture(a)
 	// Last, since every SetTheme above paints the root again: the shell paints
 	// its own surface, so nothing of the desktop shows through it.
-	c.Root().Background(uikit.Colors(c.Theme()).Chrome)
+	c.Root().Background(uikit.Colors(c.Theme()).Window)
 }
 
 // mainColumn is everything beside the sidebar: on macOS the title bar (which
@@ -2020,7 +2020,7 @@ const (
 func (a *app) sidebarGutter(c *ui.Context) {
 	// The gutter is the shell's own surface: on macOS the window's root is
 	// clear, so a gap that paints nothing shows the desktop instead.
-	ui.Box(c).Width(sidebarGutter).Shrink(0).FillHeight().Background(uikit.Colors(c.Theme()).Chrome)
+	ui.Box(c).Width(sidebarGutter).Shrink(0).FillHeight().Background(uikit.Colors(c.Theme()).Window)
 }
 
 // sidebarGrip is the handle that resizes the sidebar, and the line that shows
@@ -2047,9 +2047,9 @@ func (a *app) sidebarGrip(c *ui.Context, t *ui.Theme) {
 	// out at once. A zero color would leave the previous frame's line in
 	// place, so the resting line is the text color at alpha 0.
 	if held || handle.Hovered() {
-		line.Background(p.Text.Alpha(0.12))
+		line.Background(p.Foreground.Alpha(0.12))
 	} else {
-		line.Background(p.Text.Alpha(0))
+		line.Background(p.Foreground.Alpha(0))
 	}
 }
 
@@ -2081,7 +2081,7 @@ func (a *app) panel(c *ui.Context, t *ui.Theme) {
 		if !a.sidebarShown() {
 			radii = [4]float32{uikit.RadiusPanel, uikit.RadiusPanel, uikit.RadiusPanel, uikit.RadiusPanel}
 		}
-		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Background(p.Canvas).
+		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Background(p.Background).
 			Radius(radii[0], radii[1], radii[2], radii[3]).Clip().Children(func() {
 			if a.srv == nil && a.errText != "" {
 				uikit.Callout(c, uikit.CalloutDanger, locales.ProxyUnavailable(a.errText), nil).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
@@ -2410,7 +2410,7 @@ func (a *app) sidebar(c *ui.Context) {
 	// The sidebar is part of the shell, not a card on it: it paints chrome, the
 	// same surface as the title bar above it and the footer below, so the
 	// brand's row and the sidebar meet without a seam.
-	panel := uikit.Colors(t).Chrome
+	panel := uikit.Colors(t).Window
 	// MyGo draws a source list on its Surface, and the window has one
 	// Surface for the panel too: here the sidebar's own surface is chrome,
 	// so the list does not cut a canvas hole in the frame.
@@ -3065,7 +3065,7 @@ func (a *app) table(c *ui.Context) {
 			a.remoteCell(c, t, f, quiet)
 		case "url":
 			if a.edited(f.id) {
-				uikit.Tip(c, ui.Box(c).Size(6, 6).Radius(3).Background(uikit.Colors(t).Accent).MarginEnd(t.Space(uikit.SpaceS)).
+				uikit.Tip(c, ui.Box(c).Size(6, 6).Radius(3).Background(uikit.Colors(t).Primary).MarginEnd(t.Space(uikit.SpaceS)).
 					Label(locales.Edited()), locales.EditedInTheInspectorThe())
 			}
 			if f.pinned {
@@ -3089,7 +3089,7 @@ func (a *app) table(c *ui.Context) {
 				if f.dns != "" && !remoteShown {
 					// Without the Remote IP column, the path says a Host
 					// profile sent the request elsewhere.
-					accent := uikit.Colors(t).Accent
+					accent := uikit.Colors(t).Primary
 					uikit.Tip(c, ui.Box(c).Height(15).Padding(0, t.Space(uikit.SpaceXS)).Radius(uikit.RadiusControl).Background(accent.Alpha(0.12)).Center().MarginEnd(t.Space(uikit.SpaceXS)).
 						Label(locales.MappedBy(hostProfileLabel(f.hostProfile))), mappedBy(f)).Children(func() {
 						uikit.Caption(c, locales.Hosts()).FontWeight(500).TextColor(accent)
@@ -3261,7 +3261,7 @@ func (a *app) remoteCell(c *ui.Context, t *ui.Theme, f flow, quiet func(string) 
 		quiet(cmp.Or(f.conn.remote, "—")).PopoverMenu(a.rowMenu(c, f))
 		return
 	}
-	accent := uikit.Colors(t).Accent
+	accent := uikit.Colors(t).Primary
 	ip := f.conn.remote
 	if _, mapped, ok := strings.Cut(f.dns, " → "); ok && ip == "" {
 		ip = mapped
@@ -3486,7 +3486,7 @@ func field(c *ui.Context, t *ui.Theme, label, value string) {
 // headerBlock is one side of the Headers tab: the line that starts the message
 // and then its headers, sorted by name.
 func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, headers http.Header, raw string, trailers http.Header) {
-	ui.Column(c).FillWidth().Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Chrome).Children(func() {
+	ui.Column(c).FillWidth().Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Window).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
 			uikit.Body(c, title).FontWeight(500)
 			ui.Spacer(c)
@@ -3508,7 +3508,7 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 	ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).FillWidth().Children(func() {
 		for i, block := range []http.Header{headers, trailers} {
 			if i == 1 && len(block) > 0 {
-				uikit.Label(c, locales.Trailers()).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL), t.Space(uikit.SpaceM)).FillWidth().Background(uikit.Colors(t).Chrome)
+				uikit.Label(c, locales.Trailers()).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL), t.Space(uikit.SpaceM)).FillWidth().Background(uikit.Colors(t).Window)
 			}
 			if i == 0 && len(block) == 0 {
 				if raw == "" {
@@ -3777,7 +3777,7 @@ func clientBadge(c *ui.Context, name string) {
 	if label == "" {
 		label = locales.UnknownClient()
 	}
-	uikit.LetterSquare(c, name, uikit.IconInline, uikit.Colors(c.Theme()).TextMuted).Label(label)
+	uikit.LetterSquare(c, name, uikit.IconInline, uikit.Colors(c.Theme()).MutedForeground).Label(label)
 }
 
 func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {

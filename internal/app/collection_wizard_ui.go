@@ -88,7 +88,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 						uikit.Hint(c, locales.RequestsAndExamplesMayContain())
 					}
 				})
-				ui.Column(c.Key("preview-"+strconv.Itoa(w.step))).Basis(0).Grow(1.15).MinWidth(0).MinHeight(0).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceL)).Background(uikit.Colors(t).Chrome).Border(1, t.Border).Radius(uikit.RadiusPanel).Children(func() {
+				ui.Column(c.Key("preview-"+strconv.Itoa(w.step))).Basis(0).Grow(1.15).MinWidth(0).MinHeight(0).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceL)).Background(uikit.Colors(t).Window).Border(1, t.Border).Radius(uikit.RadiusPanel).Children(func() {
 					if w.step == 3 || w.step == 5 {
 						a.collectionWizardTree(c, t)
 						return

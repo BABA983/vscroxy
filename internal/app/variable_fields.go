@@ -100,7 +100,7 @@ func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variable
 		tip.Width(360).Children(func() {
 			for i, mark := range marks {
 				if i > 0 {
-					ui.Box(c).Height(1).FillWidth().Background(uikit.Colors(t).Hairline)
+					ui.Box(c).Height(1).FillWidth().Background(uikit.Colors(t).Border)
 				}
 				ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
 					uikit.DataMeta(c, "{{"+mark.Ref.Name+"}}").TextColor(t.Text)
@@ -214,7 +214,7 @@ func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, valu
 			for i, hint := range items {
 				item := uikit.RowButton(c, locales.InsertVariable(hint.Name)).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center)
 				if i == a.varsComplete.selected {
-					item.Background(uikit.Colors(t).AccentTint)
+					item.Background(uikit.Colors(t).Primary)
 				} else if item.Hovered() {
 					item.Background(t.SurfaceHover)
 				}

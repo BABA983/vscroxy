@@ -2788,7 +2788,7 @@ func TestFooterAutoSelectFacesAreDistinct(t *testing.T) {
 	tt.Frame()
 	tt.Advance(400 * time.Millisecond)
 	hoverR, hoverG, hoverB := face()
-	if want := uikit.Colors(uikit.Theme(false)).Canvas; onR != want.R || onG != want.G || onB != want.B {
+	if want := uikit.Colors(uikit.Theme(false)).Background; onR != want.R || onG != want.G || onB != want.B {
 		t.Fatalf("on face is (%d,%d,%d), want the chosen segment's canvas (%d,%d,%d)", onR, onG, onB, want.R, want.G, want.B)
 	}
 	if restR == onR && restG == onG && restB == onB || restR == hoverR && restG == hoverG && restB == hoverB || onR == hoverR && onG == hoverG && onB == hoverB {
@@ -5379,8 +5379,8 @@ func TestCaptureSelectionMarkerFollowsListAndWindowFocus(t *testing.T) {
 	// never turns white.
 	type look struct{ fill, marker [3]int }
 	looks := map[bool][2]look{
-		false: {{[3]int{232, 236, 230}, [3]int{138, 143, 136}}, {[3]int{214, 220, 214}, [3]int{20, 22, 20}}},
-		true:  {{[3]int{28, 37, 38}, [3]int{109, 118, 110}}, {[3]int{47, 55, 47}, [3]int{234, 243, 233}}},
+		false: {{[3]int{232, 236, 230}, [3]int{138, 143, 136}}, {[3]int{226, 229, 225}, [3]int{20, 22, 20}}},
+		true:  {{[3]int{32, 38, 34}, [3]int{109, 118, 110}}, {[3]int{37, 43, 38}, [3]int{234, 243, 233}}},
 	}
 	for _, dark := range []bool{false, true} {
 		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
@@ -7173,7 +7173,7 @@ func TestFooterActionsReadAsActions(t *testing.T) {
 	if !ok {
 		t.Fatal("the footer has no Clear")
 	}
-	chrome := uikit.Colors(uikit.Theme(false)).Chrome
+	chrome := uikit.Colors(uikit.Theme(false)).Window
 	at := func() ui.Color {
 		p := tt.Image().RGBAAt(int(clear.X+3), int(clear.Y+clear.H/2))
 		return ui.RGB(p.R, p.G, p.B)

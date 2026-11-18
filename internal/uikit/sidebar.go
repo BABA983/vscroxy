@@ -189,7 +189,7 @@ func LetterSquare(c *ui.Context, label string, size float32, ink ui.Color) ui.El
 		letter = strings.ToUpper(string(r[0]))
 	}
 	return ui.Row(c).Size(size, size).Shrink(0).Justify(ui.Center).AlignItems(ui.Center).
-		Radius(RadiusControl).Background(Colors(t).Fill).Children(func() {
+		Radius(RadiusControl).Background(Colors(t).Muted).Children(func() {
 		ui.Text(c, letter).FontSize(Scaled(TextMeta)).FontWeight(WeightMedium).TextColor(ink).SingleLine()
 	})
 }
@@ -201,7 +201,7 @@ func LetterSquare(c *ui.Context, label string, size float32, ink ui.Color) ui.El
 func sidebarRow(c *ui.Context, id, label string, chosen, active bool, icon func(ink ui.Color)) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	hovered := ui.Local(c.Root(), "sidebar-hover:"+id, func() bool { return false })
-	ink, iconInk := t.TextMuted, p.TextFaint
+	ink, iconInk := t.TextMuted, p.Faint
 	if chosen || *hovered {
 		ink, iconInk = t.Text, t.TextMuted
 	}
@@ -321,7 +321,7 @@ func SidebarPanes(c *ui.Context, key string, available float32, panes []SidebarP
 						Justify(ui.Center).Cursor(ui.CursorResizeNS)
 					var line ui.Element
 					handle.Children(func() {
-						line = ui.Box(c).Height(HairlineWidth).Background(p.Hairline)
+						line = ui.Box(c).Height(HairlineWidth).Background(p.Border)
 					})
 					handles, lines = append(handles, handle), append(lines, line)
 					gaps = append(gaps, [2]int{previous, i})

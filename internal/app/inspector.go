@@ -776,7 +776,7 @@ func responseSummaryOf(t *ui.Theme, f flow) responseSummary {
 	if f.conn.error != "" {
 		title = locales.Failed()
 	}
-	sum := responseSummary{title: title, dot: p.TextMuted, duration: fmt.Sprintf("%d ms", f.millis), detail: humanBytes(f.bytes),
+	sum := responseSummary{title: title, dot: p.MutedForeground, duration: fmt.Sprintf("%d ms", f.millis), detail: humanBytes(f.bytes),
 		timing: headlineTiming(t, f), stream: f.kind == "ws" || f.kind == "sse"}
 	if f.conn.error != "" || f.status >= 300 {
 		sum.dot, sum.ink = f.statusColor(t), f.statusColor(t)
@@ -787,7 +787,7 @@ func responseSummaryOf(t *ui.Theme, f flow) responseSummary {
 // sentSummaryOf reads what the last send got back.
 func sentSummaryOf(t *ui.Theme, r *capture.Flow, outcome string) responseSummary {
 	p := uikit.Colors(t)
-	sum := responseSummary{title: locales.NoResponse(), dot: p.TextMuted, duration: fmt.Sprintf("%d ms", r.Millis), detail: humanBytes(r.Bytes)}
+	sum := responseSummary{title: locales.NoResponse(), dot: p.MutedForeground, duration: fmt.Sprintf("%d ms", r.Millis), detail: humanBytes(r.Bytes)}
 	if r.Status != 0 {
 		sum.title = strings.TrimSpace(strconv.Itoa(r.Status) + " " + http.StatusText(r.Status))
 	}

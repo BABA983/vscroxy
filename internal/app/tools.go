@@ -151,7 +151,7 @@ func (a *app) toolsContent(c *ui.Context, t *ui.Theme, active, window bool) {
 				{"hosts", hostsIcon, locales.HostProfiles()}, {"mocks", mocksIcon, locales.Mocks()}, {"git", gitIcon, locales.Git()}} {
 				uikit.SidebarItem(c, page.id, page.icon, page.label, a.toolsPage == page.id, active).Label(locales.ToolsCategory(page.label))
 			}
-		}).Width(navWidth).Padding(top, t.Space(uikit.SpaceM), t.Space(uikit.SpaceM), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceHair)).Background(pal.Chrome)
+		}).Width(navWidth).Padding(top, t.Space(uikit.SpaceM), t.Space(uikit.SpaceM), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceHair)).Background(pal.Window)
 		ui.Divider(c)
 		switch a.toolsPage {
 		case "rules", "mocks":

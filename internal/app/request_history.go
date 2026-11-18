@@ -86,7 +86,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				// Nothing to narrow yet: the column says how a run gets
 				// here, and nothing else.
 				ui.Column(c).Fill().Center().Gap(t.Space(uikit.SpaceM)).Children(func() {
-					ui.Icon(c, sendHistoryIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(uikit.Colors(t).TextFaint)
+					ui.Icon(c, sendHistoryIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(uikit.Colors(t).Faint)
 					uikit.Hint(c, sendShortcut()+"  "+locales.Send())
 				})
 				return

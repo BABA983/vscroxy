@@ -229,7 +229,7 @@ func (a *app) jsonQueryPanel(c *ui.Context, side int) {
 	}
 	u.job.poll(c)
 	t := c.Theme()
-	panel := ui.Column(c).MinHeight(0).Gap(t.Space(uikit.SpaceXS)).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Chrome)
+	panel := ui.Column(c).MinHeight(0).Gap(t.Space(uikit.SpaceXS)).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Window)
 	if a.paneWidth(c) >= 620 {
 		panel.Width(300)
 	} else {

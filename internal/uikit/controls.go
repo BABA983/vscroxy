@@ -21,15 +21,15 @@ func Checkbox(c *ui.Context, checked *bool, label string) ui.Element {
 		box := ui.Box(c).Size(IconLarge, IconLarge).Radius(RadiusInner).Shrink(0).Center()
 		switch {
 		case *checked && row.Hovered():
-			box.Background(p.AccentHover)
+			box.Background(p.PrimaryHover)
 		case *checked:
-			box.Background(p.Accent)
+			box.Background(p.Primary)
 		case row.Pressed():
-			box.Background(p.FillPressed)
+			box.Background(p.MutedPressed)
 		case row.Hovered():
-			box.Background(p.FillHover)
+			box.Background(p.MutedHover)
 		default:
-			box.Background(p.Fill)
+			box.Background(p.Muted)
 		}
 		if !*checked {
 			// An empty box needs an edge to be seen: its face alone is too faint
@@ -38,7 +38,7 @@ func Checkbox(c *ui.Context, checked *bool, label string) ui.Element {
 		}
 		box.Children(func() {
 			if *checked {
-				ui.Icon(c, checkIcon).Size(IconInline, IconInline).TextColor(p.AccentText)
+				ui.Icon(c, checkIcon).Size(IconInline, IconInline).TextColor(p.PrimaryForeground)
 			}
 		})
 		if label != "" {
@@ -58,22 +58,22 @@ func Radio[T comparable](c *ui.Context, selected *T, value T, label string) ui.E
 		dot := ui.Box(c).Size(IconLarge, IconLarge).Radius(IconLarge / 2).Shrink(0).Center()
 		switch {
 		case on && row.Hovered():
-			dot.Background(p.AccentHover)
+			dot.Background(p.PrimaryHover)
 		case on:
-			dot.Background(p.Accent)
+			dot.Background(p.Primary)
 		case row.Pressed():
-			dot.Background(p.FillPressed)
+			dot.Background(p.MutedPressed)
 		case row.Hovered():
-			dot.Background(p.FillHover)
+			dot.Background(p.MutedHover)
 		default:
-			dot.Background(p.Fill)
+			dot.Background(p.Muted)
 		}
 		if !on {
 			dot.Border(HairlineWidth, p.Ring)
 		}
 		dot.Children(func() {
 			if on {
-				ui.Box(c).Size(DotSize, DotSize).Radius(DotSize / 2).Background(p.AccentText)
+				ui.Box(c).Size(DotSize, DotSize).Radius(DotSize / 2).Background(p.PrimaryForeground)
 			}
 		})
 		if label != "" {

@@ -19,7 +19,7 @@ func Spinner(c *ui.Context, label string) ui.Element {
 func ProgressBar(c *ui.Context, value float64, label string) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	return ui.Progress(c, value).Label(label).Height(progressHeight).Radius(progressHeight / 2).
-		TextColor(t.Text).Background(p.Fill)
+		TextColor(t.Text).Background(p.Muted)
 }
 
 // CalloutKind is what a callout says about its subject.
@@ -68,6 +68,6 @@ func Callout(c *ui.Context, kind CalloutKind, text string, actions func()) ui.El
 func Badge(c *ui.Context, label string, ink ui.Color) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	return ui.Text(c, label).FontSize(Scaled(TextMeta)).FontWeight(WeightMedium).FontFeatures("tnum").
-		TextColor(ink).Background(p.Fill).Radius(RadiusInner).Padding(0, t.Space(SpaceXS)).
+		TextColor(ink).Background(p.Muted).Radius(RadiusInner).Padding(0, t.Space(SpaceXS)).
 		Height(IconLarge).Center().SingleLine().Shrink(0)
 }

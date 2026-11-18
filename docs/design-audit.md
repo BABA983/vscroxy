@@ -27,12 +27,12 @@
 | 参考 | 我们的角色 | 现状 | 判断 |
 | --- | --- | --- | --- |
 | `--radius`（0.625rem，派生 sm/md/lg/xl） | `RadiusInner`／`RadiusControl`／`RadiusPanel` = 4／6／8（`internal/uikit/tokens.go:54-56`） | 固定三档，不派生 | **保留**。桌面控件的圆角不该随一个基数缩放；三档已经够用。 |
-| `--muted` + `--muted-foreground` | `TextMuted` + `Fill`（`internal/uikit/theme.go:20-21`） | 没有单独的 muted 面；控件面用文字色 7% 叠加 | **保留**。`Fill` 在三种表面上都成立，比一个固定的 muted 面更稳。 |
-| `--accent`（悬停面） | `Accent`（主操作、焦点、选中标记，`internal/uikit/theme.go:22`） | 语义和 shadcn **相反**：shadcn 的 accent 是 hover 背景，我们的 Accent 是墨色主操作 | **不改名，写清楚**。在 6.1 或本文件加一行映射，避免后来的人按 shadcn 的习惯把 `Accent` 当 hover。 |
-| `--border` + `--input` | `Hairline`（`internal/uikit/theme.go:16`） | 只有一个边线角色；输入框在 canvas 上是 well，在 chrome 上是 canvas + hairline | **保留**。桌面工具不需要第三种边线。 |
-| `--ring` | **没有**；焦点用 `Accent`（`internal/uikit/theme.go:103`），输入框聚焦用 `TextMuted` 边 + `AccentTint` 光晕（`internal/uikit/components.go:259-274`） | 按钮、tab、列表行的焦点环和主操作同色；输入框的焦点又是另一套 | **建议加 `Ring`**。一个 `Palette.Ring` 角色（Light 可用 `TextMuted`，Dark 同理），`Theme` 里 `t.Focus = p.Ring`；输入框保留现在的 muted 边 + 光晕。成本低（一个字段、两套值、对比度测试加一组），收益是“焦点”和“主操作”不再抢同一个颜色。P2。 |
+| `--muted` + `--muted-foreground` | `MutedForeground` + `Muted`（`internal/uikit/theme.go:20-21`） | 没有单独的 muted 面；控件面用文字色 7% 叠加 | **保留**。`Muted` 在三种表面上都成立，比一个固定的 muted 面更稳。 |
+| `--accent`（悬停面） | `Primary`（主操作、焦点、选中标记，`internal/uikit/theme.go:22`） | 语义和 shadcn **相反**：shadcn 的 accent 是 hover 背景，我们的 Accent 是墨色主操作 | **不改名，写清楚**。在 6.1 或本文件加一行映射，避免后来的人按 shadcn 的习惯把 `Primary` 当 hover。 |
+| `--border` + `--input` | `Border`（`internal/uikit/theme.go:16`） | 只有一个边线角色；输入框在 canvas 上是 well，在 chrome 上是 canvas + hairline | **保留**。桌面工具不需要第三种边线。 |
+| `--ring` | **没有**；焦点用 `Primary`（`internal/uikit/theme.go:103`），输入框聚焦用 `MutedForeground` 边 + `Ring` 光晕（`internal/uikit/components.go:259-274`） | 按钮、tab、列表行的焦点环和主操作同色；输入框的焦点又是另一套 | **建议加 `Ring`**。一个 `Palette.Ring` 角色（Light 可用 `MutedForeground`，Dark 同理），`Theme` 里 `t.Focus = p.Ring`；输入框保留现在的 muted 边 + 光晕。成本低（一个字段、两套值、对比度测试加一组），收益是“焦点”和“主操作”不再抢同一个颜色。P2。 |
 | `--destructive` | `Danger` + `DangerButton`（`internal/uikit/components.go:194-197`） | `DangerButton` 是中性面上的红字；清空对话框又直接用 `PrimaryButton(...).Background(t.Danger)`（`internal/app/app.go:1767`） | **建议统一**。加一个 `DestructiveButton`（危险色实底、反色文字），或规定“危险确认一律用 `DangerButton`，不填充”。现在是两种写法。P2。 |
-| `TextFaint` | `#8a8f88`／`#6d766e`（`internal/uikit/theme.go:49,69`） | 用于图标、禁用、占位和失焦标记线；浅色 chrome 上约 2.39:1（`docs/ui-redesign.md:399`） | **保留但收紧**。装饰性图标可以；**可点击的图标按钮不要用 TextFaint**，用 TextMuted（≥3:1）。这条要写成规则，否则树箭头、行内 × 这类唯一入口会低于非文本对比度。P2。 |
+| `Faint` | `#8a8f88`／`#6d766e`（`internal/uikit/theme.go:49,69`） | 用于图标、禁用、占位和失焦标记线；浅色 chrome 上约 2.39:1（`docs/ui-redesign.md:399`） | **保留但收紧**。装饰性图标可以；**可点击的图标按钮不要用 TextFaint**，用 TextMuted（≥3:1）。这条要写成规则，否则树箭头、行内 × 这类唯一入口会低于非文本对比度。P2。 |
 | 控件高度 | `ControlHeight` 28／`ControlHeightSmall` 22；`HeightControl` 24／`HeightLarge` 28（`internal/uikit/tokens.go:37-51`） | 四个名字，两组值；`ControlHeight` 和 `HeightControl` 只差词序，`HeightLarge` 和 `ControlHeight` 同为 28。设计规范第 6.3 节仍写“控件 24（URL 和 Send 28）”（`docs/ui-redesign.md:204`），和代码不一致 | **建议改名**：`HeightControl`／`HeightControlSmall` 管控件，`HeightRow` 管行。或者至少把文档改成 28／22，并在 tokens 注释里说明 24 只用于行。成本是一次大范围改名，建议在下一轮集中做；P2。 |
 
 ### a.3 组件
@@ -69,13 +69,13 @@
 
 #### Tabs、Segmented
 
-- 现状：`Tabs` 用 `TabsBase`，选中是 `Fill` 面 + 正文色，高度 22（`internal/uikit/components.go:1030-1080`）；`SubTabs` 是同一行的第二层，纯文字、选中加 2px 强调色下划线；`Segmented` 是凹槽 + 浮起滑块，24 高。
+- 现状：`Tabs` 用 `TabsBase`，选中是 `Muted` 面 + 正文色，高度 22（`internal/uikit/components.go:1030-1080`）；`SubTabs` 是同一行的第二层，纯文字、选中加 2px 强调色下划线；`Segmented` 是凹槽 + 浮起滑块，24 高。
 - shadcn：`TabsList` 是 `h-9 p-[3px] bg-muted rounded-lg`，trigger 选中 `bg-background shadow-sm`；另有 `line` 变体（下划线）。Base UI 的 Tabs 用 `data-active`、`data-disabled`、`data-orientation`，方向键切换、Home/End 到两端。
 - 建议：**保留两套**。Tabs 是“换一个视图”，Segmented 是“换一个互斥模式”，语义不同；第二层用 `SubTabs`，纯文字加下划线。面板头不加下划线（它已经够密），但编辑器里和列表头上的第二层加，因为那里没有另一条水平线可抢（2026-11-16 的 AF 复查改了这条：原来写的是“不加 line 变体”）。真正的问题是页面把两个 Segmented 叠在一起（Sessions，见 b 节），不是 kit 缺变体。
 
 #### Table
 
-- 现状：行高 24，无 hover，选中是 `AccentTint` + 2px 标记线（`internal/uikit/components.go:961-991`）；表头由 MyGo 画，字重仍是 600（`docs/ui-redesign.md` 第 13 节第 12 条承认）。
+- 现状：行高 24，无 hover，选中是 `Accent` + 2px 标记线（`internal/uikit/components.go:961-991`）；表头由 MyGo 画，字重仍是 600（`docs/ui-redesign.md` 第 13 节第 12 条承认）。
 - shadcn：行有 `border-b` 和 `hover:bg-muted/50`，选中 `bg-muted`，表头 `h-10 px-2 font-medium`。
 - 建议：**保留无 hover、24 行高**；这是桌面抓包工具的密度，shadcn 的 40 行高不适合。表头 600 是唯一违反“两个字重”的地方；MyGo 没有暴露表头字重的 API，先记录，等库或自绘表头再改。P3，不做。
 - 值不值得做：不做。
@@ -90,14 +90,14 @@
 #### Toast（变基后）
 
 - 现状：`Toasts` 的面板宽 360，图标 + 标题/描述一列，动作是同行的 22pt ghost link，关闭按钮在后（`internal/uikit/components.go:672-703`）。变基后的图版 `components-toasts-light.png` 和 `-dark.png` 里，“Request deleted / Undo” 在同一行，符合新提交 `a27cdb7` 的意图。
-- 问题：动作在静止时用 `TextMuted`（`internal/uikit/components.go:689`），和关闭按钮同色；在深色 toast 上它读起来像禁用链接，而不是“撤销”。shadcn 的 toast action 用前景色/主色，关闭才是 muted。
+- 问题：动作在静止时用 `MutedForeground`（`internal/uikit/components.go:689`），和关闭按钮同色；在深色 toast 上它读起来像禁用链接，而不是“撤销”。shadcn 的 toast action 用前景色/主色，关闭才是 muted。
 - 建议：动作静止用 `t.InverseText`（toast 是反色面），hover 再用 `t.InverseText` 加 12% 反色面；关闭保持 `InverseText` 的 70% 不透明度。成本一行。P2。**已实施。**
 - 值不值得做：值得，极低。
 
 #### 列表选中：`ListTheme` 必须由调用方记得
 
-- 现状：`ListTheme` 把 MyGo 列表的 `Accent` 换成 `AccentTint`（失焦换成 `Fill`），行自己画 `RowMarker`（`internal/uikit/components.go:961-991`）。这是“数据列表”的唯一正确画法，但它是一个**可选调用**。
-- 反例：MCP catalog 的 `ui.List` 直接 `c.SetTheme(t)`，没有套 `ListTheme`（`internal/app/mcp_ui.go:783-802`）。结果选中行是实心 `Accent`：浅色下黑底白字，深色下白底黑字，比页面里任何东西都响，而且描述文字失去 muted 色。图版 `screens-mcp-catalog-light.png` / `-dark.png` 一眼能看到。
+- 现状：`ListTheme` 把 MyGo 列表的 `Primary` 换成 `Accent`（失焦换成 `Muted`），行自己画 `RowMarker`（`internal/uikit/components.go:961-991`）。这是“数据列表”的唯一正确画法，但它是一个**可选调用**。
+- 反例：MCP catalog 的 `ui.List` 直接 `c.SetTheme(t)`，没有套 `ListTheme`（`internal/app/mcp_ui.go:783-802`）。结果选中行是实心 `Primary`：浅色下黑底白字，深色下白底黑字，比页面里任何东西都响，而且描述文字失去 muted 色。图版 `screens-mcp-catalog-light.png` / `-dark.png` 一眼能看到。
 - 建议：加一个 `DataList(c, state, n, rows)` 包装，内部强制 `ListTheme` + `RowMarker`；或者至少把 `ListTheme` 改名成 `DataListTheme` 并在 `ui.List` 的每个调用点做一次审计。成本低，收益是这类“菜单式选中”不会再出现。P1。
 - 值不值得做：值得。
 
@@ -106,7 +106,7 @@
 - **状态属性**：Base UI 把状态放在 `data-*` 上：`data-highlighted`（指针/键盘高亮）、`data-selected`、`data-disabled`、`data-popup-open`、`data-pressed`、`data-open`／`data-closed`、`data-starting-style`／`data-ending-style`、`data-side`／`data-align`（`packages/react/src/utils/popups/Common*DataAttributes.ts`、`select/item/SelectItemDataAttributes.ts`、`tabs/tab/TabsTabDataAttributes.ts`）。MyGo 是原生控件，状态是 Go 方法（`Hovered`、`Pressed`、`IsDisabled`、`Checked`、`Expanded`），角色和名字由 `Label`／`Role` 给。我们的 kit 只建模了 selected／disabled／hover／pressed，**没有建模“键盘光标”**，也没有建模“触发器的 popup 打开态”。
   - 后果一：脚本列表里 `Broken` 行有浅底、`Debug headers` 行是选中底，两行都像被选中（图版 `screens-tools-scripts-light.png`）。这是 MyGo 列表的 cursor 和我们的 `Selected` 各画各的。
   - 后果二：`MenuSelect` 打开时触发器不保持高亮；Base UI 的 `data-popup-open` 会让触发器在菜单打开期间保持选中面。Tools 的 Scenario 菜单、body 格式菜单都受影响。
-  - 建议：定义 `Cursor` 面（1px accent inset 或 `Fill` 无圆角）并写进 6.5；菜单触发器在 `Expanded()` 时用 `FillHover`。成本低到中；P2。
+  - 建议：定义 `Cursor` 面（1px accent inset 或 `Muted` 无圆角）并写进 6.5；菜单触发器在 `Expanded()` 时用 `MutedHover`。成本低到中；P2。
 - **键盘**：Base UI 的约定是 Select 支持方向键、Home/End、typeahead、Enter/Space、Escape；Menu 支持方向键、Home/End、typeahead、Escape、Tab 关闭；Tabs 方向键自动激活、Home/End；Dialog 焦点陷阱、Escape、关闭后还原。MyGo 的 `TabsBase`、`ListBase`、`MenuBase`、`SelectBase`、`DialogBase` 已经实现了这些；`uikit.SidebarList` 自己实现了 ↑↓／Home/End／首字母跳转（`internal/uikit/sidebar.go`）。**不需要重写**。要补的是自定义行：`RowButton` 是 ButtonBase（Enter/Space 可用），`QueryChip` 的编辑/移除是两个独立焦点，读屏会读成两个按钮——这是对的，但视觉上它们贴在一起，Tab 顺序需要确认。
 - **禁用**：设计规则是“禁用放在外层”（`docs/ui-redesign.md:6.1`）。`RowButton` 检查 `IsDisabled()`（`internal/uikit/components.go:223`），`SwatchButton`、`QueryChip`、`LinkButton` 没有显式检查；目前靠 MyGo 的 `Hovered()` 对禁用元素返回 false。建议加一个 `disabledFace` 帮手，或至少在组件注释里写“调用方必须外层 Disabled”。P3。
 - **命名**：`DialogTitle` 不命名对话框（见 a.3）；`EmptyState` 的标题不是 `RoleHeading`；`SettingsRow` 的标签没有和控件绑定（见 a.3 表单）。这三条是读屏最直接的损失，前两条成本低，第三条和 FormRow 一起做。
@@ -118,7 +118,7 @@
 3. **Card 堆叠和 `shadow-sm`**：桌面工具靠表面和间距分层，不靠一叠一样的圆角卡片。
 4. **shadcn 的 36px 控件**：桌面密度是 24 行、28 控件；36 会让表格和工具栏松掉。
 5. **Sheet**：Tools 是独立窗口，Sessions 是三栏，不需要侧滑抽屉。
-6. **`--accent` 的 hover 语义**：我们的 `Accent` 是墨色主操作；照搬会把所有 hover 面变黑。
+6. **`--accent` 的 hover 语义**：我们的 `Primary` 是墨色主操作；照搬会把所有 hover 面变黑。
 
 ---
 
@@ -149,7 +149,7 @@
 
 - **P1 代码行横向被裁。** 图版里 `sign(pm.request.bod`、`Date.now() - Number(pm.variabl` 都在编辑器右边缘被切；`internal/app/scripts.go:750-752` 的 `editor.View` 放在固定宽 Box 里，没有 soft wrap 或横向滚动。改法：soft wrap，或横向滚动 + `EdgeFade`；P1，因为脚本的可读性就是这个页面的全部。
 - **P2 两行同时像选中。** `Broken` 行有浅底、`Debug headers` 行是选中底；`internal/app/scripts.go:639-670` 的 `Selected` 和 MyGo 列表的键盘 cursor 各画各的。改法：定义 cursor 样式（1px accent inset），或让 cursor 跟随选择；P2。
-- **P2 关键字是红色。** `import`、`export function`、`console.log` 在 `EditorTheme` 里偏红，和真正的错误红混在一起；`internal/app/scripts.go:749`。改法：关键字用 `Text` 或 `Info`，红色只给诊断；P2。
+- **P2 关键字是红色。** `import`、`export function`、`console.log` 在 `EditorTheme` 里偏红，和真正的错误红混在一起；`internal/app/scripts.go:749`。改法：关键字用 `Foreground` 或 `Info`，红色只给诊断；P2。
 - **P3 三级标题。** `Tools` → `Scripts` → `Rule scripts / Addons`；`internal/app/tools.go:133-150`、`internal/app/scripts.go:579-610`。改法：去掉页标题，保留 tabs；P3。
 
 ### 4. Tools · Mocks
@@ -380,7 +380,7 @@ uikit 前五条已经实现，页面层只重排了 Rules／Scripts／Mocks 三�
 - **数据列表**：新增 `DataList`／`DataListIndexed`，固定 `ListTheme` 和 `RowMarker`；gRPC、MCP 事件、MCP 三个目录、Protobuf、Runs、Socket.IO、MQTT、Messages 共 10 处换用。Scripts／Scenarios／Rules／Host profiles 是“选择列表”，仍用圆角 `Selected`，不是数据列表。
 - **对话框名字**：`Modal` 现在接收 `title` 并设 `panel.Label(title)`；50 个调用点全部传入标题；新增无障碍树测试 `TestModalNamesItsPanel`。
 - **Ring**：`Palette.Ring` Light `#636e61`、Dark `#9aa89a`；`Theme.Focus`、`InputState`／`TextArea` 聚焦边都用它。Light 对 canvas／chrome／well 为 5.19／4.73／4.48:1，Dark 为 7.44／8.06／6.59:1；与 Accent 不同色。
-- **危险操作**：新增 `DestructiveButton`（`Danger` 实底、`AccentText`，对比 5.22:1／5.89:1）；清空抓包、删除资源、清空实验记录、重置 Vault 四个确认对话框使用。删除 `DangerButton` 和 `PrimaryButton.Background(Danger)`；设备“停用访问”改为普通次级按钮（可逆），反向代理“移除”改为菜单里的红色危险项。
+- **危险操作**：新增 `DestructiveButton`（`Danger` 实底、`PrimaryForeground`，对比 5.22:1／5.89:1）；清空抓包、删除资源、清空实验记录、重置 Vault 四个确认对话框使用。删除 `DangerButton` 和 `PrimaryButton.Background(Danger)`；设备“停用访问”改为普通次级按钮（可逆），反向代理“移除”改为菜单里的红色危险项。
 - **Toast**：动作静止改用 `InverseText`、13 号 500 字重，hover 用 12% 反色面；关闭按钮保持 70% 反色，不再和动作同色。
 - **页面**：Rules 列表第二行移到整行宽度、可换行并有 Tip；Scripts 代码编辑器 `SoftWrap`、只保留一个选中行；Mocks 增加中间省略的完整路径行和 Tip，Body 标签用 `FormRowTall` 顶部对齐。三页表单都改用 `FormRow`／`NumberField`。
 
@@ -499,7 +499,7 @@ uikit 前五条已经实现，页面层只重排了 Rules／Scripts／Mocks 三�
 | 2 | 采用新原语 | `internal/app` 里 Callout 26 处、Code 10 处（Client setup 的环境变量列表等）；页面级的红字和有底色的横幅改成 Callout（`dfdf01e`）；Callout 的图标首行对齐。Radio 0 处，按评审决定留作文档化组件（6.8）。剩下 8 处 `TextColor(t.Danger)` 逐个看过，都不是页面级的句子：状态单元格（“Failed”、错误数、schema 状态）、无效输入框自己的字色、观察到的错误原文（诊断页和 HTTPS 的复制行）、连接失败的行标题（与“复制连接日志”同行）。 |
 | 3 | 文字角色 | 完成。`BodyStrong`、`DataBody`、`DataMeta`、`Caption` 已加。`internal/app` 没有裸 `ui.Text`；行内 `FontSize` 只剩两处，都在 `// Bare:` 的裸控件上。 |
 | 4 | FormRow 与 SettingsRow | 部分完成：说明作为控件的 `Description` 绑定；标签没有绑定，见下面的第一条。设置页的图版逐字节不变。 |
-| 5 | 列表键盘光标 | 没有需要修的。检查了 `internal/app` 的 10 处 `ui.List`（侧栏、Tools 的规则、Git、场景、Protobuf、MQTT、Socket.IO、WS、命令面板、调用结果）和 `DataList`／`DataListIndexed`：MyGo 的光标就是 `Selected`，应用从不设 `Selection`，所以一行只会有一个选中标记。 |
+| 5 | 列表键盘光标 | 没有需要修的。检查了 `internal/app` 的 10 处 `ui.List`（侧栏、Tools 的规则、Git、场景、Protobuf、MQTT、Socket.IO、WS、命令面板、调用结果）和 `DataList`／`DataListIndexed`：MyGo 的光标就是 `Selected`，应用从不设 `Accent`，所以一行只会有一个选中标记。 |
 | 6 | 其余组件 | 完成。留在组件里的固定数字都换成具名常量（sparkline、时序条、开关轨道、标记框、活动条、分隔条、键帽、提示的断行长度）；输入家族的状态在输入图版里都有（静止、焦点、无效、禁用，含 TextArea 和 NumberField）。 |
 | 7 | 裸 MyGo 控件 | 18 处，每处都有 `// Bare:` 注释，理由列在 6.8。没有包装的原因：NumberInput 的步进按钮、URL 栏、环境 chip、命令面板输入、集合名的自由文本、搜索框的 `Changed()`、查询字段的 token 和补全、协议 chip 的计数、文字链接、两张表。 |
 | 8 | 忙碌态 | 新增：`LoadSchema`、Tools 的订阅刷新、Git 初始化（`dfdf01e`）。诊断页的“Check again”原来就有忙碌态；诊断页没有单独的运行按钮。集合的“运行集合”（`runner.go`）运行时换成“取消运行”，不只是禁用，不用再改。 |

@@ -273,7 +273,7 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 		d.endpoint = endpoints[0].method + " " + endpoints[0].path
 	}
 	ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
-		ui.Scroll(c).Width(210).FillHeight().Padding(t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Chrome).Children(func() {
+		ui.Scroll(c).Width(210).FillHeight().Padding(t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Window).Children(func() {
 			uikit.SidebarList(c, "api-endpoints", &d.endpoint, func(id string) { d.endpoint = id }, func() {
 				for _, endpoint := range endpoints {
 					label := endpoint.method + " " + endpoint.path

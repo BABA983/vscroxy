@@ -125,7 +125,7 @@ func decodedFields(c *ui.Context, fields []inspect.FormField) {
 	ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 		for _, field := range fields {
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-				uikit.Caption(c, field.Key).Width(uikit.WidthFieldWide).TextColor(uikit.Colors(t).TextMuted)
+				uikit.Caption(c, field.Key).Width(uikit.WidthFieldWide).TextColor(uikit.Colors(t).MutedForeground)
 				uikit.Caption(c, field.Value).Grow(1)
 			})
 		}

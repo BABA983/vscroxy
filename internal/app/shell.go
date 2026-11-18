@@ -20,7 +20,7 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	// The bar is the shell's own surface. On macOS the window's root is clear
 	// so the sidebar's material can show, and without this the bar would show
 	// the desktop behind it instead of chrome.
-	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).Background(uikit.Colors(t).Chrome).
+	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).Background(uikit.Colors(t).Window).
 		AlignItems(ui.Center).DragWindow().Children(func() {
 		if !a.macChrome || !a.sidebarShown() {
 			a.barLeading(c, t)
@@ -193,11 +193,11 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	state, dot := locales.Stopped(), t.Danger
 	switch {
 	case running && a.recordingPaused:
-		state, dot = locales.PausedState(), pal.TextFaint
+		state, dot = locales.PausedState(), pal.Faint
 	case running:
 		state, dot = locales.ListeningOn(), t.Success
 	}
-	tip, face := locales.ProxyTipOff(), pal.Fill
+	tip, face := locales.ProxyTipOff(), pal.Muted
 	if running {
 		tip = locales.ProxyTipOn()
 	}
@@ -206,7 +206,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	// so "is it on?" is answered from across the room. Stopped and paused
 	// stay on the neutral face, with only their dot to say why.
 	if running && !a.recordingPaused {
-		face = t.Success.Alpha(0.14)
+		face = t.Success.Alpha(0.10)
 	}
 	b := uikit.ToolbarButton(c, locales.ProxyStatus(), tip, false).
 		Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceS)).Radius(uikit.RadiusControl).Background(face)
@@ -320,7 +320,7 @@ func (a *app) networkTools() []action {
 func (a *app) footer(c *ui.Context, t *ui.Theme) {
 	p := uikit.Colors(t)
 	ui.Row(c).Height(uikit.HeightFooter).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
-		Background(p.Chrome).Children(func() {
+		Background(p.Window).Children(func() {
 		if a.page.capture() {
 			ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
 				if uikit.FooterButton(c, locales.Clear(), locales.ClearRecords(), false).Disabled(len(a.flows) == 0).Clicked() {
@@ -649,7 +649,7 @@ func footerMoreLabel(n int) string { return fmt.Sprintf("+%d", n) }
 // changes it, and the close button turns it off.
 func footerChipRow(c *ui.Context, t *ui.Theme, chip footerChip) {
 	p := uikit.Colors(t)
-	background, ink := p.Fill, t.Text
+	background, ink := p.Muted, t.Text
 	if chip.danger {
 		background, ink = t.Danger.Alpha(0.12), t.Danger
 	}

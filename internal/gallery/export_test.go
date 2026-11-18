@@ -51,7 +51,7 @@ func plateView(t *testing.T, e *Entry, dark bool) (view func(*ui.Context), settl
 	view = func(c *ui.Context) {
 		uikit.SetTextScale(1)
 		c.SetTheme(uikit.Theme(dark))
-		ui.Column(c).Fill().Background(uikit.Colors(c.Theme()).Canvas).Padding(28).Children(func() {
+		ui.Column(c).Fill().Background(uikit.Colors(c.Theme()).Background).Padding(28).Children(func() {
 			e.build(c)
 		})
 		// A component plate that adds toasts gets the kit's look, not MyGo's

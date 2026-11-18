@@ -44,13 +44,13 @@ func TestThemesKeepTextReadable(t *testing.T) {
 				name string
 				fill ui.Color
 			}
-			surfaces := []swatch{{"canvas", p.Canvas}, {"chrome", p.Chrome}, {"well", p.Well}}
+			surfaces := []swatch{{"canvas", p.Background}, {"chrome", p.Window}, {"well", p.Input}}
 			var faces []swatch
 			for _, s := range surfaces {
 				faces = append(faces,
-					swatch{"hover on " + s.name, p.FillHover.Over(s.fill)},
-					swatch{"pressed on " + s.name, p.FillPressed.Over(s.fill)},
-					swatch{"selection on " + s.name, p.AccentTint})
+					swatch{"hover on " + s.name, p.MutedHover.Over(s.fill)},
+					swatch{"pressed on " + s.name, p.MutedPressed.Over(s.fill)},
+					swatch{"selection on " + s.name, p.Accent.Over(s.fill)})
 			}
 			for _, f := range append(surfaces, faces...) {
 				check("body on "+f.name, theme.Text, f.fill, 4.5)
@@ -58,7 +58,7 @@ func TestThemesKeepTextReadable(t *testing.T) {
 				check("keyboard focus on "+f.name, theme.Focus, f.fill, 3)
 			}
 			for _, f := range surfaces {
-				for _, signal := range []ui.Color{p.Info, p.Warning, p.Danger, p.Accent, p.Success} {
+				for _, signal := range []ui.Color{p.Info, p.Warning, p.Danger, p.Primary, p.Success} {
 					check(fmt.Sprintf("signal %v on %s", signal, f.name), signal, f.fill, 4.5)
 				}
 				for _, method := range []string{"GET", "POST", "PUT", "DELETE", "PATCH", "WS"} {
@@ -66,7 +66,7 @@ func TestThemesKeepTextReadable(t *testing.T) {
 				}
 			}
 			for _, f := range faces {
-				for _, signal := range []ui.Color{p.Info, p.Warning, p.Danger, p.Accent, p.Success} {
+				for _, signal := range []ui.Color{p.Info, p.Warning, p.Danger, p.Primary, p.Success} {
 					check(fmt.Sprintf("signal %v on %s", signal, f.name), signal, f.fill, 3)
 				}
 				for _, method := range []string{"GET", "POST", "PUT", "DELETE", "PATCH", "WS"} {
@@ -82,24 +82,24 @@ func TestThemesKeepTextReadable(t *testing.T) {
 			// A focused field and a keyboard focus ring draw Ring inside their
 			// face; it must read against that face and the surface around it,
 			// without being the ink accent a primary action is.
-			check("field focus edge on its well", p.Ring, p.Well, 3)
-			check("field focus edge on a chrome field", p.Ring, p.Canvas, 3)
-			check("field focus edge beside the canvas", p.Ring, p.Canvas, 3)
-			check("field focus edge beside chrome", p.Ring, p.Chrome, 3)
+			check("field focus edge on its well", p.Ring, p.Input, 3)
+			check("field focus edge on a chrome field", p.Ring, p.Background, 3)
+			check("field focus edge beside the canvas", p.Ring, p.Background, 3)
+			check("field focus edge beside chrome", p.Ring, p.Window, 3)
 			// An unchecked box or radio draws Ring as its edge on each surface;
 			// its face is a 7% tint, too faint to be the only sign of a box.
-			check("checkbox edge on canvas", p.Ring, p.Canvas, 3)
-			check("checkbox edge on chrome", p.Ring, p.Chrome, 3)
-			check("checkbox edge on its well", p.Ring, p.Well, 3)
-			check("checkbox edge on its face", p.Ring, p.Fill.Over(p.Canvas), 3)
-			if p.Ring == p.Accent || p.Ring == p.TextMuted {
+			check("checkbox edge on canvas", p.Ring, p.Background, 3)
+			check("checkbox edge on chrome", p.Ring, p.Window, 3)
+			check("checkbox edge on its well", p.Ring, p.Input, 3)
+			check("checkbox edge on its face", p.Ring, p.Muted.Over(p.Background), 3)
+			if p.Ring == p.Primary || p.Ring == p.MutedForeground {
 				t.Fatal("Ring must be its own focus color, not the accent or muted text")
 			}
 			check("tooltip", theme.InverseText, theme.Inverse, 4.5)
 			// The duration bar is a normal quantity behind its number; a slow
 			// one is the danger tint. Both carry body text.
-			check("duration on bar", theme.Text, p.Fill.Over(p.Canvas), 4.5)
-			check("slow duration", theme.Text, p.Danger.Alpha(0.16).Over(p.Canvas), 4.5)
+			check("duration on bar", theme.Text, p.Muted.Over(p.Background), 4.5)
+			check("slow duration", theme.Text, p.Danger.Alpha(0.16).Over(p.Background), 4.5)
 			// Status and method colors never fill a background, so they are
 			// read against the surface under them.
 			for _, status := range []int{200, 304, 302, 404, 503} {
@@ -118,7 +118,7 @@ func TestSuccessIsNotTheAccent(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		theme := Theme(dark)
 		p := Colors(theme)
-		if p.Success == p.Accent || theme.Success != p.Success {
+		if p.Success == p.Primary || theme.Success != p.Success {
 			t.Fatalf("dark=%t: Success must be its own green, not the accent", dark)
 		}
 	}
@@ -145,8 +145,14 @@ func TestFloatingScaleTokens(t *testing.T) {
 	if got := ShadowMenu.Color(true).A; got != 71 {
 		t.Fatalf("dark menu alpha = %d, want 71", got)
 	}
-	if Light.Chrome != ui.Hex("#edf3ea") || Light.Scrim != ui.RGBA(0, 0, 0, 0.35) {
-		t.Fatalf("Light chrome/scrim = %v/%v", Light.Chrome, Light.Scrim)
+	if Light.Window != ui.Hex("#eff3ee") || Light.Background != ui.Hex("#f7fbf6") || Light.Input != ui.Hex("#e8ede5") {
+		t.Fatalf("Light surfaces = %v/%v/%v", Light.Window, Light.Background, Light.Input)
+	}
+	if Dark.Window != ui.Hex("#070a08") || Dark.Background != ui.Hex("#101612") || Dark.Input != ui.Hex("#171f1a") {
+		t.Fatalf("Dark surfaces = %v/%v/%v", Dark.Window, Dark.Background, Dark.Input)
+	}
+	if Light.Scrim != ui.RGBA(0, 0, 0, 0.35) {
+		t.Fatalf("Light scrim = %v", Light.Scrim)
 	}
 	if got := Theme(false).TooltipDelay; got != 500*time.Millisecond {
 		t.Fatalf("tooltip delay = %v, want 500ms", got)
@@ -185,7 +191,7 @@ func TestActivityStacksMeasureTotalWithoutRecoloringNormalTraffic(t *testing.T) 
 			// The ten-request mixed stack is taller than five errors. Only
 			// its upper four tenths are red; normal requests stay neutral.
 			{plot.X + plot.W/4, plot.Y + 3, palette.Danger},
-			{plot.X + plot.W/4, plot.Y + 11, palette.TextMuted},
+			{plot.X + plot.W/4, plot.Y + 11, palette.MutedForeground},
 			{plot.X + plot.W*3/4, plot.Y + 3, theme.Background},
 			{plot.X + plot.W*3/4, plot.Y + 11, palette.Danger},
 		} {
