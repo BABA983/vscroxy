@@ -5441,8 +5441,17 @@ func TestCommandPaletteKeyboardAndDisabledActions(t *testing.T) {
 		t.Fatal("palette search did not take focus")
 	}
 	tt.Type("Layout:")
-	tt.Key(0, ui.KeyDown)
-	tt.Key(0, ui.KeyDown)
+	// Find the ranked position of the command, then navigate to it with
+	// arrow keys: this proves Down picks a lower row, not just the top hit.
+	ranked := a.paletteRankedResults("Layout:", a.actions(nil))
+	target := slices.IndexFunc(ranked.entries, func(entry paletteEntry) bool { return entry.label == "Layout: Stacked" })
+	if target < 0 {
+		t.Fatalf("Layout: Stacked is not ranked: %+v", paletteLabels(ranked.entries))
+	}
+	a.workbench.command = 0
+	for range target {
+		tt.Key(0, ui.KeyDown)
+	}
 	tt.Key(0, ui.KeyEnter)
 	if tt.HasText("Find command") {
 		t.Fatal("executing a command did not close the palette")

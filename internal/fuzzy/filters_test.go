@@ -140,6 +140,18 @@ func TestWordFilter(t *testing.T) {
 	filterOk(t, MatchesWords, "foo:bar", "foo:bar", nil)
 }
 
+func TestPatternInWord(t *testing.T) {
+	if !PatternInWord("getusr", "get user") {
+		t.Fatal("subsequence should match")
+	}
+	if PatternInWord("zzzz", "get user") {
+		t.Fatal("absent rune must not match")
+	}
+	if !PatternInWord("she", "say 你好 hello") {
+		t.Fatal("subsequence across non-ASCII text should match")
+	}
+}
+
 // Expectations from VS Code's korean.test.ts, which supplies
 // MatchesWords' alternate character codes.
 func TestKoreanAlternateCodes(t *testing.T) {

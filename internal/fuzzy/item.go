@@ -74,11 +74,10 @@ func ScoreItemFuzzy[T any](item T, query IPreparedQuery, allowNonContiguousMatch
 	return score
 }
 
-// CompareItemsByFuzzyScore corresponds to compareItemsByFuzzyScore. It can be
-// passed directly to a stable sorting function as a less-like comparison.
-func CompareItemsByFuzzyScore[T any](itemA, itemB T, query IPreparedQuery, allowNonContiguousMatches bool, accessor IItemAccessor[T], cache FuzzyScorerCache) int {
-	scoreA := ScoreItemFuzzy(itemA, query, allowNonContiguousMatches, accessor, cache)
-	scoreB := ScoreItemFuzzy(itemB, query, allowNonContiguousMatches, accessor, cache)
+// CompareItemScores is the comparison half of VS Code's
+// compareItemsByFuzzyScore for two items whose scores are already known.
+// It lets a caller reuse one score per item while sorting a large list.
+func CompareItemScores[T any](itemA, itemB T, scoreA, scoreB *IItemScore, query IPreparedQuery, accessor IItemAccessor[T]) int {
 	a, b := scoreA.Score, scoreB.Score
 
 	// 1.) Identity matches have the highest score.
@@ -140,6 +139,15 @@ func CompareItemsByFuzzyScore[T any](itemA, itemB T, query IPreparedQuery, allow
 
 	// 6.) Fall back to label, description and path comparisons.
 	return fallbackCompare(itemA, itemB, query, accessor)
+}
+
+// CompareItemsByFuzzyScore corresponds to compareItemsByFuzzyScore. It can be
+// passed directly to a stable sorting function as a less-like comparison.
+func CompareItemsByFuzzyScore[T any](itemA, itemB T, query IPreparedQuery, allowNonContiguousMatches bool, accessor IItemAccessor[T], cache FuzzyScorerCache) int {
+	return CompareItemScores(itemA, itemB,
+		ScoreItemFuzzy(itemA, query, allowNonContiguousMatches, accessor, cache),
+		ScoreItemFuzzy(itemB, query, allowNonContiguousMatches, accessor, cache),
+		query, accessor)
 }
 
 const (
