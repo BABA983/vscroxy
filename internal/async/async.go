@@ -208,6 +208,39 @@ func (t *fakeTimer) Stop() bool {
 	return true
 }
 
+// caller is one caller's stake in a shared group. A context cancels only this
+// caller's delivery; the group's task context is canceled only by the group's
+// own Cancel/Dispose or when the last caller leaves.
+type caller[T any] struct {
+	ctx      context.Context
+	delivery *delivery[T]
+	stop     func() bool
+}
+
+func newCaller[T any](ctx context.Context, onCancel func(*caller[T], error)) *caller[T] {
+	c := &caller[T]{ctx: ctx, delivery: newDelivery[T]()}
+	c.stop = context.AfterFunc(ctx, func() { onCancel(c, ctx.Err()) })
+	return c
+}
+
+func settleCallers[T any](callers []*caller[T], result Result[T]) {
+	for _, c := range callers {
+		c.stop()
+		if err := c.ctx.Err(); err != nil {
+			c.delivery.settle(Result[T]{Err: err})
+			continue
+		}
+		c.delivery.settle(result)
+	}
+}
+
+func removeCaller[T any](callers []*caller[T], target *caller[T]) []*caller[T] {
+	if i := slices.Index(callers, target); i >= 0 {
+		return slices.Delete(callers, i, i+1)
+	}
+	return callers
+}
+
 // delivery is the one-shot channel behind a returned result channel. Several
 // callers can share the same underlying promise and each still gets one result.
 type delivery[T any] struct {

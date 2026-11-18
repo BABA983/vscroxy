@@ -31,8 +31,7 @@ type limiterItem[T any] struct {
 }
 
 // NewLimiter constructs a Limiter with a positive degree of parallelism.
-func NewLimiter[T any](maxDegreeOfParalellism int, opts ...Option) *Limiter[T] {
-	_ = resolveClock(opts)
+func NewLimiter[T any](maxDegreeOfParalellism int) *Limiter[T] {
 	if maxDegreeOfParalellism <= 0 {
 		panic("async: NewLimiter: maxDegreeOfParalellism must be positive")
 	}
@@ -186,6 +185,6 @@ type Queue[T any] struct {
 }
 
 // NewQueue constructs a Queue.
-func NewQueue[T any](opts ...Option) *Queue[T] {
-	return &Queue[T]{Limiter: NewLimiter[T](1, opts...)}
+func NewQueue[T any]() *Queue[T] {
+	return &Queue[T]{Limiter: NewLimiter[T](1)}
 }

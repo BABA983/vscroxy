@@ -25,8 +25,7 @@ func delayedTask(clock *FakeClock, delay time.Duration, value int, ready chan<- 
 
 // Port of Throttler > non async.
 func TestThrottlerNonAsync(t *testing.T) {
-	clock := NewFakeClock()
-	throttler := NewThrottler[int](WithClock(clock))
+	throttler := NewThrottler[int]()
 	started := make(chan struct{}, 2)
 	release := make(chan struct{})
 	var calls atomic.Int32
@@ -59,7 +58,7 @@ func TestThrottlerNonAsync(t *testing.T) {
 // Port of Throttler > async.
 func TestThrottlerAsync(t *testing.T) {
 	clock := NewFakeClock()
-	throttler := NewThrottler[int](WithClock(clock))
+	throttler := NewThrottler[int]()
 	factory := func(n int, ready chan struct{}) Task[int] { return delayedTask(clock, 0, n, ready) }
 	expectAll := func(values ...int) {
 		t.Helper()
@@ -82,8 +81,7 @@ func TestThrottlerAsync(t *testing.T) {
 
 // Port of Throttler > last factory should be the one getting called.
 func TestThrottlerLastFactoryWins(t *testing.T) {
-	clock := NewFakeClock()
-	throttler := NewThrottler[int](WithClock(clock))
+	throttler := NewThrottler[int]()
 	started := make(chan struct{}, 2)
 	release := make(chan struct{})
 	active := func(context.Context) (int, error) {
@@ -268,4 +266,74 @@ func TestThrottlerRecoversPanic(t *testing.T) {
 		panic(fmt.Errorf("throttler boom"))
 	})
 	assertPanic(t, takeResult(t, result).Err, "throttler boom")
+}
+
+// A canceled queued caller must not cancel the other caller's shared task.
+func TestThrottlerCallerContextIsScopedToOneCaller(t *testing.T) {
+	throttler := NewThrottler[int]()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	active := throttler.Queue(t.Context(), func(context.Context) (int, error) {
+		close(started)
+		<-release
+		return 0, nil
+	})
+	waitSignal(t, started)
+
+	canceledCtx, cancel := context.WithCancel(t.Context())
+	var calls atomic.Int32
+	first := throttler.Queue(canceledCtx, func(context.Context) (int, error) {
+		calls.Add(1)
+		return 1, nil
+	})
+	second := throttler.Queue(context.Background(), func(ctx context.Context) (int, error) {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		calls.Add(1)
+		return 2, nil
+	})
+	cancel()
+	assertCanceled(t, takeResult(t, first).Err)
+	close(release)
+
+	assertValue(t, takeResult(t, active), 0)
+	assertValue(t, takeResult(t, second), 2)
+	if calls.Load() != 1 {
+		t.Fatalf("queued task ran %d times, want 1", calls.Load())
+	}
+}
+
+func TestThrottlerAllQueuedCallersCancelDropsTask(t *testing.T) {
+	throttler := NewThrottler[int]()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	active := throttler.Queue(t.Context(), func(context.Context) (int, error) {
+		close(started)
+		<-release
+		return 0, nil
+	})
+	waitSignal(t, started)
+
+	firstCtx, cancelFirst := context.WithCancel(t.Context())
+	secondCtx, cancelSecond := context.WithCancel(t.Context())
+	var calls atomic.Int32
+	task := func(context.Context) (int, error) {
+		calls.Add(1)
+		return 1, nil
+	}
+	first := throttler.Queue(firstCtx, task)
+	second := throttler.Queue(secondCtx, task)
+	cancelFirst()
+	cancelSecond()
+	assertCanceled(t, takeResult(t, first).Err)
+	assertCanceled(t, takeResult(t, second).Err)
+
+	close(release)
+	assertValue(t, takeResult(t, active), 0)
+	followUp := throttler.Queue(t.Context(), func(context.Context) (int, error) { return 9, nil })
+	assertValue(t, takeResult(t, followUp), 9)
+	if calls.Load() != 0 {
+		t.Fatalf("abandoned queued task ran %d times", calls.Load())
+	}
 }

@@ -241,3 +241,107 @@ func TestThrottledDelayerPanic(t *testing.T) {
 	clock.Advance(0)
 	assertPanic(t, takeResult(t, triggered).Err, "throttled boom")
 }
+
+// A caller's context cancels only its own settlement. The second caller never
+// canceled, so the coalesced task still runs with an uncanceled context.
+func TestDelayerCallerContextIsScopedToOneCaller(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewDelayer[int](10*time.Millisecond, WithClock(clock))
+	canceledCtx, cancel := context.WithCancel(t.Context())
+	var calls atomic.Int32
+	first := delayer.Trigger(canceledCtx, func(context.Context) (int, error) {
+		calls.Add(1)
+		return 1, nil
+	})
+	second := delayer.Trigger(context.Background(), func(ctx context.Context) (int, error) {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		calls.Add(1)
+		return 2, nil
+	})
+
+	cancel()
+	assertCanceled(t, takeResult(t, first).Err)
+	clock.Advance(10 * time.Millisecond)
+	assertValue(t, takeResult(t, second), 2)
+	if calls.Load() != 1 {
+		t.Fatalf("task ran %d times, want 1", calls.Load())
+	}
+}
+
+func TestDelayerAllCallersCancelDropsTask(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewDelayer[int](10*time.Millisecond, WithClock(clock))
+	firstCtx, cancelFirst := context.WithCancel(t.Context())
+	secondCtx, cancelSecond := context.WithCancel(t.Context())
+	var calls atomic.Int32
+	task := func(context.Context) (int, error) {
+		calls.Add(1)
+		return 1, nil
+	}
+	first := delayer.Trigger(firstCtx, task)
+	second := delayer.Trigger(secondCtx, task)
+
+	cancelFirst()
+	cancelSecond()
+	assertCanceled(t, takeResult(t, first).Err)
+	assertCanceled(t, takeResult(t, second).Err)
+	clock.Advance(10 * time.Millisecond)
+	if calls.Load() != 0 || delayer.IsTriggered() {
+		t.Fatalf("calls=%d triggered=%v", calls.Load(), delayer.IsTriggered())
+	}
+}
+
+func TestThrottledDelayerCallerContextIsScopedToOneCaller(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewThrottledDelayer[int](10*time.Millisecond, WithClock(clock))
+	canceledCtx, cancel := context.WithCancel(t.Context())
+	var calls atomic.Int32
+	task := func(value int) Task[int] {
+		return func(ctx context.Context) (int, error) {
+			if err := ctx.Err(); err != nil {
+				return 0, err
+			}
+			calls.Add(1)
+			return value, nil
+		}
+	}
+	first := delayer.Trigger(canceledCtx, task(1))
+	second := delayer.Trigger(context.Background(), task(2))
+
+	cancel()
+	assertCanceled(t, takeResult(t, first).Err)
+	clock.Advance(10 * time.Millisecond)
+	assertValue(t, takeResult(t, second), 2)
+	if calls.Load() != 1 {
+		t.Fatalf("task ran %d times, want 1", calls.Load())
+	}
+}
+
+func TestThrottledDelayerAllCallersCancelDropsTask(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewThrottledDelayer[int](10*time.Millisecond, WithClock(clock))
+	firstCtx, cancelFirst := context.WithCancel(t.Context())
+	secondCtx, cancelSecond := context.WithCancel(t.Context())
+	var calls atomic.Int32
+	task := func(context.Context) (int, error) {
+		calls.Add(1)
+		return 1, nil
+	}
+	first := delayer.Trigger(firstCtx, task)
+	second := delayer.Trigger(secondCtx, task)
+
+	cancelFirst()
+	cancelSecond()
+	assertCanceled(t, takeResult(t, first).Err)
+	assertCanceled(t, takeResult(t, second).Err)
+	clock.Advance(10 * time.Millisecond)
+
+	followUp := delayer.Trigger(t.Context(), func(context.Context) (int, error) { return 9, nil })
+	clock.Advance(10 * time.Millisecond)
+	assertValue(t, takeResult(t, followUp), 9)
+	if calls.Load() != 0 {
+		t.Fatalf("abandoned task ran %d times", calls.Load())
+	}
+}

@@ -8,146 +8,121 @@ import (
 // Throttler corresponds to VS Code's Throttler: the first queued task runs
 // immediately, tasks queued while it runs coalesce to the last one, and that
 // last task runs once the active task settles. Every coalesced caller receives
-// the same result.
+// the same result. Canceling one caller's context settles only that caller;
+// the shared task's context is canceled by Dispose or by the last caller
+// leaving the group.
 type Throttler[T any] struct {
 	mu        sync.Mutex
 	lifetime  context.Context
 	cancelAll context.CancelFunc
-	active    *throttlerActive[T]
-	queued    *throttlerQueued[T]
+	active    *throttlerGroup[T]
+	queued    *throttlerGroup[T]
 	disposed  bool
 }
 
-type throttlerActive[T any] struct {
-	task       Task[T]
-	ctx        context.Context
-	release    context.CancelFunc
-	deliveries []*delivery[T]
+type throttlerGroup[T any] struct {
+	task    Task[T]
+	ctx     context.Context
+	release context.CancelFunc
+	callers []*caller[T]
 }
 
-type throttlerQueued[T any] struct {
-	task       Task[T]
-	ctx        context.Context
-	release    context.CancelFunc
-	stopWatch  func() bool
-	deliveries []*delivery[T]
-}
-
-// NewThrottler constructs a Throttler. The clock option is accepted for a
-// uniform constructor signature; a Throttler itself has no timers.
-func NewThrottler[T any](opts ...Option) *Throttler[T] {
-	_ = resolveClock(opts)
+// NewThrottler constructs a Throttler.
+func NewThrottler[T any]() *Throttler[T] {
 	lifetime, cancelAll := context.WithCancel(context.Background())
 	return &Throttler[T]{lifetime: lifetime, cancelAll: cancelAll}
 }
 
-// Queue corresponds to Throttler.queue. A task runs on a worker goroutine with
-// ctx; canceling ctx cancels that task and cancels a queued group before it
-// starts. After Dispose the returned channel carries ErrDisposed.
+// Queue corresponds to Throttler.queue. A task runs on a worker goroutine.
+// After Dispose the returned channel carries ErrDisposed.
 func (t *Throttler[T]) Queue(ctx context.Context, task Task[T]) <-chan Result[T] {
-	wait := newDelivery[T]()
 	if err := ctx.Err(); err != nil {
-		wait.settle(Result[T]{Err: err})
-		return wait.ch
+		immediate := newDelivery[T]()
+		immediate.settle(Result[T]{Err: err})
+		return immediate.ch
 	}
 
 	t.mu.Lock()
 	if t.disposed {
 		t.mu.Unlock()
-		wait.settle(Result[T]{Err: ErrDisposed})
-		return wait.ch
+		immediate := newDelivery[T]()
+		immediate.settle(Result[T]{Err: ErrDisposed})
+		return immediate.ch
 	}
-	if t.active != nil {
+
+	var group, toLaunch *throttlerGroup[T]
+	if t.active == nil {
+		group = t.newGroup(task)
+		t.active = group
+		toLaunch = group
+	} else {
 		if t.queued == nil {
-			t.queued = t.newQueuedLocked(ctx, task)
+			t.queued = t.newGroup(task)
 		} else {
-			// VS Code replaces the queued factory; earlier callers still
-			// settle with the result of the replacement.
+			// VS Code replaces the queued factory; all queued callers still
+			// settle with the replacement's result.
 			t.queued.task = task
 		}
-		t.queued.deliveries = append(t.queued.deliveries, wait)
-		t.mu.Unlock()
-		return wait.ch
+		group = t.queued
 	}
-
-	runCtx, release := withLifetime(ctx, t.lifetime)
-	active := &throttlerActive[T]{
-		task:       task,
-		ctx:        runCtx,
-		release:    release,
-		deliveries: []*delivery[T]{wait},
-	}
-	t.active = active
-	t.mu.Unlock()
-	t.launch(active)
-	return wait.ch
-}
-
-func (t *Throttler[T]) newQueuedLocked(ctx context.Context, task Task[T]) *throttlerQueued[T] {
-	runCtx, release := withLifetime(ctx, t.lifetime)
-	queued := &throttlerQueued[T]{task: task, ctx: runCtx, release: release}
-	queued.stopWatch = context.AfterFunc(runCtx, func() {
-		t.cancelQueued(queued, runCtx.Err())
+	waiting := newCaller(ctx, func(c *caller[T], err error) {
+		t.cancelCaller(group, c, err)
 	})
-	return queued
+	group.callers = append(group.callers, waiting)
+	t.mu.Unlock()
+
+	if toLaunch != nil {
+		t.launch(toLaunch)
+	}
+	return waiting.delivery.ch
 }
 
-func (t *Throttler[T]) launch(active *throttlerActive[T]) {
+func (t *Throttler[T]) newGroup(task Task[T]) *throttlerGroup[T] {
+	// No caller's context is the parent: a group lives until it is disposed,
+	// dropped, or all of its callers cancel.
+	shared, cancel := context.WithCancel(context.Background())
+	return &throttlerGroup[T]{task: task, ctx: shared, release: cancel}
+}
+
+func (t *Throttler[T]) launch(group *throttlerGroup[T]) {
 	go func() {
-		result := invokeResult(active.ctx, active.task)
-		active.release()
-		t.finish(active, result)
+		result := invokeResult(group.ctx, group.task)
+		t.finish(group, result)
 	}()
 }
 
-func (t *Throttler[T]) finish(active *throttlerActive[T], result Result[T]) {
+func (t *Throttler[T]) finish(group *throttlerGroup[T], result Result[T]) {
 	t.mu.Lock()
-	if t.active == active {
+	if t.active == group {
 		t.active = nil
 	}
-	var next *throttlerActive[T]
-	var canceled []*delivery[T]
-	var cancelErr error
+	var next *throttlerGroup[T]
 	if queued := t.queued; queued != nil && !t.disposed {
 		t.queued = nil
-		queued.stopWatch()
-		if err := queued.ctx.Err(); err != nil {
-			canceled = queued.deliveries
-			cancelErr = err
-			queued.release()
-		} else {
-			next = &throttlerActive[T]{
-				task:       queued.task,
-				ctx:        queued.ctx,
-				release:    queued.release,
-				deliveries: queued.deliveries,
-			}
-			t.active = next
-		}
+		t.active = queued
+		next = queued
 	}
 	t.mu.Unlock()
 
-	settleAll(active.deliveries, result)
-	settleAll(canceled, Result[T]{Err: cancelErr})
+	settleCallers(group.callers, result)
 	if next != nil {
 		t.launch(next)
 	}
 }
 
-func (t *Throttler[T]) cancelQueued(queued *throttlerQueued[T], err error) {
+func (t *Throttler[T]) cancelCaller(group *throttlerGroup[T], c *caller[T], err error) {
 	t.mu.Lock()
-	if t.queued != queued {
-		t.mu.Unlock()
-		return
+	group.callers = removeCaller(group.callers, c)
+	if len(group.callers) == 0 {
+		// An abandoned queued group never runs. An abandoned active group
+		// keeps its slot until its worker settles, so later calls still queue.
+		if t.queued == group {
+			t.queued = nil
+		}
+		group.release()
 	}
-	t.queued = nil
-	queued.stopWatch()
-	queued.release()
 	t.mu.Unlock()
-	if err == nil {
-		err = ErrCanceled
-	}
-	settleAll(queued.deliveries, Result[T]{Err: err})
+	c.delivery.settle(Result[T]{Err: err})
 }
 
 // Dispose corresponds to Throttler.dispose. The active task's context is
@@ -166,14 +141,7 @@ func (t *Throttler[T]) Dispose() {
 		active.release()
 	}
 	if queued != nil {
-		queued.stopWatch()
 		queued.release()
-		settleAll(queued.deliveries, Result[T]{Err: ErrDisposed})
-	}
-}
-
-func settleAll[T any](deliveries []*delivery[T], result Result[T]) {
-	for _, d := range deliveries {
-		d.settle(result)
+		settleCallers(queued.callers, Result[T]{Err: ErrDisposed})
 	}
 }

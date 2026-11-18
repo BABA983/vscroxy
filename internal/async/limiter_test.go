@@ -64,7 +64,7 @@ func TestLimiterDegreeOfParallelism(t *testing.T) {
 // Port of Queue > simple.
 func TestQueueSimple(t *testing.T) {
 	clock := NewFakeClock()
-	queue := NewQueue[int](WithClock(clock))
+	queue := NewQueue[int]()
 	syncDone := false
 	asyncDone := false
 	ready := make(chan struct{}, 1)
@@ -102,7 +102,7 @@ func TestQueueSimple(t *testing.T) {
 // Port of Queue > stop processing on dispose.
 func TestQueueStopProcessingOnDispose(t *testing.T) {
 	clock := NewFakeClock()
-	queue := NewQueue[int](WithClock(clock))
+	queue := NewQueue[int]()
 	var work atomic.Int32
 	ready := make(chan struct{}, 1)
 	task := func(context.Context) (int, error) {
@@ -135,7 +135,7 @@ func TestQueueStopProcessingOnDispose(t *testing.T) {
 // Port of Queue > stop on clear.
 func TestQueueStopOnClear(t *testing.T) {
 	clock := NewFakeClock()
-	queue := NewQueue[int](WithClock(clock))
+	queue := NewQueue[int]()
 	var sizeAfterClear atomic.Int32
 	var work atomic.Int32
 	ready := make(chan struct{}, 2)
@@ -176,7 +176,7 @@ func TestQueueStopOnClear(t *testing.T) {
 // Port of Queue > clear and drain (1).
 func TestQueueClearAndDrainWithWork(t *testing.T) {
 	clock := NewFakeClock()
-	queue := NewQueue[int](WithClock(clock))
+	queue := NewQueue[int]()
 	drained := queue.OnDrained()
 	ready := make(chan struct{}, 1)
 	result := queue.Queue(t.Context(), func(context.Context) (int, error) {
@@ -208,7 +208,7 @@ func TestQueueClearWithoutWorkDoesNotDrain(t *testing.T) {
 // Port of Queue > drain timing.
 func TestQueueDrainTiming(t *testing.T) {
 	clock := NewFakeClock()
-	queue := NewQueue[int](WithClock(clock))
+	queue := NewQueue[int]()
 	var mu sync.Mutex
 	logicalTime := 0
 	tick := func() int {
@@ -251,7 +251,7 @@ func TestQueueDrainTiming(t *testing.T) {
 // Port of Queue > drain event is send only once.
 func TestQueueDrainFiresOnce(t *testing.T) {
 	clock := NewFakeClock()
-	queue := NewQueue[int](WithClock(clock))
+	queue := NewQueue[int]()
 	idle := queue.WhenIdle()
 	var drains atomic.Int32
 	drainedOnce := make(chan struct{})
@@ -279,7 +279,7 @@ func TestQueueDrainFiresOnce(t *testing.T) {
 // Port of Queue > order is kept.
 func TestQueueOrderKept(t *testing.T) {
 	clock := NewFakeClock()
-	queue := NewQueue[int](WithClock(clock))
+	queue := NewQueue[int]()
 	delays := []time.Duration{0, 10 * time.Millisecond, 0, 20 * time.Millisecond, 0}
 	ready := make(chan struct{}, 1)
 	channels := make([]<-chan Result[int], 0, len(delays))
@@ -302,7 +302,7 @@ func TestQueueOrderKept(t *testing.T) {
 // Port of Queue > errors bubble individually but not cause stop.
 func TestQueueErrorsBubbleButDoNotStop(t *testing.T) {
 	clock := NewFakeClock()
-	queue := NewQueue[int](WithClock(clock))
+	queue := NewQueue[int]()
 	ready := make(chan struct{}, 5)
 	errorTask := errors.New("error")
 	tasks := []struct {
@@ -333,8 +333,7 @@ func TestQueueErrorsBubbleButDoNotStop(t *testing.T) {
 
 // Port of Queue > order is kept (chained).
 func TestQueueOrderKeptChained(t *testing.T) {
-	clock := NewFakeClock()
-	queue := NewQueue[int](WithClock(clock))
+	queue := NewQueue[int]()
 	previous := queue.Queue(t.Context(), func(context.Context) (int, error) { return 1, nil })
 	assertValue(t, takeResult(t, previous), 1)
 	for n := range 4 {
@@ -348,7 +347,7 @@ func TestQueueOrderKeptChained(t *testing.T) {
 // after the earlier ones.
 func TestQueueDrainedEventTiming(t *testing.T) {
 	clock := NewFakeClock()
-	queue := NewQueue[int](WithClock(clock))
+	queue := NewQueue[int]()
 	drained := queue.OnDrained()
 	ready := make(chan struct{}, 3)
 	first := queue.Queue(t.Context(), limiterTask(clock, 10*time.Millisecond, 2, nil, ready))
@@ -369,8 +368,7 @@ func TestQueueDrainedEventTiming(t *testing.T) {
 }
 
 func TestLimiterContextCancellation(t *testing.T) {
-	clock := NewFakeClock()
-	limiter := NewLimiter[int](2, WithClock(clock))
+	limiter := NewLimiter[int](2)
 	ctx, cancel := context.WithCancel(t.Context())
 	started := make(chan struct{})
 	active := limiter.Queue(ctx, func(ctx context.Context) (int, error) {
