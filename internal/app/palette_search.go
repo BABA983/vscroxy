@@ -166,22 +166,23 @@ func (paletteAccessor) GetItemPath(item paletteScoreItem) (string, bool) {
 // paletteCandidate holds what scoring needs, without building a row closure
 // until the candidate is known to fit in the palette.
 type paletteCandidate struct {
-	kind     uint8
-	key      string
-	label    string
-	detail   string
-	meta     string
-	why      string
-	path     string
-	request  string
-	env      string
-	action   action
-	enabled  bool
-	isAction bool
-	resource bool
-	global   bool
-	score    int
-	matches  []fuzzy.Match
+	kind      uint8
+	key       string
+	label     string
+	detail    string
+	meta      string
+	why       string
+	path      string
+	request   string
+	env       string
+	action    action
+	enabled   bool
+	isAction  bool
+	resource  bool
+	global    bool
+	score     int
+	matches   []fuzzy.Match
+	itemScore *fuzzy.IItemScore
 }
 
 const (
@@ -195,30 +196,54 @@ const (
 // paletteCanMatch runs fuzzy's cheap subsequence check first. A no-match
 // query is otherwise the slowest case: ScoreItemFuzzy would build a scoring
 // matrix for every library row just to return zero.
+//
+// It must be a necessary condition, never a narrower one. ScoreItemFuzzy can
+// score a label alone, a description followed by the label (VS Code reverses
+// that order relative to this prefilter's old concatenation), or a full path
+// identity. Each query piece gets its own choice of those alternatives.
 func paletteCanMatch(item paletteScoreItem, query fuzzy.IPreparedQuery) bool {
-	target := strings.ToLower(item.label + "\x00" + item.detail + "\x00" + item.path)
-	if len(query.Values) == 0 {
-		return fuzzy.PatternInWord(query.NormalizedLowercase, target)
+	if item.path != "" && (query.PathNormalized == item.path || strings.EqualFold(query.PathNormalized, item.path)) {
+		return true
 	}
-	for _, piece := range query.Values {
-		if !fuzzy.PatternInWord(piece.NormalizedLowercase, target) {
-			return false
+
+	label := strings.ToLower(item.label)
+	description := strings.ToLower(item.detail)
+	path := strings.ToLower(item.path)
+	descriptionAndLabel := description + label
+	slashAndLabel := description + "/" + label
+	backslashAndLabel := description + `\` + label
+
+	pieces := query.Values
+	if len(pieces) == 0 {
+		pieces = []fuzzy.IPreparedQueryPiece{query.IPreparedQueryPiece}
+	}
+	for _, piece := range pieces {
+		pattern := piece.NormalizedLowercase
+		if fuzzy.PatternInWord(pattern, label) ||
+			fuzzy.PatternInWord(pattern, descriptionAndLabel) ||
+			fuzzy.PatternInWord(pattern, slashAndLabel) ||
+			fuzzy.PatternInWord(pattern, backslashAndLabel) ||
+			fuzzy.PatternInWord(pattern, path) {
+			continue
 		}
+		return false
 	}
 	return true
 }
 
-func scorePaletteItem(item paletteScoreItem, query fuzzy.IPreparedQuery, cache fuzzy.FuzzyScorerCache) (int, []fuzzy.Match) {
+func scorePaletteItem(item paletteScoreItem, query fuzzy.IPreparedQuery, cache fuzzy.FuzzyScorerCache) *fuzzy.IItemScore {
 	if !paletteCanMatch(item, query) {
-		return 0, nil
+		return &fuzzy.IItemScore{}
 	}
-	result := fuzzy.ScoreItemFuzzy(item, query, true, paletteAccessor{}, cache)
-	return result.Score, result.LabelMatch
+	return fuzzy.ScoreItemFuzzy(item, query, true, paletteAccessor{}, cache)
 }
 
 func paletteCandidateFor(label, detail, path, key string, prepared fuzzy.IPreparedQuery, cache fuzzy.FuzzyScorerCache) paletteCandidate {
-	score, matches := scorePaletteItem(paletteScoreItem{label: label, detail: detail, path: path}, prepared, cache)
-	return paletteCandidate{key: key, label: label, detail: detail, path: path, score: score, matches: matches, enabled: true}
+	score := scorePaletteItem(paletteScoreItem{label: label, detail: detail, path: path}, prepared, cache)
+	return paletteCandidate{
+		key: key, label: label, detail: detail, path: path,
+		score: score.Score, matches: score.LabelMatch, itemScore: score, enabled: true,
+	}
 }
 
 // paletteQueryKey distinguishes queries that score differently even when
@@ -312,9 +337,10 @@ func (a *app) paletteAssetsFor(query fuzzy.IPreparedQuery) paletteAssetResult {
 		clear(a.paletteAssets)
 	}
 
-	candidates := a.paletteAssetCandidates(query, fuzzy.NewFuzzyScorerCache())
+	cache := fuzzy.NewFuzzyScorerCache()
+	candidates := a.paletteAssetCandidates(query, cache)
 	candidates = slices.DeleteFunc(candidates, func(c paletteCandidate) bool { return c.score == 0 })
-	sortPaletteCandidates(candidates, a.workbench.paletteHistoryRanks())
+	sortPaletteCandidates(candidates, a.workbench.paletteHistoryRanks(), query)
 	result := paletteAssetResult{
 		candidates: candidates,
 		overflow:   max(0, len(candidates)-paletteResultLimit),
@@ -389,14 +415,15 @@ func paletteCommandCandidates(actions []action, available bool, query fuzzy.IPre
 		if item.id == "app.palette" || item.enabled != available || len(item.items) > 0 {
 			continue
 		}
-		score, matches := scorePaletteItem(paletteScoreItem{label: item.label}, query, cache)
-		if score == 0 {
+		score := scorePaletteItem(paletteScoreItem{label: item.label}, query, cache)
+		if score.Score == 0 {
 			continue
 		}
 		candidates = append(candidates, paletteCandidate{
 			kind: paletteRunAction, key: "command:" + item.id, label: item.label,
 			detail: item.why(), meta: item.shortcut.keycap(), why: item.why(), action: item,
-			enabled: item.enabled, isAction: true, score: score, matches: matches,
+			enabled: item.enabled, isAction: true,
+			score: score.Score, matches: score.LabelMatch, itemScore: score,
 		})
 	}
 	return candidates
@@ -429,7 +456,7 @@ func (w *desktopWorkbench) rememberPalette(key string) {
 	w.paletteHistoryGen++
 }
 
-func comparePaletteCandidates(x, y paletteCandidate, ranks map[string]int) int {
+func comparePaletteCandidates(x, y paletteCandidate, ranks map[string]int, query fuzzy.IPreparedQuery) int {
 	xr, xok := ranks[x.key]
 	yr, yok := ranks[y.key]
 	switch {
@@ -440,15 +467,22 @@ func comparePaletteCandidates(x, y paletteCandidate, ranks map[string]int) int {
 	case xok && xr != yr:
 		return cmp.Compare(xr, yr)
 	}
-	if x.score != y.score {
-		return cmp.Compare(y.score, x.score)
+	// Below recency, quick open uses VS Code's full comparator: prefix and
+	// compact label matches, then shorter labels, then the fuzzy score. The
+	// scores were computed once while building the candidates.
+	if x.itemScore == nil || y.itemScore == nil {
+		return cmp.Compare(x.label, y.label)
 	}
-	return cmp.Compare(x.label, y.label)
+	return fuzzy.CompareItemScores(
+		paletteScoreItem{label: x.label, detail: x.detail, path: x.path},
+		paletteScoreItem{label: y.label, detail: y.detail, path: y.path},
+		x.itemScore, y.itemScore, query, paletteAccessor{},
+	)
 }
 
-func sortPaletteCandidates(candidates []paletteCandidate, ranks map[string]int) {
+func sortPaletteCandidates(candidates []paletteCandidate, ranks map[string]int, query fuzzy.IPreparedQuery) {
 	slices.SortStableFunc(candidates, func(x, y paletteCandidate) int {
-		return comparePaletteCandidates(x, y, ranks)
+		return comparePaletteCandidates(x, y, ranks, query)
 	})
 }
 
@@ -517,13 +551,13 @@ func (a *app) paletteFinalize(candidates []paletteCandidate) paletteSearch {
 // paletteMergeFinalize merges two already ranked candidate lists without
 // allocating a row for every possible asset. Only rows that fit become
 // paletteEntry values; extra resources are counted for the overflow caption.
-func (a *app) paletteMergeFinalize(assets paletteAssetResult, commands []paletteCandidate, ranks map[string]int) paletteSearch {
+func (a *app) paletteMergeFinalize(assets paletteAssetResult, commands []paletteCandidate, ranks map[string]int, query fuzzy.IPreparedQuery) paletteSearch {
 	out := paletteSearch{more: assets.overflow}
 	assetIndex, commandIndex, resources := 0, 0, 0
 	for assetIndex < len(assets.candidates) || commandIndex < len(commands) {
 		takeAsset := commandIndex >= len(commands) ||
 			assetIndex < len(assets.candidates) &&
-				comparePaletteCandidates(assets.candidates[assetIndex], commands[commandIndex], ranks) <= 0
+				comparePaletteCandidates(assets.candidates[assetIndex], commands[commandIndex], ranks, query) <= 0
 		if takeAsset {
 			candidate := assets.candidates[assetIndex]
 			assetIndex++
@@ -586,18 +620,19 @@ func (a *app) paletteRankedResults(query string, actions []action) paletteSearch
 			enabled = append(enabled, paletteCandidate{
 				kind: paletteRunAction, key: "command:" + item.id, label: item.label,
 				meta: item.shortcut.keycap(), action: item, enabled: true, isAction: true, score: 1,
+				itemScore: &fuzzy.IItemScore{Score: 1},
 			})
 		}
-		sortPaletteCandidates(enabled, ranks)
+		sortPaletteCandidates(enabled, ranks, prepared)
 		return a.paletteFinalize(enabled)
 	}
 
 	commands := paletteCommandCandidates(actions, true, prepared, cache)
-	sortPaletteCandidates(commands, ranks)
-	result := a.paletteMergeFinalize(a.paletteAssetsFor(prepared), commands, ranks)
+	sortPaletteCandidates(commands, ranks, prepared)
+	result := a.paletteMergeFinalize(a.paletteAssetsFor(prepared), commands, ranks, prepared)
 
 	unavailable := paletteCommandCandidates(actions, false, prepared, cache)
-	sortPaletteCandidates(unavailable, ranks)
+	sortPaletteCandidates(unavailable, ranks, prepared)
 	result.entries = append(result.entries, a.paletteFinalize(unavailable).entries...)
 	return result
 }

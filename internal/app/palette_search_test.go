@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"fmt"
 	"image/png"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/baba983/vscroxy/internal/fuzzy"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 )
@@ -58,7 +60,7 @@ func TestPaletteSearchMatchesAndOrdersLibraryAndVariables(t *testing.T) {
 		{"base_url", []string{"base_url", "base_url"}},
 		{"current_only", []string{"current_only"}},
 		{"global_current", []string{"global_current"}},
-		{"local", []string{"Local", "base_url", "current_only", "secret"}},
+		{"local", []string{"Local", "secret", "base_url", "current_only"}},
 		{"trace", []string{"trace_id"}},
 	}
 	for _, tc := range cases {
@@ -150,6 +152,91 @@ func TestCommandPaletteOpensRequestAndEnvironmentResults(t *testing.T) {
 	}
 }
 
+// paletteCanMatch must never reject a real score: ScoreItemFuzzy can score
+// description+label in VS Code's order, which is not the prefilter's old
+// label+detail concatenation.
+func TestPaletteCanMatchNeverRejectsScoreItemFuzzy(t *testing.T) {
+	queries := []string{"getuser", "accountsprofile", "billinglist"}
+	items := []paletteScoreItem{
+		{label: "User", detail: "Get"},
+		{label: "Profile", detail: "GET https://api.example.com/v1 · Accounts"},
+		{label: "List", detail: "POST /x · Billing"},
+	}
+
+	const alphabet = "abcdefghijklmnopqrstuvwxyz"
+	sourceAlphabet := alphabet + " /·"
+	rng := rand.New(rand.NewSource(7))
+	word := func(prefix string, min, max int) string {
+		var b strings.Builder
+		b.WriteString(prefix)
+		for range min + rng.Intn(max-min+1) {
+			alphabet := alphabet
+			if prefix != "" {
+				alphabet = sourceAlphabet
+			}
+			b.WriteByte(alphabet[rng.Intn(len(alphabet))])
+		}
+		return b.String()
+	}
+	subsequence := func(source string) string {
+		var b strings.Builder
+		for _, r := range strings.ToLower(source) {
+			if r >= 'a' && r <= 'z' && rng.Intn(3) != 0 {
+				b.WriteRune(r)
+			}
+		}
+		return b.String()
+	}
+	for range 3000 {
+		label := word("", 2, 9)
+		detail := word("d", 2, 12)
+		path := ""
+		if rng.Intn(4) == 0 {
+			path = word("p", 2, 8) + "/x"
+		}
+		source := label
+		switch rng.Intn(3) {
+		case 1:
+			source = detail + label
+		case 2:
+			if path != "" {
+				source = path
+			}
+		}
+		query := subsequence(source)
+		if query == "" {
+			continue
+		}
+		items = append(items, paletteScoreItem{label: label, detail: detail, path: path})
+		queries = append(queries, query)
+	}
+
+	positive := 0
+	for i, item := range items {
+		prepared := fuzzy.PrepareQuery(queries[i])
+		score := fuzzy.ScoreItemFuzzy(item, prepared, true, paletteAccessor{}, fuzzy.NewFuzzyScorerCache())
+		if i < 3 && score.Score == 0 {
+			t.Fatalf("review case %d (%q on %+v) did not score", i, queries[i], item)
+		}
+		if i < 3 {
+			filtered := scorePaletteItem(item, prepared, fuzzy.NewFuzzyScorerCache())
+			if filtered.Score != score.Score {
+				t.Fatalf("review case %d prefilter changed score from %d to %d", i, score.Score, filtered.Score)
+			}
+		}
+		if score.Score == 0 {
+			continue
+		}
+		positive++
+		if !paletteCanMatch(item, prepared) {
+			t.Fatalf("prefilter rejected a match: item=%+v query=%q score=%d", item, queries[i], score.Score)
+		}
+	}
+	if positive < 100 {
+		t.Fatalf("random sweep produced only %d positive matches", positive)
+	}
+}
+
 func TestPaletteUnavailableCommandKeepsReasonDetail(t *testing.T) {
 	a := workspaceApp()
 	var unavailable action
@@ -202,6 +289,24 @@ func TestPaletteFuzzyRanksGetUserAndRecentRows(t *testing.T) {
 	}
 	if a.workbench.paletteHistory == nil || a.workbench.paletteHistory.Size() != 1 {
 		t.Fatalf("palette history = %+v", a.workbench.paletteHistory)
+	}
+}
+
+func TestPaletteFuzzyUsesVSCodeComparator(t *testing.T) {
+	a := paletteTestApp()
+	a.requests = append(a.requests,
+		savedRequest{ID: "get", Name: "Get User", Method: "GET", URL: "https://api.example.com/users/1"},
+		savedRequest{ID: "get2", Name: "Get user details", Method: "GET", URL: "https://api.example.com/users/2"},
+	)
+	a.requestGen++
+
+	// VS Code's scoreFuzzy normalizes a match that ends on the last rune, so
+	// "Get User" scores 65582 against "Get user details" at 65583. The ported
+	// comparator ranks that one-point higher score first before considering
+	// the shorter label, so this is the correct quick-open order.
+	got := paletteLabels(a.paletteSearchEntries("getusr"))
+	if len(got) < 2 || got[0] != "Get user details" || got[1] != "Get User" {
+		t.Fatalf("getusr order = %v", got)
 	}
 }
 
