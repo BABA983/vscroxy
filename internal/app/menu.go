@@ -22,7 +22,7 @@ func (a *app) menu() *mygo.Menu {
 			a.workbench.menuAction = id
 			a.invalidate()
 		}}
-		item.Accelerator = pick(a.actions(nil), id).shortcut.accelerator()
+		item.Accelerator = keybindingOf(id).accelerator()
 		a.workbench.menuItems[id] = item
 		return item
 	}

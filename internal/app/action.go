@@ -229,16 +229,31 @@ func (a *app) actionButton(c *ui.Context, id, label string) ui.Element {
 	return b
 }
 
+// actionShortcuts binds one command per key. A key can be owned by several
+// mutually exclusive commands, such as Start and Stop capture: only the first
+// enabled command in registry order is subscribed, so a key never runs two
+// handlers.
 func (a *app) actionShortcuts(c *ui.Context) {
+	type binding struct {
+		run      func()
+		shortcut shortcut
+	}
+	var bindings []binding
+	seen := make(map[shortcut]bool)
 	for _, x := range a.actions(c) {
+		if !x.enabled || x.shortcut.key == 0 || seen[x.shortcut] {
+			continue
+		}
 		// Browsing traffic never sends: in LIVE, Send's shortcut works from
 		// inside the inspector only.
 		if x.id == "request.send" && a.page.capture() && !a.workbench.inspector.FocusWithin(c) {
 			continue
 		}
-		if x.enabled && x.shortcut.key != 0 {
-			c.OnShortcut(x.shortcut.mods, x.shortcut.key, x.run)
-		}
+		seen[x.shortcut] = true
+		bindings = append(bindings, binding{x.run, x.shortcut})
+	}
+	for _, b := range bindings {
+		c.OnShortcut(b.shortcut.mods, b.shortcut.key, b.run)
 	}
 }
 

@@ -1303,11 +1303,10 @@ func (a *app) inspectorActions(c *ui.Context, f flow) []action {
 	for _, x := range a.pickActions(c, "view.focus-inspector", "view.layout-right", "view.layout-bottom") {
 		actions = append(actions, x.in("view"))
 	}
+	global := a.actions(c)
 	actions = append(actions,
-		do("inspector.detach", locales.DetachInspector(), a.openInspectorWindow).
-			when(!a.inspectorDetached, "").keys(ui.Cmd|ui.Shift, ui.KeyI).in("view"),
-		do("inspector.dock", locales.DockInspector(), a.closeInspectorWindow).
-			when(a.inspectorDetached, "").keys(ui.Cmd|ui.Shift, ui.KeyI).in("view"),
+		pick(global, "inspector.detach").in("view"),
+		pick(global, "inspector.dock").in("view"),
 	)
 	// The exchange's own commands are the row's menu, so the inspector's
 	// actions and the table's right-click cannot drift apart.

@@ -11,7 +11,6 @@ import (
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
-	"github.com/egoist/mygo/ui/editor"
 )
 
 // desktopWorkbench owns presentation, not the capture view's filters or choice.
@@ -37,6 +36,11 @@ type desktopWorkbench struct {
 	content           ui.Handle
 	menuAction        string
 	menuItems         map[string]*mygo.MenuItem
+	// commandList holds the commands built in one view pass; commandFrame and
+	// commandFor say which pass and window context it was built for.
+	commandList  []action
+	commandFrame int
+	commandFor   ui.Services
 	// listFocusAsked is set once the traffic list took the keys for this
 	// visit to LIVE, so Tab can leave it again.
 	listFocusAsked bool
@@ -358,7 +362,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
 		}
-		uikit.MoreButton(c, locales.MoreCaptureOptions(), locales.MoreCaptureOptions(), func(m *ui.Menu) { actionMenu(m, a.captureActions()) })
+		uikit.MoreButton(c, locales.MoreCaptureOptions(), locales.MoreCaptureOptions(), func(m *ui.Menu) { actionMenu(m, a.captureActions(c)) })
 	})
 	ui.Divider(c)
 }
@@ -431,15 +435,18 @@ func (a *app) captureConditions(c *ui.Context) {
 	})
 }
 
-// captureActions are the capture toolbar's ⋯ menu.
-func (a *app) captureActions() []action {
+// captureActions are the capture toolbar's ⋯ menu. Commands already in the
+// registry are looked up by id; only the toolbar's own view choices are built
+// here. The menu keeps its shorter labels for the shared commands.
+func (a *app) captureActions(c *ui.Context) []action {
+	global := a.actions(c)
 	actions := []action{
-		do("capture.stop", locales.StopCapture(), a.stopCapture).when(a.srv != nil && a.srv.Running(), locales.CaptureIsNotRunning()).keys(ui.Cmd, ui.KeyPeriod),
-		do("capture.start", locales.StartCapture(), func() { go a.startCapture() }).when(a.srv != nil && !a.srv.Running(), locales.CaptureIsAlreadyRunning()).keys(ui.Cmd, ui.KeyPeriod),
-		do("tools.rules", locales.DebuggingRules2(), a.openRules),
-		do("collection.record", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", "") }),
+		pick(global, "capture.stop"),
+		pick(global, "capture.start"),
+		pick(global, "tools.rules").as(locales.DebuggingRules2()),
+		pick(global, "collection.record"),
 		do("tokens.analyze", locales.RecognizeTokenLinks(), func() { a.openTokenLinks(a.tokenLinkScope()) }),
-		do("capture.saved-filters", locales.SaveFilter(), func() { a.views.openSaved(a) }),
+		pick(global, "capture.saved-filters").as(locales.SaveFilter()),
 	}
 	for index := 6; index < len(captureKinds); index++ {
 		actions = append(actions, do("capture.kind", optionLabel(captureKinds[index]), func() {
@@ -447,14 +454,14 @@ func (a *app) captureActions() []action {
 			a.applyFilter()
 		}).checked(checkbox(a.chip == index)).in("kinds"))
 	}
-	actions = append(actions, do("capture.filter", locales.Filter(), a.openFilter).in("filter"))
+	actions = append(actions, pick(global, "capture.filter").as(locales.Filter()).in("filter"))
 	if a.filtersActive() {
-		actions = append(actions, do("capture.reset-filters", locales.ResetAllConditions(), func() { a.views.resetFilters(a) }).in("filter"))
+		actions = append(actions, pick(global, "capture.reset-filters").as(locales.ResetAllConditions()).in("filter"))
 	}
 	return append(actions,
 		do("capture.add-column", locales.AddColumn(), a.openColumn).in("columns"),
 		do("capture.clear", locales.ClearUnpinnedRequests2(), func() { a.clearOpen = true }).in("clear"),
-		do("flow.undo-delete", locales.Undo(), a.undoDelete).when(len(a.deletions) > 0, locales.NothingToUndo()).keys(ui.Cmd, ui.KeyZ),
+		pick(global, "flow.undo-delete"),
 	)
 }
 
@@ -501,206 +508,6 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 	}
 	actions = append(actions, do("flow.delete", locales.Delete(), func() { a.queueDeleteFlows(selected) }).
 		when(current && len(selected) > 0, locales.SelectCapturedRequestsFirst()).in("danger").keys(ui.Cmd, flowDeleteKey()))
-	return actions
-}
-
-// actions are the global commands: the palette lists them, the menu bar and
-// shortcuts run them by id, and menus and buttons reuse them with pick.
-func (a *app) actions(c *ui.Context) []action {
-	w := &a.workbench
-	f, current := a.current()
-	capturing := a.page.capture()
-	proxyReady := a.srv != nil && a.srv.Running()
-	d := a.requestDocument
-	// A captured request in LIVE is a document too; tabs are COLLECTIONS'.
-	editing := d != nil && (a.page == pageLive || a.page == pageRequest)
-	tab := editing && !a.page.capture()
-	focus := locales.FocusInspector()
-	if w.focused {
-		focus = locales.BackToList()
-	}
-	recording := locales.PauseCapture()
-	if a.recordingPaused {
-		recording = locales.ResumeCapture()
-	}
-	primary := locales.FocusRequestList()
-	if tab {
-		primary = locales.FocusRequestURL()
-	}
-	search := locales.SearchHostOrPath()
-	find := func() { a.search.Focus(c) }
-	for side := range 2 {
-		if c != nil && capturing && a.bodyText[side] != nil && a.bodyReader[side].FocusWithin(c) {
-			search = locales.FindInBodyLabel()
-			find = func() { a.bodyText[side].Run(editor.Find) }
-		}
-	}
-	draft := locales.OpenARequestDraftFirst()
-	actions := a.requestActions(c, f, capturing && current)
-	actions = append(actions, []action{
-		do("app.palette", locales.Commands(), w.openPalette).keys(ui.Cmd, ui.KeyK),
-		do("view.search", search, find).when(capturing, "").keys(ui.Cmd, ui.KeyF),
-		do("view.primary", primary, func() {
-			if tab {
-				d.urlInput.Focus(c)
-			} else {
-				a.focusTraffic(c)
-			}
-		}).when(capturing && len(a.visible) > 0 || editing, "").keys(ui.Cmd, ui.KeyL),
-		do("request.send", locales.SendRequest(), a.sendComposed).
-			when(editing && !d.composeWaiting && (d.protocol == "gRPC" || d.protocol == "MQTT" || d.protocol == "MCP" || a.srv != nil && a.srv.Running()), locales.OpenDraftNeedsCapture()).keys(ui.Cmd, ui.KeyEnter),
-		do("request.cancel-send", locales.CancelSend(), func() { d.cancelSend() }).
-			when(editing && d.composeWaiting && d.sendCancel != nil && !d.sendCancelling, ""),
-		do("request.duplicate", locales.DuplicateAsNewRequest(), func() { a.duplicateDocument(d) }).
-			when(editing && !d.composeWaiting, draft).keys(ui.Cmd, ui.KeyD),
-		do("request.save", locales.SaveRequest(), func() {
-			if a.page.capture() && d.savedKey == "" {
-				// A capture has no name or collection yet: ask for both.
-				a.renameOpen, a.saveAfterRename = true, true
-				return
-			}
-			a.saveComposed()
-		}).when(editing, draft).keys(ui.Cmd, ui.KeyS),
-		do("request.compare-source", locales.CompareWithSource(), func() {
-			d.comparing = true
-			if !tab {
-				// The comparison replaces the editor that had the focus; keep
-				// it in the inspector, where Escape returns to the list.
-				a.workbench.inspector.Focus(c)
-			}
-		}).when(editing && d.source != nil && d.response != nil && !d.composeWaiting, locales.SendDraftBeforeCompare()).keys(ui.Cmd|ui.Shift, ui.KeyD),
-		do("request.close", locales.CloseRequest(), func() { a.requestClose(d) }).
-			when(tab && !d.composeWaiting, locales.OpenARequestDraftWait()).keys(ui.Cmd, ui.KeyW),
-		do("request.next-tab", locales.NextOpenRequest(), func() { a.cycleDocument(1) }).
-			when(len(a.documents) > 0, locales.OpenARequestFirst()).keys(ui.Ctrl, ui.KeyTab),
-		do("request.previous-tab", locales.PreviousOpenRequest(), func() { a.cycleDocument(-1) }).
-			when(len(a.documents) > 0, locales.OpenARequestFirst()).keys(ui.Ctrl|ui.Shift, ui.KeyTab),
-		do("capture.export-chosen", locales.ExportSelectedHar(), a.exportChosen).when(capturing && a.chosen.Len() > 0, ""),
-		do("capture.export-csv", locales.ExportCsv(), a.exportCSV).when(capturing && len(a.visible) > 0, locales.NoVisibleRequestsToExport()),
-		do("capture.export-chosen-csv", locales.ExportChosenCsv(), a.exportChosenCSV).when(capturing && a.chosen.Len() > 0, locales.ChooseRequestsFirst()),
-		do("view.focus-inspector", focus, func() {
-			w.focused = !w.focused
-			if w.focused {
-				w.inspector.Focus(c)
-			} else {
-				a.focusTraffic(c)
-			}
-		}).when(capturing && current && !a.inspectorDetached, "").keys(ui.Cmd|ui.Shift, ui.KeyEnter),
-		do("inspector.detach", locales.DetachInspector(), a.openInspectorWindow).
-			when(capturing && current && !a.inspectorDetached, "").keys(ui.Cmd|ui.Shift, ui.KeyI),
-		do("inspector.dock", locales.DockInspector(), a.closeInspectorWindow).
-			when(a.inspectorDetached, "").keys(ui.Cmd|ui.Shift, ui.KeyI),
-		do("view.follow-end", locales.FollowListEnd(), func() {
-			w.focused = false
-			a.views.activeView().list.ScrollToEnd()
-		}).when(capturing && len(a.visible) > 0, ""),
-		do("capture.filter", locales.EditCaptureFilters(), a.openFilter).when(capturing, ""),
-		do("capture.saved-filters", locales.ManageSavedFilters(), func() { a.views.openSaved(a) }).when(capturing, ""),
-		do("capture.new-view", locales.NewCaptureView(), func() { a.views.capture(a); a.views.newView(a) }).when(capturing, ""),
-		do("capture.reset-filters", locales.ResetAllCaptureConditions(), func() { a.views.resetFilters(a) }).when(capturing, ""),
-		do("capture.break", a.breakActionLabel(), func() {
-			a.breakOn = !a.breakOn
-			a.srv.SetBreak(a.breakOn)
-		}).when(a.srv != nil, ""),
-		do("capture.stop", locales.StopCapture(), a.stopCapture).when(proxyReady, locales.CaptureIsNotRunning()).keys(ui.Cmd, ui.KeyPeriod),
-		do("capture.start", locales.StartCapture(), func() { go a.startCapture() }).when(a.srv != nil && !proxyReady, locales.CaptureIsAlreadyRunning()).keys(ui.Cmd, ui.KeyPeriod),
-		do("capture.recording", recording, func() { a.recordingPaused = !a.recordingPaused }).
-			when(a.srv != nil && a.srv.Running(), ""),
-		do("collection.record", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", "") }),
-		do("view.layout-right", locales.LayoutSideBySide(), func() { w.layout, w.focused = "right", false }).
-			checked(checkbox(w.layout == "right")),
-		do("view.layout-bottom", locales.LayoutStacked(), func() { w.layout, w.focused = "bottom", false }).
-			checked(checkbox(w.layout == "bottom")),
-		do("view.sidebar", locales.ToggleSidebar(), func() { w.sidebarHidden = !w.sidebarHidden }).keys(ui.Cmd, ui.KeyB),
-		do("flow.undo-delete", locales.Undo(), a.undoDelete).when(len(a.deletions) > 0, locales.NothingToUndo()).keys(ui.Cmd, ui.KeyZ),
-		do("view.layout-reset", locales.ResetDesktopLayout(), func() {
-			w.layout, w.sidebarHidden, w.focused, w.sidePercent = "right", false, false, 64
-			a.sidebarWidth, a.tablePercent = 220, 44
-			a.setColumns(ui.TableLayout{})
-		}),
-		do("settings.https", locales.HttpsCertificateDecryptionSetup(), func() { a.openSettings(2) }),
-		do("settings.certificates", locales.ClientCertificatesRoots(), func() { a.openSettings(6) }),
-		do("network.diagnostics", locales.ConnectionDiagnostics(), func() { a.openDiagnostics(nil, diagnoseMac) }),
-		do("app.setup-guide", locales.ShowSetupGuide(), a.openGuide).when(!a.guide, ""),
-		do("history.open", locales.History2(), func() {
-			a.experiments.scope, a.experiments.draftKey, a.experiments.open = nil, "", true
-			a.experiments.assetID, a.experiments.status, a.experiments.sourceFilter = "", "", ""
-		}),
-		do("network.websocket", locales.WebsocketSession(), a.openSocket),
-		do("network.sse", locales.SseSession(), a.openSSE),
-		do("session.open", locales.OpenSession(), a.openSession),
-		do("session.save", locales.SaveCaptureToSessions(), a.saveSession).when(capturing, ""),
-		do("network.client", locales.SetUpALocalClient(), a.openClientSetup).when(a.srv != nil, ""),
-		do("network.terminal", locales.OpenAProxiedTerminal(), a.openProxiedTerminal).when(proxyReady, locales.StartCaptureFirst()),
-		do("network.chrome", locales.OpenProxiedChrome(), a.openProxiedChrome).when(proxyReady, locales.StartCaptureFirst()),
-		do("network.firefox", locales.OpenProxiedFirefox(), a.openProxiedFirefox).when(proxyReady, locales.StartCaptureFirst()),
-		do("network.android", locales.SetUpAnAndroidEmulator(), func() { a.openClientSetupTarget(clientTargetAndroid) }),
-		do("network.ios", locales.InstallCaInIosSimulator(), func() { a.openClientSetupTarget(clientTargetIOS) }).
-			when(runtime.GOOS == "darwin", locales.IosSimulatorsOnlyOnMacOS()),
-		do("network.java", locales.ImportCaIntoJavaTruststore(), func() { a.openClientSetupTarget(clientTargetJava) }),
-		do("network.electron", locales.LaunchAnElectronApp(), func() { a.openClientSetupTarget(clientTargetElectron) }),
-		do("network.devices", locales.ConnectADevice(), a.openDevices).when(a.srv != nil, ""),
-		do("tools.rules", locales.ManageDebuggingRules(), a.openRules),
-	}...)
-	actions = append(actions, a.hostsActions()...)
-	collectionName := ""
-	if d != nil {
-		collectionName = collectionRoot(d.composeCollection)
-	}
-	actions = append(actions, []action{
-		do("vault.open", locales.Vault(), a.openVault),
-		do("environment.manage", locales.ManageEnvironments(), a.openVars),
-		do("request.code", locales.GenerateCode(), a.openCode).when(editing, draft),
-		do("request.export-http", locales.ExportAsHttp(), func() { a.exportHTTPDocument(d) }).when(editing, draft),
-		do("collection.settings", locales.CollectionSettings(), func() { a.openFolder(d.composeCollection) }).
-			when(editing && d.composeCollection != "", ""),
-		do("request.new", locales.NewRequest(), a.openCompose).keys(ui.Cmd, ui.KeyN),
-		do("request.import-curl", locales.ImportCurl(), a.openCurlImport),
-		do("collection.reload", locales.ReloadCollectionsFromDisk(), func() {
-			a.loadRequestAssets()
-			a.done(locales.ReloadedRequests(len(a.requests), a.library.root))
-		}),
-		do("capture.import-session", locales.ImportCaptureSession(), a.importCaptureSession),
-		do("capture.import-proxyman-folder", locales.ImportProxymanLogFolder(), a.importCaptureFolder),
-		do("rules.import-charles", locales.ImportCharlesSettings(), a.importCharlesSettings),
-		do("collection.import", locales.ImportText(), a.importRequests),
-		do("collection.import-url", locales.ImportFromUrl(), a.openImportURL),
-		do("collection.import-folder", locales.ImportCollectionFolder(), a.importCollectionFolder),
-		do("collection.export-postman", locales.ExportCollectionAsPostman(), func() { a.exportPostman(collectionRoot(d.composeCollection)) }).
-			when(editing && d.composeCollection != "", ""),
-		do("collection.export-http", locales.ExportCollectionAsHttp(collectionName), func() { a.exportHTTPCollection(collectionName) }).
-			when(editing && d.composeCollection != "", ""),
-		do("app.settings", locales.OpenSettings(), func() { a.openSettings(-1) }).keys(ui.Cmd, ui.KeyComma),
-		do("go.live", locales.GoToLiveTraffic(), func() {
-			a.page = pageLive
-			*a.regionOpen("traffic") = true
-			a.focusTraffic(c)
-		}).keys(ui.Cmd, ui.Key1),
-		do("go.collections", locales.GoToCollections(), func() {
-			a.page = pageRequest
-			*a.regionOpen("collections") = true
-			if a.requestDocument != nil {
-				a.urlInput.Focus(c)
-			}
-		}).keys(ui.Cmd, ui.Key2),
-		do("go.sessions", locales.GoToSessions(), func() {
-			a.page = pageSession
-			*a.regionOpen("sessions") = true
-		}).keys(ui.Cmd, ui.Key3),
-		do("go.apis", locales.ApiContracts(), func() { a.page = pageAPI }).
-			when(len(a.apis) > 0, locales.CreateOrImportAnApi()),
-		do("api.new", locales.NewApiContract(), func() {
-			a.newAPI()
-			a.page = pageAPI
-		}),
-		do("api.import-openapi", locales.ImportOpenapi(), a.importOpenAPI),
-		do("history.show", locales.ShowRuns(), a.showRunRecords),
-		do("flow.save-evidence", locales.SaveEvidenceToSessions(), func() { a.saveEvidence(f) }).when(capturing && current, ""),
-	}...)
-	actions = append(actions, a.grpcActions(d, editing)...)
-	actions = append(actions, a.socketIOActions(d, editing)...)
-	actions = append(actions, a.mqttActions(d, editing)...)
-	actions = append(actions, a.mcpActions(d, editing)...)
 	return actions
 }
 
