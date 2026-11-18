@@ -132,5 +132,7 @@ func (a *app) reportQuitError(err error) {
 		a.quitError(err)
 		return
 	}
+	// MyGo owns this dialog; it has no app cleanup and cannot change the
+	// proxy state, so it does not need the background goroutine guard.
 	go mygo.Dialog.Error(locales.CouldNotReleaseSystemProxy(), "Capture is still running to keep your network working. Disable the system proxy in Settings and retry quitting.\n\n"+err.Error())
 }

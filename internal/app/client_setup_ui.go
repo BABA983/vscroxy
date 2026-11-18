@@ -62,7 +62,7 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 				}
 				if a.srv == nil || !a.srv.Running() {
 					if uikit.PrimaryButton(c, locales.StartCapture()).Disabled(a.srv == nil).Clicked() {
-						go a.startCapture()
+						go guarded(func() { a.startCapture() })
 					}
 				}
 			})

@@ -13,7 +13,9 @@ import (
 func localRequestPath(path, what string) (string, error) {
 	// Windows treats both separators alike, including when they are mixed.
 	normalized := strings.ReplaceAll(strings.TrimSpace(path), "/", `\`)
-	if strings.HasPrefix(normalized, `\\`) {
+	// Win32 also accepts the NT namespace prefix \??\, which can name the
+	// same file and network share as \\?\.
+	if strings.HasPrefix(normalized, `\\`) || strings.HasPrefix(normalized, `\??\`) {
 		return "", fmt.Errorf("%s: UNC and device paths are not allowed", what)
 	}
 	return path, nil

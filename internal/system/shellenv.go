@@ -90,27 +90,44 @@ func ShellEnv(ctx context.Context) []string {
 	return mergeShellEnv(current, values)
 }
 
-// LookPath resolves name with the login shell's PATH when the process's own
-// PATH does not have it. exec.Cmd does not consult the PATH in cmd.Env.
+// LookPath resolves name with the PATH the child will actually get. The
+// process PATH comes second: on macOS a Finder launch finds /usr/bin there,
+// while the login shell puts the user's toolchain first. exec.Cmd does not
+// consult the PATH in cmd.Env, so the binary must be resolved before spawning.
 func LookPath(ctx context.Context, name string) (string, error) {
-	path, err := exec.LookPath(name)
-	if err == nil || runtime.GOOS == "windows" || strings.ContainsRune(name, os.PathSeparator) {
-		return path, err
+	if runtime.GOOS == "windows" || strings.ContainsRune(name, os.PathSeparator) {
+		return exec.LookPath(name)
 	}
-	search := ""
-	for _, entry := range ShellEnv(ctx) {
-		if key, value, ok := strings.Cut(entry, "="); ok && key == "PATH" {
-			search = value
-		}
-	}
-	for _, dir := range filepath.SplitList(search) {
-		candidate := filepath.Join(dir, name)
-		info, statErr := os.Stat(candidate)
-		if statErr == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
-			return candidate, nil
-		}
+	merged := envValue(ShellEnv(ctx), "PATH")
+	if path, ok := lookPathInPaths(name, merged, os.Getenv("PATH")); ok {
+		return path, nil
 	}
 	return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
+}
+
+// lookPathInPaths searches each PATH in order, like exec.LookPath does.
+func lookPathInPaths(name string, paths ...string) (string, bool) {
+	for _, search := range paths {
+		for _, dir := range filepath.SplitList(search) {
+			candidate := filepath.Join(dir, name)
+			info, err := os.Stat(candidate)
+			if err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+				return candidate, true
+			}
+		}
+	}
+	return "", false
+}
+
+func envValue(env []string, key string) string {
+	// exec keeps the last duplicate, so read the same entry it would use.
+	value := ""
+	for _, entry := range env {
+		if name, v, ok := strings.Cut(entry, "="); ok && name == key {
+			value = v
+		}
+	}
+	return value
 }
 
 // parseShellEnvOutput reads only the lines between the two random markers.

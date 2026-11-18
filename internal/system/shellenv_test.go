@@ -2,6 +2,7 @@ package system
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -34,6 +35,23 @@ func TestMergeShellEnvChangesOnlyKnownVariables(t *testing.T) {
 	want := []string{"PATH=/opt/brew/bin:/usr/bin", "HOME=/new", "SECRET=inherited", "VSCROXY_CONTROL_FILE=/tmp/control", "SSH_AUTH_SOCK=/tmp/ssh.sock"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("merged %v, want %v", got, want)
+	}
+}
+
+func TestLookPathPrefersTheMergedPathOverTheProcessPath(t *testing.T) {
+	mergedDir, processDir := t.TempDir(), t.TempDir()
+	for _, dir := range []string{mergedDir, processDir} {
+		if err := os.WriteFile(filepath.Join(dir, "tool"), []byte("#!/bin/sh\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, ok := lookPathInPaths("tool", mergedDir, processDir)
+	if !ok || got != filepath.Join(mergedDir, "tool") {
+		t.Fatalf("found %q, %v; want the merged tool", got, ok)
+	}
+	got, ok = lookPathInPaths("tool", t.TempDir(), processDir)
+	if !ok || got != filepath.Join(processDir, "tool") {
+		t.Fatalf("found %q, %v; want the process-path fallback", got, ok)
 	}
 }
 

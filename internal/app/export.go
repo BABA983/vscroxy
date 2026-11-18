@@ -115,7 +115,8 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 				if uikit.PrimaryButton(c, locales.SaveExport()).Disabled(!s.reviewed).Clicked() {
 					job := *s
 					s.open = false
-					go a.writeReviewedExport(job)
+					reviewedJob := job
+					go guarded(func() { a.writeReviewedExport(reviewedJob) })
 				}
 			})
 		})

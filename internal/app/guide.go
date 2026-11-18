@@ -172,7 +172,7 @@ func (a *app) guideCapture(c *ui.Context, t *ui.Theme) {
 			// The step is called Start capturing, so its main action starts
 			// capture; Diagnostics stays available beside it.
 			if uikit.PrimaryButton(c, locales.StartCapture()).Disabled(a.srv == nil).Clicked() {
-				go a.startCapture()
+				go guarded(func() { a.startCapture() })
 			}
 			if uikit.SecondaryButton(c, locales.DiagnoseCapture()).Clicked() {
 				a.openDiagnostics(nil, diagnoseMac)

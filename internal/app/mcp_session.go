@@ -615,7 +615,8 @@ func (s *mcpSession) beginClose() {
 			cancel()
 		}
 		if client != nil {
-			go s.closeClient(client)
+			closingClient := client
+			go guarded(func() { s.closeClient(closingClient) })
 		}
 	})
 }

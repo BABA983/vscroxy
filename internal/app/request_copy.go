@@ -193,6 +193,6 @@ func (a *app) copyText(c *ui.Context, label string, generate func() (string, err
 	if win == nil {
 		work()
 	} else {
-		go work()
+		go guarded(func() { work() })
 	}
 }

@@ -86,7 +86,7 @@ func (a *app) recordButton(c *ui.Context, t *ui.Theme) {
 		case !running:
 			// The listener runs until it is closed, as it does from the
 			// launch: never on the thread that draws.
-			go a.startCapture()
+			go guarded(func() { a.startCapture() })
 		case a.recordingPaused:
 			a.recordingPaused = false
 		default:

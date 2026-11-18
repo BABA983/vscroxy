@@ -88,7 +88,7 @@ func (a *app) startTokenLinks(flows []flow, visible bool) *tokenLinkPreview {
 	if win == nil {
 		work()
 	} else {
-		go work()
+		go guarded(func() { work() })
 	}
 	return w
 }

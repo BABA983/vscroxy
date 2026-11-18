@@ -79,6 +79,9 @@ func (a *app) startCollectionMockWithOptions(path string, opts mockserver.Option
 		return nil, errors.New("no saved examples under this collection")
 	}
 	m := &collectionMock{options: opts}
+	// The Serve loops below belong to net/http and the gRPC library. Their
+	// shutdown is handled by Close/Stop on teardown, and they own no app
+	// cleanup, so the app's goroutine guard is not needed here.
 	if len(examples) > 0 {
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {

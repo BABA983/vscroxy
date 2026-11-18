@@ -230,7 +230,9 @@ func openMQTTSession(url string, input request.Request, scope request.Context, v
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &mqttSession{state: "Connecting", cancel: cancel, ctx: ctx, done: make(chan struct{}), notify: notify,
 		subscriptions: map[string]request.MQTTSubscription{}, input: input, scope: scope, vars: maps.Clone(vars), cfg: cfg}
-	go s.run(url, cfg, proxy, verifyUpstream, tlsConfig)
+	runURL, runCfg, runProxy := url, cfg, proxy
+	runVerify, runTLS := verifyUpstream, tlsConfig
+	go guarded(func() { s.run(runURL, runCfg, runProxy, runVerify, runTLS) })
 	return s
 }
 

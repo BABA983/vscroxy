@@ -15,6 +15,9 @@ func TestLocalRequestPathRejectsRemoteAndDevicePaths(t *testing.T) {
 		`\\?\UNC\attacker\share\x`,
 		`\\.\PhysicalDrive0`,
 		`//./pipe/name`,
+		`\??\UNC\attacker\share\x`,
+		`/??/C:/Windows/file`,
+		`\??\C:\Windows\file`,
 	} {
 		if _, err := localRequestPath(path, "body file"); err == nil || !strings.Contains(err.Error(), "UNC") {
 			t.Errorf("localRequestPath(%q) = %v, want a clear UNC error", path, err)
