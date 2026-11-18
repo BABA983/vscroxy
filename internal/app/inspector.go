@@ -163,7 +163,10 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 		if f.conn.error != "" {
 			uikit.Tip(c, uikit.ErrorText(c, locales.StageFailed(cmp.Or(f.conn.errorStage, locales.Connection()))).SingleLine().Shrink(0), f.conn.error)
 		}
-		uikit.Tip(c, uikit.Meta(c, f.host).Font(uikit.FontMono).SingleLine().MinWidth(0).Shrink(1), f.url)
+		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).MinWidth(0).Shrink(1).Children(func() {
+			uikit.Tip(c, uikit.Meta(c, f.host).Font(uikit.FontMono).SingleLine().MinWidth(0).Shrink(1), f.url)
+			a.unicodeMarker(c, "connect-host", f.host)
+		})
 		// The pane's own commands, where every other pane keeps them: a
 		// text button here was cut to half a word in a narrow inspector.
 		uikit.MoreMenu(c, locales.InspectorOptions(), func(m *ui.Menu) {
@@ -1098,8 +1101,11 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 			// The response pane names its status already; the request's start
 			// line is the one thing the row adds.
 			if side == 1 {
-				uikit.Mono(c, line).TextColor(t.TextMuted).SingleLine().Selectable().Grow(1).
-					Tooltip(strings.TrimSpace(line + "\n" + note))
+				ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Grow(1).MinWidth(0).Children(func() {
+					uikit.Mono(c, line).TextColor(t.TextMuted).SingleLine().Selectable().Shrink(1).
+						Tooltip(strings.TrimSpace(line + "\n" + note))
+					a.unicodeMarker(c, "request-line", f.path)
+				})
 			}
 			if len(headers) > 0 {
 				count := locales.RequestHeadersCount(len(headers))
@@ -1123,7 +1129,10 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				if raw == "" {
 					uikit.Hint(c, locales.NoHeadersRecorded()).Padding(t.Space(uikit.SpaceL))
 				} else {
-					uikit.DataBody(c, raw).TextColor(t.Text).Selectable().Padding(t.Space(uikit.SpaceL))
+					ui.Row(c).Gap(t.Space(uikit.SpaceXS)).Padding(t.Space(uikit.SpaceL)).AlignItems(ui.Start).Children(func() {
+						uikit.DataBody(c, raw).TextColor(t.Text).Selectable().Shrink(1)
+						a.unicodeMarker(c, "raw-block", raw)
+					})
 				}
 			}
 			for _, key := range slices.Sorted(maps.Keys(headers)) {
@@ -1132,20 +1141,33 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 					value = locales.MaskedValue()
 				}
 				uikit.KVRow(c, func() {
-					uikit.Hint(c, key).Font(uikit.FontMono).Width(124).SingleLine().
-						Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key))).PopoverMenu(
-						a.headerFilterMenu(c, key, headers[key]))
+					ui.Row(c).Width(124).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
+						uikit.Hint(c, key).Font(uikit.FontMono).SingleLine().Shrink(1).
+							Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key))).PopoverMenu(
+							a.headerFilterMenu(c, key, headers[key]))
+						a.unicodeMarker(c, "header-key-"+key, key)
+					})
 
-					uikit.DataBody(c, value).TextColor(t.Text).Grow(1).Selectable().PopoverMenu(a.headerFilterMenu(c, key, headers[key]))
+					ui.Row(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
+						uikit.DataBody(c, value).TextColor(t.Text).Grow(1).MinWidth(0).Selectable().PopoverMenu(a.headerFilterMenu(c, key, headers[key]))
+						a.unicodeMarker(c, "header-value-"+key, value)
+					})
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}
 			if len(trailers) > 0 {
 				uikit.Label(c, locales.Trailers()).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL), t.Space(uikit.SpaceXS)).FillWidth()
 				for _, key := range slices.Sorted(maps.Keys(trailers)) {
+					value := strings.Join(trailers[key], "\n")
 					uikit.KVRow(c, func() {
-						uikit.Hint(c, key).Font(uikit.FontMono).Width(124).SingleLine()
-						uikit.DataBody(c, strings.Join(trailers[key], "\n")).TextColor(t.Text).Grow(1).Selectable()
+						ui.Row(c).Width(124).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
+							uikit.Hint(c, key).Font(uikit.FontMono).SingleLine().Shrink(1)
+							a.unicodeMarker(c, "trailer-key-"+key, key)
+						})
+						ui.Row(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
+							uikit.DataBody(c, value).TextColor(t.Text).Grow(1).MinWidth(0).Selectable()
+							a.unicodeMarker(c, "trailer-value-"+key, value)
+						})
 					})
 				}
 			}
@@ -1164,10 +1186,16 @@ func (a *app) paramsSide(c *ui.Context, f flow) {
 	}
 	ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 		for _, key := range slices.Sorted(maps.Keys(parsed.Query())) {
-			for _, value := range parsed.Query()[key] {
+			for i, value := range parsed.Query()[key] {
 				uikit.KVRow(c, func() {
-					uikit.Hint(c, key).Font(uikit.FontMono).Width(uikit.WidthPicker).SingleLine()
-					uikit.DataBody(c, value).TextColor(t.Text).Grow(1).Selectable()
+					ui.Row(c).Width(uikit.WidthPicker).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
+						uikit.Hint(c, key).Font(uikit.FontMono).SingleLine().Shrink(1)
+						a.unicodeMarker(c, fmt.Sprintf("query-key-%d", i), key)
+					})
+					ui.Row(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
+						uikit.DataBody(c, value).TextColor(t.Text).Grow(1).MinWidth(0).Selectable()
+						a.unicodeMarker(c, fmt.Sprintf("query-value-%d", i), value)
+					})
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}

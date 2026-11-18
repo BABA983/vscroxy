@@ -997,6 +997,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 					})
 				})
 			}
+			a.unicodeMarker(c, "request-url", d.composeURL)
 		})
 		sendLabel := locales.Send()
 		if d.composeWaiting {
@@ -1503,7 +1504,10 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			})
 			if d.lastAttemptOpen {
 				ui.Column(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Window).Children(func() {
-					uikit.Body(c, d.sent.Method+" "+d.sent.URL).Label(locales.LastSentDraftUrl()).Selectable()
+					ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
+						uikit.Body(c, d.sent.Method+" "+d.sent.URL).Label(locales.LastSentDraftUrl()).Selectable().Shrink(1)
+						a.unicodeMarker(c, "last-sent-url", d.sent.URL)
+					})
 					uikit.Meta(c, locales.DraftSnapshotVariablesScriptsRedirects())
 					if d.response != nil {
 						uikit.Meta(c, locales.ResponseFromTime(d.response.At.Local().Format("15:04:05")))
@@ -1641,7 +1645,11 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	case resViewHeaders:
 		ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
 			if d.response != nil {
-				uikit.Mono(c, request.HeaderBlock(d.response.ResponseHeader))
+				block := request.HeaderBlock(d.response.ResponseHeader)
+				ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
+					uikit.Mono(c, block).Shrink(1)
+					a.unicodeMarker(c, "response-header-block", block)
+				})
 			}
 		})
 	case resViewCookies:
