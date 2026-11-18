@@ -2764,6 +2764,18 @@
   "unary": "一元",
   "unavailable": "不可用",
   "unavailableForWhatIsShown": "对当前显示或所选内容不可用",
+  "unicodeAmbiguous": "易混淆",
+  "@unicodeAtCharacter": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unicodeAtCharacter": "第 {count} 个字符",
+  "unicodeHint": "字符提示",
+  "unicodeInvisible": "不可见",
+  "unicodeNonBasicASCII": "非基本 ASCII",
   "understandCaptureSavedLocally": "我了解抓包内容会保存在本地",
   "understandExportScope": "我了解导出的范围，分享前会检查导出的文件",
   "unidentified": "未识别",

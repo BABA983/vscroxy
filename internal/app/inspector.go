@@ -165,7 +165,7 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 		}
 		ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).MinWidth(0).Shrink(1).Children(func() {
 			uikit.Tip(c, uikit.Meta(c, f.host).Font(uikit.FontMono).SingleLine().MinWidth(0).Shrink(1), f.url)
-			a.unicodeMarker(c, "connect-host", f.host)
+			a.unicodeMarker(c, "connect-host", f.host, false)
 		})
 		// The pane's own commands, where every other pane keeps them: a
 		// text button here was cut to half a word in a narrow inspector.
@@ -1104,7 +1104,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Grow(1).MinWidth(0).Children(func() {
 					uikit.Mono(c, line).TextColor(t.TextMuted).SingleLine().Selectable().Shrink(1).
 						Tooltip(strings.TrimSpace(line + "\n" + note))
-					a.unicodeMarker(c, "request-line", f.path)
+					a.unicodeMarker(c, "request-line", f.path, false)
 				})
 			}
 			if len(headers) > 0 {
@@ -1131,13 +1131,15 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				} else {
 					ui.Row(c).Gap(t.Space(uikit.SpaceXS)).Padding(t.Space(uikit.SpaceL)).AlignItems(ui.Start).Children(func() {
 						uikit.DataBody(c, raw).TextColor(t.Text).Selectable().Shrink(1)
-						a.unicodeMarker(c, "raw-block", raw)
+						a.unicodeMarker(c, fmt.Sprintf("raw-block-%d", side), raw, false)
 					})
 				}
 			}
 			for _, key := range slices.Sorted(maps.Keys(headers)) {
-				value := strings.Join(headers[key], "\n")
-				if sensitiveHeader(key) && !a.inspect.reveal[side] {
+				rawValue := strings.Join(headers[key], "\n")
+				value := rawValue
+				masked := sensitiveHeader(key) && !a.inspect.reveal[side]
+				if masked {
 					value = locales.MaskedValue()
 				}
 				uikit.KVRow(c, func() {
@@ -1145,12 +1147,12 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 						uikit.Hint(c, key).Font(uikit.FontMono).SingleLine().Shrink(1).
 							Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key))).PopoverMenu(
 							a.headerFilterMenu(c, key, headers[key]))
-						a.unicodeMarker(c, "header-key-"+key, key)
+						a.unicodeMarker(c, fmt.Sprintf("header-%d-key-%s", side, key), key, false)
 					})
 
 					ui.Row(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
 						uikit.DataBody(c, value).TextColor(t.Text).Grow(1).MinWidth(0).Selectable().PopoverMenu(a.headerFilterMenu(c, key, headers[key]))
-						a.unicodeMarker(c, "header-value-"+key, value)
+						a.unicodeMarker(c, fmt.Sprintf("header-%d-value-%s", side, key), rawValue, masked)
 					})
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
@@ -1162,11 +1164,11 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 					uikit.KVRow(c, func() {
 						ui.Row(c).Width(124).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
 							uikit.Hint(c, key).Font(uikit.FontMono).SingleLine().Shrink(1)
-							a.unicodeMarker(c, "trailer-key-"+key, key)
+							a.unicodeMarker(c, fmt.Sprintf("trailer-%d-key-%s", side, key), key, false)
 						})
 						ui.Row(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
 							uikit.DataBody(c, value).TextColor(t.Text).Grow(1).MinWidth(0).Selectable()
-							a.unicodeMarker(c, "trailer-value-"+key, value)
+							a.unicodeMarker(c, fmt.Sprintf("trailer-%d-value-%s", side, key), value, false)
 						})
 					})
 				}
@@ -1190,11 +1192,11 @@ func (a *app) paramsSide(c *ui.Context, f flow) {
 				uikit.KVRow(c, func() {
 					ui.Row(c).Width(uikit.WidthPicker).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
 						uikit.Hint(c, key).Font(uikit.FontMono).SingleLine().Shrink(1)
-						a.unicodeMarker(c, fmt.Sprintf("query-key-%d", i), key)
+						a.unicodeMarker(c, fmt.Sprintf("query-%s-key-%d", key, i), key, false)
 					})
 					ui.Row(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
 						uikit.DataBody(c, value).TextColor(t.Text).Grow(1).MinWidth(0).Selectable()
-						a.unicodeMarker(c, fmt.Sprintf("query-value-%d", i), value)
+						a.unicodeMarker(c, fmt.Sprintf("query-%s-value-%d", key, i), value, false)
 					})
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))

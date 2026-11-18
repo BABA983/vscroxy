@@ -35,12 +35,12 @@ func (a *app) pathEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			ui.Row(c.Key(fmt.Sprintf("path-row-%d", i))).Height(uikit.HeightRow).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				ui.Row(c).Width(uikit.WidthNarrow).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
 					uikit.DataBody(c, ":"+r.Name).SingleLine().Shrink(1)
-					a.unicodeMarker(c, fmt.Sprintf("path-name-hint-%d", i), r.Name)
+					a.unicodeMarker(c, fmt.Sprintf("path-name-hint-%d", i), r.Name, false)
 				})
 				ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().Children(func() {
 					ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 						a.variableGridInput(c, fmt.Sprintf("path-value-%d", i), &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), d.composeCollection, false).Grow(1).MinWidth(0)
-						a.unicodeMarker(c, fmt.Sprintf("path-value-hint-%d", i), r.Value)
+						a.unicodeMarker(c, fmt.Sprintf("path-value-hint-%d", i), r.Value, false)
 					})
 				})
 			})
@@ -178,7 +178,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 								// search for, as the reader offers them.
 								field.PopoverMenu(a.headerFilterMenu(c, r.Name, values))
 							}
-							a.unicodeMarker(c, fmt.Sprintf("%s-key-hint-%d", noun, i+1), r.Name)
+							a.unicodeMarker(c, fmt.Sprintf("%s-key-hint-%d", noun, i+1), r.Name, false)
 							if field.Changed() {
 								changed = true
 							}
@@ -196,15 +196,14 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 								value.Password()
 							}
 							cellBorder(t, value, masked, secret && r.Revealed)
-							if !masked {
-								if len(r.Value) > 20 {
-									// A long value reads in full on hover, without the click
-									// that would move the keyboard into it.
-									uikit.Tip(c, value, r.Value)
-								}
-								// Do not reveal a masked credential in the hint's tip.
-								a.unicodeMarker(c, fmt.Sprintf("%s-value-hint-%d", noun, i+1), r.Value)
+							if !masked && len(r.Value) > 20 {
+								// A long value reads in full on hover, without the click
+								// that would move the keyboard into it.
+								uikit.Tip(c, value, r.Value)
 							}
+							// Scan the raw value even when masked; the hint then names
+							// only code points, kinds and positions.
+							a.unicodeMarker(c, fmt.Sprintf("%s-value-hint-%d", noun, i+1), r.Value, masked)
 							if value.Changed() {
 								changed = true
 							}
@@ -380,7 +379,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	if d.headerBulk {
 		// The editor keeps the block verbatim; the marker reads the raw text
 		// rather than its soft-wrapped display.
-		a.unicodeMarker(c, "bulk-headers", d.composeHeaders)
+		a.unicodeMarker(c, "bulk-headers", d.composeHeaders, false)
 		// The block reads in the same editor as the body: line numbers,
 		// find and undo, one Key: Value per line.
 		if d.bulkEditor == nil || d.bulkFor != d.composeHeaders {

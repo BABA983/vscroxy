@@ -13,13 +13,38 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+func unicodeMarkerLabel() string {
+	return unicodeMarkerText + " " + locales.UnicodeHint()
+}
+
 func unicodeMarkerShown(tt *ui.Tester) bool {
 	for _, text := range tt.Texts() {
-		if text == unicodeMarkerText+" "+locales.Reveal() {
+		if text == unicodeMarkerLabel() {
 			return true
 		}
 	}
 	return false
+}
+
+func hoverUnicodeMarker(t *testing.T, tt *ui.Tester) {
+	t.Helper()
+	r, ok := tt.Find(unicodeMarkerLabel())
+	if !ok {
+		t.Fatalf("no marker in %q", tt.Texts())
+	}
+	tt.Move(r.X+r.W/2, r.Y+r.H/2)
+	tt.Advance(200 * time.Millisecond)
+	tt.Frame()
+}
+
+func assertNoSecretInTip(t *testing.T, tt *ui.Tester, secret string) {
+	t.Helper()
+	shown := strings.Join(tt.Texts(), "\n")
+	for _, part := range []string{"Bearer", secret, "secret", "ab\u200bcd"} {
+		if strings.Contains(shown, part) {
+			t.Fatalf("tip leaked %q: %q", part, shown)
+		}
+	}
 }
 
 func TestUnicodeHintsFlagCapturedHeaderWithoutChangingIt(t *testing.T) {
@@ -35,6 +60,10 @@ func TestUnicodeHintsFlagCapturedHeaderWithoutChangingIt(t *testing.T) {
 	if got := a.flows[0].respHeader.Get("X-Note"); got != value {
 		t.Fatalf("showing the hint changed the captured header: %q", got)
 	}
+	hoverUnicodeMarker(t, tt)
+	if !tt.HasText(locales.UnicodeInvisible()) || !tt.HasText("⟨U+200B⟩") {
+		t.Fatalf("the tip did not localise the kind or show Reveal: %q", tt.Texts())
+	}
 
 	plain := workspaceApp()
 	plain.flows[0].respHeader.Set("X-Note", "Bearer abcd")
@@ -46,11 +75,52 @@ func TestUnicodeHintsFlagCapturedHeaderWithoutChangingIt(t *testing.T) {
 	}
 }
 
+func TestUnicodeHintsFlagMaskedHeadersWithoutLeakingThem(t *testing.T) {
+	secret := "Bearer ab\u200bcd-secret"
+	cases := []struct {
+		name  string
+		setup func(*app)
+	}{
+		{"inspector", func(a *app) {
+			a.flows[0].respHeader.Set("Authorization", secret)
+			a.inspect.ready, a.inspect.tab[1] = true, resViewHeaders
+		}},
+		{"request editor", func(a *app) {
+			openDraft(a, a.flows[0])
+			d := a.requestDocument
+			d.composeHeaders = "Authorization: " + secret
+			d.headerFor = ""
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := workspaceApp()
+			tc.setup(a)
+			tt := ui.NewTester(a.view, 1280, 800)
+			tt.Frame()
+			if !unicodeMarkerShown(tt) {
+				t.Fatalf("a masked secret with U+200B was not flagged: %q", tt.Texts())
+			}
+			hoverUnicodeMarker(t, tt)
+			shown := strings.Join(tt.Texts(), "\n")
+			for _, want := range []string{"U+200B", locales.UnicodeInvisible(), locales.UnicodeAtCharacter(10)} {
+				if !strings.Contains(shown, want) {
+					t.Fatalf("tip did not name %q: %q", want, shown)
+				}
+			}
+			if strings.Contains(shown, "⟨U+") {
+				t.Fatalf("a masked tip offered a revealed view: %q", shown)
+			}
+			assertNoSecretInTip(t, tt, secret)
+		})
+	}
+}
+
 func TestUnicodeHintsFlagRequestFieldAndURLWithoutChangingThem(t *testing.T) {
 	a := workspaceApp()
 	openDraft(a, a.flows[0])
 	d := a.requestDocument
-	d.composeHeaders = "X-Token: Bearer ab\u200bcd"
+	d.composeHeaders = "X-Note: Bearer ab\u200bcd"
 	d.composeURL = "https://аpple.com/projects"
 	d.headerFor = ""
 
@@ -59,7 +129,7 @@ func TestUnicodeHintsFlagRequestFieldAndURLWithoutChangingThem(t *testing.T) {
 	if !unicodeMarkerShown(tt) {
 		t.Fatalf("the header field and URL were not flagged: %q", tt.Texts())
 	}
-	if d.composeHeaders != "X-Token: Bearer ab\u200bcd" || d.composeURL != "https://аpple.com/projects" {
+	if d.composeHeaders != "X-Note: Bearer ab\u200bcd" || d.composeURL != "https://аpple.com/projects" {
 		t.Fatalf("showing hints changed the draft: headers %q, URL %q", d.composeHeaders, d.composeURL)
 	}
 }
@@ -76,8 +146,8 @@ func TestUnicodeHintsUseTheAppsChineseLocale(t *testing.T) {
 	}
 }
 
-// TestUnicodeHintScreenshots reuses the repository's Tester/png export pattern
-// with a smaller scene table. Set VSCROXY_UNICODE_SCREENSHOTS to write it.
+// TestUnicodeHintScreenshots exports 2x captures with the same Tester/png
+// pattern as the repository's snapshot tests. Set the env var to write them.
 func TestUnicodeHintScreenshots(t *testing.T) {
 	dir := os.Getenv("VSCROXY_UNICODE_SCREENSHOTS")
 	if dir == "" {
@@ -87,7 +157,11 @@ func TestUnicodeHintScreenshots(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	flaggedHeader := func(a *app) {
+	maskedHeader := func(a *app) {
+		a.flows[0].respHeader = http.Header{"Authorization": {"Bearer ab\u200bcd-secret"}}
+		a.inspect.ready, a.inspect.tab[1] = true, resViewHeaders
+	}
+	unmaskedHeader := func(a *app) {
 		a.flows[0].respHeader = http.Header{"X-Note": {"Bearer ab\u200bcd"}}
 		a.inspect.ready, a.inspect.tab[1] = true, resViewHeaders
 	}
@@ -95,24 +169,41 @@ func TestUnicodeHintScreenshots(t *testing.T) {
 		openDraft(a, a.flows[0])
 		a.requestDocument.composeURL = "https://аpple.com/projects"
 	}
+	queryKeys := func(a *app) {
+		openDraft(a, a.flows[0])
+		d := a.requestDocument
+		d.composeURL = "https://api.example.com/projects?q=ab\u200bcd&tag=plain"
+		d.querySource = ""
+		d.composeTab = composeTabParams
+	}
 	scenes := []struct {
 		name  string
 		setup func(*app)
-		act   func(*ui.Tester)
+		act   func(*testing.T, *ui.Tester)
 	}{
 		{"unflagged-default", nil, nil},
-		{"flagged-header", flaggedHeader, nil},
-		{"flagged-host", flaggedHost, nil},
-		{"revealed-view", flaggedHeader, func(tt *ui.Tester) {
-			r, ok := tt.Find(unicodeMarkerText + " " + locales.Reveal())
-			if !ok {
-				t.Fatal("the flagged header has no marker")
+		{"masked-header", maskedHeader, nil},
+		{"masked-tip", maskedHeader, func(t *testing.T, tt *ui.Tester) {
+			hoverUnicodeMarker(t, tt)
+			if !tt.HasText("U+200B") || tt.HasText("Bearer") {
+				t.Fatalf("the masked tip was not safe: %q", tt.Texts())
 			}
-			tt.Move(r.X+r.W/2, r.Y+r.H/2)
-			tt.Advance(200 * time.Millisecond)
-			tt.Frame()
+		}},
+		{"flagged-host", flaggedHost, func(t *testing.T, tt *ui.Tester) {
+			hoverUnicodeMarker(t, tt)
+			if !tt.HasText("U+0430") || !tt.HasText("U+0061") {
+				t.Fatalf("the host tip did not name the confusable: %q", tt.Texts())
+			}
+		}},
+		{"revealed-view", unmaskedHeader, func(t *testing.T, tt *ui.Tester) {
+			hoverUnicodeMarker(t, tt)
 			if !tt.HasText("U+200B") || !tt.HasText("⟨U+200B⟩") {
 				t.Fatalf("the revealed tip did not name the code point: %q", tt.Texts())
+			}
+		}},
+		{"query-keys", queryKeys, func(t *testing.T, tt *ui.Tester) {
+			if !tt.HasText("parameter key 2") || !unicodeMarkerShown(tt) {
+				t.Fatalf("the query tab did not show two keys and a flagged value: %q", tt.Texts())
 			}
 		}},
 	}
@@ -124,11 +215,12 @@ func TestUnicodeHintScreenshots(t *testing.T) {
 			}
 			tt := ui.NewTester(a.view, 1280, 800)
 			tt.SetLocale("en-US")
+			tt.SetScale(2)
 			tt.Frame()
 			if scene.act != nil {
-				scene.act(tt)
+				scene.act(t, tt)
 			}
-			file, err := os.Create(filepath.Join(dir, strings.ReplaceAll(scene.name, "/", "-")+".png"))
+			file, err := os.Create(filepath.Join(dir, scene.name+".png"))
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -997,7 +997,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 					})
 				})
 			}
-			a.unicodeMarker(c, "request-url", d.composeURL)
+			a.unicodeMarker(c, "request-url", d.composeURL, false)
 		})
 		sendLabel := locales.Send()
 		if d.composeWaiting {
@@ -1506,7 +1506,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				ui.Column(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Window).Children(func() {
 					ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
 						uikit.Body(c, d.sent.Method+" "+d.sent.URL).Label(locales.LastSentDraftUrl()).Selectable().Shrink(1)
-						a.unicodeMarker(c, "last-sent-url", d.sent.URL)
+						a.unicodeMarker(c, "last-sent-url", d.sent.URL, false)
 					})
 					uikit.Meta(c, locales.DraftSnapshotVariablesScriptsRedirects())
 					if d.response != nil {
@@ -1648,7 +1648,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				block := request.HeaderBlock(d.response.ResponseHeader)
 				ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
 					uikit.Mono(c, block).Shrink(1)
-					a.unicodeMarker(c, "response-header-block", block)
+					a.unicodeMarker(c, "response-header-block", block, false)
 				})
 			}
 		})
