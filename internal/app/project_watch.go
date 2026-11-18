@@ -32,7 +32,8 @@ func (a *app) startProjectWatch() {
 	}
 	stop := make(chan struct{})
 	a.projectWatchStop = stop
-	go a.watchProject(a.projectDir, stop)
+	watchDir, watchStop := a.projectDir, stop
+	go guarded(func() { a.watchProject(watchDir, watchStop) })
 }
 
 // watchProject looks at the folder's fingerprint every two seconds and asks the

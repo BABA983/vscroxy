@@ -48,7 +48,7 @@ func (a *app) checkCertificate(install bool) {
 		s.installErr = nil
 	}
 	path, pending := a.caPath, s.pending
-	go func() {
+	go guarded(func() {
 		var result certificateResult
 		if install {
 			result.installErr = system.InstallCA(path)
@@ -61,7 +61,7 @@ func (a *app) checkCertificate(install bool) {
 		}
 		pending <- result
 		a.invalidate()
-	}()
+	})
 }
 
 func (a *app) drainCertificate() {

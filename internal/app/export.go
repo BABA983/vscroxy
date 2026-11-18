@@ -115,7 +115,8 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 				if uikit.PrimaryButton(c, locales.SaveExport()).Disabled(!s.reviewed).Clicked() {
 					job := *s
 					s.open = false
-					go a.writeReviewedExport(job)
+					reviewedJob := job
+					go guarded(func() { a.writeReviewedExport(reviewedJob) })
 				}
 			})
 		})
@@ -204,7 +205,7 @@ func (a *app) saveResponseBody(r capture.Flow) {
 	if win == nil {
 		return
 	}
-	go func() {
+	go guarded(func() {
 		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
 			Parent: win, Title: locales.SaveResponseBody(), DefaultPath: "response.bin",
 		})
@@ -219,7 +220,7 @@ func (a *app) saveResponseBody(r capture.Flow) {
 			return
 		}
 		a.done(locales.SavedResponseBodyTo(path))
-	}()
+	})
 }
 
 // writeResponseBody saves the retained, decoded payload, never its formatted
@@ -575,7 +576,7 @@ func (a *app) saveMultipartPart(source inspectionBody, contentType string, index
 	if win == nil {
 		return
 	}
-	go func() {
+	go guarded(func() {
 		text, err := source.read(context.Background())
 		if err != nil {
 			a.fail(locales.SavePart(), err)
@@ -598,5 +599,5 @@ func (a *app) saveMultipartPart(source inspectionBody, contentType string, index
 			return
 		}
 		a.done(locales.SavedPart())
-	}()
+	})
 }

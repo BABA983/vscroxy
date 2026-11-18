@@ -129,7 +129,7 @@ func (a *app) loadGRPCSchema(d *requestDocument, reflect, saved bool) {
 			roots = append(roots, root)
 		}
 	}
-	go func() {
+	go guarded(func() {
 		defer cancel()
 		var schema *protoSchema
 		var err error
@@ -158,7 +158,7 @@ func (a *app) loadGRPCSchema(d *requestDocument, reflect, saved bool) {
 		}
 		answers <- grpcSchemaResult{schema: schema, data: data, err: err}
 		a.invalidate()
-	}()
+	})
 }
 
 func (a *app) grpcTLSConfig(endpoint string) (string, *tls.Config, error) {
@@ -471,7 +471,7 @@ func (a *app) sendUnaryGRPC(d *requestDocument) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(seconds)*time.Second)
 	d.sendCancel = cancel
 	g.problem, g.unary = "", true
-	go func() {
+	go guarded(func() {
 		defer cancel()
 		got := r.Execute(ctx, srv, in, vars, jar)
 		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: executionOutcome(got),
@@ -481,7 +481,7 @@ func (a *app) sendUnaryGRPC(d *requestDocument) {
 		a.requestResults = append(a.requestResults, result)
 		a.mu.Unlock()
 		a.invalidate()
-	}()
+	})
 }
 
 // grpcSessionFromExecution turns a unary Execution into the session snapshot

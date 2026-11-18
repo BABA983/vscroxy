@@ -2,12 +2,15 @@ package clientsetup
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"github.com/baba983/vscroxy/internal/system"
 )
 
 // ErrUnsupported means the feature needs an operating system this build does
@@ -64,6 +67,10 @@ func (c Argv) command(bin string) *exec.Cmd {
 	cmd := exec.Command(bin, c.Args...)
 	if c.Env != nil {
 		cmd.Env = c.Env
+	} else {
+		// A launcher from the Dock has only the system PATH. Find adb,
+		// docker and keytool where the user's login shell finds them.
+		cmd.Env = system.ShellEnv(context.Background())
 	}
 	configureStart(cmd, c.NewConsole)
 	return cmd
@@ -128,7 +135,7 @@ func RunOutput(c Argv) ([]byte, error) {
 // toolPath finds a helper and turns the usual "executable file not found" into
 // a message that says what to install. An absolute path still works.
 func toolPath(name string) (string, error) {
-	bin, err := exec.LookPath(name)
+	bin, err := system.LookPath(context.Background(), name)
 	if err != nil {
 		return "", &MissingToolError{Tool: name, Hint: toolHints[name]}
 	}
@@ -166,7 +173,7 @@ func findExecutable(paths, names []string) (string, bool) {
 		}
 	}
 	for _, name := range names {
-		if path, err := exec.LookPath(name); err == nil {
+		if path, err := system.LookPath(context.Background(), name); err == nil {
 			return path, true
 		}
 	}

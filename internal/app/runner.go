@@ -198,7 +198,7 @@ func (a *app) startRunner() {
 	r.events = events
 	vars, stop, srv, env, data := a.activeVars(), r.stopOnFailure, a.srv, r.environment, r.data
 	jar := a.requestCookies()
-	go func() {
+	go guarded(func() {
 		defer close(events)
 		defer cancel()
 		defer a.invalidate()
@@ -222,7 +222,7 @@ func (a *app) startRunner() {
 			a.invalidate()
 			return nil
 		})
-	}()
+	})
 }
 
 // runnableCollections are the paths a run can start from: every collection
@@ -242,7 +242,7 @@ func runnableCollections(requests []savedRequest) []string {
 // chooseRunnerData reads a data file the user picks; its rows set the
 // iteration count.
 func (a *app) chooseRunnerData() {
-	go func() {
+	go guarded(func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.RunnerDataFile(),
 			Filters: []mygo.FileFilter{{Name: locales.CsvOrJSON(), Extensions: []string{"csv", "json"}}}})
 		if err != nil || len(paths) == 0 {
@@ -254,7 +254,7 @@ func (a *app) chooseRunnerData() {
 			rows, err = request.ReadIterationData(paths[0], data)
 		}
 		a.win.Update(func() { a.runner.useData(filepath.Base(paths[0]), rows, err) })
-	}()
+	})
 }
 
 func (r *collectionRunner) useData(name string, rows []map[string]string, err error) {
@@ -348,7 +348,7 @@ func (a *app) exportRunReport(junit bool) {
 	if junit {
 		title, ext, encode = locales.ExportRunJUnit(), "xml", report.JUnit
 	}
-	go func() {
+	go guarded(func() {
 		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: a.win, Title: title, DefaultPath: "run." + ext, Filters: []mygo.FileFilter{{Name: ext, Extensions: []string{ext}}}})
 		if err != nil || path == "" {
 			if err != nil {
@@ -365,7 +365,7 @@ func (a *app) exportRunReport(junit bool) {
 			return
 		}
 		a.done(locales.ExportedTo(path))
-	}()
+	})
 }
 
 func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {

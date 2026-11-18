@@ -92,14 +92,14 @@ func (j *bodyInspection) start(services ui.Services, read func(context.Context) 
 	ctx, cancel := context.WithCancel(context.Background())
 	answers := make(chan inspectionResult, 1)
 	j.cancel, j.answers = cancel, answers
-	go func() {
+	go guarded(func() {
 		result := read(ctx)
 		select {
 		case answers <- result:
 			services.Invalidate()
 		case <-ctx.Done():
 		}
-	}()
+	})
 }
 
 func (j *bodyInspection) poll(c *ui.Context) {

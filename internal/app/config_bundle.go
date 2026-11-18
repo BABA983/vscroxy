@@ -317,7 +317,7 @@ func (a *app) startConfigImport(b configBundle, parts [3]bool, label string) {
 		return
 	}
 	secrets := maps.Clone(a.upstreamSecrets)
-	go func() {
+	go guarded(func() {
 		prepared, _, err := a.prepareImportedUpstream(b, parts, secrets)
 		win.Update(func() {
 			a.configImport.importing = false
@@ -332,7 +332,7 @@ func (a *app) startConfigImport(b configBundle, parts [3]bool, label string) {
 			}
 			a.done(locales.ImportedLabel(label))
 		})
-	}()
+	})
 }
 
 // importConfigPrepared writes the chosen parts after the upstream preflight
@@ -534,7 +534,7 @@ func (a *app) applySettingsPrepared(s settings, prepared *upstream.Config) error
 // chooseConfigExport asks where to save the configuration.
 func (a *app) chooseConfigExport() {
 	win := a.win
-	go func() {
+	go guarded(func() {
 		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: locales.ExportConfiguration(), DefaultPath: "vscroxy-config.json",
 			Filters: []mygo.FileFilter{{Name: "vscroxy configuration", Extensions: []string{"json"}}}})
 		win.Update(func() {
@@ -544,13 +544,13 @@ func (a *app) chooseConfigExport() {
 				a.exportConfigTo(path)
 			}
 		})
-	}()
+	})
 }
 
 // chooseConfigImport asks for a configuration file and shows what it holds.
 func (a *app) chooseConfigImport() {
 	win := a.win
-	go func() {
+	go guarded(func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.ImportConfiguration(),
 			Filters: []mygo.FileFilter{{Name: "vscroxy configuration", Extensions: []string{"json"}}}})
 		var data []byte
@@ -564,7 +564,7 @@ func (a *app) chooseConfigImport() {
 				a.readConfigImport(paths[0], data)
 			}
 		})
-	}()
+	})
 }
 
 // readConfigImport opens the import dialog on data, or says why it cannot.

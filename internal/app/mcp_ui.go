@@ -712,7 +712,7 @@ func (a *app) startMCPImageDecode(u *mcpDocument, result *request.MCPResult, key
 	}
 	job := &mcpImageJob{key: key, answers: make(chan mcpImageResult, 1)}
 	u.imageJob = job
-	go func() {
+	go guarded(func() {
 		decoded := mcpImageResult{key: key, bmp: make([]*ui.Bitmap, len(result.Content)), err: make([]string, len(result.Content))}
 		pixels := 0
 		for _, i := range indexes {
@@ -737,7 +737,7 @@ func (a *app) startMCPImageDecode(u *mcpDocument, result *request.MCPResult, key
 		}
 		job.answers <- decoded
 		a.invalidate()
-	}()
+	})
 }
 
 func mcpImageDimensions(data []byte) (int, int, error) {

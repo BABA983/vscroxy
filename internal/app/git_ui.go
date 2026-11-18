@@ -106,7 +106,7 @@ func (a *app) refreshGit() {
 		load()
 		return
 	}
-	go load()
+	go guarded(func() { load() })
 }
 
 // chooseGitFile shows one file's diff. A result for another path, or for
@@ -143,7 +143,7 @@ func (a *app) chooseGitFile(path string) {
 		show()
 		return
 	}
-	go show()
+	go guarded(func() { show() })
 }
 
 // commitGit commits the selected files with the message the page holds.
@@ -189,7 +189,7 @@ func (a *app) commitGit() {
 		commit()
 		return
 	}
-	go commit()
+	go guarded(func() { commit() })
 }
 
 // initGit makes the project folder a repository, then reads it again.
@@ -223,7 +223,7 @@ func (a *app) initGit() {
 		init()
 		return
 	}
-	go init()
+	go guarded(func() { init() })
 }
 
 // gitPage is Tools → Git.

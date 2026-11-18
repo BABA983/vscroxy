@@ -266,7 +266,7 @@ func (a *app) nextCollectionRecording() {
 	if win == nil {
 		convert()
 	} else {
-		go convert()
+		go guarded(func() { convert() })
 	}
 }
 

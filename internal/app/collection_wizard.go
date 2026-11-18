@@ -561,7 +561,7 @@ func (a *app) createCollection() {
 	if a.win == nil {
 		build()
 	} else {
-		go build()
+		go guarded(func() { build() })
 	}
 }
 

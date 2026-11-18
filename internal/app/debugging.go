@@ -144,7 +144,9 @@ func (a *app) startReplay(seconds int) {
 	// the last send finishes rather than when the UI next drains the channel.
 	updates := make(chan replayOutcome, r.total+1)
 	r.updates = updates
-	go a.runReplay(ctx, flows, settings, seconds, updates)
+	replayCtx, replayFlows, replaySettings := ctx, flows, settings
+	replaySeconds, replayUpdates := seconds, updates
+	go guarded(func() { a.runReplay(replayCtx, replayFlows, replaySettings, replaySeconds, replayUpdates) })
 }
 
 // runReplay dispatches in capture order and repeats. Workers overlap sends;
@@ -158,7 +160,7 @@ func (a *app) runReplay(ctx context.Context, flows []flow, settings replaySettin
 	var workers sync.WaitGroup
 	for range settings.concurrency {
 		workers.Add(1)
-		go func() {
+		go guarded(func() {
 			defer workers.Done()
 			for f := range jobs {
 				if ctx.Err() != nil {
@@ -181,7 +183,7 @@ func (a *app) runReplay(ctx context.Context, flows []flow, settings replaySettin
 				}
 				a.invalidate()
 			}
-		}()
+		})
 	}
 	next := time.Now()
 scheduler:

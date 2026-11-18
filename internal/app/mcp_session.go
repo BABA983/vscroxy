@@ -233,7 +233,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 			EnvCount: len(plan.Env), ArgsCount: len(plan.Args),
 		},
 	}
-	go func() {
+	go guarded(func() {
 		defer cancel()
 		defer close(s.done)
 		var timer *time.Timer
@@ -329,7 +329,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 		s.appendLocked("System", s.state, s.problem)
 		s.mu.Unlock()
 		s.changed()
-	}()
+	})
 	return s
 }
 
@@ -490,7 +490,7 @@ func (s *mcpSession) start(label string, op func(context.Context, *request.MCPCl
 	}
 	s.opCancel = cancel
 	s.mu.Unlock()
-	go func() {
+	go guarded(func() {
 		defer cancel()
 		summary, result, err := op(ctx, client)
 		s.mu.Lock()
@@ -514,7 +514,7 @@ func (s *mcpSession) start(label string, op func(context.Context, *request.MCPCl
 		}
 		s.mu.Unlock()
 		s.changed()
-	}()
+	})
 	return true
 }
 
@@ -615,7 +615,8 @@ func (s *mcpSession) beginClose() {
 			cancel()
 		}
 		if client != nil {
-			go s.closeClient(client)
+			closingClient := client
+			go guarded(func() { s.closeClient(closingClient) })
 		}
 	})
 }

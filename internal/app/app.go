@@ -832,10 +832,10 @@ func newApp() *app {
 			placeholder := srv.SetUpstreamUnavailable(a.upstreamCfg, errors.New("upstream configuration is loading"))
 			cfg, secrets := a.upstreamCfg.Clone(), maps.Clone(a.upstreamSecrets)
 			epoch := a.upstreamEpoch.Load()
-			go func() {
+			go guarded(func() {
 				applied, err := srv.SetUpstreamConfigFailClosed(placeholder, cfg, secrets)
 				a.upstreamPending <- upstreamLoadResult{epoch: epoch, applied: applied, err: err, settings: cfg, secrets: secrets}
-			}()
+			})
 		} else if err := srv.SetUpstreamConfig(a.upstreamCfg, a.upstreamSecrets); err != nil {
 			a.upstreamProblem = err.Error()
 		} else {
@@ -898,7 +898,7 @@ func newApp() *app {
 	// traffic or as tunnels: the capture screen's banner says so, so the
 	// check starts with the app rather than with the first tunnel clicked.
 	a.checkCertificate(false)
-	go cleanupClientDirs()
+	go guarded(func() { cleanupClientDirs() })
 	a.lifecycle = &lifecycle.Lifecycle{}
 	return a
 }
@@ -1045,11 +1045,11 @@ func (a *app) revealCA() {
 		return
 	}
 	path := a.caPath
-	go func() {
+	go guarded(func() {
 		if err := system.RevealCA(path); err != nil {
 			a.fail(locales.RevealCertificate(), err)
 		}
-	}()
+	})
 }
 
 // replayFlow sends the flow's request again through the proxy, so the result
@@ -1131,11 +1131,12 @@ func (a *app) startCapture() {
 		return
 	}
 	a.collecting = true
-	go a.collectBreakpoints()
-	go a.collectFrames()
+	go guarded(func() { a.collectBreakpoints() })
+	go guarded(func() { a.collectFrames() })
 	done := make(chan struct{})
 	defer close(done)
-	go a.tickRate(done)
+	rateDone := done
+	go guarded(func() { a.tickRate(rateDone) })
 	for f := range a.srv.Flows() {
 		a.lastFlow.Store(time.Now().Unix())
 		a.mu.Lock()
@@ -2885,7 +2886,7 @@ func (a *app) table(c *ui.Context) {
 				if !running && uikit.PrimaryButton(c, locales.StartCapture()).Disabled(a.srv == nil).Clicked() {
 					// The listener runs until it is closed, as it does from
 					// the launch: never on the thread that draws.
-					go a.startCapture()
+					go guarded(func() { a.startCapture() })
 				}
 				if uikit.Tip(c, uikit.SecondaryButton(c, locales.SetUpAClient()), locales.CopyAProcessScopedProxy()).Clicked() {
 					a.openClientSetup()
@@ -3572,6 +3573,24 @@ func (f flow) statusColor(t *ui.Theme) ui.Color {
 
 // Run starts the native desktop app and releases its resources on exit.
 func Run() error {
+	// MyGo delivers second launches on the main thread. Register before
+	// taking the lock: another launch during startup must still focus this
+	// instance once its window exists, rather than being lost.
+	var active *app
+	var focusOnReady bool
+	mygo.App.OnSecondInstance(func([]string, string) {
+		if active != nil && active.win != nil {
+			active.win.Restore()
+			active.win.Focus()
+			return
+		}
+		focusOnReady = true
+	})
+	// Only the GUI owns the proxy. A second launch hands its arguments to the
+	// running instance and leaves without touching settings or capture.
+	if !mygo.App.RequestSingleInstanceLock() {
+		return nil
+	}
 	if home, err := os.UserHomeDir(); err == nil {
 		if logs, err := applog.Open(filepath.Join(home, ".vscroxy", "logs")); err != nil {
 			slog.Warn("log file unavailable; logging to stderr only", "err", err)
@@ -3581,8 +3600,14 @@ func Run() error {
 	}
 	slog.Info("vscroxy starting", "version", version.String(), "commit", version.CommitString(), "os", runtime.GOOS, "arch", runtime.GOARCH)
 	a := newApp()
+	active = a
+	setUnexpectedErrorHandler(a.fail)
+	// Resolve the login shell environment once in the background: spawned
+	// tools get it from ShellEnv, while startup never waits for a login
+	// script that sources a slow profile.
+	go guarded(func() { system.ShellEnv(context.Background()) })
 	if a.updateCheck {
-		go a.checkForUpdate()
+		go guarded(func() { a.checkForUpdate() })
 	}
 	if a.srv != nil {
 		defer a.srv.Close()
@@ -3668,6 +3693,11 @@ func Run() error {
 		a.win.OnFocus(func() { a.win.Update(func() { a.windowBehind = false }) })
 		a.win.OnBlur(func() { a.win.Update(func() { a.windowBehind = true }) })
 		a.win.OnFileDrop(func(e *mygo.FileDropEvent) { a.importDropped(e.Paths) })
+		if focusOnReady {
+			focusOnReady = false
+			a.win.Restore()
+			a.win.Focus()
+		}
 		a.startProjectWatch()
 		a.win.OnClose(func(e *mygo.CloseEvent) {
 			if a.lifecycle == nil || !a.lifecycle.ShutdownSucceeded() {
@@ -3688,7 +3718,7 @@ func Run() error {
 				a.fail(locales.EnableLocalAutomation(), err)
 			}
 		}
-		go a.startCapture()
+		go guarded(func() { a.startCapture() })
 	})
 	return mygo.App.Run()
 }
@@ -4203,7 +4233,7 @@ func (a *app) sendComposed() {
 	if r.Checks != (request.Checks{}) {
 		d.responseTab = resViewTests
 	}
-	go func() {
+	go guarded(func() {
 		defer cancel()
 		got := r.Execute(ctx, srv, in, vars, jar)
 		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: executionOutcome(got), response: got.Response, tests: got.Tests, replies: got.Replies, exchanges: got.WebSocket, console: got.Console, varsBefore: vars, vars: got.Vars, writes: got.Writes}
@@ -4214,7 +4244,7 @@ func (a *app) sendComposed() {
 		a.requestResults = append(a.requestResults, result)
 		a.mu.Unlock()
 		a.invalidate()
-	}()
+	})
 }
 
 // plural picks the word for a count.

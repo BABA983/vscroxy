@@ -62,7 +62,7 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 				}
 				if a.srv == nil || !a.srv.Running() {
 					if uikit.PrimaryButton(c, locales.StartCapture()).Disabled(a.srv == nil).Clicked() {
-						go a.startCapture()
+						go guarded(func() { a.startCapture() })
 					}
 				}
 			})
@@ -338,7 +338,7 @@ func (a *app) clientElectronPanel(c *ui.Context, t *ui.Theme, p clientsetup.Prox
 			uikit.Input(c, &s.electronPath).Label(locales.ElectronApp()).Placeholder("/Applications/Slack.app or /usr/bin/app").Font(uikit.FontMono).Grow(1).MinWidth(uikit.WidthField)
 			if uikit.SecondaryButton(c, locales.ChooseApp()).Clicked() && a.win != nil {
 				win := a.win
-				go func() {
+				go guarded(func() {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 						Title:                      locales.ChooseAnElectronApp(),
 						Directory:                  runtime.GOOS == "darwin",
@@ -351,7 +351,7 @@ func (a *app) clientElectronPanel(c *ui.Context, t *ui.Theme, p clientsetup.Prox
 							s.electronPath = paths[0]
 						}
 					})
-				}()
+				})
 			}
 		})
 	})

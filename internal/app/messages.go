@@ -766,7 +766,7 @@ func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible 
 					}
 					chosen := slices.Clone(visible)
 					p.exportOpen = false
-					go func() {
+					go guarded(func() {
 						path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
 							Title: locales.ExportRetainedMessages(), DefaultPath: "vscroxy-messages.json",
 							Filters: []mygo.FileFilter{{Name: "JSON", Extensions: []string{"json"}}},
@@ -779,7 +779,7 @@ func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible 
 							return
 						}
 						a.done(locales.ExportedMessages(len(chosen)))
-					}()
+					})
 				}
 			})
 		})
@@ -869,7 +869,7 @@ func (p *messagePanel) searchMessages(a *app, list []messageView) {
 		}
 		p.searchPending[m.seq] = true
 		ctx, results := p.searchContext, p.searchResults
-		go func() {
+		go guarded(func() {
 			matched, err := bodySideContains(ctx, m.data, m.file, m.kept, query, bodyChunk)
 			if ctx.Err() != nil {
 				return
@@ -880,6 +880,6 @@ func (p *messagePanel) searchMessages(a *app, list []messageView) {
 			}
 			results <- r
 			a.invalidate()
-		}()
+		})
 	}
 }

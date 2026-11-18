@@ -31,7 +31,7 @@ type importReport struct {
 // collection, environment or globals file, a HAR file or an OpenAPI
 // document as a new collection.
 func (a *app) importRequests() {
-	go func() {
+	go guarded(func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Title:   locales.ImportText2(),
 			Filters: []mygo.FileFilter{{Name: "API exports", Extensions: []string{"json", "har", "yaml", "yml", "xml", "jmx", "http", "rest"}}},
@@ -45,14 +45,14 @@ func (a *app) importRequests() {
 			return
 		}
 		a.win.Update(func() { a.importData(data, paths[0]) })
-	}()
+	})
 }
 
 // importCollectionFolder reads a collection that is a directory: a Postman
 // Collection v3 tree or a Bruno .bru collection. The native dialog picks a
 // directory because the collection is a tree of files, not one document.
 func (a *app) importCollectionFolder() {
-	go func() {
+	go guarded(func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Title:       locales.ImportCollectionFolder2(),
 			ButtonLabel: "Import",
@@ -62,7 +62,7 @@ func (a *app) importCollectionFolder() {
 			return
 		}
 		a.importCollectionDir(paths[0])
-	}()
+	})
 }
 
 // importCollectionDir reads a Postman v3 or Bruno collection directory off the

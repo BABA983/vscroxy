@@ -145,10 +145,10 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					s.sendingAll, s.problem = true, ""
 					s.sentAll = make(chan error, 1)
 					session, saved, wait, done := s.session, slices.Clone(s.saved), s.wait, s.sentAll
-					go func() {
+					go guarded(func() {
 						done <- session.sendAll(saved, wait)
 						a.invalidate()
-					}()
+					})
 				}
 				sent := s.session.sentMessages()
 				if uikit.Tip(c, uikit.SecondaryButton(c, locales.SaveSentMessages()).Disabled(len(sent) == 0 || s.document == nil), locales.SavedMessagesHelp()).Clicked() {
@@ -203,7 +203,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 							s.sent = make(chan error, 1)
 							s.sending = true
 							session, done := s.session, s.sent
-							go func() { done <- session.send(kind, data); a.invalidate() }()
+							go guarded(func() { done <- session.send(kind, data); a.invalidate() })
 						}
 					}
 				})

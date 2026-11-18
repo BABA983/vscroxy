@@ -18,7 +18,7 @@ func (a *app) chooseCertificateFile(target *string, title string, extensions []s
 		return
 	}
 	win := a.win
-	go func() {
+	go guarded(func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: title,
 			Filters: []mygo.FileFilter{{Name: title, Extensions: extensions}}})
 		win.Update(func() {
@@ -31,7 +31,7 @@ func (a *app) chooseCertificateFile(target *string, title string, extensions []s
 				a.certificateUI.dirty = true
 			}
 		})
-	}()
+	})
 }
 
 // certificateSettings is Settings → Certificates: client certificates by

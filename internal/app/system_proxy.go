@@ -81,7 +81,7 @@ func (a *app) checkSystemProxy(recoverInterrupted bool) {
 		read = system.CheckProxy
 	}
 	s.checking = true
-	go func() {
+	go guarded(func() {
 		var recoveryErr error
 		if recover {
 			s.mu.Lock()
@@ -92,7 +92,7 @@ func (a *app) checkSystemProxy(recoverInterrupted bool) {
 		}
 		pending <- proxyResult{check: read(target), applied: recoveryErr}
 		a.invalidate()
-	}()
+	})
 }
 
 func (a *app) proxyRecoveryPath() string {
@@ -194,11 +194,11 @@ func (a *app) setSystemProxy(on bool) {
 	}
 	target := a.systemProxyTarget()
 	s.applying, s.writeErr = true, nil
-	go func() {
+	go guarded(func() {
 		applied := s.change(on, addr, write)
 		pending <- proxyResult{wrote: true, on: on, applied: applied, check: read(target)}
 		a.invalidate()
-	}()
+	})
 }
 
 func (s *proxySetup) change(on bool, addr string, write func(bool, string) error) error {

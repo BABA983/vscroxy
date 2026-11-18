@@ -75,7 +75,7 @@ func openGRPCSession(ctx context.Context, cancel context.CancelFunc, input reque
 	req *request.Prepared, schema *protoSchema, method protoreflect.MethodDescriptor, proxy string, tlsConfig *tls.Config, notify func()) *grpcSession {
 	s := &grpcSession{cancel: cancel, done: make(chan struct{}), notify: notify, state: "Connecting", sending: true,
 		input: input, scope: scope, vars: maps.Clone(vars)}
-	go func() {
+	go guarded(func() {
 		defer close(s.done)
 		defer cancel()
 		var final error
@@ -157,7 +157,7 @@ func openGRPCSession(ctx context.Context, cancel context.CancelFunc, input reque
 			s.mu.Unlock()
 			s.add("In", string(data))
 		}
-	}()
+	})
 	return s
 }
 
@@ -208,7 +208,7 @@ func (s *grpcSession) write(body string, halfClose bool) {
 	s.sending, s.problem = true, ""
 	call := s.call
 	s.mu.Unlock()
-	go func() {
+	go guarded(func() {
 		var err error
 		if halfClose {
 			err = call.CloseSend()
@@ -232,5 +232,5 @@ func (s *grpcSession) write(body string, halfClose bool) {
 		}
 		s.mu.Unlock()
 		s.changed()
-	}()
+	})
 }

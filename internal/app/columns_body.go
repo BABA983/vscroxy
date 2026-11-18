@@ -108,7 +108,7 @@ func (a *app) syncColumnValues(c *ui.Context) {
 		answers := make(chan []columnAnswer, 1)
 		r.cancel, r.answers = cancel, answers
 		services := c.Services()
-		go func() {
+		go guarded(func() {
 			results := make([]columnAnswer, 0, len(jobs))
 			for _, job := range jobs {
 				if ctx.Err() != nil {
@@ -145,7 +145,7 @@ func (a *app) syncColumnValues(c *ui.Context) {
 				services.Invalidate()
 			case <-ctx.Done():
 			}
-		}()
+		})
 	}
 	if r.answers != nil {
 		c.After(50 * time.Millisecond)

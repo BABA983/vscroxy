@@ -186,7 +186,7 @@ func (a *app) fetchGraphQLSchema(d *requestDocument) {
 	answers := make(chan graphqlSchemaResult, 1)
 	g.loading = answers
 	source := d.composeURL
-	go func() {
+	go guarded(func() {
 		defer cancel()
 		got := r.Execute(ctx, srv, in, vars, jar)
 		result := graphqlSchemaResult{source: source}
@@ -214,7 +214,7 @@ func (a *app) fetchGraphQLSchema(d *requestDocument) {
 			}
 		}
 		answers <- result
-	}()
+	})
 }
 
 // chooseGraphQLSchema loads an SDL document or an introspection JSON file.
@@ -223,7 +223,7 @@ func (a *app) chooseGraphQLSchema(d *requestDocument) {
 		return
 	}
 	win := a.win
-	go func() {
+	go guarded(func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.LoadGraphqlSchema()})
 		if err != nil || len(paths) == 0 {
 			return
@@ -239,7 +239,7 @@ func (a *app) chooseGraphQLSchema(d *requestDocument) {
 			d.graphql.Schema, d.graphql.SchemaSource = schema.SDL(), path
 			g.problem = ""
 		})
-	}()
+	})
 }
 
 // loadGraphQLSchemaFile reads SDL or introspection JSON. The raw file may be

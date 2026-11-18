@@ -230,7 +230,9 @@ func openMQTTSession(url string, input request.Request, scope request.Context, v
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &mqttSession{state: "Connecting", cancel: cancel, ctx: ctx, done: make(chan struct{}), notify: notify,
 		subscriptions: map[string]request.MQTTSubscription{}, input: input, scope: scope, vars: maps.Clone(vars), cfg: cfg}
-	go s.run(url, cfg, proxy, verifyUpstream, tlsConfig)
+	runURL, runCfg, runProxy := url, cfg, proxy
+	runVerify, runTLS := verifyUpstream, tlsConfig
+	go guarded(func() { s.run(runURL, runCfg, runProxy, runVerify, runTLS) })
 	return s
 }
 
@@ -568,7 +570,7 @@ func (s *mqttSession) publish(msg request.MQTTPublish, name string) {
 	conn := s.conn
 	s.mu.Unlock()
 	s.changed()
-	go func() {
+	go guarded(func() {
 		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 		defer cancel()
 		err := conn.Publish(ctx, msg)
@@ -584,7 +586,7 @@ func (s *mqttSession) publish(msg request.MQTTPublish, name string) {
 		}
 		s.mu.Unlock()
 		s.changed()
-	}()
+	})
 }
 
 func (s *mqttSession) subscribe(subs []request.MQTTSubscription) {
@@ -597,7 +599,7 @@ func (s *mqttSession) subscribe(subs []request.MQTTSubscription) {
 	conn := s.conn
 	s.mu.Unlock()
 	s.changed()
-	go func() {
+	go guarded(func() {
 		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 		defer cancel()
 		grants, err := conn.Subscribe(ctx, subs)
@@ -617,7 +619,7 @@ func (s *mqttSession) subscribe(subs []request.MQTTSubscription) {
 		}
 		s.mu.Unlock()
 		s.changed()
-	}()
+	})
 }
 
 func (s *mqttSession) unsubscribe(topics []string) {
@@ -633,7 +635,7 @@ func (s *mqttSession) unsubscribe(topics []string) {
 	conn := s.conn
 	s.mu.Unlock()
 	s.changed()
-	go func() {
+	go guarded(func() {
 		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 		defer cancel()
 		err := conn.Unsubscribe(ctx, topics)
@@ -652,7 +654,7 @@ func (s *mqttSession) unsubscribe(topics []string) {
 		}
 		s.mu.Unlock()
 		s.changed()
-	}()
+	})
 }
 
 func (s *mqttSession) unsubscribeAll() {

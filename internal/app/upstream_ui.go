@@ -399,10 +399,10 @@ func (a *app) applyUpstreamSettings(settings upstream.Settings, secrets map[stri
 	}
 	u.saving = true
 	a.invalidate()
-	go func() {
+	go guarded(func() {
 		applied, appliedSecrets, failClosed, stale, err := work()
 		a.win.Update(func() { finish(applied, appliedSecrets, failClosed, stale, err) })
-	}()
+	})
 }
 
 // clearUpstream turns off the default, host rules and PAC, keeping the bypass

@@ -283,7 +283,7 @@ func (a *app) launchClient(what, success string, bundle bool, f func(clientsetup
 		return
 	}
 	results := a.clientSetupResults()
-	go func() {
+	go guarded(func() {
 		var warning error
 		if bundle {
 			warning = a.ensureClientBundle(&p)
@@ -304,7 +304,7 @@ func (a *app) launchClient(what, success string, bundle bool, f func(clientsetup
 			warning: errors.Join(warning, launch.warning),
 		}
 		a.invalidate()
-	}()
+	})
 }
 
 // commandString renders a command for a notification, or nothing when the
@@ -391,11 +391,11 @@ func (a *app) loadAndroidDevices() {
 	}
 	s.androidLoading, s.androidProblem = true, ""
 	results := a.clientSetupResults()
-	go func() {
+	go guarded(func() {
 		devices, err := clientsetup.AndroidDevices()
 		results <- clientSetupResult{action: "devices", devices: devices, err: err}
 		a.invalidate()
-	}()
+	})
 }
 
 func (s *clientSetup) androidLabels() []string {
@@ -456,7 +456,7 @@ func (a *app) applyAndroidProxy() {
 	serial := s.androidSerial
 	s.androidPending = true
 	results := a.clientSetupResults()
-	go func() {
+	go guarded(func() {
 		previous, err := clientsetup.ApplyAndroidProxy(serial, port)
 		commands, _ := clientsetup.AndroidProxyCommands(serial, port)
 		results <- clientSetupResult{
@@ -470,7 +470,7 @@ func (a *app) applyAndroidProxy() {
 			port:     port,
 		}
 		a.invalidate()
-	}()
+	})
 }
 
 func (a *app) clearAndroidProxy() {
@@ -494,7 +494,7 @@ func (a *app) clearAndroidProxy() {
 		return
 	}
 	results := a.clientSetupResults()
-	go func() {
+	go guarded(func() {
 		warning, err := clientsetup.ClearAndroidProxy(serial, port, previous)
 		commands, _ := clientsetup.AndroidUndoCommands(serial, port, previous)
 		results <- clientSetupResult{
@@ -507,7 +507,7 @@ func (a *app) clearAndroidProxy() {
 			serial:  serial,
 		}
 		a.invalidate()
-	}()
+	})
 }
 
 // forgetAndroidProxy clears only the app's saved undo record. It is for a
@@ -547,7 +547,7 @@ func (a *app) pushAndroidCA() {
 		return
 	}
 	results := a.clientSetupResults()
-	go func() {
+	go guarded(func() {
 		err := command.Run()
 		results <- clientSetupResult{
 			action:  "push",
@@ -557,7 +557,7 @@ func (a *app) pushAndroidCA() {
 			err:     err,
 		}
 		a.invalidate()
-	}()
+	})
 }
 
 // installAndroidSystemCA writes the CA into the device's system store. Android
@@ -587,7 +587,7 @@ func (a *app) installAndroidSystemCA() {
 	serial := s.androidSerial
 	s.androidPending = true
 	results := a.clientSetupResults()
-	go func() {
+	go guarded(func() {
 		install, err := clientsetup.InstallAndroidSystemCA(serial, p.CAPath)
 		results <- clientSetupResult{
 			action:  "system-ca",
@@ -598,7 +598,7 @@ func (a *app) installAndroidSystemCA() {
 			serial:  serial,
 		}
 		a.invalidate()
-	}()
+	})
 }
 
 func (a *app) installSimulatorCA() {
@@ -608,7 +608,7 @@ func (a *app) installSimulatorCA() {
 		return
 	}
 	results := a.clientSetupResults()
-	go func() {
+	go guarded(func() {
 		command, err := clientsetup.AddSimulatorCA(p.CAPath)
 		if err == nil {
 			err = command.Run()
@@ -621,7 +621,7 @@ func (a *app) installSimulatorCA() {
 			err:     err,
 		}
 		a.invalidate()
-	}()
+	})
 }
 
 func (a *app) javaTruststorePath() string {
@@ -643,7 +643,7 @@ func (a *app) importJavaCA() {
 		return
 	}
 	results := a.clientSetupResults()
-	go func() {
+	go guarded(func() {
 		commands, err := clientsetup.ImportJavaCA(p, keystore)
 		results <- clientSetupResult{
 			action:  "java",
@@ -653,7 +653,7 @@ func (a *app) importJavaCA() {
 			err:     err,
 		}
 		a.invalidate()
-	}()
+	})
 }
 
 // loadAndroidProxyRecords reads the previous proxy values saved by earlier

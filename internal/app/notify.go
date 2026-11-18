@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/store"
@@ -58,6 +59,28 @@ func (a *app) notify(n notice) {
 		a.settingsWin.Invalidate()
 	}
 	a.invalidateTools()
+}
+
+// Run installs fail as the error handler, so a recovered panic reaches the
+// same notice as any other error in the running app.
+var unexpectedError struct {
+	sync.RWMutex
+	handler func(string, error)
+}
+
+func setUnexpectedErrorHandler(handler func(string, error)) {
+	unexpectedError.Lock()
+	unexpectedError.handler = handler
+	unexpectedError.Unlock()
+}
+
+func onUnexpectedError(err error) {
+	unexpectedError.RLock()
+	handler := unexpectedError.handler
+	unexpectedError.RUnlock()
+	if handler != nil {
+		handler(locales.UnexpectedBackgroundError(), err)
+	}
 }
 
 // inform, done and warn are notify at one level, for the common case.

@@ -587,7 +587,7 @@ func (a *app) reviewHAR(flows []flow, name string) {
 // importHAR adds the flows of a HAR file another tool wrote to the table, so a
 // capture someone sent can be read the way a live one is.
 func (a *app) importHAR() {
-	go func() {
+	go guarded(func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Title:   locales.ImportHar2(),
 			Filters: []mygo.FileFilter{{Name: "HAR", Extensions: []string{"har", "json"}}},
@@ -596,7 +596,7 @@ func (a *app) importHAR() {
 			return
 		}
 		a.importHARPath(paths[0])
-	}()
+	})
 }
 
 // importHARPath reads a HAR file and appends it. Drop handling and the Import
@@ -634,7 +634,7 @@ func (a *app) saveSession() {
 }
 
 func (a *app) openSession() {
-	go func() {
+	go guarded(func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Title: locales.OpenSession2(), Multiple: true,
 			Filters: []mygo.FileFilter{{Name: "Session", Extensions: []string{"json"}}},
@@ -662,7 +662,7 @@ func (a *app) openSession() {
 				a.keepSession(file)
 			}
 		})
-	}()
+	})
 }
 
 // replaceSession is a data replacement, not a list refresh. IDs may be reused,
