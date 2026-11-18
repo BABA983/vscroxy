@@ -13,6 +13,14 @@ import (
 	"github.com/egoist/mygo/ui/markdown"
 )
 
+// markdownOptions follows the window's current theme. Markdown's Theme is a
+// concrete look, so it cannot be left on the app's zero Options when Light and
+// Dark switch while the window is open.
+func markdownOptions(c *ui.Context, opts *markdown.Options) *markdown.Options {
+	opts.Theme = uikit.MarkdownTheme(c.Theme())
+	return opts
+}
+
 // openDocs shows the read-only documentation of a collection or folder.
 func (a *app) openDocs(path string) {
 	a.docsOpen, a.docsPath = true, path
@@ -47,7 +55,7 @@ func (a *app) docsModal(c *ui.Context, t *ui.Theme) {
 				if strings.TrimSpace(description) == "" {
 					uikit.Hint(c, locales.NoDescriptionYet(docsLevel(path)))
 				} else {
-					markdown.View(c, description, &a.docsMarkdown)
+					markdown.View(c, description, markdownOptions(c, &a.docsMarkdown))
 				}
 				ui.Divider(c)
 				uikit.Label(c, locales.RequestsCount(len(entries)))
@@ -86,7 +94,7 @@ func (a *app) docsEntryView(c *ui.Context, t *ui.Theme, entry docsEntry) {
 		})
 		uikit.Mono(c, entry.URL).TextColor(t.TextMuted).Selectable()
 		if strings.TrimSpace(entry.Description) != "" {
-			markdown.View(c, entry.Description, &a.docsMarkdown)
+			markdown.View(c, entry.Description, markdownOptions(c, &a.docsMarkdown))
 		}
 		uikit.Meta(c, locales.Auth()+" · "+entry.Auth)
 		if len(entry.Headers) > 0 {

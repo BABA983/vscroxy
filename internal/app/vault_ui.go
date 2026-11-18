@@ -252,7 +252,7 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 				where = locales.EncryptedKeyNoStore(v.keyPath)
 			}
 			uikit.Meta(c, where)
-			// The rows' scroll leaves the same side room for input halos.
+			// The rows' scroll leaves the same side room for input focus rings.
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Padding(0, t.Space(uikit.SpaceM), 0, t.Space(uikit.SpaceXS)).Children(func() {
 				for i, label := range []string{"NAME", "VALUE", "ALLOWED DOMAINS"} {
 					grow := float32(2)

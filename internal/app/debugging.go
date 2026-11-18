@@ -308,7 +308,7 @@ drained:
 	uikit.Modal(c, &r.open, locales.ReplayRequests(len(r.flows)), func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, locales.ReplayRequests(len(r.flows)))
-			// Leave room for the input's focus halo: a scroll clips what
+			// Leave room for the input's focus ring: a scroll clips what
 			// reaches past its content edge.
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				uikit.Hint(c, locales.SendsInCaptureOrderThrough())

@@ -196,7 +196,7 @@ func (k *components) buttonPlate(c *ui.Context) {
 		uikit.CompactButton(c, "Copy").Disabled(true)
 		addLink(c, "Add property").Disabled(true)
 	})
-	caption(c, "Two heights: 28 for forms, toolbars and the one primary action, 22 for inline actions, chips and the footer. A link is text at 22 with no face until the pointer arrives. Hover and pressed show under the pointer; focus needs the keyboard (Tab). No loading state: the kit has none, so a screen disables the button and shows progress beside it.")
+	caption(c, "Three heights: 28 for forms, toolbars and the one primary action, 26 for Amp's outlined secondary button, 22 for inline actions, chips and the footer. A secondary button is clear until a 5% ink hover; focus needs the keyboard (Tab). No loading state: the kit has none, so a screen disables the button and shows progress beside it.")
 }
 
 func (k *components) quietPlate(c *ui.Context) {
@@ -261,7 +261,7 @@ func (k *components) inputPlate(c *ui.Context) {
 	})
 	stateRow(c, "Focus", func() {
 		// A field's focus face is uikit's, drawn from the field's own state:
-		// force it here so the plate shows the edge and halo without the
+		// force it here so the plate shows the edge and ring without the
 		// keyboard, and Tab shows the same face when it reaches the field.
 		labelled(uikit.FieldFace(c, uikit.InputControl(c, &k.host).Label("Host"), true).Width(uikit.WidthWide), focusInputs)
 	})
@@ -295,7 +295,7 @@ func (k *components) inputPlate(c *ui.Context) {
 			uikit.SearchField(c, &k.searchChrome, "Search collections", "Search…", true)
 		})
 	})
-	caption(c, "A field on the canvas is a well; on chrome it is the canvas with a hairline. Focus draws the ring edge and a ring halo; an invalid field draws the danger edge, and FormRow binds its description and error to the control. A field has no hover face.")
+	caption(c, "A field on the canvas is a well; on chrome it is the same face. Every field has a 15% ink edge; focus adds one Ring point outside it, and an invalid field uses Danger. FormRow binds its description and error to the control. A field has no hover face.")
 }
 
 func (k *components) tabPlate(c *ui.Context) {
@@ -324,7 +324,7 @@ func (k *components) tabPlate(c *ui.Context) {
 			}
 		}).Width(320)
 	})
-	caption(c, "The chosen tab is a neutral chip; a sub-tab is accent text only. The strip fades the edge that hides more tabs.")
+	caption(c, "The chosen tab is Amp Web's raised panel chip with a hairline; hovering an unchosen one takes a 5% ink wash. A sub-tab is ink text with a rule only. The strip fades the edge that hides more tabs.")
 }
 
 func (k *components) segmentedPlate(c *ui.Context) {
@@ -376,7 +376,7 @@ func (k *components) menuPlate(c *ui.Context) {
 	stateRow(c, "Tooltip", func() {
 		labelled(uikit.Tip(c, uikit.SecondaryButton(c, "Hover for a tip"), "Copy as cURL · Ctrl+C").Width(180), hoverMenus)
 	})
-	caption(c, "A menu is a 10-point canvas panel on the menu shadow; its rows are 28 points, and the shortcut is a Kbd, not plain muted text. Tooltips keep their inverse face and wait for the pointer.")
+	caption(c, "A menu is a 6-point canvas panel on Amp's three-layer shadow-popover; its rows are 28 points with 4-point corners and a 7% ink highlight. The shortcut is a Kbd, not plain muted text. Tooltips keep their inverse face and wait for the pointer.")
 }
 
 // menuRow is a drawn menu's row in the gallery: the real menus are MyGo's,
@@ -384,17 +384,16 @@ func (k *components) menuPlate(c *ui.Context) {
 func menuRow(c *ui.Context, label, shortcut string, selected, danger bool) {
 	t, p := c.Theme(), uikit.Colors(c.Theme())
 	row := ui.Row(c).Height(uikit.MenuRowHeight).FillWidth().Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).
-		Radius(uikit.RadiusControl).AlignItems(ui.Center)
+		Radius(uikit.RadiusInner).AlignItems(ui.Center)
 	color := t.Text
 	if danger {
 		color = p.Danger
 	}
 	if selected {
-		row.Background(p.Primary)
-		color = t.AccentText
+		row.Background(p.Accent)
 	}
 	row.Children(func() {
-		ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(color).Grow(1).SingleLine()
+		ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextSmall)).TextColor(color).Grow(1).SingleLine()
 		uikit.Kbd(c, shortcut)
 	})
 }
@@ -433,7 +432,7 @@ func (k *components) tooltipPlate(c *ui.Context) {
 	stateRow(c, "Long URL", func() {
 		uikit.Tip(c, uikit.SecondaryButton(c, "Hover a long URL"), "https://api.example.com/v1/projects?include=members&page=2&per_page=50").Width(uikit.WidthWide)
 	})
-	caption(c, "A tip is the canvas on the popover shadow, a 1-point hairline, 8-point corners and 6×10 of padding: 12-point text at the normal ink, up to 360 wide, with a shortcut as a Kbd cap. It waits 500ms and does not wait again when the pointer moves to its neighbour.")
+	caption(c, "A tip is Amp Web's square canvas panel on the three-layer shadow-popover, 4×2 of padding: 12-point text at the normal ink, up to 450 wide, with a shortcut as muted text (⌘B). It waits 120ms and does not wait again when the pointer moves to its neighbour.")
 }
 
 func (k *components) hoverCardPlate(c *ui.Context) {
@@ -456,7 +455,7 @@ func (k *components) hoverCardPlate(c *ui.Context) {
 	})
 	// The card hangs below the row; leave it room so the caption stays clear.
 	ui.Box(c).Height(uikit.WidthField).Shrink(0)
-	caption(c, "A rich card adds a title, one meta line and key/value rows to the same surface. It is for what a row's width cannot show: the full URL, method, status and client of a captured request, or a saved request's address.")
+	caption(c, "A rich card adds a title, one meta line and key/value rows to Amp's 320-point hover-card face. It is still tooltip semantics, waits about 650ms, and is for what a row's width cannot show: the full URL, method, status and client of a captured request, or a saved request's address.")
 }
 
 func (k *components) sidebarCardPlate(c *ui.Context) {
@@ -518,7 +517,7 @@ func (k *components) openSelectPlate(c *ui.Context) {
 		uikit.Select(c, &k.format, []string{"Pretty", "Raw", "Preview"}).Label("Format").Width(uikit.WidthPicker)
 	})
 	ui.Box(c).Height(uikit.WidthField).Shrink(0)
-	caption(c, "The popup opens under the trigger, on the popover shadow, with rows of 28 points. The chosen option carries a check; the highlight is the accent fill and follows the keyboard.")
+	caption(c, "The popup opens under the trigger, on the popover shadow, with rows of 28 points. The chosen option carries a check; the highlight is a 7% ink wash and follows the keyboard.")
 }
 
 func (k *components) openMenuSelectPlate(c *ui.Context) {
@@ -529,7 +528,7 @@ func (k *components) openMenuSelectPlate(c *ui.Context) {
 		}).Label("Environment").Width(uikit.WidthPicker)
 	})
 	ui.Box(c).Height(uikit.WidthField).Shrink(0)
-	caption(c, "A menu select keeps its trigger's hovered face while its menu is open, so the control reads as the one that opened the menu.")
+	caption(c, "A menu select uses the same field face as Select: a 15% ink edge that does not change under the pointer, with a Ring point on keyboard focus.")
 }
 
 func (k *components) panePlate(c *ui.Context) {
@@ -975,7 +974,7 @@ func (k *components) checkPlate(c *ui.Context) {
 			}
 		}).Row().Gap(c.Theme().Space(uikit.SpaceL))
 	})
-	caption(c, "A box is a control face, not an outline: unchecked, hovered and pressed are the text color laid thinly, checked is the ink.")
+	caption(c, "A box is outlined: unchecked is clear with a Primary edge, checked is a Primary fill with a pale mark; hover and press leave it alone.")
 }
 
 func (k *components) feedbackPlate(c *ui.Context) {

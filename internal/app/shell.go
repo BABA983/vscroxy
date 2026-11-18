@@ -41,9 +41,11 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceHair)).AlignItems(ui.Center).PaddingEnd(max(bar.Right, t.Space(uikit.SpaceL))).Children(func() {
 			a.commandButton(c, t)
 			a.layoutToggle(c)
-			uikit.IconButton(c, locales.Tools(), locales.ManageDebuggingRulesAndNetwork(), toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
-				actionMenu(m, append([]action{do("tools.rules", locales.DebuggingRules2(), a.openRules).in("rules")}, a.networkTools()...))
-			}, uikit.MenuButtonOptions(c))
+			uikit.MenuFace(c, func() {
+				uikit.IconButton(c, locales.Tools(), locales.ManageDebuggingRulesAndNetwork(), toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
+					actionMenu(m, append([]action{do("tools.rules", locales.DebuggingRules2(), a.openRules).in("rules")}, a.networkTools()...))
+				}, uikit.MenuButtonOptions(c))
+			})
 			uikit.MoreButton(c, locales.More(), locales.MoreCommands(), func(m *ui.Menu) { a.moreMenu(c, m) })
 		})
 	})
@@ -242,16 +244,18 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 		}
 		uikit.DataMeta(c, addr).FontFeatures("tnum").SingleLine()
 	})
-	b.PopoverMenuButton(func(m *ui.Menu) {
-		start := do("capture.start", locales.StartCapture(), func() { go a.startCapture() })
-		stop := do("capture.stop", locales.StopCapture(), a.stopCapture)
-		settings := do("app.settings", locales.OpenSettings(), func() { a.openSettings(-1) })
-		if running {
-			actionMenu(m, []action{stop, settings})
-		} else {
-			actionMenu(m, []action{start, settings})
-		}
-	}, uikit.MenuButtonOptions(c))
+	uikit.MenuFace(c, func() {
+		b.PopoverMenuButton(func(m *ui.Menu) {
+			start := do("capture.start", locales.StartCapture(), func() { go a.startCapture() })
+			stop := do("capture.stop", locales.StopCapture(), a.stopCapture)
+			settings := do("app.settings", locales.OpenSettings(), func() { a.openSettings(-1) })
+			if running {
+				actionMenu(m, []action{stop, settings})
+			} else {
+				actionMenu(m, []action{start, settings})
+			}
+		}, uikit.MenuButtonOptions(c))
+	})
 }
 
 // hostsKeys spells the Host profiles shortcut as keycaps for its tip.
@@ -605,15 +609,17 @@ func (a *app) footerTools(c *ui.Context, t *ui.Theme) {
 		}
 		if rest := chips[show:]; len(rest) > 0 {
 			b := uikit.FooterButton(c, footerMoreLabel(len(rest)), locales.HiddenTools(), false)
-			b.PopoverMenuButton(func(m *ui.Menu) {
-				var items []action
-				for _, chip := range rest {
-					if chip.open != nil {
-						items = append(items, do("footer.tool."+chip.id, chip.label, chip.open))
+			uikit.MenuFace(c, func() {
+				b.PopoverMenuButton(func(m *ui.Menu) {
+					var items []action
+					for _, chip := range rest {
+						if chip.open != nil {
+							items = append(items, do("footer.tool."+chip.id, chip.label, chip.open))
+						}
 					}
-				}
-				actionMenu(m, items)
-			}, uikit.MenuButtonOptions(c))
+					actionMenu(m, items)
+				}, uikit.MenuButtonOptions(c))
+			})
 		}
 	})
 }

@@ -1,6 +1,7 @@
 package uikit
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"testing"
@@ -228,9 +229,19 @@ func TestSelectPopupInsetsItsOptions(t *testing.T) {
 	if !ok {
 		t.Fatalf("the popup did not open; texts=%q", tt.Texts())
 	}
-	want := theme.Space(SpaceXS) + theme.Space(SpaceCompact)
-	if inset := option.X - trigger.Bounds.X; inset < want-1 {
+	want := theme.Space(SpaceXS) + theme.Space(SpaceM)
+	if inset := option.X - trigger.Bounds.X; inset < want-1 || inset > want+1 {
 		t.Fatalf("option text starts %.1f from the popup's edge, want about %.1f", inset, want)
+	}
+	var panel ui.Rect
+	for _, a := range tt.AccessAll() {
+		r := a.Bounds
+		if r.Y > trigger.Bounds.Y+trigger.Bounds.H-1 && r.W >= trigger.Bounds.W && r.H > option.H && r.H > panel.H {
+			panel = r
+		}
+	}
+	if gap := panel.Y - (trigger.Bounds.Y + trigger.Bounds.H); gap < 3 || gap > 5 {
+		t.Fatalf("popup gap from trigger = %.1f, want about 4", gap)
 	}
 }
 
@@ -342,5 +353,138 @@ func checkTextStopsAtRightInset(t *testing.T, img image.Image, width int) {
 	}
 	if ink(width-ControlPaddingX, width-2) {
 		t.Fatal("the text runs into the right inset")
+	}
+}
+
+// The field keeps Amp Web's 15% ink edge at rest and adds one Ring point
+// while focused. The switch draws Amp's 20% ink track and muted knob when
+// off, and an ink track with a pale knob when on; Dark keeps its own lighter
+// on track so the knob stays visible.
+func TestFieldsAndSwitchesFollowAmpStates(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
+			theme := Theme(dark)
+			p := Colors(theme)
+			text := ""
+			on, off := true, false
+			tt := ui.NewTester(func(c *ui.Context) {
+				c.SetTheme(theme)
+				ui.Column(c).Gap(12).Background(theme.Background).Padding(8).Children(func() {
+					Input(c, &text).Label("Host")
+					Switch(c, &off).Label("Off")
+					Switch(c, &on).Label("On")
+				})
+			}, 400, 260)
+			tt.Frame()
+			rest := tt.Image()
+			if err := tt.Click("Host"); err != nil {
+				t.Fatal(err)
+			}
+			focused := tt.Image()
+			check := func(name string, img image.Image, x, y float32, want ui.Color) {
+				t.Helper()
+				got := img.(*image.RGBA).RGBAAt(int(x), int(y))
+				for _, channel := range []struct {
+					name      string
+					got, want uint8
+				}{
+					{"R", got.R, want.R}, {"G", got.G, want.G}, {"B", got.B, want.B},
+				} {
+					d := int(channel.got) - int(channel.want)
+					if d < -3 || d > 3 {
+						t.Errorf("%s %s = %d, want %d", name, channel.name, channel.got, channel.want)
+					}
+				}
+			}
+			field, ok := tt.AccessByRole(ui.RoleTextField, "Host")
+			if !ok {
+				t.Fatal("the field is missing")
+			}
+			fy := field.Bounds.Y + field.Bounds.H/2
+			check("field rest edge", rest, field.Bounds.X, fy, p.Foreground.Alpha(0.15).Over(p.Input))
+			check("field focus ring", focused, field.Bounds.X-1, fy, p.Ring)
+			for _, sw := range []struct {
+				name string
+				on   bool
+			}{
+				{"Off", false}, {"On", true},
+			} {
+				info, ok := tt.AccessByRole(ui.RoleSwitch, sw.name)
+				if !ok {
+					t.Fatalf("%s switch is missing", sw.name)
+				}
+				r := info.Bounds
+				y := r.Y + r.H/2
+				knob := p.MutedForeground
+				track := p.Foreground.Alpha(0.2).Over(theme.Background)
+				if sw.on {
+					knob, track = ui.RGB(255, 255, 255), p.SwitchOn
+					if !dark {
+						knob = p.PrimaryForeground
+					}
+				}
+				check(sw.name+" track", focused, r.X+1, y, track)
+				x := r.X + 10
+				if sw.on {
+					x = r.X + 26
+				}
+				check(sw.name+" knob", focused, x, y, knob)
+			}
+		})
+	}
+}
+
+// Amp Web draws a checkbox off as a clear box with a Primary edge, on as a
+// Primary fill with a pale mark, with no hover face. Its selects use the
+// panel-colored field face and a 15% ink edge instead of a button face.
+func TestCheckboxAndSelectFollowAmpStates(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
+			theme := Theme(dark)
+			p := Colors(theme)
+			checked := true
+			selected := "A"
+			tt := ui.NewTester(func(c *ui.Context) {
+				c.SetTheme(theme)
+				ui.Column(c).Gap(8).Background(theme.Background).Padding(8).Children(func() {
+					Checkbox(c, &checked, "Checked")
+					Checkbox(c, new(bool), "Unchecked")
+					Select(c, &selected, []string{"A", "B"})
+				})
+			}, 400, 220)
+			tt.Frame()
+			image := tt.Image()
+			sample := func(name string, x, y float32) ui.Color {
+				t.Helper()
+				a, ok := tt.Access(name)
+				if !ok {
+					t.Fatalf("%s is missing", name)
+				}
+				got := image.RGBAAt(int(a.Bounds.X+x), int(a.Bounds.Y+y))
+				return ui.RGB(got.R, got.G, got.B)
+			}
+			for _, box := range []struct {
+				name string
+				fill ui.Color
+			}{
+				{"Checked", p.Primary},
+				{"Unchecked", theme.Background},
+			} {
+				if got, want := sample(box.name, 0, 10), p.Primary; got != want {
+					t.Errorf("%s edge = %v, want %v", box.name, got, want)
+				}
+				if got, want := sample(box.name, 14, 10), box.fill; got != want {
+					t.Errorf("%s fill = %v, want %v", box.name, got, want)
+				}
+			}
+			if got, want := sample("A", 10, 14), p.Background; got != want {
+				t.Errorf("select face = %v, want %v", got, want)
+			}
+			edge := sample("A", 24, 0)
+			want := p.Foreground.Alpha(0.15).Over(p.Background)
+			if edge != want {
+				t.Errorf("select edge = %v, want %v", edge, want)
+			}
+		})
 	}
 }

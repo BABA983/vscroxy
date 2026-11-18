@@ -241,7 +241,6 @@ func elevationPlate(c *ui.Context) {
 					shadow uikit.Shadow
 					radius float32
 				}{
-					{"ShadowMenu · RadiusMenu", uikit.ShadowMenu, uikit.RadiusMenu},
 					{"ShadowPopover · RadiusCard", uikit.ShadowPopover, uikit.RadiusCard},
 					{"ShadowDialog · RadiusDialog", uikit.ShadowDialog, uikit.RadiusDialog},
 				} {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 )
 
 func TestThemesKeepTextReadable(t *testing.T) {
@@ -124,26 +125,20 @@ func TestSuccessIsNotTheAccent(t *testing.T) {
 	}
 }
 
-// The floating scale is one set of values, and a shadow doubles its
-// opacity in Dark without changing its geometry.
+// The floating radius scale and Amp Web's shadow layers stay fixed; Dark
+// swaps the ring color and deepens the menu's lower layers.
 func TestFloatingScaleTokens(t *testing.T) {
-	if RadiusMenu != 10 || RadiusCard != 12 || RadiusDialog != 16 {
-		t.Fatalf("radii = %v/%v/%v, want 10/12/16", RadiusMenu, RadiusCard, RadiusDialog)
+	if RadiusMenu != 6 || RadiusCard != 12 || RadiusDialog != 16 {
+		t.Fatalf("radii = %v/%v/%v, want 6/12/16", RadiusMenu, RadiusCard, RadiusDialog)
 	}
-	if ShadowMenu.Y != 8 || ShadowMenu.Blur != 24 || ShadowMenu.Opacity != 0.14 {
-		t.Fatalf("menu shadow = %+v", ShadowMenu)
+	if len(ShadowPopover.layers) != 3 || ShadowPopover.layers[1] != (shadowLayer{0, 4, 6, -1, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)}) {
+		t.Fatalf("popover shadow = %+v", ShadowPopover.layers)
 	}
-	if ShadowPopover.Y != 12 || ShadowPopover.Blur != 32 || ShadowPopover.Opacity != 0.16 {
-		t.Fatalf("popover shadow = %+v", ShadowPopover)
+	if len(ShadowDialog.layers) != 2 || ShadowDialog.layers[0].y != 10 || ShadowDialog.layers[0].blur != 15 || ShadowDialog.layers[1].spread != -4 {
+		t.Fatalf("dialog shadow = %+v", ShadowDialog.layers)
 	}
-	if ShadowDialog.Y != 16 || ShadowDialog.Blur != 48 || ShadowDialog.Opacity != 0.18 {
-		t.Fatalf("dialog shadow = %+v", ShadowDialog)
-	}
-	if got := ShadowMenu.Color(false).A; got != 36 {
-		t.Fatalf("light menu alpha = %d, want 36", got)
-	}
-	if got := ShadowMenu.Color(true).A; got != 71 {
-		t.Fatalf("dark menu alpha = %d, want 71", got)
+	if ShadowMenu.layers[0].dark != ui.RGBA(255, 255, 255, 0.1) || ShadowMenu.layers[1].dark.A < 200 {
+		t.Fatalf("dark menu shadow = %+v", ShadowMenu.layers)
 	}
 	if Light.Window != ui.Hex("#eff3ee") || Light.Background != ui.Hex("#f7fbf6") || Light.Input != ui.Hex("#e8ede5") {
 		t.Fatalf("Light surfaces = %v/%v/%v", Light.Window, Light.Background, Light.Input)
@@ -154,8 +149,27 @@ func TestFloatingScaleTokens(t *testing.T) {
 	if Light.Scrim != ui.RGBA(0, 0, 0, 0.35) {
 		t.Fatalf("Light scrim = %v", Light.Scrim)
 	}
-	if got := Theme(false).TooltipDelay; got != 500*time.Millisecond {
-		t.Fatalf("tooltip delay = %v, want 500ms", got)
+	if got := Theme(false).TooltipDelay; got != 120*time.Millisecond {
+		t.Fatalf("tooltip delay = %v, want 120ms", got)
+	}
+	if TipPaddingX != 4 || TipPaddingY != 2 || TipMaxWidth != 450 {
+		t.Fatalf("tooltip metrics = %d/%d/%d, want 4/2/450", TipPaddingX, TipPaddingY, TipMaxWidth)
+	}
+	if TextMedium != 15 || LineMedium != 20.0/15.0 || LineMeta != 13.6/11.0 || LineProse != LineBody {
+		t.Fatal("typography scale must follow Amp Web's text and prose scale")
+	}
+	if CardTipWidth != 320 || CardTipPaddingX != 10 || CardTipPaddingY != 10 || CardTipPaddingBottom != 8 || cardTipDelay != 650*time.Millisecond {
+		t.Fatalf("card metrics = %d/%d/%d/%d/%v", CardTipWidth, CardTipPaddingX, CardTipPaddingY, CardTipPaddingBottom, cardTipDelay)
+	}
+}
+
+// Amp Web draws its keyboard ring one point wide, on the element's edge.
+func TestFocusRingFollowsAmpWeb(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		theme := Theme(dark)
+		if theme.FocusRingWidth != 1 || theme.FocusRingOffset != 0 {
+			t.Errorf("dark=%t: focus ring = %v wide, %v out, want 1/0", dark, theme.FocusRingWidth, theme.FocusRingOffset)
+		}
 	}
 }
 
@@ -251,5 +265,101 @@ func TestScaledGrowsTheTablesFixedWidths(t *testing.T) {
 	}
 	if got := TextScale(); got != 1.35 {
 		t.Fatalf("TextScale = %v, want 1.35", got)
+	}
+}
+
+// Amp Web's prose variables set the Markdown view's body, block gaps and
+// heading rhythm; MyGo takes all three in ems, so the values cross over.
+func TestMarkdownThemeFollowsAmpProse(t *testing.T) {
+	th := MarkdownTheme(Theme(false))
+	if th.FontSize != 13 || th.LineHeight != LineBody || th.CodeSize != 0.85 {
+		t.Fatalf("markdown body = %v/%v/code %v", th.FontSize, th.LineHeight, th.CodeSize)
+	}
+	if th.BlockSpacing != 0.75 || th.ItemSpacing != 0.375 {
+		t.Fatalf("markdown gaps = %v/%v, want 0.75/0.375", th.BlockSpacing, th.ItemSpacing)
+	}
+	for i, want := range []struct {
+		size, top, bottom float32
+		weight            int
+	}{
+		{1.5, 2.5, 0.5, 700},
+		{1.25, 2, 0.5, 600},
+		{1, 1.5, 0.5, 600},
+	} {
+		h := th.Headings[i]
+		if h.Size != want.size || h.Top != want.top || h.Bottom != want.bottom || h.Weight != want.weight {
+			t.Errorf("H%d = %+v, want %+v", i+1, h, want)
+		}
+	}
+}
+
+// Amp's file diff editor uses the GitHub Light/Dark token palette that
+// @pierre/diffs emits as --diffs-token-light/dark, not --syntax-* in chat.
+func TestEditorThemeFollowsAmpDiffsTokens(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		theme := Theme(dark)
+		p := Colors(theme)
+		th := EditorTheme(theme)
+		for _, tc := range []struct {
+			name           string
+			got            ui.Color
+			light, hexDark string
+		}{
+			{"foreground", p.EditorForeground, "#24292e", "#e1e4e8"},
+			{"keyword", p.EditorKeyword, "#d73a49", "#f97583"},
+			{"entity", p.EditorEntity, "#6f42c1", "#b392f0"},
+			{"tag", p.EditorTag, "#22863a", "#85e89d"},
+			{"variable", p.EditorVariable, "#e36209", "#ffab70"},
+			{"constant", p.EditorConstant, "#005cc5", "#79b8ff"},
+			{"string", p.EditorString, "#032f62", "#9ecbff"},
+			{"regexp", p.EditorRegexp, "#032f62", "#dbedff"},
+			{"comment", p.EditorComment, "#6a737d", "#6a737d"},
+			{"invalid", p.EditorInvalid, "#b31d28", "#fdaeb7"},
+		} {
+			hex := tc.light
+			if dark {
+				hex = tc.hexDark
+			}
+			if want := ui.Hex(hex); tc.got != want {
+				t.Errorf("dark=%t: %s = %v, want %v", dark, tc.name, tc.got, want)
+			}
+		}
+		if th.Text != p.EditorForeground {
+			t.Errorf("dark=%t: editor text = %v, want %v", dark, th.Text, p.EditorForeground)
+		}
+		for _, tc := range []struct {
+			kind  editor.TokenKind
+			color ui.Color
+		}{
+			{editor.TokenKeyword, p.EditorKeyword},
+			{editor.TokenOperator, p.EditorKeyword},
+			{editor.TokenType, p.EditorEntity},
+			{editor.TokenFunction, p.EditorEntity},
+			{editor.TokenMeta, p.EditorEntity},
+			{editor.TokenVariable, p.EditorVariable},
+			{editor.TokenProperty, p.EditorConstant},
+			{editor.TokenAttribute, p.EditorConstant},
+			{editor.TokenConstant, p.EditorConstant},
+			{editor.TokenNumber, p.EditorConstant},
+			{editor.TokenString, p.EditorString},
+			{editor.TokenEscape, p.EditorConstant},
+			{editor.TokenRegexp, p.EditorRegexp},
+			{editor.TokenTag, p.EditorTag},
+			{editor.TokenComment, p.EditorComment},
+			{editor.TokenHeading, p.EditorConstant},
+			{editor.TokenLink, p.EditorString},
+			{editor.TokenCode, p.EditorConstant},
+			{editor.TokenInvalid, p.EditorInvalid},
+			{editor.TokenInserted, p.DiffAdded},
+			{editor.TokenDeleted, p.DiffRemoved},
+		} {
+			style := th.Tokens[tc.kind]
+			if style.Color != tc.color || style.Italic || style.Bold {
+				t.Errorf("dark=%t: token %d = %+v, want color %v with no face", dark, tc.kind, style, tc.color)
+			}
+		}
+		if th.Added != p.DiffAdded || th.Deleted != p.DiffRemoved || th.Modified != p.DiffMeta {
+			t.Errorf("dark=%t: diff inks = %v/%v/%v", dark, th.Added, th.Deleted, th.Modified)
+		}
 	}
 }

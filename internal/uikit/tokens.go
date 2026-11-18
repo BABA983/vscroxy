@@ -16,22 +16,25 @@ import (
 // is the one exception: the Space names are multiples of the theme's grid,
 // read through t.Space, so a local theme can tighten a dense table.
 const (
-	// Five sizes, two weights (400 and 500). Monospace is only for wire
+	// Sizes follow Amp Web's text scale: 11/12/13/15/16/20 at the usual
+	// font size, with two weights (400 and 500). Monospace is only for wire
 	// data: paths, header values, numbers and bodies.
 	WeightMedium = 500
 	TextMeta     = 11 // counts, timestamps and sizes
 	TextData     = 12 // monospace data in rows and fields
 	TextSmall    = 12 // secondary interface text and popover descriptions
 	TextBody     = 13 // prose, labels and controls
+	TextMedium   = 15 // the scale's md step
 	TextTitle    = 16 // a dialog, a pane or the request an inspector shows
 	TextDisplay  = 20 // a first-run title or a command palette's heading
-	// Line heights are multiples of the font size, pinned to the desktop
-	// scale: 11/15, 12/16, 13/20, 16/24 and 20/28. Prose gets a little
-	// more air, which also keeps CJK paragraphs from feeling cramped.
-	LineMeta    = 15.0 / 11.0
+	// Line heights are multiples of the font size, pinned to Amp Web's
+	// scale: 11/13.6, 12/16, 13/20, 15/20, 16/24 and 20/28. Prose uses
+	// the body's 20/13 leading.
+	LineMeta    = 13.6 / 11.0
 	LineSmall   = 16.0 / 12.0
 	LineBody    = 20.0 / 13.0
-	LineProse   = 1.6
+	LineMedium  = 20.0 / 15.0
+	LineProse   = LineBody
 	LineTitle   = 24.0 / 16.0
 	LineDisplay = 28.0 / 20.0
 
@@ -68,6 +71,8 @@ const (
 	// row, a list row or a sidebar item.
 	HeightControl      = 28
 	HeightControlSmall = 22
+	HeightSecondary    = 26 // Amp Web's secondary button
+	HeightBadge        = 18 // Amp Web's h-4.5 status badge
 	HeightRow          = 24
 	// HeightRowAction is an icon action or a ⋯ inside a row, a sidebar
 	// heading or a pane header. It is centered, so it leaves RowActionInset
@@ -85,29 +90,31 @@ const (
 	ControlPaddingX      = 12 // a default control, left and right
 	ControlPaddingXSmall = 8  // a small control, a chip, a row's sides
 	PanelPadding         = 12 // a panel's content and a pane header's sides
-	TipPaddingX          = 10
-	TipPaddingY          = 6
+	TipPaddingX          = 4
+	TipPaddingY          = 2
 	ToastPaddingX        = 16
 	ToastPaddingY        = 8
 	ToastWidth           = 360 // a toast is at most this wide
-	CardTipPaddingX      = 12  // a hover card, left and right
-	CardTipPaddingY      = 10
+	CardTipWidth         = 320 // Amp Web's w-80 hover card
+	CardTipPaddingX      = 10  // a hover card, left and right
+	CardTipPaddingY      = 10  // top; the rows end 8 above the bottom edge
+	CardTipPaddingBottom = 8
 	CardPaddingX         = 16 // a settings card row, left and right
 	CardRowPaddingY      = 4
 	// Corners stay concentric: something nested in a padded container takes
 	// the container's radius less the padding, which is RadiusInner. The
-	// workspace stops at RadiusPanel; a menu, card and dialog each take one
-	// step of the looser floating scale.
+	// workspace stops at RadiusPanel; a card and dialog take a step of the
+	// looser floating scale. A dropdown menu matches Amp Web: its panel is
+	// RadiusControl and its items are RadiusInner.
 	RadiusInner   = 4
 	RadiusControl = 6
 	RadiusPanel   = 8
-	RadiusMenu    = 10
+	RadiusMenu    = 6
 	RadiusCard    = 12
 	RadiusDialog  = 16
 	// HairlineWidth is the one-point edge every hairline, field edge and
 	// separator is drawn with.
 	HairlineWidth = 1
-	FocusHalo     = 3 // the soft ring a focused field draws past its edge
 	IconInline    = 14
 	IconLarge     = 16
 	// Widths for the fields and pickers a form lays out. A screen picks one
@@ -137,7 +144,7 @@ const (
 	SettingsLabelWidth      = 112
 	SettingsLabelMax        = 180
 	SettingsHintWidth       = 400
-	TipMaxWidth             = 360 // a tip wraps at this width
+	TipMaxWidth             = 450 // a tip wraps at this width
 	CardKeyWidth            = 52  // a card's key column
 	TabRuleHeight           = 2   // the rule under a selected tab
 	DotSize                 = 6   // a status or a legend dot
@@ -153,32 +160,50 @@ const (
 	// FontUI and FontMono are per platform: font_darwin.go, font_other.go.
 )
 
-// Shadow is one step of the kit's floating elevation: a box shadow's y
-// offset, blur and opacity. The workspace has none; a menu, popover and
-// dialog each take one step. Dark doubles the opacity so the same lift stays
-// visible on the darker board.
+// Shadow is Amp Web's floating elevation. Its layers map to --shadow-sm/md/lg
+// and the shadow-popover ring; a menu takes a deeper Dark variant. The
+// workspace has no shadow.
+type shadowLayer struct {
+	x, y, blur, spread float32
+	light, dark        ui.Color
+}
+
 type Shadow struct {
-	Y, Blur, Opacity float32
+	layers []shadowLayer
 }
 
 var (
-	ShadowMenu    = Shadow{Y: 8, Blur: 24, Opacity: 0.14}
-	ShadowPopover = Shadow{Y: 12, Blur: 32, Opacity: 0.16}
-	ShadowDialog  = Shadow{Y: 16, Blur: 48, Opacity: 0.18}
+	ShadowSmall = Shadow{layers: []shadowLayer{
+		{0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
+		{0, 1, 2, -1, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
+	}}
+	ShadowPopover = Shadow{layers: []shadowLayer{
+		{0, 0, 0, HairlineWidth, ui.RGBA(0, 0, 0, 0.08), ui.RGBA(255, 255, 255, 0.1)},
+		{0, 4, 6, -1, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
+		{0, 2, 4, -2, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
+	}}
+	ShadowDialog = Shadow{layers: []shadowLayer{
+		{0, 10, 15, -3, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
+		{0, 4, 6, -4, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
+	}}
+	ShadowMenu = Shadow{layers: []shadowLayer{
+		{0, 0, 0, HairlineWidth, ui.RGBA(0, 0, 0, 0.08), ui.RGBA(255, 255, 255, 0.1)},
+		{0, 4, 6, -1, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.8)},
+		{0, 2, 4, -2, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.6)},
+	}}
 )
 
-// Color is the shadow's ink on a light or dark board.
-func (s Shadow) Color(dark bool) ui.Color {
-	opacity := s.Opacity
-	if dark {
-		opacity *= 2
-	}
-	return ui.RGBA(0, 0, 0, opacity)
-}
-
-// Apply puts the shadow under e.
+// Apply puts the shadow's layers under e. Dark changes the ring to white and
+// deepens the menu's lower layers, as Amp Web's dark shadow-popover does.
 func (s Shadow) Apply(e ui.Element, dark bool) ui.Element {
-	return e.Shadow(0, s.Y, s.Blur, 0, s.Color(dark))
+	for _, layer := range s.layers {
+		ink := layer.light
+		if dark {
+			ink = layer.dark
+		}
+		e = e.Shadow(layer.x, layer.y, layer.blur, layer.spread, ink)
+	}
+	return e
 }
 
 // TextScale follows the desktop's text size, as the theme's own font size does:

@@ -19,12 +19,15 @@ type Palette struct {
 	// Muted, MutedHover and MutedPressed are the text color laid thinly over
 	// whatever is beneath: the face of a control at rest, hovered and
 	// pressed, so one button reads the same on every surface.
-	Muted, MutedHover, MutedPressed                          ui.Color
-	Foreground, MutedForeground, Faint                       ui.Color
+	Muted, MutedHover, MutedPressed    ui.Color
+	Foreground, MutedForeground, Faint ui.Color
+	// Primary fills the one action a screen is for. Hover and pressed share
+	// one face, measured from Amp Web: Light lifts the ink, Dark lowers it.
+	// A disabled primary is the same face at MyGo's half opacity, so none of
+	// the four states moves the button's text, border or geometry.
 	Primary, PrimaryHover, PrimaryPressed, PrimaryForeground ui.Color
-	// Accent is a low-alpha wash of Foreground for a chosen row or an active
-	// tool: AMP's --accent and --sidebar-accent are the same kind of face,
-	// a tint of ink over whatever surface the row sits on.
+	// Accent is Foreground at 7%: AMP's --accent, --sidebar-accent and the
+	// highlighted menu item are the same wash of ink over any surface.
 	Accent ui.Color
 	// Ring is the keyboard focus color: a quiet, readable neutral that is
 	// distinct from Primary, so a focused control and the screen's one main
@@ -35,13 +38,18 @@ type Palette struct {
 	// thumb. The Dark value keeps a 3:1 edge against the thumb and still
 	// separates clearly from the disabled half-opacity face.
 	SwitchOn ui.Color
-	// Success is green and nothing else is: a check that passed, a capture
-	// that is recording. Primary is ink, so "selected", "primary" and
-	// "on" are drawn in the text color and green never has to mean two
-	// things at once.
+	// Success is green only for status: a check that passed, a capture that
+	// is recording. Syntax and diff use their own colors; syntax classes and
+	// added lines being green does not make green a status signal there.
 	Success                                    ui.Color
 	Info, Warning, Danger                      ui.Color
 	MethodGet, MethodPost, MethodPatch, Socket ui.Color
+	// Editor is the GitHub Light/Dark token palette @pierre/diffs emits as
+	// --diffs-token-light/dark in Amp's file diffs. It is a different family
+	// from Amp's --syntax-* colors, which only style Markdown in chat.
+	EditorForeground, EditorKeyword, EditorEntity, EditorTag, EditorVariable, EditorConstant, EditorString, EditorRegexp, EditorComment, EditorInvalid ui.Color
+	// Diff is Amp's --diff-* override palette for added, removed and meta lines.
+	DiffAdded, DiffRemoved, DiffMeta ui.Color
 	// Inverse fills tooltips, so they stand out from what they cover.
 	Inverse, InverseText ui.Color
 	// Scrim dims what a dialog covers: black at 35% in both themes, enough
@@ -55,7 +63,7 @@ type Palette struct {
 // fills derives the three control faces from the palette's text color.
 func fills(p Palette, rest, hover, pressed float32) Palette {
 	p.Muted, p.MutedHover, p.MutedPressed = p.Foreground.Alpha(rest), p.Foreground.Alpha(hover), p.Foreground.Alpha(pressed)
-	p.Accent = p.Foreground.Alpha(0.09)
+	p.Accent = p.Foreground.Alpha(0.07)
 	return p
 }
 
@@ -69,14 +77,19 @@ var Light = fills(Palette{
 	Window: ui.Hex("#eff3ee"), Background: ui.Hex("#f7fbf6"), Input: ui.Hex("#e8ede5"),
 	Border:     ui.Hex("#dde4d9"),
 	Foreground: ui.Hex("#0b0d0b"), MutedForeground: ui.Hex("#595959"), Faint: ui.Hex("#8a8f88"),
-	Primary: ui.Hex("#141614"), PrimaryHover: ui.Hex("#2a2d2a"), PrimaryPressed: ui.Hex("#3d413d"),
-	PrimaryForeground: ui.Hex("#f7fbf6"),
+	Primary: ui.Hex("#171917"), PrimaryHover: ui.Hex("#2f312f"), PrimaryPressed: ui.Hex("#2f312f"),
+	PrimaryForeground: ui.Hex("#fafaf8"),
 	Ring:              ui.Hex("#636e61"),
-	SwitchOn:          ui.Hex("#141614"),
+	SwitchOn:          ui.Hex("#171917"),
 	Success:           ui.Hex("#2c784d"),
 	Info:              ui.Hex("#2f6ea5"), Warning: ui.Hex("#86600f"), Danger: ui.Hex("#b9423c"),
 	MethodGet: ui.Hex("#2f6ea5"), MethodPost: ui.Hex("#5b6b1c"), MethodPatch: ui.Hex("#7a3e6d"),
-	Socket:  ui.Hex("#2b6868"),
+	Socket:           ui.Hex("#2b6868"),
+	EditorForeground: ui.Hex("#24292e"), EditorKeyword: ui.Hex("#d73a49"), EditorEntity: ui.Hex("#6f42c1"),
+	EditorTag: ui.Hex("#22863a"), EditorVariable: ui.Hex("#e36209"), EditorConstant: ui.Hex("#005cc5"),
+	EditorString: ui.Hex("#032f62"), EditorRegexp: ui.Hex("#032f62"), EditorComment: ui.Hex("#6a737d"),
+	EditorInvalid: ui.Hex("#b31d28"),
+	DiffAdded:     ui.Hex("#2f8052"), DiffRemoved: ui.Hex("#c44f4a"), DiffMeta: ui.Hex("#a07013"),
 	Inverse: ui.Hex("#0b0d0b"), InverseText: ui.Hex("#f7fbf6"),
 	Scrim:  ui.RGBA(0, 0, 0, 0.35),
 	Shadow: ui.RGBA(11, 13, 11, 0.16),
@@ -93,14 +106,19 @@ var Dark = fills(Palette{
 	Window: ui.Hex("#070a08"), Background: ui.Hex("#101612"), Input: ui.Hex("#171f1a"),
 	Border:     ui.Hex("#1b2324"),
 	Foreground: ui.Hex("#f6fff5"), MutedForeground: ui.Hex("#9ca49c"), Faint: ui.Hex("#6d766e"),
-	Primary: ui.Hex("#eaf3e9"), PrimaryHover: ui.Hex("#ffffff"), PrimaryPressed: ui.Hex("#cfd8ce"),
-	PrimaryForeground: ui.Hex("#101612"),
+	Primary: ui.Hex("#eaf3e9"), PrimaryHover: ui.Hex("#d3dbd2"), PrimaryPressed: ui.Hex("#d3dbd2"),
+	PrimaryForeground: ui.Hex("#0b0d0b"),
 	Ring:              ui.Hex("#9aa89a"),
 	SwitchOn:          ui.Hex("#8a998a"),
 	Success:           ui.Hex("#54b879"),
 	Info:              ui.Hex("#8fb3d1"), Warning: ui.Hex("#d6a038"), Danger: ui.Hex("#d67670"),
 	MethodGet: ui.Hex("#8fb3d1"), MethodPost: ui.Hex("#b5c27a"), MethodPatch: ui.Hex("#c99abd"),
-	Socket:  ui.Hex("#6fc3d6"),
+	Socket:           ui.Hex("#6fc3d6"),
+	EditorForeground: ui.Hex("#e1e4e8"), EditorKeyword: ui.Hex("#f97583"), EditorEntity: ui.Hex("#b392f0"),
+	EditorTag: ui.Hex("#85e89d"), EditorVariable: ui.Hex("#ffab70"), EditorConstant: ui.Hex("#79b8ff"),
+	EditorString: ui.Hex("#9ecbff"), EditorRegexp: ui.Hex("#dbedff"), EditorComment: ui.Hex("#6a737d"),
+	EditorInvalid: ui.Hex("#fdaeb7"),
+	DiffAdded:     ui.Hex("#4ba86e"), DiffRemoved: ui.Hex("#d67670"), DiffMeta: ui.Hex("#d6a038"),
 	Inverse: ui.Hex("#f6fff5"), InverseText: ui.Hex("#101612"),
 	Scrim:  ui.RGBA(0, 0, 0, 0.35),
 	Shadow: ui.RGBA(0, 0, 0, 0.5),
@@ -128,12 +146,17 @@ func Theme(dark bool) *ui.Theme {
 	// recording is the only thing that is ever green.
 	t.Danger, t.Warning, t.Success = p.Danger, p.Warning, p.Success
 	t.Inverse, t.InverseText = p.Inverse, p.InverseText
-	// Tips rest for 500ms, as VS Code's workbench hovers do on Linux and
-	// Windows; MyGo's warm window, within which the next tip shows at once,
-	// is two thirds of it.
-	t.TooltipDelay = 500 * time.Millisecond
+	// Amp Web shows a tip about 120ms after the pointer settles; MyGo's warm
+	// window, within which the next tip shows at once, follows that delay.
+	t.TooltipDelay = 120 * time.Millisecond
 	t.Font, t.FontSize, t.Radius, t.Spacing = FontUI, Scaled(TextBody), RadiusControl, SpaceGrid
-	t.Accent, t.Focus = p.Primary.Alpha(0.24), p.Ring
+	// Selection is the low-alpha wash for rows; Accent stays the ink that
+	// fills the primary button. Writing the wash into Accent here would make
+	// a resting primary button faint while its hover and press were solid.
+	// Amp Web's keyboard ring is one point with no offset; MyGo defaults to
+	// two points one point out.
+	t.Selection, t.Focus = p.Accent, p.Ring
+	t.FocusRingWidth, t.FocusRingOffset = 1, 0
 	return t
 }
 
@@ -183,23 +206,42 @@ func StatusColor(status int, t *ui.Theme) ui.Color {
 	}
 }
 
-// EditorTheme colors bodies and authored code in the palette's inks rather
-// than error colors: a key in the text color, a string in the method patch's
-// plum, a number or a boolean in the info blue. Green is the success signal
-// alone, so the token kinds the library paints green (regular expressions,
-// tags, inserted text) take one of those three instead.
+// EditorTheme maps the GitHub token palette that @pierre/diffs emits as
+// --diffs-token-light/dark in Amp's file diffs onto MyGo's editor kinds. Amp's
+// --syntax-* colors only style Markdown in chat and are a different family.
+// An unchanged diff line has no diff fill: its code keeps these token colors;
+// only added and removed lines get a diff fill from the --diff-* overrides.
+// MyGo derives that fill from Added/Deleted, so it is not the exact fill Amp
+// paints in the shadow DOM.
 func EditorTheme(t *ui.Theme) *editor.Theme {
 	p := Colors(t)
 	theme := editor.DefaultTheme(t)
-	theme.Tokens[editor.TokenProperty].Color = p.Foreground
-	theme.Tokens[editor.TokenString].Color = p.MethodPatch
-	theme.Tokens[editor.TokenNumber].Color = p.Info
-	// Punctuation is not a fault: red belongs to errors alone.
-	theme.Tokens[editor.TokenOperator].Color = p.MutedForeground
-	theme.Tokens[editor.TokenConstant].Color = p.Info
-	theme.Tokens[editor.TokenRegexp].Color = p.MethodPatch
-	theme.Tokens[editor.TokenTag].Color = p.Info
-	theme.Tokens[editor.TokenInserted].Color = p.Info
+	theme.Text = p.EditorForeground
+	set := func(kind editor.TokenKind, color ui.Color) {
+		theme.Tokens[kind] = editor.TokenStyle{Color: color}
+	}
+	set(editor.TokenKeyword, p.EditorKeyword)
+	set(editor.TokenOperator, p.EditorKeyword)
+	set(editor.TokenType, p.EditorEntity)
+	set(editor.TokenFunction, p.EditorEntity)
+	set(editor.TokenMeta, p.EditorEntity)
+	set(editor.TokenVariable, p.EditorVariable)
+	set(editor.TokenProperty, p.EditorConstant)
+	set(editor.TokenAttribute, p.EditorConstant)
+	set(editor.TokenConstant, p.EditorConstant)
+	set(editor.TokenNumber, p.EditorConstant)
+	set(editor.TokenString, p.EditorString)
+	set(editor.TokenEscape, p.EditorConstant)
+	set(editor.TokenRegexp, p.EditorRegexp)
+	set(editor.TokenTag, p.EditorTag)
+	set(editor.TokenComment, p.EditorComment)
+	set(editor.TokenHeading, p.EditorConstant)
+	set(editor.TokenLink, p.EditorString)
+	set(editor.TokenCode, p.EditorConstant)
+	set(editor.TokenInvalid, p.EditorInvalid)
+	set(editor.TokenInserted, p.DiffAdded)
+	set(editor.TokenDeleted, p.DiffRemoved)
+	theme.Added, theme.Deleted, theme.Modified = p.DiffAdded, p.DiffRemoved, p.DiffMeta
 	return theme
 }
 

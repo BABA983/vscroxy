@@ -7,6 +7,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 )
 
 func TestContentType(t *testing.T) {
@@ -66,6 +70,60 @@ func TestParseJSON(t *testing.T) {
 	for _, invalid := range []string{"not json", `{"a":1`, `[1,]`, `{} {}`, `{"a":1,"a":2}`} {
 		if _, ok := parseJSON(invalid); ok {
 			t.Fatalf("invalid body %q parsed as JSON", invalid)
+		}
+	}
+}
+
+// The JSON tree is a custom list, but its values must use the same token ink
+// Pretty gives them: strings in the string color, everything else in the
+// constant color. Body text on both values was invisible as syntax.
+func TestJSONTreeUsesEditorTokenColors(t *testing.T) {
+	roots, ok := parseJSON(`{"name":"Demo project","id":73,"active":true,"nothing":null}`)
+	if !ok || len(roots) == 0 {
+		t.Fatalf("fixture did not parse: %v, %v", roots, ok)
+	}
+	a := &app{}
+	rows := make([]jsonRow, 0, len(roots[0].children))
+	for _, n := range roots[0].children {
+		rows = append(rows, jsonRow{node: n, depth: n.depth})
+	}
+	for _, dark := range []bool{false, true} {
+		th := uikit.Theme(dark)
+		editorTheme := uikit.EditorTheme(th)
+		tt := ui.NewTester(func(c *ui.Context) {
+			c.SetTheme(th)
+			ui.Column(c).Fill().Background(th.Background).Padding(20).Children(func() {
+				a.jsonTree(c, 0, rows, editorTheme, th)
+			})
+		}, 600, 200)
+		tt.SetLocale("en-US")
+		tt.Frame()
+		img := tt.Image()
+		for _, tc := range []struct {
+			label string
+			want  ui.Color
+		}{
+			{`"Demo project"`, editorTheme.Tokens[editor.TokenString].Color},
+			{"73", editorTheme.Tokens[editor.TokenConstant].Color},
+			{"true", editorTheme.Tokens[editor.TokenConstant].Color},
+			{"null", editorTheme.Tokens[editor.TokenConstant].Color},
+		} {
+			r, ok := tt.Find(tc.label)
+			if !ok {
+				t.Fatalf("dark=%t: %q missing from JSON tree: %q", dark, tc.label, tt.Texts())
+			}
+			found := 0
+			for y := max(img.Bounds().Min.Y, int(r.Y)); y < min(img.Bounds().Max.Y, int(r.Y+r.H)); y++ {
+				for x := max(img.Bounds().Min.X, int(r.X)); x < min(img.Bounds().Max.X, int(r.X+r.W)); x++ {
+					got := img.RGBAAt(x, y)
+					if got.R == tc.want.R && got.G == tc.want.G && got.B == tc.want.B {
+						found++
+					}
+				}
+			}
+			if found == 0 {
+				t.Errorf("dark=%t: %q has no %v ink", dark, tc.label, tc.want)
+			}
 		}
 	}
 }

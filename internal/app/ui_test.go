@@ -5379,8 +5379,8 @@ func TestCaptureSelectionMarkerFollowsListAndWindowFocus(t *testing.T) {
 	// never turns white.
 	type look struct{ fill, marker [3]int }
 	looks := map[bool][2]look{
-		false: {{[3]int{232, 236, 230}, [3]int{138, 143, 136}}, {[3]int{226, 229, 225}, [3]int{20, 22, 20}}},
-		true:  {{[3]int{32, 38, 34}, [3]int{109, 118, 110}}, {[3]int{37, 43, 38}, [3]int{234, 243, 233}}},
+		false: {{[3]int{232, 236, 230}, [3]int{138, 143, 136}}, {[3]int{231, 234, 230}, [3]int{23, 25, 23}}},
+		true:  {{[3]int{32, 38, 34}, [3]int{109, 118, 110}}, {[3]int{32, 38, 34}, [3]int{234, 243, 233}}},
 	}
 	for _, dark := range []bool{false, true} {
 		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {

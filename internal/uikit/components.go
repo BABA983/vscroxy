@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
+	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
@@ -125,8 +127,8 @@ const (
 	ButtonPressed
 )
 
-// PrimaryButton is the one action a screen or dialog is for. Green is the
-// accent and nothing else is filled with it.
+// PrimaryButton is the one action a screen or dialog is for. Its face is ink,
+// and green is left to Success so a primary action never signals a pass.
 func PrimaryButton(c *ui.Context, label string) ui.Element {
 	return PrimaryButtonState(c, label, ButtonRest)
 }
@@ -182,12 +184,24 @@ func busyButton(c *ui.Context, b ui.Element, label string, weight int, ink ui.Co
 	return b
 }
 
-// SecondaryButton has no border: its face is the text color laid thinly
-// over whatever is beneath, so it reads the same on the window, a panel or
-// a selected row.
+// SecondaryButton is Amp Web's outlined ghost: clear at rest with a
+// hairline, a 5% ink wash under the pointer, and 8 points of side room. It
+// reads the same on the window, a panel or a selected row.
 func SecondaryButton(c *ui.Context, label string) ui.Element {
-	return faced(c, func() ui.Element { return ui.Button(c, label) }).Height(HeightControl).
-		Padding(0, Scaled(ControlPaddingX)).FontSize(Scaled(TextBody)).Radius(RadiusControl)
+	return secondary(c, label, HeightSecondary, ControlPaddingXSmall, TextSmall)
+}
+
+// secondary is the face behind SecondaryButton and CompactButton. Amp Web
+// keeps the button clear until hovered, so neither the resting wash nor the
+// pressed face replaces the hairline.
+func secondary(c *ui.Context, label string, height, inset, size float32) ui.Element {
+	t, p := c.Theme(), Colors(c.Theme())
+	b := ui.Button(c, label).Height(height).Padding(0, Scaled(inset)).FontSize(Scaled(size)).
+		Radius(RadiusInner).Border(HairlineWidth, p.Border).TextColor(t.Text)
+	if !b.IsDisabled() && (b.Hovered() || b.Pressed()) {
+		b.Background(p.Foreground.Alpha(0.05))
+	}
+	return b
 }
 
 // ChipButton is a control with the neutral face and no text of its own: the
@@ -199,11 +213,10 @@ func ChipButton(c *ui.Context, label, tip string) ui.Element {
 		Height(HeightControlSmall).Padding(0, Scaled(ControlPaddingXSmall)).Gap(t.Space(SpaceS)).Radius(RadiusControl).AlignItems(ui.Center)
 }
 
-// CompactButton is a secondary button for dense rows and bars: the same
-// face at meta size.
+// CompactButton is a secondary button for dense rows and bars: Amp's same
+// clear/hairline face at the smaller control height and meta type size.
 func CompactButton(c *ui.Context, label string) ui.Element {
-	return faced(c, func() ui.Element { return ui.Button(c, label) }).Height(HeightControlSmall).
-		Padding(0, Scaled(ControlPaddingXSmall)).FontSize(Scaled(TextMeta)).Radius(RadiusControl)
+	return secondary(c, label, HeightControlSmall, ControlPaddingXSmall, TextMeta)
 }
 
 // LinkButton is an inline action, such as "Add property": text at the small
@@ -347,14 +360,14 @@ func SwatchButton(c *ui.Context, label string, color ui.Color, chosen bool) ui.E
 }
 
 // Input is a single-line text field at control height: a well set into the
-// canvas, with the focus ring's edge and a soft tint halo while it has the
-// focus.
+// canvas, with a 15% ink edge at rest and one Ring point outside it while
+// focused.
 func Input(c *ui.Context, value *string) ui.Element {
 	return InputState(c, value, false)
 }
 
-// InputState is Input with an invalid face: a Danger edge, and a Danger halo
-// while the field has the focus. FormRow sets the accessible error; this is
+// InputState is Input with an invalid face: a Danger edge, and one Danger
+// point outside it while focused. FormRow sets the accessible error; this is
 // the visual half, so a caller passes err != "" here.
 func InputState(c *ui.Context, value *string, invalid bool) ui.Element {
 	in := InputControl(c, value)
@@ -391,9 +404,10 @@ func TextInset(e ui.Element, inset float32) ui.Element {
 	return e.Padding(0, 0, 0, inset).BorderWidth(0, inset, 0, 0).BorderColor(ui.Color{})
 }
 
-// Combobox is MyGo's text field with a suggestion popup, in the kit's field
-// face at control height. Its focus edge is Ring, and the one edge it draws is
-// the face's, so callers add no face of their own.
+// Combobox is MyGo's text field with a suggestion popup, in Amp Web's select
+// face: the panel color in an 8-point field, with the same 15% ink edge and
+// one Ring point on focus. Its focus edge is Ring, and the one edge it draws
+// is the face's, so callers add no face of their own.
 func Combobox(c *ui.Context, value *string, options []string) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	face := *t
@@ -403,7 +417,7 @@ func Combobox(c *ui.Context, value *string, options []string) ui.Element {
 	// stops ControlPaddingX short of the arrow, as an Input's stops at its inset.
 	e := ui.Combobox(c, value, options).Border(0, ui.Color{}).Height(HeightControl).Padding(0, Scaled(ControlPaddingX)).Gap(Scaled(ControlPaddingX)).FontSize(Scaled(TextBody))
 	c.SetTheme(t)
-	return fieldFace(p, e, false, e.Focused(), false)
+	return fieldFaceRadius(p, e, true, e.Focused(), false, RadiusPanel)
 }
 
 // TextArea is MyGo's multiline text field with the kit's focus edge: its
@@ -421,11 +435,12 @@ func TextArea(c *ui.Context, value *string) ui.Element {
 
 // FieldFace gives a text field, or a row holding one with its own controls
 // (a search box, the URL bar), the face a field has on the canvas: a well,
-// and a muted edge and tint halo while focused. The edge is a neutral rather
-// than the ink accent: a field's focus is a place in a form, not the screen's
-// one primary action, so it reads quieter than the button beside it while
-// staying well above 3:1 against both the field and the surface around it.
-// A scroll container around a field leaves Space(1) at each side for the halo.
+// a 15% ink edge at rest and one Ring point outside it while focused. Hover
+// leaves the face alone. The focus edge is a neutral rather than the ink
+// accent: a field's focus is a place in a form, not the screen's one primary
+// action, so it reads quieter than the button beside it while staying above
+// 3:1 against both the field and the surface around it. A scroll container
+// around a field leaves Space(1) at each side for that point.
 func FieldFace(c *ui.Context, field ui.Element, focused bool) ui.Element {
 	return fieldFace(Colors(c.Theme()), field, false, focused, false)
 }
@@ -464,6 +479,12 @@ func SearchField(c *ui.Context, value *string, label, placeholder string, onChro
 // to the kit: MyGo's Draw is a single slot, so the edge replaces any Draw a
 // caller set, and a Draw set after it would drop the edge.
 func fieldFace(p *Palette, field ui.Element, onChrome, focused, invalid bool) ui.Element {
+	return fieldFaceRadius(p, field, onChrome, focused, invalid, RadiusControl)
+}
+
+// fieldFaceRadius is fieldFace at a caller's corner radius: Amp Web's text
+// input is a 6-point field, its selects are 8-point.
+func fieldFaceRadius(p *Palette, field ui.Element, onChrome, focused, invalid bool, radius float32) ui.Element {
 	face := p.Input
 	if onChrome {
 		face = p.Background
@@ -471,18 +492,17 @@ func fieldFace(p *Palette, field ui.Element, onChrome, focused, invalid bool) ui
 	// The face's radius also clips what sits inside it: a method control's
 	// hover or a chip's fill follows the field's corners instead of squaring
 	// them off.
-	field.Radius(RadiusControl).Background(face).Clip()
-	switch {
-	case invalid && focused:
-		fieldEdge(field, p.Danger)
-		field.Shadow(0, 0, 0, FocusHalo, p.Danger.Alpha(0.14))
-	case invalid:
-		fieldEdge(field, p.Danger)
-	case focused:
-		fieldEdge(field, p.Ring)
-		field.Shadow(0, 0, 0, FocusHalo, p.Ring.Alpha(0.16))
-	case onChrome:
-		fieldEdge(field, p.Border)
+	field.Radius(radius).Background(face).Clip()
+	// Amp Web keeps a 15% ink edge at rest; hover does not change it. Focus
+	// adds one ring point outside that edge, without a halo.
+	edge := p.Foreground.Alpha(0.15)
+	ring := p.Ring
+	if invalid {
+		edge, ring = p.Danger, p.Danger
+	}
+	fieldEdge(field, edge, radius)
+	if focused {
+		field.Shadow(0, 0, 0, HairlineWidth, ring)
 	}
 	return field
 }
@@ -491,9 +511,9 @@ func fieldFace(p *Palette, field ui.Element, onChrome, focused, invalid bool) ui
 // at the padding edge, so a field whose text room is a transparent right
 // border (TextInset) would leave that border's side bare; a stroke on the
 // box does not.
-func fieldEdge(field ui.Element, color ui.Color) {
+func fieldEdge(field ui.Element, color ui.Color, radius float32) {
 	field.Draw(func(p *ui.Painter, r ui.Rect) {
-		p.Stroke(r, color, RadiusControl, HairlineWidth)
+		p.Stroke(r, color, radius, HairlineWidth)
 	})
 }
 
@@ -615,21 +635,22 @@ func Sparkline(c *ui.Context, counts []int, ink ui.Color) ui.Element {
 }
 
 // MenuSelect is Select for choices built as a menu: a button naming the
-// current one, with the same face and chevron, that opens the menu. The
-// trigger keeps the hovered face while its menu is open, so the control reads
-// as the one that opened the menu.
+// current one, with the same field face and chevron, that opens the menu.
 func MenuSelect(c *ui.Context, current string, menu func(*ui.Menu)) ui.Element {
-	t := c.Theme()
-	b := ui.ButtonBase(c)
-	open := ui.Local(b, "menu-open", func() bool { return false })
-	opts := MenuButtonOptions(c)
-	opts.Open = open
-	b.Label(current).PopoverMenuButton(menu, opts)
-	b.Children(func() {
-		ui.Text(c, current).FontSize(Scaled(TextBody)).SingleLine()
-		chevron(c)
+	var b ui.Element
+	var open *bool
+	MenuFace(c, func() {
+		b = ui.ButtonBase(c)
+		open = ui.Local(b, "menu-open", func() bool { return false })
+		opts := MenuButtonOptions(c)
+		opts.Open = open
+		b.Label(current).PopoverMenuButton(menu, opts)
+		b.Children(func() {
+			ui.Text(c, current).FontSize(Scaled(TextBody)).SingleLine()
+			chevron(c)
+		})
 	})
-	return selectTrigger(c, b, *open).Justify(ui.SpaceBetween).TextColor(t.Text)
+	return selectTrigger(c, b, *open).Justify(ui.SpaceBetween).TextColor(c.Theme().Text)
 }
 
 // popoverFace gives a menu's floating panel the kit's chrome: the canvas on
@@ -665,18 +686,18 @@ func FrameEnd(c *ui.Context) {
 // A URL or another long run breaks after / ? & = - _ . and every 32
 // characters, so a tip never runs off the window.
 //
-// The timing is MyGo's TooltipBase: the pointer rests for the theme's
-// TooltipDelay (500ms in the kit, VS Code's Linux and Windows default), and
-// within two thirds of it after a tip goes the next shows at once, so moving
-// along a row of controls does not wait again. The keyboard focus shows the
-// tip at once, Escape hides it, and the tip goes above e, or below it where
-// there is no room. e is described to assistive technology.
+// The timing is MyGo's TooltipBase: the pointer rests for TooltipDelay (120ms,
+// measured from Amp Web) before the tip appears, and within two thirds of it
+// after a tip goes the next shows at once, so moving along a row of controls
+// does not wait again. Keyboard focus shows the tip at once; Escape hides it;
+// it goes above e, or below where there is no room. e is described to
+// assistive technology.
 func Tip(c *ui.Context, e ui.Element, text string) ui.Element {
 	return TipKeys(c, e, text)
 }
 
-// TipKeys is Tip with shortcuts drawn as Kbd caps after the text, rather than
-// spelled inside the sentence: TipKeys(c, b, "Hide sidebar", "⌘", "B").
+// TipKeys is Tip with the shortcut as quiet text after the sentence, as Amp
+// Web draws it: TipKeys(c, b, "Hide sidebar", "⌘", "B") reads "⌘B".
 func TipKeys(c *ui.Context, e ui.Element, text string, keys ...string) ui.Element {
 	if text == "" && len(keys) == 0 {
 		return e
@@ -689,8 +710,9 @@ func TipKeys(c *ui.Context, e ui.Element, text string, keys ...string) ui.Elemen
 				if text != "" {
 					ui.Text(c, breakTip(text)).FontSize(Scaled(TextSmall)).LineHeight(LineSmall).TextColor(t.Text)
 				}
-				for _, key := range keys {
-					Kbd(c, key)
+				if len(keys) > 0 {
+					ui.Text(c, shortcutLabel(keys)).FontSize(Scaled(TextMeta)).FontWeight(WeightMedium).
+						TextColor(t.TextMuted).SingleLine()
 				}
 			})
 		})
@@ -699,28 +721,52 @@ func TipKeys(c *ui.Context, e ui.Element, text string, keys ...string) ui.Elemen
 	return e
 }
 
+// shortcutLabel joins modifiers without a gap and named keys with one, so
+// "⌘"+"B" is ⌘B and "Ctrl"+"S" is Ctrl S.
+func shortcutLabel(keys []string) string {
+	var label strings.Builder
+	for i, key := range keys {
+		if i > 0 && utf8.RuneCountInString(keys[i-1]) > 1 {
+			label.WriteByte(' ')
+		}
+		label.WriteString(key)
+	}
+	return label.String()
+}
+
 // tipDescription is what assistive technology reads for a tip: the sentence,
 // then the keys it names.
 func tipDescription(text string, keys []string) string {
 	if len(keys) == 0 {
 		return text
 	}
-	return strings.TrimSpace(text + " (" + strings.Join(keys, " ") + ")")
+	return text + " (" + shortcutLabel(keys) + ")"
 }
 
-// tipFace is the one surface a tip and a hover card share: the canvas on the
-// popover shadow, a hairline edge, and the panel's 8-point corners.
+// tipFace is the one surface a tip and a hover card share: Amp Web's square
+// popover face, 2×4 inset, 450-point wrap and three-layer shadow. The tip's
+// own short words do not need a corner or a border as a card would.
 func tipFace(c *ui.Context, tip ui.Element) {
 	t, p := c.Theme(), Colors(c.Theme())
-	tip.Background(p.Background).TextColor(t.Text).Radius(RadiusPanel).MaxWidth(Scaled(TipMaxWidth)).
-		Padding(TipPaddingY, TipPaddingX).InsetShadow(0, 0, 0, HairlineWidth, p.Border)
+	tip.Background(p.Background).TextColor(t.Text).Radius(0).MaxWidth(Scaled(TipMaxWidth)).
+		Padding(TipPaddingY, TipPaddingX)
 	ShadowPopover.Apply(tip, t.Dark)
 }
 
-// TipSurface gives a tip built by the caller the kit's one face: the canvas
-// on the popover shadow, a hairline edge and RadiusPanel. It is for a tip
-// whose content is more than text and key/value rows, as a field's list of
-// variables; the timing, placement and dismissal are still TooltipBase's.
+// cardFace is Amp Web's rich hover card: a 320-point, 6-point-corner panel
+// with the same shadow as the small tip and 10/10/8 inset.
+func cardFace(c *ui.Context, tip ui.Element) {
+	t, p := c.Theme(), Colors(c.Theme())
+	tip.Background(p.Background).TextColor(t.Text).Radius(RadiusControl).
+		Width(Scaled(CardTipWidth)).MaxWidth(Scaled(TipMaxWidth)).
+		Padding(Scaled(CardTipPaddingY), Scaled(CardTipPaddingX), Scaled(CardTipPaddingBottom), Scaled(CardTipPaddingX))
+	ShadowPopover.Apply(tip, t.Dark)
+}
+
+// TipSurface gives a tip built by the caller the kit's one face: Amp Web's
+// square popover panel. It is for a tip whose content is more than text and
+// key/value rows, as a field's list of variables; the timing, placement and
+// dismissal are still TooltipBase's.
 func TipSurface(c *ui.Context, tip ui.Element) {
 	tipFace(c, tip)
 }
@@ -740,11 +786,10 @@ type HoverCardRow struct {
 	Value string
 }
 
-// CardTip gives e a rich tip: a title, one line of meta and key/value rows,
-// on the same surface as Tip. It shows when Tip does and is described to
-// assistive technology by its text, since MyGo's tooltip itself is not read.
-// The card is wider than a one-line tip and keeps clear of the window's
-// edges through TooltipBase's placement.
+// CardTip gives e a rich tip: a title, one line of meta and key/value rows on
+// Amp Web's 320-point card. It waits longer than a one-line tip and is
+// described to assistive technology by its text, since MyGo's tooltip itself
+// is not read. TooltipBase's placement keeps it clear of the window's edges.
 func CardTip(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
 	return cardTip(c, e, card, nil)
 }
@@ -758,6 +803,11 @@ func CardTipBeside(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
 	})
 }
 
+// Amp Web shows a rich card much later than a one-line tip: about 650ms
+// after the pointer settles. The theme is scoped to the card's construction,
+// which is when MyGo reads TooltipDelay.
+const cardTipDelay = 650 * time.Millisecond
+
 // cardTip is the body of CardTip and CardTipBeside; place, when set, positions
 // the card inside TooltipBase.
 func cardTip(c *ui.Context, e ui.Element, card HoverCard, place func(tip ui.Element)) ui.Element {
@@ -765,15 +815,17 @@ func cardTip(c *ui.Context, e ui.Element, card HoverCard, place func(tip ui.Elem
 		return e
 	}
 	t := c.Theme()
+	cardTheme := *t
+	cardTheme.TooltipDelay = cardTipDelay
+	c.SetTheme(&cardTheme)
 	ui.TooltipBase(c, e, func(tip ui.Element) {
-		tipFace(c, tip)
-		tip.Padding(CardTipPaddingY, CardTipPaddingX)
+		cardFace(c, tip)
 		if place != nil {
 			place(tip)
 		}
 		tip.Children(func() {
-			ui.Column(c).Gap(t.Space(SpaceM)).Children(func() {
-				head := ui.Column(c).Gap(t.Space(SpaceHair))
+			ui.Column(c).Children(func() {
+				head := ui.Column(c).Gap(t.Space(SpaceHair)).Padding(0, 0, Scaled(6), 0)
 				head.Children(func() {
 					if card.Title != "" {
 						ui.Text(c, breakTip(card.Title)).FontSize(Scaled(TextBody)).FontWeight(WeightMedium).
@@ -785,23 +837,26 @@ func cardTip(c *ui.Context, e ui.Element, card HoverCard, place func(tip ui.Elem
 				})
 				if len(card.Rows) > 0 {
 					ui.Divider(c)
-					for _, row := range card.Rows {
-						if row.Key == "" && row.Value == "" {
-							continue
-						}
-						ui.Row(c).FillWidth().Gap(t.Space(SpaceM)).AlignItems(ui.Start).Children(func() {
-							Meta(c, row.Key).Width(Scaled(CardKeyWidth)).Shrink(0).Padding(0, 0, HairlineWidth, 0)
-							if strings.Contains(row.Value, "://") {
-								Mono(c, breakTip(row.Value)).TextColor(t.Text).Grow(1).MinWidth(0)
-							} else {
-								Small(c, breakTip(row.Value)).TextColor(t.Text).Grow(1).MinWidth(0)
+					ui.Column(c).Gap(t.Space(SpaceHair)).Padding(Scaled(6), 0, 0, 0).Children(func() {
+						for _, row := range card.Rows {
+							if row.Key == "" && row.Value == "" {
+								continue
 							}
-						})
-					}
+							ui.Row(c).FillWidth().Gap(t.Space(SpaceM)).AlignItems(ui.Start).Children(func() {
+								Meta(c, row.Key).Width(Scaled(CardKeyWidth)).Shrink(0).Padding(0, 0, HairlineWidth, 0)
+								if strings.Contains(row.Value, "://") {
+									Mono(c, breakTip(row.Value)).TextColor(t.Text).Grow(1).MinWidth(0)
+								} else {
+									Small(c, breakTip(row.Value)).TextColor(t.Text).Grow(1).MinWidth(0)
+								}
+							})
+						}
+					})
 				}
 			})
 		})
 	})
+	c.SetTheme(t)
 	parts := make([]string, 0, 2+len(card.Rows))
 	if card.Title != "" {
 		parts = append(parts, card.Title)
@@ -903,14 +958,36 @@ func ToastPanel(c *ui.Context, panel ui.Element) ui.Element {
 	return ShadowPopover.Apply(panel.Radius(RadiusDialog).Background(p.Background).InsetShadow(0, 0, 0, HairlineWidth, p.Border), c.Theme().Dark)
 }
 
-// MenuPanel is the chrome of a drawn menu: a 10-point canvas panel on the
-// menu shadow. MyGo builds the items; this is the face they sit on.
+// MenuPanel is the chrome of a drawn menu: Amp Web's 6-point panel on the
+// shadow-popover's three layers. MyGo builds the items; this is the face
+// they sit on. The 1-point ring is part of the shadow, not a Border token.
 func MenuPanel(c *ui.Context, panel ui.Element) ui.Element {
 	p := Colors(c.Theme())
 	overlayShown(c)
-	return ShadowMenu.Apply(panel.Border(0, ui.Color{}).Radius(RadiusMenu).Background(p.Background).
-		InsetShadow(0, 0, 0, HairlineWidth, p.Border), c.Theme().Dark)
+	e := panel.Border(0, ui.Color{}).Radius(RadiusMenu).Background(p.Background)
+	return ShadowMenu.Apply(e, c.Theme().Dark)
 }
+
+// menuTheme scopes a menu's items to Amp Web's face: a 7% ink highlight with
+// ink text, a 4-point item corner and 12-point type. MyGo reads these from
+// the theme while it builds the menu, so the wrapper must be around that
+// build, not around the button that opens it.
+func menuTheme(c *ui.Context, build func()) {
+	t := c.Theme()
+	p := Colors(t)
+	face := *t
+	face.Accent, face.AccentHover, face.AccentPressed = p.Accent, p.Accent, p.Accent
+	face.AccentText = t.Text
+	face.Radius, face.FontSize = RadiusInner, Scaled(TextSmall)
+	c.SetTheme(&face)
+	build()
+	c.SetTheme(t)
+}
+
+// MenuFace builds a menu button with Amp Web's item face. MyGo reads the
+// highlight colors, radius and type from the theme when the button is made,
+// not when its menu opens, so the scope has to cover construction.
+func MenuFace(c *ui.Context, build func()) { menuTheme(c, build) }
 
 // MenuButtonOptions gives a PopoverMenuButton the kit's menu face. Use it
 // for a menu the app opens from its own button; MyGo's ContextMenu and
@@ -919,12 +996,14 @@ func MenuButtonOptions(c *ui.Context) ui.PopoverMenuButtonOptions {
 	return ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { MenuPanel(c, panel) }}
 }
 
-// StatusPill prints a status in its signal color. Status and method colors
-// never fill a background: only the slow-duration pill is tinted.
+// StatusPill prints a status in its signal color. It follows Amp Web's quiet
+// filter pill: clear face, 28 points tall, 4×6 inset, 11-point type and a
+// full-pill corner. Status and method colors never fill a background here.
 func StatusPill(c *ui.Context, label string, foreground ui.Color) ui.Element {
 	t := c.Theme()
-	return ui.Text(c, label).FontSize(Scaled(TextBody)).FontFeatures("tnum").SingleLine().
-		TextColor(foreground).Padding(t.Space(SpaceXS), t.Space(SpaceM)).Radius(RadiusControl)
+	return ui.Text(c, label).FontSize(Scaled(TextSmall)).FontFeatures("tnum").SingleLine().
+		TextColor(foreground).Height(HeightControl).
+		Padding(t.Space(SpaceXS), t.Space(SpaceS)).Radius(HeightControl / 2)
 }
 
 // QueryChip is one condition in the query bar, written as the query syntax
@@ -1159,11 +1238,10 @@ func DialogTitle(c *ui.Context, title string) ui.Element {
 	return Heading(c, title).TextColor(c.Theme().Text)
 }
 
-// Tabs is a row of text tabs; the chosen one is a rounded chip in the
-// neutral fill with the normal text color. A tab is a filter, not a
-// selection of data, so it is never green. The prefix names each tab for
-// assistive technology, so a screen with two tab rows of the same labels can
-// name the one it means.
+// Tabs is a row of text tabs; the chosen one is Amp Web's raised panel chip,
+// with an ink label and no line. A tab is a filter, not a selection of data,
+// so it is never green. The prefix names each tab for assistive technology,
+// so a screen with two tab rows of the same labels can name the one it means.
 func Tabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Element {
 	return tabs(c, selected, prefix, labels, nil, false)
 }
@@ -1193,8 +1271,8 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 		// chosen one.
 		gap = t.Space(SpaceM)
 	}
-	// As narrow as the underlined tabs were, so a narrow inspector still
-	// shows them all; the chip's own padding keeps neighbours apart.
+	// One row of words; the padding belongs to each tab, so neighbours stay
+	// apart without a visible rule between them.
 	group.List.Gap(gap).Children(func() {
 		for i, label := range labels {
 			name := label
@@ -1202,31 +1280,41 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 				name = prefix + ": " + label
 			}
 			chosen := i == *selected
-			tab := group.Tab(i).Label(name).Height(HeightControlSmall).Padding(0, Scaled(ControlPaddingXSmall)).Gap(t.Space(SpaceXS)).
-				Radius(RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
+			height := float32(HeightTabs)
+			inset := t.Space(SpaceCompact)
+			if sub {
+				// A second level is words with an underline, so it keeps
+				// the tighter hit area that fits beside an editor.
+				height, inset = HeightControlSmall, Scaled(ControlPaddingXSmall)
+			}
+			tab := group.Tab(i).Label(name).Height(height).Padding(0, inset).Gap(t.Space(SpaceXS)).
+				Radius(RadiusPanel).AlignItems(ui.Center).TextColor(t.TextMuted)
+			if sub {
+				tab.Radius(0)
+			}
 			switch {
 			case chosen && sub:
-				// A rule, not a chip: the row is one level down from the
-				// tabs that chose it, and the accent says which one.
-				tab.TextColor(t.Text).Radius(0)
+				tab.TextColor(t.Text)
 			case chosen:
-				tab.Background(p.Muted).TextColor(t.Text)
+				// Amp's selected nav tab is a raised panel chip. Our panel
+				// and that chip are only two levels apart, so the hairline
+				// keeps the shape readable without a darker fill.
+				tab.Background(p.Background).InsetShadow(0, 0, 0, HairlineWidth, p.Border).TextColor(t.Text)
 			case sub && (tab.Pressed() || tab.Hovered()):
 				tab.TextColor(t.Text)
-			case tab.Pressed():
-				tab.Background(p.MutedPressed)
-			case tab.Hovered():
-				tab.Background(p.MutedHover)
+			case tab.Pressed() || tab.Hovered():
+				// Amp Web's unchosen top tab takes a 5% ink wash.
+				tab.Background(p.Foreground.Alpha(0.05)).TextColor(t.Text)
 			}
 			tab.Children(func() {
-				ui.Text(c, label).FontSize(Scaled(TextBody))
+				ui.Text(c, label).FontSize(Scaled(TextSmall))
 				if i < len(counts) && counts[i] != "" && counts[i] != "0" {
 					Meta(c, counts[i]).FontFeatures("tnum")
 				}
 				if chosen && sub {
 					// The rule spans the word, not the tab's hit area, so
 					// it starts where the word does.
-					ui.Box(c).Absolute().Left(Scaled(ControlPaddingXSmall)).Right(Scaled(ControlPaddingXSmall)).Bottom(0).
+					ui.Box(c).Absolute().Left(inset).Right(inset).Bottom(0).
 						Height(TabRuleHeight).Background(p.Primary)
 				}
 			})
@@ -1267,7 +1355,11 @@ func EdgeFade(c *ui.Context, from bool, fill ui.Color) ui.Element {
 // MoreButton is the toolbar's "⋯": an IconButton with the menu on it and no
 // chevron, since the three dots already say one opens. The title bar uses it.
 func MoreButton(c *ui.Context, label, tip string, menu func(*ui.Menu)) ui.Element {
-	return IconButton(c, label, tip, lucide.Ellipsis()).PopoverMenuButton(menu, MenuButtonOptions(c))
+	var b ui.Element
+	MenuFace(c, func() {
+		b = IconButton(c, label, tip, lucide.Ellipsis()).PopoverMenuButton(menu, MenuButtonOptions(c))
+	})
+	return b
 }
 
 // MoreMenu is the "⋯" of a row, a sidebar heading or a pane header, at the
@@ -1283,7 +1375,10 @@ func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
 	// A button of our own with a menu on it, not the library's menu button:
 	// that one draws a chevron after its label, and a ⋯ already says a menu
 	// opens. The menu itself is the library's, panel and motion included.
-	b := ui.ButtonBase(c).Label(label).PopoverMenuButton(menu, MenuButtonOptions(c))
+	var b ui.Element
+	MenuFace(c, func() {
+		b = ui.ButtonBase(c).Label(label).PopoverMenuButton(menu, MenuButtonOptions(c))
+	})
 	// ButtonBase is a row with no look: the icon has to be a child, or the
 	// row's menu is an empty strip with nothing to click.
 	b.Children(func() { ui.Icon(c, lucide.Ellipsis()).Size(IconInline, IconInline) })
@@ -1301,7 +1396,10 @@ func TabMenu(c *ui.Context, label, name string, menu func(*ui.Menu)) ui.Element 
 	ghost.Surface, ghost.SurfaceHover, ghost.SurfacePressed = ui.Color{}, p.MutedHover, p.MutedPressed
 	ghost.Border = ui.Color{}
 	c.SetTheme(&ghost)
-	b := ui.ButtonBase(c).Label(label).PopoverMenuButton(menu, MenuButtonOptions(c))
+	var b ui.Element
+	MenuFace(c, func() {
+		b = ui.ButtonBase(c).Label(label).PopoverMenuButton(menu, MenuButtonOptions(c))
+	})
 	// ButtonBase paints nothing of its own: the tab's words are its child.
 	b.Children(func() { ui.Text(c, label).FontSize(Scaled(TextBody)).SingleLine() })
 	c.SetTheme(t)
@@ -1456,9 +1554,12 @@ func RowMarker(c *ui.Context, focused bool) {
 // Selected gives a rounded row the selection look.
 func Selected(c *ui.Context, e ui.Element, focused bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	fill := p.Accent
+	// MyGo paints its own selection for list rows, with the solid Accent.
+	// Composite our wash on the surface before painting it, so the softer
+	// face completely covers that ink instead of tinting over it.
+	fill := p.Accent.Over(p.Background)
 	if !focused {
-		fill = p.Muted
+		fill = p.Muted.Over(p.Background)
 	}
 	return e.Background(fill).TextColor(t.Text)
 }
@@ -1569,10 +1670,9 @@ func SettingsCard(c *ui.Context, legend string, rows func()) ui.Element {
 	})
 }
 
-// Switch is the kit's 36-by-20 switch. MyGo's own switch fills its track
-// with the accent; in Dark that is almost white, so the white thumb has no
-// edge. The kit paints the track from SwitchOn instead, keeping the on state
-// distinct from off and from a disabled switch in both themes.
+// Switch is the kit's 36-by-20 switch. Its off face follows Amp Web: a 20%
+// text track and a muted thumb. The on track comes from SwitchOn, so Dark can
+// keep a readable edge under its knob instead of Amp's two near-black colors.
 func Switch(c *ui.Context, on *bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	sw := ui.SwitchBase(c, on).Size(SettingsControlHeight, switchHeight).Radius(switchHeight / 2)
@@ -1581,7 +1681,14 @@ func Switch(c *ui.Context, on *bool) ui.Element {
 		target = 1
 	}
 	pos := target
-	off := t.Border.Mix(t.Text, 0.15)
+	// Amp Web's off track is the text color at 20% with a muted thumb; on it
+	// is the ink Primary with a pale thumb. Dark keeps a lighter on track and
+	// a white thumb: the web pair is two near-black colors and disappears.
+	off := p.Foreground.Alpha(0.2)
+	knobOff, knobOn := p.MutedForeground, ui.RGB(255, 255, 255)
+	if !t.Dark {
+		knobOn = p.PrimaryForeground
+	}
 	track := off.Mix(p.SwitchOn, pos)
 	sw.Draw(func(painter *ui.Painter, r ui.Rect) {
 		in := t.Space(SpaceHair)
@@ -1592,8 +1699,7 @@ func Switch(c *ui.Context, on *bool) ui.Element {
 			at = 1 - pos
 		}
 		knob := ui.Rect{X: r.X + in + at*(r.W-r.H), Y: r.Y + in, W: d, H: d}
-		painter.Shadow(knob, d/2, 0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.25))
-		painter.Fill(knob, ui.RGB(255, 255, 255), d/2)
+		painter.Fill(knob, knobOff.Mix(knobOn, pos), d/2)
 	})
 	return sw
 }
@@ -1781,7 +1887,7 @@ func settingsRowBody(c *ui.Context, label string, control func() ui.Element, hin
 // "Raw" or "In", and the screen says "原始" or "入". Every select on a surface
 // shares this trigger and popup, so they read alike.
 func SelectLabels(c *ui.Context, selected *string, options []string, label func(string) string) ui.Element {
-	t := c.Theme()
+	t, p := c.Theme(), Colors(c.Theme())
 	sel := ui.SelectBase(c, selected)
 	trigger := selectTrigger(c, sel.Trigger, sel.Open()).Justify(ui.SpaceBetween).TextColor(t.Text)
 	trigger.Children(func() {
@@ -1789,44 +1895,41 @@ func SelectLabels(c *ui.Context, selected *string, options []string, label func(
 		chevron(c)
 	})
 	sel.Popup(func(panel ui.Element) {
-		popoverFace(c, panel.Padding(t.Space(SpaceXS)).Gap(t.Space(SpaceHair)))
-		for _, option := range options {
-			// The keyboard's highlight is the only fill in the popup; the
-			// chosen option is marked with a check, so two rows never look
-			// selected while the highlight moves.
-			item := sel.Item(option).Padding(t.Space(SpaceS), t.Space(SpaceCompact)).Radius(RadiusControl).AlignItems(ui.Center).Gap(t.Space(SpaceS))
-			ink := t.Text
-			if item.Highlighted() {
-				item.Background(t.Accent).TextColor(t.AccentText)
-				ink = t.AccentText
-			}
-			item.Children(func() {
-				Body(c, label(option)).SingleLine().Grow(1).MinWidth(0)
-				if option == *selected {
-					ui.Icon(c, checkIcon).Size(IconInline, IconInline).TextColor(ink).Shrink(0)
+		menuTheme(c, func() {
+			// MyGo's popover helper attaches a Select panel flush to its
+			// trigger. Amp's Select and Menu poppers keep sideOffset 4.
+			panel.Margin(t.Space(SpaceXS), 0, 0, 0)
+			popoverFace(c, panel.Padding(t.Space(SpaceXS)).Gap(t.Space(SpaceHair)))
+			for _, option := range options {
+				// Amp Web's menu item: one 7% wash while highlighted, the
+				// chosen option marked with a check in the same ink.
+				item := sel.Item(option).Height(MenuRowHeight).Padding(0, t.Space(SpaceM)).
+					Radius(RadiusInner).AlignItems(ui.Center).Gap(t.Space(SpaceS))
+				ink := t.Text
+				if item.Highlighted() {
+					item.Background(p.Accent).TextColor(t.Text)
 				}
-			})
-		}
+				item.Children(func() {
+					ui.Text(c, label(option)).FontSize(Scaled(TextSmall)).SingleLine().Grow(1).MinWidth(0)
+					if option == *selected {
+						ui.Icon(c, checkIcon).Size(IconInline, IconInline).TextColor(ink).Shrink(0)
+					}
+				})
+			}
+		})
 	})
 	return trigger
 }
 
-// selectTrigger gives a select's trigger the button face at control height:
-// the field's text color laid thinly, a step stronger while hovered or while
-// its popup is open, and the pressed step. A select's trigger is a button
-// with no look of its own, so the face is painted here.
-func selectTrigger(c *ui.Context, b ui.Element, open bool) ui.Element {
+// selectTrigger gives a select's trigger Amp Web's select face: the panel
+// color in an 8-point field, with a 15% ink edge that does not react to the
+// pointer and one Ring point outside it while focused. A select's trigger is
+// a button with no look of its own, so the face is painted here.
+func selectTrigger(c *ui.Context, b ui.Element, _ bool) ui.Element {
 	p := Colors(c.Theme())
-	switch {
-	case b.Pressed():
-		b.Background(p.MutedPressed)
-	case b.Hovered() || open:
-		b.Background(p.MutedHover)
-	default:
-		b.Background(p.Muted)
-	}
+	b = fieldFaceRadius(p, b, true, b.Focused(), false, RadiusPanel)
 	return b.Height(HeightControl).Padding(0, Scaled(ControlPaddingX)).FontSize(Scaled(TextBody)).
-		Radius(RadiusControl).AlignItems(ui.Center).MinWidth(WidthPicker)
+		AlignItems(ui.Center).MinWidth(WidthPicker)
 }
 
 // chevron draws the arrow of a control that opens something below it.

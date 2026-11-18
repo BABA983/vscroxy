@@ -5,10 +5,10 @@ import (
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
-// Checkbox and Radio are the kit's choice controls. Their boxes wear a
-// control's face, as a button does: the text color laid thinly at rest,
-// hovered and pressed, and the ink accent once chosen, with the mark in the
-// accent text. Nothing is outlined, and the label is body text beside them.
+// Checkbox and Radio are the kit's choice controls. Their boxes follow Amp
+// Web: a clear face with a Primary edge when off, and a Primary fill with a
+// PrimaryForeground mark when on. Hover and press leave the box alone; MyGo
+// dims a disabled row. The label stays body text beside the box.
 
 var checkIcon = lucide.Check()
 
@@ -19,23 +19,10 @@ func Checkbox(c *ui.Context, checked *bool, label string) ui.Element {
 	row := ui.CheckboxBase(c, checked).Label(label).Gap(t.Space(SpaceM)).AlignItems(ui.Center)
 	row.Children(func() {
 		box := ui.Box(c).Size(IconLarge, IconLarge).Radius(RadiusInner).Shrink(0).Center()
-		switch {
-		case *checked && row.Hovered():
-			box.Background(p.PrimaryHover)
-		case *checked:
+		if *checked {
 			box.Background(p.Primary)
-		case row.Pressed():
-			box.Background(p.MutedPressed)
-		case row.Hovered():
-			box.Background(p.MutedHover)
-		default:
-			box.Background(p.Muted)
 		}
-		if !*checked {
-			// An empty box needs an edge to be seen: its face alone is too faint
-			// to read as a box on a surface.
-			box.Border(HairlineWidth, p.Ring)
-		}
+		box.Border(HairlineWidth, p.Primary)
 		box.Children(func() {
 			if *checked {
 				ui.Icon(c, checkIcon).Size(IconInline, IconInline).TextColor(p.PrimaryForeground)
@@ -56,21 +43,10 @@ func Radio[T comparable](c *ui.Context, selected *T, value T, label string) ui.E
 	row := ui.RadioBase(c, selected, value).Label(label).Gap(t.Space(SpaceM)).AlignItems(ui.Center)
 	row.Children(func() {
 		dot := ui.Box(c).Size(IconLarge, IconLarge).Radius(IconLarge / 2).Shrink(0).Center()
-		switch {
-		case on && row.Hovered():
-			dot.Background(p.PrimaryHover)
-		case on:
+		if on {
 			dot.Background(p.Primary)
-		case row.Pressed():
-			dot.Background(p.MutedPressed)
-		case row.Hovered():
-			dot.Background(p.MutedHover)
-		default:
-			dot.Background(p.Muted)
 		}
-		if !on {
-			dot.Border(HairlineWidth, p.Ring)
-		}
+		dot.Border(HairlineWidth, p.Primary)
 		dot.Children(func() {
 			if on {
 				ui.Box(c).Size(DotSize, DotSize).Radius(DotSize / 2).Background(p.PrimaryForeground)

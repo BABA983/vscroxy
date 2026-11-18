@@ -116,7 +116,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **状态色和方法色不填充背景。** 2xx 和 304 是普通的次要文字，前面没有圆点；4xx（赭黄）和 5xx（朱红）只染状态文字本身，3xx 也按次要文字读。慢请求（≥ 1 秒）的耗时用朱红文字，没有底色块。method 是纯色文字，不做 chip（表格里是界面字体，侧栏和树里是等宽）。
 - **选中保留形状。** 列表失焦时，选中底从强调浅底换成中性面（6%），表格行同时把标记线换成 faint 色，位置和形状都不变。
 - **等宽只用于线上数据：** 路径、header 值、URL、数字、body。host、client、标签用界面字体。会变的数字开 `tnum`。
-- **五个字号，两个字重：** 20（展示）／16（标题）／13（正文和控件）／12（次要文字和等宽数据）／11（元信息），只有 400 和 500，没有 600。
+- **六档字号，两个字重：** 20（展示）／16（标题）／15（Amp 的 md 标尺档）／13（正文和控件）／12（次要文字和等宽数据）／11（元信息），只有 400 和 500，没有 600。界面常用前五档里的 20／16／13／12／11。
 - **三档栏高，两档控件：** 栏 40／32／24，控件 `HeightControl` 28／`HeightControlSmall` 22，行 `HeightRow` 24；工作区圆角 4／6／8，浮层再取 10／12／16；间距 4／8／12／16／24，左右边距统一 12。
 - **线只画在区域之间。** 侧栏与内容、列表与检查器、请求面板与响应面板、状态栏上沿；区域内部靠间距和表面区分，面板头、抓包信息行、URL 行都没有底线。流量表表头没有列分隔线，拖动列宽的命中区还在，指针停在那一列边缘时才画出强调色细线。
 - **输入框只有两种：** 在 chrome 上的是 canvas 底加 1px 细线（`ChromeFieldFace`），在 canvas 上的是 well 填充（`FieldFace`）。标题栏的命令入口不是输入框，是一个 24 高的按钮（放大镜加 `⌘K`／`Ctrl K`）。
@@ -124,8 +124,8 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **常驻的状态信息：** 列表上方一条 24 高的活动柱状图：摘要（`Last 5 min · 138 requests`）在左、柱在右、最右是结束时间（等宽）；最近 5 分钟，按状态码上色（正常中性面，3xx／4xx／5xx 和慢请求用信号色），可拖选时间范围。筛选是查询语法 chip（`status:>=400`、`host:`、`app:`、`slow`），带自动补全；每行带一根耗时条，慢请求是朱红。
 - **选中分两种形状，都是选中浅底（`Accent`）、正常文字颜色：**
   - 选位置或选东西的行（侧栏、集合树、各种挑选列表）是离边缘内缩的圆角块，不画标记线，和 macOS 的 source list 一样。侧栏的选中表示"现在在哪"，不是键盘光标，焦点在别处时仍是选中浅底。
-  - 表格和数据列表（流量表、消息、Protobuf、Runner 结果）的行占满宽度，左侧加 2px 强调色标记线。列表失焦时浅底变成 `Muted`、标记线变成 faint 色，靠标记线和中性底区分开。选中浅底 `Accent` 是正文色 9% 的 wash（Amp 的 `--accent` 是 7%），不再靠比悬停更深来区分选中。
-  - 浮动的选择列表（菜单、`Select`、`Combobox` 的弹层）的高亮是强调色实底、反色文字，和 MyGo 菜单一致。命令面板和数据列表的选中是 `Accent`，各有各的规则，不混用。
+  - 表格和数据列表（流量表、消息、Protobuf、Runner 结果）的行占满宽度，左侧加 2px 强调色标记线。列表失焦时浅底变成 `Muted`、标记线变成 faint 色，靠标记线和中性底区分开。选中浅底 `Accent` 是正文色 7% 的 wash（Amp 的 `--accent`），不再靠比悬停更深来区分选中。
+  - 浮动的选择列表（菜单、`Select`、`Combobox` 的弹层）的高亮是同一张 7% 墨色 wash，文字保持墨色。命令面板和数据列表的选中也是 `Accent`，不混用。
 - **形状靠近 macOS：** 圆角 4／6／10（第 6.3 节），嵌套的圆角同心（内层 = 外层 − 内边距），浮层是细边框加柔和的大阴影。不做胶囊按钮：控件高 24 时胶囊显得像玩具。
 - **macOS 上的原生感（3.5，保留）：** 参考了 onegit／onevra、kero、mygo-cloudmusic 三个 MyGo 应用、Telegram 和 Apple HIG，共同点是窗口外壳原生、控件用中性色叠加、少画线。
   - 只在 macOS 上：界面字体用系统字体（SF Pro）。侧栏仍挂着 `VibrancySidebar`，但外壳的每一块（标题栏、底栏、侧栏、内容）都画自己的实色，桌面不透出来：标题栏曾经因为没有自己的底色而让壁纸透上来，标题栏和其余外壳不是一个色（2026-11-13 修）。Windows、Linux 用内嵌的 Geist 和平涂。
@@ -152,28 +152,31 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `Foreground` | `#0b0d0b` | `#f6fff5` | 正文 |
 | `MutedForeground` | `#595959` | `#9ca49c` | 次要文字、2xx 的颜色，也是输入框聚焦时那 1px 边和编辑器里的标点 |
 | `Faint` | `#8a8f88` | `#6d766e` | 只用于图标、禁用、占位和失焦标记线，不承载信息 |
-| `Primary` | `#141614` | `#eaf3e9` | 主按钮、焦点、选中标记、开关、复选框的开启态、活动行把手、表头拖动线 |
-| `PrimaryHover`／`PrimaryPressed` | `#2a2d2a`／`#3d413d` | `#ffffff`／`#cfd8ce` | |
-| `PrimaryForeground` | `#f7fbf6` | `#101612` | 主按钮文字，也是 Success 面（向导的完成标记）上的文字 |
-| `Accent` | 正文色 9% | 正文色 9% | 聚焦时的选中浅底、活动工具、活动行区间；失焦选中用 `Muted` |
+| `Primary` | `#171917` | `#eaf3e9` | 主按钮、焦点、选中标记、开关、复选框的开启态、活动行把手、表头拖动线 |
+| `PrimaryHover`／`PrimaryPressed` | `#2f312f`／`#2f312f` | `#d3dbd2`／`#d3dbd2` | Web Amp 实测：hover 和 pressed 共用一张面，Light 提亮、Dark 压暗；禁用只叠 50% 透明度 |
+| `PrimaryForeground` | `#fafaf8` | `#0b0d0b` | 主按钮文字，也是 Success 面（向导的完成标记）上的文字 |
+| `Accent` | 正文色 7% | 正文色 7% | 选中浅底、活动工具、活动行区间和菜单项高亮；失焦选中用 `Muted` |
 | `Ring` | `#636e61` | `#9aa89a` | 键盘焦点环和输入框聚焦边；和墨色强调分开 |
-| `SwitchOn` | `#141614` | `#8a998a` | 开关打开时的轨道；Dark 不用近白的墨色，白色滑块仍有 3:1 边缘 |
+| `SwitchOn` | `#171917` | `#8a998a` | 开关打开时的轨道；Dark 不用近白的墨色，白色滑块仍有 3:1 边缘 |
 | `Success` | `#2c784d` | `#54b879` | 检查通过、录制点、信任状态、向导里已完成的步骤 |
 | `Info`／3xx／GET | `#2f6ea5` | `#8fb3d1` | |
 | `Warning` | `#86600f` | `#d6a038` | 慢请求、4xx 的提示色 |
 | `Danger` | `#b9423c` | `#d67670` | 5xx、连接失败、错误 |
 | `MethodPost` | `#5b6b1c` | `#b5c27a` | POST 的方法色（橄榄绿） |
-| `MethodPatch` | `#7a3e6d` | `#c99abd` | PATCH 的方法色（梅紫），编辑器里的字符串也用它 |
+| `MethodPatch` | `#7a3e6d` | `#c99abd` | PATCH 的方法色（梅紫） |
 | `Socket` | `#2b6868` | `#6fc3d6` | WebSocket 的协议色 |
+| `EditorForeground`／`EditorKeyword`／`EditorEntity`／`EditorTag` | `#24292e`／`#d73a49`／`#6f42c1`／`#22863a` | `#e1e4e8`／`#f97583`／`#b392f0`／`#85e89d` | `@pierre/diffs` 的 `--diffs-token-light/dark`（GitHub Light/Dark）；文件 diff 编辑器里的 token 色 |
+| `EditorVariable`／`EditorConstant`／`EditorString`／`EditorRegexp`／`EditorComment`／`EditorInvalid` | `#e36209`／`#005cc5`／`#032f62`／`#032f62`／`#6a737d`／`#b31d28` | `#ffab70`／`#79b8ff`／`#9ecbff`／`#dbedff`／`#6a737d`／`#fdaeb7` | 同一套 token 色的其余角色；都不是状态色 |
+| `DiffAdded`／`DiffRemoved`／`DiffMeta` | `#2f8052`／`#c44f4a`／`#a07013` | `#4ba86e`／`#d67670`／`#d6a038` | Amp `--diff-*` 的前景/meta；MyGo 由它们合成 diff 行底与字色 |
 | `Inverse`／`InverseText` | `#0b0d0b`／`#f7fbf6` | `#f6fff5`／`#101612` | 提示条和 toast 的反色面 |
 | `Scrim` | 黑 35% | 黑 35% | 对话框遮罩 |
-| `ShadowMenu`／`ShadowPopover`／`ShadowDialog` | `0 8 24 .14`／`0 12 32 .16`／`0 16 48 .18` | Dark 透明度 ×2 | 菜单／弹层／对话框；工作区不加阴影 |
+| `ShadowPopover`／`ShadowDialog` | 1 px 8% 黑环 + `0 4 6 -1` + `0 2 4 -2`／`0 10 15 -3` + `0 4 6 -4` | Dark 白环；菜单再加深 | 详见 6.3 阴影；工作区不加阴影 |
 
 2026-11-17：表面色按 Amp 的明度层级收了一档，仍保留少量绿味。`Window` → `Background` 的对比度 Light 为 1.072、Dark 为 1.085，接近 Daydream 的 1.073／1.084；布局、密度、圆角和 `Border` 没有动。命名整体对齐 Amp：`Text` → `Foreground`、`Chrome` / `Canvas` / `Well` / `Hairline` → `Window` / `Background` / `Input` / `Border`、`Fill*` → `Muted*`、旧 `Accent*` → `Primary*`、旧 `AccentTint` / `Selection` → `Accent`。选中面从实色改为正文色 9% 的 wash；录制 pill 的绿底从 14% 收到 10%，叠在新外壳上接近 Daydream 的 `success/15` 在原外壳上的效果。历史事件条目里的 token 名按现名书写，值仍是当时的值。
 
 `Bar` 这个 token 已删掉：耗时条的底就是 `Muted`，和设计稿的 `.dur` 一样。
 
-**Success 与 Accent 是两回事。** 第六阶段之前 `Success` 直接等于 `Primary`，强调色一变黑，"通过"就没有颜色了。现在 `Success` 是独立的一支绿，只出现在"这件事通过了"和"正在录制"：检查通过、录制 pill 的点、`https` 的信任状态、向导和引导里已完成的步骤、toast 的成功图标。其余全部走 `Primary`（墨）或中性面。耗时分段和消息方向原先借 `Success` 当第四种色相，改成 `Socket` 的青色——它们是数据，不是结论。
+**Success 与 Accent 是两回事。** 第六阶段之前 `Success` 直接等于 `Primary`，强调色一变黑，"通过"就没有颜色了。现在 `Success` 是独立的一支绿，只出现在"这件事通过了"和"正在录制"：检查通过、录制 pill 的点、`https` 的信任状态、向导和引导里已完成的步骤、toast 的成功图标。其余界面操作走 `Primary`（墨）或中性面；耗时分段和消息方向用 `Socket` 的青色。代码语法与 diff 是数据色，各有自己的 `Editor*`/`Diff*`，不借状态色表达结论。
 
 对比度由 `internal/uikit/theme_test.go` 检查（线性 sRGB 相对亮度，合成半透明底后计算）：正文、信号色（Info／Warning／Danger／Accent／Success）、method 色、主按钮文字在 canvas／chrome／well 三个表面上 ≥ 4.5:1，次要文字 ≥ 3:1，TextFaint 不参与；叠在表面上的 6%／10%／14% 面和选中浅底上，正文仍 ≥ 4.5:1，信号色和 method 色按 UI 组件的 3:1 计。第六阶段的实测最低值是 Light 的 Info 在 well 上 4.52:1，信号色在按下态最低 3.39:1（Light 的 Info 在 well 的 14% 面上）；`Success` 在三个表面上分别是 Light 5.78／5.21／4.84、Dark 8.69／7.99／9.21，`PrimaryForeground` 在 `Success` 面上 5.78（Light）／9.1（Dark）。Light 的 warning 从设计稿的 `#a15c07` 深到 `#9c5906`，其余信号色与设计稿一致。第七阶段把 Dark 的 `Socket` 改成 `#6fc3d6`，它作为 method 色在三种表面上仍是 9.0:1 以上。
 
@@ -192,7 +195,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **禁用由组件自己处理：** uikit 按钮在构建时就决定 hover 外观，所以组件在构建时检查 `IsDisabled()`（`LinkButton`、`SwatchButton`、`QueryChip` 和 `ToolbarButton` 都这样做）。忙碌中的按钮用 `PrimaryButtonBusy`／`SecondaryButtonBusy`：它禁用自己，并让转圈代替标签、保留标签的宽度。外层 `ui.Row(c).Disabled(x)` 仍可用于一组控件，但不要在返回值上再调 `Disabled`。
 - **控件不描边。** 按钮、tab、chip 的面是文字色叠出来的（见 6.3 的颜色）；只有输入框在 chrome 上有 1 pt 细线，浮层和对话框有细线边框加阴影。
 - **颜色只有语义。** 强调色是墨（Light 近黑，Dark 近白），绿色只表示通过和录制（`Success`）。危险、警告、信息各有一个语义色，不用来装饰。
-- **字重只有 400 和 500；字号只有五个档**（6.3）。没有 600，没有其他字号。`WeightMedium`（500）是唯一的字重常量，组件里不写 `FontWeight(500)`。
+- **字重只有 400 和 500；字号共六档，其中 15 是标尺档**（6.3）。没有 600，也没有别的字号。`WeightMedium`（500）是唯一的字重常量，组件里不写 `FontWeight(500)`。
 - 不做防回退的检查脚本；写死值靠评审和组件总览（`internal/gallery`）发现。
 
 ### 6.2 字体
@@ -204,7 +207,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - 中文不内嵌（一个字重就要 10 MB 以上），用系统字体回退。拉丁回退字体放在 CJK 字体前面，避免英文变宽、等宽失效：
   - 界面（Windows、Linux）：`Geist, Arial, DejaVu Sans, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
   - 等宽（Windows、Linux）：`Geist Mono, Menlo, Consolas, DejaVu Sans Mono, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
-- 中文的成段说明用 `Prose`／`Hint`，行高 1.6 倍字号；单行标签仍用 `Body` 的紧凑行高。组件总览的 Chinese 一节固定渲染中英混排，作为每次改字体后的检查样张。中文界面的按钮宽度仍要用中文截图单独检查。
+- 中文的成段说明用 `Prose`／`Hint`，行高沿用正文的 20/13；单行标签仍用 `Body` 的行高。`Hint` 的 12 号字在 20/12 行高下比单行更松。组件总览的 Chinese 一节固定渲染中英混排，作为每次改字体后的检查样张。
 
 ### 6.3 Token
 
@@ -218,17 +221,19 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `TextData` | 12 | 等宽数据：URL、路径、header 值 |
 | `TextSmall` | 12 | 次要文字、弹层说明、提示 |
 | `TextBody` | 13 | 正文、标签、控件文字 |
+| `TextMedium` | 15 | Amp 的 md 标尺档，不用于界面文字 |
 | `TextTitle` | 16 | 对话框、面板、检查器里的请求名 |
 | `TextDisplay` | 20 | 首次引导、命令面板的大标题 |
 
-字号只有这五个（11、12、13、16、20），字重只有 400 和 500。
+字号六档（11、12、13、15、16、20），其中 15 只为与 Amp 的标尺对齐而存在；字重只有 400 和 500。
 
 | 行高 | 值（行高／字号） | 对应 |
 | --- | --- | --- |
-| `LineMeta` | 15／11 | `TextMeta` |
+| `LineMeta` | 13.6／11 | `TextMeta` |
 | `LineSmall` | 16／12 | `TextSmall`、`TextData` |
 | `LineBody` | 20／13 | `TextBody` |
-| `LineProse` | 1.6 倍 | 成段说明（中文和长句） |
+| `LineMedium` | 20／15 | `TextMedium` |
+| `LineProse` | 20／13（同 `LineBody`） | 成段说明（中文和长句） |
 | `LineTitle` | 24／16 | `TextTitle` |
 | `LineDisplay` | 28／20 | `TextDisplay` |
 
@@ -255,11 +260,11 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `DotSize` | 6 | 状态点、图例点、单选的圆点 |
 | `ProgressBar` 高 | 4 | 进度条（圆角 2） |
 
-栏高只有三档（40、32、24）加底栏 28：标题栏、面板头、活动行。控件高度只有两档（28、22）加行 24。
+栏高只有三档（40、32、24）加底栏 28：标题栏、面板头、活动行。控件高度是 28／26／22：主操作、Amp 次级按钮、密集控件；行是 24。
 
 #### 间距
 
-间距的名字乘主题网格 `Spacing`（默认 `SpaceGrid` 4，`t.Space(name)` 读取）。界面只用 4、8、12、16、24；2 是细缝。
+间距的名字乘主题网格 `Spacing`（默认 `SpaceGrid` 4，`t.Space(name)` 读取）。Amp Web 用 Tailwind 的 `0.25rem`（4）网格和 `px-1.5`／`px-2`／`px-2.5`／`px-3` 这样的数字类名，也就是 6／8／10／12；我们的 `SpaceS`／`SpaceM`／`SpaceCompact`／`SpaceL` 就是同一组步进的名字，不是另一套标尺。界面主要用 4、6、8、10、12、16、24；2 是细缝。
 
 | Token | 网格倍数 | 点数 | 用途 |
 | --- | --- | --- | --- |
@@ -285,8 +290,8 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `ControlPaddingX` | 12 | 默认控件的左右 |
 | `ControlPaddingXSmall` | 8 | 小控件、chip、行的左右 |
 | `PanelPadding` | 12 | 面板和面板头的两侧 |
-| `TipPaddingX`／`TipPaddingY` | 10／6 | tooltip |
-| `CardTipPaddingX`／`CardTipPaddingY` | 12／10 | 富提示（hover 卡片） |
+| `TipPaddingX`／`TipPaddingY` | 4／2 | tooltip（Amp Web 的 `px-1 py-0.5`） |
+| `CardTipWidth`／`CardTipPaddingX`／`CardTipPaddingY`／`CardTipPaddingBottom` | 320／10／10／8 | 富提示（hover 卡片） |
 | `ToastPaddingX`／`ToastPaddingY` | 16／8 | toast |
 | `PopoverPadding` | 16 | 弹层（时序卡） |
 | `DialogPadding` | 24 | 对话框 |
@@ -311,7 +316,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `SettingsLabelWidth`／`SettingsLabelMax` | 112／180 | 设置标签列：最窄 112，按组里最宽的标签放宽到 180 |
 | `SettingsHintWidth` | 400 | 设置说明的最大宽 |
 | `CardKeyWidth` | 52 | 卡片提示里的 key 列 |
-| `TipMaxWidth`／`ToastWidth` | 360 | tooltip 和 toast 的最大宽 |
+| `TipMaxWidth`／`CardTipWidth`／`ToastWidth` | 450／320／360 | tooltip 最大宽、hover 卡片宽、toast 最大宽 |
 | `CommandPaletteWidth` | 720 | 命令面板 |
 
 **参数表的 key 列。** 它原来是 `t.Space(27)`，即 108 点；现在是 `WidthNarrow`（120 点），所以 key 列由 108 放宽到 120，能放下常见的请求头名。
@@ -327,9 +332,9 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | Token | 值 | 用在哪里 |
 | --- | --- | --- |
 | `RadiusInner` | 4 | 控件内的面、键帽、徽标、复选框的方框、`LinkButton` |
-| `RadiusControl` | 6 | 按钮、输入框、tab、侧栏条目、分段轨道、色块 |
-| `RadiusPanel` | 8 | 工作区面板、tooltip、画廊的 `Panel` |
-| `RadiusMenu` | 10 | 菜单面 |
+| `RadiusControl` | 6 | 按钮、输入框、侧栏条目、分段轨道、色块 |
+| `RadiusPanel` | 8 | 工作区面板、tooltip、画廊的 `Panel`、tab 面 |
+| `RadiusMenu` | 6 | 菜单面（Amp Web `rounded-md`） |
 | `RadiusCard` | 12 | 弹层（时序卡）、无内边距的模态（命令面板） |
 | `RadiusDialog` | 16 | 对话框、toast |
 
@@ -352,19 +357,20 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 #### 阴影（elevation）
 
-工作区没有阴影。浮起的东西只有三档，每档由 `Shadow` 定义（y 偏移、模糊、不透明度），Dark 的不透明度 ×2。
+工作区没有阴影。浮起的东西照 Amp Web 的 `--shadow-sm/md/lg` 与 `shadow-popover` 分层；Dark 把 1 px 描边从 8% 黑换成 10% 白，菜单的下两层加深到 80%/60%。
 
-| Token | Y／模糊／不透明度 | 用在哪里 |
+| Token | 层 | 用在哪里 |
 | --- | --- | --- |
-| `ShadowMenu` | 8／24／0.14 | 菜单面（`MenuPanel`） |
-| `ShadowPopover` | 12／32／0.16 | 弹层、时序卡、toast、tooltip |
-| `ShadowDialog` | 16／48／0.18 | 对话框（`Modal`、`ModalFlush`） |
+| `ShadowSmall` | `0 1 3 0` + `0 1 2 -1`，两层 10% 黑 | 小面 |
+| `ShadowMenu` | 1 px 8% 黑环 + `0 4 6 -1` 10% + `0 2 4 -2` 10%；Dark 是白环 + 80%/60% 深影 | 菜单面（`MenuPanel`） |
+| `ShadowPopover` | 与菜单亮色相同；Dark 只有白环变化 | 弹层、时序卡、toast、tooltip、hover card |
+| `ShadowDialog` | `0 10 15 -3` + `0 4 6 -4`，两层 10% 黑 | 对话框（`Modal`、`ModalFlush`） |
 
 #### 动效（motion）
 
 - **uikit 不写过渡。** 悬停、选中、展开、切换 tab 都立即到位。没有任何组件定义过渡时长。
 - **浮层的出现由 MyGo 决定。** 对话框由 MyGo 的 `DialogBase` 打开，`ModalFlush` 只在第一次显示时把它的动画值 `modal-in` 跳到 0。
-- **提示的延迟：** 指针停留 `TooltipDelay` 500 ms 才显示；提示消失后 MyGo 的 warm 窗口（约 333 ms）内，相邻目标立即显示；键盘焦点立即显示。
+- **提示的延迟：** 指针停留 `TooltipDelay` 120 ms 就显示（Web Amp 实测）；提示消失后 MyGo 的 warm 窗口（约 80 ms）内，相邻目标立即显示；键盘焦点立即显示。
 - **忙碌的动态：** `Spinner` 和不确定的 `ProgressBar` 的转动和流动由 MyGo 绘制。这是唯一的持续动画。
 - 用户自己拖动的分隔条、滚动和拖选不属于动效。
 
@@ -372,11 +378,12 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 | 面 | 圆角 | 内边距 | 阴影 | 备注 |
 | --- | --- | --- | --- | --- |
-| 菜单（`MenuPanel`） | 10 | 由 MyGo 排 | `ShadowMenu` | 行高 28；高亮是强调色实底 |
+| 菜单（`MenuPanel`） | 6 | MyGo 的 4 px 内边距 | 三层 `shadow-popover` | 行高 28、圆角 4、字号 12；高亮是正文色 7% wash |
 | 弹层（`PopoverPanel`） | 12 | `PopoverPadding` 16 | `ShadowPopover` | 时序卡 |
 | 对话框（`Modal`） | 16 | `DialogPadding` 24，间距 `DialogGap` 16 | `ShadowDialog` | 遮罩 `Scrim`（黑色 35%），离窗口边 `WindowMargin` 16 |
 | toast（`ToastPanel`） | 16 | `ToastPaddingX／Y` 16／8 | `ShadowPopover` | 宽不超过 `ToastWidth` 360；底边离底栏 `HeightFooter` + 16 |
-| tooltip（`Tip`） | 8 | `TipPaddingX／Y` 10／6 | `ShadowPopover` | 最大宽 `TipMaxWidth` 360，12 号正文 |
+| tooltip（`Tip`） | 0 | `TipPaddingX／Y` 4／2 | 三层 `shadow-popover` | 最大宽 `TipMaxWidth` 450，12 号正文；方角、无描边 |
+| hover 卡片（`CardTip`） | 6 | `CardTipPaddingX/Y/Bottom` 10／10／8 | 三层 `shadow-popover` | 宽 `CardTipWidth` 320，13 号标题、11 号元信息，分隔线下的键值行；约 650 ms 出现 |
 
 #### 颜色（语义表）
 
@@ -392,9 +399,10 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `Foreground`／`MutedForeground`／`Faint` | 正文、次要、图标和占位符 |
 | `Primary`／`PrimaryHover`／`PrimaryPressed`／`PrimaryForeground` | 墨：主按钮、开关开、复选框选中、浮动列表的高亮 |
 | `Accent` | 列表、导航和活动工具的选中浅底（对应 Amp `--accent` / `--sidebar-accent`） |
-| `Ring` | 焦点的边和光晕；未选中的复选框和单选的边 |
+| `Ring` | 1 pt 焦点边（控件外框、字段边外一圈）；未选中的复选框和单选的边 |
 | `Success` | 通过和录制，只有这两件事 |
 | `Info`／`Warning`／`Danger` | 信息、警告、错误（文字和图标） |
+| `Editor*`／`Diff*` | 文件 diff 编辑器的代码 token 与增删行数据色，不表达通过/失败（对应 `--diffs-token-*` / Amp `--diff-*`） |
 | `Scrim`／`Shadow` | 遮罩和阴影 |
 | `Inverse`／`InverseText` | tooltip 的反色 |
 
@@ -402,7 +410,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 - `Scaled(size)`：把字号按桌面字号缩放。`SetTextScale` 设定缩放，进程内只有一个值。
 - `MethodColor(method, t)`、`StatusColor(status, t)`：方法和状态码的颜色。2xx 和 304 是次要文字色；3xx 是信息色；4xx 是警告色；5xx 是危险色。
-- `EditorTheme(t)`：编辑器的语法色。键是正文色，字符串是 `MethodPatch`，数字和布尔是 `Info`，标点是次要色；绿色不用于语法。
+- `EditorTheme(t)`：把 `Editor*` / `Diff*` 映射到 MyGo 的 token kinds 与 diff 墨色。按 `@pierre/diffs` 的 GitHub Light/Dark token 色，关键字和运算符是 `EditorKeyword`（红），实体（函数名、类型）是 `EditorEntity`（紫），标签是 `EditorTag`（绿），变量是 `EditorVariable`（橙），属性、常量、数字是 `EditorConstant`（蓝），字符串是 `EditorString`、正则是 `EditorRegexp`，注释是 `EditorComment`。这些风格只有颜色，没有斜体或粗体：`--diffs-token-*` 只传颜色。未改动的 diff 行没有底色；增删行带 diff 底色和行首符号。语法里的颜色只是代码数据，不是 `Success`。
 - `MarkColors`：请求标记的六种颜色（红、橙、黄、绿、蓝、紫），饱和色，不随主题变化，带白色对勾。
 
 ### 6.4 文字角色（`text.go`）
@@ -415,10 +423,10 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `Heading` | 16，500，行高 24／16 | 对话框、面板、检查器里的请求名 | 不用于正文 |
 | `Body` | 13，颜色继承，行高 20／13 | 普通文字；在按钮和选中行里也对 | 不写死颜色 |
 | `BodyStrong` | 13，500 | 一组的引导词、一行里最要紧的值 | 不要整段都用 |
-| `Prose` | `Body`，行高 1.6 | 成段的说明、设备设置步骤、导入提示 | 不用于单行标签 |
+| `Prose` | `Body`，行高 20／13 | 成段的说明、设备设置步骤、导入提示 | 不用于单行标签 |
 | `Small` | 12，行高 16／12 | 弹层说明、菜单里的第二行 | 不用作表单字段的标签 |
-| `Hint` | 12 的说明，次要色，行高 1.6 | 控件下面或空面板里的一句说明 | 不用于错误 |
-| `Caption` | 11，正文色，行高 15／11 | 与前后文同属一组的一行事实（不是注释） | 不用来表示警告（用 `Callout`） |
+| `Hint` | 12 的说明，次要色，行高 20／12 | 控件下面或空面板里的一句说明 | 不用于错误 |
+| `Caption` | 11，正文色，行高 13.6／11 | 与前后文同属一组的一行事实（不是注释） | 不用来表示警告（用 `Callout`） |
 | `Meta` | 11，次要色，`tnum` | 计数、时间、大小；数字默认等宽对齐 | 不用于正文 |
 | `Label` | `Meta` 加 500 | 字段名、分组标题（标题式大小写，不全大写） | 不用于数据 |
 | `Mono` | 12 等宽 | 线上数据：URL、路径、数字 | 不用于说明文字 |
@@ -440,7 +448,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `PrimaryButton` | 一屏或一个对话框的主操作 | 28 高，`ControlPaddingX` 12，13／500，强调色实底，圆角 6 | 静止、悬停（`PrimaryHover`）、按下（`PrimaryPressed`）、焦点、禁用 | 不放进行内或菜单；一屏只放一个 |
 | `PrimaryButtonState` | 只用于图版，画出指定的悬停或按下面 | 同 `PrimaryButton` | 悬停、按下 | 界面代码不调用 |
 | `PrimaryButtonBusy` | 启动长任务的主操作 | 同 `PrimaryButton`；忙碌时转圈代替标签，标签保留宽度 | 忙碌（禁用）、静止 | 忙碌时不要只禁用 |
-| `SecondaryButton` | 次要操作 | 28 高，无边框，面是文字色 7%／11%／15%，13 字 | 静止、悬停、按下、焦点、禁用 | 不加边框；不用强调色 |
+| `SecondaryButton` | 次要操作 | Amp Web：26 高，左右 8，12 字，圆角 4，1 pt hairline，透明面 | 静止、悬停/按下（正文色 5% wash）、焦点、禁用（整体半透明） | 不用强调色；不把面默认填成灰 |
 | `SecondaryButtonBusy` | 启动长任务的次要操作 | 同 `SecondaryButton`；忙碌时转圈，宽度不变 | 忙碌（禁用）、静止 | 同上 |
 | `DestructiveButton` | 破坏性确认对话框的确认钮 | 28 高，危险色实底，文字是 `PrimaryForeground`（Light 近白） | 静止、悬停、按下、禁用 | 只放在对话框底部；行内和菜单里的破坏性动作先问 |
 | `CompactButton` | 密集的行和栏里的次要操作 | 22 高，`ControlPaddingXSmall` 8，11 字，面同 `SecondaryButton` | 同 `SecondaryButton` | 不要当主操作用 |
@@ -460,25 +468,25 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 | 组件 | 用途 | 变体和尺寸 | 状态 | 不要做的事 |
 | --- | --- | --- | --- | --- |
-| `Input` | 单行文本 | 28 高，左右 12，13 字，圆角 6，canvas 上为 `Input` 面 | 静止；焦点：1 pt `Ring` 内边和 3 pt 光晕；禁用（整体半透明） | 不在 chrome 上直接用（用 `ChromeFieldFace` 包） |
-| `InputState` | `Input`，带无效面 | 同 `Input` | 无效：1 pt `Danger` 内边（焦点时加 `Danger` 光晕） | 无效的说明用 `FormRow` 的 `errText` |
+| `Input` | 单行文本 | 28 高，左右 12，13 字，圆角 6，canvas 上为 `Input` 面 | 静止：正文色 15% 边；hover 不变；焦点：边外再加 1 pt `Ring`；禁用（整体半透明） | 不在 chrome 上直接用（用 `ChromeFieldFace` 包） |
+| `InputState` | `Input`，带无效面 | 同 `Input` | 无效：1 pt `Danger` 边（焦点时边外加 1 pt `Danger`） | 无效的说明用 `FormRow` 的 `errText` |
 | `InputControl` | 不带面的输入，给要自己画文字段的字段 | 同 `Input`，无面 | 同 `Input`（面由外层给） | 不单独使用 |
-| `FieldFace` | 给自带控件的行画字段面（搜索框、URL 栏） | 行高由调用方定，圆角 6，裁切子元素 | 焦点（`Ring` 边和光晕） | 不给 `Input` 再包一层 |
-| `ChromeFieldFace` | chrome 上的字段面：canvas 底加 1 pt hairline | 同 `FieldFace` | 同 `FieldFace` | 不在 canvas 上用 |
+| `FieldFace` | 给自带控件的行画字段面（搜索框、URL 栏） | 行高由调用方定，圆角 6，裁切子元素 | 15% 墨边；焦点加 1 pt `Ring` | 不给 `Input` 再包一层 |
+| `ChromeFieldFace` | chrome 上的字段面：canvas 底，边与 `FieldFace` 共用 | 同 `FieldFace` | 同 `FieldFace` | 不在 canvas 上用 |
 | `NumberField` | 整数，后面跟单位，如 `[60] s` | 宽 `WidthNumber` 88，等宽，单位是 `Meta` | 无效（超范围或非数字）：`Danger` 边；空白时保留旧值 | 需要 ± 步进时用 MyGo 的 `NumberInput`（6.8） |
-| `Combobox` | 可输入也可从建议里选 | 28 高，同 `Input`；弹层的高亮是 `Ring`（与菜单的强调色实底不同，见 `design-audit.md` (f)） | 静止、焦点、弹层开 | 只能选一项时用 `Select` |
+| `Combobox` | 可输入也可从建议里选 | 28 高，圆角 8，canvas 色的字段面；弹层的高亮是 `Accent` 7% wash | 静止：15% 墨边；hover 不变；焦点：边外加 1 pt `Ring`；禁用 | 只能选一项时用 `Select` |
 | `TextArea` | 多行文本 | 上下 8、左右 12，圆角 6，canvas 上为 `Input` 面，焦点边 `Ring` | 静止、焦点、禁用 | 不用于单行 |
 | `SearchField` | 在列表里查找 | 28 高，左右 8，放大镜 14，间距 4 | 静止、焦点（`FieldFace`，`onChrome` 时为 `ChromeFieldFace`）、空时显示占位 | 不用于其他文字字段 |
 | `FormRow` | 表单字段：标签、控件、说明和错误绑定到控件 | MyGo 的 `Field`：不在 `ui.Form` 里时标签在控件上方；在 `ui.Form` 里时标签在左列并与控件首行对齐 | 错误：控件 `Danger` 边、控件下方的红字；说明：控件下方的次要字 | 不要在控件下面自己写说明（用 `description`） |
 | `FormRowTip` | 说明放在标签的提示里 | 标签上方，控件在下 | 同 `FormRow` | 说明很重要时不用（看不见） |
 | `FormRowTall` | 比一行高的控件（代码编辑器）的表单行 | 标签在控件首行，说明和错误在控件下 | 同 `FormRow`；错误只画一次 | 不用于单行控件 |
-| `Select` | 从几个选项里选一个（选项就是显示的文字） | 触发器 28 高，左右 12，圆角 6，最小宽 `WidthPicker` 140，chevron 10（`SpaceCompact`）；弹层高亮强调色实底 | 静止、悬停（面）、打开（面同悬停）、按下、禁用 | 选项是标识符而显示是另一种语言时用 `SelectLabels` |
+| `Select` | 从几个选项里选一个（选项就是显示的文字） | 触发器 28 高，左右 12，圆角 8，最小宽 `WidthPicker` 140，chevron 10（`SpaceCompact`）；弹层离触发器 4，面板内边距 4，高亮是 7% 墨色 wash | 静止：canvas 面 + 15% 墨边；hover/按下不变；焦点：边外加 1 pt `Ring`；禁用 | 选项是标识符而显示是另一种语言时用 `SelectLabels` |
 | `SelectLabels` | `Select`，选项与显示文字分开 | 同 `Select` | 同 `Select` | 同 `Select` |
-| `MenuSelect` | 用菜单做的选择（如 body 格式） | 触发器同 `Select`，弹层是 `MenuPanel` | 同 `Select`；菜单开着时触发器保持悬停的面 | 不用于切换显示模式（用 `Segmented`） |
+| `MenuSelect` | 用菜单做的选择（如 body 格式） | 触发器同 `Select`，弹层是 `MenuPanel` | 同 `Select` | 不用于切换显示模式（用 `Segmented`） |
 | `SettingsRow`／`SettingsRowMultiline` | 设置行：左列标签，右边控件，下面一行说明 | 标签列按组宽（112–180）；多行版的标签与控件首行对齐 | 说明可带 tip；控件自己的状态 | 不用于非设置的表单（用 `FormRow`）；不放进 `SettingsCard`：它不带卡片的内边距，标签会贴着卡边。卡里用 `SettingsCardBlock`／`SettingsCardRow`（HTTPS 的「永不解密」原来是 `SettingsRow`，标签落在卡边上，现在改为块） |
-| `Switch`／`SettingsSwitch` | 开关 | 轨道 36×20，圆角 10；`SettingsSwitch` 带标签 | 关、开（`SwitchOn`）、焦点、禁用（半透明） | 不要用来做互斥选择 |
+| `Switch`／`SettingsSwitch` | 开关 | 轨道 36×20，圆角 10；`SettingsSwitch` 带标签 | 关：正文色 20% 轨道 + `MutedForeground` 滑块；开：`SwitchOn` 轨道 + 浅滑块（Dark 保留浅轨白滑块）；hover 不变；焦点、禁用（半透明） | 不要用来做互斥选择 |
 
-**单行文字的边距。** `Input` 与 `InputControl` 的文字左右各留 `ControlPaddingX`（12）。左边是内边距；右边是一条透明的边框（`uikit.TextInset`），因为 MyGo 把输入的文字裁到边框的外沿，而不是内边距。这条边框在各状态下都画不出来（`InputControl` 建字段时把 Accent、Border、Text、Danger 设为透明，MyGo 按状态给边框上色时取的就是这些颜色）。超出字段的文字裁在这条线上，没有省略号（MyGo 的输入不做省略）；所以字段的占位文字或长值要按宽度留够，或由调用方缩短。字段的焦点边和无效边由 `fieldFace` 经 `fieldEdge` 用 `Draw` 画在整个边框盒上（1 pt，圆角 6），包括这条透明边框的一侧；原先的 `InsetShadow` 只画到内边距的边缘，右侧 12 点没有边（`TestFieldEdgeReachesItsRightSide` 守住这一点）。带 `fieldFace` 的字段，其 `Draw` 归 kit 所有：MyGo 的 `Draw` 只有一个槽，边会替换调用方设的 `Draw`，之后再设的 `Draw` 会把边去掉。URL 栏是裸的 `ui.TextInputBase`，同样用 `uikit.TextInset`，右边留 `SpaceM`（8），与它的左边相同。`Combobox` 的文字停在箭头前 `ControlPaddingX`（12）：字段的 `Gap` 就是文字与箭头之间的距离（箭头宽 10，字段内边距 12），弹层的高亮仍是 `Ring`。
+**单行文字的边距。** `Input` 与 `InputControl` 的文字左右各留 `ControlPaddingX`（12）。左边是内边距；右边是一条透明的边框（`uikit.TextInset`），因为 MyGo 把输入的文字裁到边框的外沿，而不是内边距。这条边框在各状态下都画不出来（`InputControl` 建字段时把 Accent、Border、Text、Danger 设为透明，MyGo 按状态给边框上色时取的就是这些颜色）。超出字段的文字裁在这条线上，没有省略号（MyGo 的输入不做省略）；所以字段的占位文字或长值要按宽度留够，或由调用方缩短。字段的焦点边和无效边由 `fieldFaceRadius` 经 `fieldEdge` 用 `Draw` 画在整个边框盒上（1 pt，圆角随字段：文字 6、选择器 8），包括这条透明边框的一侧；原先的 `InsetShadow` 只画到内边距的边缘，右侧 12 点没有边（`TestFieldEdgeReachesItsRightSide` 守住这一点）。带 `fieldFace` 的字段，其 `Draw` 归 kit 所有：MyGo 的 `Draw` 只有一个槽，边会替换调用方设的 `Draw`，之后再设的 `Draw` 会把边去掉。URL 栏是裸的 `ui.TextInputBase`，同样用 `uikit.TextInset`，右边留 `SpaceM`（8），与它的左边相同。`Combobox` 的文字停在箭头前 `ControlPaddingX`（12）：字段的 `Gap` 就是文字与箭头之间的距离（箭头宽 10，字段内边距 12），弹层的高亮仍是 `Ring`。
 
 **字段的说明在控件下面。** 数字字段的单位说明（超时的“秒”、重定向的“HTTP 跳数”）放在 `NumberInput` 那一行的下一行，宽度给整列；并排放在控件右边时，表单的字段列只剩几十点，说明会被裁成半个词。
 
@@ -486,10 +494,10 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 | 组件 | 用途 | 变体和尺寸 | 状态 | 不要做的事 |
 | --- | --- | --- | --- | --- |
-| `Checkbox` | 布尔值，带标签 | 16 的方框（圆角 4，1 pt `Ring` 边），14 的对勾，标签 13 | 未选：面 7%，悬停 11%，按下 15%，边 `Ring`；选中：强调色填充，对勾为强调色的反色；禁用：不切换 | 不用于互斥选择（用 `Radio` 或 `Segmented`） |
-| `Radio`／`RadioGroup` | 从两到四个互斥选项里选一个 | 16 的圆（1 pt `Ring` 边），选中的 6 点圆点为强调色的反色；`RadioGroup` 竖排，间距 `SpaceS` | 同 `Checkbox`；`RadioGroup` 只占一个 Tab 停靠点 | 超过四项不用；当前没有接入界面（6.8） |
+| `Checkbox` | 布尔值，带标签 | 16 的方框（圆角 4，1 pt `Primary` 边），14 的对勾，标签 13 | 未选：透明面、`Primary` 边；选中：`Primary` 实底、对勾为 `PrimaryForeground`；悬停和按下不变；禁用：不切换（整体半透明） | 不用于互斥选择（用 `Radio` 或 `Segmented`） |
+| `Radio`／`RadioGroup` | 从两到四个互斥选项里选一个 | 16 的圆（1 pt `Primary` 边），选中的 6 点圆点为 `PrimaryForeground`；`RadioGroup` 竖排，间距 `SpaceS` | 同 `Checkbox`；`RadioGroup` 只占一个 Tab 停靠点 | 超过四项不用；当前没有接入界面（6.8） |
 | `Segmented` | 互斥的显示模式（如 Pretty／Raw） | 轨道 24 高（`HeightRow`），内边距 2，段 11 字，圆角 6 和 4 | 选中：canvas 面加 hairline；悬停：文字正文色；按下 | 不用于导航或动作；超过四段不用 |
-| `Tabs`／`CountedTabs` | 面板内的标签页（切换视图或过滤） | 22 高，左右 8，13 字，圆角 6；计数是 `Meta` | 静止（次要色）、悬停（中性面）、按下、选中（中性面 `Muted`，正文色） | 不用强调色；不要两层同名 |
+| `Tabs`／`CountedTabs` | 面板内的标签页（切换视图或过滤） | 32 高，左右 10，12 字，圆角 8；计数是 `Meta` | 静止（次要色）、悬停/按下（正文色 5% wash）、选中（canvas 面加 hairline，正文色）；照 Amp Web 的顶部标签 | 不用强调色；不要两层同名 |
 | `TabStrip` | 放不下时横向滚动的标签行 | 同 `Tabs`；缺的一侧边缘渐隐（`EdgeFade`） | 同 `Tabs` | 不要在宽处使用 |
 | `SubTabs` | 第二层标签（在一个 tab 里面，或列表头） | 22 高，标签间距 8，选中加 2 pt 强调色下划线（只在字宽下） | 静止、悬停（正文色）、选中（下划线） | 不要和 `Tabs` 放在同一层 |
 | `MoreButton`／`MoreMenu`／`TabMenu` | 放不下的选项收进菜单 | `MoreButton` 是标题栏和过滤栏的 28 正方形 `IconButton`，画图标 `⋯`，直接打开菜单（不带 chevron）；`MoreMenu` 是行、侧栏标题和面板头里的 `⋯`，`HeightRowAction`（20）正方形、圆角 `RadiusInner`，离行边 `RowActionInset`（2）；`TabMenu` 是长得像 tab 的菜单入口 | 同菜单 | 不要收进主要动作 |
@@ -502,10 +510,10 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `ErrorText` | 没有字段可挂的错误句子（如连接失败的细节） | 12，危险色 | 静止 | 不用作字段错误；不用来显示状态词（用 `Meta` 加危险色） |
 | `Spinner` | 未知长度的忙碌 | 正文次要色，标签是名字 | 转动（MyGo） | 按钮里的忙碌用 `*Busy` |
 | `ProgressBar` | 进度：0 到 1 的确定进度，或不确定（负值） | 4 高，圆角 2，轨道 `Muted`，标签由调用方在旁边写 | 确定、不确定 | 没有进度的长任务用 `Spinner` |
-| `Badge` | 计数或状态的小标签 | 16 高（`IconLarge`），11 号 500，tnum，圆角 4，左右 4，中性面 | 颜色只给文字 | 不做成卡片；不填彩色底 |
+| `Badge` | 计数或状态的小标签 | Amp Web：18 高，11 号 500，tnum，圆角 4，左右 6；面是文字色 10% | 颜色同时给文字和面；错误徽标即 `Danger` 与 `Danger/10` | 不做成卡片；静默状态别用彩色徽标 |
 | `EmptyState` | 空面板：一句标题、一句说明、动作一行 | 图标 16（不加框），图标与标题之间 8 | 无 | 不用大图标；动作排成一行，不换成按钮堆 |
-| `Tip`／`TipKeys`／`TipSurface` | 悬停和焦点的说明，可带快捷键 | 8 圆角，10×6 内边距，最大宽 360，12 号；快捷键是 `Kbd` | 指针停 500 ms 出现；键盘焦点立即出现；Escape 关闭；上方不够就翻到下方 | 不在提示里放按钮或输入框 |
-| `CardTip`／`CardTipBeside` | 富提示：标题、一行元信息、分隔线和键值行 | 12×10 内边距，键 11 次要色，值 12（含 `://` 的用等宽）；`CardTipBeside` 的顶边与行齐平，开在行的右侧，离行 `SpaceS` | 同 `Tip` | 只用于侧栏的集合请求行和抓包行；侧栏的请求行用 `CardTipBeside`，不盖住上面的行 |
+| `Tip`／`TipKeys`／`TipSurface` | 悬停和焦点的说明，可带快捷键 | 方角、4×2 内边距，最大宽 450，12 号；快捷键是 11 号 500 的次要色纯文本（Amp） | 指针停 120 ms 出现；键盘焦点立即出现；Escape 关闭；上方不够就翻到下方 | 不在提示里放按钮或输入框 |
+| `CardTip`／`CardTipBeside` | 富提示：标题、一行元信息、分隔线和键值行 | Amp：320 宽、6 圆角、10／10／8 内边距；键 11 次要色，值 12（含 `://` 的用等宽）；`CardTipBeside` 的顶边与行齐平，开在行的右侧，离行 `SpaceS` | 约 650 ms 出现；弹层自动避让边缘，放不下就翻到另一侧 | 只用于侧栏的集合请求行和抓包行；侧栏的请求行用 `CardTipBeside`，不盖住上面的行 |
 
 #### 结构
 
@@ -521,10 +529,10 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `DialogFooter` | 对话框底部的动作：右对齐，顶上 12 的间距和一条 hairline | 间距 8，换行 | 无 | 破坏性动作不要放在底部以外 |
 | `Toasts`／`ToastPanel` | 短暂的通知（底边离底栏 16） | 宽不超过 360，内边距 16×8，圆角 16，阴影 `ShadowPopover` | 出现、消失（由调用方控制） | 不放需要读完的长文本 |
 | `PopoverPanel` | 悬浮的面（时序卡、复杂提示） | 圆角 12，阴影 `ShadowPopover`；内边距由调用方给（`PopoverPadding` 16） | 无 | 不放菜单（用 `MenuPanel`） |
-| `MenuPanel`／`MenuButtonOptions` | 菜单的面（MyGo 画条目） | 圆角 10，阴影 `ShadowMenu`，行高 28 | 行的高亮是强调色实底 | `ContextMenu` 和 `PopoverMenu` 的面是 MyGo 的固定样式（第 12 节） |
+| `MenuPanel`／`MenuButtonOptions` | 菜单的面（MyGo 画条目） | 圆角 6，三层 `shadow-popover`，行高 28、行圆角 4、字号 12 | 行的高亮是正文色 7% wash，文字仍是墨色；`MenuFace` 在建按钮时把这张面传给 MyGo | `ContextMenu` 和 `PopoverMenu` 的面是 MyGo 的固定样式（第 12 节） |
 | `EdgeFade` | 被裁切的一侧渐隐到表面色 | 宽 24（`Space2XL`） | 无 | 不用作装饰 |
 | `KVRow` | 只读的键值行，内容由调用方排 | 不画底线 | 无 | 不用于可编辑的表 |
-| `StatusPill` | 状态文字（如“已停止”） | 只有文字色，不填底；颜色由调用方给（2xx 和 304 用次要色） | 无 | 不给状态加底色或圆点 |
+| `StatusPill` | 状态文字（如“已停止”） | Amp Web 的安静过滤 pill：28 高，4×6 内边距，11 号，全圆角；只有文字色，不填底 | 颜色由调用方给（2xx 和 304 用次要色） | 不给状态加底色或圆点；可点击的版本用按钮 |
 | `MethodLabel` | HTTP 方法 | 12 等宽 500，方法色文字 | 无 | 不做成 chip（列表里是界面字体，树里是等宽） |
 | `QueryChip` | 过滤语法的 chip（`status:>=400`） | `HeightChip`（18）高，圆角 `RadiusInner`，居中于 24 高的字段内，字段两侧留 `SpaceM`（8）；chip 左右内边距 2，标签的左右内边距 4；× 与 chip 同高 | 静止、悬停、按下 | 不做成输入框 |
 | `Glyph` | 装饰图标 | 尺寸由调用方给（14 或 16） | 无 | 不带焦点 |
@@ -572,10 +580,11 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 所有提示都走 `uikit.Tip`（带快捷键用 `TipKeys`，富内容用 `CardTip`），没有地方自己画。
 
-- 面：canvas 底、1 pt `Border`、`ShadowPopover`、圆角 8（`RadiusPanel`），内边距 10×6（`TipPaddingX／Y`），最大宽 360。
-- 字：12 号（`TextSmall`），普通文字色；长文本自然换行，URL 和超过 32 字符的连续串按 `/ ? & = - _ .` 断行（`tipBreakRun`）。快捷键画成 `Kbd`，不拼进句子。
-- 富卡片（`CardTip`）：标题 13／500、一行元信息 11（次要色）、一条分隔线和键值行（键 11 次要色、值 12，含 `://` 的值用等宽）。用在侧栏的集合请求行（名字、方法、集合、完整 URL）和抓包行（`GET /path`、状态、耗时、大小、URL、Host、Client）。
-- 时序：指针停留 500 ms 显示（`TooltipDelay`）；提示消失后 warm 窗口内移到相邻目标立即显示；键盘焦点立即显示，Escape 关闭，上方不够翻到下方。
+- 面：Amp Web 的 canvas 方角面板，无描边，三层 `shadow-popover`，内边距 4×2（`TipPaddingX／Y`），最大宽 450。
+- 字：12 号（`TextSmall`），普通文字色；长文本自然换行，URL 和超过 32 字符的连续串按 `/ ? & = - _ .` 断行（`tipBreakRun`）。快捷键是 11 号 500 的次要色纯文本，修饰键直接相连（`⌘B`），命名键前留空格（`Ctrl S`），不拼进句子。
+- Markdown 视图（`uikit.MarkdownTheme`）：正文 13／20，段间 `.75em`、列表项 `.375em`；H1 1.5 倍/700、上方 2.5em，H2 1.25 倍/600、上方 2em，H3 原大/600、上方 1.5em，标题下方都是 `.5em`。MyGo 的 Markdown 主题按 em 读这些值，窗口切主题时由调用方重新取当前主题的视图。
+- 富卡片（`CardTip`）：Amp 的 320 宽、6 圆角、10／10／8 内边距，约 650 ms 才出现；标题 13／500、一行元信息 11（次要色）、一条分隔线和键值行（键 11 次要色、值 12，含 `://` 的值用等宽）。用在侧栏的集合请求行（名字、方法、集合、完整 URL）和抓包行（`GET /path`、状态、耗时、大小、URL、Host、Client）。它仍是 tooltip 语义，不是 popover。
+- 时序：指针停留 120 ms 显示（`TooltipDelay`，Web Amp 实测）；提示消失后 warm 窗口内移到相邻目标立即显示；键盘焦点立即显示，Escape 关闭，上方不够翻到下方。
 - 锚点：不要把 tip 包在 `Combobox` 或其他字段外面。tip 包住 `Combobox` 与放在整行上，同一面板里解码体的值列相差约 8 点（单独渲染：包住字段时值列起于 x 967，放在整行上时起于 975；像素差 1858，布局框不变）。这是 MyGo tooltip 包裹的副作用，没有追到 MyGo 里的具体一行。连续渲染整个画廊时方向相反，所以这一列的位置不是稳定的量。
 - 截断：截断的标签要有完整文字的 tip。检查器头的时间行，它的卡片元信息里是完整来源行；`Matches` 链接的 tip 是完整标签加说明。静态文字不能获得键盘焦点，所以它的 tip 只在悬停时显示。
 
@@ -613,11 +622,11 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **Hover：** 按钮、工具栏按钮、tab 的背景变 Hover（第二层 tab 和分段控件只把文字变成正文色），立即变化，不做过渡。和 macOS 一样，列表、表格、侧栏的行没有 hover；不可点的也没有。
 - **窗口失焦：** 窗口在别的窗口后面时，侧栏和挑选列表的选中浅底变成中性灰，表格的标记线变次要色。
 - **按下：** 背景变 Pressed。
-- **焦点环：** 键盘焦点显示 2px `Ring` 外框，鼠标点击不显示，所有可交互元素都要有。输入框例外：聚焦时是 `Ring` 细边加 3px 柔和光晕，不再画外框；输入框的聚焦边和主操作不再同色。对话框关闭后焦点回到打开它的控件，`Modal` 会请求一帧重绘让焦点环显示出来。
+- **焦点环：** 键盘焦点显示 1 pt `Ring`、贴着控件边（`FocusRingWidth=1`、`FocusRingOffset=0`），鼠标点击不显示，所有可交互元素都要有。输入框静止就有 15% 墨边，聚焦时同样在边外加 1 pt `Ring`，不画外框和光晕；输入框的聚焦边和主操作不再同色。对话框关闭后焦点回到打开它的控件，`Modal` 会请求一帧重绘让焦点环显示出来。
 - **禁用：** 文字用 TextFaint，不响应 hover；tooltip 说明为什么不可用。
 - **动效：没有。** 悬停和按下的面立即变化，菜单、弹层、工具提示、toast 和对话框立即出现／消失，侧栏分区折叠和面板尺寸立即到位，计数、状态码和耗时直接换成新值。保留的只有两处，它们不是过渡：录制中且有流量时监听 pill 的状态点脉动（1.2s，55%–100%，画在 `Draw` 里，只重绘不重跑视图），以及用户自己拖动的分隔条和滚动（MyGo 的滚动惯性、`Split` 的拖动）。系统要求减少动态效果时 MyGo 仍然把滚动直接送到终态；应用没有过渡需要它结束。
 - **拖拽：** 分隔线 hover 时变成强调色细线，指针变成调整大小；双击恢复默认。
-- **右键：** 任何有动作的对象都支持右键，菜单内容见 UX 规范第 6 节。菜单的高亮项是强调色实底、反色文字（MyGo 菜单本来的画法，和 macOS 一致）。
+- **右键：** 任何有动作的对象都支持右键，菜单内容见 UX 规范第 6 节。菜单的高亮项是正文色 7% wash、文字仍是正文色（Web Amp 的 `data-[highlighted]:bg-accent`）。
 - **选中：** 单击选中；Cmd／Ctrl 单击加选；Shift 单击连选；Enter 进入检查器；Esc 返回。
 
 每个列表、面板、编辑器都要设计四种状态：
@@ -925,6 +934,12 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 100. uikit AE（2026-11-16）：调查板先给慢请求列表，方法学收成一行、全文进 Tip；首次启动引导打开时占据整个内容区，不再露出抓包工具栏和列表外框，第一步的 `Start capture` 是主操作，`Skip guide` 收进卡片底部；Scenarios 的名称改成带可见标签的 `FormRow`，状态文案改成 `On: its rules apply. Rules with no scenario also apply.`，规则顺序说明移到标题下；SSE 和 WebSocket 的事件列表改用 `DataList`，文字左对齐，只有选中行有底色和 `RowMarker`。重放结果通知的测试改为等待提示真正出现，不再假定一帧就够。
 
 101. Daydream 收口（2026-11-16）：按 frontend-design skill 复查配色，保留 Amp Daydream（试过一套冷钢灰的自有配色，DA DA 决定保留 Daydream），只修它在本应用里的三处弱点：Light 的 `Input` 从纯灰 `#ebebeb` 改成同绿调的 `#e9eee5`，输入框和表面是一种材料；外壳 `Window` 从 `#f2f6ee` 改回 Daydream 自己的外壳色 `#edf3ea`，`Border` 从 `#ebefe8` 深到 `#dde4d9`，内容面板的边缘不再几乎看不见；Dark 的外壳从中性黑 `#070807` 改成带面板青调的 `#050a0b`，外壳和面板不再是两种色相。对比度契约不变，`theme_test` 全部通过。录制 pill 是外壳里唯一花颜色的地方：正在录制时面是 `Success` 14%，停止和暂停仍是中性面，只靠圆点说明原因。
+
+102. 编辑器 token 改用 `@pierre/diffs` 的色板（2026-11-18）：先按 Amp Web 的 `--syntax-*` 样式表改过一次，随后在浏览器里展开 Changes 文件 diff，发现它由 `<diffs-container>` 的 shadow DOM 渲染，token 颜色是行内的 `--diffs-token-light/dark`，来自 GitHub Light/Dark 的主题色，和聊天 Markdown 的 `--syntax-*` 是两套。实际的未改动行（`data-line-type=context`）没有 diff 底色，代码按这套 token 色画；增删行才由 Amp 的 `--diff-*` 覆盖成增删底色。旧的 `Syntax*` Palette 字段换成 `Editor*`，按 GitHub 的角色重新映射 MyGo token kinds，并断言具体色值和「只有颜色、没有字形」。MyGo 的 diff 行底仍从 `Added`／`Deleted` 推导，不能逐像素使用 Amp 的显式背景与强调色。
+
+103. 选中行不再叠两层底（2026-11-18）：`Theme.Accent` 改成实色主按钮墨以后，MyGo 的列表给选中行刷的实色透出来，`uikit.Selected` 的 7% wash 又画在它上面，正文色落在实色底上，Light／Dark 对比度只有约 1.1:1。Scripts、Rules、Scenarios 和 Git 状态列表共用这条路径。现在 `uikit.Selected` 先把 wash 和表面合成成实地再画，完整盖住列表自己的选中底；加了用 Scripts 画廊量选中行底色的回归测试，旧画法在两套主题下都失败。
+
+104. JSON 树的 value 也用编辑器 token 色（2026-11-18）：Body 的 Auto／Pretty 走 MyGo 的 JSON lexer，已经是完整的 GitHub token 配色；显式 JSON 模式是可折叠、可查询的自定义树，原来只有 key 借了 `TokenProperty` 的颜色，value 一律正文色。现在字符串用 `TokenString`，数字、布尔和 null 用 `TokenConstant`，与 Pretty 对同一段 JSON 的上色一致；回归测试在 Light／Dark 下量文本像素，旧画法全部失败。
 
 ## 13. 仍与设计稿不一致的地方
 

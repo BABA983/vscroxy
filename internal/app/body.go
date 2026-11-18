@@ -657,7 +657,7 @@ func (a *app) mergedBody(c *ui.Context, f flow, body string, side int) {
 
 func (a *app) jsonBody(c *ui.Context, side int) {
 	t := c.Theme()
-	keyColor := uikit.EditorTheme(t).Tokens[editor.TokenProperty].Color
+	theme := uikit.EditorTheme(t)
 	var rows []jsonRow
 	if a.bodyQuery[side] != "" {
 		rows = matchingJSON(a.jsonRoots[side], a.bodyQuery[side])
@@ -670,21 +670,26 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 	}
 	if a.paneWidth(c) < 620 {
 		ui.Column(c).Grow(1).Children(func() {
-			ui.Column(c).Grow(1).MinHeight(80).Children(func() { a.jsonTree(c, side, rows, keyColor, t) })
+			ui.Column(c).Grow(1).MinHeight(80).Children(func() { a.jsonTree(c, side, rows, theme, t) })
 			ui.Box(c).Height(200).FillWidth().Children(func() { a.jsonQueryPanel(c, side) })
 		})
 		return
 	}
 	ui.Row(c).Grow(1).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			a.jsonTree(c, side, rows, keyColor, t)
+			a.jsonTree(c, side, rows, theme, t)
 		})
 		a.jsonQueryPanel(c, side)
 	})
 }
 
-// jsonTree draws the visible JSON rows.
-func (a *app) jsonTree(c *ui.Context, side int, rows []jsonRow, keyColor ui.Color, t *ui.Theme) {
+// jsonTree draws the visible JSON rows, using the same editor token colors
+// that Pretty gives the same values: strings in the string ink, numbers,
+// booleans and null in the constant ink.
+func (a *app) jsonTree(c *ui.Context, side int, rows []jsonRow, theme *editor.Theme, t *ui.Theme) {
+	keyColor := theme.Tokens[editor.TokenProperty].Color
+	stringColor := theme.Tokens[editor.TokenString].Color
+	constantColor := theme.Tokens[editor.TokenConstant].Color
 	ui.List(c, &a.jsonScroll[side], len(rows), func(i int) {
 		row := rows[i]
 		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Padding(0, t.Space(uikit.SpaceL)).MinHeight(uikit.HeightRow).AlignItems(ui.Center).Children(func() {
@@ -712,7 +717,11 @@ func (a *app) jsonTree(c *ui.Context, side int, rows []jsonRow, keyColor ui.Colo
 			case "array":
 				uikit.Hint(c, fmt.Sprintf("[%d]", len(row.node.children))).FontFeatures("tnum")
 			default:
-				uikit.DataBody(c, row.node.value).TextColor(t.Text).SingleLine()
+				valueColor := constantColor
+				if row.node.kind == "string" {
+					valueColor = stringColor
+				}
+				uikit.DataBody(c, row.node.value).TextColor(valueColor).SingleLine()
 			}
 		})
 	}).Grow(1)

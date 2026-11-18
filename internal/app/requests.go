@@ -1086,13 +1086,16 @@ func (a *app) requestTargetControl(c *ui.Context, t *ui.Theme, d *requestDocumen
 // chevron, and the menu that changes it. It is as wide as its word, so the URL
 // starts right after it, as Postman's method does.
 func requestTargetButton(c *ui.Context, t *ui.Theme, name, tip, word string, ink ui.Color, menu func(*ui.Menu)) ui.Element {
-	b := uikit.ToolbarButton(c, name, tip, false).Height(uikit.HeightRow).
-		Padding(0, t.Space(uikit.SpaceXS)).Gap(t.Space(uikit.SpaceHair)).Shrink(0)
-	b.Children(func() {
-		uikit.BodyStrong(c, word).TextColor(ink).SingleLine()
-		ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
+	var b ui.Element
+	uikit.MenuFace(c, func() {
+		b = uikit.ToolbarButton(c, name, tip, false).Height(uikit.HeightRow).
+			Padding(0, t.Space(uikit.SpaceXS)).Gap(t.Space(uikit.SpaceHair)).Shrink(0)
+		b.Children(func() {
+			uikit.BodyStrong(c, word).TextColor(ink).SingleLine()
+			ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
+		})
+		b.PopoverMenuButton(menu, uikit.MenuButtonOptions(c))
 	})
-	b.PopoverMenuButton(menu, uikit.MenuButtonOptions(c))
 	return b
 }
 
