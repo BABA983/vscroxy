@@ -27,9 +27,10 @@
 // on the UI thread when async work needs that thread to keep running, such as
 // showing an "unsaved requests?" dialog.
 //
-// Async veto functions and join work run on package-owned goroutines. Veto
-// functions run in parallel; join work also runs in parallel within each
-// phase. A synchronous Veto(true) skips the async checks and the final veto.
+// Async veto functions passed to VetoAsync or FinalVeto, and join work, run on
+// package-owned goroutines. Veto functions run in parallel; join work also
+// runs in parallel within each phase. A synchronous Veto(true) skips the async
+// checks and the final veto.
 // A joiner that ignores its canceled Token may keep running after Force;
 // Shutdown stops waiting for it instead of killing it.
 package lifecycle

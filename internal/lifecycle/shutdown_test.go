@@ -73,7 +73,7 @@ func TestFinalVetoRunsAfterOrdinaryVetos(t *testing.T) {
 	})
 	lc.OnFinalVeto(func(e *InternalBeforeShutdownEvent) {
 		order = append(order, "final")
-		e.FinalVeto(func() bool { return true }, "confirm-unsaved")
+		e.FinalVeto(func(context.Context) (bool, error) { return true, nil }, "confirm-unsaved")
 	})
 
 	err := lc.Shutdown(ShutdownReasonClose)
@@ -204,7 +204,7 @@ func TestAsyncVetoesRunInParallelAndBeforeFinalVeto(t *testing.T) {
 	var lc Lifecycle
 	lc.OnBeforeShutdown(func(e *BeforeShutdownEvent) {
 		for i := range 2 {
-			e.Veto(func(ctx context.Context) (bool, error) {
+			e.VetoAsync(func(ctx context.Context) (bool, error) {
 				started <- struct{}{}
 				veto := <-release
 				settled.Add(1)
@@ -250,13 +250,13 @@ func TestAsyncVetoSettlesOnlyOnceWhenFinalVetoRuns(t *testing.T) {
 	var checks atomic.Int32
 	var lc Lifecycle
 	lc.OnBeforeShutdown(func(e *BeforeShutdownEvent) {
-		e.Veto(func(ctx context.Context) (bool, error) {
+		e.VetoAsync(func(ctx context.Context) (bool, error) {
 			checks.Add(1)
 			return false, nil
 		}, "ordinary")
 	})
 	lc.OnFinalVeto(func(e *InternalBeforeShutdownEvent) {
-		e.FinalVeto(func() bool { return true }, "final")
+		e.FinalVeto(func(context.Context) (bool, error) { return true, nil }, "final")
 	})
 
 	err := lc.Shutdown(ShutdownReasonClose)
@@ -278,7 +278,7 @@ func TestVetoErrorsVeto(t *testing.T) {
 			name: "async veto",
 			register: func(lc *Lifecycle) {
 				lc.OnBeforeShutdown(func(e *BeforeShutdownEvent) {
-					e.Veto(func(ctx context.Context) (bool, error) {
+					e.VetoAsync(func(ctx context.Context) (bool, error) {
 						return false, errors.New("proxy still busy")
 					}, "async-error")
 				})
@@ -390,9 +390,9 @@ func TestFinalVetoCannotBeDefinedTwice(t *testing.T) {
 	}
 
 	var event InternalBeforeShutdownEvent
-	event.FinalVeto(func() bool { return false }, "first")
+	event.FinalVeto(func(context.Context) (bool, error) { return false, nil }, "first")
 	if got := capturePanic(func() {
-		event.FinalVeto(func() bool { return true }, "second")
+		event.FinalVeto(func(context.Context) (bool, error) { return true, nil }, "second")
 	}); got == nil {
 		t.Fatal("a second FinalVeto slot did not panic")
 	}
@@ -410,7 +410,7 @@ func TestShutdownAsyncRunsBeforeCallbacksOnCallerThenWaits(t *testing.T) {
 	lc.OnBeforeShutdown(func(e *BeforeShutdownEvent) {
 		close(beforeStarted)
 		<-beforeRelease
-		e.Veto(func(ctx context.Context) (bool, error) {
+		e.VetoAsync(func(ctx context.Context) (bool, error) {
 			close(vetoStarted)
 			return <-releaseVeto, nil
 		}, "dialog")
@@ -447,7 +447,7 @@ func TestSyncVetoSkipsAsyncAndFinalVeto(t *testing.T) {
 	var asyncRan, finalRegistered, finalRan, willRan atomic.Int32
 	var lc Lifecycle
 	lc.OnBeforeShutdown(func(e *BeforeShutdownEvent) {
-		e.Veto(func(ctx context.Context) (bool, error) {
+		e.VetoAsync(func(ctx context.Context) (bool, error) {
 			asyncRan.Add(1)
 			return true, nil
 		}, "async")
@@ -455,9 +455,9 @@ func TestSyncVetoSkipsAsyncAndFinalVeto(t *testing.T) {
 	})
 	lc.OnFinalVeto(func(e *InternalBeforeShutdownEvent) {
 		finalRegistered.Add(1)
-		e.FinalVeto(func() bool {
+		e.FinalVeto(func(context.Context) (bool, error) {
 			finalRan.Add(1)
-			return true
+			return true, nil
 		}, "final")
 	})
 	lc.OnWillShutdown(func(e *WillShutdownEvent) { willRan.Add(1) })

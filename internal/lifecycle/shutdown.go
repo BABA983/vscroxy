@@ -49,21 +49,6 @@ type vetoRecord struct {
 	id string
 }
 
-func asVetoFunc(value any) VetoFunc {
-	switch v := value.(type) {
-	case VetoFunc:
-		return v
-	case func(context.Context) (bool, error):
-		return VetoFunc(v)
-	case func() (bool, error):
-		return func(context.Context) (bool, error) { return v() }
-	case func() bool:
-		return func(context.Context) (bool, error) { return v(), nil }
-	default:
-		panic(fmt.Sprintf("lifecycle: unsupported veto value of type %T", value))
-	}
-}
-
 // BeforeShutdownEvent is delivered to participants that can stop a shutdown.
 type BeforeShutdownEvent struct {
 	Reason ShutdownReason
@@ -74,25 +59,29 @@ type BeforeShutdownEvent struct {
 	vetoes  []vetoRecord
 }
 
-// Veto stops the shutdown. The id identifies a long-running veto in logs.
-// value is a bool or a VetoFunc (also written as
-// func(context.Context) (bool, error), func() (bool, error), or func() bool).
-// Async checks start on package-owned goroutines and run in parallel; their
-// results are collected before the final veto runs. A synchronous Veto(true)
-// short-circuits them and the final veto. An error or a panic counts as a
-// veto. Unsupported value types are a programming error.
-func (e *BeforeShutdownEvent) Veto(value any, id string) {
-	if v, ok := value.(bool); ok {
-		if !v {
-			return
-		}
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		e.vetoed = true
-		e.vetoIDs = append(e.vetoIDs, id)
+// Veto is the boolean case of VS Code's
+// veto(value: boolean | Promise<boolean>, id: string): it records an immediate
+// decision and returns when value is false. The id identifies the decision in
+// logs. A true value short-circuits async checks and the final veto; use
+// VetoAsync for the Promise<boolean> case.
+func (e *BeforeShutdownEvent) Veto(value bool, id string) {
+	if !value {
 		return
 	}
-	fn := asVetoFunc(value)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.vetoed = true
+	e.vetoIDs = append(e.vetoIDs, id)
+}
+
+// VetoAsync is the Promise<boolean> case of VS Code's
+// veto(value: boolean | Promise<boolean>, id: string). The check runs on a
+// package-owned goroutine; checks run in parallel and settle before the final
+// veto. An error or a panic counts as a veto. A nil fn registers nothing.
+func (e *BeforeShutdownEvent) VetoAsync(fn VetoFunc, id string) {
+	if fn == nil {
+		return
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.vetoes = append(e.vetoes, vetoRecord{fn: fn, id: id})
@@ -180,10 +169,15 @@ type InternalBeforeShutdownEvent struct {
 	id  string
 }
 
-// FinalVeto installs the last check. It accepts the same values as Veto and
-// panics when a final veto is already defined, like VS Code's final veto slot.
-func (e *InternalBeforeShutdownEvent) FinalVeto(value any, id string) {
-	fn := asVetoFunc(value)
+// FinalVeto is the Go form of VS Code's
+// finalVeto(value: () => boolean | Promise<boolean>, id: string): the check
+// runs after every ordinary veto has settled, on a package-owned goroutine. It
+// panics when a final veto is already defined, like VS Code's slot. A nil fn
+// registers nothing.
+func (e *InternalBeforeShutdownEvent) FinalVeto(fn VetoFunc, id string) {
+	if fn == nil {
+		return
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.set {
