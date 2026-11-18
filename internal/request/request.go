@@ -282,7 +282,7 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 		// The document keeps the authored JSONC. Only the bytes sent to the
 		// server drop comments and trailing commas; invalid JSONC is left
 		// byte-for-byte as authored.
-		if jsonBody(req.Header.Get("Content-Type")) {
+		if IsJSONBody(req.Header.Get("Content-Type")) {
 			req.Body = jsonc.StripComments(req.Body)
 		}
 	case "GraphQL":
