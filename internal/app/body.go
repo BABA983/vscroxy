@@ -313,7 +313,10 @@ func (a *app) jsonReaderFor(c *ui.Context, side int, key, body string) *jsonRead
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	answers := make(chan jsonBodyResult, 1)
-	r.pending, r.cancel, r.answers = true, cancel, answers
+	r.pending, r.cancel = true, cancel
+	if a.win == nil {
+		r.answers = answers // Tester handoff; a window uses win.Update
+	}
 	go func() {
 		result := computeFaultTolerantBody(body)
 		if ctx.Err() != nil {
