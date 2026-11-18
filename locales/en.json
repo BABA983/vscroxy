@@ -1866,7 +1866,29 @@
       }
     }
   },
+  "@jsonLineRecord": {
+    "placeholders": {
+      "line": {
+        "type": "int"
+      }
+    }
+  },
+  "jsonLineRecord": "Line {line}",
   "jsonPathSegments": "JSON path segments: {path}",
+  "@jsonParsingStopped": {
+    "placeholders": {
+      "line": {
+        "type": "int"
+      },
+      "column": {
+        "type": "int"
+      },
+      "offset": {
+        "type": "int"
+      }
+    }
+  },
+  "jsonParsingStopped": "Parsing stopped at line {line}, column {column} (byte {offset})",
   "jsonQueryExpression": "JSON query expression",
   "@jwtAuthSummary": {
     "placeholders": {

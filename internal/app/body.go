@@ -5,7 +5,6 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
-	"github.com/baba983/vscroxy/internal/uikit"
 	"io"
 	"slices"
 	"strconv"
@@ -13,19 +12,31 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/inspect"
+	"github.com/baba983/vscroxy/internal/jsonc"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/richtext"
 )
 
+// nodeID is a node's place in its tree. Its parent pointer and child index
+// make it unique even for repeated object keys, without allocating a string
+// for every node in a large body.
+type nodeID struct {
+	parent *jsonNode
+	index  int
+}
+
 // jsonNode is one value of a parsed body, with the children of an object or
-// an array.
+// an array. path is an RFC 6901 pointer and is shown to the person reading
+// the tree; id keys expansion state and is independent of that visible path.
 type jsonNode struct {
 	key      string
 	value    string
 	kind     string
 	path     string
+	id       nodeID
 	depth    int
 	children []*jsonNode
 }
@@ -35,11 +46,38 @@ type jsonRow struct {
 	depth int
 }
 
-// parseJSON turns a body into a tree. It reports false for a body that is not
-// JSON, which the Body tab then shows as text.
-func parseJSON(body string) ([]*jsonNode, bool) {
+// jsonTreeResult is what the JSON view keeps for one captured body. stop is
+// empty for a complete document (including NDJSON); otherwise it is the single
+// line saying where the fault-tolerant parser gave up.
+type jsonTreeResult struct {
+	roots  []*jsonNode
+	ndjson bool
+	stop   string
+}
+
+// parseJSON keeps strict JSON on the old decoder, so a valid body builds the
+// same tree at the same cost. Everything else goes through VS Code's
+// fault-tolerant parser: a truncated document keeps the values read so far,
+// JSONC comments and trailing commas become part of the tree, and NDJSON is
+// shown as one root per line.
+func parseJSON(body string) jsonTreeResult {
+	if roots, ok := strictJSON(body); ok {
+		return jsonTreeResult{roots: roots}
+	}
+	if lines, ok := ndjsonTree(body); ok {
+		return jsonTreeResult{roots: lines, ndjson: true}
+	}
+	root, errs := jsonc.ParseTree(body)
+	result := jsonTreeResult{stop: jsonStopLine(body, errs)}
+	if root != nil {
+		result.roots = []*jsonNode{jsoncNode(body, root, "", "", nodeID{}, 0)}
+	}
+	return result
+}
+
+func strictJSON(body string) ([]*jsonNode, bool) {
 	dec := jsontext.NewDecoder(strings.NewReader(body))
-	root, err := readJSON(dec, "", "$", 0)
+	root, err := readJSON(dec, "", "", nodeID{}, 0)
 	if err != nil {
 		return nil, false
 	}
@@ -51,12 +89,12 @@ func parseJSON(body string) ([]*jsonNode, bool) {
 
 // Tokens retain object order and the original number spelling, including
 // integers larger than float64 can represent exactly.
-func readJSON(dec *jsontext.Decoder, key, path string, depth int) (*jsonNode, error) {
+func readJSON(dec *jsontext.Decoder, key, path string, id nodeID, depth int) (*jsonNode, error) {
 	token, err := dec.ReadToken()
 	if err != nil {
 		return nil, err
 	}
-	node := &jsonNode{key: key, path: path, depth: depth}
+	node := &jsonNode{key: key, path: path, id: id, depth: depth}
 	switch token.Kind() {
 	case '{', '[':
 		end := jsontext.Kind('}')
@@ -66,16 +104,17 @@ func readJSON(dec *jsontext.Decoder, key, path string, depth int) (*jsonNode, er
 		}
 		for dec.PeekKind() != end {
 			childKey := strconv.Itoa(len(node.children))
-			childPath := path + "[" + childKey + "]"
+			childPath := path + "/" + childKey
 			if node.kind == "object" {
 				name, err := dec.ReadToken()
 				if err != nil {
 					return nil, err
 				}
 				childKey = name.String()
-				childPath = path + "." + childKey
+				childPath = path + "/" + pointerToken(childKey)
 			}
-			child, err := readJSON(dec, childKey, childPath, depth+1)
+			childID := nodeID{parent: node, index: len(node.children)}
+			child, err := readJSON(dec, childKey, childPath, childID, depth+1)
 			if err != nil {
 				return nil, err
 			}
@@ -96,6 +135,117 @@ func readJSON(dec *jsontext.Decoder, key, path string, depth int) (*jsonNode, er
 	return node, nil
 }
 
+func pointerToken(key string) string {
+	if !strings.ContainsAny(key, "~/") {
+		return key
+	}
+	return strings.ReplaceAll(strings.ReplaceAll(key, "~", "~0"), "/", "~1")
+}
+
+func nodePath(n *jsonNode) string {
+	if n.path == "" {
+		return "/" // the root of an RFC 6901 document
+	}
+	return n.path
+}
+
+// jsoncNode maps one fault-tolerant node into the tree the view draws. Number
+// spelling comes from the original bytes: VS Code's node value is a float64
+// and would round an integer too large for one.
+func jsoncNode(source string, node *jsonc.Node, key, path string, id nodeID, depth int) *jsonNode {
+	n := &jsonNode{key: key, path: path, id: id, depth: depth}
+	switch node.Type {
+	case jsonc.NodeTypeObject:
+		n.kind = "object"
+		for i, property := range node.Children {
+			if len(property.Children) == 0 {
+				continue
+			}
+			name, ok := property.Children[0].Value.(string)
+			if !ok {
+				continue
+			}
+			childPath := path + "/" + pointerToken(name)
+			childID := nodeID{parent: n, index: i}
+			if len(property.Children) < 2 {
+				n.children = append(n.children, &jsonNode{
+					key: name, path: childPath, id: childID, depth: depth + 1, kind: "incomplete",
+				})
+				continue
+			}
+			n.children = append(n.children, jsoncNode(source, property.Children[1], name, childPath, childID, depth+1))
+		}
+	case jsonc.NodeTypeArray:
+		n.kind = "array"
+		for i, child := range node.Children {
+			index := strconv.Itoa(i)
+			n.children = append(n.children, jsoncNode(source, child, index,
+				path+"/"+index, nodeID{parent: n, index: i}, depth+1))
+		}
+	case jsonc.NodeTypeString:
+		value, _ := node.Value.(string)
+		n.kind, n.value = "string", strconv.Quote(value)
+	case jsonc.NodeTypeNumber:
+		n.kind, n.value = "number", source[node.Offset:node.Offset+node.Length]
+	case jsonc.NodeTypeBoolean:
+		n.kind, n.value = "bool", source[node.Offset:node.Offset+node.Length]
+	case jsonc.NodeTypeNull:
+		n.kind, n.value = "null", "null"
+	default:
+		n.kind = "incomplete"
+	}
+	return n
+}
+
+// ndjsonTree treats a body of complete one-line JSON values as a stream of
+// records, each a top-level tree node under /0, /1 and so on. A single
+// document spanning several lines is never split this way: every line must
+// parse on its own.
+func ndjsonTree(body string) ([]*jsonNode, bool) {
+	var roots []*jsonNode
+	rest, line := body, 0
+	for len(rest) > 0 {
+		line++
+		part, after, more := strings.Cut(rest, "\n")
+		rest = after
+		text := strings.TrimSuffix(part, "\r")
+		if strings.TrimSpace(text) != "" {
+			root, errs := jsonc.ParseTree(text)
+			if root == nil || len(errs) > 0 {
+				return nil, false
+			}
+			index := strconv.Itoa(len(roots))
+			roots = append(roots, jsoncNode(text, root, strconv.Itoa(line),
+				"/"+index, nodeID{index: len(roots)}, 0))
+		}
+		if !more {
+			break
+		}
+	}
+	return roots, len(roots) > 1
+}
+
+// jsonStopLine reports the earlier parse error as a one-based line and column
+// as well as the byte offset VS Code's parser uses.
+func jsonStopLine(body string, errs []jsonc.ParseError) string {
+	if len(errs) == 0 {
+		return ""
+	}
+	offset := errs[0].Offset
+	for _, err := range errs[1:] {
+		offset = min(offset, err.Offset)
+	}
+	offset = min(max(offset, 0), len(body))
+	prefix := body[:offset]
+	lineStart := 0
+	if _, tail, found := strings.CutLast(prefix, "\n"); found {
+		lineStart = len(prefix) - len(tail)
+	}
+	line := strings.Count(prefix, "\n") + 1
+	column := utf8.RuneCountInString(prefix[lineStart:]) + 1
+	return locales.JsonParsingStopped(line, column, offset)
+}
+
 // visibleJSON flattens the tree to the rows the current expansion shows.
 func (a *app) visibleJSON(side int) []jsonRow {
 	var out []jsonRow
@@ -103,12 +253,12 @@ func (a *app) visibleJSON(side int) []jsonRow {
 	walk = func(nodes []*jsonNode, depth int) {
 		for _, n := range nodes {
 			out = append(out, jsonRow{node: n, depth: depth})
-			if len(n.children) > 0 && a.jsonExpanded[side][n.path] {
+			if len(n.children) > 0 && a.jsonExpanded[side][n.id] {
 				walk(n.children, depth+1)
 			}
 		}
 	}
-	walk(a.jsonRoots[side], 0)
+	walk(a.jsonTrees[side].roots, 0)
 	return out
 }
 
@@ -122,7 +272,7 @@ func matchingJSON(nodes []*jsonNode, query string) []jsonRow {
 				walk(n.children, depth+1)
 				continue
 			}
-			if strings.Contains(strings.ToLower(n.path+" "+n.value), strings.ToLower(query)) {
+			if strings.Contains(strings.ToLower(nodePath(n)+" "+n.value), strings.ToLower(query)) {
 				out = append(out, jsonRow{node: n, depth: depth})
 			}
 		}
@@ -451,18 +601,20 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 	case 2:
 		if key != a.jsonFor[side] {
 			a.jsonFor[side] = key
-			a.jsonRoots[side], a.jsonOK[side] = parseJSON(body)
-			a.jsonExpanded[side] = make(map[string]bool)
-			for _, n := range a.jsonRoots[side] {
-				a.jsonExpanded[side][n.path] = true
+			a.jsonTrees[side] = parseJSON(body)
+			a.jsonExpanded[side] = make(map[nodeID]bool)
+			for _, n := range a.jsonTrees[side].roots {
+				a.jsonExpanded[side][n.id] = true
 				for _, child := range n.children {
-					a.jsonExpanded[side][child.path] = true
+					a.jsonExpanded[side][child.id] = true
 				}
 			}
 		}
-		if !a.jsonOK[side] {
-			uikit.Meta(c, locales.BodyIsNotJsonShowing()).Padding(t.Space(uikit.SpaceL))
-			a.prettyBody(c, body, side)
+		if len(a.jsonTrees[side].roots) == 0 {
+			if stop := a.jsonTrees[side].stop; stop != "" {
+				uikit.Meta(c, stop).Padding(t.Space(uikit.SpaceL))
+			}
+			a.prettyBody(c, body, side, &a.jsonTrees[side])
 			return
 		}
 		a.jsonBody(c, side)
@@ -479,7 +631,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		case "Merged stream":
 			a.mergedBody(c, f, body, side)
 		default:
-			a.prettyBody(c, body, side)
+			a.prettyBody(c, body, side, nil)
 		}
 	}
 }
@@ -562,15 +714,65 @@ func (a *app) htmlPreview(c *ui.Context, key, body string, side int) {
 	})
 }
 
-func (a *app) prettyBody(c *ui.Context, body string, side int) {
+// prettyBodyText keeps the strict formatter's exact output for valid JSON.
+// For anything else with a tree, VS Code's formatter re-indents the captured
+// bytes, including comments, trailing commas, truncation and trailing text.
+// The result is display only: callers keep a.body for copy, save and replay.
+func prettyBodyText(body string, tree *jsonTreeResult) (string, bool) {
+	value := jsontext.Value(body)
+	if value.Indent(jsontext.WithIndent("  ")) == nil {
+		return string(value), true
+	}
+	if tree == nil {
+		parsed := parseJSON(body)
+		tree = &parsed
+	}
+	if len(tree.roots) == 0 {
+		return body, false
+	}
+	options := jsonc.FormattingOptions{TabSize: 2, InsertSpaces: true, EOL: jsonc.GetEOL(jsonc.FormattingOptions{}, body)}
+	if tree.ndjson {
+		return formatNDJSON(body, options), true
+	}
+	formatted, err := jsonc.ApplyEdits(body, jsonc.Format(body, nil, options))
+	if err != nil {
+		return body, true
+	}
+	return formatted, true
+}
+
+// formatNDJSON formats each record on its own. A single formatter pass over
+// the stream stops strengthening the indentation after its first top-level
+// value, so separate passes give every line the same treatment while keeping
+// the original line breaks and line endings.
+func formatNDJSON(body string, options jsonc.FormattingOptions) string {
+	var out strings.Builder
+	out.Grow(len(body))
+	for len(body) > 0 {
+		part, after, more := strings.Cut(body, "\n")
+		body = after
+		text, crlf := strings.CutSuffix(part, "\r")
+		if strings.TrimSpace(text) != "" {
+			if formatted, err := jsonc.ApplyEdits(text, jsonc.Format(text, nil, options)); err == nil {
+				text = formatted
+			}
+		}
+		out.WriteString(text)
+		if crlf {
+			out.WriteByte('\r')
+		}
+		if more {
+			out.WriteByte('\n')
+		}
+	}
+	return out.String()
+}
+
+func (a *app) prettyBody(c *ui.Context, body string, side int, tree *jsonTreeResult) {
 	reader := a.bodyText[side]
 	if reader == nil {
-		value := jsontext.Value(body)
-		isJSON := value.Indent(jsontext.WithIndent("  ")) == nil
-		if isJSON {
-			body = string(value)
-		}
-		buf := editor.NewBuffer(body)
+		text, isJSON := prettyBodyText(body, tree)
+		buf := editor.NewBuffer(text)
 		if isJSON {
 			buf.SetLanguage(editor.LanguageNamed("json"))
 		}
@@ -658,9 +860,12 @@ func (a *app) mergedBody(c *ui.Context, f flow, body string, side int) {
 func (a *app) jsonBody(c *ui.Context, side int) {
 	t := c.Theme()
 	theme := uikit.EditorTheme(t)
+	if stop := a.jsonTrees[side].stop; stop != "" {
+		uikit.Meta(c, stop).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM))
+	}
 	var rows []jsonRow
 	if a.bodyQuery[side] != "" {
-		rows = matchingJSON(a.jsonRoots[side], a.bodyQuery[side])
+		rows = matchingJSON(a.jsonTrees[side].roots, a.bodyQuery[side])
 	} else {
 		rows = a.visibleJSON(side)
 	}
@@ -695,20 +900,26 @@ func (a *app) jsonTree(c *ui.Context, side int, rows []jsonRow, theme *editor.Th
 		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Padding(0, t.Space(uikit.SpaceL)).MinHeight(uikit.HeightRow).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Width(float32(row.depth) * 16)
 			if len(row.node.children) > 0 && a.bodyQuery[side] == "" {
-				expanded := a.jsonExpanded[side][row.node.path]
+				expanded := a.jsonExpanded[side][row.node.id]
 				arrow, action := "▸", locales.ExpandAction()
 				if expanded {
 					arrow, action = "▾", locales.CollapseAction()
 				}
-				label := locales.ToggleJSON(action, []string{locales.SideResponse(), locales.SideRequest()}[side], row.node.path)
+				label := locales.ToggleJSON(action, []string{locales.SideResponse(), locales.SideRequest()}[side], nodePath(row.node))
 				if uikit.Tip(c, uikit.SecondaryButton(c, arrow).Label(label), label).Expanded(expanded).Size(uikit.HeightRow, uikit.HeightRow).Padding(0).Clicked() {
-					a.jsonExpanded[side][row.node.path] = !expanded
+					a.jsonExpanded[side][row.node.id] = !expanded
 				}
 			} else {
 				ui.Box(c).Width(uikit.HeightRow)
 			}
 			if row.node.key != "" {
-				uikit.Tip(c, uikit.DataBody(c, row.node.key).TextColor(keyColor).SingleLine(), row.node.path)
+				name := row.node.key
+				if a.jsonTrees[side].ndjson && row.depth == 0 {
+					if line, err := strconv.Atoi(name); err == nil {
+						name = locales.JsonLineRecord(line)
+					}
+				}
+				uikit.Tip(c, uikit.DataBody(c, name).TextColor(keyColor).SingleLine(), nodePath(row.node))
 				uikit.Hint(c, ":")
 			}
 			switch row.node.kind {

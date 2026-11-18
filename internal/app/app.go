@@ -313,10 +313,9 @@ type app struct {
 	imageBmp      [2]*ui.Bitmap
 	imageFor      [2]string
 	imageErr      [2]string
-	jsonRoots     [2][]*jsonNode
-	jsonExpanded  [2]map[string]bool
+	jsonTrees     [2]jsonTreeResult
+	jsonExpanded  [2]map[nodeID]bool
 	jsonFor       [2]string
-	jsonOK        [2]bool
 	protoFor      [2]string
 	protoOK       [2]bool
 	// protoOwner is the side whose shared protobuf reader is live this frame.
@@ -1755,7 +1754,7 @@ func (a *app) syncDetail() {
 	a.headerScroll, a.bodyText = [2]ui.ScrollState{}, [2]*editor.State{}
 	a.jsonScroll, a.hexScroll = [2]ui.ListState{}, [2]ui.ListState{}
 	a.jsonFor, a.protoFor, a.htmlFor, a.imageFor = [2]string{}, [2]string{}, [2]string{}, [2]string{}
-	a.jsonOK, a.protoOK = [2]bool{}, [2]bool{}
+	a.jsonTrees, a.protoOK = [2]jsonTreeResult{}, [2]bool{}
 	a.protoOwner = -1
 	a.htmlDoc, a.imageBmp, a.imageErr = [2]*richtext.Document{}, [2]*ui.Bitmap{}, [2]string{}
 	a.protobuf.stop()
