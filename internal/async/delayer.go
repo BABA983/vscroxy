@@ -20,11 +20,11 @@ type Delayer[T any] struct {
 }
 
 type delayerPending[T any] struct {
-	task    Task[T]
-	ctx     context.Context
-	cancel  context.CancelFunc
-	timer   Timer
-	callers []*caller[T]
+	task   Task[T]
+	ctx    context.Context
+	cancel context.CancelFunc
+	timer  Timer
+	callerGroup[T]
 }
 
 // NewDelayer constructs a Delayer with defaultDelay as its default wait.
@@ -62,7 +62,7 @@ func (d *Delayer[T]) Trigger(ctx context.Context, task Task[T], delay ...time.Du
 	waiting := newCaller(ctx, func(c *caller[T], err error) {
 		d.cancelCaller(pending, c, err)
 	})
-	pending.callers = append(pending.callers, waiting)
+	pending.add(waiting)
 	d.mu.Unlock()
 	return waiting.delivery.ch
 }
@@ -89,7 +89,7 @@ func (d *Delayer[T]) Cancel() {
 		pending.timer.Stop()
 		pending.timer = nil
 	}
-	callers := pending.callers
+	callers := pending.detach()
 	pending.cancel()
 	d.mu.Unlock()
 	settleCallers(callers, Result[T]{Err: ErrCanceled})
@@ -111,7 +111,7 @@ func (d *Delayer[T]) Flush() (T, error) {
 		pending.timer.Stop()
 		pending.timer = nil
 	}
-	task, ctx, callers := pending.task, pending.ctx, pending.callers
+	task, ctx, callers := pending.task, pending.ctx, pending.detach()
 	d.mu.Unlock()
 
 	value, err := invoke(ctx, task)
@@ -133,7 +133,7 @@ func (d *Delayer[T]) fire(pending *delayerPending[T]) {
 	}
 	pending.timer = nil
 	d.pending = nil
-	task, ctx, callers := pending.task, pending.ctx, pending.callers
+	task, ctx, callers := pending.task, pending.ctx, pending.detach()
 	d.mu.Unlock()
 
 	result := invokeResult(ctx, task)
@@ -142,8 +142,7 @@ func (d *Delayer[T]) fire(pending *delayerPending[T]) {
 
 func (d *Delayer[T]) cancelCaller(pending *delayerPending[T], c *caller[T], err error) {
 	d.mu.Lock()
-	pending.callers = removeCaller(pending.callers, c)
-	if len(pending.callers) == 0 {
+	if last := pending.leave(c); last {
 		if d.pending == pending {
 			d.pending = nil
 			if pending.timer != nil {

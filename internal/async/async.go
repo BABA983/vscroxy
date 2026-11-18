@@ -223,6 +223,40 @@ func newCaller[T any](ctx context.Context, onCancel func(*caller[T], error)) *ca
 	return c
 }
 
+// callerGroup owns the callers waiting on one shared task. Once the group is
+// detached for settlement, leave stops mutating the slice being iterated and
+// only tracks whether the last caller left, so the task context still gets
+// canceled when a running task's callers all disappear.
+type callerGroup[T any] struct {
+	callers   []*caller[T]
+	remaining int
+	settling  bool
+}
+
+func (g *callerGroup[T]) add(c *caller[T]) {
+	g.callers = append(g.callers, c)
+	g.remaining++
+}
+
+// detach transfers ownership of the callers slice to the settling goroutine.
+func (g *callerGroup[T]) detach() []*caller[T] {
+	g.settling = true
+	callers := g.callers
+	g.callers = nil
+	return callers
+}
+
+// leave reports whether this was the last caller in the group.
+func (g *callerGroup[T]) leave(c *caller[T]) bool {
+	if !g.settling {
+		g.callers = removeCaller(g.callers, c)
+	}
+	if g.remaining > 0 {
+		g.remaining--
+	}
+	return g.remaining == 0
+}
+
 func settleCallers[T any](callers []*caller[T], result Result[T]) {
 	for _, c := range callers {
 		c.stop()

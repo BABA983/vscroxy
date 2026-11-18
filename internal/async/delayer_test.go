@@ -345,3 +345,44 @@ func TestThrottledDelayerAllCallersCancelDropsTask(t *testing.T) {
 		t.Fatalf("abandoned task ran %d times", calls.Load())
 	}
 }
+
+// The settlement snapshot must stay immutable while a caller's context
+// callback leaves the group (the race reported for fire/settleCallers).
+func TestDelayerCallerCancellationConcurrentWithSettlement(t *testing.T) {
+	for range 50 {
+		clock := NewFakeClock()
+		delayer := NewDelayer[int](10*time.Millisecond, WithClock(clock))
+		firstCtx, cancelFirst := context.WithCancel(context.Background())
+		first := delayer.Trigger(firstCtx, func(context.Context) (int, error) { return 1, nil })
+		second := delayer.Trigger(context.Background(), func(context.Context) (int, error) { return 2, nil })
+
+		cancelFirst()
+		clock.Advance(10 * time.Millisecond)
+		assertCanceled(t, takeResult(t, first).Err)
+		assertValue(t, takeResult(t, second), 2)
+	}
+}
+
+// The last caller leaving cancels a task that has already started.
+func TestDelayerLastCallerCancelsRunningTask(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewDelayer[int](0, WithClock(clock))
+	firstCtx, cancelFirst := context.WithCancel(context.Background())
+	secondCtx, cancelSecond := context.WithCancel(context.Background())
+	started := make(chan struct{})
+	task := func(ctx context.Context) (int, error) {
+		close(started)
+		<-ctx.Done()
+		return 0, ctx.Err()
+	}
+	first := delayer.Trigger(firstCtx, task)
+	second := delayer.Trigger(secondCtx, task)
+	go func() {
+		<-started
+		cancelFirst()
+		cancelSecond()
+	}()
+	clock.Advance(0)
+	assertCanceled(t, takeResult(t, first).Err)
+	assertCanceled(t, takeResult(t, second).Err)
+}

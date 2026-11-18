@@ -24,7 +24,7 @@ type throttlerGroup[T any] struct {
 	task    Task[T]
 	ctx     context.Context
 	release context.CancelFunc
-	callers []*caller[T]
+	callerGroup[T]
 }
 
 // NewThrottler constructs a Throttler.
@@ -68,7 +68,7 @@ func (t *Throttler[T]) Queue(ctx context.Context, task Task[T]) <-chan Result[T]
 	waiting := newCaller(ctx, func(c *caller[T], err error) {
 		t.cancelCaller(group, c, err)
 	})
-	group.callers = append(group.callers, waiting)
+	group.add(waiting)
 	t.mu.Unlock()
 
 	if toLaunch != nil {
@@ -102,9 +102,10 @@ func (t *Throttler[T]) finish(group *throttlerGroup[T], result Result[T]) {
 		t.active = queued
 		next = queued
 	}
+	callers := group.detach()
 	t.mu.Unlock()
 
-	settleCallers(group.callers, result)
+	settleCallers(callers, result)
 	if next != nil {
 		t.launch(next)
 	}
@@ -112,8 +113,7 @@ func (t *Throttler[T]) finish(group *throttlerGroup[T], result Result[T]) {
 
 func (t *Throttler[T]) cancelCaller(group *throttlerGroup[T], c *caller[T], err error) {
 	t.mu.Lock()
-	group.callers = removeCaller(group.callers, c)
-	if len(group.callers) == 0 {
+	if last := group.leave(c); last {
 		// An abandoned queued group never runs. An abandoned active group
 		// keeps its slot until its worker settles, so later calls still queue.
 		if t.queued == group {
@@ -133,6 +133,10 @@ func (t *Throttler[T]) Dispose() {
 	active := t.active
 	t.active = nil
 	queued := t.queued
+	var queuedCallers []*caller[T]
+	if queued != nil {
+		queuedCallers = queued.detach()
+	}
 	t.queued = nil
 	t.mu.Unlock()
 
@@ -142,6 +146,6 @@ func (t *Throttler[T]) Dispose() {
 	}
 	if queued != nil {
 		queued.release()
-		settleCallers(queued.callers, Result[T]{Err: ErrDisposed})
+		settleCallers(queuedCallers, Result[T]{Err: ErrDisposed})
 	}
 }

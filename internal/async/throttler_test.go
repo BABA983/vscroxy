@@ -337,3 +337,29 @@ func TestThrottlerAllQueuedCallersCancelDropsTask(t *testing.T) {
 		t.Fatalf("abandoned queued task ran %d times", calls.Load())
 	}
 }
+
+// The queued group's settlement must not share a mutable slice with the
+// context callbacks of its callers.
+func TestThrottlerCallerCancellationConcurrentWithSettlement(t *testing.T) {
+	for range 50 {
+		throttler := NewThrottler[int]()
+		started := make(chan struct{})
+		release := make(chan struct{})
+		active := throttler.Queue(t.Context(), func(context.Context) (int, error) {
+			close(started)
+			<-release
+			return 0, nil
+		})
+		waitSignal(t, started)
+
+		firstCtx, cancelFirst := context.WithCancel(context.Background())
+		first := throttler.Queue(firstCtx, func(context.Context) (int, error) { return 1, nil })
+		second := throttler.Queue(context.Background(), func(context.Context) (int, error) { return 2, nil })
+		cancelFirst()
+		close(release)
+
+		assertValue(t, takeResult(t, active), 0)
+		assertCanceled(t, takeResult(t, first).Err)
+		assertValue(t, takeResult(t, second), 2)
+	}
+}
