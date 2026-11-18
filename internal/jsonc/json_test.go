@@ -375,6 +375,40 @@ func TestVSCodeJSONTreeObjects(t *testing.T) {
 		ParseOptions{AllowTrailingComma: false})
 }
 
+func TestParseTreeReturnsRootForUnclosedObjects(t *testing.T) {
+	// VS Code returns the dangling property node for these inputs. Keep the
+	// full partial object instead: a truncated body still needs its tree.
+	assertTree(t, `{"a":tru}`, container(NodeTypeObject, 0, -1,
+		property(1, 8, 4,
+			scalar(NodeTypeString, 1, 3, "a"))),
+		[]ParseErrorCode{ParseErrorCodeInvalidSymbol, ParseErrorCodeValueExpected})
+
+	assertTree(t, `{"a"}`, container(NodeTypeObject, 0, -1,
+		property(1, 4, -1,
+			scalar(NodeTypeString, 1, 3, "a"))),
+		[]ParseErrorCode{ParseErrorCodeColonExpected})
+
+	assertTree(t, `{"a":}`, container(NodeTypeObject, 0, -1,
+		property(1, 5, 4,
+			scalar(NodeTypeString, 1, 3, "a"))),
+		[]ParseErrorCode{ParseErrorCodeValueExpected})
+
+	assertTree(t, `{"k":"a\tb`+"\n"+`c"}`, container(NodeTypeObject, 0, -1,
+		property(1, 9, 4,
+			scalar(NodeTypeString, 1, 3, "k"),
+			scalar(NodeTypeString, 5, 5, "a\tb")),
+		property(12, 2, -1,
+			scalar(NodeTypeString, 12, 2, "}"))),
+		[]ParseErrorCode{
+			ParseErrorCodeUnexpectedEndOfString,
+			ParseErrorCodeInvalidSymbol,
+			ParseErrorCodeUnexpectedEndOfString,
+			ParseErrorCodeCommaExpected,
+			ParseErrorCodeColonExpected,
+			ParseErrorCodeCloseBraceExpected,
+		})
+}
+
 func TestVSCodeJSONErrorMessage(t *testing.T) {
 	if got := GetParseErrorMessage(ParseErrorCodeInvalidSymbol); got != "Invalid symbol" {
 		t.Fatalf("got %q", got)

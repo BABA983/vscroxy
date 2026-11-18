@@ -128,10 +128,6 @@ func GetNodeType(value any) NodeType {
 	}
 }
 
-// ParseTree is parseTree in VS Code's json.ts. It returns a partial tree and
-// the parse errors; unlike the JS version it returns the errors instead of
-// appending to a caller-owned slice. Broken input still produces the nodes
-// that could be read, including unclosed objects and arrays.
 // nodeSlab hands out nodes from fixed-size chunks. Pointers into earlier
 // chunks stay valid as the slab grows, so one chunk replaces one heap object
 // per node.
@@ -237,6 +233,17 @@ func (o *treeObserver) onError(code ParseErrorCode, offset, length int) bool {
 	return true
 }
 
+// ParseTree is parseTree in VS Code's json.ts. It returns a partial tree and
+// the parse errors; unlike the JS version it returns the errors instead of
+// appending to a caller-owned slice. Broken input still produces the nodes
+// that could be read, including unclosed objects and arrays.
+//
+// When parsing ends inside an unclosed container, ParseTree returns the root
+// value (the first child of the artificial root), even when its length is
+// still -1. VS Code instead returns the first child of the innermost open
+// node, so a dangling property yields only that property. That behavior is
+// intentionally not copied here: callers need the complete partial object
+// from a truncated body.
 func ParseTree(text string, options ...ParseOptions) (*Node, []ParseError) {
 	observer := treeObserver{}
 	root := observer.slab.alloc()
