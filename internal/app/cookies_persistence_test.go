@@ -205,7 +205,7 @@ func setCookieSaveDelay(s *cookieStore, delay time.Duration) {
 func setCookieSaveClock(s *cookieStore, clock *async.FakeClock) {
 	s.mu.Lock()
 	s.clock = clock
-	s.save = async.NewDelayer[struct{}](s.delay, async.WithClock(clock))
+	s.save = async.NewRunOnceScheduler(s.saveRunner(), s.delay, async.WithClock(clock))
 	s.mu.Unlock()
 }
 
@@ -259,6 +259,36 @@ func TestCookiePersistenceDebouncesConsecutiveChanges(t *testing.T) {
 	}
 	if !strings.Contains(string(data), `"value":"4"`) {
 		t.Fatalf("debounced write did not keep the last value: %s", data)
+	}
+}
+
+// A busy proxy sets cookies more often than the save delay. The write must
+// still land one delay after the first change, then once per later window.
+func TestCookiePersistenceWritesDuringSteadyTraffic(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cookies.json")
+	a := cookieTestApp(t, path, true)
+	s := a.requestCookies()
+	clock := async.NewFakeClock()
+	setCookieSaveClock(s, clock)
+	const delay = 100 * time.Millisecond
+	setCookieSaveDelay(s, delay)
+	u, _ := url.Parse("https://api.example.com/")
+
+	for i := range 10 {
+		s.SetCookies(u, []*http.Cookie{
+			{Name: "keep", Value: fmt.Sprint(i), Path: "/", Expires: time.Now().Add(time.Hour)},
+		})
+		clock.Advance(delay / 2)
+		if want := (i + 1) / 2; s.writeCount() != want {
+			t.Fatalf("after change %d: writes = %d, want %d", i, s.writeCount(), want)
+		}
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"value":"9"`) {
+		t.Fatalf("last change was not written: %s", data)
 	}
 }
 

@@ -4836,12 +4836,10 @@ func (a *app) bypassSettingsSave() {
 }
 
 // flushSettings writes the settings now, whatever the gap: the app does it as
-// it quits, so a change made in the last moment is not lost. Flush first runs
-// any scheduled write, then the unconditional write below catches what a last
-// change added after that snapshot.
+// it quits, so a change made in the last moment is not lost. Cancel the
+// trailing schedule first; the direct write below is the whole flush.
 func (a *app) flushSettings() {
 	if a.settingsSaver != nil {
-		_ = a.settingsSaver.Flush()
 		a.settingsSaver.Cancel()
 	}
 	a.lastSave = time.Time{}

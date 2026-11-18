@@ -2,7 +2,6 @@ package app
 
 import (
 	"cmp"
-	"context"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -73,7 +72,7 @@ type cookieStore struct {
 	delay     time.Duration
 	dirty     bool
 	clock     async.Clock
-	save      *async.Delayer[struct{}]
+	save      *async.RunOnceScheduler
 	lastSaved string
 	writes    int // successful file writes; tests use it to prove debouncing
 	writeMu   sync.Mutex
@@ -98,10 +97,18 @@ func (s *cookieStore) init() {
 	}
 	if s.save == nil {
 		if s.clock != nil {
-			s.save = async.NewDelayer[struct{}](s.delay, async.WithClock(s.clock))
+			s.save = async.NewRunOnceScheduler(s.saveRunner(), s.delay, async.WithClock(s.clock))
 		} else {
-			s.save = async.NewDelayer[struct{}](s.delay)
+			s.save = async.NewRunOnceScheduler(s.saveRunner(), s.delay)
 		}
+	}
+}
+
+func (s *cookieStore) saveRunner() async.Action {
+	return func() error {
+		err := s.flush()
+		s.report(err)
+		return err
 	}
 }
 
@@ -308,11 +315,11 @@ func (s *cookieStore) changedLocked() error {
 		return nil
 	}
 	s.dirty = true
-	s.save.Trigger(context.Background(), func(context.Context) (struct{}, error) {
-		err := s.flush()
-		s.report(err)
-		return struct{}{}, err
-	}, s.delay)
+	// Arm once for the fixed window since the first dirty change: more
+	// cookies inside that window must not postpone the write indefinitely.
+	if !s.save.IsScheduled() {
+		s.save.Schedule(s.delay)
+	}
 	return nil
 }
 
@@ -361,7 +368,7 @@ func (s *cookieStore) flushNow() error {
 		// Flush runs a pending write now; cancel whatever a concurrent
 		// SetCookies armed while that write held writeMu.
 		if s.save != nil {
-			_, _ = s.save.Flush()
+			_ = s.save.Flush()
 		}
 		s.cancelSave()
 		if err := s.flush(); err != nil {
