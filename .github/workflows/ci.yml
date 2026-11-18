@@ -1,11 +1,16 @@
 name: CI
 
 on:
+  # A push to a PR branch already fires pull_request. Running both makes two
+  # copies of every job for one commit, which doubles the cold macOS build.
   push:
+    branches: [main]
   pull_request:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # New commits on a PR arrive as new pull_request events with the same
+  # ref; key on the branch so they supersede each other instead of racing.
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:

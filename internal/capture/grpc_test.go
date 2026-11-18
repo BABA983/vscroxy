@@ -684,6 +684,16 @@ func TestGRPCGzipCompressedMessages(t *testing.T) {
 func TestGRPCDeadlineAndCancellation(t *testing.T) {
 	s, conn := startGRPCThroughProxy(t)
 
+	// grpc.NewClient is lazy: its first call opens the CONNECT tunnel, does
+	// the TLS handshake and starts HTTP/2. Under load that can outlast a
+	// short deadline before the slow handler is ever reached. Prove the path
+	// works first, so the deadline below times the call and not the setup.
+	warmupCtx, cancelWarmup := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancelWarmup()
+	if err := conn.Invoke(warmupCtx, grpcMethod("Echo"), wrapperspb.String("ready"), new(wrapperspb.StringValue)); err != nil {
+		t.Fatalf("warm up gRPC connection: %v", err)
+	}
+
 	// A deadline the server never meets: the client gives up, and the call it
 	// leaves behind is still captured, with the part that arrived.
 	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
