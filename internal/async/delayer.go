@@ -160,7 +160,7 @@ func (d *Delayer[T]) cancelCaller(pending *delayerPending[T], c *caller[T], err 
 // front of a Throttler, so rapid triggers both debounce and never overlap.
 type ThrottledDelayer[T any] struct {
 	mu        sync.Mutex
-	delayer   *Delayer[<-chan Result[T]]
+	delayer   *Delayer[T]
 	throttler *Throttler[T]
 	disposed  bool
 }
@@ -169,37 +169,30 @@ type ThrottledDelayer[T any] struct {
 func NewThrottledDelayer[T any](defaultDelay time.Duration, opts ...Option) *ThrottledDelayer[T] {
 	clock := resolveClock(opts)
 	return &ThrottledDelayer[T]{
-		delayer:   NewDelayer[<-chan Result[T]](defaultDelay, WithClock(clock)),
+		delayer:   NewDelayer[T](defaultDelay, WithClock(clock)),
 		throttler: NewThrottler[T](),
 	}
 }
 
 // Trigger corresponds to ThrottledDelayer.trigger. The returned channel
 // carries the result of the throttled task; after Dispose it carries
-// ErrDisposed. Each caller's context cancels only that caller; the delayed task
-// uses the Delayer's shared context, which survives until every caller leaves.
+// ErrDisposed. Each caller's context cancels only that caller. The delayed task
+// reads the throttler's single result and returns it to the Delayer, which
+// fans the value out to every coalesced caller.
 func (td *ThrottledDelayer[T]) Trigger(ctx context.Context, task Task[T], delay ...time.Duration) <-chan Result[T] {
-	out := newDelivery[T]()
 	td.mu.Lock()
 	disposed := td.disposed
 	td.mu.Unlock()
 	if disposed {
+		out := newDelivery[T]()
 		out.settle(Result[T]{Err: ErrDisposed})
 		return out.ch
 	}
 
-	delayed := td.delayer.Trigger(ctx, func(ctx context.Context) (<-chan Result[T], error) {
-		return td.throttler.Queue(ctx, task), nil
+	return td.delayer.Trigger(ctx, func(ctx context.Context) (T, error) {
+		settled := <-td.throttler.Queue(ctx, task)
+		return settled.Value, settled.Err
 	}, delay...)
-	go func() {
-		settled := <-delayed
-		if settled.Err != nil {
-			out.settle(Result[T]{Err: settled.Err})
-			return
-		}
-		out.settle(<-settled.Value)
-	}()
-	return out.ch
 }
 
 // IsTriggered, Cancel and Dispose correspond to their VS Code counterparts.

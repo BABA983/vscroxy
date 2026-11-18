@@ -33,6 +33,23 @@ func takeError(t *testing.T, ch <-chan error) error {
 	}
 }
 
+// takeResultWithin bounds a result wait so a dropped settlement fails the
+// test instead of hanging the whole suite. No scheduling waits on wall time:
+// all delays under test still come from FakeClock.
+func takeResultWithin[T any](t *testing.T, ch <-chan Result[T], limit time.Duration) Result[T] {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), limit)
+	defer cancel()
+	select {
+	case result := <-ch:
+		return result
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for result")
+		var zero Result[T]
+		return zero
+	}
+}
+
 func waitSignal(t *testing.T, ch <-chan struct{}) {
 	t.Helper()
 	select {

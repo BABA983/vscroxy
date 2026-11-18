@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -385,4 +386,65 @@ func TestDelayerLastCallerCancelsRunningTask(t *testing.T) {
 	clock.Advance(0)
 	assertCanceled(t, takeResult(t, first).Err)
 	assertCanceled(t, takeResult(t, second).Err)
+}
+
+// Every coalesced caller of ThrottledDelayer must receive the shared result.
+func TestThrottledDelayerCoalescedCallersAllSettle(t *testing.T) {
+	for _, count := range []int{2, 5} {
+		t.Run(strconv.Itoa(count), func(t *testing.T) {
+			clock := NewFakeClock()
+			delayer := NewThrottledDelayer[int](10*time.Millisecond, WithClock(clock))
+			var calls atomic.Int32
+			channels := make([]<-chan Result[int], 0, count)
+			for i := range count {
+				channels = append(channels, delayer.Trigger(t.Context(), func(context.Context) (int, error) {
+					calls.Add(1)
+					return i + 1, nil
+				}))
+			}
+
+			clock.Advance(10 * time.Millisecond)
+			for _, ch := range channels {
+				assertValue(t, takeResultWithin(t, ch, 2*time.Second), count)
+			}
+			if calls.Load() != 1 {
+				t.Fatalf("task ran %d times, want 1", calls.Load())
+			}
+		})
+	}
+}
+
+// One canceled caller must not drop the results of the others, even when its
+// cancellation races with the delayed task's settlement.
+func TestThrottledDelayerCoalescedCallersWithConcurrentCancel(t *testing.T) {
+	for _, count := range []int{2, 5} {
+		t.Run(strconv.Itoa(count), func(t *testing.T) {
+			for range 200 {
+				clock := NewFakeClock()
+				delayer := NewThrottledDelayer[int](10*time.Millisecond, WithClock(clock))
+				firstCtx, cancelFirst := context.WithCancel(context.Background())
+				channels := make([]<-chan Result[int], 0, count)
+				first := delayer.Trigger(firstCtx, func(context.Context) (int, error) { return 1, nil })
+				channels = append(channels, first)
+				for i := 1; i < count; i++ {
+					channels = append(channels, delayer.Trigger(context.Background(), func(context.Context) (int, error) {
+						return i + 1, nil
+					}))
+				}
+
+				canceled := make(chan struct{})
+				go func() {
+					cancelFirst()
+					close(canceled)
+				}()
+				waitSignal(t, canceled)
+				clock.Advance(10 * time.Millisecond)
+
+				assertCanceled(t, takeResultWithin(t, first, 2*time.Second).Err)
+				for _, ch := range channels[1:] {
+					assertValue(t, takeResultWithin(t, ch, 2*time.Second), count)
+				}
+			}
+		})
+	}
 }
