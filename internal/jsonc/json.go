@@ -385,7 +385,11 @@ func (s *Scanner) scanString() {
 			escaped = true
 			s.pos++
 			if s.pos >= s.size {
-				s.finishStringValue(start, s.pos, true)
+				// The trailing backslash is not part of the value. scratch
+				// already holds every decoded char and the raw chunks before
+				// this escape; appending text[start:s.pos] would add the
+				// earlier prefix again and keep the backslash.
+				s.value = string(s.scratch)
 				s.tokenError = ScanErrorUnexpectedEndOfString
 				return
 			}

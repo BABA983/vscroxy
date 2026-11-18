@@ -499,6 +499,75 @@ func TestNonASCIIByteOffsetsAndEscapes(t *testing.T) {
 	}
 }
 
+func TestTruncatedStringAfterEscape(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"no escape", `"abc`, "abc"},
+		{"trailing backslash", `"abc\`, "abc"},
+		{"short trailing backslash", `"ab\`, "ab"},
+		{"escaped newline then trailing backslash", `"a\nb\`, "a\nb"},
+		{"escaped then raw newline", "\"a\\nb\nc\"", "a\nb"},
+		{"invalid escape at end", `"a\q`, "a"},
+		{"truncated unicode escape", `"\u12`, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			scanner := CreateScanner(tc.input, false)
+			if kind := scanner.Scan(); kind != SyntaxKindStringLiteral {
+				t.Fatalf("got token %d, want string literal", kind)
+			}
+			if got := scanner.GetTokenValue(); got != tc.want {
+				t.Fatalf("value: got %q, want %q", got, tc.want)
+			}
+			if got := scanner.GetTokenError(); got != ScanErrorUnexpectedEndOfString {
+				t.Fatalf("scan error: got %d, want UnexpectedEndOfString", got)
+			}
+		})
+	}
+
+	trees := []struct {
+		input string
+		want  string
+	}{
+		{`{"x":"abc\`, "abc"},
+		{`{"x":"ab\`, "ab"},
+		{`{"x":"a\nb\`, "a\nb"},
+		{`{"x":"\u12`, ""},
+	}
+	for _, tc := range trees {
+		t.Run("tree "+tc.input, func(t *testing.T) {
+			tree, errs := ParseTree(tc.input)
+			if len(errs) == 0 || errs[0].Error != ParseErrorCodeUnexpectedEndOfString {
+				t.Fatalf("errors: got %#v", errs)
+			}
+			node := FindNodeAtLocation(tree, JSONPath{KeySegment("x")})
+			if node == nil || node.Type != NodeTypeString || node.Value != tc.want {
+				t.Fatalf("value node: got %#v, want string %q", node, tc.want)
+			}
+		})
+	}
+}
+
+func TestTruncatedEscapeAt8MiBCut(t *testing.T) {
+	const payload = 8 << 20
+	input := `{"x":"` + strings.Repeat("a", payload) + `\`
+	tree, errs := ParseTree(input)
+	if len(errs) == 0 || errs[0].Error != ParseErrorCodeUnexpectedEndOfString {
+		t.Fatalf("errors: got %#v", errs)
+	}
+	node := FindNodeAtLocation(tree, JSONPath{KeySegment("x")})
+	if node == nil || node.Type != NodeTypeString {
+		t.Fatalf("value node: got %#v", node)
+	}
+	value, ok := node.Value.(string)
+	if !ok || len(value) != payload || value[0] != 'a' || value[len(value)-1] != 'a' {
+		t.Fatalf("value: got a string of length %d", len(value))
+	}
+}
+
 func TestNodePathsOffsetsAndLocation(t *testing.T) {
 	const text = `{"a":[1,{"b":true}]}`
 	tree, errs := ParseTree(text)
