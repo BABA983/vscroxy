@@ -74,6 +74,24 @@ func TestParseJSON(t *testing.T) {
 	}
 }
 
+func TestFormatRequestJSONC(t *testing.T) {
+	input := "{\"a\":1,// note\n\"url\":\"http://x\"}"
+	got, ok := formatRequestJSON(input)
+	if !ok {
+		t.Fatal("valid JSONC was rejected")
+	}
+	want := "{\n  \"a\": 1, // note\n  \"url\": \"http://x\"\n}"
+	if got != want {
+		t.Fatalf("format = %q, want %q", got, want)
+	}
+	if !strings.Contains(got, "// note") || !strings.Contains(got, "http://x") {
+		t.Fatal("formatting changed a comment or a comment marker inside a string")
+	}
+	if _, ok := formatRequestJSON("{\"a\":"); ok {
+		t.Fatal("invalid JSONC was accepted")
+	}
+}
+
 // The JSON tree is a custom list, but its values must use the same token ink
 // Pretty gives them: strings in the string color, everything else in the
 // constant color. Body text on both values was invisible as syntax.

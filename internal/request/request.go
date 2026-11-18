@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/graphql"
+	"github.com/baba983/vscroxy/internal/jsonc"
 )
 
 // Request is what a user authors and saves. Names and collection paths are
@@ -45,9 +46,11 @@ type Request struct {
 	// URL keeps the segments as written.
 	PathVariables []Field `json:"pathVariables,omitempty"`
 	Headers       string  `json:"headers,omitempty"`
-	Body          string  `json:"body,omitempty"`
-	Auth          Auth    `json:"auth,omitzero"`
-	BodyMode      string  `json:"bodyMode,omitempty"`
+	// Body is the authored raw body. JSONC comments and trailing commas stay
+	// here; Prepare strips them from Prepared.Body for a JSON media type.
+	Body     string `json:"body,omitempty"`
+	Auth     Auth   `json:"auth,omitzero"`
+	BodyMode string `json:"bodyMode,omitempty"`
 	// BodyFile is a local path for Binary bodies; only the path is saved.
 	BodyFile string      `json:"bodyFile,omitempty"`
 	GraphQL  GraphQLBody `json:"graphql,omitzero"`
@@ -276,6 +279,12 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 	}
 	switch r.BodyMode {
 	case "", "Raw":
+		// The document keeps the authored JSONC. Only the bytes sent to the
+		// server drop comments and trailing commas; invalid JSONC is left
+		// byte-for-byte as authored.
+		if IsJSONBody(req.Header.Get("Content-Type")) {
+			req.Body = jsonc.StripComments(req.Body)
+		}
 	case "GraphQL":
 		query := ExpandVars(r.GraphQL.Query, vars)
 		if strings.TrimSpace(query) == "" {

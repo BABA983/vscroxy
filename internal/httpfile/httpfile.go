@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/jsonc"
 	"github.com/baba983/vscroxy/internal/request"
 )
 
@@ -369,13 +370,20 @@ func Write(name string, requests []request.Request, variables []request.Variable
 				b.WriteString(header + ": " + value + "\n")
 			}
 		}
-		if req.Body != "" {
+		// REST clients send .http bodies verbatim, so a JSON body must be
+		// plain JSON. Prepare already strips it; this also covers its
+		// fallback when auth or body settings could not be applied.
+		body := req.Body
+		if (r.BodyMode == "" || r.BodyMode == "Raw") && request.IsJSONBody(req.Header.Get("Content-Type")) {
+			body = jsonc.StripComments(body)
+		}
+		if body != "" {
 			b.WriteString("\n")
-			b.WriteString(req.Body)
-			if !strings.HasSuffix(req.Body, "\n") {
+			b.WriteString(body)
+			if !strings.HasSuffix(body, "\n") {
 				b.WriteString("\n")
 			}
-			if strings.Contains("\n"+req.Body, "\n###") {
+			if strings.Contains("\n"+body, "\n###") {
 				warnings = append(warnings, fmt.Sprintf("%s: the body has a line starting with ###, which splits the request", r.Name))
 			}
 		}
