@@ -1,7 +1,11 @@
 package app
 
 import (
+	"bytes"
 	"fmt"
+	"image/png"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -49,12 +53,12 @@ func TestPaletteSearchMatchesAndOrdersLibraryAndVariables(t *testing.T) {
 		{"order", []string{"Orders", "Create order"}},
 		{"storefront", []string{"Shop"}},
 		{"products", []string{"List products"}},
-		{"post", []string{"Create order"}},
+		{"post", []string{"Create order", "Orders", "List products"}},
 		{"status.example.com", []string{"Health"}},
 		{"base_url", []string{"base_url", "base_url"}},
 		{"current_only", []string{"current_only"}},
 		{"global_current", []string{"global_current"}},
-		{"local", []string{"Local"}},
+		{"local", []string{"Local", "base_url", "current_only", "secret"}},
 		{"trace", []string{"trace_id"}},
 	}
 	for _, tc := range cases {
@@ -146,6 +150,54 @@ func TestCommandPaletteOpensRequestAndEnvironmentResults(t *testing.T) {
 	}
 }
 
+func TestPaletteFuzzyRanksGetUserAndRecentRows(t *testing.T) {
+	a := paletteTestApp()
+	getUser := savedRequest{ID: "get", Name: "Get User", Method: "GET", URL: "https://api.example.com/users/1"}
+	a.requests = append(a.requests, getUser)
+	a.requestGen++
+
+	entries := a.paletteSearchEntries("getusr")
+	if len(entries) == 0 || entries[0].label != "Get User" {
+		t.Fatalf("fuzzy query getusr = %v", paletteLabels(entries))
+	}
+	if len(entries[0].matches) == 0 {
+		t.Fatalf("Get User has no highlight ranges: %+v", entries[0])
+	}
+	for _, match := range entries[0].matches {
+		if match.Start < 0 || match.End > len([]rune("Get User")) || match.Start >= match.End {
+			t.Fatalf("invalid highlight range %+v", match)
+		}
+	}
+
+	// A recently used row outranks a better fuzzy score, like VS Code quick open.
+	a.workbench.rememberPalette("request:" + getUser.key())
+	recent := a.paletteSearchEntries("getusr")
+	if len(recent) == 0 || recent[0].label != "Get User" || recent[0].run == nil {
+		t.Fatalf("recent row not first: %v", paletteLabels(recent))
+	}
+	if a.workbench.paletteHistory == nil || a.workbench.paletteHistory.Size() != 1 {
+		t.Fatalf("palette history = %+v", a.workbench.paletteHistory)
+	}
+}
+
+func TestPaletteSearchLimitsBroadResultsWithHistory(t *testing.T) {
+	a := workspaceApp()
+	a.requests = make([]savedRequest, 80)
+	for i := range a.requests {
+		a.requests[i] = savedRequest{ID: fmt.Sprintf("r%d", i), Name: fmt.Sprintf("Entry %02d", i), Method: "GET", URL: "https://api.example.com/entry"}
+	}
+	a.requestGen++
+	a.workbench.rememberPalette("request:" + a.requests[79].key())
+
+	got := a.paletteSearch("entry")
+	if len(got.entries) != paletteResultLimit || got.more != 80-paletteResultLimit {
+		t.Fatalf("broad search = %d entries, %d more", len(got.entries), got.more)
+	}
+	if got.entries[0].label != "Entry 79" {
+		t.Fatalf("recent row is not first: %q", got.entries[0].label)
+	}
+}
+
 func TestPaletteSearchLimitsBroadResults(t *testing.T) {
 	a := workspaceApp()
 	a.requests = make([]savedRequest, 80)
@@ -192,6 +244,78 @@ func TestPaletteSearchIndexUpdatesWithTheLibrary(t *testing.T) {
 	}
 	if got := a.paletteSearchEntries("alpha"); len(got) != 0 {
 		t.Fatalf("replaced library still matched: %+v", got)
+	}
+}
+
+// TestPaletteFuzzySnapshots uses the repository's Tester/screenshot workflow.
+// Set VSCROXY_PALETTE_SNAPSHOTS to write the three review captures; an
+// ordinary go test run does not publish files.
+func TestPaletteFuzzySnapshots(t *testing.T) {
+	dir := os.Getenv("VSCROXY_PALETTE_SNAPSHOTS")
+	if dir == "" {
+		t.Skip("set VSCROXY_PALETTE_SNAPSHOTS to an output directory")
+	}
+	// go test runs in the package directory; a relative output directory is
+	// relative to the repository root, as in snapshots_test.go.
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join("..", "..", dir)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name, query string
+		setup       func(*app)
+		want        string
+	}{
+		{name: "palette-fuzzy-empty", want: "Find command"},
+		{
+			name: "palette-fuzzy-highlights", query: "getusr", want: "Get User",
+			setup: func(a *app) {
+				a.requests = append(a.requests, savedRequest{
+					ID: "get", Name: "Get User", Method: "GET", URL: "https://api.example.com/users/1",
+				})
+				a.requestGen++
+			},
+		},
+		{
+			name: "palette-fuzzy-overflow", query: "entry", want: "30 more results",
+			setup: func(a *app) {
+				a.requests = make([]savedRequest, 80)
+				for i := range a.requests {
+					a.requests[i] = savedRequest{
+						ID: fmt.Sprintf("r%d", i), Name: fmt.Sprintf("Entry %02d", i),
+						Method: "GET", URL: "https://api.example.com/entry",
+					}
+				}
+				a.requestGen++
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := workspaceApp()
+			if tc.setup != nil {
+				tc.setup(a)
+			}
+			tt := ui.NewTester(func(c *ui.Context) { a.view(c) }, 1100, 800)
+			tt.SetScale(2)
+			tt.Key(ui.Cmd, ui.KeyK)
+			if tc.query != "" {
+				tt.Type(tc.query)
+			}
+			tt.Frame()
+			if !tt.HasText(tc.want) {
+				t.Fatalf("missing %q: %v", tc.want, tt.Texts())
+			}
+			var b bytes.Buffer
+			if err := png.Encode(&b, tt.Image()); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, tc.name+".png"), b.Bytes(), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 

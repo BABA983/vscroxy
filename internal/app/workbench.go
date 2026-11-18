@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/linkedmap"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
@@ -25,10 +26,14 @@ type desktopWorkbench struct {
 	query         string
 	command       int
 	commands      ui.ListState
-	inspector     ui.Handle
-	content       ui.Handle
-	menuAction    string
-	menuItems     map[string]*mygo.MenuItem
+	// paletteHistory is the in-memory quick-open recency list. LRUCache
+	// keeps the oldest entries at the front, so ranking walks its keys in
+	// reverse to put the most recently chosen row first.
+	paletteHistory *linkedmap.LRUCache[string, struct{}]
+	inspector      ui.Handle
+	content        ui.Handle
+	menuAction     string
+	menuItems      map[string]*mygo.MenuItem
 	// listFocusAsked is set once the traffic list took the keys for this
 	// visit to LIVE, so Tab can leave it again.
 	listFocusAsked bool
@@ -751,31 +756,13 @@ func (a *app) commandPalette(c *ui.Context) {
 				w.command = 0
 				w.commands.ScrollTo(0, ui.Start)
 			}
-			// An empty query lists what can run now. A search also finds
-			// unavailable commands, after the available ones, so asking for
-			// one explains why it cannot run instead of hiding it. Saved
-			// collections, requests and variables follow the available
-			// commands; their index is rebuilt only when the library changes.
-			query := strings.ToLower(strings.TrimSpace(w.query))
-			var matches, unavailable []paletteEntry
-			for _, action := range a.actions(c) {
-				switch {
-				case action.id == "app.palette" || !strings.Contains(strings.ToLower(action.label), query):
-				case action.enabled:
-					matches = append(matches, paletteEntry{
-						label: action.label, meta: action.shortcut.keycap(),
-						enabled: true, action: true, run: action.run,
-					})
-				case query != "":
-					unavailable = append(unavailable, paletteEntry{
-						label: action.label, detail: action.why(), meta: action.shortcut.keycap(),
-						enabled: false, why: action.why(), action: true, run: action.run,
-					})
-				}
-			}
-			assets := a.paletteSearch(query)
-			matches = append(matches, assets.entries...)
-			matches = append(matches, unavailable...)
+			// Empty queries list what can run now. A search scores commands
+			// and saved entries with VS Code's fuzzy scorer, puts recently
+			// used rows first, and leaves unavailable commands at the end so
+			// asking for one explains why it cannot run.
+			results := a.paletteRankedResults(w.query, a.actions(c))
+			matches := results.entries
+			more := results.more
 			run := func() {
 				if w.command >= 0 && w.command < len(matches) && matches[w.command].enabled {
 					w.paletteOpen = false
@@ -800,7 +787,12 @@ func (a *app) commandPalette(c *ui.Context) {
 			// The highlighted command is a menu highlight: the tint without a
 			// marker, as menus have no selection to keep.
 			c.SetTheme(uikit.ListTheme(t, focused))
-			listHeight := min(float32(9)*uikit.CommandPaletteRow, max(float32(120), height-190))
+			// Leave room for the overflow caption below the list.
+			visibleRows := 9
+			if more > 0 {
+				visibleRows--
+			}
+			listHeight := min(float32(visibleRows)*uikit.CommandPaletteRow, max(float32(120), height-190))
 			var list ui.Element
 			if len(matches) > 0 {
 				ui.Column(c).Padding(uikit.CommandPaletteRowInset).Gap(0).Children(func() {
@@ -817,8 +809,8 @@ func (a *app) commandPalette(c *ui.Context) {
 								color = uikit.Colors(t).Faint
 							}
 							ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
-								uikit.Body(c, item.label).
-									LineHeight(20.0 / 14.0).TextColor(color).SingleLine()
+								paletteLabel(c, item, color).
+									LineHeight(20.0 / 14.0).SingleLine().MinWidth(0)
 								if item.detail != "" {
 									uikit.Small(c, item.detail).TextColor(t.TextMuted).SingleLine()
 								}
@@ -842,9 +834,9 @@ func (a *app) commandPalette(c *ui.Context) {
 			if len(matches) > 0 && list.Submitted() {
 				run()
 			}
-			if assets.more > 0 {
+			if more > 0 {
 				ui.Row(c).Padding(0, t.Space(uikit.SpaceXL)).Children(func() {
-					uikit.Meta(c, locales.MoreResults(assets.more)).SingleLine()
+					uikit.Meta(c, locales.MoreResults(more)).SingleLine()
 				})
 			}
 			context := ""

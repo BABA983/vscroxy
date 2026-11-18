@@ -5439,9 +5439,10 @@ func TestCommandPaletteKeyboardAndDisabledActions(t *testing.T) {
 	if !tt.Focused("Find command") {
 		t.Fatal("palette search did not take focus")
 	}
-	tt.Type("Layout:")
+	tt.Type("Layout: Stacked")
+	// Down and back up exercise navigation without leaving the top hit.
 	tt.Key(0, ui.KeyDown)
-	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyUp)
 	tt.Key(0, ui.KeyEnter)
 	if tt.HasText("Find command") {
 		t.Fatal("executing a command did not close the palette")
