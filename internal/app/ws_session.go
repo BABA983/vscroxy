@@ -54,7 +54,7 @@ type wsSessionEvent struct {
 func openWSSession(proxy string, req *request.Prepared, ca []byte, certificates certs.Settings, jar http.CookieJar, notify func()) *wsSession {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &wsSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), notify: notify}
-	go func() {
+	go guarded(func() {
 		defer close(s.done)
 		c, err := request.DialWebSocket(ctx, proxy, req, ca, certificates, jar)
 		if err != nil {
@@ -84,7 +84,7 @@ func openWSSession(proxy string, req *request.Prepared, ca []byte, certificates 
 			}
 			s.add(wsSessionEvent{Direction: "In", Kind: kind, Data: data, Size: len(data)})
 		}
-	}()
+	})
 	return s
 }
 
@@ -201,12 +201,12 @@ func (s *wsSession) disconnect() {
 	s.state = "Disconnecting"
 	c := s.conn
 	s.mu.Unlock()
-	go func() {
+	go guarded(func() {
 		if c != nil {
 			_ = c.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(time.Second))
 		}
 		s.cancel()
-	}()
+	})
 }
 
 func (s *wsSession) snapshot() (string, []wsSessionEvent, int) {

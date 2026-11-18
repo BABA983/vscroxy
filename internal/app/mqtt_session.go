@@ -568,7 +568,7 @@ func (s *mqttSession) publish(msg request.MQTTPublish, name string) {
 	conn := s.conn
 	s.mu.Unlock()
 	s.changed()
-	go func() {
+	go guarded(func() {
 		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 		defer cancel()
 		err := conn.Publish(ctx, msg)
@@ -584,7 +584,7 @@ func (s *mqttSession) publish(msg request.MQTTPublish, name string) {
 		}
 		s.mu.Unlock()
 		s.changed()
-	}()
+	})
 }
 
 func (s *mqttSession) subscribe(subs []request.MQTTSubscription) {
@@ -597,7 +597,7 @@ func (s *mqttSession) subscribe(subs []request.MQTTSubscription) {
 	conn := s.conn
 	s.mu.Unlock()
 	s.changed()
-	go func() {
+	go guarded(func() {
 		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 		defer cancel()
 		grants, err := conn.Subscribe(ctx, subs)
@@ -617,7 +617,7 @@ func (s *mqttSession) subscribe(subs []request.MQTTSubscription) {
 		}
 		s.mu.Unlock()
 		s.changed()
-	}()
+	})
 }
 
 func (s *mqttSession) unsubscribe(topics []string) {
@@ -633,7 +633,7 @@ func (s *mqttSession) unsubscribe(topics []string) {
 	conn := s.conn
 	s.mu.Unlock()
 	s.changed()
-	go func() {
+	go guarded(func() {
 		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 		defer cancel()
 		err := conn.Unsubscribe(ctx, topics)
@@ -652,7 +652,7 @@ func (s *mqttSession) unsubscribe(topics []string) {
 		}
 		s.mu.Unlock()
 		s.changed()
-	}()
+	})
 }
 
 func (s *mqttSession) unsubscribeAll() {

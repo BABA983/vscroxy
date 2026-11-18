@@ -320,6 +320,10 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 		if path == "" {
 			return nil, fmt.Errorf("choose a binary body file")
 		}
+		path, err := localRequestPath(path, "binary body file")
+		if err != nil {
+			return nil, err
+		}
 		info, err := os.Stat(path)
 		if err != nil {
 			return nil, fmt.Errorf("binary body file: %w", err)
@@ -363,11 +367,15 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 				}
 				values.Add(name, value)
 			} else if field.File {
-				info, err := os.Stat(value)
+				path, err := localRequestPath(value, "form file")
+				if err != nil {
+					return nil, err
+				}
+				info, err := os.Stat(path)
 				if err != nil || !info.Mode().IsRegular() || info.Size() > 16<<20 {
 					return nil, fmt.Errorf("form files must be regular files up to 16 MiB")
 				}
-				file, err := os.Open(value)
+				file, err := os.Open(path)
 				if err != nil {
 					return nil, fmt.Errorf("open form file: %w", err)
 				}

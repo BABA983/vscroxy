@@ -158,7 +158,7 @@ func (a *app) runReplay(ctx context.Context, flows []flow, settings replaySettin
 	var workers sync.WaitGroup
 	for range settings.concurrency {
 		workers.Add(1)
-		go func() {
+		go guarded(func() {
 			defer workers.Done()
 			for f := range jobs {
 				if ctx.Err() != nil {
@@ -181,7 +181,7 @@ func (a *app) runReplay(ctx context.Context, flows []flow, settings replaySettin
 				}
 				a.invalidate()
 			}
-		}()
+		})
 	}
 	next := time.Now()
 scheduler:

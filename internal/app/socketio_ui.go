@@ -270,10 +270,10 @@ func (a *app) emitSocketIOSaved(d *requestDocument) {
 	messages := slices.Clone(d.socketIOConfig.Messages)
 	u.problem = ""
 	session := u.session
-	go func() {
+	go guarded(func() {
 		_ = session.emitAll(messages) // the session shows a failure in its problem
 		a.invalidate()
-	}()
+	})
 }
 
 // socketIOSavedEditor is the Saved tab: the request's emit list, which the

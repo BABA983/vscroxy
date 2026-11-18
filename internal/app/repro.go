@@ -25,7 +25,7 @@ func (a *app) exportReproBundle(item *savedSession) {
 		a.fail(locales.ExportReproBundle(), err)
 		return
 	}
-	go func() {
+	go guarded(func() {
 		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
 			Title: locales.ExportReproBundle(), DefaultPath: "vscroxy-repro.json",
 			Filters: []mygo.FileFilter{{Name: "Repro bundle", Extensions: []string{"json"}}},
@@ -42,7 +42,7 @@ func (a *app) exportReproBundle(item *savedSession) {
 			return
 		}
 		a.done(locales.ReproBundleSavedTo(path))
-	}()
+	})
 }
 
 // buildReproBundle redacts one saved session and embeds a runnable collection.

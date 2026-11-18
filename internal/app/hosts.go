@@ -128,11 +128,11 @@ func (a *app) loadHosts() {
 	a.refreshStaleProfiles()
 	if a.win != nil && !h.ticking {
 		h.ticking = true
-		go func() {
+		go guarded(func() {
 			for range time.Tick(10 * time.Minute) {
 				a.win.Update(a.refreshStaleProfiles)
 			}
-		}()
+		})
 	}
 }
 
@@ -400,12 +400,12 @@ func (a *app) refreshProfile(i int) {
 	}
 	h.fetching[p.Name] = true
 	results := h.results
-	go func() {
+	go guarded(func() {
 		text, err := hosts.Fetch(context.Background(), p.URL)
 		results <- hostsFetch{name: p.Name, url: p.URL, text: text, at: time.Now(), err: err}
 		a.invalidate()
 		a.invalidateTools()
-	}()
+	})
 }
 
 // refreshStaleProfiles fetches the subscriptions older than an hour.

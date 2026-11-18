@@ -182,7 +182,7 @@ func (a *app) exportDocs(path, description string, entries []docsEntry, format s
 	if base := filepath.Base(path); base != "." && base != "/" && base != "" {
 		name = base + "." + format
 	}
-	go func() {
+	go guarded(func() {
 		target, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: title, DefaultPath: name})
 		if err != nil {
 			a.fail(title, err)
@@ -196,7 +196,7 @@ func (a *app) exportDocs(path, description string, entries []docsEntry, format s
 			return
 		}
 		a.done(locales.DocumentationSavedTo(target))
-	}()
+	})
 }
 
 // docsLevel names what a documentation path is.

@@ -650,7 +650,7 @@ func (a *app) generateAPI(collection string) {
 }
 
 func (a *app) importOpenAPI() {
-	go func() {
+	go guarded(func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.ImportOpenapi2(), Filters: []mygo.FileFilter{{Name: "OpenAPI", Extensions: []string{"json", "yaml", "yml"}}}})
 		if err != nil {
 			a.fail(locales.ImportOpenapi2(), err)
@@ -672,7 +672,7 @@ func (a *app) importOpenAPI() {
 			a.addAPI(apiSpec{Source: string(data), Path: paths[0]}, false)
 			a.page = pageAPI
 		})
-	}()
+	})
 }
 
 func (a *app) exportOpenAPI(d *apiDocument) {
@@ -684,7 +684,7 @@ func (a *app) exportOpenAPI(d *apiDocument) {
 	if jsontext.Value(source).IsValid() {
 		ext = "json"
 	}
-	go func() {
+	go guarded(func() {
 		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: locales.ExportOpenapi(), DefaultPath: "openapi." + ext, Filters: []mygo.FileFilter{{Name: "OpenAPI", Extensions: []string{ext}}}})
 		if err != nil {
 			a.fail(locales.ExportOpenapi(), err)
@@ -698,5 +698,5 @@ func (a *app) exportOpenAPI(d *apiDocument) {
 			return
 		}
 		a.done(locales.ExportedOpenapiTo(path))
-	}()
+	})
 }

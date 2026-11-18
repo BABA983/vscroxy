@@ -82,14 +82,14 @@ func (p *protoInspector) inspect(c *ui.Context, a *app, key string, read func(co
 		ctx, cancel := context.WithCancel(context.Background())
 		answers := make(chan protoResult, 1)
 		p.cancel, p.answers = cancel, answers
-		go func() {
+		go guarded(func() {
 			result := read(ctx)
 			select {
 			case answers <- result:
 				a.invalidate()
 			case <-ctx.Done():
 			}
-		}()
+		})
 	}
 	if p.answers != nil {
 		// The worker asks for a frame when it has the answer, but that needs a
@@ -278,7 +278,7 @@ func (p *protoInspector) loadSchema(a *app) {
 			roots = append(roots, root)
 		}
 	}
-	go func() {
+	go guarded(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		schema, data, err := importProtoSchema(ctx, source, roots)
@@ -299,7 +299,7 @@ func (p *protoInspector) loadSchema(a *app) {
 		}
 		answers <- protoImportResult{schema: schema, err: err}
 		a.invalidate()
-	}()
+	})
 }
 
 func (p *protoInspector) modal(c *ui.Context, a *app) {
@@ -333,12 +333,12 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 					uikit.Input(c, &p.source).Label(locales.SchemaFile()).Placeholder("/path/to/service.proto or descriptors.pb").Grow(1).MinWidth(0)
 					if uikit.SecondaryButton(c, locales.Browse()).Disabled(p.loading).Clicked() && a.win != nil {
-						go func() {
+						go guarded(func() {
 							paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.ImportProtobufSchema(), Filters: []mygo.FileFilter{{Name: "Protobuf", Extensions: []string{"proto", "pb", "protoset", "desc"}}}})
 							if err == nil && len(paths) > 0 {
 								a.win.Update(func() { p.source = paths[0] })
 							}
-						}()
+						})
 					}
 				})
 				uikit.Hint(c, locales.IncludeRootsOptionalOnePer())

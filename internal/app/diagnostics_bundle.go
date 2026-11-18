@@ -232,7 +232,7 @@ func tailFile(path string, limit int64) ([]byte, error) {
 // chooseDiagnosticsExport asks where to save the bundle and writes it.
 func (a *app) chooseDiagnosticsExport(t *ui.Theme, target *url.URL) {
 	win := a.win
-	go func() {
+	go guarded(func() {
 		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
 			Title:       locales.ExportDiagnostics(),
 			DefaultPath: "vscroxy-diagnostics-" + time.Now().Format("20060102-150405") + ".zip",
@@ -256,5 +256,5 @@ func (a *app) chooseDiagnosticsExport(t *ui.Theme, target *url.URL) {
 			}
 			a.done(locales.DiagnosticsBundleSaved(filepath.Base(path)))
 		})
-	}()
+	})
 }

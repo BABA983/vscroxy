@@ -105,7 +105,7 @@ func socketIOMessageText(m request.SocketIOMessage) (string, string) {
 func openSocketIOSession(proxy string, ca []byte, certificates certs.Settings, jar http.CookieJar, input request.Request, scope request.Context, vars map[string]string, req *request.Prepared, cfg request.SocketIOConfig, notify func()) *socketIOSession {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &socketIOSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), notify: notify, owed: map[uint64]bool{}, input: input, scope: scope, vars: maps.Clone(vars)}
-	go func() {
+	go guarded(func() {
 		defer close(s.done)
 		defer cancel()
 		conn, err := request.DialSocketIO(ctx, proxy, req, cfg, ca, certificates, jar)
@@ -146,7 +146,7 @@ func openSocketIOSession(proxy string, ca []byte, certificates certs.Settings, j
 		s.append("System", s.state, s.problem)
 		s.mu.Unlock()
 		s.changed()
-	}()
+	})
 	return s
 }
 
@@ -170,7 +170,7 @@ func (s *socketIOSession) send(event, args string, attachments [][]byte, wantACK
 	conn := s.conn
 	s.mu.Unlock()
 	s.changed()
-	go func() {
+	go guarded(func() {
 		m := request.SocketIOMessage{Event: event, Args: jsontext.Value(args), Attachments: attachments, IsACK: ack != nil, ACKID: ack}
 		var err error
 		if ack != nil {
@@ -198,7 +198,7 @@ func (s *socketIOSession) send(event, args string, attachments [][]byte, wantACK
 		}
 		s.mu.Unlock()
 		s.changed()
-	}()
+	})
 }
 
 // emitAll sends saved messages in order on the connection's original endpoint

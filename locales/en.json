@@ -7681,5 +7681,6 @@
   "noParameters": "No parameters",
   "noRequestBody": "No request body",
   "noResponses": "No responses",
-  "environmentName": "Environment name"
+  "environmentName": "Environment name",
+  "unexpectedBackgroundError": "Unexpected error in a background task"
 }

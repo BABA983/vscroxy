@@ -36199,3 +36199,13 @@ func EnvironmentName() string { return In(i18n.Locale()).EnvironmentName() }
 func (msgs Messages) EnvironmentName() string {
 	return Catalog.Format(msgs.locale, "environmentName", nil)
 }
+
+// UnexpectedBackgroundError says "Unexpected error in a background task"
+// in the language the app shows.
+func UnexpectedBackgroundError() string { return In(i18n.Locale()).UnexpectedBackgroundError() }
+
+// UnexpectedBackgroundError says "Unexpected error in a background task"
+// in the language of msgs.
+func (msgs Messages) UnexpectedBackgroundError() string {
+	return Catalog.Format(msgs.locale, "unexpectedBackgroundError", nil)
+}

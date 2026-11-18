@@ -407,12 +407,12 @@ func (a *app) stopMCPDocument(u *mcpDocument) {
 	}
 	a.mcpClosing[s] = struct{}{}
 	a.mcpClosingMu.Unlock()
-	go func() {
+	go guarded(func() {
 		s.closeNow(mcpCloseTimeout)
 		a.mcpClosingMu.Lock()
 		delete(a.mcpClosing, s)
 		a.mcpClosingMu.Unlock()
-	}()
+	})
 }
 
 func (a *app) closingMCPSessions() []*mcpSession {

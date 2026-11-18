@@ -213,11 +213,13 @@ func (a *app) selectSession(key string) {
 		return
 	}
 	item.loading, item.loadDone = true, make(chan sessionLoad, 1)
-	go func(path string, done chan sessionLoad) {
-		file, err := readSessionFile(path)
-		done <- sessionLoad{file, err}
-		a.invalidate()
-	}(item.path, item.loadDone)
+	go guarded(func() {
+		func(path string, done chan sessionLoad) {
+			file, err := readSessionFile(path)
+			done <- sessionLoad{file, err}
+			a.invalidate()
+		}(item.path, item.loadDone)
+	})
 }
 
 // checkpointSessions takes finished loads and saves on the UI thread.

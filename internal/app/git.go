@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,8 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/baba983/vscroxy/internal/system"
 )
 
 // The project folder is where collections live for Git collaboration. This
@@ -53,7 +56,7 @@ type gitWorkingTree struct {
 // gitCommand runs git in dir. stdout receives the output; stderr becomes the
 // error, because git's own explanation is what a user needs.
 func gitCommand(dir string, stdout io.Writer, args ...string) error {
-	git, err := exec.LookPath("git")
+	git, err := system.LookPath(context.Background(), "git")
 	if err != nil {
 		return errGitMissing
 	}
@@ -74,11 +77,11 @@ func gitCommand(dir string, stdout io.Writer, args ...string) error {
 	return nil
 }
 
-// gitEnvironment is os.Environ without every GIT_* variable, plus the
-// settings the panel always wants. A Git panel must not inherit another
-// repository's GIT_DIR or index.
+// gitEnvironment is the inherited and login-shell environment without every
+// GIT_* variable, plus the settings the panel always wants. A Git panel must
+// not inherit another repository's GIT_DIR or index.
 func gitEnvironment() []string {
-	env := slices.DeleteFunc(os.Environ(), func(variable string) bool {
+	env := slices.DeleteFunc(system.ShellEnv(context.Background()), func(variable string) bool {
 		return strings.HasPrefix(strings.ToUpper(variable), "GIT_")
 	})
 	return append(env, "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "LC_ALL=C")
@@ -96,7 +99,7 @@ func gitOutput(dir string, args ...string) (string, error) {
 // gitStatus reads the repository root, the current branch and the changed
 // paths of the project folder.
 func gitStatus(dir string) (gitWorkingTree, error) {
-	if _, err := exec.LookPath("git"); err != nil {
+	if _, err := system.LookPath(context.Background(), "git"); err != nil {
 		return gitWorkingTree{}, errGitMissing
 	}
 	root, err := gitOutput(dir, "rev-parse", "--show-toplevel")

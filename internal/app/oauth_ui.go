@@ -236,7 +236,7 @@ func (a *app) refreshSavedToken(key string) {
 		refresh()
 		return
 	}
-	go func() { defer cancel(); refresh() }()
+	go guarded(func() { defer cancel(); refresh() })
 }
 
 func (a *app) deleteSavedToken(key string) {
@@ -260,7 +260,7 @@ func (a *app) newAccessToken(in request.Context, cfg request.OAuth2) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	*s = oauthState{key: cfg.Key(), busy: true, cancel: cancel}
 	srv, tokens := a.srv, in.Tokens
-	go func() {
+	go guarded(func() {
 		defer cancel()
 		_, err := tokens.New(ctx, cfg, request.ProxySender(ctx, srv), mygo.Shell.OpenExternal)
 		a.win.Update(func() {
@@ -274,5 +274,5 @@ func (a *app) newAccessToken(in request.Context, cfg request.OAuth2) {
 			}
 			a.done(locales.NewAccessToken(cfg.TokenURL))
 		})
-	}()
+	})
 }

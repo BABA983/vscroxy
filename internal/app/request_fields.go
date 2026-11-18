@@ -712,7 +712,7 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 			a.variableInput(c, "body-file", &d.bodyFile, locales.BinaryBodyFile(), d.composeCollection).Placeholder(locales.LocalPathOrUploadPath()).Font(uikit.FontMono).Grow(1).MinWidth(uikit.WidthNarrow)
 			if uikit.SecondaryButton(c, locales.ChooseFile()).Label(locales.ChooseBinaryBodyFile()).Clicked() && a.win != nil {
 				win, before := a.win, d.bodyFile
-				go func() {
+				go guarded(func() {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.ChooseBinaryBodyFile()})
 					win.Update(func() {
 						if err != nil {
@@ -721,7 +721,7 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 							d.bodyFile = paths[0]
 						}
 					})
-				}()
+				})
 			}
 		})
 		uikit.Hint(c, locales.OnlyThePathIsSaved())
@@ -732,12 +732,12 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 				ui.Icon(c, fileInputIcon).Size(uikit.IconInline, uikit.IconInline)
 				uikit.Body(c, locales.AttachFile())
 			}).Clicked() && a.win != nil {
-				go func() {
+				go guarded(func() {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.AttachRequestFile()})
 					if err == nil && len(paths) > 0 {
 						a.win.Update(func() { d.formFields = append(d.formFields, request.Field{Name: "file", Value: paths[0], File: true}) })
 					}
-				}()
+				})
 			}
 		})
 	}

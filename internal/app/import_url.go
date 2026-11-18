@@ -55,7 +55,7 @@ func (a *app) urlImportModal(c *ui.Context, t *ui.Theme) {
 func (a *app) fetchImportURL() {
 	raw := strings.TrimSpace(a.urlImportText)
 	a.urlImportBusy, a.urlImportProblem = true, ""
-	go func() {
+	go guarded(func() {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.Proxy = nil // Never loop back through vscroxy's own proxy.
 		data, name, err := downloadImportURL(&http.Client{Timeout: 30 * time.Second, Transport: transport}, raw)
@@ -67,7 +67,7 @@ func (a *app) fetchImportURL() {
 			a.urlImportOpen, a.urlImportBusy = false, false
 			a.importData(data, name)
 		})
-	}()
+	})
 }
 
 // downloadImportURL fetches one import document. It refuses a non-HTTP URL, a

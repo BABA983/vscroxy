@@ -3677,5 +3677,6 @@
   "noParameters": "没有参数",
   "noRequestBody": "没有请求体",
   "noResponses": "没有响应",
-  "environmentName": "环境名称"
+  "environmentName": "环境名称",
+  "unexpectedBackgroundError": "后台任务发生意外错误"
 }

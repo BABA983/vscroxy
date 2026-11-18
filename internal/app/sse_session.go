@@ -40,7 +40,7 @@ type sseSessionEvent struct {
 func openSSESession(proxy string, req *request.Prepared, ca []byte, certificates certs.Settings, jar http.CookieJar, reconnect bool, notify func()) *sseSession {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &sseSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), notify: notify}
-	go func() {
+	go guarded(func() {
 		defer close(s.done)
 		defer cancel()
 		err := request.ReceiveSSE(ctx, proxy, req, ca, certificates, jar, reconnect, func(u request.SSEUpdate) {
@@ -82,7 +82,7 @@ func openSSESession(proxy string, req *request.Prepared, ca []byte, certificates
 		}
 		s.mu.Unlock()
 		s.changed()
-	}()
+	})
 	return s
 }
 

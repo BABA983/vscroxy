@@ -764,7 +764,7 @@ func (v *captureViews) startSearch(a *app, query string, jobs []bodyJob) {
 	slots := v.slots()
 	var next atomic.Int64
 	for range min(len(jobs), bodyWorkers) {
-		go func() {
+		go guarded(func() {
 			for {
 				i := int(next.Add(1)) - 1
 				if i >= len(jobs) || s.ctx.Err() != nil {
@@ -782,7 +782,7 @@ func (v *captureViews) startSearch(a *app, query string, jobs []bodyJob) {
 				}
 				s.report(result)
 			}
-		}()
+		})
 	}
 }
 

@@ -14,7 +14,6 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
-	"os"
 	"os/exec"
 	"slices"
 	"strings"
@@ -22,6 +21,7 @@ import (
 	"sync/atomic"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/system"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -145,9 +145,13 @@ func DialMCP(ctx context.Context, plan MCPPlan, handlers MCPHandlers) (*MCPClien
 	var stdio *mcpStdioTransport
 	switch plan.Transport {
 	case MCPTransportStdio:
-		cmd := exec.Command(plan.Command, plan.Args...)
+		bin, err := system.LookPath(ctx, plan.Command)
+		if err != nil {
+			return nil, fmt.Errorf("stdio command %q: %w", plan.Command, err)
+		}
+		cmd := exec.Command(bin, plan.Args...)
 		cmd.Dir = plan.WorkingDir
-		cmd.Env = mcpEnvironment(plan.Env)
+		cmd.Env = mcpEnvironment(ctx, plan.Env)
 		if handlers.Stderr != nil {
 			cmd.Stderr = &mcpLineWriter{fn: handlers.Stderr}
 		}
@@ -534,14 +538,16 @@ func mcpTransportHeader(name string) bool {
 	return false
 }
 
-// mcpEnvironment merges the document's variables over this process's
-// environment, so PATH and other ordinary settings keep working.
-func mcpEnvironment(extra []string) []string {
+// mcpEnvironment merges the document's variables over the environment this
+// process inherited and the login shell's PATH, so a stdio server installed by
+// Homebrew, nvm or asdf starts without a terminal launch.
+func mcpEnvironment(ctx context.Context, extra []string) []string {
+	base := system.ShellEnv(ctx)
 	if len(extra) == 0 {
-		return nil
+		return base
 	}
 	values := map[string]string{}
-	for _, entry := range os.Environ() {
+	for _, entry := range base {
 		if name, value, ok := strings.Cut(entry, "="); ok {
 			values[name] = value
 		}

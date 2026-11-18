@@ -374,7 +374,7 @@ func (a *app) browseRuleFile(folder bool) {
 	if folder {
 		title = locales.ChooseResponseFolder()
 	}
-	go func() {
+	go guarded(func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: title, Directory: folder})
 		if err != nil {
 			a.fail(locales.ChooseResponse(), err)
@@ -383,7 +383,7 @@ func (a *app) browseRuleFile(folder bool) {
 		if len(paths) > 0 {
 			a.win.Update(func() { a.ruleUI.draft.Target = paths[0] })
 		}
-	}()
+	})
 }
 
 func (a *app) selectRuleScenario(name string) {

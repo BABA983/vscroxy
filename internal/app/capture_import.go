@@ -20,7 +20,7 @@ import (
 // archive and appends its exchanges to the capture table, the way Import HAR
 // does. Native Charles .chls is refused with a conversion hint.
 func (a *app) importCaptureSession() {
-	go func() {
+	go guarded(func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Title: locales.ImportCaptureSession2(),
 			Filters: []mygo.FileFilter{{
@@ -32,13 +32,13 @@ func (a *app) importCaptureSession() {
 			return
 		}
 		a.importCaptureFile(paths[0])
-	}()
+	})
 }
 
 // importCaptureFolder reads the older Proxyman log, a directory rather than a
 // single archive.
 func (a *app) importCaptureFolder() {
-	go func() {
+	go guarded(func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Title:       locales.ImportProxymanLogFolder2(),
 			ButtonLabel: "Import",
@@ -48,13 +48,13 @@ func (a *app) importCaptureFolder() {
 			return
 		}
 		a.importCaptureDir(paths[0])
-	}()
+	})
 }
 
 // importCharlesSettings reads a Charles settings export (Tools → Import/Export
 // Settings) and maps its rules, SSL proxying and No Caching onto this app.
 func (a *app) importCharlesSettings() {
-	go func() {
+	go guarded(func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Title: locales.ImportCharlesSettings2(),
 			Filters: []mygo.FileFilter{{
@@ -66,7 +66,7 @@ func (a *app) importCharlesSettings() {
 			return
 		}
 		a.importCharlesSettingsFile(paths[0])
-	}()
+	})
 }
 
 func (a *app) importCharlesSettingsFile(path string) {
@@ -126,7 +126,7 @@ func (a *app) importDropped(paths []string) {
 	if len(paths) == 0 {
 		return
 	}
-	go func() {
+	go guarded(func() {
 		path := paths[0]
 		info, err := os.Lstat(path)
 		if err != nil {
@@ -160,7 +160,7 @@ func (a *app) importDropped(paths []string) {
 		default:
 			a.warn(locales.ImportUnsupportedFileTypeDrop())
 		}
-	}()
+	})
 }
 
 type droppedKind int
