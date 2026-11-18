@@ -92,9 +92,10 @@ func (a *app) unicodeMarker(c *ui.Context, key, raw string, masked bool) bool {
 	return true
 }
 
-// unicodeTip uses the kit's tooltip face, with the Reveal view in a distinct
-// warning-coloured mono role so its code point escapes cannot be mistaken for
-// part of the value. A masked value gets only code points, kinds and positions.
+// unicodeTip uses the kit's tooltip face. Unmasked values show a RichText
+// reveal view whose flagged runes are warning-tinted chips, with no bracket
+// glyphs that could be mistaken for parentheses in the value. A masked value
+// gets only code points, kinds and positions.
 func (a *app) unicodeTip(c *ui.Context, marker ui.Element, raw string, highlights []unicodechars.Highlight, masked bool) {
 	t := c.Theme()
 	details := unicodeTipDetails(raw, highlights, masked)
@@ -108,7 +109,9 @@ func (a *app) unicodeTip(c *ui.Context, marker ui.Element, raw string, highlight
 				if !masked {
 					ui.Row(c).Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Children(func() {
 						uikit.Small(c, locales.Reveal())
-						uikit.Mono(c, unicodechars.Reveal(raw)).TextColor(t.Warning).Shrink(1)
+						ui.RichText(c, unicodeRevealSpans(raw, highlights, t)...).
+							Label(unicodechars.Reveal(raw)).
+							LineHeight(uikit.LineSmall).Shrink(1).MinWidth(0)
 					})
 				}
 			})
@@ -119,6 +122,39 @@ func (a *app) unicodeTip(c *ui.Context, marker ui.Element, raw string, highlight
 		description += ". " + locales.Reveal() + " " + unicodechars.Reveal(raw)
 	}
 	marker.Description(description)
+}
+
+// unicodeRevealSpans keeps the value's own bytes visible and replaces each
+// flagged code point with a small chip labelled only U+XXXX. No bracket glyph
+// is drawn, so a chip cannot be mistaken for parentheses in the value.
+func unicodeRevealSpans(raw string, highlights []unicodechars.Highlight, t *ui.Theme) []ui.Span {
+	plain := func(text string) ui.Span {
+		return ui.Span{Text: text, Font: uikit.FontMono, Size: uikit.Scaled(uikit.TextSmall), Color: t.Text}
+	}
+	spans := make([]ui.Span, 0, len(highlights)*2+1)
+	at := 0
+	for _, highlight := range highlights {
+		if highlight.Start > at {
+			spans = append(spans, plain(raw[at:highlight.Start]))
+		}
+		chip := make([]byte, 0, 10)
+		chip = fmt.Appendf(chip, "%c+%04X", 'U', highlight.CodePoint)
+		spans = append(spans, ui.Span{
+			Text:       string(chip),
+			Font:       uikit.FontMono,
+			Size:       uikit.Scaled(uikit.TextMeta),
+			Color:      t.Warning,
+			Background: t.Warning.Alpha(0.14),
+			Radius:     uikit.RadiusInner,
+			PaddingX:   uikit.Scaled(4),
+			PaddingY:   uikit.Scaled(2),
+		})
+		at = highlight.End
+	}
+	if at < len(raw) {
+		spans = append(spans, plain(raw[at:]))
+	}
+	return spans
 }
 
 func unicodeTipDetails(raw string, highlights []unicodechars.Highlight, masked bool) []string {

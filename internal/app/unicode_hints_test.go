@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/internal/unicodechars"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -72,6 +74,36 @@ func TestUnicodeHintsFlagCapturedHeaderWithoutChangingIt(t *testing.T) {
 	plainTester.Frame()
 	if unicodeMarkerShown(plainTester) {
 		t.Fatalf("an ordinary header was flagged: %q", plainTester.Texts())
+	}
+}
+
+func TestUnicodeRevealSpansUseBracketlessChips(t *testing.T) {
+	raw := "Bearer (ab\u200bcd)"
+	highlights := unicodechars.ComputeUnicodeHighlights(raw, unicodechars.UnicodeHighlighterOptions{
+		AmbiguousCharacters: true,
+		InvisibleCharacters: true,
+	})
+	if len(highlights) != 1 {
+		t.Fatalf("expected one flagged rune, got %v", highlights)
+	}
+	theme := uikit.Theme(false)
+	spans := unicodeRevealSpans(raw, highlights, theme)
+	if len(spans) != 3 {
+		t.Fatalf("expected two plain runs and a chip, got %d spans", len(spans))
+	}
+	var shown strings.Builder
+	for _, span := range spans {
+		if strings.ContainsAny(span.Text, "⟨⟩") {
+			t.Fatalf("a reveal span drew a bracket glyph: %q", span.Text)
+		}
+		shown.WriteString(span.Text)
+	}
+	if shown.String() != "Bearer (abU+200Bcd)" {
+		t.Fatalf("visible reveal text = %q", shown.String())
+	}
+	chip := spans[1]
+	if chip.Text != "U+200B" || chip.Color != theme.Warning || chip.Background == (ui.Color{}) || chip.Size >= spans[0].Size {
+		t.Fatalf("chip is not a small warning-tinted span: %+v", chip)
 	}
 }
 
@@ -161,9 +193,13 @@ func TestUnicodeHintScreenshots(t *testing.T) {
 		a.flows[0].respHeader = http.Header{"Authorization": {"Bearer ab\u200bcd-secret"}}
 		a.inspect.ready, a.inspect.tab[1] = true, resViewHeaders
 	}
-	unmaskedHeader := func(a *app) {
-		a.flows[0].respHeader = http.Header{"X-Note": {"Bearer ab\u200bcd"}}
-		a.inspect.ready, a.inspect.tab[1] = true, resViewHeaders
+	revealedValue := "Bearer (ab\u200bcd)"
+	unmaskedHeader := func(appearance string) func(*app) {
+		return func(a *app) {
+			a.appearance = appearance
+			a.flows[0].respHeader = http.Header{"X-Note": {revealedValue}}
+			a.inspect.ready, a.inspect.tab[1] = true, resViewHeaders
+		}
 	}
 	flaggedHost := func(a *app) {
 		openDraft(a, a.flows[0])
@@ -195,10 +231,19 @@ func TestUnicodeHintScreenshots(t *testing.T) {
 				t.Fatalf("the host tip did not name the confusable: %q", tt.Texts())
 			}
 		}},
-		{"revealed-view", unmaskedHeader, func(t *testing.T, tt *ui.Tester) {
+		{"revealed-light", unmaskedHeader("light"), func(t *testing.T, tt *ui.Tester) {
 			hoverUnicodeMarker(t, tt)
-			if !tt.HasText("U+200B") || !tt.HasText("⟨U+200B⟩") {
-				t.Fatalf("the revealed tip did not name the code point: %q", tt.Texts())
+			if _, ok := tt.Find(unicodechars.Reveal(revealedValue)); !ok {
+				t.Fatalf("the reveal label does not equal Reveal: %q", tt.Texts())
+			}
+			if !tt.HasText("(ab") || !tt.HasText("cd)") {
+				t.Fatalf("the literal parentheses were lost: %q", tt.Texts())
+			}
+		}},
+		{"revealed-dark", unmaskedHeader("dark"), func(t *testing.T, tt *ui.Tester) {
+			hoverUnicodeMarker(t, tt)
+			if _, ok := tt.Find(unicodechars.Reveal(revealedValue)); !ok {
+				t.Fatalf("the reveal label does not equal Reveal: %q", tt.Texts())
 			}
 		}},
 		{"query-keys", queryKeys, func(t *testing.T, tt *ui.Tester) {
