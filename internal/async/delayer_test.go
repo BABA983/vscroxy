@@ -1,0 +1,243 @@
+package async
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sync/atomic"
+	"testing"
+	"time"
+)
+
+// Port of async.test.ts: Delayer > simple. All triggers settle with the result
+// of the last task, as in VS Code.
+func TestDelayerSimple(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewDelayer[int](time.Millisecond, WithClock(clock))
+	var calls atomic.Int32
+	factory := func(context.Context) (int, error) { return int(calls.Add(1)), nil }
+
+	if delayer.IsTriggered() {
+		t.Fatal("fresh delayer is triggered")
+	}
+	first := delayer.Trigger(t.Context(), factory)
+	second := delayer.Trigger(t.Context(), factory)
+	third := delayer.Trigger(t.Context(), factory)
+	if !delayer.IsTriggered() {
+		t.Fatal("delayer should be triggered")
+	}
+
+	clock.Advance(time.Millisecond)
+	assertValue(t, takeResult(t, first), 1)
+	assertValue(t, takeResult(t, second), 1)
+	assertValue(t, takeResult(t, third), 1)
+	if delayer.IsTriggered() || calls.Load() != 1 {
+		t.Fatalf("triggered=%v calls=%d", delayer.IsTriggered(), calls.Load())
+	}
+}
+
+// Port of Delayer > last task should be the one getting called.
+func TestDelayerLastTaskWins(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewDelayer[int](0, WithClock(clock))
+	trigger := func(n int) <-chan Result[int] {
+		return delayer.Trigger(t.Context(), func(context.Context) (int, error) { return n, nil })
+	}
+	a, b, c := trigger(1), trigger(2), trigger(3)
+	clock.Advance(0)
+	assertValue(t, takeResult(t, a), 3)
+	assertValue(t, takeResult(t, b), 3)
+	assertValue(t, takeResult(t, c), 3)
+}
+
+// Port of Delayer > simple cancel and cancel should cancel all calls to trigger.
+func TestDelayerCancelAllTriggers(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewDelayer[int](0, WithClock(clock))
+	var calls atomic.Int32
+	factory := func(context.Context) (int, error) { return int(calls.Add(1)), nil }
+	channels := []<-chan Result[int]{
+		delayer.Trigger(t.Context(), factory),
+		delayer.Trigger(t.Context(), factory),
+		delayer.Trigger(t.Context(), factory),
+	}
+	if !delayer.IsTriggered() {
+		t.Fatal("delayer should be triggered")
+	}
+	delayer.Cancel()
+	if delayer.IsTriggered() {
+		t.Fatal("delayer should not be triggered after cancel")
+	}
+	for _, ch := range channels {
+		assertCanceled(t, takeResult(t, ch).Err)
+	}
+	clock.Advance(time.Hour)
+	if calls.Load() != 0 {
+		t.Fatalf("canceled task ran %d times", calls.Load())
+	}
+}
+
+// Port of Delayer > trigger, cancel, then trigger again.
+func TestDelayerTriggerCancelTriggerAgain(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewDelayer[int](0, WithClock(clock))
+	var calls atomic.Int32
+	factory := func(context.Context) (int, error) { return int(calls.Add(1)), nil }
+
+	first := delayer.Trigger(t.Context(), factory)
+	clock.Advance(0)
+	assertValue(t, takeResult(t, first), 1)
+
+	canceled := []<-chan Result[int]{
+		delayer.Trigger(t.Context(), factory),
+		delayer.Trigger(t.Context(), factory),
+	}
+	delayer.Cancel()
+	for _, ch := range canceled {
+		assertCanceled(t, takeResult(t, ch).Err)
+	}
+
+	again := []<-chan Result[int]{
+		delayer.Trigger(t.Context(), factory),
+		delayer.Trigger(t.Context(), factory),
+	}
+	if !delayer.IsTriggered() {
+		t.Fatal("delayer should be triggered again")
+	}
+	clock.Advance(0)
+	for _, ch := range again {
+		assertValue(t, takeResult(t, ch), 2)
+	}
+	if delayer.IsTriggered() {
+		t.Fatal("delayer still triggered")
+	}
+}
+
+// Port of the cancel and dispose "releases the pending task" cases.
+func TestDelayerCancelAndDisposeReleasePendingTask(t *testing.T) {
+	for _, release := range []string{"cancel", "dispose"} {
+		t.Run(release, func(t *testing.T) {
+			clock := NewFakeClock()
+			delayer := NewDelayer[int](0, WithClock(clock))
+			var calls atomic.Int32
+			pending := delayer.Trigger(t.Context(), func(context.Context) (int, error) {
+				return int(calls.Add(1)), nil
+			})
+			if release == "cancel" {
+				delayer.Cancel()
+			} else {
+				delayer.Dispose()
+			}
+			assertCanceled(t, takeResult(t, pending).Err)
+			clock.Advance(0)
+			if calls.Load() != 0 {
+				t.Fatalf("pending task ran %d times", calls.Load())
+			}
+			// VS Code's Delayer.dispose is Cancel, so a later trigger still works.
+			again := delayer.Trigger(t.Context(), func(context.Context) (int, error) { return 42, nil })
+			clock.Advance(0)
+			assertValue(t, takeResult(t, again), 42)
+		})
+	}
+}
+
+// Flush is the shutdown-join addition. It runs a pending task now and settles
+// the channel already returned by Trigger.
+func TestDelayerFlush(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewDelayer[int](time.Hour, WithClock(clock))
+	if _, err := delayer.Flush(); !errors.Is(err, ErrNotTriggered) {
+		t.Fatalf("flush without trigger: %v", err)
+	}
+	triggered := delayer.Trigger(t.Context(), func(context.Context) (int, error) { return 7, nil })
+	value, err := delayer.Flush()
+	if err != nil || value != 7 {
+		t.Fatalf("flush = (%d, %v)", value, err)
+	}
+	assertValue(t, takeResult(t, triggered), 7)
+	if delayer.IsTriggered() {
+		t.Fatal("flush did not clear trigger")
+	}
+	clock.Advance(time.Hour) // the cancelled timer must not run the task again
+	if _, err := delayer.Flush(); !errors.Is(err, ErrNotTriggered) {
+		t.Fatalf("second flush: %v", err)
+	}
+}
+
+// Cancellation via ctx is the Go form of VS Code's CancellationToken.
+func TestDelayerContextCancellation(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewDelayer[int](time.Millisecond, WithClock(clock))
+	ctx, cancel := context.WithCancel(t.Context())
+	var calls atomic.Int32
+	triggered := delayer.Trigger(ctx, func(context.Context) (int, error) {
+		return int(calls.Add(1)), nil
+	})
+	cancel()
+	assertCanceled(t, takeResult(t, triggered).Err)
+	clock.Advance(time.Hour)
+	if calls.Load() != 0 || delayer.IsTriggered() {
+		t.Fatalf("calls=%d triggered=%v", calls.Load(), delayer.IsTriggered())
+	}
+}
+
+func TestDelayerRecoversPanic(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewDelayer[int](0, WithClock(clock))
+	triggered := delayer.Trigger(t.Context(), func(context.Context) (int, error) {
+		panic("delayer boom")
+	})
+	clock.Advance(0)
+	assertPanic(t, takeResult(t, triggered).Err, "delayer boom")
+	if _, err := delayer.Flush(); !errors.Is(err, ErrNotTriggered) {
+		t.Fatalf("flush after panic: %v", err)
+	}
+}
+
+// Port of ThrottledDelayer > promise should resolve if disposed and
+// trigger after dispose throws. Throws become an ErrDisposed settlement.
+func TestThrottledDelayerDispose(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewThrottledDelayer[int](time.Millisecond, WithClock(clock))
+	pending := delayer.Trigger(t.Context(), func(context.Context) (int, error) { return 1, nil })
+	delayer.Dispose()
+	assertCanceled(t, takeResult(t, pending).Err)
+
+	after := delayer.Trigger(t.Context(), func(context.Context) (int, error) { return 2, nil })
+	if !errors.Is(takeResult(t, after).Err, ErrDisposed) {
+		t.Fatal("trigger after dispose should fail")
+	}
+}
+
+// Port of ThrottledDelayer > cancel releases the pending task.
+func TestThrottledDelayerCancelReleasesPendingTask(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewThrottledDelayer[int](0, WithClock(clock))
+	var calls atomic.Int32
+	canceled := delayer.Trigger(t.Context(), func(context.Context) (int, error) {
+		return int(calls.Add(1)), nil
+	})
+	delayer.Cancel()
+	assertCanceled(t, takeResult(t, canceled).Err)
+	if delayer.IsTriggered() {
+		t.Fatal("delayer still triggered after cancel")
+	}
+
+	clock.Advance(0)
+	result := delayer.Trigger(t.Context(), func(context.Context) (int, error) { return 42, nil })
+	clock.Advance(0)
+	assertValue(t, takeResult(t, result), 42)
+	if calls.Load() != 0 {
+		t.Fatalf("canceled task ran %d times", calls.Load())
+	}
+}
+
+func TestThrottledDelayerPanic(t *testing.T) {
+	clock := NewFakeClock()
+	delayer := NewThrottledDelayer[int](0, WithClock(clock))
+	triggered := delayer.Trigger(t.Context(), func(context.Context) (int, error) {
+		panic(fmt.Errorf("throttled boom"))
+	})
+	clock.Advance(0)
+	assertPanic(t, takeResult(t, triggered).Err, "throttled boom")
+}
