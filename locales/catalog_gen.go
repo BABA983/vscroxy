@@ -8050,6 +8050,56 @@ func (msgs Messages) UnavailableForWhatIsShown() string {
 	return Catalog.Format(msgs.locale, "unavailableForWhatIsShown", nil)
 }
 
+// UnicodeAmbiguous says "ambiguous"
+// in the language the app shows.
+func UnicodeAmbiguous() string { return In(i18n.Locale()).UnicodeAmbiguous() }
+
+// UnicodeAmbiguous says "ambiguous"
+// in the language of msgs.
+func (msgs Messages) UnicodeAmbiguous() string {
+	return Catalog.Format(msgs.locale, "unicodeAmbiguous", nil)
+}
+
+// UnicodeAtCharacter says "at character {count}"
+// in the language the app shows.
+func UnicodeAtCharacter(count int) string { return In(i18n.Locale()).UnicodeAtCharacter(count) }
+
+// UnicodeAtCharacter says "at character {count}"
+// in the language of msgs.
+func (msgs Messages) UnicodeAtCharacter(count int) string {
+	return Catalog.Format(msgs.locale, "unicodeAtCharacter", map[string]any{"count": count})
+}
+
+// UnicodeHint says "character hint"
+// in the language the app shows.
+func UnicodeHint() string { return In(i18n.Locale()).UnicodeHint() }
+
+// UnicodeHint says "character hint"
+// in the language of msgs.
+func (msgs Messages) UnicodeHint() string {
+	return Catalog.Format(msgs.locale, "unicodeHint", nil)
+}
+
+// UnicodeInvisible says "invisible"
+// in the language the app shows.
+func UnicodeInvisible() string { return In(i18n.Locale()).UnicodeInvisible() }
+
+// UnicodeInvisible says "invisible"
+// in the language of msgs.
+func (msgs Messages) UnicodeInvisible() string {
+	return Catalog.Format(msgs.locale, "unicodeInvisible", nil)
+}
+
+// UnicodeNonBasicASCII says "non-basic ASCII"
+// in the language the app shows.
+func UnicodeNonBasicASCII() string { return In(i18n.Locale()).UnicodeNonBasicASCII() }
+
+// UnicodeNonBasicASCII says "non-basic ASCII"
+// in the language of msgs.
+func (msgs Messages) UnicodeNonBasicASCII() string {
+	return Catalog.Format(msgs.locale, "unicodeNonBasicASCII", nil)
+}
+
 // Unidentified says "unidentified"
 // in the language the app shows.
 func Unidentified() string { return In(i18n.Locale()).Unidentified() }

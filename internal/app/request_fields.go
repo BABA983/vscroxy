@@ -33,9 +33,15 @@ func (a *app) pathEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		for i := range d.pathRows {
 			r := &d.pathRows[i]
 			ui.Row(c.Key(fmt.Sprintf("path-row-%d", i))).Height(uikit.HeightRow).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-				uikit.DataBody(c, ":"+r.Name).Width(uikit.WidthNarrow).SingleLine()
+				ui.Row(c).Width(uikit.WidthNarrow).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
+					uikit.DataBody(c, ":"+r.Name).SingleLine().Shrink(1)
+					a.unicodeMarker(c, fmt.Sprintf("path-name-hint-%d", i), r.Name, false)
+				})
 				ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().Children(func() {
-					a.variableGridInput(c, fmt.Sprintf("path-value-%d", i), &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), d.composeCollection, false)
+					ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+						a.variableGridInput(c, fmt.Sprintf("path-value-%d", i), &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), d.composeCollection, false).Grow(1).MinWidth(0)
+						a.unicodeMarker(c, fmt.Sprintf("path-value-hint-%d", i), r.Value, false)
+					})
 				})
 			})
 		}
@@ -164,16 +170,19 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 						}
 					})
 					ui.Box(c).Basis(0).Grow(1).MinWidth(uikit.WidthNarrow).FillHeight().Children(func() {
-						field := a.variableGridInput(c, fmt.Sprintf("%s-key-%d", noun, i+1), &r.Name, locales.Key(), locales.KeyOfRow(noun, i+1), opts.collection, false)
-						cellBorder(t, field, false, false)
-						if values, ok := opts.filters[r.Name]; ok {
-							// The capture's own values are what a filter can
-							// search for, as the reader offers them.
-							field.PopoverMenu(a.headerFilterMenu(c, r.Name, values))
-						}
-						if field.Changed() {
-							changed = true
-						}
+						ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+							field := a.variableGridInput(c, fmt.Sprintf("%s-key-%d", noun, i+1), &r.Name, locales.Key(), locales.KeyOfRow(noun, i+1), opts.collection, false).Grow(1).MinWidth(0)
+							cellBorder(t, field, false, false)
+							if values, ok := opts.filters[r.Name]; ok {
+								// The capture's own values are what a filter can
+								// search for, as the reader offers them.
+								field.PopoverMenu(a.headerFilterMenu(c, r.Name, values))
+							}
+							a.unicodeMarker(c, fmt.Sprintf("%s-key-hint-%d", noun, i+1), r.Name, false)
+							if field.Changed() {
+								changed = true
+							}
+						})
 					})
 					// Masked until the reader reveals this row with its eye: the
 					// keyboard alone never shows a credential, so tabbing
@@ -181,19 +190,24 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 					secret := opts.secret && sensitiveHeader(r.Name)
 					masked := secret && !r.Revealed
 					ui.Box(c).Basis(0).Grow(2).MinWidth(uikit.WidthNarrow).FillHeight().Children(func() {
-						value := a.variableGridInput(c, fmt.Sprintf("%s-value-%d", noun, i+1), &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), opts.collection, masked)
-						if masked {
-							value.Password()
-						}
-						cellBorder(t, value, masked, secret && r.Revealed)
-						if !masked && len(r.Value) > 20 {
-							// A long value reads in full on hover, without the click
-							// that would move the keyboard into it.
-							uikit.Tip(c, value, r.Value)
-						}
-						if value.Changed() {
-							changed = true
-						}
+						ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+							value := a.variableGridInput(c, fmt.Sprintf("%s-value-%d", noun, i+1), &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), opts.collection, masked).Grow(1).MinWidth(0)
+							if masked {
+								value.Password()
+							}
+							cellBorder(t, value, masked, secret && r.Revealed)
+							if !masked && len(r.Value) > 20 {
+								// A long value reads in full on hover, without the click
+								// that would move the keyboard into it.
+								uikit.Tip(c, value, r.Value)
+							}
+							// Scan the raw value even when masked; the hint then names
+							// only code points, kinds and positions.
+							a.unicodeMarker(c, fmt.Sprintf("%s-value-hint-%d", noun, i+1), r.Value, masked)
+							if value.Changed() {
+								changed = true
+							}
+						})
 					})
 					if opts.secret && sensitiveHeader(r.Name) {
 						label := locales.RevealRow(noun, i+1)
@@ -363,6 +377,9 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		d.headerRows, d.headerFor = parseHeaderRows(d.composeHeaders), d.composeHeaders
 	}
 	if d.headerBulk {
+		// The editor keeps the block verbatim; the marker reads the raw text
+		// rather than its soft-wrapped display.
+		a.unicodeMarker(c, "bulk-headers", d.composeHeaders, false)
 		// The block reads in the same editor as the body: line numbers,
 		// find and undo, one Key: Value per line.
 		if d.bulkEditor == nil || d.bulkFor != d.composeHeaders {

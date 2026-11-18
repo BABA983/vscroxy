@@ -4391,6 +4391,18 @@
   "unary": "Unary",
   "unavailable": "Unavailable",
   "unavailableForWhatIsShown": "Unavailable for what is shown or selected",
+  "unicodeAmbiguous": "ambiguous",
+  "@unicodeAtCharacter": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unicodeAtCharacter": "at character {count}",
+  "unicodeHint": "character hint",
+  "unicodeInvisible": "invisible",
+  "unicodeNonBasicASCII": "non-basic ASCII",
   "unidentified": "unidentified",
   "unknownLower": "unknown",
   "unknownStage": "unknown stage",
