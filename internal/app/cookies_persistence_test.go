@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/async"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 )
@@ -201,27 +202,23 @@ func setCookieSaveDelay(s *cookieStore, delay time.Duration) {
 	s.mu.Unlock()
 }
 
-func waitCookieWrites(t *testing.T, s *cookieStore, want int) {
-	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		if got := s.writeCount(); got == want {
-			return
-		} else if time.Now().After(deadline) {
-			t.Fatalf("cookie writes = %d, want %d", got, want)
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+func setCookieSaveClock(s *cookieStore, clock *async.FakeClock) {
+	s.mu.Lock()
+	s.clock = clock
+	s.save = async.NewDelayer[struct{}](s.delay, async.WithClock(clock))
+	s.mu.Unlock()
 }
 
 func TestCookiePersistenceSessionOnlyNeverWrites(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cookies.json")
 	a := cookieTestApp(t, path, true)
 	s := a.requestCookies()
+	clock := async.NewFakeClock()
+	setCookieSaveClock(s, clock)
 	setCookieSaveDelay(s, 10*time.Millisecond)
 	u, _ := url.Parse("https://api.example.com/")
 	s.SetCookies(u, []*http.Cookie{{Name: "session", Value: "only-memory", Path: "/"}})
-	time.Sleep(60 * time.Millisecond)
+	clock.Advance(time.Hour)
 	if got := s.writeCount(); got != 0 {
 		t.Fatalf("session-only cookie wrote %d times", got)
 	}
@@ -235,7 +232,7 @@ func TestCookiePersistenceSessionOnlyNeverWrites(t *testing.T) {
 	a.flushCookies()
 	writes := s.writeCount()
 	s.SetCookies(u, []*http.Cookie{{Name: "another-session", Value: "memory", Path: "/"}})
-	time.Sleep(30 * time.Millisecond)
+	clock.Advance(time.Hour)
 	if got := s.writeCount(); got != writes {
 		t.Fatalf("session-only change rewrote the file: writes %d -> %d", writes, got)
 	}
@@ -245,13 +242,14 @@ func TestCookiePersistenceDebouncesConsecutiveChanges(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cookies.json")
 	a := cookieTestApp(t, path, true)
 	s := a.requestCookies()
+	clock := async.NewFakeClock()
+	setCookieSaveClock(s, clock)
 	setCookieSaveDelay(s, 100*time.Millisecond)
 	u, _ := url.Parse("https://api.example.com/")
 	for i := range 5 {
 		s.SetCookies(u, []*http.Cookie{{Name: "keep", Value: fmt.Sprint(i), Path: "/", Expires: time.Now().Add(time.Hour)}})
 	}
-	waitCookieWrites(t, s, 1)
-	time.Sleep(150 * time.Millisecond)
+	clock.Advance(100 * time.Millisecond)
 	if got := s.writeCount(); got != 1 {
 		t.Fatalf("consecutive changes wrote %d times, want one debounced write", got)
 	}
@@ -268,6 +266,8 @@ func TestCookiePersistenceSkipsUnchangedRecords(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cookies.json")
 	a := cookieTestApp(t, path, true)
 	s := a.requestCookies()
+	clock := async.NewFakeClock()
+	setCookieSaveClock(s, clock)
 	setCookieSaveDelay(s, 10*time.Millisecond)
 	u, _ := url.Parse("https://api.example.com/")
 	cookie := &http.Cookie{Name: "keep", Value: "same", Path: "/", Expires: time.Now().Add(time.Hour).Truncate(time.Second)}
@@ -277,7 +277,7 @@ func TestCookiePersistenceSkipsUnchangedRecords(t *testing.T) {
 		t.Fatalf("first write count = %d", got)
 	}
 	s.SetCookies(u, []*http.Cookie{cookie})
-	time.Sleep(50 * time.Millisecond)
+	clock.Advance(time.Hour)
 	if got := s.writeCount(); got != 1 {
 		t.Fatalf("unchanged persistent records wrote %d times, want one", got)
 	}
@@ -287,6 +287,8 @@ func TestCookiePersistenceFlushesOnExit(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cookies.json")
 	a := cookieTestApp(t, path, true)
 	s := a.requestCookies()
+	clock := async.NewFakeClock()
+	setCookieSaveClock(s, clock)
 	setCookieSaveDelay(s, time.Hour)
 	u, _ := url.Parse("https://api.example.com/")
 	s.SetCookies(u, []*http.Cookie{{Name: "keep", Value: "exit", Path: "/", Expires: time.Now().Add(time.Hour)}})

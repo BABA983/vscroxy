@@ -12,7 +12,6 @@ package app
 
 import (
 	"slices"
-	"time"
 
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
@@ -61,7 +60,7 @@ func (a *app) languageSettings(c *ui.Context) {
 // setLanguage shows tag at once and keeps it for the next launches.
 func (a *app) setLanguage(tag string) {
 	a.language = tag
-	a.lastSave = time.Time{} // an explicit choice is not debounced
+	a.bypassSettingsSave()
 	if err := a.persistSettings(); err != nil {
 		a.fail(locales.LanguageNotSaved(), err)
 	}
