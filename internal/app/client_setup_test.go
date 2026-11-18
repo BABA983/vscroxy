@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -271,7 +273,13 @@ func TestOneClickFirefoxKeepsTheProfileAfterTheLauncherExits(t *testing.T) {
 	binDir := t.TempDir()
 	log := filepath.Join(t.TempDir(), "firefox args")
 	fake := filepath.Join(binDir, "firefox")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" > " + clientsetup.POSIXQuote(log) + "\nexit 0\n"
+	// Publish the arguments with one rename. A plain redirect exposes an
+	// empty file between truncation and the write, which the test used to
+	// mistake for a launcher that had already run.
+	script := "#!/bin/sh\n" +
+		"tmp=" + clientsetup.POSIXQuote(log+".tmp") + "\n" +
+		"printf '%s\\n%s\\n' \"$$\" \"$*\" > \"$tmp\"\n" +
+		"/bin/mv -f \"$tmp\" " + clientsetup.POSIXQuote(log) + "\n"
 	if err := os.WriteFile(fake, []byte(script), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -282,15 +290,21 @@ func TestOneClickFirefoxKeepsTheProfileAfterTheLauncherExits(t *testing.T) {
 	if err := tt.Click("Open Firefox"); err != nil {
 		t.Fatal(err)
 	}
-	// A loaded macOS runner can take several seconds to start the fake
-	// launcher; wait for the file it writes, with a bound well above that.
+	// Wait for the launcher's PID and arguments, which it publishes together.
 	deadline := time.Now().Add(20 * time.Second)
 	var args string
+	var pid int
 	for time.Now().Before(deadline) {
 		data, err := os.ReadFile(log)
 		if err == nil {
-			args = string(data)
-			break
+			pidLine, argLine, ok := strings.Cut(string(data), "\n")
+			pid, err = strconv.Atoi(strings.TrimSpace(pidLine))
+			if err == nil && ok {
+				args = strings.TrimSuffix(argLine, "\n")
+			}
+			if args != "" {
+				break
+			}
 		}
 		tt.Frame()
 		time.Sleep(10 * time.Millisecond)
@@ -309,7 +323,26 @@ func TestOneClickFirefoxKeepsTheProfileAfterTheLauncherExits(t *testing.T) {
 	if profile == "" {
 		t.Fatalf("no profile in %q", args)
 	}
-	time.Sleep(200 * time.Millisecond) // let the launcher's Wait return
+	// ESRCH means the launcher has exited and been reaped by the Wait that
+	// clientsetup starts. Only then can cleanup after exit have happened.
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		t.Fatalf("find fake Firefox: %v", err)
+	}
+	exitDeadline := time.Now().Add(20 * time.Second)
+	reaped := false
+	for time.Now().Before(exitDeadline) {
+		err := process.Signal(syscall.Signal(0))
+		if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
+			reaped = true
+			break
+		}
+		tt.Frame()
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !reaped {
+		t.Fatal("fake Firefox did not exit")
+	}
 	if _, err := os.Stat(filepath.Join(profile, "user.js")); err != nil {
 		t.Fatalf("profile was removed after the launcher exited: %v", err)
 	}

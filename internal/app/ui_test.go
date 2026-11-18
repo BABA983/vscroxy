@@ -1211,6 +1211,19 @@ func TestSettingsSwitchesApplyAtOnce(t *testing.T) {
 		t.Fatal("No Caching did not turn off")
 	}
 	click("Settings category: HTTPS decryption")
+	// The HTTPS page starts a certificate check. Its result adds or removes
+	// certificate text above the switch, so a press and release can land on
+	// different layouts if the worker finishes between them. Wait for the
+	// result and apply it before looking for the switch.
+	if a.certificate.checking {
+		select {
+		case result := <-a.certificate.pending:
+			a.certificate.pending <- result
+			tt.Frame()
+		case <-t.Context().Done():
+			t.Fatal("certificate check did not finish")
+		}
+	}
 	click("Decrypt every domain")
 	if !a.sslAll || !a.inspectionConfig().All {
 		t.Fatal("every domain was not enabled")

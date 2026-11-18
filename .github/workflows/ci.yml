@@ -1,11 +1,21 @@
 name: CI
 
 on:
+  # A push to a PR branch already fires pull_request, so both triggers would
+  # duplicate every job for one commit. The extra macOS arm64 jobs sit in a
+  # runner queue and starve the others: GitHub cancelled the push jobs with
+  # "The job was not acquired by Runner of type hosted even after multiple
+  # attempts", well before the 20-minute job timeout. Keep pushes to the
+  # integration branches so post-merge CI still runs; PR branches run once
+  # through pull_request.
   push:
+    branches: [main, feat/mygo-app]
   pull_request:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # New commits on a PR arrive as new pull_request events with the same
+  # ref; key on the branch so they supersede each other instead of racing.
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
