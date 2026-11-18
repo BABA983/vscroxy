@@ -1,6 +1,9 @@
 package unicodechars
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 var detectDefaults = UnicodeHighlighterOptions{
 	AmbiguousCharacters: true,
@@ -21,6 +24,14 @@ func TestComputeUnicodeHighlights(t *testing.T) {
 	}
 	got := ComputeUnicodeHighlights(text, detectDefaults)
 	assertHighlights(t, got, want)
+}
+
+func TestComputeUnicodeHighlightsLargeASCIIToken(t *testing.T) {
+	text := "Bearer " + strings.Repeat("a", 1<<20)
+	assertHighlights(t, ComputeUnicodeHighlights(text, revealOptions), nil)
+	if got := Reveal(text); got != text {
+		t.Error("Reveal changed an ordinary ASCII token")
+	}
 }
 
 func TestComputeUnicodeHighlightsHTTPData(t *testing.T) {

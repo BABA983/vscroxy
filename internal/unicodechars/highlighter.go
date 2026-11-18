@@ -2,7 +2,9 @@ package unicodechars
 
 import (
 	"fmt"
+	"slices"
 	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 )
@@ -59,19 +61,27 @@ type UnicodeHighlighterOptions struct {
 // decision order as VS Code's CodePointHighlighter.shouldHighlightNonBasicASCII.
 // Offsets are bytes, not VS Code's UTF-16 code units or 1-based columns.
 func ComputeUnicodeHighlights(s string, options UnicodeHighlighterOptions) []Highlight {
-	h := codePointHighlighter{
-		options:   options,
-		allowed:   make(map[rune]bool, len(options.AllowedCodePoints)),
-		ambiguous: GetInstance(options.AllowedLocales),
-	}
-	for _, codePoint := range options.AllowedCodePoints {
-		h.allowed[codePoint] = true
-	}
+	h := getCodePointHighlighter(options)
 
 	var highlights []Highlight
+	var wordStart, wordEnd int
+	var hasWord, wordHasASCII, wordHasWeirdNonASCII bool
 	for index := 0; index < len(s); {
 		codePoint, size := utf8.DecodeRuneInString(s[index:])
-		reason := h.shouldHighlight(s, codePoint, index)
+		// VS Code only runs the regex and word lookup on candidates. An
+		// ordinary ASCII token is skipped without scanning its word.
+		if !h.isCandidate(codePoint) {
+			index += size
+			continue
+		}
+		if !hasWord || index < wordStart || index >= wordEnd {
+			wordStart, wordEnd, hasWord = wordAt(s, index)
+			wordHasASCII, wordHasWeirdNonASCII = false, false
+			if hasWord {
+				wordHasASCII, wordHasWeirdNonASCII = wordContext(s[wordStart:wordEnd], h.ambiguous)
+			}
+		}
+		reason := h.shouldHighlight(codePoint, wordHasASCII, wordHasWeirdNonASCII)
 		if reason != reasonNone {
 			highlight := Highlight{
 				Start:     index,
@@ -127,9 +137,72 @@ type codePointHighlighter struct {
 	options   UnicodeHighlighterOptions
 	allowed   map[rune]bool
 	ambiguous *AmbiguousCharacters
+	// candidates is nil for VS Code's 'allNonBasicAscii' candidate set.
+	candidates map[rune]bool
 }
 
-func (h codePointHighlighter) shouldHighlight(s string, codePoint rune, index int) simpleHighlightReason {
+var codePointHighlighters sync.Map
+
+// getCodePointHighlighter caches the ambiguous instance and candidate set per
+// options, as VS Code builds them once per CodePointHighlighter.
+func getCodePointHighlighter(options UnicodeHighlighterOptions) *codePointHighlighter {
+	key := fmt.Sprintf("%t|%t|%t|%v|%s", options.NonBasicASCII,
+		options.AmbiguousCharacters, options.InvisibleCharacters,
+		options.AllowedCodePoints, options.AllowedLocales)
+	if cached, ok := codePointHighlighters.Load(key); ok {
+		return cached.(*codePointHighlighter)
+	}
+
+	options.AllowedCodePoints = slices.Clone(options.AllowedCodePoints)
+	options.AllowedLocales = slices.Clone(options.AllowedLocales)
+	h := &codePointHighlighter{
+		options:   options,
+		allowed:   make(map[rune]bool, len(options.AllowedCodePoints)),
+		ambiguous: GetInstance(options.AllowedLocales),
+	}
+	for _, codePoint := range options.AllowedCodePoints {
+		h.allowed[codePoint] = true
+	}
+	h.candidates = h.getCandidateCodePoints()
+
+	actual, _ := codePointHighlighters.LoadOrStore(key, h)
+	return actual.(*codePointHighlighter)
+}
+
+// getCandidateCodePoints mirrors CodePointHighlighter.getCandidateCodePoints:
+// a nil set means the 'allNonBasicAscii' candidate expression.
+func (h *codePointHighlighter) getCandidateCodePoints() map[rune]bool {
+	if h.options.NonBasicASCII {
+		return nil
+	}
+
+	candidates := make(map[rune]bool)
+	if h.options.InvisibleCharacters {
+		for _, codePoint := range (InvisibleCharacters{}).CodePoints() {
+			if !isAllowedInvisibleCharacter(codePoint) {
+				candidates[codePoint] = true
+			}
+		}
+	}
+	if h.options.AmbiguousCharacters {
+		for _, codePoint := range h.ambiguous.GetConfusableCodePoints() {
+			candidates[codePoint] = true
+		}
+	}
+	for codePoint := range h.allowed {
+		delete(candidates, codePoint)
+	}
+	return candidates
+}
+
+func (h *codePointHighlighter) isCandidate(codePoint rune) bool {
+	if h.candidates == nil {
+		return !isBasicASCIIRune(codePoint)
+	}
+	return h.candidates[codePoint]
+}
+
+func (h codePointHighlighter) shouldHighlight(codePoint rune, hasASCII, hasWeirdNonASCII bool) simpleHighlightReason {
 	if h.allowed[codePoint] {
 		return reasonNone
 	}
@@ -139,22 +212,9 @@ func (h codePointHighlighter) shouldHighlight(s string, codePoint rune, index in
 
 	// VS Code suppresses a confusable when the surrounding word is entirely
 	// made of non-ASCII, non-confusable characters (getWordAtText with
-	// DEFAULT_WORD_REGEXP). The Go word helper below uses the same default word
-	// separators over runes instead of JS UTF-16 code units.
-	if start, end, ok := wordAt(s, index); ok {
-		hasASCII, hasWeirdNonASCII := false, false
-		for _, wordRune := range s[start:end] {
-			if isBasicASCIIRune(wordRune) {
-				hasASCII = true
-				continue
-			}
-			if !h.ambiguous.IsAmbiguous(wordRune) && !(InvisibleCharacters{}).IsInvisibleCharacter(wordRune) {
-				hasWeirdNonASCII = true
-			}
-		}
-		if !hasASCII && hasWeirdNonASCII {
-			return reasonNone
-		}
+	// DEFAULT_WORD_REGEXP). wordContext computes those two facts once per word.
+	if !hasASCII && hasWeirdNonASCII {
+		return reasonNone
 	}
 
 	if h.options.InvisibleCharacters && !isAllowedInvisibleCharacter(codePoint) &&
@@ -177,6 +237,21 @@ const usualWordSeparators = "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?"
 
 func isWordRune(codePoint rune) bool {
 	return !unicode.IsSpace(codePoint) && !strings.ContainsRune(usualWordSeparators, codePoint)
+}
+
+// wordContext computes the two conditions used by
+// CodePointHighlighter.shouldHighlightNonBasicASCII for one word.
+func wordContext(word string, ambiguous *AmbiguousCharacters) (hasASCII, hasWeirdNonASCII bool) {
+	for _, codePoint := range word {
+		if isBasicASCIIRune(codePoint) {
+			hasASCII = true
+			continue
+		}
+		if !ambiguous.IsAmbiguous(codePoint) && !(InvisibleCharacters{}).IsInvisibleCharacter(codePoint) {
+			hasWeirdNonASCII = true
+		}
+	}
+	return hasASCII, hasWeirdNonASCII
 }
 
 // wordAt is the Go equivalent of getWordAtText(s, index+1, DEFAULT_WORD_REGEXP,

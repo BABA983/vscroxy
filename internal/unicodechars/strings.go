@@ -76,7 +76,8 @@ var ambiguousInstances sync.Map
 
 // GetInstance corresponds to strings.AmbiguousCharacters.getInstance. Locales
 // not present in VS Code's data are ignored; when none remain, VS Code's
-// "_default" table is used. The common table always applies on top.
+// "_default" table is used. Like VS Code's mergeMaps(commonMap,
+// languageSpecificMap), a language-specific entry overrides a common one.
 func GetInstance(locales []string) *AmbiguousCharacters {
 	key := strings.Join(locales, ",")
 	if cached, ok := ambiguousInstances.Load(key); ok {
@@ -113,7 +114,9 @@ func GetInstance(locales []string) *AmbiguousCharacters {
 		}
 	}
 	for _, pair := range ambiguousData["_common"] {
-		confusables[pair.codePoint] = pair.primary
+		if _, ok := confusables[pair.codePoint]; !ok {
+			confusables[pair.codePoint] = pair.primary
+		}
 	}
 
 	instance := &AmbiguousCharacters{confusables: confusables}
