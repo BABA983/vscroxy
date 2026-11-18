@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/async"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
@@ -70,7 +71,8 @@ type cookieStore struct {
 	persist   bool
 	delay     time.Duration
 	dirty     bool
-	saveTimer *time.Timer
+	clock     async.Clock
+	save      *async.RunOnceScheduler
 	lastSaved string
 	writes    int // successful file writes; tests use it to prove debouncing
 	writeMu   sync.Mutex
@@ -92,6 +94,21 @@ func (s *cookieStore) init() {
 	}
 	if s.delay == 0 {
 		s.delay = cookieSaveDelay
+	}
+	if s.save == nil {
+		if s.clock != nil {
+			s.save = async.NewRunOnceScheduler(s.saveRunner(), s.delay, async.WithClock(s.clock))
+		} else {
+			s.save = async.NewRunOnceScheduler(s.saveRunner(), s.delay)
+		}
+	}
+}
+
+func (s *cookieStore) saveRunner() async.Action {
+	return func() error {
+		err := s.flush()
+		s.report(err)
+		return err
 	}
 }
 
@@ -298,8 +315,10 @@ func (s *cookieStore) changedLocked() error {
 		return nil
 	}
 	s.dirty = true
-	if s.saveTimer == nil {
-		s.saveTimer = time.AfterFunc(s.delay, func() { s.report(s.flush()) })
+	// Arm once for the fixed window since the first dirty change: more
+	// cookies inside that window must not postpone the write indefinitely.
+	if !s.save.IsScheduled() {
+		s.save.Schedule(s.delay)
 	}
 	return nil
 }
@@ -311,10 +330,6 @@ func (s *cookieStore) flush() error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	s.mu.Lock()
-	if s.saveTimer != nil {
-		s.saveTimer.Stop()
-		s.saveTimer = nil
-	}
 	if !s.dirty || !s.persist || s.path == "" {
 		s.mu.Unlock()
 		return nil
@@ -342,20 +357,20 @@ func (s *cookieStore) flush() error {
 	return err
 }
 
-// flushNow stops the timer and writes synchronously, for an explicit clear or
-// app exit. Waiting on writeMu makes a concurrent debounced write finish
-// first, then this writes whatever changed after its snapshot.
+// flushNow runs a pending debounced write and writes synchronously, for an
+// explicit clear or app exit. Waiting on writeMu makes a concurrent debounced
+// write finish first, then this writes whatever changed after its snapshot.
 func (s *cookieStore) flushNow() error {
-	// A response may set a cookie while the first write runs. Stop the timer
-	// and write twice at most, so exit catches that change without waiting on
-	// a stream that keeps changing.
+	// A response may set a cookie while the first write runs. Flush and write
+	// twice at most, so exit catches that change without waiting on a stream
+	// that keeps changing.
 	for range 2 {
-		s.mu.Lock()
-		if s.saveTimer != nil {
-			s.saveTimer.Stop()
-			s.saveTimer = nil
+		// Flush runs a pending write now; cancel whatever a concurrent
+		// SetCookies armed while that write held writeMu.
+		if s.save != nil {
+			_ = s.save.Flush()
 		}
-		s.mu.Unlock()
+		s.cancelSave()
 		if err := s.flush(); err != nil {
 			return err
 		}
@@ -423,10 +438,7 @@ func (s *cookieStore) setPersist(on bool) error {
 		}
 		return s.flushNow()
 	}
-	if s.saveTimer != nil {
-		s.saveTimer.Stop()
-		s.saveTimer = nil
-	}
+	s.cancelSave()
 	s.dirty, s.lastSaved = false, ""
 	path := s.path
 	s.mu.Unlock()
@@ -446,10 +458,7 @@ func (s *cookieStore) setPersist(on bool) error {
 func (s *cookieStore) settle() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.saveTimer != nil {
-		s.saveTimer.Stop()
-		s.saveTimer = nil
-	}
+	s.cancelSave()
 	s.dirty = false
 	data, err := s.persistentStateLocked()
 	if err != nil {
@@ -457,6 +466,12 @@ func (s *cookieStore) settle() error {
 	}
 	s.lastSaved = string(data)
 	return nil
+}
+
+func (s *cookieStore) cancelSave() {
+	if s.save != nil {
+		s.save.Cancel()
+	}
 }
 
 func (s *cookieStore) report(err error) {
@@ -507,7 +522,11 @@ func readCookieFile(path string) ([]cookieRecord, error) {
 func (a *app) requestCookies() *cookieStore {
 	if a.cookies == nil {
 		a.cookies = &cookieStore{path: a.cookiesPath, persist: a.cookiePersistence}
-		a.cookies.onProblem = func(err error) { a.fail(locales.Cookies2(), err) }
+		// The debounce runs its task on a timer goroutine, so feedback reaches
+		// app state and the UI through the main thread.
+		a.cookies.onProblem = func(err error) {
+			a.onMain(func() { a.fail(locales.Cookies2(), err) })
+		}
 	}
 	return a.cookies
 }

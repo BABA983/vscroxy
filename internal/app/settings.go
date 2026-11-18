@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/store"
@@ -149,7 +148,7 @@ func (a *app) saveProxyPort() {
 	}
 	previous := a.proxyPort
 	a.proxyPort = port
-	a.lastSave = time.Time{} // explicit save must not wait for the layout debounce
+	a.bypassSettingsSave()
 	if err := a.persistSettings(); err != nil {
 		a.proxyPort = previous
 		a.proxyPortProblem = locales.PortWasNotSavedWith(err.Error())

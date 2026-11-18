@@ -28,6 +28,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/appicon"
 	"github.com/baba983/vscroxy/internal/applog"
+	"github.com/baba983/vscroxy/internal/async"
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/lifecycle"
@@ -437,8 +438,9 @@ type app struct {
 	columnsDirty     bool // the app changed the table's layout itself
 	builds           int  // view passes, which tests count to see a hover
 	lastSave         time.Time
-	savePending      bool // a change landed inside the write gap
-	saveQueued       bool // a frame is already asked for when the gap passes
+	settingsSaver    *async.RunOnceScheduler
+	settingsOnce     sync.Once
+	settingsClock    async.Clock // tests inject a fake clock here
 	columns          ui.TableLayout
 	proxyPort        int
 	proxyPortInput   string
@@ -1908,7 +1910,6 @@ func (a *app) view(c *ui.Context) {
 		a.footer(c.Key("workspace-footer"), t)
 	})
 	a.persistSettings()
-	a.pumpSettingsSave(c)
 	a.checkpointExperiments(c)
 	a.checkpointSessions()
 	// Dialogs keep their input and actions above background notifications.
@@ -4768,17 +4769,23 @@ func (a *app) decryptHost(host string) {
 func (a *app) persistSettings() error {
 	now := a.currentSettings()
 	if sameSettings(now, a.saved) {
-		a.savePending = false
+		if a.settingsSaver != nil {
+			a.settingsSaver.Cancel()
+		}
 		return nil
 	}
-	if time.Since(a.lastSave) < settingsWriteGap {
-		// A write just went out. The layout changed again inside the gap, so
-		// the change waits for a frame once the gap passes instead of being
-		// dropped: MyGo builds only when something asks it to.
-		a.savePending = true
+	if elapsed := time.Since(a.lastSave); elapsed < settingsWriteGap {
+		// A write just went out. Schedule the remainder of the gap once, so
+		// the change is written even if nothing else moves the window.
+		saver := a.settingsSaveScheduler()
+		if !saver.IsScheduled() {
+			saver.Schedule(settingsWriteGap - elapsed)
+		}
 		return nil
 	}
-	a.savePending, a.saveQueued = false, false
+	if a.settingsSaver != nil {
+		a.settingsSaver.Cancel()
+	}
 	a.lastSave = time.Now()
 	if a.settingsPath == "" {
 		a.saved = now
@@ -4802,20 +4809,39 @@ func (a *app) persistSettings() error {
 // frame; the change it holds back is written once the gap passes.
 const settingsWriteGap = 400 * time.Millisecond
 
-// pumpSettingsSave asks for a frame once the write gap passes, so a change made
-// inside it is written even when nothing else moves afterwards.
-func (a *app) pumpSettingsSave(c *ui.Context) {
-	if !a.savePending || a.saveQueued {
-		return
+func (a *app) settingsSaveScheduler() *async.RunOnceScheduler {
+	a.settingsOnce.Do(func() {
+		runner := func() error {
+			// persistSettings reads app state and can show feedback; the
+			// scheduler calls this from a timer goroutine.
+			a.onMain(func() { _ = a.persistSettings() })
+			return nil
+		}
+		if a.settingsClock != nil {
+			a.settingsSaver = async.NewRunOnceScheduler(runner, settingsWriteGap, async.WithClock(a.settingsClock))
+		} else {
+			a.settingsSaver = async.NewRunOnceScheduler(runner, settingsWriteGap)
+		}
+	})
+	return a.settingsSaver
+}
+
+// bypassSettingsSave lets an explicit save write at once, without a pending
+// layout write overtaking it later.
+func (a *app) bypassSettingsSave() {
+	a.lastSave = time.Time{}
+	if a.settingsSaver != nil {
+		a.settingsSaver.Cancel()
 	}
-	a.saveQueued = true
-	c.After(settingsWriteGap - time.Since(a.lastSave))
 }
 
 // flushSettings writes the settings now, whatever the gap: the app does it as
-// it quits, so a change made in the last moment is not lost.
+// it quits, so a change made in the last moment is not lost. Cancel the
+// trailing schedule first; the direct write below is the whole flush.
 func (a *app) flushSettings() {
-	a.savePending, a.saveQueued = false, false
+	if a.settingsSaver != nil {
+		a.settingsSaver.Cancel()
+	}
 	a.lastSave = time.Time{}
 	_ = a.persistSettings()
 }

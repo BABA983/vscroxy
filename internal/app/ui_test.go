@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/async"
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
@@ -6716,6 +6717,9 @@ func TestFolderRequestDefaultsSave(t *testing.T) {
 // something else to move the window and was lost when nothing did.
 func TestSettingsChangeInsideTheWriteGapIsWrittenLater(t *testing.T) {
 	a := workspaceApp()
+	a.quitOnMain = func(fn func()) { fn() }
+	clock := async.NewFakeClock()
+	a.settingsClock = clock
 	dir := t.TempDir()
 	a.settingsPath = filepath.Join(dir, "settings.json")
 	a.saved = a.currentSettings()
@@ -6728,9 +6732,9 @@ func TestSettingsChangeInsideTheWriteGapIsWrittenLater(t *testing.T) {
 	if err == nil && strings.Contains(string(data), "\"sidebarWidth\":300") {
 		t.Fatal("the change was written inside the gap")
 	}
-	// The gap passes, and the frame the app asked for arrives.
+	// The remaining gap passes and the scheduled write runs on the main thread.
 	a.lastSave = time.Now().Add(-time.Second)
-	tt.Frame()
+	clock.Advance(settingsWriteGap + time.Second)
 	data, err = os.ReadFile(a.settingsPath)
 	if err != nil {
 		t.Fatal(err)
@@ -6742,6 +6746,8 @@ func TestSettingsChangeInsideTheWriteGapIsWrittenLater(t *testing.T) {
 
 func TestFlushSettingsWritesWhatTheGapHeldBack(t *testing.T) {
 	a := workspaceApp()
+	a.quitOnMain = func(fn func()) { fn() }
+	a.settingsClock = async.NewFakeClock()
 	dir := t.TempDir()
 	a.settingsPath = filepath.Join(dir, "settings.json")
 	a.saved = a.currentSettings()
@@ -6802,6 +6808,9 @@ func TestAnEvictedEventSelectsTheNewestOneLeft(t *testing.T) {
 // settings are written even though no other frame follows.
 func TestColumnDragIsSavedWithoutAnotherEvent(t *testing.T) {
 	a := workspaceApp()
+	a.quitOnMain = func(fn func()) { fn() }
+	clock := async.NewFakeClock()
+	a.settingsClock = clock
 	dir := t.TempDir()
 	a.settingsPath = filepath.Join(dir, "settings.json")
 	a.saved = a.currentSettings()
@@ -6823,9 +6832,9 @@ func TestColumnDragIsSavedWithoutAnotherEvent(t *testing.T) {
 	if got := a.columns.Widths["status"]; got <= header.W {
 		t.Fatalf("the dragged width was not copied back: %v (was %v)", a.columns.Widths, header.W)
 	}
-	// The frame the app asked for once the write gap passed.
+	// The scheduled write runs once the write gap passes.
 	a.lastSave = time.Now().Add(-time.Second)
-	tt.Frame()
+	clock.Advance(settingsWriteGap + time.Second)
 	data, err := os.ReadFile(a.settingsPath)
 	if err != nil {
 		t.Fatal(err)
