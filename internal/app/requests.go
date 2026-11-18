@@ -17,6 +17,7 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/graphql"
 	"github.com/baba983/vscroxy/internal/inspect"
+	"github.com/baba983/vscroxy/internal/jsonc"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
@@ -1184,6 +1185,22 @@ func urlSpans(raw string, t *ui.Theme, marks []variableMark) []ui.Span {
 	return spans
 }
 
+// formatRequestJSON indents an authored JSONC body with VS Code's formatter.
+// ParseTree gates the Format tool: unlike the old strict JSON check, comments
+// and trailing commas stay in the editor document, and the target's EOL is
+// preserved.
+func formatRequestJSON(text string) (string, bool) {
+	if _, errs := jsonc.ParseTree(text); len(errs) != 0 {
+		return "", false
+	}
+	options := jsonc.FormattingOptions{TabSize: 2, InsertSpaces: true, EOL: jsonc.GetEOL(jsonc.FormattingOptions{}, text)}
+	formatted, err := jsonc.ApplyEdits(text, jsonc.Format(text, nil, options))
+	if err != nil {
+		return "", false
+	}
+	return formatted, true
+}
+
 // requestEditor is the draft's own body: parameters, auth, headers, body and
 // scripts, each a tab of the same document.
 // requestEditor edits the request's parts; original, when set, reads the
@@ -1238,7 +1255,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 			text, seen = &d.graphql.Variables, &d.varsFor
 			formatLabel, canFormat = locales.FormatGraphqlVariables(), true
 		}
-		formatted, isJSON := indentJSON(*text)
+		formatted, isJSON := formatRequestJSON(*text)
 		query := d.bodyMode == "GraphQL" && d.graphqlTab == 0
 		if query {
 			formatLabel, formatHelp = locales.FormatGraphQLQuery(), locales.FormatTheGraphqlDocumentWithout()
