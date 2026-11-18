@@ -349,34 +349,56 @@ func TestConcurrentShutdownWaitsForInFlightResult(t *testing.T) {
 	}
 }
 
-func TestJoinerPanicsBecomeErrorsAndOtherJoinersRun(t *testing.T) {
+func TestDefaultJoinerPanicBecomesErrorAndStopsLastPhase(t *testing.T) {
 	defaultPanic := errors.New("default joiner panicked")
-	var completed atomic.Int32
+	var goodDefault, lastRan atomic.Int32
 	var lc Lifecycle
 	lc.OnWillShutdown(func(e *WillShutdownEvent) {
 		e.Join(func() error { panic(defaultPanic) }, WillShutdownEventJoiner{ID: "bad-default", Label: "Default"})
 		e.Join(func() error {
-			completed.Add(1)
+			goodDefault.Add(1)
 			return nil
 		}, WillShutdownEventJoiner{ID: "good-default", Label: "Default"})
+		e.Join(func() error {
+			lastRan.Add(1)
+			return nil
+		}, WillShutdownEventJoiner{ID: "last", Label: "Last", Order: WillShutdownJoinerOrderLast})
+	})
+
+	err := lc.Shutdown(ShutdownReasonClose)
+	if !errors.Is(err, defaultPanic) || !strings.Contains(err.Error(), "bad-default") {
+		t.Fatalf("Shutdown error = %v, want the default joiner's panic", err)
+	}
+	if strings.Contains(err.Error(), "last") {
+		t.Fatalf("Shutdown error = %v, want no last-phase error", err)
+	}
+	if goodDefault.Load() != 1 {
+		t.Fatalf("non-panicking default joiner ran %d times, want 1", goodDefault.Load())
+	}
+	if lastRan.Load() != 0 {
+		t.Fatalf("last joiner ran %d times after a default panic, want 0", lastRan.Load())
+	}
+}
+
+func TestLastJoinerPanicBecomesErrorAndOtherLastJoinersRun(t *testing.T) {
+	var goodLast atomic.Int32
+	var lc Lifecycle
+	lc.OnWillShutdown(func(e *WillShutdownEvent) {
 		e.Join(func() error { panic("last joiner panicked") }, WillShutdownEventJoiner{ID: "bad-last", Label: "Last", Order: WillShutdownJoinerOrderLast})
 		e.Join(func() error {
-			completed.Add(1)
+			goodLast.Add(1)
 			return nil
 		}, WillShutdownEventJoiner{ID: "good-last", Label: "Last", Order: WillShutdownJoinerOrderLast})
 	})
 
 	err := lc.Shutdown(ShutdownReasonClose)
-	if !errors.Is(err, defaultPanic) {
-		t.Fatalf("Shutdown error = %v, want the default joiner's panic", err)
-	}
-	for _, want := range []string{"bad-default", "bad-last", "last joiner panicked"} {
+	for _, want := range []string{"bad-last", "last joiner panicked"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("Shutdown error = %v, want it to contain %q", err, want)
 		}
 	}
-	if got := completed.Load(); got != 2 {
-		t.Fatalf("non-panicking joiners ran %d times, want 2", got)
+	if goodLast.Load() != 1 {
+		t.Fatalf("non-panicking last joiner ran %d times, want 1", goodLast.Load())
 	}
 }
 
@@ -398,33 +420,50 @@ func TestFinalVetoCannotBeDefinedTwice(t *testing.T) {
 	}
 }
 
-func TestFailedShutdownCanBeRetried(t *testing.T) {
+func TestFailedDefaultJoinerAbortsAndRetries(t *testing.T) {
 	busy := errors.New("busy")
-	var attempts int
+	var attempts, defaults, lasts atomic.Int32
 	var lc Lifecycle
 	lc.OnWillShutdown(func(e *WillShutdownEvent) {
-		attempts++
+		attempt := attempts.Add(1)
 		err := error(nil)
-		if attempts == 1 {
+		if attempt == 1 {
 			err = busy
 		}
-		e.Join(func() error { return err }, WillShutdownEventJoiner{ID: "settings", Label: "Saving settings"})
+		e.Join(func() error {
+			defaults.Add(1)
+			return err
+		}, WillShutdownEventJoiner{ID: "system-proxy", Label: "Releasing system proxy"})
+		e.Join(func() error {
+			lasts.Add(1)
+			return nil
+		}, WillShutdownEventJoiner{ID: "sessions", Label: "Closing sessions", Order: WillShutdownJoinerOrderLast})
 	})
 
 	if err := lc.Shutdown(ShutdownReasonQuit); !errors.Is(err, busy) {
 		t.Fatalf("first Shutdown = %v, want busy", err)
 	}
+	if lc.WillShutdown() {
+		t.Fatal("a failed join phase must clear WillShutdown")
+	}
 	if lc.ShutdownSucceeded() {
 		t.Fatal("a failed shutdown must not be cached as ready")
 	}
+	if got := lasts.Load(); got != 0 {
+		t.Fatalf("last joiners ran %d times after a default failure, want 0", got)
+	}
+
 	if err := lc.Shutdown(ShutdownReasonQuit); err != nil {
 		t.Fatalf("retry after failure: %v", err)
 	}
-	if !lc.ShutdownSucceeded() {
-		t.Fatal("successful retry should be cached as ready")
+	if !lc.WillShutdown() || !lc.ShutdownSucceeded() {
+		t.Fatal("successful retry should report will-shutdown and success")
 	}
-	if attempts != 2 {
-		t.Fatalf("will-shutdown participants ran %d times, want 2", attempts)
+	if got := defaults.Load(); got != 2 {
+		t.Fatalf("default joiners ran %d times, want 2", got)
+	}
+	if got := lasts.Load(); got != 1 {
+		t.Fatalf("last joiners ran %d times after success, want 1", got)
 	}
 }
 

@@ -73,7 +73,7 @@ func TestQuitProxyReleaseFailureCanBeRetried(t *testing.T) {
 	if !strings.Contains(err.Error(), denied.Error()) {
 		t.Fatalf("quit error = %v, want the proxy failure", err)
 	}
-	if a.quitting() || a.lifecycle.ShutdownSucceeded() {
+	if a.quitting() || a.lifecycle.WillShutdown() || a.lifecycle.ShutdownSucceeded() {
 		t.Fatal("a failed release should leave the app running and retryable")
 	}
 	if clears != 1 {

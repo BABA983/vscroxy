@@ -33,4 +33,12 @@
 // checks and the final veto.
 // A joiner that ignores its canceled Token may keep running after Force;
 // Shutdown stops waiting for it instead of killing it.
+//
+// # Failed shutdowns
+//
+// In VS Code the will-shutdown phase is irreversible. Here a failing default
+// joiner aborts the shutdown: Last joiners are skipped, WillShutdown returns
+// false again, and a later Shutdown runs both phases from the start. This
+// matters when a default joiner releases an OS setting such as the system
+// proxy, which can fail and leave the app running with capture still active.
 package lifecycle

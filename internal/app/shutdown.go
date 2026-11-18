@@ -3,7 +3,6 @@ package app
 import (
 	"errors"
 	"sync"
-	"sync/atomic"
 
 	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/locales"
@@ -38,24 +37,16 @@ func (a *app) installShutdown() shutdownCleanup {
 		closeSessions:    sync.OnceFunc(a.sessions.close),
 	}
 	a.lifecycle.OnWillShutdown(func(e *lifecycle.WillShutdownEvent) {
-		// The proxy owns an OS setting, so it releases first. If that fails,
-		// the app keeps running and none of the other cleanup may run: capture
-		// and its workspaces must stay exactly as they were.
-		released := new(atomic.Bool)
-		released.Store(true)
+		// The proxy owns an OS setting, so it releases as the default joiner.
+		// If that fails, lifecycle skips the Last joiners below: capture and
+		// its workspaces stay exactly as they were.
 		e.Join(func() error {
-			err := a.systemProxy.close()
-			if err != nil {
-				released.Store(false)
-			}
-			return err
+			return a.systemProxy.close()
 		}, lifecycle.WillShutdownEventJoiner{ID: "system-proxy", Label: locales.ReleaseSystemProxy()})
 
 		joinMain := func(id, label string, fn func()) {
 			e.Join(func() error {
-				if released.Load() {
-					a.onMain(fn)
-				}
+				a.onMain(fn)
 				return nil
 			}, lifecycle.WillShutdownEventJoiner{ID: id, Label: label, Order: lifecycle.WillShutdownJoinerOrderLast})
 		}
