@@ -156,6 +156,11 @@ type JSONVisitor struct {
 // in the input text. An unescaped token value is a substring of the input;
 // only strings with escapes allocate a new value. Values stay valid after
 // subsequent scans.
+//
+// Two VS Code scanner quirks are intentionally not copied: comment token
+// values contain only the comment text (VS Code includes the character before
+// it), and an unterminated block comment stops at the end of the input (VS
+// Code advances one unit past it, making lengths and later offsets invalid).
 type Scanner struct {
 	text         string
 	pos          int
@@ -470,10 +475,8 @@ func (s *Scanner) scanNext() SyntaxKind {
 		s.pos += size
 		if r == '\r' && s.pos < s.size && s.text[s.pos] == '\n' {
 			s.pos++
-			s.value = "\n"
-		} else {
-			s.value = s.text[start:s.pos]
 		}
+		s.value = s.text[start:s.pos]
 		return s.setToken(SyntaxKindLineBreakTrivia)
 	}
 
@@ -823,12 +826,56 @@ func (p *parser) parseString(isValue bool) bool {
 	return true
 }
 
+// isValidJSONNumber applies the JSON number grammar that VS Code's JSON.parse
+// check enforces. strconv.ParseFloat alone is more lenient: it accepts "1.".
+func isValidJSONNumber(text string) bool {
+	i := 0
+	if i < len(text) && text[i] == '-' {
+		i++
+	}
+	if i == len(text) {
+		return false
+	}
+	if text[i] == '0' {
+		i++
+	} else if text[i] >= '1' && text[i] <= '9' {
+		for i < len(text) && text[i] >= '0' && text[i] <= '9' {
+			i++
+		}
+	} else {
+		return false
+	}
+	if i < len(text) && text[i] == '.' {
+		i++
+		if i == len(text) || text[i] < '0' || text[i] > '9' {
+			return false
+		}
+		for i < len(text) && text[i] >= '0' && text[i] <= '9' {
+			i++
+		}
+	}
+	if i < len(text) && (text[i] == 'e' || text[i] == 'E') {
+		i++
+		if i < len(text) && (text[i] == '+' || text[i] == '-') {
+			i++
+		}
+		if i == len(text) || text[i] < '0' || text[i] > '9' {
+			return false
+		}
+		for i < len(text) && text[i] >= '0' && text[i] <= '9' {
+			i++
+		}
+	}
+	return i == len(text)
+}
+
 func (p *parser) parseLiteral() bool {
 	offset, length := p.scanner.GetTokenOffset(), p.scanner.GetTokenLength()
 	switch p.scanner.GetToken() {
 	case SyntaxKindNumericLiteral:
-		value, err := strconv.ParseFloat(p.scanner.GetTokenValue(), 64)
-		if err != nil && !errors.Is(err, strconv.ErrRange) {
+		raw := p.scanner.GetTokenValue()
+		value, err := strconv.ParseFloat(raw, 64)
+		if !isValidJSONNumber(raw) || (err != nil && !errors.Is(err, strconv.ErrRange)) {
 			p.handleError(ParseErrorCodeInvalidNumberFormat, nil, nil)
 			value = 0
 		}

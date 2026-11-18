@@ -15,4 +15,11 @@
 // whatever tree could be read and a list of ParseError values with byte
 // offsets. Formatting returns edits rather than a finished document, and
 // likewise works on incomplete input.
+//
+// Some VS Code quirks are deliberately not copied. ParseTree returns the root
+// value for an unclosed container (see its Go doc); Scanner keeps comment
+// values limited to the comment text, preserves the "\r" of "\r\n" line-break
+// trivia, and clamps an unterminated block comment to the end of the input
+// instead of advancing past it. GetLocation still reports the key string as
+// PreviousNode.Value for a property key.
 package jsonc

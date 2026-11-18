@@ -175,6 +175,22 @@ func TestVSCodeJSONStrings(t *testing.T) {
 	assertScanError(t, "\"\t \"", SyntaxKindStringLiteral, ScanErrorInvalidCharacter)
 }
 
+func TestScannerLineBreakTriviaValue(t *testing.T) {
+	scanner := CreateScanner("//x\r\n", false)
+	if kind := scanner.Scan(); kind != SyntaxKindLineCommentTrivia {
+		t.Fatalf("first token: got %d", kind)
+	}
+	if kind := scanner.Scan(); kind != SyntaxKindLineBreakTrivia {
+		t.Fatalf("second token: got %d", kind)
+	}
+	if offset, length := scanner.GetTokenOffset(), scanner.GetTokenLength(); offset != 3 || length != 2 {
+		t.Fatalf("CRLF offset/length: got %d/%d", offset, length)
+	}
+	if got := scanner.GetTokenValue(); got != "\r\n" {
+		t.Fatalf("CRLF value: got %q, want %q", got, "\r\n")
+	}
+}
+
 func TestVSCodeJSONNumbers(t *testing.T) {
 	assertKinds(t, "0", SyntaxKindNumericLiteral)
 	assertKinds(t, "0.1", SyntaxKindNumericLiteral)
@@ -238,6 +254,67 @@ func TestVSCodeJSONParseLiterals(t *testing.T) {
 	assertValidParse(t, "1.2E+3", float64(1.2e+3))
 	assertValidParse(t, "1.2E-3", 1.2e-3)
 	assertValidParse(t, "1.2E-3 // comment", 1.2e-3)
+}
+
+func hasParseError(errs []ParseError, code ParseErrorCode, offset, length int) bool {
+	for _, err := range errs {
+		if err.Error == code && err.Offset == offset && err.Length == length {
+			return true
+		}
+	}
+	return false
+}
+
+func TestParseNumberGrammar(t *testing.T) {
+	invalid := []struct {
+		input       string
+		offset      int
+		length      int
+		valueOffset int
+	}{
+		{"1.", 0, 2, -1},
+		{"1. // c\n", 0, 2, -1},
+		{`{"a":1.}`, 5, 2, 5},
+	}
+	for _, tc := range invalid {
+		value, errs := Parse(tc.input)
+		if !hasParseError(errs, ParseErrorCodeInvalidNumberFormat, tc.offset, tc.length) {
+			t.Errorf("%q: value errors: got %#v, want InvalidNumberFormat at %d/%d", tc.input, errs, tc.offset, tc.length)
+		}
+		tree, treeErrs := ParseTree(tc.input)
+		if !hasParseError(treeErrs, ParseErrorCodeInvalidNumberFormat, tc.offset, tc.length) {
+			t.Errorf("%q: tree errors: got %#v", tc.input, treeErrs)
+		}
+		if tc.valueOffset >= 0 {
+			object, ok := value.(map[string]any)
+			if !ok || object["a"] != float64(0) {
+				t.Errorf("%q: decoded value: got %#v, want {\"a\":0}", tc.input, value)
+			}
+		} else if value != float64(0) {
+			t.Errorf("%q: decoded value: got %#v, want 0", tc.input, value)
+		}
+		var node *Node
+		if tc.valueOffset >= 0 {
+			node = FindNodeAtLocation(tree, JSONPath{KeySegment("a")})
+		} else {
+			node = tree
+		}
+		if node == nil || node.Type != NodeTypeNumber || node.Value != float64(0) {
+			t.Errorf("%q: number node: got %#v, want 0", tc.input, node)
+		}
+	}
+
+	// VS Code accepts these tokens without InvalidNumberFormat, even when
+	// the scanner reports a separate UnexpectedEndOfNumber or the value is
+	// rounded to a float64.
+	for _, input := range []string{"0", "01", "-0.5", ".5", "-", "1e", "1e400", "9007199254740993"} {
+		_, errs := Parse(input)
+		for _, err := range errs {
+			if err.Error == ParseErrorCodeInvalidNumberFormat {
+				t.Errorf("%q: unexpected InvalidNumberFormat: %#v", input, errs)
+			}
+		}
+	}
 }
 
 func TestVSCodeJSONParseObjects(t *testing.T) {
@@ -528,7 +605,7 @@ func TestNonASCIIByteOffsetsAndEscapes(t *testing.T) {
 	assertValidParse(t, `"\uD800"`, "\uFFFD")
 
 	crlf := CreateScanner("\r\n", false)
-	if kind := crlf.Scan(); kind != SyntaxKindLineBreakTrivia || crlf.GetTokenLength() != 2 || crlf.GetTokenValue() != "\n" {
+	if kind := crlf.Scan(); kind != SyntaxKindLineBreakTrivia || crlf.GetTokenLength() != 2 || crlf.GetTokenValue() != "\r\n" {
 		t.Fatalf("CRLF trivia: kind %d, length %d, value %q", kind, crlf.GetTokenLength(), crlf.GetTokenValue())
 	}
 }
@@ -599,6 +676,69 @@ func TestTruncatedEscapeAt8MiBCut(t *testing.T) {
 	value, ok := node.Value.(string)
 	if !ok || len(value) != payload || value[0] != 'a' || value[len(value)-1] != 'a' {
 		t.Fatalf("value: got a string of length %d", len(value))
+	}
+}
+
+func TestGetLocationPropertyKeyValue(t *testing.T) {
+	const text = `{"key":1}`
+	loc := GetLocation(text, strings.Index(text, "key")+1)
+	if loc.PreviousNode == nil || loc.PreviousNode.Type != NodeTypeProperty || loc.PreviousNode.Value != "key" {
+		t.Fatalf("previous node: got %#v, want property with value %q", loc.PreviousNode, "key")
+	}
+}
+
+func TestScannerCommentValueDivergence(t *testing.T) {
+	// VS Code's scanner starts comment values one character early and
+	// includes the preceding character. Go keeps the exact token text.
+	comment := CreateScanner(" // c", false)
+	if kind := comment.Scan(); kind != SyntaxKindTrivia {
+		t.Fatalf("leading trivia: got %d", kind)
+	}
+	if kind := comment.Scan(); kind != SyntaxKindLineCommentTrivia {
+		t.Fatalf("line comment: got %d", kind)
+	}
+	if got, offset, length := comment.GetTokenValue(), comment.GetTokenOffset(), comment.GetTokenLength(); got != "// c" || offset != 1 || length != 4 {
+		t.Fatalf("line comment: got %q at %d/%d", got, offset, length)
+	}
+
+	braced := CreateScanner("{/* b */", false)
+	if kind := braced.Scan(); kind != SyntaxKindOpenBraceToken {
+		t.Fatalf("open brace: got %d", kind)
+	}
+	if kind := braced.Scan(); kind != SyntaxKindBlockCommentTrivia {
+		t.Fatalf("block comment: got %d", kind)
+	}
+	if got, offset, length := braced.GetTokenValue(), braced.GetTokenOffset(), braced.GetTokenLength(); got != "/* b */" || offset != 1 || length != 7 {
+		t.Fatalf("block comment: got %q at %d/%d", got, offset, length)
+	}
+}
+
+func TestScannerUnterminatedBlockCommentClampsToInput(t *testing.T) {
+	for _, text := range []string{"/*", "[/*", `{"a":[]/*`} {
+		scanner := CreateScanner(text, false)
+		for scanner.Scan() != SyntaxKindBlockCommentTrivia {
+		}
+		if scanner.GetTokenError() != ScanErrorUnexpectedEndOfComment {
+			t.Errorf("%q: scan error: got %d", text, scanner.GetTokenError())
+		}
+		if scanner.GetPosition() > len(text) || scanner.GetTokenOffset()+scanner.GetTokenLength() > len(text) {
+			t.Errorf("%q: scanner passed end of input: pos=%d token=%d/%d", text,
+				scanner.GetPosition(), scanner.GetTokenOffset(), scanner.GetTokenLength())
+		}
+		if kind := scanner.Scan(); kind != SyntaxKindEOF || scanner.GetTokenOffset() != len(text) {
+			t.Errorf("%q: EOF: got kind %d at %d, want %d", text, kind, scanner.GetTokenOffset(), len(text))
+		}
+	}
+
+	const text = `{"a":[]/*`
+	tree, errs := ParseTree(text)
+	if tree == nil || tree.Length != len(text) {
+		t.Fatalf("truncated tree: got %#v, want length %d", tree, len(text))
+	}
+	for _, err := range errs {
+		if err.Offset > len(text) {
+			t.Errorf("error offset past input: %#v", err)
+		}
 	}
 }
 
