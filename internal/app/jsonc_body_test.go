@@ -130,8 +130,9 @@ func TestBodyPrettyJSONFormatting(t *testing.T) {
 	if !isJSON || got != string(value) {
 		t.Fatalf("valid Pretty text = %q, want %q", got, value)
 	}
-	// A parse result never overrides the strict formatter's exact output.
-	got, _ = prettyBodyText(valid, &jsonTreeResult{stop: "ignored"})
+	// A worker result never overrides the strict formatter's exact output.
+	stale := &jsonReader{ready: true, result: jsonBodyResult{pretty: "ignored", prettyOK: true}}
+	got, _ = prettyBodyText(valid, stale)
 	if got != string(value) {
 		t.Fatalf("valid body was reformatted by the fallback: %q", got)
 	}
@@ -147,7 +148,8 @@ func TestBodyPrettyJSONFormatting(t *testing.T) {
 		{"garbage", `{"a":1} trailing`, []string{"\n  \"a\": 1", "} trailing"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			formatted, ok := prettyBodyText(tc.body, nil)
+			result := computeFaultTolerantBody(tc.body)
+			formatted, ok := result.pretty, result.prettyOK
 			if !ok || formatted == tc.body {
 				t.Fatalf("Pretty did not re-indent %q: %q", tc.body, formatted)
 			}
@@ -169,7 +171,7 @@ func TestBodyJSONTreeShowsStopLineInTheViewer(t *testing.T) {
 	tt.SetLocale("en-US")
 	tt.Frame()
 	a.bodyMode[0] = 2 // choose JSON after the first frame syncs the selection
-	tt.Frame()
+	waitInspection(t, tt, func() bool { return a.jsonReader[0].ready })
 	want := parseJSON(body).stop
 	if !tt.HasText(want) {
 		t.Fatalf("stop line %q missing from Body tab: %q", want, tt.Texts())
@@ -182,6 +184,59 @@ func TestBodyJSONTreeShowsStopLineInTheViewer(t *testing.T) {
 	}
 }
 
+func TestJSONReaderDropsStaleAnswer(t *testing.T) {
+	a := &app{}
+	a.jsonReader[0] = jsonReader{key: "1:0", body: "old body", pending: true}
+	a.finishJSONRead(0, "2:0", "new body", jsonBodyResult{
+		tree:     jsonTreeResult{roots: []*jsonNode{{key: "stale"}}},
+		prettyOK: true,
+	})
+	if a.jsonReader[0].ready || len(a.jsonTrees[0].roots) != 0 {
+		t.Fatalf("a late answer replaced the current body: %+v", a.jsonReader[0])
+	}
+}
+
+func TestBodyJSONPlainTextKeepsOldNotice(t *testing.T) {
+	for _, body := range []string{"not json", "<html><body>plain page</body></html>", "   "} {
+		a := snapshotApp()
+		a.flows[0].resBody, a.flows[0].bytes = body, len(body)
+		a.syncDetail()
+		tt := ui.NewTester(a.view, 1280, 800)
+		tt.SetLocale("en-US")
+		tt.Frame()
+		a.bodyMode[0] = 2
+		waitInspection(t, tt, func() bool { return a.jsonReader[0].ready })
+		if !tt.HasText(locales.BodyIsNotJsonShowing()) {
+			t.Fatalf("%q lost the old notice: %q", body, tt.Texts())
+		}
+		if tt.HasText("Parsing stopped at") {
+			t.Fatalf("%q gained a stop line without a tree: %q", body, tt.Texts())
+		}
+	}
+}
+
+func TestBodyPrettyShowsStopLineForPartialTree(t *testing.T) {
+	body := `{"a":1,"b":[2`
+	a := snapshotApp()
+	a.flows[0].resBody, a.flows[0].bytes = body, len(body)
+	a.syncDetail()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.SetLocale("en-US")
+	tt.Frame()
+	a.bodyMode[0] = 1
+	waitInspection(t, tt, func() bool { return a.jsonReader[0].ready })
+	want := parseJSON(body).stop
+	if !tt.HasText(want) {
+		t.Fatalf("Pretty lost the stop line %q: %q", want, tt.Texts())
+	}
+	if text := a.bodyText[0].Buffer.String(); !strings.Contains(text, "\n  \"a\": 1,") {
+		t.Fatalf("Pretty did not use the worker's formatted text: %q", text)
+	}
+	if a.flows[0].resBody != body {
+		t.Fatal("Pretty changed the retained body")
+	}
+}
+
 // The new readers are display-only: retained bytes and exports must stay the
 // captured bytes even when the tree or Pretty text differs.
 func TestBodyJSONReadersKeepCapturedBytes(t *testing.T) {
@@ -191,7 +246,7 @@ func TestBodyJSONReadersKeepCapturedBytes(t *testing.T) {
 		if got := f.body(true); got != body {
 			t.Fatalf("retained response body changed: %q", got)
 		}
-		if _, ok := prettyBodyText(body, nil); !ok {
+		if result := computeFaultTolerantBody(body); !result.prettyOK {
 			t.Fatalf("no tree for %q", body)
 		}
 		if got := f.body(true); got != body {

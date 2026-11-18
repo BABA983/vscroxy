@@ -67,8 +67,10 @@ func TestParseJSON(t *testing.T) {
 	if root.children[1].key != "a" || root.children[1].value != "true" {
 		t.Fatalf("second child = %+v", root.children[1])
 	}
-	if got := parseJSON("not json"); len(got.roots) != 0 || got.stop == "" {
-		t.Fatalf("plain text should have no tree and a stop line: %+v", got)
+	for _, text := range []string{"not json", "<html><body>plain page</body></html>", ""} {
+		if got := parseJSON(text); len(got.roots) != 0 || got.stop != "" {
+			t.Fatalf("%q should have neither a tree nor a stop line: %+v", text, got)
+		}
 	}
 	for _, partial := range []string{`{"a":1`, `{} {}`} {
 		got := parseJSON(partial)

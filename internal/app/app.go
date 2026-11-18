@@ -315,7 +315,7 @@ type app struct {
 	imageErr      [2]string
 	jsonTrees     [2]jsonTreeResult
 	jsonExpanded  [2]map[nodeID]bool
-	jsonFor       [2]string
+	jsonReader    [2]jsonReader
 	protoFor      [2]string
 	protoOK       [2]bool
 	// protoOwner is the side whose shared protobuf reader is live this frame.
@@ -1753,7 +1753,13 @@ func (a *app) syncDetail() {
 	a.bodyMode, a.bodyQuery = [2]int{}, [2]string{}
 	a.headerScroll, a.bodyText = [2]ui.ScrollState{}, [2]*editor.State{}
 	a.jsonScroll, a.hexScroll = [2]ui.ListState{}, [2]ui.ListState{}
-	a.jsonFor, a.protoFor, a.htmlFor, a.imageFor = [2]string{}, [2]string{}, [2]string{}, [2]string{}
+	for side := range a.jsonReader {
+		if a.jsonReader[side].cancel != nil {
+			a.jsonReader[side].cancel()
+		}
+	}
+	a.jsonReader = [2]jsonReader{}
+	a.protoFor, a.htmlFor, a.imageFor = [2]string{}, [2]string{}, [2]string{}
 	a.jsonTrees, a.protoOK = [2]jsonTreeResult{}, [2]bool{}
 	a.protoOwner = -1
 	a.htmlDoc, a.imageBmp, a.imageErr = [2]*richtext.Document{}, [2]*ui.Bitmap{}, [2]string{}

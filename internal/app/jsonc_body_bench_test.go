@@ -25,6 +25,18 @@ func largeJSONBody() string {
 	return b.String()
 }
 
+// truncatedJSONBody is a minified listing cut off mid-array, like a capture
+// ended by a closed connection or a body-size limit.
+func truncatedJSONBody(size int) string {
+	var b strings.Builder
+	b.Grow(size)
+	b.WriteString(`{"records":[`)
+	for b.Len() < size {
+		fmt.Fprintf(&b, `{"id":%d,"name":"record-with-a-long-description"},`, b.Len())
+	}
+	return b.String()[:size]
+}
+
 func BenchmarkJSONTreeParse(b *testing.B) {
 	body := largeJSONBody()
 	b.ReportAllocs()
@@ -44,5 +56,27 @@ func BenchmarkPrettyBody(b *testing.B) {
 		text, _ := prettyBodyText(body, nil)
 		buf := editor.NewBuffer(text)
 		buf.SetLanguage(editor.LanguageNamed("json"))
+	}
+}
+
+func BenchmarkFaultTolerantLargeBodies(b *testing.B) {
+	for _, mib := range []int{4, 8} {
+		body := truncatedJSONBody(mib << 20)
+		b.Run(fmt.Sprintf("%dMiB/tree", mib), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				if len(parseJSON(body).roots) == 0 {
+					b.Fatal("no partial tree")
+				}
+			}
+		})
+		b.Run(fmt.Sprintf("%dMiB/pretty", mib), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				if result := computeFaultTolerantBody(body); !result.prettyOK {
+					b.Fatal("no Pretty text")
+				}
+			}
+		})
 	}
 }

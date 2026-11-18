@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+	"context"
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/inspect"
@@ -55,6 +57,26 @@ type jsonTreeResult struct {
 	stop   string
 }
 
+// jsonBodyResult is the answer for one body: the tree for the JSON reader
+// and the Pretty text produced from the same parse. A large broken body is
+// parsed and formatted once, off the UI thread.
+type jsonBodyResult struct {
+	tree     jsonTreeResult
+	pretty   string
+	prettyOK bool
+}
+
+// jsonReader tracks one side's work. A flow or body change cancels the
+// current answer, so a late worker result cannot appear under other bytes.
+type jsonReader struct {
+	key, body string
+	ready     bool
+	pending   bool
+	result    jsonBodyResult
+	answers   chan jsonBodyResult
+	cancel    context.CancelFunc
+}
+
 // parseJSON keeps strict JSON on the old decoder, so a valid body builds the
 // same tree at the same cost. Everything else goes through VS Code's
 // fault-tolerant parser: a truncated document keeps the values read so far,
@@ -64,15 +86,23 @@ func parseJSON(body string) jsonTreeResult {
 	if roots, ok := strictJSON(body); ok {
 		return jsonTreeResult{roots: roots}
 	}
+	return faultTolerantJSON(body)
+}
+
+// faultTolerantJSON is the worker half of parseJSON: it assumes the strict
+// attempt has already failed and never runs on the UI thread.
+func faultTolerantJSON(body string) jsonTreeResult {
 	if lines, ok := ndjsonTree(body); ok {
 		return jsonTreeResult{roots: lines, ndjson: true}
 	}
 	root, errs := jsonc.ParseTree(body)
-	result := jsonTreeResult{stop: jsonStopLine(body, errs)}
-	if root != nil {
-		result.roots = []*jsonNode{jsoncNode(body, root, "", "", nodeID{}, 0)}
+	if root == nil {
+		return jsonTreeResult{} // no tree: keep the old "not JSON" reader
 	}
-	return result
+	return jsonTreeResult{
+		roots: []*jsonNode{jsoncNode(body, root, "", "", nodeID{}, 0)},
+		stop:  jsonStopLine(body, errs),
+	}
 }
 
 func strictJSON(body string) ([]*jsonNode, bool) {
@@ -244,6 +274,102 @@ func jsonStopLine(body string, errs []jsonc.ParseError) string {
 	line := strings.Count(prefix, "\n") + 1
 	column := utf8.RuneCountInString(prefix[lineStart:]) + 1
 	return locales.JsonParsingStopped(line, column, offset)
+}
+
+// computeFaultTolerantBody is the unit of work handed to a goroutine: one
+// parse and one format pass over bytes the viewer keeps unchanged.
+func computeFaultTolerantBody(body string) jsonBodyResult {
+	tree := faultTolerantJSON(body)
+	pretty, ok := formatJSONBody(body, tree)
+	return jsonBodyResult{tree: tree, pretty: pretty, prettyOK: ok}
+}
+
+// jsonReaderFor returns the state for one side, starting the fault-tolerant
+// work only after the cheap strict attempt has failed. Strict bodies are
+// ready in this frame; everything else shows the captured text until the
+// worker's answer is applied on the UI thread.
+func (a *app) jsonReaderFor(c *ui.Context, side int, key, body string) *jsonReader {
+	r := &a.jsonReader[side]
+	if r.key != key || r.body != body {
+		if r.cancel != nil {
+			r.cancel()
+		}
+		*r = jsonReader{key: key, body: body}
+		a.jsonTrees[side] = jsonTreeResult{}
+		a.jsonExpanded[side] = nil
+		a.bodyText[side] = nil
+	}
+	if r.pending {
+		a.takeJSONAnswer(c, side)
+		return r
+	}
+	if r.ready {
+		return r
+	}
+	if roots, ok := strictJSON(body); ok {
+		r.ready, r.result = true, jsonBodyResult{tree: jsonTreeResult{roots: roots}}
+		a.storeJSONTree(side, r.result.tree)
+		return r
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	answers := make(chan jsonBodyResult, 1)
+	r.pending, r.cancel, r.answers = true, cancel, answers
+	go func() {
+		result := computeFaultTolerantBody(body)
+		if ctx.Err() != nil {
+			return
+		}
+		if a.win != nil {
+			a.win.Update(func() { a.finishJSONRead(side, key, body, result) })
+			return
+		}
+		// In a Tester there is no window to schedule the handoff. Publish
+		// through the channel and ask the next build pass to take it, as the
+		// protobuf reader does.
+		select {
+		case answers <- result:
+			a.invalidate()
+		case <-ctx.Done():
+		}
+	}()
+	return r
+}
+
+// takeJSONAnswer moves a worker result into app state while building a
+// frame. With a window the worker's win.Update callback does this instead.
+func (a *app) takeJSONAnswer(c *ui.Context, side int) {
+	r := &a.jsonReader[side]
+	if r.answers == nil {
+		return
+	}
+	select {
+	case result := <-r.answers:
+		a.finishJSONRead(side, r.key, r.body, result)
+	default:
+		c.After(50 * time.Millisecond)
+	}
+}
+
+func (a *app) finishJSONRead(side int, key, body string, result jsonBodyResult) {
+	r := &a.jsonReader[side]
+	if r.key != key || r.body != body {
+		return // the flow or body changed while the worker was reading
+	}
+	r.pending, r.ready, r.result = false, true, result
+	r.answers, r.cancel = nil, nil
+	a.bodyText[side] = nil // replace the plain text with the formatted answer
+	a.storeJSONTree(side, result.tree)
+}
+
+func (a *app) storeJSONTree(side int, tree jsonTreeResult) {
+	a.jsonTrees[side] = tree
+	a.jsonExpanded[side] = make(map[nodeID]bool)
+	for _, n := range tree.roots {
+		a.jsonExpanded[side][n.id] = true
+		for _, child := range n.children {
+			a.jsonExpanded[side][child.id] = true
+		}
+	}
 }
 
 // visibleJSON flattens the tree to the rows the current expansion shows.
@@ -599,22 +725,14 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 	}
 	switch mode {
 	case 2:
-		if key != a.jsonFor[side] {
-			a.jsonFor[side] = key
-			a.jsonTrees[side] = parseJSON(body)
-			a.jsonExpanded[side] = make(map[nodeID]bool)
-			for _, n := range a.jsonTrees[side].roots {
-				a.jsonExpanded[side][n.id] = true
-				for _, child := range n.children {
-					a.jsonExpanded[side][child.id] = true
-				}
-			}
+		reader := a.jsonReaderFor(c, side, key, body)
+		if !reader.ready {
+			a.prettyBody(c, body, side, reader)
+			return
 		}
-		if len(a.jsonTrees[side].roots) == 0 {
-			if stop := a.jsonTrees[side].stop; stop != "" {
-				uikit.Meta(c, stop).Padding(t.Space(uikit.SpaceL))
-			}
-			a.prettyBody(c, body, side, &a.jsonTrees[side])
+		if len(reader.result.tree.roots) == 0 {
+			uikit.Meta(c, locales.BodyIsNotJsonShowing()).Padding(t.Space(uikit.SpaceL))
+			a.prettyBody(c, body, side, reader)
 			return
 		}
 		a.jsonBody(c, side)
@@ -631,7 +749,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		case "Merged stream":
 			a.mergedBody(c, f, body, side)
 		default:
-			a.prettyBody(c, body, side, nil)
+			a.prettyBody(c, body, side, a.jsonReaderFor(c, side, key, body))
 		}
 	}
 }
@@ -715,18 +833,24 @@ func (a *app) htmlPreview(c *ui.Context, key, body string, side int) {
 }
 
 // prettyBodyText keeps the strict formatter's exact output for valid JSON.
-// For anything else with a tree, VS Code's formatter re-indents the captured
-// bytes, including comments, trailing commas, truncation and trailing text.
-// The result is display only: callers keep a.body for copy, save and replay.
-func prettyBodyText(body string, tree *jsonTreeResult) (string, bool) {
+// Invalid bodies use the answer already computed off the UI thread; until it
+// arrives the captured text is shown as received.
+func prettyBodyText(body string, json *jsonReader) (string, bool) {
 	value := jsontext.Value(body)
 	if value.Indent(jsontext.WithIndent("  ")) == nil {
 		return string(value), true
 	}
-	if tree == nil {
-		parsed := parseJSON(body)
-		tree = &parsed
+	if json != nil && json.ready && json.result.prettyOK {
+		return json.result.pretty, true
 	}
+	return body, false
+}
+
+// formatJSONBody is VS Code's formatter applied to one fault-tolerant tree:
+// comments, trailing commas, truncation, trailing text and NDJSON all keep
+// their original bytes and gain indentation. It runs beside the tree parse,
+// never in a build pass.
+func formatJSONBody(body string, tree jsonTreeResult) (string, bool) {
 	if len(tree.roots) == 0 {
 		return body, false
 	}
@@ -768,21 +892,25 @@ func formatNDJSON(body string, options jsonc.FormattingOptions) string {
 	return out.String()
 }
 
-func (a *app) prettyBody(c *ui.Context, body string, side int, tree *jsonTreeResult) {
-	reader := a.bodyText[side]
-	if reader == nil {
-		text, isJSON := prettyBodyText(body, tree)
+func (a *app) prettyBody(c *ui.Context, body string, side int, json *jsonReader) {
+	if json != nil && json.ready && json.result.tree.stop != "" {
+		t := c.Theme()
+		uikit.Meta(c, json.result.tree.stop).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM))
+	}
+	view := a.bodyText[side]
+	if view == nil {
+		text, isJSON := prettyBodyText(body, json)
 		buf := editor.NewBuffer(text)
 		if isJSON {
 			buf.SetLanguage(editor.LanguageNamed("json"))
 		}
-		reader = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.BodyText(), RenderFindBar: bodyFindBar}
-		a.bodyText[side] = reader
+		view = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.BodyText(), RenderFindBar: bodyFindBar}
+		a.bodyText[side] = view
 	}
-	a.decoderMenu(reader)
-	reader.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
-	reader.Theme = uikit.EditorTheme(c.Theme())
-	editor.View(c, reader).Bind(&a.bodyReader[side]).Grow(1)
+	a.decoderMenu(view)
+	view.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
+	view.Theme = uikit.EditorTheme(c.Theme())
+	editor.View(c, view).Bind(&a.bodyReader[side]).Grow(1)
 }
 
 // Keep the library's search semantics, with controls that fit a side inspector.

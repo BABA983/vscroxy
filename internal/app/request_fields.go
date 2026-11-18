@@ -875,7 +875,7 @@ func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
 		if a.bodyPrettyFor[1] != body {
 			a.bodyPrettyFor[1], a.bodyText[1] = body, nil
 		}
-		a.prettyBody(c, body, 1, nil)
+		a.prettyBody(c, body, 1, a.jsonReaderFor(c, 1, "draft", body))
 	}
 }
 

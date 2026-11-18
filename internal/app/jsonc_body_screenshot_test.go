@@ -26,6 +26,7 @@ func TestBodyJSONCScreenshots(t *testing.T) {
 		truncated = `{"id":1,"name":"Demo project","items":[{"sku":"A-1"},{"sku":"B-2"`
 		ndjson    = "{\"event\":\"start\",\"id\":1}\n{\"event\":\"item\",\"id\":2,\"name\":\"demo\"}\n{\"event\":\"end\",\"id\":3}\n"
 		valid     = `{"projects":[{"id":73,"name":"Demo project"}],"total":1}`
+		plain     = "not json"
 	)
 	scenes := []struct {
 		name     string
@@ -39,6 +40,7 @@ func TestBodyJSONCScreenshots(t *testing.T) {
 		{"ndjson-pretty", ndjson, 1, `  "event": "item",`},
 		{"valid-tree", valid, 2, `total`},
 		{"valid-pretty", valid, 1, `  "projects": [`},
+		{"plaintext-pretty", plain, 1, `not json`},
 	}
 	for _, scene := range scenes {
 		for _, dark := range []bool{false, true} {
@@ -62,6 +64,7 @@ func TestBodyJSONCScreenshots(t *testing.T) {
 				tt.SetLocale("en-US")
 				tt.SetScale(2)
 				tt.Frame()
+				waitInspection(t, tt, func() bool { return a.jsonReader[0].ready })
 
 				shown := ""
 				if scene.mode == 2 && !tt.HasText(scene.wantText) {
