@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"slices"
 	"strconv"
 	"strings"
@@ -69,12 +70,12 @@ type jsonBodyResult struct {
 // jsonReader tracks one side's work. A flow or body change cancels the
 // current answer, so a late worker result cannot appear under other bytes.
 type jsonReader struct {
-	key, body string
-	ready     bool
-	pending   bool
-	result    jsonBodyResult
-	answers   chan jsonBodyResult
-	cancel    context.CancelFunc
+	key, body, contentType string
+	ready                  bool
+	pending                bool
+	result                 jsonBodyResult
+	answers                chan jsonBodyResult
+	cancel                 context.CancelFunc
 }
 
 // parseJSON keeps strict JSON on the old decoder, so a valid body builds the
@@ -106,15 +107,24 @@ func faultTolerantJSON(body string) jsonTreeResult {
 }
 
 func strictJSON(body string) ([]*jsonNode, bool) {
+	roots, ok, _ := probeStrictJSON(body)
+	return roots, ok
+}
+
+// probeStrictJSON reports whether a body is complete JSON and, if it is not,
+// whether the first decoder error is EOF in the middle of a token or
+// container. That distinguishes a capture cut off at the end from ordinary
+// text that only happens to begin with a JSON token.
+func probeStrictJSON(body string) ([]*jsonNode, bool, bool) {
 	dec := jsontext.NewDecoder(strings.NewReader(body))
 	root, err := readJSON(dec, "", "", nodeID{}, 0)
 	if err != nil {
-		return nil, false
+		return nil, false, errors.Is(err, io.ErrUnexpectedEOF)
 	}
 	if _, err := dec.ReadToken(); !errors.Is(err, io.EOF) {
-		return nil, false
+		return nil, false, errors.Is(err, io.ErrUnexpectedEOF)
 	}
-	return []*jsonNode{root}, true
+	return []*jsonNode{root}, true, false
 }
 
 // Tokens retain object order and the original number spelling, including
@@ -255,6 +265,60 @@ func ndjsonTree(body string) ([]*jsonNode, bool) {
 	return roots, len(roots) > 1
 }
 
+// jsonFamilyType covers ordinary JSON, its +json media types and the common
+// newline-delimited names. Anything else is only offered the fault-tolerant
+// reader when the bytes themselves prove they are a JSON stream or a capture
+// cut off at the end.
+func jsonFamilyType(contentType string) bool {
+	media, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return false
+	}
+	switch media {
+	case "application/json", "text/json", "application/x-ndjson", "application/ndjson",
+		"ndjson", "application/jsonl", "application/x-jsonl", "jsonl",
+		"application/jsonlines", "application/x-jsonlines":
+		return true
+	}
+	return strings.HasSuffix(media, "+json")
+}
+
+func faultTolerantWanted(contentType, body string, truncated bool) bool {
+	return jsonFamilyType(contentType) || truncated || looksLikeNDJSON(body)
+}
+
+// looksLikeNDJSON parses candidate lines only when their first byte is the
+// start of a JSON value, so ordinary text, HTML and JavaScript never pay for
+// a JSON parse here. Every nonblank line must be a complete value.
+func looksLikeNDJSON(body string) bool {
+	lines, rest := 0, body
+	for len(rest) > 0 {
+		part, after, more := strings.Cut(rest, "\n")
+		rest = after
+		text := strings.TrimSuffix(strings.TrimSpace(part), "\r")
+		if text == "" {
+			if !more {
+				break
+			}
+			continue
+		}
+		switch text[0] {
+		case '{', '[', '"', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 't', 'f', 'n':
+		default:
+			return false
+		}
+		root, errs := jsonc.ParseTree(text)
+		if root == nil || len(errs) > 0 {
+			return false
+		}
+		lines++
+		if !more {
+			break
+		}
+	}
+	return lines > 1
+}
+
 // jsonStopLine reports the earlier parse error as a one-based line and column
 // as well as the byte offset VS Code's parser uses.
 func jsonStopLine(body string, errs []jsonc.ParseError) string {
@@ -288,13 +352,13 @@ func computeFaultTolerantBody(body string) jsonBodyResult {
 // work only after the cheap strict attempt has failed. Strict bodies are
 // ready in this frame; everything else shows the captured text until the
 // worker's answer is applied on the UI thread.
-func (a *app) jsonReaderFor(c *ui.Context, side int, key, body string) *jsonReader {
+func (a *app) jsonReaderFor(c *ui.Context, side int, key, body, contentType string) *jsonReader {
 	r := &a.jsonReader[side]
-	if r.key != key || r.body != body {
+	if r.key != key || r.body != body || r.contentType != contentType {
 		if r.cancel != nil {
 			r.cancel()
 		}
-		*r = jsonReader{key: key, body: body}
+		*r = jsonReader{key: key, body: body, contentType: contentType}
 		a.jsonTrees[side] = jsonTreeResult{}
 		a.jsonExpanded[side] = nil
 		a.bodyText[side] = nil
@@ -306,8 +370,15 @@ func (a *app) jsonReaderFor(c *ui.Context, side int, key, body string) *jsonRead
 	if r.ready {
 		return r
 	}
-	if roots, ok := strictJSON(body); ok {
+	roots, strict, truncated := probeStrictJSON(body)
+	if strict {
 		r.ready, r.result = true, jsonBodyResult{tree: jsonTreeResult{roots: roots}}
+		a.storeJSONTree(side, r.result.tree)
+		return r
+	}
+	if !faultTolerantWanted(contentType, body, truncated) {
+		// Plain text, HTML and code are never reformatted or parsed as JSON.
+		r.ready, r.result = true, jsonBodyResult{}
 		a.storeJSONTree(side, r.result.tree)
 		return r
 	}
@@ -317,13 +388,13 @@ func (a *app) jsonReaderFor(c *ui.Context, side int, key, body string) *jsonRead
 	if a.win == nil {
 		r.answers = answers // Tester handoff; a window uses win.Update
 	}
-	go func() {
+	go guarded(func() {
 		result := computeFaultTolerantBody(body)
 		if ctx.Err() != nil {
 			return
 		}
 		if a.win != nil {
-			a.win.Update(func() { a.finishJSONRead(side, key, body, result) })
+			a.win.Update(func() { a.finishJSONRead(side, key, body, contentType, result) })
 			return
 		}
 		// In a Tester there is no window to schedule the handoff. Publish
@@ -334,7 +405,7 @@ func (a *app) jsonReaderFor(c *ui.Context, side int, key, body string) *jsonRead
 			a.invalidate()
 		case <-ctx.Done():
 		}
-	}()
+	})
 	return r
 }
 
@@ -347,15 +418,15 @@ func (a *app) takeJSONAnswer(c *ui.Context, side int) {
 	}
 	select {
 	case result := <-r.answers:
-		a.finishJSONRead(side, r.key, r.body, result)
+		a.finishJSONRead(side, r.key, r.body, r.contentType, result)
 	default:
 		c.After(50 * time.Millisecond)
 	}
 }
 
-func (a *app) finishJSONRead(side int, key, body string, result jsonBodyResult) {
+func (a *app) finishJSONRead(side int, key, body, contentType string, result jsonBodyResult) {
 	r := &a.jsonReader[side]
-	if r.key != key || r.body != body {
+	if r.key != key || r.body != body || r.contentType != contentType {
 		return // the flow or body changed while the worker was reading
 	}
 	r.pending, r.ready, r.result = false, true, result
@@ -728,7 +799,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 	}
 	switch mode {
 	case 2:
-		reader := a.jsonReaderFor(c, side, key, body)
+		reader := a.jsonReaderFor(c, side, key, body, f.contentType(side == 0))
 		if !reader.ready {
 			a.prettyBody(c, body, side, reader)
 			return
@@ -752,7 +823,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		case "Merged stream":
 			a.mergedBody(c, f, body, side)
 		default:
-			a.prettyBody(c, body, side, a.jsonReaderFor(c, side, key, body))
+			a.prettyBody(c, body, side, a.jsonReaderFor(c, side, key, body, f.contentType(side == 0)))
 		}
 	}
 }

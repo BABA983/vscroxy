@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json/jsontext"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -186,8 +187,8 @@ func TestBodyJSONTreeShowsStopLineInTheViewer(t *testing.T) {
 
 func TestJSONReaderDropsStaleAnswer(t *testing.T) {
 	a := &app{}
-	a.jsonReader[0] = jsonReader{key: "1:0", body: "old body", pending: true}
-	a.finishJSONRead(0, "2:0", "new body", jsonBodyResult{
+	a.jsonReader[0] = jsonReader{key: "1:0", body: "old body", contentType: "text/plain", pending: true}
+	a.finishJSONRead(0, "2:0", "new body", "text/plain", jsonBodyResult{
 		tree:     jsonTreeResult{roots: []*jsonNode{{key: "stale"}}},
 		prettyOK: true,
 	})
@@ -196,10 +197,103 @@ func TestJSONReaderDropsStaleAnswer(t *testing.T) {
 	}
 }
 
+func TestJSONFaultTolerantGate(t *testing.T) {
+	for _, ct := range []string{
+		"application/json", "application/json; charset=utf-8", "application/problem+json",
+		"application/x-ndjson", "application/jsonl", "application/ndjson", "ndjson",
+	} {
+		if !jsonFamilyType(ct) {
+			t.Fatalf("JSON family type %q was rejected", ct)
+		}
+	}
+	for _, ct := range []string{"text/plain", "text/html", "application/javascript", "application/octet-stream", ""} {
+		if jsonFamilyType(ct) {
+			t.Fatalf("non-JSON type %q was accepted", ct)
+		}
+	}
+	stream := "{\"a\":1}\n{\"b\":2}\n"
+	if !faultTolerantWanted("application/octet-stream", stream, false) {
+		t.Fatal("NDJSON bytes were not recognized")
+	}
+	if !faultTolerantWanted("", `{"a":1`, true) {
+		t.Fatal("a truncated strict-JSON prefix was not recognized")
+	}
+	for _, body := range []string{"[INFO] server started on :8080\n", "function f() { return {a: 1}; }", "123 apples and 4 oranges"} {
+		if faultTolerantWanted("text/plain", body, false) {
+			t.Fatalf("ordinary text %q entered the JSON reader", body)
+		}
+	}
+}
+
+// These bodies produce parseable prefixes or roots in VS Code's scanner, but
+// their content types say they are text. Pretty must keep every byte and JSON
+// mode must keep the old notice.
+func TestNonJSONBodiesStayStrictOnly(t *testing.T) {
+	cases := []struct {
+		name, body, contentType string
+	}{
+		{"log", "[INFO] server started on :8080\n[WARN] cache miss for key=abc\n", "text/plain"},
+		{"javascript", "function f() { return {a: 1}; }", "application/javascript"},
+		{"html", `<html><body>{"a":1}</body></html>`, "text/html"},
+		{"numbers", "123 apples and 4 oranges", "text/plain"},
+		{"boolean", "true story, told twice", "text/plain"},
+		{"quoted", `"quoted" then words`, "text/plain"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, strict, truncated := probeStrictJSON(tc.body)
+			if strict || truncated || faultTolerantWanted(tc.contentType, tc.body, truncated) {
+				t.Fatalf("%q unexpectedly qualified for the fault-tolerant reader", tc.body)
+			}
+			a := snapshotApp()
+			a.flows[0].resBody, a.flows[0].bytes = tc.body, len(tc.body)
+			a.flows[0].respHeader = http.Header{"Content-Type": {tc.contentType}}
+			a.syncDetail()
+			tt := ui.NewTester(a.view, 1280, 800)
+			tt.SetLocale("en-US")
+			tt.Frame()
+			a.bodyMode[0] = 1 // Pretty
+			waitInspection(t, tt, func() bool { return a.jsonReader[0].ready })
+			if got := a.bodyText[0].Buffer.String(); got != tc.body {
+				t.Fatalf("Pretty mangled %q into %q", tc.body, got)
+			}
+			if a.jsonReader[0].pending {
+				t.Fatal("a fault-tolerant worker started for non-JSON bytes")
+			}
+			a.bodyMode[0] = 2 // JSON
+			waitInspection(t, tt, func() bool { return a.jsonReader[0].ready })
+			if !tt.HasText(locales.BodyIsNotJsonShowing()) || tt.HasText("Parsing stopped at") {
+				t.Fatalf("JSON mode changed the notice: %q", tt.Texts())
+			}
+		})
+	}
+}
+
+func TestJSONContentTypeTruncatedStillGetsPartialTree(t *testing.T) {
+	body := `{"a":1,"b":[2`
+	_, strict, truncated := probeStrictJSON(body)
+	if strict || !truncated || !faultTolerantWanted("application/problem+json", body, truncated) {
+		t.Fatal("a truncated +json body did not qualify for the fault-tolerant reader")
+	}
+	result := computeFaultTolerantBody(body)
+	if len(result.tree.roots) == 0 || result.tree.stop == "" || !result.prettyOK {
+		t.Fatalf("partial +json body lost its tree, stop or formatting: %+v", result)
+	}
+	if !strings.Contains(result.pretty, "\n  \"a\": 1,") {
+		t.Fatalf("Pretty did not re-indent the truncated body: %q", result.pretty)
+	}
+}
+
 func TestBodyJSONPlainTextKeepsOldNotice(t *testing.T) {
-	for _, body := range []string{"not json", "<html><body>plain page</body></html>", "   "} {
+	for _, tc := range []struct{ body, contentType string }{
+		{"not json", "text/plain"},
+		{"<html><body>plain page</body></html>", "text/html"},
+		{"   ", "text/plain"},
+	} {
+		body := tc.body
 		a := snapshotApp()
 		a.flows[0].resBody, a.flows[0].bytes = body, len(body)
+		a.flows[0].respHeader = http.Header{"Content-Type": {tc.contentType}}
 		a.syncDetail()
 		tt := ui.NewTester(a.view, 1280, 800)
 		tt.SetLocale("en-US")

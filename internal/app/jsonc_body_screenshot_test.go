@@ -2,6 +2,7 @@ package app
 
 import (
 	"image/png"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,18 +30,19 @@ func TestBodyJSONCScreenshots(t *testing.T) {
 		plain     = "not json"
 	)
 	scenes := []struct {
-		name     string
-		body     string
-		mode     int
-		wantText string
+		name        string
+		body        string
+		mode        int
+		wantText    string
+		contentType string
 	}{
-		{"truncated-tree", truncated, 2, "Parsing stopped at"},
-		{"truncated-pretty", truncated, 1, `  "id": 1,`},
-		{"ndjson-tree", ndjson, 2, "Line 2"},
-		{"ndjson-pretty", ndjson, 1, `  "event": "item",`},
-		{"valid-tree", valid, 2, `total`},
-		{"valid-pretty", valid, 1, `  "projects": [`},
-		{"plaintext-pretty", plain, 1, `not json`},
+		{"truncated-tree", truncated, 2, "Parsing stopped at", "application/json"},
+		{"truncated-pretty", truncated, 1, `  "id": 1,`, "application/json"},
+		{"ndjson-tree", ndjson, 2, "Line 2", "application/x-ndjson"},
+		{"ndjson-pretty", ndjson, 1, `  "event": "item",`, "application/x-ndjson"},
+		{"valid-tree", valid, 2, `total`, "application/json"},
+		{"valid-pretty", valid, 1, `  "projects": [`, "application/json"},
+		{"plaintext-pretty", plain, 1, `not json`, "text/plain"},
 	}
 	for _, scene := range scenes {
 		for _, dark := range []bool{false, true} {
@@ -51,6 +53,7 @@ func TestBodyJSONCScreenshots(t *testing.T) {
 			t.Run(scene.name+"-"+appearance, func(t *testing.T) {
 				a := snapshotApp()
 				a.flows[0].resBody, a.flows[0].bytes = scene.body, len(scene.body)
+				a.flows[0].respHeader = http.Header{"Content-Type": {scene.contentType}}
 				a.syncDetail()
 				a.bodyModes(a.flows[0], 0) // initialize the per-side cache bodySideView expects
 				a.bodyMode[0] = scene.mode
