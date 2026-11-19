@@ -294,12 +294,13 @@ func (f sessionFlow) flow() flow {
 	}
 }
 
+// matches narrows a saved session's exchanges in arrival order, like VS Code's
+// tree FindFilter (src/vs/base/browser/ui/tree/abstractTree.ts). The search
+// still sees every field it did before, but as one fuzzy label: "gtusr"
+// reaches an exchange whose URL only spells "GetUser" across word breaks.
 func (f sessionFlow) matches(notes, query string) bool {
-	query = strings.ToLower(strings.TrimSpace(query))
-	for _, value := range []string{f.Method, f.URL, fmt.Sprint(f.Status), f.Note, notes, f.ReqError, f.ResError, f.ConnectionError, f.ConnectionStage} {
-		if strings.Contains(strings.ToLower(value), query) {
-			return true
-		}
-	}
-	return false
+	return fuzzyTextMatches(query, strings.Join([]string{
+		f.Method, f.URL, fmt.Sprint(f.Status), f.Note, notes,
+		f.ReqError, f.ResError, f.ConnectionError, f.ConnectionStage,
+	}, " "))
 }

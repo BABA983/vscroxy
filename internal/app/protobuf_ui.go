@@ -191,12 +191,7 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 		note = locales.MessageTypeNamed(p.result.typeName)
 	}
 	uikit.Tip(c, uikit.Meta(c, note).SingleLine(), note).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
-	var visible []int
-	for i, message := range p.result.messages {
-		if p.query == "" || strings.Contains(strings.ToLower(message.text), strings.ToLower(p.query)) {
-			visible = append(visible, i)
-		}
-	}
+	visible := filterProtoMessages(a, p.result.messages, p.query, p.key)
 	uikit.Meta(c, locales.ProtobufMessages(len(visible), len(p.result.messages))).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
 	if len(visible) == 0 {
 		note := locales.NoMessageMatches()
