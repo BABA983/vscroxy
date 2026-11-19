@@ -4654,6 +4654,7 @@
   "accessToken": "Access token",
   "accessTokenUrl": "Access token URL",
   "action": "Action",
+  "actualValue": "Actual",
   "active": "Active",
   "activeEnvironment": "Active environment",
   "activeScenario": "Active scenario",
@@ -5590,6 +5591,7 @@
   "existingScriptsAreKeptClear": "Existing scripts are kept. Clear-before-login is prepended; extraction and consumer guards are appended. Other Auth types, dirty drafts and stale proposals are refused. Review authored scripts for deliberate overrides.",
   "expectedResponseHeaders": "Expected response headers",
   "expectedStatus": "Expected status",
+  "expectedValue": "Expected",
   "experimentNote": "Experiment note",
   "experimentNumber": "Experiment #{id}",
   "experimentResult": "Experiment result",
@@ -5963,6 +5965,9 @@
   "inspectNumbered": "Inspect #{id}",
   "inspectReplay": "Inspect replay",
   "inspectRetainedRun": "Inspect retained run",
+  "rerunFailed": "Rerun failed",
+  "rerunFailedChecksTip": "Send this request again. Every assertion of the new result is shown, including new failures.",
+  "rerunFailedRunnerTip": "Rerun only the failed attempts, each with its own data row and starting variables. Requests run in isolation, without the earlier requests of the run.",
   "inspectSourceCapture": "Inspect source capture",
   "inspectSourceCaptureUnavailableIf": "Inspect source capture; unavailable if it was removed from this session",
   "inspectTimingInCapture": "Inspect timing in Capture",
@@ -7066,6 +7071,7 @@
   "showAsText": "Show as text",
   "showCertificate": "Show certificate",
   "showDetails": "Show details",
+  "showDiff": "Show diff",
   "showFewer": "Show fewer",
   "showHistory": "Show History",
   "showLatestResponse": "Show latest response",
@@ -7239,6 +7245,15 @@
   "testAHost": "Test a host",
   "testAHostApiExample": "Test a host: api.example.com",
   "testARequest": "Test a request",
+  "@testDiffNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "testDiff": "Assertion diff",
+  "testDiffNamed": "{name} · assertion diff",
   "testGetHttpsApiExample": "Test: GET https://api.example.com @ App; Header: value",
   "testGraphqlBody": "Test GraphQL body",
   "text": "Text",

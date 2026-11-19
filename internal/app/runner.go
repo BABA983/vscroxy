@@ -76,6 +76,10 @@ type runnerRow struct {
 	tests     []request.TestResult
 	console   []request.ConsoleMessage
 	recordID  int
+	// requestKey and dataRow are what a failed-only rerun repeats: the saved
+	// request and the exact data row this attempt used.
+	requestKey string
+	dataRow    map[string]string
 }
 type runnerEvent struct {
 	row          runnerRow
@@ -86,12 +90,39 @@ type runnerEvent struct {
 	attempt      runner.Result
 }
 
+// runnerInputs are the variables, environment and data rows a run started
+// with. Scripts change variables as they go, so a failed-only rerun must use
+// the snapshot, not whatever those scopes hold afterwards.
+type runnerInputs struct {
+	environment string
+	vars        map[string]string
+	initial     map[string]string
+	data        []map[string]string
+}
+
+func cloneRunnerInputs(in runnerInputs) runnerInputs {
+	return runnerInputs{environment: in.environment, vars: maps.Clone(in.vars), initial: maps.Clone(in.initial), data: slices.Clone(in.data)}
+}
+
+// runPlan is the work of one run, shared by a full run and a failed-only
+// rerun. Data is passed to the engine only when it chooses the rows itself;
+// a rerun puts its row in each step's context instead.
+type runPlan struct {
+	requests                []savedRequest
+	steps                   []runner.Step
+	inputs                  runnerInputs
+	data                    []map[string]string
+	iterations, delayMillis int
+	stopOnFailure           bool
+}
+
 // pastRun is a finished run kept for the session: its rows, its report for
 // export, and a one-line label for the picker.
 type pastRun struct {
 	label  string
 	rows   []runnerRow
 	report runner.Report
+	inputs runnerInputs
 }
 
 // maxPastRuns bounds the session's history; each run keeps its full report.
@@ -121,6 +152,9 @@ type collectionRunner struct {
 	// viewKey is the index of the shown one, as a picker key.
 	report  runner.Report
 	history []pastRun
+	// shown are the inputs of the run whose rows the picker displays, so a
+	// rerun recovers the data row and starting variables of that run.
+	shown   runnerInputs
 	viewKey string
 	outcome *runOutcome
 	// data are the data file's rows, one per iteration; dataName names it.
@@ -186,28 +220,87 @@ func (a *app) startRunner() {
 		r.status = locales.ChooseSavedRequest()
 		return
 	}
+	a.startRun(runPlan{requests: requests, steps: steps,
+		inputs: runnerInputs{environment: a.activeEnv, vars: a.activeVars(),
+			initial: maps.Clone(a.activeEnvironment().Vars), data: r.data},
+		data: r.data, iterations: n, delayMillis: delay, stopOnFailure: r.stopOnFailure})
+}
+
+// rerunFailedRequests repeats each failed (request, iteration) pair of the
+// shown run. Each retry carries that iteration's data row and the run's
+// starting variables, and runs in isolation: earlier requests are not sent.
+func (a *app) rerunFailedRequests() {
+	r := &a.runner
+	if r.running || a.loadRunner.running || a.remoteRunActive() {
+		return
+	}
+	if a.srv == nil || !a.srv.Running() {
+		r.status = locales.StartLocalProxyFirst()
+		return
+	}
+	plan := runPlan{inputs: cloneRunnerInputs(r.shown), iterations: 1}
+	for _, row := range r.rows {
+		if !row.failed || row.requestKey == "" {
+			continue
+		}
+		step := slices.IndexFunc(r.steps, func(s runnerStep) bool { return s.request.key() == row.requestKey })
+		if step < 0 {
+			continue
+		}
+		req := r.steps[step].request
+		in := a.sendContext(req.Request)
+		in.Environment, in.EnvironmentInitial = plan.inputs.environment, maps.Clone(plan.inputs.initial)
+		if row.dataRow != nil {
+			in.Data = maps.Clone(row.dataRow)
+		} else if row.iteration >= 1 && row.iteration <= len(plan.inputs.data) {
+			in.Data = maps.Clone(plan.inputs.data[row.iteration-1])
+		}
+		plan.requests = append(plan.requests, req)
+		plan.steps = append(plan.steps, runner.Step{Request: req.Request, Context: in})
+	}
+	if len(plan.requests) == 0 {
+		r.status = locales.ChooseSavedRequest()
+		return
+	}
+	a.startRun(plan)
+}
+
+// startRun owns the shared lifecycle of a full run and a failed-only rerun.
+// plan.requests[index] and plan.steps[index] always describe the same send.
+func (a *app) startRun(plan runPlan) {
+	r := &a.runner
 	ctx, cancel := context.WithCancel(context.Background())
 	r.cancel, r.running, r.cancelled = cancel, true, false
 	r.rows, r.completed, r.failures, r.picked = nil, 0, 0, 0
 	r.report = runner.Report{Version: 1, StartedAt: time.Now().UTC()}
 	r.viewKey = strconv.Itoa(len(r.history))
+	r.shown = cloneRunnerInputs(plan.inputs)
 	outcome := &runOutcome{}
 	r.outcome = outcome
-	r.environment, r.status = a.activeEnv, locales.RunningStatus()
+	r.environment, r.status = plan.inputs.environment, locales.RunningStatus()
 	events := make(chan runnerEvent, 16)
 	r.events = events
-	vars, stop, srv, env, data := a.activeVars(), r.stopOnFailure, a.srv, r.environment, r.data
+	for i := range plan.steps {
+		plan.steps[i].Context.Environment = plan.inputs.environment
+		plan.steps[i].Context.EnvironmentInitial = maps.Clone(plan.inputs.initial)
+	}
+	vars, srv, env := maps.Clone(plan.inputs.vars), a.srv, plan.inputs.environment
 	jar := a.requestCookies()
 	go guarded(func() {
 		defer close(events)
 		defer cancel()
 		defer a.invalidate()
-		opts := runner.Options{Iterations: n, Delay: time.Duration(delay) * time.Millisecond, StopOnFailure: stop, Data: data, Vars: vars, Cookies: jar}
-		outcome.summary, outcome.err = runner.Run(ctx, srv, steps, opts, func(result runner.Result) error {
-			req, got := requests[result.Index], result.Execution
+		opts := runner.Options{Iterations: plan.iterations, Delay: time.Duration(plan.delayMillis) * time.Millisecond,
+			StopOnFailure: plan.stopOnFailure, Data: plan.data, Vars: vars, Cookies: jar}
+		outcome.summary, outcome.err = runner.Run(ctx, srv, plan.steps, opts, func(result runner.Result) error {
+			req, got := plan.requests[result.Index], result.Execution
 			record := snapshotExperiment(0, req, env, got)
 			record.RunKey = result.RunKey
-			event := runnerEvent{row: runnerRow{name: req.Name, iteration: result.Iteration, summary: runSummary(got), failed: got.Failed(), tests: got.Tests, console: result.Console}, before: result.Before, vars: maps.Clone(got.Vars), writes: got.Writes, record: record, request: req.Request, attempt: result}
+			dataRow := maps.Clone(plan.steps[result.Index].Context.Data)
+			if result.Iteration >= 1 && result.Iteration <= len(plan.data) {
+				dataRow = maps.Clone(plan.data[result.Iteration-1])
+			}
+			event := runnerEvent{row: runnerRow{name: req.Name, iteration: result.Iteration, summary: runSummary(got), failed: got.Failed(), tests: got.Tests, console: result.Console, requestKey: req.key(), dataRow: dataRow}, before: result.Before, vars: maps.Clone(got.Vars), writes: got.Writes, record: record, request: req.Request, attempt: result}
 			select {
 			case events <- event:
 			default:
@@ -322,7 +415,7 @@ func (a *app) finishRunner() {
 		a.attention.play(runAttention(failed, r.report.Completed, r.report.Failed))
 	}
 	label := fmt.Sprintf("%s · %s · %s · %d completed · %d failed", r.report.StartedAt.Local().Format("15:04:05"), cmp.Or(r.collection, "/"), r.status, r.report.Completed, r.report.Failed)
-	r.history = append(r.history, pastRun{label: label, rows: r.rows, report: r.report})
+	r.history = append(r.history, pastRun{label: label, rows: r.rows, report: r.report, inputs: cloneRunnerInputs(r.shown)})
 	r.history = r.history[max(0, len(r.history)-maxPastRuns):]
 	r.showRun(len(r.history) - 1)
 }
@@ -332,6 +425,7 @@ func (r *collectionRunner) showRun(i int) {
 	past := r.history[i]
 	r.rows, r.report = past.rows, past.report
 	r.completed, r.failures = past.report.Completed, past.report.Failed
+	r.shown = cloneRunnerInputs(past.inputs)
 	r.viewKey = strconv.Itoa(i)
 }
 
@@ -514,7 +608,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						uikit.Meta(c, row.summary).TextColor(color).Padding(0, t.Space(uikit.SpaceM)).SingleLine()
 						ui.Scroll(c).MaxHeight(150).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 							for _, test := range row.tests {
-								testResultRow(c, test)
+								testResultRow(c, test, a.openTestDiff)
 							}
 							for _, entry := range row.console {
 								uikit.Body(c, entry.Phase+" · "+entry.Kind+" · "+entry.Text).Selectable()
@@ -545,6 +639,12 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 			uikit.Tip(c, uikit.Meta(c, status), locales.RunResultsLimitTip())
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Justify(ui.End).Children(func() {
 				uikit.SecondaryButton(c, locales.LoadTest()).Disabled(r.running || a.remoteRunActive()).OnClick(a.openLoadRunner)
+				if !r.running {
+					hasFailed := slices.ContainsFunc(r.rows, func(row runnerRow) bool { return row.failed })
+					if uikit.Tip(c, uikit.SecondaryButton(c, locales.RerunFailed()).Disabled(!hasFailed || a.loadRunner.running || a.remoteRunActive()), locales.RerunFailedRunnerTip()).Clicked() {
+						a.rerunFailedRequests()
+					}
+				}
 				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					r.open = false
 				}

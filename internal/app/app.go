@@ -266,12 +266,18 @@ type app struct {
 
 	// detailFor is the flow the detail panes were built from, so the text and
 	// the diff buffers are rebuilt only when the choice changes.
-	detailFor          int
-	body               string
-	reqBody            string
-	diff               *editor.DiffState
-	diffSplit          float32
-	diffBaseline       bool
+	detailFor    int
+	body         string
+	reqBody      string
+	diff         *editor.DiffState
+	diffSplit    float32
+	diffBaseline bool
+	// testDiff holds the failed assertion's two sides while its read-only
+	// comparison is open, independent of a captured response's diff.
+	testDiff           *editor.DiffState
+	testDiffOpen       bool
+	testDiffName       string
+	testDiffSplit      float32
 	analysis           captureAnalysis
 	replayUI           replaySetup
 	bulkSaveUI         collectionSave // saves the chosen rows into a collection
@@ -2085,6 +2091,7 @@ func (a *app) view(c *ui.Context) {
 	a.headerWarnModal(c, t)
 	a.mcpConsentModal(c, t)
 	a.runnerModal(c, t)
+	a.testDiffModal(c, t)
 	a.loadRunnerModal(c, t)
 	a.cookiesModal(c, t)
 	a.deviceAskModal(c, t)

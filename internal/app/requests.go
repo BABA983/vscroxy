@@ -1659,20 +1659,40 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 		})
 	case resViewTests:
+		if slices.ContainsFunc(d.composeTests, func(test request.TestResult) bool { return !test.Pass && !test.Skipped }) {
+			ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceM), 0).Justify(ui.End).Children(func() {
+				if uikit.Tip(c, uikit.CompactButton(c, locales.RerunFailed()), locales.RerunFailedChecksTip()).Clicked() {
+					a.rerunFailedChecks()
+				}
+			})
+		}
 		ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			if len(d.composeTests) == 0 {
 				uikit.Hint(c, locales.NoAssertionsAddResponseChecks())
 			}
 			for _, result := range d.composeTests {
-				testResultRow(c, result)
+				testResultRow(c, result, a.openTestDiff)
 			}
 		})
 	}
 }
 
+// rerunFailedChecks sends the request again after a failed assertion. Every
+// assertion of that send is shown: one that passed before can fail now, and
+// a results panel must never hide it.
+func (a *app) rerunFailedChecks() {
+	d := a.requestDocument
+	if d == nil || d.composeWaiting {
+		return
+	}
+	if slices.ContainsFunc(d.composeTests, func(test request.TestResult) bool { return !test.Pass && !test.Skipped }) {
+		a.sendComposed()
+	}
+}
+
 // testResultRow is one assertion: its mark and name, and why a failed one
-// failed beneath.
-func testResultRow(c *ui.Context, result request.TestResult) {
+// failed beneath. A failed assertion with a diff offers the comparison.
+func testResultRow(c *ui.Context, result request.TestResult, showDiff func(request.TestResult)) {
 	t := c.Theme()
 	mark, color := "✓", t.Success
 	switch {
@@ -1686,7 +1706,14 @@ func testResultRow(c *ui.Context, result request.TestResult) {
 		name = locales.SkippedNamed(name)
 	}
 	ui.Column(c).Gap(t.Space(uikit.SpaceHair)).Children(func() {
-		uikit.Body(c, name).TextColor(color)
+		ui.Row(c).Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Children(func() {
+			uikit.Body(c, name).TextColor(color).Grow(1).MinWidth(0)
+			if !result.Pass && result.HasDiff && showDiff != nil {
+				if uikit.LinkButton(c, locales.ShowDiff()).Clicked() {
+					showDiff(result)
+				}
+			}
+		})
 		if result.Error != "" {
 			uikit.Meta(c, result.Error).Padding(0, 0, 0, t.Space(uikit.SpaceL)).Selectable()
 		}

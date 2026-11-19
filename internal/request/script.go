@@ -149,12 +149,16 @@ func vendorProgram(file string) func() *goja.Program {
 }
 
 // TestResult is one assertion a request script or check made. Error says
-// why a failed one failed; a skipped test (pm.test.skip) passes.
+// why a failed one failed; a skipped test (pm.test.skip) passes. Expected and
+// Actual hold a failed Chai assertion's sides when HasDiff is true.
 type TestResult struct {
-	Name    string
-	Pass    bool
-	Error   string `json:",omitempty"`
-	Skipped bool   `json:",omitempty"`
+	Name     string
+	Pass     bool
+	Error    string `json:",omitempty"`
+	Skipped  bool   `json:",omitempty"`
+	Expected string `json:",omitempty"`
+	Actual   string `json:",omitempty"`
+	HasDiff  bool   `json:",omitempty"`
 }
 
 // Prepared is a request ready to send, and what pm.request edits: what a
@@ -702,7 +706,9 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 		for i := range int(results.Get("length").ToInteger()) {
 			t := results.Get(strconv.Itoa(i)).ToObject(vm)
 			run.tests = append(run.tests, TestResult{Name: t.Get("name").String(), Pass: t.Get("pass").ToBoolean(),
-				Error: t.Get("error").String(), Skipped: t.Get("skipped").ToBoolean()})
+				Error: t.Get("error").String(), Skipped: t.Get("skipped").ToBoolean(),
+				Expected: clippedDiff(t.Get("expected").String()), Actual: clippedDiff(t.Get("actual").String()),
+				HasDiff: t.Get("hasDiff").ToBoolean()})
 		}
 		return nil
 	}
@@ -731,6 +737,21 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 		return errors.New("the script awaited something that never finished")
 	}
 	return nil
+}
+
+// diffMark ends a side too large to show side by side. A script already
+// clips its text; clip the exported bytes too so UTF-8 cannot exceed 64 KiB.
+const diffMark = "\n... [truncated]"
+
+func clippedDiff(s string) string {
+	if len(s) <= 64<<10 {
+		return s
+	}
+	end := 64<<10 - len(diffMark)
+	for end > 0 && !utf8.RuneStart(s[end]) {
+		end--
+	}
+	return s[:end] + diffMark
 }
 
 // scriptError is a rejected script's error with the line in the script
