@@ -25,13 +25,14 @@ const (
 	problemOwnerVariables  = "vscroxy.request.variables"
 	problemOwnerImports    = "vscroxy.imports"
 
-	problemFieldURL       = "url"
-	problemFieldBody      = "body"
-	problemFieldPre       = "pre-request-script"
-	problemFieldPost      = "post-response-script"
-	problemFieldChecks    = "checks"
-	problemFieldHeaderRaw = "header-bulk"
-	problemFieldImport    = "import"
+	problemFieldURL         = "url"
+	problemFieldBody        = "body"
+	problemFieldPre         = "pre-request-script"
+	problemFieldPost        = "post-response-script"
+	problemFieldChecks      = "checks"
+	problemFieldDescription = "description"
+	problemFieldHeaderRaw   = "header-bulk"
+	problemFieldImport      = "import"
 
 	// Form rows and auth strings name the exact authored field a marker
 	// came from, so a code action can rewrite that field's range.
@@ -92,10 +93,13 @@ type problemsState struct {
 	pendingCol   int
 	// caret target and its fixes belong to the focused authoring field.
 	// They drive the editor's Cmd/Ctrl+. menu and the palette command.
-	caret        *quickFixTarget
-	caretFixes   []quickFix
-	fixMenuOpen  bool
-	subscription lifecycle.Disposable
+	caret       *quickFixTarget
+	caretFixes  []quickFix
+	fixMenuOpen bool
+	// variableCaret names the {{variable}} under the caret even when it is
+	// defined and has no quick fix. It feeds Rename and Find All References.
+	variableCaret *quickFixTarget
+	subscription  lifecycle.Disposable
 }
 
 func (a *app) initProblems() {

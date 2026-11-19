@@ -402,7 +402,9 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 				case 2:
 					uikit.Meta(c, locales.EnvironmentValuesOverrideTheseA())
 					uikit.Hint(c, locales.InitialValuesAreSharedAnd2())
-					a.variableTable(c, &f.variables, variableTableOptions{enable: true})
+					a.variableTable(c, &f.variables, variableTableOptions{
+						enable: true, scope: folderScope(f.draft.Path), reveal: a.variableRefs.reveal.name,
+					})
 				case 3:
 					uikit.TextArea(c, &f.draft.Description).Label(locales.Description()).Placeholder(locales.WhatTheseRequestsAreFor()).Font(uikit.FontMono).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)
 				case 4:

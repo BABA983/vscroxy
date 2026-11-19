@@ -3898,6 +3898,108 @@
     }
   },
   "changeToVariable": "改为“{name}”",
+  "undefinedVariable": "未定义变量",
+  "definition": "定义",
+  "renameVariable": "重命名变量",
+  "@renameVariableIn": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "renameVariableIn": "重命名“{name}” · {scope}",
+  "newVariableName": "新变量名",
+  "variableScopeExplanation": "一次操作只重命名一个作用域：该作用域的定义和解析到它的使用。更近作用域中的同名变量会遮蔽它，保持不变。",
+  "reviewRename": "检查更改",
+  "@renameChangeCount": {
+    "placeholders": {
+      "checked": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "renameChangeCount": "已选择 {checked} / {total} 项更改",
+  "applyRename": "应用重命名",
+  "findAllReferences": "查找所有引用",
+  "@referencesOf": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "referencesOf": "“{name}”的引用 · {scope}",
+  "@referenceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "referenceCount": "{count} 处引用",
+  "noVariableUses": "已保存的库中没有引用",
+  "@openVariableReference": {
+    "placeholders": {
+      "field": {
+        "type": "String"
+      }
+    }
+  },
+  "openVariableReference": "在 {field} 中打开变量引用",
+  "placeCaretInVariable": "将光标放在 '{{variable}}' 中，或选择一个变量行",
+  "noVariableUsesInScope": "所选作用域中没有此名称的使用",
+  "variableNameRules": "变量名不能为空，也不能包含花括号或空白",
+  "variableNameCannotBeEmpty": "请输入变量名",
+  "variableNameUnchanged": "请选择另一个变量名",
+  "@variableNameAlreadyInScope": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "variableNameAlreadyInScope": "{scope} 中已有名为“{name}”的变量；请选择其他名称",
+  "noVariableChangesSelected": "至少选择一项更改再应用",
+  "@renamedVariable": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "to": {
+        "type": "String"
+      }
+    }
+  },
+  "renamedVariable": "已将“{from}”重命名为“{to}”",
+  "@findAllReferencesForVariable": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "findAllReferencesForVariable": "查找对 {name} 的所有引用",
+  "@renameVariableNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "renameVariableNamed": "重命名变量 {name}",
   "@variableQuickFixes": {
     "placeholders": {
       "fixes": {
@@ -3972,5 +4074,6 @@
   "outlineAnonymousFunction": "（匿名函数）",
   "outlineTest": "测试",
   "outlineTooLarge": "超过 1 MiB 的正文不提供大纲",
-  "openABodyFirst": "请先打开正文"
+  "openABodyFirst": "请先打开正文",
+  "otherEnvironmentDefinitions": "默认包含其他环境中的同名定义；取消勾选可保持该环境不变。"
 }

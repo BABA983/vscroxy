@@ -746,6 +746,8 @@ func (a *app) documentActions(c *ui.Context, d *requestDocument) []action {
 		pick(global, "collection.settings").as(settingsLabel(d.composeCollection)).in("context"),
 		pick(global, "environment.manage").in("context"),
 		do("request.variables", locales.RequestVariables(), func() { d.variablesOpen = !d.variablesOpen }).in("context"),
+		pick(global, "editor.action.rename").in("context"),
+		pick(global, "editor.action.goToReferences").in("context"),
 		pick(global, "vault.open").in("context"),
 		pick(global, "request.close-others").in("tabs"),
 		pick(global, "request.close-saved").in("tabs"),
@@ -797,12 +799,15 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 				a.openVars()
 			}
 		})
-		variableRows(c, rows, &d.variablesReveal)
+		a.variableRows(c, rows, &d.variablesReveal, func(row request.ResolvedVariable) *variableTarget {
+			t := variablePanelTarget(row, a.activeEnv)
+			return &t
+		})
 	})
 	ui.Divider(c)
 }
 
-func variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool) {
+func (a *app) variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool, target func(request.ResolvedVariable) *variableTarget) {
 	t := c.Theme()
 	uikit.Checkbox(c, reveal, locales.RevealPlaintextValues())
 	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(uikit.SpaceM)).Children(func() {
@@ -823,6 +828,9 @@ func variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool) 
 				}
 				uikit.Caption(c, value).TextColor(color).Grow(1).Selectable()
 				uikit.Meta(c, row.Source).Width(180)
+				if target != nil {
+					a.variableRowActions(c, *target(row), row.Name)
+				}
 			})
 		}
 	})

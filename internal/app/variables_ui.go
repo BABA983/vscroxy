@@ -10,6 +10,7 @@ import (
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
+	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
 // variableRow is one editable row of a variable scope. Initial is shared and
@@ -77,6 +78,10 @@ func (a *app) folderVariableRows(path string) []variableRow {
 
 type variableTableOptions struct {
 	enable bool
+	// scope enables Rename and Find All References on this row. It is the
+	// scope the table edits, not a guess from the row's effective value.
+	scope  variableScope
+	reveal string
 }
 
 // secret reports whether both values in the row are credentials: a slot the
@@ -123,10 +128,26 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 						})
 					}
 					ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+						if opts.reveal != "" && r.Name == opts.reveal {
+							ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).Background(uikit.Colors(t).MutedHover)
+						}
 						field := requestGridInput(c, &r.Name, "name", locales.VariableName(i+1))
 						cellBorder(t, field, false, false)
 						if field.Changed() {
 							changed = true
+						}
+						if opts.scope.valid() && r.Name != "" {
+							// Overlay the symbol actions at the cell's right edge:
+							// the input keeps the column width the heading measures.
+							ui.Row(c).Absolute().Right(2).Top(0).Bottom(0).AlignItems(ui.Center).Children(func() {
+								target := variableTarget{Name: r.Name, Scope: opts.scope}
+								if uikit.RowIconButton(c, locales.FindAllReferencesForVariable(r.Name), locales.FindAllReferences(), searchIcon).Clicked() {
+									a.openVariableReferences(target)
+								}
+								if uikit.RowIconButton(c, locales.RenameVariableNamed(r.Name), locales.RenameVariable(), lucide.Pencil()).Clicked() {
+									a.openVariableRename(target)
+								}
+							})
 						}
 					})
 					secret := r.secret()
@@ -209,6 +230,20 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 		})
 	})
 	return changed
+}
+
+// variableRowActions offers both symbol actions on a resolved Variables panel
+// row. The target comes from the source the panel already resolved.
+func (a *app) variableRowActions(c *ui.Context, target variableTarget, name string) {
+	if name == "" {
+		return
+	}
+	if uikit.RowIconButton(c, locales.FindAllReferencesForVariable(name), locales.FindAllReferences(), searchIcon).Clicked() {
+		a.openVariableReferences(target)
+	}
+	if target.Defined && uikit.RowIconButton(c, locales.RenameVariableNamed(name), locales.RenameVariable(), lucide.Pencil()).Clicked() {
+		a.openVariableRename(target)
+	}
 }
 
 // persistAllCurrent copies non-sensitive Current values into Initial values.

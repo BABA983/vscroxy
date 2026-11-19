@@ -8,6 +8,7 @@ import "strings"
 // typed there. The editor's normal word prefix is the typed part of the name.
 type scriptVariableRef struct {
 	Name       string
+	Store      string // pm store: environment, collectionVariables, globals or variables
 	Start, End int
 }
 
@@ -34,7 +35,9 @@ func scriptVariableAt(text string, offset int) (scriptVariableRef, bool) {
 		}
 		after = skipScriptSpace(text, after+1)
 		method, afterMethod := identifierAt(text, after)
-		if method != "get" {
+		switch method {
+		case "get", "set", "unset", "has":
+		default:
 			continue
 		}
 		after = skipScriptSpace(text, afterMethod)
@@ -53,7 +56,7 @@ func scriptVariableAt(text string, offset int) (scriptVariableRef, bool) {
 		if offset < start || offset > end {
 			continue
 		}
-		return scriptVariableRef{Name: text[start:end], Start: start, End: end}, true
+		return scriptVariableRef{Name: text[start:end], Store: scope, Start: start, End: end}, true
 	}
 	return scriptVariableRef{}, false
 }

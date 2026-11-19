@@ -8046,6 +8046,108 @@
     }
   },
   "changeToVariable": "Change to “{name}”",
+  "undefinedVariable": "Undefined variable",
+  "definition": "Definition",
+  "renameVariable": "Rename variable",
+  "@renameVariableIn": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "renameVariableIn": "Rename “{name}” · {scope}",
+  "newVariableName": "New variable name",
+  "variableScopeExplanation": "One action renames one scope: its definition and the uses that resolve to it. A nearer variable of the same name shadows this one and is left alone.",
+  "reviewRename": "Review changes",
+  "@renameChangeCount": {
+    "placeholders": {
+      "checked": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "renameChangeCount": "{checked} of {total} changes selected",
+  "applyRename": "Apply rename",
+  "findAllReferences": "Find All References",
+  "@referencesOf": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "referencesOf": "References of “{name}” · {scope}",
+  "@referenceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "referenceCount": "{count} references",
+  "noVariableUses": "No references in the saved library",
+  "@openVariableReference": {
+    "placeholders": {
+      "field": {
+        "type": "String"
+      }
+    }
+  },
+  "openVariableReference": "Open variable reference in {field}",
+  "placeCaretInVariable": "Place the caret in a '{{variable}}' or choose a variable row",
+  "noVariableUsesInScope": "This name has no uses in the selected scope",
+  "variableNameRules": "Variable names cannot be empty or contain braces or whitespace",
+  "variableNameCannotBeEmpty": "Enter a variable name",
+  "variableNameUnchanged": "Choose a different variable name",
+  "@variableNameAlreadyInScope": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "variableNameAlreadyInScope": "A variable named “{name}” already exists in {scope}; choose another name",
+  "noVariableChangesSelected": "Select at least one change to apply",
+  "@renamedVariable": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "to": {
+        "type": "String"
+      }
+    }
+  },
+  "renamedVariable": "Renamed “{from}” to “{to}”",
+  "@findAllReferencesForVariable": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "findAllReferencesForVariable": "Find all references to {name}",
+  "@renameVariableNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "renameVariableNamed": "Rename variable {name}",
   "@variableQuickFixes": {
     "placeholders": {
       "fixes": {
@@ -8137,5 +8239,6 @@
   "outlineAnonymousFunction": "(anonymous function)",
   "outlineTest": "test",
   "outlineTooLarge": "Outline is not available for bodies over 1 MiB",
-  "openABodyFirst": "Open a body first"
+  "openABodyFirst": "Open a body first",
+  "otherEnvironmentDefinitions": "Definitions in other environments are included by default; uncheck one to leave it unchanged."
 }

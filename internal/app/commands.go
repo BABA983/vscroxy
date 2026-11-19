@@ -30,6 +30,10 @@ type commandContext struct {
 	compareTarget compareTarget
 	// Derived labels and targets are read from the snapshot, not recomputed
 	// by each menu, button and shortcut subscription in the same frame.
+	// variableTarget is the {{name}} under the caret, if any. Rename needs a
+	// definition to resolve; references can list an undefined name too.
+	variableTarget *variableTarget
+
 	searchLabel string
 	search      func()
 	// copyJSONPath owns the frame's clipboard service: the palette steals
@@ -112,6 +116,9 @@ func commandSnapshot(a *app, c *ui.Context, target *requestDocument) *commandCon
 	}
 	if d != nil {
 		x.collectionRoot = collectionRoot(d.composeCollection)
+	}
+	if target, ok := a.variableTargetFromCaret(); ok {
+		x.variableTarget = &target
 	}
 	return x
 }
@@ -314,6 +321,22 @@ func registerGlobalCommands() *commandRegistry {
 	}).when(func(x *commandContext) bool {
 		return x.a.problems.caret != nil && len(x.a.problems.caretFixes) > 0
 	}, locales.NoQuickFixesAvailable())
+	// Rename and References are the editor commands, not local field menu
+	// items: F2 and Shift+F12 have one owner, decided by the caret's scope.
+	r.add("editor.action.rename", locales.RenameVariable(), func(x *commandContext) {
+		if x.variableTarget != nil {
+			x.a.openVariableRename(*x.variableTarget)
+		}
+	}).when(func(x *commandContext) bool {
+		return x.variableTarget != nil && x.variableTarget.Defined
+	}, locales.PlaceCaretInVariable()).keys(0, ui.KeyF2)
+	r.add("editor.action.goToReferences", locales.FindAllReferences(), func(x *commandContext) {
+		if x.variableTarget != nil {
+			x.a.openVariableReferences(*x.variableTarget)
+		}
+	}).when(func(x *commandContext) bool {
+		return x.variableTarget != nil
+	}, locales.PlaceCaretInVariable()).keys(ui.Shift, ui.KeyF12)
 	r.add("view.search", "", func(x *commandContext) { x.search() }).
 		named(func(x *commandContext) string { return x.searchLabel }).
 		when(func(x *commandContext) bool { return x.capturing }, "").keys(ui.Cmd, ui.KeyF)
