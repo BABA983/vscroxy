@@ -615,9 +615,20 @@ type app struct {
 	// The active document is embedded so the editor's fields always belong
 	// to that tab. Workers return results to their originating document.
 	*requestDocument
-	documents       []*requestDocument
-	nextDocument    int
+	documents    []*requestDocument
+	nextDocument int
+	// recentlyClosed is the in-memory Reopen Closed Editor stack, keyed by
+	// document id and ordered from oldest to newest. documentRecency is the
+	// MRU order for Ctrl/Cmd+Tab; nil is the LIVE traffic view.
+	recentlyClosed  *linkedmap.LinkedMap[int, closedDocument]
+	documentRecency *linkedmap.LinkedMap[*requestDocument, struct{}]
+	// mruPending is the quick switch's current pick, held until Ctrl is
+	// released or something else happens; repeated Ctrl+Tabs then walk the
+	// same order instead of reordering it on every Tab.
+	mruPending      bool
 	closingDocument *requestDocument
+	closingQueue    []*requestDocument
+	closingReturnTo *requestDocument
 	requestResults  []requestResult
 	importReport    importReport
 	// urlPaste is a cURL command pasted into the URL field, applied on the
@@ -1844,6 +1855,11 @@ func (a *app) syncDetail() {
 
 func (a *app) view(c *ui.Context) {
 	defer uikit.FrameEnd(c)
+	// A modifier release outside the main column still settles the quick
+	// switch; the column's input observer handles it when focus is inside.
+	if a.mruPending && c.Modifiers()&ui.Ctrl == 0 {
+		a.commitMRUPick()
+	}
 	// Screen readers hear every signal, whether or not the window was in
 	// front. Announcements are drained once so no frame repeats them.
 	for _, text := range a.attention.drainAnnouncements() {
@@ -1975,7 +1991,8 @@ func (a *app) view(c *ui.Context) {
 	// The root paints chrome itself: a clear root let the desktop's wallpaper
 	// through the title bar and the gutters between the cards.
 	frame := uikit.Colors(t).Window
-	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Background(frame).Children(func() {
+	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Background(frame).
+		ObserveInput(a.observeMRUInput).Children(func() {
 		if !a.macChrome {
 			a.shell(c, t)
 		}
@@ -4714,9 +4731,7 @@ func (a *app) saveComposed() bool {
 func (a *app) openSaved(key string) {
 	for _, d := range a.documents {
 		if d.savedKey == key {
-			a.requestDocument = d
-			a.requestChoice = key
-			a.page = pageRequest
+			a.activateDocument(d)
 			return
 		}
 	}

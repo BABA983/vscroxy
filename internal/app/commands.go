@@ -2,6 +2,7 @@ package app
 
 import (
 	"runtime"
+	"slices"
 	"sync"
 
 	"github.com/baba983/vscroxy/locales"
@@ -202,7 +203,14 @@ func (x *commandContext) build(c *ui.Context) []action {
 			label = def.title(x)
 		}
 		x0 := action{id: def.id, label: label, group: def.group, shortcut: def.key,
-			enabled: ok, run: func() { def.run(x) }}
+			enabled: ok, run: func() {
+				// A quick-switch pick is provisional until the reader does
+				// something else; every other command settles it first.
+				if def.id != "request.switch-mru-next" && def.id != "request.switch-mru-previous" {
+					x.a.commitMRUPick()
+				}
+				def.run(x)
+			}}
 		// Like action.when, the reason is only carried by a disabled
 		// command; an enabled one has nothing to explain.
 		if !ok {
@@ -305,9 +313,24 @@ func registerGlobalCommands() *commandRegistry {
 	}, locales.SendDraftBeforeCompare()).keys(ui.Cmd|ui.Shift, ui.KeyD)
 	r.add("request.close", locales.CloseRequest(), func(x *commandContext) { x.a.requestClose(x.d) }).
 		when(func(x *commandContext) bool { return x.tab && !x.d.composeWaiting }, locales.OpenARequestDraftWait()).keys(ui.Cmd, ui.KeyW)
+	r.add("request.close-others", locales.CloseOtherRequests(), func(x *commandContext) { x.a.closeOtherDocuments(x.d) }).
+		when(func(x *commandContext) bool { return x.tab && len(x.a.documents) > 1 }, "")
+	r.add("request.close-saved", locales.CloseSavedRequests(), func(x *commandContext) { x.a.closeSavedDocuments() }).
+		when(func(x *commandContext) bool {
+			return slices.ContainsFunc(x.a.documents, func(d *requestDocument) bool { return d.savedKey != "" && !d.dirty() })
+		}, "")
+	r.add("request.reopen-closed", locales.ReopenClosedRequest(), func(x *commandContext) { x.a.reopenClosedDocument() }).
+		when(func(x *commandContext) bool { return x.a.closedDocuments().Size() > 0 }, "").
+		keys(ui.Cmd|ui.Shift, ui.KeyT)
+	// The positional commands keep their order in menus and the palette;
+	// Ctrl/Cmd+Tab belongs to VS Code's MRU quick switch instead.
 	r.add("request.next-tab", locales.NextOpenRequest(), func(x *commandContext) { x.a.cycleDocument(1) }).
-		when(func(x *commandContext) bool { return len(x.a.documents) > 0 }, locales.OpenARequestFirst()).keys(ui.Ctrl, ui.KeyTab)
+		when(func(x *commandContext) bool { return len(x.a.documents) > 0 }, locales.OpenARequestFirst())
 	r.add("request.previous-tab", locales.PreviousOpenRequest(), func(x *commandContext) { x.a.cycleDocument(-1) }).
+		when(func(x *commandContext) bool { return len(x.a.documents) > 0 }, locales.OpenARequestFirst())
+	r.add("request.switch-mru-next", locales.NextRecentlyUsedRequest(), func(x *commandContext) { x.a.cycleDocumentMRU(1) }).
+		when(func(x *commandContext) bool { return len(x.a.documents) > 0 }, locales.OpenARequestFirst()).keys(ui.Ctrl, ui.KeyTab)
+	r.add("request.switch-mru-previous", locales.PreviousRecentlyUsedRequest(), func(x *commandContext) { x.a.cycleDocumentMRU(-1) }).
 		when(func(x *commandContext) bool { return len(x.a.documents) > 0 }, locales.OpenARequestFirst()).keys(ui.Ctrl|ui.Shift, ui.KeyTab)
 	r.add("capture.export-chosen", locales.ExportSelectedHar(), func(x *commandContext) { x.a.exportChosen() }).
 		when(func(x *commandContext) bool { return x.capturing && x.a.chosen.Len() > 0 }, "")

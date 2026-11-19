@@ -275,7 +275,7 @@ func (a *app) unsavedRequests(c *ui.Context, tree ui.TreeParts, query string) {
 			chosen := a.page == pageRequest && a.requestDocument == d
 			item := uikit.Tip(c, treeRow(c, tree.Item(nil), 1).Label(locales.UnsavedPrefix(d.title())).
 				Selected(chosen), method+" "+d.composeURL).
-				OnClick(func() { a.requestDocument, a.requestChoice, a.page = d, "", pageRequest })
+				OnClick(func() { a.activateDocument(d) })
 			if chosen {
 				uikit.Selected(c, item, !a.windowBehind)
 			}

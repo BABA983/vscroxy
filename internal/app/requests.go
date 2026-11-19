@@ -250,10 +250,7 @@ func (d *requestDocument) title() string {
 func (a *app) addDocument(r savedRequest, key string) {
 	d := a.newDocument(r, key)
 	a.documents = append(a.documents, d)
-	a.requestDocument = d
-	a.requestChoice = key
-	a.page = pageRequest
-	d.urlInput.Focus()
+	a.activateDocument(d)
 }
 
 // newDocument is a document for r that no tab or capture holds yet.
@@ -429,6 +426,8 @@ func (a *app) closeDocument(d *requestDocument) {
 	if at < 0 {
 		return
 	}
+	a.rememberClosedDocument(d)
+	a.documentMRU().Delete(d)
 	d.structured.stop()
 	if d.grpcUI != nil {
 		d.grpcUI.stop()
@@ -454,30 +453,17 @@ func (a *app) closeDocument(d *requestDocument) {
 		a.requestDocument = nil
 		a.requestChoice = ""
 		if len(a.documents) > 0 {
-			a.requestDocument = a.documents[min(at, len(a.documents)-1)]
-			a.requestChoice = a.savedKey
-			a.urlInput.Focus()
+			a.activateDocument(a.documents[min(at, len(a.documents)-1)])
 		} else {
 			a.workbench.content.Focus()
 		}
 	}
 }
 
-func (a *app) requestClose(d *requestDocument) {
-	if d.composeWaiting {
-		return
-	}
-	if d.dirty() {
-		a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
-		a.closingDocument = d
-	} else {
-		a.closeDocument(d)
-	}
-}
-
-// Capture and the open drafts are one cycle: Ctrl+Tab steps through the
-// request documents and back to the live traffic. Workspace shortcuts stay
-// independent, so Cmd/Ctrl+1–4 never unexpectedly select a draft tab.
+// Capture and the open drafts are one cycle: the positional step commands
+// step through the request documents and back to the live traffic. Workspace
+// shortcuts stay independent, so Cmd/Ctrl+1–4 never unexpectedly select a
+// draft tab.
 func (a *app) cycleDocument(step int) {
 	index := 0
 	if !a.page.capture() {
@@ -485,48 +471,10 @@ func (a *app) cycleDocument(step int) {
 	}
 	index = (index + step + len(a.documents) + 1) % (len(a.documents) + 1)
 	if index == 0 {
-		a.page = pageLive
-		if view := a.views.activeView(); view != nil {
-			view.list.Handle.Focus()
-		}
+		a.activateDocument(nil)
 		return
 	}
-	a.requestDocument = a.documents[index-1]
-	a.requestChoice, a.page = a.savedKey, pageRequest
-	a.urlInput.Focus()
-}
-
-func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
-	d := a.closingDocument
-	if d == nil {
-		return
-	}
-	open := true
-	uikit.Modal(c, &open, locales.SaveChanges(), func() {
-		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, locales.SaveChanges())
-			uikit.Hint(c, locales.DraftUnsavedChanges(d.title()))
-			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
-					a.closingDocument = nil
-				}
-				if uikit.SecondaryButton(c, locales.Discard()).Clicked() {
-					a.closeDocument(d)
-					a.closingDocument = nil
-				}
-				if uikit.PrimaryButton(c, locales.SaveClose()).Clicked() {
-					a.requestDocument = d
-					if a.saveComposed() {
-						a.closeDocument(d)
-						a.closingDocument = nil
-					}
-				}
-			})
-		})
-	})
-	if !open {
-		a.closingDocument = nil
-	}
+	a.activateDocument(a.documents[index-1])
 }
 
 // documentHeader names the one request on screen as a breadcrumb — its
@@ -790,6 +738,9 @@ func (a *app) documentActions(c *ui.Context, d *requestDocument) []action {
 		pick(global, "environment.manage").in("context"),
 		do("request.variables", locales.RequestVariables(), func() { d.variablesOpen = !d.variablesOpen }).in("context"),
 		pick(global, "vault.open").in("context"),
+		pick(global, "request.close-others").in("tabs"),
+		pick(global, "request.close-saved").in("tabs"),
+		pick(global, "request.reopen-closed").in("tabs"),
 	}
 }
 

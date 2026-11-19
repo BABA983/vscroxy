@@ -2787,6 +2787,7 @@
     }
   },
   "removeColumnNamed": "Remove “{name}” column",
+  "reopenClosedRequest": "Reopen closed request",
   "replaceBodyJSONCells": "Replace request and response JSON cells.",
   "replaceHeaderCellsExceptTypeAccept": "Replace header-derived cells except Content-Type and Accept.",
   "replaceHeadersExceptTypeAccept": "Replace every header and trailer value except Content-Type and Accept; remove cookies.",
@@ -5101,7 +5102,9 @@
   "close": "Close",
   "closeBodySearch": "Close body search",
   "closeKeepsRunningQuitCancels": "Close keeps running; Quit cancels and waits.",
+  "closeOtherRequests": "Close other requests",
   "closeRequest": "Close request",
+  "closeSavedRequests": "Close saved requests",
   "closeSearchEsc": "Close search · Esc",
   "@closeSessionNamed": {
     "placeholders": {
@@ -6230,6 +6233,7 @@
   "nextBodyMatch": "Next body match",
   "nextMatchEnter": "Next match · Enter",
   "nextOpenRequest": "Next open request",
+  "nextRecentlyUsedRequest": "Next recently used request",
   "@nextStep": {
     "placeholders": {
       "step": {
@@ -6481,6 +6485,7 @@
   "previousBodyMatch": "Previous body match",
   "previousMatchShiftEnter": "Previous match · Shift+Enter",
   "previousOpenRequest": "Previous open request",
+  "previousRecentlyUsedRequest": "Previous recently used request",
   "previousResponseLeft": "Previous response (left)",
   "privateKey": "Private key",
   "privateLocalSnapshotsMayContain": "Private local snapshots may contain credentials. Up to 100 runs / 32 MiB; baseline retained. Payloads keep up to 256 KiB per side. Opening or comparing never sends.",
