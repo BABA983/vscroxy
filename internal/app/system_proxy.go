@@ -255,7 +255,8 @@ func (a *app) drainSystemProxy() {
 		s.checked, s.checking, s.applying = true, false, false
 		if result.wrote {
 			a.inform(proxyOutcome(result))
-			if errors.Is(result.applied, system.ErrKDEHelpersMissing) {
+			_, locked := errors.AsType[*system.KDELockedError](result.applied)
+			if errors.Is(result.applied, system.ErrKDEHelpersMissing) || locked {
 				a.reportSystemProxyError(result.applied)
 			}
 		} else if result.applied != nil {
@@ -270,6 +271,14 @@ func (a *app) drainSystemProxy() {
 func (a *app) reportSystemProxyError(err error) {
 	if errors.Is(err, system.ErrKDEHelpersMissing) {
 		a.notify(notice{level: noticeError, text: locales.SystemProxyKdeToolsMissing(), detail: err.Error()})
+		return
+	}
+	if locked, ok := errors.AsType[*system.KDELockedError](err); ok {
+		text := locales.SystemProxyKdeKeyLocked(locked.Key)
+		if locked.Group != "" {
+			text = locales.SystemProxyKdeGroupLocked(locked.Group, locked.Key)
+		}
+		a.notify(notice{level: noticeError, text: text, detail: err.Error()})
 		return
 	}
 	a.fail(locales.SystemProxyRecovery(), err)

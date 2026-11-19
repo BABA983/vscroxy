@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/capture"
@@ -95,7 +97,30 @@ func TestLoadSettingsWithoutAFile(t *testing.T) {
 	}
 }
 
+var errForeignProxyPort = errors.New("reserved proxy port was taken by another process")
+
 func TestStartupUsesSavedProxyPort(t *testing.T) {
+	for attempt := range 5 {
+		err := savedProxyPortScenario(t)
+		if err == nil {
+			return
+		}
+		if !errors.Is(err, errForeignProxyPort) {
+			t.Fatal(err)
+		}
+		if attempt == 4 {
+			t.Fatalf("no free saved port after five attempts: %v", err)
+		}
+		t.Logf("retrying with a new port: %v", err)
+	}
+}
+
+// savedProxyPortScenario returns only the race where another owner binds the
+// port between closing our placeholder and the proxy's second Start. The
+// kernel can hand out the same ephemeral port to a different process or a
+// parallel test, so each attempt starts with a fresh port and no sleep.
+func savedProxyPortScenario(t *testing.T) error {
+	t.Helper()
 	home := t.TempDir()
 	useTempHome(t, home)
 	t.Setenv("USERPROFILE", home)
@@ -130,6 +155,11 @@ func TestStartupUsesSavedProxyPort(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := a.srv.Start(); err != nil {
+		// Our placeholder is closed, so EADDRINUSE here can only come from a
+		// foreign owner of this ephemeral port, never from this test.
+		if errors.Is(err, syscall.EADDRINUSE) {
+			return fmt.Errorf("%w: %s: %v", errForeignProxyPort, addr, err)
+		}
 		t.Fatal(err)
 	}
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -140,6 +170,7 @@ func TestStartupUsesSavedProxyPort(t *testing.T) {
 	if err != nil || f.ResponseBody != "fixed port works" || a.srv.Addr() != addr {
 		t.Fatalf("request through saved port: body %q, address %s, error %v", f.ResponseBody, a.srv.Addr(), err)
 	}
+	return nil
 }
 
 func TestStartupRejectsInvalidSavedProxyPorts(t *testing.T) {

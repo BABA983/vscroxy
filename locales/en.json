@@ -3366,6 +3366,27 @@
     }
   },
   "systemProxyError": "System proxy: {error}",
+  "@systemProxyKdeGroupLocked": {
+    "description": "Notice when an administrator locked the whole KDE proxy settings group. No settings were changed.",
+    "placeholders": {
+      "group": {
+        "type": "String"
+      },
+      "key": {
+        "type": "String"
+      }
+    }
+  },
+  "systemProxyKdeGroupLocked": "An administrator locked the KDE proxy settings group \"{group}\" (write of \"{key}\" refused). No KDE settings were changed.",
+  "@systemProxyKdeKeyLocked": {
+    "description": "Notice when an administrator locked one KDE proxy setting with an immutable marker. No settings were changed.",
+    "placeholders": {
+      "key": {
+        "type": "String"
+      }
+    }
+  },
+  "systemProxyKdeKeyLocked": "An administrator locked the KDE proxy setting \"{key}\". No KDE settings were changed.",
   "systemProxyKdeToolsMissing": "KDE proxy settings need kwriteconfig6 (kde-cli-tools), kwriteconfig5 (libkf5config-bin) and dbus-send. Install the missing tools and try again.",
   "systemProxyOff": "System proxy: off in OS settings",
   "systemProxyOtherConfigured": "System proxy: another proxy is still configured",

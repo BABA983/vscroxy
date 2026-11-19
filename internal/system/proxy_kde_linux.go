@@ -22,6 +22,10 @@ const (
 	kdeTypeKey    = "ProxyType"
 	kdePACKey     = "Proxy Config Script"
 	kdeBypassKey  = "NoProxyFor"
+	// KConfig writes an immutable group as "[Group][$i]" and recognises
+	// exactly that suffix when reading; see src/core/kconfigini.cpp in
+	// https://github.com/KDE/kconfig (parseConfig and writeEntries).
+	kdeImmutableOption = "[$i]"
 )
 
 // kdeCommands is the seam the KDE backend uses for the tools and files it
@@ -50,10 +54,11 @@ var kdeCmd = kdeCommands{
 // original lines so restoration can put flags back. kwriteconfig cannot write
 // a flag: it turns the bracketed key into a literal, escaped key name.
 type kdeSnapshot struct {
-	Path   string
-	Values map[string]*string
-	Flags  map[string]string   `json:",omitempty"`
-	Lines  map[string][]string `json:",omitempty"`
+	Path        string
+	Values      map[string]*string
+	Flags       map[string]string   `json:",omitempty"`
+	Lines       map[string][]string `json:",omitempty"`
+	GroupLocked bool                `json:",omitempty"`
 }
 
 type kdeWrite struct {
@@ -83,9 +88,10 @@ func kdeReadConfig() (kdeSnapshot, error) {
 }
 
 type kdeConfigData struct {
-	Values map[string]string
-	Flags  map[string]string
-	Lines  map[string][]string
+	Values      map[string]string
+	Flags       map[string]string
+	Lines       map[string][]string
+	GroupLocked bool
 }
 
 func kdeReadConfigAt(path string) (kdeSnapshot, error) {
@@ -102,7 +108,7 @@ func kdeReadConfigAt(path string) (kdeSnapshot, error) {
 		value := text
 		values[key] = &value
 	}
-	return kdeSnapshot{Path: path, Values: values, Flags: parsed.Flags, Lines: parsed.Lines}, nil
+	return kdeSnapshot{Path: path, Values: values, Flags: parsed.Flags, Lines: parsed.Lines, GroupLocked: parsed.GroupLocked}, nil
 }
 
 // parseKDEProxyConfig reads the Proxy Settings section while keeping each
@@ -118,8 +124,11 @@ func parseKDEProxyConfig(data []byte) kdeConfigData {
 	inSection := false
 	for line := range strings.SplitSeq(string(data), "\n") {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
-			inSection = trimmed[1:len(trimmed)-1] == kdeProxyGroup
+		if name, locked, ok := kdeGroupHeader(trimmed); ok {
+			inSection = name == kdeProxyGroup
+			if inSection && locked {
+				parsed.GroupLocked = true
+			}
 			continue
 		}
 		keyText, valueText, ok := kdeLineKey(line)
@@ -136,6 +145,21 @@ func parseKDEProxyConfig(data []byte) kdeConfigData {
 		parsed.Lines[key] = append(parsed.Lines[key], line)
 	}
 	return parsed
+}
+
+// kdeGroupHeader reads a KConfig group header and its optional immutable
+// suffix. KConfig marks a locked group with exactly "[Group][$i]" after the
+// group name; other suffixes are locales or subgroup names.
+func kdeGroupHeader(line string) (name string, locked bool, ok bool) {
+	rest, ok := strings.CutPrefix(line, "[")
+	if !ok || !strings.HasSuffix(rest, "]") {
+		return "", false, false
+	}
+	name, suffix, found := strings.Cut(rest, "]")
+	if !found {
+		return "", false, false
+	}
+	return name, suffix == kdeImmutableOption, true
 }
 
 // kdeLineKey reads the key and value of one config line; '#', ';' and group
@@ -308,6 +332,9 @@ func kdeNotify() error {
 }
 
 func kdeApplyWrites(s kdeSnapshot, writes []kdeWrite) error {
+	if err := s.lockedWrite(writes); err != nil {
+		return err
+	}
 	binary, err := kdeWriteBinary()
 	if err != nil {
 		return err
@@ -324,6 +351,21 @@ func kdeApplyWrites(s kdeSnapshot, writes []kdeWrite) error {
 		}
 	}
 	return kdeNotify()
+}
+
+// lockedWrite refuses a write that KConfig would reject with kwriteconfig's
+// exit status 2: an immutable key, or the whole Proxy Settings group marked
+// [$i]. It runs before the first command so no setting is half written.
+func (s kdeSnapshot) lockedWrite(writes []kdeWrite) error {
+	for _, item := range writes {
+		if strings.Contains(s.Flags[item.key], "i") {
+			return &KDELockedError{Key: item.key}
+		}
+	}
+	if s.GroupLocked && len(writes) > 0 {
+		return &KDELockedError{Key: writes[0].key, Group: kdeProxyGroup}
+	}
+	return nil
 }
 
 // kdeFlagDeletes clears the original flagged spelling of each key before a
@@ -409,12 +451,12 @@ func kdeReplaceProxyLines(data []byte, replacements map[string][]string) []byte 
 	}
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+		if name, _, isGroup := kdeGroupHeader(trimmed); isGroup {
 			if inSection {
 				missing()
 				inSection = false
 			}
-			inSection = trimmed[1:len(trimmed)-1] == kdeProxyGroup
+			inSection = name == kdeProxyGroup
 			out = append(out, line)
 			continue
 		}

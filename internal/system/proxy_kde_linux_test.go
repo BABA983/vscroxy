@@ -325,62 +325,134 @@ func TestKDEEscapedValuesRoundTripByteForByte(t *testing.T) {
 	}
 }
 
-func TestKDEKeyFlagsSurviveEnableAndRestore(t *testing.T) {
-	for _, tc := range []struct{ name, original string }{
-		{"e", "$NO_PROXY"},
-		{"i", "orig.example"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			flag := "[$" + tc.name + "]"
-			values := initialKDEValues("2", "", "localhost")
-			values[kdeBypassKey+flag] = tc.original
-			delete(values, kdeBypassKey)
-			f := newFakeKDEDesktop(t, values)
-			beforeFile, err := os.ReadFile(f.path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			before, err := snapshotProxy("127.0.0.1:7890")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got := before.KDE.Flags[kdeBypassKey]; got != flag {
-				t.Fatalf("NoProxyFor flag = %q, want %q", got, flag)
-			}
-			if got := ptrText(before.KDE.Values[kdeBypassKey]); got != tc.original {
-				t.Fatalf("flagged NoProxyFor = %q", got)
-			}
-			bypass := []string{"localhost", "*.corp.example"}
-			if err := before.applyProxy("127.0.0.1:7890", bypass, true); err != nil {
-				t.Fatal(err)
-			}
-			deleteAll := []string{"kwriteconfig5", "--file", kdeProxyFile, "--group", kdeProxyGroup, "--key", kdeBypassKey, "--delete"}
-			if !f.hasCommand(deleteAll...) {
-				t.Fatalf("apply did not clear the flagged key first: %q", f.commands)
-			}
-			if got := f.values[kdeBypassKey]; got != "localhost,*.corp.example" {
-				t.Fatalf("enabled NoProxyFor = %q", got)
-			}
-			f.commands = nil // a flagged key must be restored as a raw line
-			if err := restoreProxy(before, "127.0.0.1:7890", bypass, true); err != nil {
-				t.Fatal(err)
-			}
-			if !maps.Equal(f.values, values) {
-				t.Fatalf("restored = %q, want %q", f.values, values)
-			}
-			for _, command := range f.commands {
-				if command[0] == "kwriteconfig5" || command[0] == "kwriteconfig6" {
-					t.Fatalf("restore tried to write a flag with kwriteconfig: %q", command)
-				}
-			}
-			afterFile, err := os.ReadFile(f.path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !bytes.Equal(beforeFile, afterFile) {
-				t.Fatalf("flagged kioslaverc changed:\nbefore %q\nafter  %q", beforeFile, afterFile)
-			}
-		})
+func TestKDEExpandKeyFlagSurvivesEnableAndRestore(t *testing.T) {
+	const flag = "[$e]"
+	const original = "$NO_PROXY"
+	values := initialKDEValues("2", "", "localhost")
+	values[kdeBypassKey+flag] = original
+	delete(values, kdeBypassKey)
+	f := newFakeKDEDesktop(t, values)
+	beforeFile, err := os.ReadFile(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := snapshotProxy("127.0.0.1:7890")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := before.KDE.Flags[kdeBypassKey]; got != flag {
+		t.Fatalf("NoProxyFor flag = %q, want %q", got, flag)
+	}
+	if got := ptrText(before.KDE.Values[kdeBypassKey]); got != original {
+		t.Fatalf("flagged NoProxyFor = %q", got)
+	}
+	bypass := []string{"localhost", "*.corp.example"}
+	if err := before.applyProxy("127.0.0.1:7890", bypass, true); err != nil {
+		t.Fatal(err)
+	}
+	deleteAll := []string{"kwriteconfig5", "--file", kdeProxyFile, "--group", kdeProxyGroup, "--key", kdeBypassKey, "--delete"}
+	if !f.hasCommand(deleteAll...) {
+		t.Fatalf("apply did not clear the flagged key first: %q", f.commands)
+	}
+	if got := f.values[kdeBypassKey]; got != "localhost,*.corp.example" {
+		t.Fatalf("enabled NoProxyFor = %q", got)
+	}
+	f.commands = nil // a flagged key must be restored as a raw line
+	if err := restoreProxy(before, "127.0.0.1:7890", bypass, true); err != nil {
+		t.Fatal(err)
+	}
+	if !maps.Equal(f.values, values) {
+		t.Fatalf("restored = %q, want %q", f.values, values)
+	}
+	for _, command := range f.commands {
+		if command[0] == "kwriteconfig5" || command[0] == "kwriteconfig6" {
+			t.Fatalf("restore tried to write a flag with kwriteconfig: %q", command)
+		}
+	}
+	afterFile, err := os.ReadFile(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(beforeFile, afterFile) {
+		t.Fatalf("flagged kioslaverc changed:\nbefore %q\nafter  %q", beforeFile, afterFile)
+	}
+}
+
+// KConfig writes an immutable key as "NoProxyFor[$i]" and refuses writes to
+// it; see the kconfigini.cpp KEY_OPTIONS parsing and writeEntries in
+// https://github.com/KDE/kconfig.
+func TestKDEImmutableKeyIsRejectedBeforeAnyWrite(t *testing.T) {
+	values := initialKDEValues("1", "", "localhost")
+	values[kdeBypassKey+kdeImmutableOption] = "locked.example"
+	delete(values, kdeBypassKey)
+	f := newFakeKDEDesktop(t, values)
+	original, err := os.ReadFile(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := snapshotProxy("127.0.0.1:7890")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := before.KDE.Flags[kdeBypassKey]; got != kdeImmutableOption {
+		t.Fatalf("NoProxyFor flag = %q, want %q", got, kdeImmutableOption)
+	}
+	err = before.applyProxy("127.0.0.1:7890", []string{"localhost"}, true)
+	locked, ok := errors.AsType[*KDELockedError](err)
+	if !ok || !errors.Is(err, ErrKDELocked) || locked.Key != kdeBypassKey || locked.Group != "" {
+		t.Fatalf("apply = %v, want a locked key error for %s", err, kdeBypassKey)
+	}
+	if !strings.Contains(locked.Error(), kdeBypassKey) {
+		t.Fatalf("locked error does not name the key: %q", locked.Error())
+	}
+	assertNoKDEWrite(t, f, original)
+}
+
+// KConfig marks a locked group as "[Group][$i]" after its name; the group's
+// entries are then all immutable, as in parseConfig of kconfigini.cpp.
+func TestKDELockedGroupIsRejectedBeforeAnyWrite(t *testing.T) {
+	f := newFakeKDEDesktop(t, initialKDEValues("1", "", "localhost"))
+	original, err := os.ReadFile(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	header := []byte("[" + kdeProxyGroup + "]\n")
+	lockedFile := bytes.Replace(original, header, []byte("["+kdeProxyGroup+"]"+kdeImmutableOption+"\n"), 1)
+	if bytes.Equal(original, lockedFile) {
+		t.Fatalf("no %q header in %q", header, original)
+	}
+	if err := os.WriteFile(f.path, lockedFile, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	before, err := snapshotProxy("127.0.0.1:7890")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !before.KDE.GroupLocked {
+		t.Fatalf("group was not read as locked: %+v", before.KDE)
+	}
+	if got := ptrText(before.KDE.Values[kdeTypeKey]); got != "1" {
+		t.Fatalf("ProxyType in the locked group = %q, want 1", got)
+	}
+	err = before.applyProxy("127.0.0.1:7890", nil, false)
+	locked, ok := errors.AsType[*KDELockedError](err)
+	if !ok || !errors.Is(err, ErrKDELocked) || locked.Group != kdeProxyGroup || locked.Key != "httpProxy" {
+		t.Fatalf("apply = %v, want a locked group error naming a write key", err)
+	}
+	assertNoKDEWrite(t, f, lockedFile)
+}
+
+func assertNoKDEWrite(t *testing.T, f *fakeKDEDesktop, original []byte) {
+	t.Helper()
+	if len(f.commands) != 0 {
+		t.Fatalf("a locked setting still ran commands: %q", f.commands)
+	}
+	after, err := os.ReadFile(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(original, after) {
+		t.Fatalf("a locked setting changed kioslaverc:\nbefore %q\nafter  %q", original, after)
 	}
 }
 
