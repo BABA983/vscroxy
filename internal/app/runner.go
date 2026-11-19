@@ -317,6 +317,10 @@ func (a *app) drainRunner() {
 func (a *app) finishRunner() {
 	r := &a.runner
 	r.report.Finish(r.outcome.summary, r.outcome.err, time.Since(r.report.StartedAt))
+	if a.attention != nil {
+		failed := r.outcome.err != nil || r.report.Failed > 0
+		a.attention.play(runAttention(failed, r.report.Completed, r.report.Failed))
+	}
 	label := fmt.Sprintf("%s · %s · %s · %d completed · %d failed", r.report.StartedAt.Local().Format("15:04:05"), cmp.Or(r.collection, "/"), r.status, r.report.Completed, r.report.Failed)
 	r.history = append(r.history, pastRun{label: label, rows: r.rows, report: r.report})
 	r.history = r.history[max(0, len(r.history)-maxPastRuns):]
