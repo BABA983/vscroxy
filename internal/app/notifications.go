@@ -121,14 +121,35 @@ func (a *app) markNoticeSpent(id uint64) {
 func (a *app) notificationAction(id uint64) {
 	a.mu.Lock()
 	i := a.noticeIndex(id)
-	if i < 0 || a.notices[i].spent || a.notices[i].run == nil {
+	if i < 0 || a.notices[i].spent || a.notices[i].run == nil || a.notices[i].valid != nil && !a.notices[i].valid() {
 		a.mu.Unlock()
 		return
 	}
 	n := a.notices[i]
-	a.notices[i].spent = true
+	if !n.persistent {
+		a.notices[i].spent = true
+	}
 	a.mu.Unlock()
 	n.run()
+	a.invalidate()
+}
+
+// notificationAlternate runs a notice's second choice, as Overwrite beside
+// Compare on a save conflict. Like the primary action it runs on the UI
+// thread, and the conflict's choices stay until the save is resolved.
+func (a *app) notificationAlternate(id uint64) {
+	a.mu.Lock()
+	i := a.noticeIndex(id)
+	if i < 0 || a.notices[i].spent || a.notices[i].alternateRun == nil || a.notices[i].valid != nil && !a.notices[i].valid() {
+		a.mu.Unlock()
+		return
+	}
+	n := a.notices[i]
+	if !n.persistent {
+		a.notices[i].spent = true
+	}
+	a.mu.Unlock()
+	n.alternateRun()
 	a.invalidate()
 }
 
@@ -245,6 +266,9 @@ func (a *app) noticeRow(c *ui.Context, t *ui.Theme, center *noticeCenter, n noti
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				if n.action != "" && n.run != nil && !n.spent && (n.valid == nil || n.valid()) {
 					uikit.SecondaryButton(c, n.action).OnClick(func() { a.notificationAction(n.id) })
+				}
+				if n.alternate != "" && n.alternateRun != nil && !n.spent && (n.valid == nil || n.valid()) {
+					uikit.SecondaryButton(c, n.alternate).OnClick(func() { a.notificationAlternate(n.id) })
 				}
 				ui.Spacer(c)
 				uikit.RowIconButton(c, locales.DismissNotification(), locales.DismissNotification(), closeIcon).

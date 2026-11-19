@@ -34,6 +34,16 @@ type notice struct {
 	detail string
 	action string
 	read   bool
+	// alternate is a second choice in the notification center, as
+	// a save conflict's Overwrite beside Compare. The toast keeps the
+	// primary action; the center offers both.
+	alternate    string
+	alternateRun func()
+	// persistent keeps the choices after one was opened: comparing a
+	// conflict does not resolve it. source ties those choices to the one
+	// refused save, so a successful overwrite spends all of them.
+	persistent bool
+	source     *libraryConflictError
 	// sticky keeps an info notice until it is closed, for something worth
 	// acting on that did not just happen, such as an available update.
 	sticky bool
@@ -111,10 +121,31 @@ func (a *app) warn(text string)   { a.notify(notice{level: noticeWarning, text: 
 // A file changed on disk offers to read it again.
 func (a *app) fail(what string, err error) {
 	n := notice{level: noticeError, text: what, detail: err.Error()}
-	if errors.Is(err, store.ErrChanged) {
+	var conflict *libraryConflictError
+	if errors.As(err, &conflict) && conflict.resolve != nil {
+		// Both versions stay in the conflict view until the reader
+		// explicitly overwrites; neither choice reloads the draft away.
+		n.action, n.run = locales.CompareWithDisk(), func() { a.reviewSaveConflict(conflict) }
+		n.alternate, n.alternateRun = locales.OverwriteWithDraft(), func() { a.offerSaveOverwrite(conflict) }
+		n.persistent, n.source = true, conflict
+	} else if errors.Is(err, store.ErrChanged) {
 		n.action, n.run = locales.ReloadAction(), a.reloadFromDisk
 	}
 	a.notify(n)
+}
+
+// spendConflictNotices removes the Compare and Overwrite choices once the
+// conflict has been resolved. An unresolved conflict keeps both, even after
+// one was opened for inspection.
+func (a *app) spendConflictNotices(source *libraryConflictError) {
+	a.mu.Lock()
+	for i := range a.notices {
+		if a.notices[i].source == source {
+			a.notices[i].spent = true
+		}
+	}
+	a.mu.Unlock()
+	a.invalidate()
 }
 
 // showNotices hands queued notices to c as toasts. The notices stay in the
@@ -128,10 +159,15 @@ func (a *app) showNotices(c *ui.Context) {
 	center.pending = nil
 	a.mu.Unlock()
 	for _, n := range queued {
+		if n.valid != nil && !n.valid() {
+			continue
+		}
 		id := n.id
 		t := ui.Toast{ID: n.line(), Title: n.text, Description: n.detail, Action: n.action,
 			OnAction: func() {
-				a.markNoticeSpent(id)
+				if !n.persistent {
+					a.markNoticeSpent(id)
+				}
 				if n.run != nil {
 					n.run()
 				}

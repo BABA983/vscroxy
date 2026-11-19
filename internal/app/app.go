@@ -252,6 +252,11 @@ type app struct {
 	// collectionOpen keeps each saved collection's section open or shut,
 	// by name, the empty name for the requests outside one.
 	collectionOpen map[string]*bool
+	// conflict holds a refused library save: the disk version, the draft,
+	// and the editor buffer the draft side of the diff keeps editing.
+	conflict *saveConflict
+	// history is the local history of one request or folder file.
+	history historyView
 
 	// icons caches the app icon per process name; a nil entry means the
 	// process has none.
@@ -1996,6 +2001,8 @@ func (a *app) view(c *ui.Context) {
 	a.varsModal(c, t)
 	a.importReportModal(c, t)
 	a.folderModal(c, t)
+	a.saveConflictModal(c, t)
+	a.historyModal(c, t)
 	a.docsModal(c, t)
 	a.aboutModal(c, t)
 	a.deleteModal(c, t)
