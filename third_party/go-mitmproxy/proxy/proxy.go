@@ -252,6 +252,16 @@ func (proxy *Proxy) verifiesUpstream(address string, explicit bool) bool {
 	return proxy.Opts.AllowUntrustedUpstream == nil || !proxy.Opts.AllowUntrustedUpstream(address)
 }
 
+// ClearTLSKeyLogWriter closes and forgets the engine's cached TLS key-log
+// writer. The app calls it when the key log setting is turned off; later TLS
+// configurations read SSLKEYLOGFILE again, and in-flight ones hold a closed
+// writer rather than continuing to write secrets to the old file.
+func ClearTLSKeyLogWriter() { helper.ClearTlsKeyLogWriter() }
+
+// TLSKeyLogWriter returns the writer currently cached for SSLKEYLOGFILE, or
+// nil. It lets the app prove a reset detached the writer from new handshakes.
+func TLSKeyLogWriter() io.Writer { return helper.GetTlsKeyLogWriter() }
+
 // upstreamTLSConfig builds the client side of an intercepted upstream TLS
 // connection: the configured client certificate for address and, when verify
 // is on, the configured roots. An error must abort the handshake.

@@ -1670,6 +1670,78 @@ func SettingsCard(c *ui.Context, legend string, rows func()) ui.Element {
 	})
 }
 
+// SettingsCardRowWithReset is a SettingsCardRow that can show VS Code's
+// modified marker and reset menu. Both slots keep their width whether the
+// setting is modified or not, so toggling a control cannot move it under the
+// pointer between a press and a release.
+func SettingsCardRowWithReset(c *ui.Context, title, description string, modified bool, control func(), menu func(*ui.Menu), tip ...string) ui.Element {
+	t := c.Theme()
+	row := ui.Row(c).FillWidth().MinHeight(SettingsRowHeight).Padding(0, CardPaddingX).
+		Gap(t.Space(SpaceM)).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+	row.Children(func() {
+		marker := ui.Box(c).Width(3).Height(SettingsRowHeight - t.Space(SpaceL)).Shrink(0).Radius(2)
+		if modified {
+			marker.Background(Colors(t).Info)
+		}
+		head := ui.Column(c).Grow(1).MinWidth(0).Gap(0)
+		head.Children(func() {
+			Body(c, title)
+			if description != "" {
+				Small(c, description).TextColor(t.TextMuted)
+			}
+		})
+		if len(tip) > 0 && tip[0] != "" {
+			Tip(c, head, tip[0])
+		}
+		if control != nil {
+			control()
+		}
+		if modified {
+			MoreMenu(c, locales.SettingsSettingActions(title), menu)
+		} else {
+			ui.Box(c).Size(HeightRowAction, HeightRowAction).Shrink(0)
+		}
+	})
+	return row
+}
+
+// SettingsCardBlockWithReset is SettingsCardRowWithReset for an editor that
+// takes the card's full width; its marker and menu reserve their slots too.
+func SettingsCardBlockWithReset(c *ui.Context, title, description string, modified bool, content func(), menu func(*ui.Menu), tip ...string) ui.Element {
+	t := c.Theme()
+	block := ui.Column(c).FillWidth().Padding(t.Space(SpaceL), t.Space(SpaceXL)).Gap(t.Space(SpaceM)).
+		BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+	block.Children(func() {
+		ui.Row(c).FillWidth().Gap(t.Space(SpaceM)).Children(func() {
+			marker := ui.Box(c).Width(3).Height(t.Space(SpaceXL) + t.Space(SpaceM)).Shrink(0).Radius(2)
+			if modified {
+				marker.Background(Colors(t).Info)
+			}
+			head := ui.Column(c).Grow(1).MinWidth(0).Gap(0)
+			head.Children(func() {
+				if title != "" {
+					Body(c, title)
+				}
+				if description != "" {
+					Small(c, description).TextColor(t.TextMuted)
+				}
+			})
+			if len(tip) > 0 && tip[0] != "" {
+				Tip(c, head, tip[0])
+			}
+			if modified {
+				MoreMenu(c, locales.SettingsSettingActions(title), menu)
+			} else {
+				ui.Box(c).Size(HeightRowAction, HeightRowAction).Shrink(0)
+			}
+		})
+		if content != nil {
+			content()
+		}
+	})
+	return block
+}
+
 // Switch is the kit's 36-by-20 switch. Its off face follows Amp Web: a 20%
 // text track and a muted thumb. The on track comes from SwitchOn, so Dark can
 // keep a readable edge under its knob instead of Amp's two near-black colors.

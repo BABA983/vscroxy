@@ -1358,7 +1358,7 @@ func TestSettingsCategoriesKeepNativeNavigationAndEditorRoutes(t *testing.T) {
 		t.Fatal("native End navigation did not select Certificates")
 	}
 	click("Settings category: Capture")
-	tt.Scroll(600, 300, 0, 400) // the Ignored group is below the fold
+	tt.Scroll(600, 300, 0, 200) // the Ignored group is below the search bar and fold
 	tt.Frame()
 	click("Ignored hosts…")
 	if !tt.HasText("Ignored hosts") || a.settingsOpen {

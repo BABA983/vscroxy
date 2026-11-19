@@ -8240,5 +8240,47 @@
   "outlineTest": "test",
   "outlineTooLarge": "Outline is not available for bodies over 1 MiB",
   "openABodyFirst": "Open a body first",
-  "otherEnvironmentDefinitions": "Definitions in other environments are included by default; uncheck one to leave it unchanged."
+  "otherEnvironmentDefinitions": "Definitions in other environments are included by default; uncheck one to leave it unchanged.",
+  "settingsSearchLabel": "Search settings",
+  "settingsSearchPlaceholder": "Title, description or setting ID",
+  "settingsSearchHint": "Search all settings · @modified shows changed ones · Esc clears",
+  "settingsModifiedFilter": "Modified settings",
+  "settingsModifiedCount": "{count, plural, one {# modified setting} other {# modified settings}}",
+  "settingsNoModified": "No settings have been changed",
+  "@settingsSearchNoMatches": {
+    "placeholders": {
+      "query": {"type": "String"}
+    }
+  },
+  "settingsSearchNoMatches": "No settings match “{query}”",
+  "settingsResetToDefault": "Reset to default",
+  "@settingsSettingActions": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "settingsSettingActions": "Setting actions: {name}",
+  "@settingsSettingID": {
+    "placeholders": {
+      "id": {"type": "String"}
+    }
+  },
+  "settingsSettingID": "ID: {id}",
+  "@settingsResetNotice": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "settingsResetNotice": "{name} was reset to its default",
+  "settingEveryDomainHint": "Decrypt all proxied TLS, or only the hosts and apps below",
+  "settingDomainsHint": "Hosts whose TLS is decrypted, one per line",
+  "settingAppsHint": "Apps whose TLS is decrypted",
+  "settingKeyLogHint": "Write TLS secrets here for Wireshark; applies on the next launch",
+  "settingKeepUpTo": "Keep up to",
+  "settingKeepUpToHint": "The number of captured requests the table keeps",
+  "settingMemoryLimit": "Memory limit",
+  "settingMemoryLimitHint": "How much captured body data stays in memory",
+  "settingDiskLimit": "Disk limit",
+  "settingTrustSystemRootsHint": "Also trust the certificate roots this computer already trusts",
+  "settingTrustedRootsHint": "Extra certificate roots used to verify upstream servers"
 }

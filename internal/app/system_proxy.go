@@ -472,7 +472,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 					a.setSystemProxy(on)
 				}
 			})
-		settingsCardBlock(c, locales.BypassList(), func() ui.Element {
+		a.settingBlock(c, "proxy.systemBypass", locales.BypassList(), func() ui.Element {
 			return ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 				uikit.Checkbox(c, &a.systemProxyBypassSet, locales.ReplaceSystemBypassList())
 				uikit.TextArea(c, &a.systemProxyBypassText).Label(locales.SystemProxyBypassList()).Placeholder("localhost, *.internal.test, 10.0.0.0/8").Height(64).Font(uikit.FontMono).Radius(uikit.RadiusControl).Disabled(!a.systemProxyBypassSet)

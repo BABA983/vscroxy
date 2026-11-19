@@ -184,63 +184,73 @@ func (a *app) settingsView(c *ui.Context) {
 // one on the right. active draws the chosen category as in a window in
 // front. The editors it opens own their values and persistence.
 func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
-	ui.Row(c).Grow(1).FillWidth().MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-		uikit.SidebarList(c, "settings-categories", &a.settingsChoice, func(id string) {
-			a.settingsTab, _ = strconv.Atoi(id)
-			if a.settingsTab == 2 {
-				a.checkCertificate(false)
-			}
-		}, func() {
-			for _, item := range []struct {
-				id    string
-				icon  *ui.SVG
-				label string
-			}{
-				{"0", lucide.SlidersHorizontal(), locales.General()},
-				{"3", lucide.SunMoon(), locales.Appearance()},
-				{"1", upstreamIcon, locales.Proxy()},
-				{"2", lockIcon, locales.HttpsDecryption()},
-				{"4", captureIcon, locales.Capture()},
-				{"5", lucide.MonitorSmartphone(), locales.Devices()},
-				{"6", lucide.KeyRound(), locales.Certificates()},
-			} {
-				uikit.SidebarItem(c, item.id, item.icon, item.label, a.settingsChoice == item.id, active).Label(locales.SettingsCategory(item.label))
-			}
-		}).Width(188).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceHair)).Background(uikit.Colors(t).Window)
-		ui.Divider(c)
-		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
-			top := t.Space(uikit.SpaceM)
-			if a.settingsWin != nil {
-				top = t.Space(uikit.Space2XL) // no dialog title above it
-			}
-			bottom := t.Space(uikit.Space2XL)
-			if a.settingsTab == 6 {
-				// The certificates footer is fixed under the scroll: leave
-				// its height as content padding so the last client card can
-				// scroll clear of it.
-				bottom += 64
-			}
-			ui.Scroll(c).Grow(1).MinHeight(0).MinWidth(0).Padding(top, t.Space(uikit.Space2XL), bottom, t.Space(uikit.Space2XL)).Children(func() {
-				switch a.settingsTab {
-				case 0:
-					a.generalSettings(c, t)
-				case 1:
-					a.proxySettings(c, t)
-				case 2:
-					a.httpsSettings(c, t)
-				case 3:
-					a.appearanceSettings(c, t)
-				case 4:
-					a.captureSettings(c, t)
-				case 5:
-					a.deviceSettings(c, t)
-				case 6:
-					a.certificateSettings(c, t)
+	if a.settingsQuery != "" {
+		c.OnShortcut(0, ui.KeyEscape, func() { a.settingsQuery = "" })
+	}
+	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+		a.settingsSearchBar(c, t)
+		if a.settingsQuery != "" {
+			ui.Scroll(c).Grow(1).MinHeight(0).MinWidth(0).Padding(0, t.Space(uikit.Space2XL)).Children(func() {
+				a.settingsSearchResults(c, t)
+			})
+			return
+		}
+		ui.Row(c).Grow(1).FillWidth().MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+			uikit.SidebarList(c, "settings-categories", &a.settingsChoice, func(id string) {
+				a.settingsTab, _ = strconv.Atoi(id)
+				if a.settingsTab == 2 {
+					a.checkCertificate(false)
+				}
+			}, func() {
+				for _, item := range []struct {
+					id    string
+					icon  *ui.SVG
+					label string
+				}{
+					{"0", lucide.SlidersHorizontal(), locales.General()},
+					{"3", lucide.SunMoon(), locales.Appearance()},
+					{"1", upstreamIcon, locales.Proxy()},
+					{"2", lockIcon, locales.HttpsDecryption()},
+					{"4", captureIcon, locales.Capture()},
+					{"5", lucide.MonitorSmartphone(), locales.Devices()},
+					{"6", lucide.KeyRound(), locales.Certificates()},
+				} {
+					uikit.SidebarItem(c, item.id, item.icon, item.label, a.settingsChoice == item.id, active).Label(locales.SettingsCategory(item.label))
+				}
+			}).Width(188).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceHair)).Background(uikit.Colors(t).Window)
+			ui.Divider(c)
+			ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
+				// The search bar above replaces the page's old top inset.
+				top := float32(0)
+				bottom := t.Space(uikit.Space2XL)
+				if a.settingsTab == 6 {
+					// The certificates footer is fixed under the scroll: leave
+					// its height as content padding so the last client card can
+					// scroll clear of it.
+					bottom += 64
+				}
+				ui.Scroll(c).Grow(1).MinHeight(0).MinWidth(0).Padding(top, t.Space(uikit.Space2XL), bottom, t.Space(uikit.Space2XL)).Children(func() {
+					switch a.settingsTab {
+					case 0:
+						a.generalSettings(c, t)
+					case 1:
+						a.proxySettings(c, t)
+					case 2:
+						a.httpsSettings(c, t)
+					case 3:
+						a.appearanceSettings(c, t)
+					case 4:
+						a.captureSettings(c, t)
+					case 5:
+						a.deviceSettings(c, t)
+					case 6:
+						a.certificateSettings(c, t)
+					}
+				})
+				if a.settingsTab == 6 {
+					a.certificateFooter(c, t)
 				}
 			})
-			if a.settingsTab == 6 {
-				a.certificateFooter(c, t)
-			}
 		})
 	})
 }
