@@ -211,13 +211,7 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			uikit.Input(c, &u.query).Label(locales.SearchSocketIoMessages()).Placeholder(locales.SearchEventOrPayload()).Grow(1).MinWidth(0)
 			uikit.Meta(c, locales.RetainedPreview2(len(s.events), s.evicted)).SingleLine()
 		})
-		query := strings.ToLower(strings.TrimSpace(u.query))
-		var events []socketIOEvent
-		for _, e := range s.events {
-			if query == "" || strings.Contains(strings.ToLower(e.name+" "+e.text), query) {
-				events = append(events, e)
-			}
-		}
+		events, matches := filterSocketIOEvents(a, s.events, u.query)
 		if len(events) == 0 {
 			if strings.TrimSpace(u.query) != "" {
 				uikit.EmptyState(c, locales.NoMatchingSocketIoMessages(), locales.ChangeTheSearchOrWait3(), nil)
@@ -233,7 +227,8 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			uikit.DataListIndexed(c, &u.list, len(events), func(i int) {
 				e := events[i]
 				ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
-					uikit.Body(c, e.direction+" · "+e.name).SingleLine()
+					label := e.direction + " · " + e.name
+					fuzzyListBody(c, label, matches[e.seq]).SingleLine()
 					uikit.Meta(c, locales.EventLineSize(e.seq, e.at.Format("15:04:05.000"), e.size)).SingleLine()
 				})
 			}).Grow(1)

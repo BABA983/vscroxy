@@ -115,12 +115,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 				})
 			})
 			ui.Row(c).Grow(1).MinHeight(84).Gap(t.Space(uikit.SpaceXL)).AlignItems(ui.Stretch).Children(func() {
-				var shown []sseSessionEvent
-				for _, e := range events {
-					if strings.Contains(strings.ToLower(e.eventType+"\n"+e.id+"\n"+e.data+"\n"+e.detail), strings.ToLower(s.query)) {
-						shown = append(shown, e)
-					}
-				}
+				shown, matches := filterSSESessionEvents(a, events, s.query)
 				uikit.Panel(c).Width(280).MinWidth(0).Shrink(1).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM)).Children(func() {
 					if len(shown) == 0 {
 						uikit.Hint(c, locales.NoMatchingEventsYet())
@@ -150,7 +145,8 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 							head = "Event"
 						}
 						ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
-							uikit.Body(c, fmt.Sprintf("#%d · %s", e.seq, clamp(head, 48))).TextColor(t.Text).SingleLine()
+							prefix := fmt.Sprintf("#%d · ", e.seq)
+							fuzzyListBody(c, prefix+clamp(head, 48), fuzzyShiftMatches(matches[e.seq], len([]rune(prefix)))).TextColor(t.Text).SingleLine()
 							uikit.Meta(c, locales.KindWithSize(e.at.Format("15:04:05.000"), e.size)).SingleLine()
 						})
 					}).Grow(1).MinHeight(0)
