@@ -1036,12 +1036,18 @@ func (a *app) bodyFormatActions(side int) []action {
 	return items
 }
 
-// copyPaneBody copies exactly the bytes the pane shows, without formatting
-// or display warnings.
+// copyPaneBody puts readable text on the clipboard: the decoded form when
+// the pane decoded one, otherwise the captured text. Binary bytes are never
+// written to a text clipboard.
 func (a *app) copyPaneBody(c *ui.Context, side int) {
 	body := a.body
 	if side == 1 {
 		body = a.reqBody
+	}
+	if text, ok := a.displayedBodyText(side, body); ok {
+		c.Services().WriteClipboard(text)
+		a.done(locales.CopiedShownBodyReviewCredentials())
+		return
 	}
 	if !utf8.ValidString(body) || strings.ContainsRune(body, 0) {
 		a.warn(locales.BinaryBytesCannotBeCopied())
