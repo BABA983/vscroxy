@@ -151,6 +151,33 @@ func (d *requestDocument) quickFixField(code string) (field string, text *string
 		}
 		return code, &d.formFields[at-1].Value, nil, nil, nil, true
 	}
+	if part, at, ok := rowFieldCode(code, "path-"); ok {
+		if at < 1 || at > len(d.pathRows) {
+			return "", nil, nil, nil, nil, false
+		}
+		if part == "key" {
+			return code, &d.pathRows[at-1].Name, nil, nil, nil, true
+		}
+		return code, &d.pathRows[at-1].Value, nil, nil, nil, true
+	}
+	switch code {
+	case problemFieldDescription:
+		return code, &d.description, nil, nil, nil, true
+	case "graphql-query":
+		return code, &d.graphql.Query, nil, nil, nil, true
+	case "graphql-vars":
+		return code, &d.graphql.Variables, nil, nil, nil, true
+	case "body-file":
+		return code, &d.bodyFile, nil, nil, nil, true
+	case "grpc-method":
+		return code, &d.grpcConfig.Method, nil, nil, nil, true
+	}
+	if at, ok := strings.CutPrefix(code, "grpc-message-"); ok {
+		index, err := strconv.Atoi(at)
+		if err == nil && index >= 1 && index <= len(d.grpcConfig.Messages) {
+			return code, &d.grpcConfig.Messages[index-1], nil, nil, nil, true
+		}
+	}
 	if path, ok := strings.CutPrefix(code, problemFieldAuthPrefix); ok {
 		if value := authFieldPointer(&d.auth, "Auth."+path); value != nil {
 			return code, value, nil, nil, nil, true
@@ -642,15 +669,32 @@ func (a *app) bindQuickFixShortcut(c *ui.Context, handle *ui.Handle) {
 // trackInputQuickFix remembers the variable under a native input's caret.
 // The selection is read on the built element, as the field's completion does.
 func (a *app) trackInputQuickFix(d *requestDocument, code string, value *string, in ui.Element) {
-	if d == nil || !in.Focused() || !strings.Contains(*value, "{{") {
+	if d == nil || !in.Focused() {
 		return
 	}
 	_, caretRunes := in.TextSelection()
 	target, ok := a.quickFixTargetAtCaret(d, code, value, nil, nil, nil, runeToByte(*value, caretRunes))
 	if !ok {
+		a.clearVariableCaret(value)
 		return
 	}
-	a.setQuickFixCaret(target)
+	a.setVariableCaret(target)
+}
+
+func (a *app) clearVariableCaret(value *string) {
+	p := &a.problems
+	if p.variableCaret != nil && p.variableCaret.text == value {
+		p.variableCaret = nil
+		p.caret, p.caretFixes = nil, nil
+	}
+}
+
+// setVariableCaret feeds both the quick fix and the rename/reference commands
+// from the same caret target; a defined variable simply has no quick fix.
+func (a *app) setVariableCaret(target quickFixTarget) {
+	copied := target
+	a.problems.variableCaret = &copied
+	a.problems.caret, a.problems.caretFixes = &copied, a.quickFixes(copied)
 }
 
 func (a *app) quickFixHandleMenu(c *ui.Context, handle *ui.Handle, state *editor.State) {
@@ -671,9 +715,10 @@ func (a *app) trackEditorQuickFix(d *requestDocument, code string, state *editor
 	}
 	target, ok := a.quickFixTargetAtCaret(d, code, text, state, seen, generation, state.Cursor())
 	if !ok {
+		a.clearVariableCaret(text)
 		return
 	}
-	a.setQuickFixCaret(target)
+	a.setVariableCaret(target)
 }
 
 func (a *app) setQuickFixCaret(target quickFixTarget) {

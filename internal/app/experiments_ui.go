@@ -429,7 +429,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					if r.Variables == nil {
 						uikit.Caption(c, locales.NoVariableSnapshotRetainedOlder())
 					}
-					variableRows(c, r.Variables, &s.revealVars)
+					a.variableRows(c, r.Variables, &s.revealVars, nil)
 					return
 				}
 				if s.tab == 4 {

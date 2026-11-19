@@ -37844,6 +37844,260 @@ func (msgs Messages) ChangeToVariable(name string) string {
 	return Catalog.Format(msgs.locale, "changeToVariable", map[string]any{"name": name})
 }
 
+// UndefinedVariable says "Undefined variable"
+// in the language the app shows.
+func UndefinedVariable() string { return In(i18n.Locale()).UndefinedVariable() }
+
+// UndefinedVariable says "Undefined variable"
+// in the language of msgs.
+func (msgs Messages) UndefinedVariable() string {
+	return Catalog.Format(msgs.locale, "undefinedVariable", nil)
+}
+
+// Definition says "Definition"
+// in the language the app shows.
+func Definition() string { return In(i18n.Locale()).Definition() }
+
+// Definition says "Definition"
+// in the language of msgs.
+func (msgs Messages) Definition() string {
+	return Catalog.Format(msgs.locale, "definition", nil)
+}
+
+// RenameVariable says "Rename variable"
+// in the language the app shows.
+func RenameVariable() string { return In(i18n.Locale()).RenameVariable() }
+
+// RenameVariable says "Rename variable"
+// in the language of msgs.
+func (msgs Messages) RenameVariable() string {
+	return Catalog.Format(msgs.locale, "renameVariable", nil)
+}
+
+// RenameVariableIn says "Rename “{name}” · {scope}"
+// in the language the app shows.
+func RenameVariableIn(name string, scope string) string {
+	return In(i18n.Locale()).RenameVariableIn(name, scope)
+}
+
+// RenameVariableIn says "Rename “{name}” · {scope}"
+// in the language of msgs.
+func (msgs Messages) RenameVariableIn(name string, scope string) string {
+	return Catalog.Format(msgs.locale, "renameVariableIn", map[string]any{"name": name, "scope": scope})
+}
+
+// NewVariableName says "New variable name"
+// in the language the app shows.
+func NewVariableName() string { return In(i18n.Locale()).NewVariableName() }
+
+// NewVariableName says "New variable name"
+// in the language of msgs.
+func (msgs Messages) NewVariableName() string {
+	return Catalog.Format(msgs.locale, "newVariableName", nil)
+}
+
+// VariableScopeExplanation says "One action renames one scope: its definition and the uses that resolve to it. A nearer variable of the same name shad…"
+// in the language the app shows.
+func VariableScopeExplanation() string { return In(i18n.Locale()).VariableScopeExplanation() }
+
+// VariableScopeExplanation says "One action renames one scope: its definition and the uses that resolve to it. A nearer variable of the same name shad…"
+// in the language of msgs.
+func (msgs Messages) VariableScopeExplanation() string {
+	return Catalog.Format(msgs.locale, "variableScopeExplanation", nil)
+}
+
+// ReviewRename says "Review changes"
+// in the language the app shows.
+func ReviewRename() string { return In(i18n.Locale()).ReviewRename() }
+
+// ReviewRename says "Review changes"
+// in the language of msgs.
+func (msgs Messages) ReviewRename() string {
+	return Catalog.Format(msgs.locale, "reviewRename", nil)
+}
+
+// RenameChangeCount says "{checked} of {total} changes selected"
+// in the language the app shows.
+func RenameChangeCount(checked int, total int) string {
+	return In(i18n.Locale()).RenameChangeCount(checked, total)
+}
+
+// RenameChangeCount says "{checked} of {total} changes selected"
+// in the language of msgs.
+func (msgs Messages) RenameChangeCount(checked int, total int) string {
+	return Catalog.Format(msgs.locale, "renameChangeCount", map[string]any{"checked": checked, "total": total})
+}
+
+// ApplyRename says "Apply rename"
+// in the language the app shows.
+func ApplyRename() string { return In(i18n.Locale()).ApplyRename() }
+
+// ApplyRename says "Apply rename"
+// in the language of msgs.
+func (msgs Messages) ApplyRename() string {
+	return Catalog.Format(msgs.locale, "applyRename", nil)
+}
+
+// FindAllReferences says "Find All References"
+// in the language the app shows.
+func FindAllReferences() string { return In(i18n.Locale()).FindAllReferences() }
+
+// FindAllReferences says "Find All References"
+// in the language of msgs.
+func (msgs Messages) FindAllReferences() string {
+	return Catalog.Format(msgs.locale, "findAllReferences", nil)
+}
+
+// ReferencesOf says "References of “{name}” · {scope}"
+// in the language the app shows.
+func ReferencesOf(name string, scope string) string {
+	return In(i18n.Locale()).ReferencesOf(name, scope)
+}
+
+// ReferencesOf says "References of “{name}” · {scope}"
+// in the language of msgs.
+func (msgs Messages) ReferencesOf(name string, scope string) string {
+	return Catalog.Format(msgs.locale, "referencesOf", map[string]any{"name": name, "scope": scope})
+}
+
+// ReferenceCount says "{count} references"
+// in the language the app shows.
+func ReferenceCount(count int) string { return In(i18n.Locale()).ReferenceCount(count) }
+
+// ReferenceCount says "{count} references"
+// in the language of msgs.
+func (msgs Messages) ReferenceCount(count int) string {
+	return Catalog.Format(msgs.locale, "referenceCount", map[string]any{"count": count})
+}
+
+// NoVariableUses says "No references in the saved library"
+// in the language the app shows.
+func NoVariableUses() string { return In(i18n.Locale()).NoVariableUses() }
+
+// NoVariableUses says "No references in the saved library"
+// in the language of msgs.
+func (msgs Messages) NoVariableUses() string {
+	return Catalog.Format(msgs.locale, "noVariableUses", nil)
+}
+
+// OpenVariableReference says "Open variable reference in {field}"
+// in the language the app shows.
+func OpenVariableReference(field string) string {
+	return In(i18n.Locale()).OpenVariableReference(field)
+}
+
+// OpenVariableReference says "Open variable reference in {field}"
+// in the language of msgs.
+func (msgs Messages) OpenVariableReference(field string) string {
+	return Catalog.Format(msgs.locale, "openVariableReference", map[string]any{"field": field})
+}
+
+// PlaceCaretInVariable says "Place the caret in a '{{variable}}' or choose a variable row"
+// in the language the app shows.
+func PlaceCaretInVariable() string { return In(i18n.Locale()).PlaceCaretInVariable() }
+
+// PlaceCaretInVariable says "Place the caret in a '{{variable}}' or choose a variable row"
+// in the language of msgs.
+func (msgs Messages) PlaceCaretInVariable() string {
+	return Catalog.Format(msgs.locale, "placeCaretInVariable", nil)
+}
+
+// NoVariableUsesInScope says "This name has no uses in the selected scope"
+// in the language the app shows.
+func NoVariableUsesInScope() string { return In(i18n.Locale()).NoVariableUsesInScope() }
+
+// NoVariableUsesInScope says "This name has no uses in the selected scope"
+// in the language of msgs.
+func (msgs Messages) NoVariableUsesInScope() string {
+	return Catalog.Format(msgs.locale, "noVariableUsesInScope", nil)
+}
+
+// VariableNameRules says "Variable names cannot be empty or contain braces or whitespace"
+// in the language the app shows.
+func VariableNameRules() string { return In(i18n.Locale()).VariableNameRules() }
+
+// VariableNameRules says "Variable names cannot be empty or contain braces or whitespace"
+// in the language of msgs.
+func (msgs Messages) VariableNameRules() string {
+	return Catalog.Format(msgs.locale, "variableNameRules", nil)
+}
+
+// VariableNameCannotBeEmpty says "Enter a variable name"
+// in the language the app shows.
+func VariableNameCannotBeEmpty() string { return In(i18n.Locale()).VariableNameCannotBeEmpty() }
+
+// VariableNameCannotBeEmpty says "Enter a variable name"
+// in the language of msgs.
+func (msgs Messages) VariableNameCannotBeEmpty() string {
+	return Catalog.Format(msgs.locale, "variableNameCannotBeEmpty", nil)
+}
+
+// VariableNameUnchanged says "Choose a different variable name"
+// in the language the app shows.
+func VariableNameUnchanged() string { return In(i18n.Locale()).VariableNameUnchanged() }
+
+// VariableNameUnchanged says "Choose a different variable name"
+// in the language of msgs.
+func (msgs Messages) VariableNameUnchanged() string {
+	return Catalog.Format(msgs.locale, "variableNameUnchanged", nil)
+}
+
+// VariableNameAlreadyInScope says "A variable named “{name}” already exists in {scope}; choose another name"
+// in the language the app shows.
+func VariableNameAlreadyInScope(name string, scope string) string {
+	return In(i18n.Locale()).VariableNameAlreadyInScope(name, scope)
+}
+
+// VariableNameAlreadyInScope says "A variable named “{name}” already exists in {scope}; choose another name"
+// in the language of msgs.
+func (msgs Messages) VariableNameAlreadyInScope(name string, scope string) string {
+	return Catalog.Format(msgs.locale, "variableNameAlreadyInScope", map[string]any{"name": name, "scope": scope})
+}
+
+// NoVariableChangesSelected says "Select at least one change to apply"
+// in the language the app shows.
+func NoVariableChangesSelected() string { return In(i18n.Locale()).NoVariableChangesSelected() }
+
+// NoVariableChangesSelected says "Select at least one change to apply"
+// in the language of msgs.
+func (msgs Messages) NoVariableChangesSelected() string {
+	return Catalog.Format(msgs.locale, "noVariableChangesSelected", nil)
+}
+
+// RenamedVariable says "Renamed “{from}” to “{to}”"
+// in the language the app shows.
+func RenamedVariable(from string, to string) string {
+	return In(i18n.Locale()).RenamedVariable(from, to)
+}
+
+// RenamedVariable says "Renamed “{from}” to “{to}”"
+// in the language of msgs.
+func (msgs Messages) RenamedVariable(from string, to string) string {
+	return Catalog.Format(msgs.locale, "renamedVariable", map[string]any{"from": from, "to": to})
+}
+
+// FindAllReferencesForVariable says "Find all references to {name}"
+// in the language the app shows.
+func FindAllReferencesForVariable(name string) string {
+	return In(i18n.Locale()).FindAllReferencesForVariable(name)
+}
+
+// FindAllReferencesForVariable says "Find all references to {name}"
+// in the language of msgs.
+func (msgs Messages) FindAllReferencesForVariable(name string) string {
+	return Catalog.Format(msgs.locale, "findAllReferencesForVariable", map[string]any{"name": name})
+}
+
+// RenameVariableNamed says "Rename variable {name}"
+// in the language the app shows.
+func RenameVariableNamed(name string) string { return In(i18n.Locale()).RenameVariableNamed(name) }
+
+// RenameVariableNamed says "Rename variable {name}"
+// in the language of msgs.
+func (msgs Messages) RenameVariableNamed(name string) string {
+	return Catalog.Format(msgs.locale, "renameVariableNamed", map[string]any{"name": name})
+}
+
 // VariableQuickFixes says "Quick fixes: {fixes}"
 // in the language the app shows.
 func VariableQuickFixes(fixes string) string { return In(i18n.Locale()).VariableQuickFixes(fixes) }
@@ -38218,4 +38472,14 @@ func OpenABodyFirst() string { return In(i18n.Locale()).OpenABodyFirst() }
 // in the language of msgs.
 func (msgs Messages) OpenABodyFirst() string {
 	return Catalog.Format(msgs.locale, "openABodyFirst", nil)
+}
+
+// OtherEnvironmentDefinitions says "Definitions in other environments are included by default; uncheck one to leave it unchanged."
+// in the language the app shows.
+func OtherEnvironmentDefinitions() string { return In(i18n.Locale()).OtherEnvironmentDefinitions() }
+
+// OtherEnvironmentDefinitions says "Definitions in other environments are included by default; uncheck one to leave it unchanged."
+// in the language of msgs.
+func (msgs Messages) OtherEnvironmentDefinitions() string {
+	return Catalog.Format(msgs.locale, "otherEnvironmentDefinitions", nil)
 }

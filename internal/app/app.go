@@ -269,6 +269,10 @@ type app struct {
 	// conflict holds a refused library save: the disk version, the draft,
 	// and the editor buffer the draft side of the diff keeps editing.
 	conflict *saveConflict
+	// variableRename is the name prompt and the bulk-edit review; variableRefs
+	// is the References view. Neither holds a build-time UI element.
+	variableRename variableRenameState
+	variableRefs   variableReferencesState
 	// history is the local history of one request or folder file.
 	history historyView
 
@@ -1959,6 +1963,7 @@ func (a *app) view(c *ui.Context) {
 	if !a.problems.fixMenuOpen {
 		// The focused field records the caret target as the view builds.
 		a.problems.caret, a.problems.caretFixes = nil, nil
+		a.problems.variableCaret = nil
 	}
 	a.applyProblemLocation()
 	a.pruneURLPaste()
@@ -2087,6 +2092,7 @@ func (a *app) view(c *ui.Context) {
 	})
 	// The target editor exists now: selecting a Search result can reveal it.
 	a.revealSearchMatch()
+	a.revealVariableMatch(c)
 	a.persistSettings()
 	a.checkpointExperiments(c)
 	a.checkpointSessions()
@@ -2138,6 +2144,8 @@ func (a *app) view(c *ui.Context) {
 	a.varsModal(c, t)
 	a.moveToModal(c)
 	a.folderModal(c, t)
+	a.renameModal(c, t)
+	a.referencesModal(c, t)
 	a.historyModal(c, t)
 	a.docsModal(c, t)
 	// A link in an imported description can be clicked while Documentation
@@ -4348,7 +4356,9 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 			})
 			tableHeight := min(float32(320), uikit.HeightRow*float32(len(a.varsRows)+2)+2)
 			ui.Column(c).Height(tableHeight).Disabled(a.envsProblem != "").Children(func() {
-				a.variableTable(c, &a.varsRows, variableTableOptions{})
+				a.variableTable(c, &a.varsRows, variableTableOptions{
+					scope: varsEditorScope(a), reveal: a.variableRefs.reveal.name,
+				})
 			})
 			if a.varsProblem != "" {
 				uikit.ErrorText(c, a.varsProblem)
