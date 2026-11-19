@@ -978,7 +978,8 @@ func (a *app) prettyBody(c *ui.Context, body string, side int, json *jsonReader)
 		if isJSON {
 			buf.SetLanguage(editor.LanguageNamed("json"))
 		}
-		view = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.BodyText(), RenderFindBar: bodyFindBar}
+		view = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.BodyText(),
+			RenderFindBar: func(c *ui.Context, bar ui.Element, find *editor.FindBar) { a.bodyFindBar(c, bar, find, side) }}
 		a.bodyText[side] = view
 	}
 	a.decoderMenu(view)
@@ -988,12 +989,23 @@ func (a *app) prettyBody(c *ui.Context, body string, side int, json *jsonReader)
 }
 
 // Keep the library's search semantics, with controls that fit a side inspector.
-func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
+func (a *app) bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar, side int) {
+	state := &a.bodyFind[side]
+	bar.Bind(&state.handle)
+	state.find = find
 	t := c.Theme()
-	bar.Row().Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Background(uikit.Colors(t).Window).Border(1, t.Border).Radius(uikit.RadiusControl)
+	bar.Row().Gap(t.Space(uikit.SpaceS)).Padding(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Background(uikit.Colors(t).Window).Border(1, t.Border).Radius(uikit.RadiusControl)
 	bar.Children(func() {
-		find.QueryInput(uikit.Input(c, find.Query()).Label(locales.SearchBody()).Placeholder(locales.FindInBody()).Width(uikit.WidthPicker))
+		// The three option toggles share the inspector's width with the query.
+		queryWidth := float32(uikit.WidthPicker - 40)
+		find.QueryInput(uikit.Input(c, find.Query()).Label(locales.SearchBody()).Placeholder(locales.FindInBody()).Width(queryWidth).Shrink(1))
 		uikit.Meta(c, find.Status()).FontFeatures("tnum").MinWidth(40).Role(ui.RoleStatus)
+		caseToggle := ui.Toggle(c, find.CaseSensitive(), locales.FindCaseMark()).KeepFocus().KeyShortcuts(ui.Alt, ui.KeyC)
+		uikit.Tip(c, caseToggle.Label(locales.FindMatchCase()), locales.FindMatchCaseTip())
+		wordToggle := ui.Toggle(c, find.WholeWord(), locales.FindWordMark()).KeepFocus().KeyShortcuts(ui.Alt, ui.KeyW)
+		uikit.Tip(c, wordToggle.Label(locales.FindMatchWholeWord()), locales.FindMatchWholeWordTip())
+		regexToggle := ui.Toggle(c, find.Regexp(), locales.FindRegexpMark()).KeepFocus().KeyShortcuts(ui.Alt, ui.KeyR)
+		uikit.Tip(c, regexToggle.Label(locales.FindUseRegexp()), locales.FindUseRegexpTip())
 		if uikit.Tip(c, uikit.SecondaryButton(c, "↑").Label(locales.PreviousBodyMatch()), locales.PreviousMatchShiftEnter()).KeepFocus().Clicked() {
 			find.Previous()
 		}
@@ -1002,6 +1014,9 @@ func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 		}
 		if uikit.Tip(c, uikit.SecondaryButton(c, "×").Label(locales.CloseBodySearch()), locales.CloseSearchEsc()).KeepFocus().Clicked() {
 			find.Close()
+		}
+		if err := find.Err(); err != nil {
+			uikit.ErrorText(c, err.Error()).Shrink(1)
 		}
 	})
 }

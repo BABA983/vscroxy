@@ -302,6 +302,7 @@ type app struct {
 	// bytes never show in an older reader.
 	bodyPrettyFor [2]string
 	bodyReader    [2]ui.Handle
+	bodyFind      [2]bodyFindState
 	bodyNotice    [2]string
 	jsonScroll    [2]ui.ListState
 	hexScroll     [2]ui.ListState

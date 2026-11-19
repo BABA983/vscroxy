@@ -17474,6 +17474,16 @@ func (msgs Messages) FindAndroidDevices() string {
 	return Catalog.Format(msgs.locale, "findAndroidDevices", nil)
 }
 
+// FindCaseMark says "Aa"
+// in the language the app shows.
+func FindCaseMark() string { return In(i18n.Locale()).FindCaseMark() }
+
+// FindCaseMark says "Aa"
+// in the language of msgs.
+func (msgs Messages) FindCaseMark() string {
+	return Catalog.Format(msgs.locale, "findCaseMark", nil)
+}
+
 // FindCommand says "Find command"
 // in the language the app shows.
 func FindCommand() string { return In(i18n.Locale()).FindCommand() }
@@ -17554,6 +17564,16 @@ func (msgs Messages) FindMatchWholeWordTip() string {
 	return Catalog.Format(msgs.locale, "findMatchWholeWordTip", nil)
 }
 
+// FindRegexpMark says ".*"
+// in the language the app shows.
+func FindRegexpMark() string { return In(i18n.Locale()).FindRegexpMark() }
+
+// FindRegexpMark says ".*"
+// in the language of msgs.
+func (msgs Messages) FindRegexpMark() string {
+	return Catalog.Format(msgs.locale, "findRegexpMark", nil)
+}
+
 // FindSearchTraffic says "Find / Search traffic"
 // in the language the app shows.
 func FindSearchTraffic() string { return In(i18n.Locale()).FindSearchTraffic() }
@@ -17582,6 +17602,16 @@ func FindUseRegexpTip() string { return In(i18n.Locale()).FindUseRegexpTip() }
 // in the language of msgs.
 func (msgs Messages) FindUseRegexpTip() string {
 	return Catalog.Format(msgs.locale, "findUseRegexpTip", nil)
+}
+
+// FindWordMark says "ab"
+// in the language the app shows.
+func FindWordMark() string { return In(i18n.Locale()).FindWordMark() }
+
+// FindWordMark says "ab"
+// in the language of msgs.
+func (msgs Messages) FindWordMark() string {
+	return Catalog.Format(msgs.locale, "findWordMark", nil)
 }
 
 // FinishGrpcSending says "Finish gRPC sending"
