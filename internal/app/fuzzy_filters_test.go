@@ -193,6 +193,14 @@ func TestFuzzySessionExchangesAndProtoMessages(t *testing.T) {
 	if exchange.matches("", "zzzzz") {
 		t.Fatal("saved session exchange matched an absent query")
 	}
+	if exchange.matches("", "get2") {
+		t.Fatal("fuzzy hit straddled Method and Status instead of scoring one field")
+	}
+	// A long URL must not push a later field out of the scored head.
+	long := sessionFlow{Method: "GET", URL: "https://example.com/" + strings.Repeat("long/segment/", 16), Note: "cache miss"}
+	if !long.matches("", "cachmss") {
+		t.Fatal("fuzzy hit in Note was lost behind a long URL")
+	}
 	messages := []protoMessage{{text: "packet GetUserProfile acknowledged"}, {text: "other"}}
 	if visible := filterProtoMessages(a, messages, "gtusr", "inspect-key"); !slices.Equal(visible, []int{0}) {
 		t.Fatalf("protobuf messages = %v, want [0]", visible)
