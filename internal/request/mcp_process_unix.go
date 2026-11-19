@@ -52,18 +52,18 @@ func mcpCloseProcessTree(mcpProcessTree) {}
 // may have been reaped and its pid reused. The grace period deliberately does
 // not reap the leader, so the process group id stays reserved while SIGTERM
 // reaches children that outlived it.
-func mcpCloseProcess(cmd *exec.Cmd, tree mcpProcessTree, stdin io.Closer, stdout io.Closer, exited <-chan struct{}, grace bool) error {
+func mcpCloseProcess(cmd *exec.Cmd, tree mcpProcessTree, stdin io.Closer, stdout io.Closer, exited *mcpExitSignal, grace bool) error {
 	if stdin != nil {
 		_ = stdin.Close()
 	}
 	if grace {
 		// Let the server exit after stdin EOF without reaping it. A zombie
 		// leader keeps the process group id reserved for the signal below.
-		// stdout EOF means the process already exited, so do not sleep the
-		// full grace period in that case.
+		// The exit signal comes from the process itself (or from stdout EOF),
+		// so do not sleep the full grace period once the server is gone.
 		if exited != nil {
 			select {
-			case <-exited:
+			case <-exited.wait():
 			case <-mcpCloseGraceWait(2 * time.Second):
 			}
 		} else {
@@ -74,11 +74,11 @@ func mcpCloseProcess(cmd *exec.Cmd, tree mcpProcessTree, stdin io.Closer, stdout
 	if grace {
 		// Give the group time to handle SIGTERM. Do not call Wait yet: a
 		// child that ignores TERM must still receive KILL while the group id
-		// is known to belong to this tree. A closed stdout means the leader
-		// is gone; skip the extra second.
+		// is known to belong to this tree. An exited leader skips the extra
+		// second.
 		if exited != nil {
 			select {
-			case <-exited:
+			case <-exited.wait():
 			case <-mcpCloseGraceWait(time.Second):
 			}
 		} else {

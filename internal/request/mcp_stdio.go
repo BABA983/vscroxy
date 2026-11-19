@@ -21,8 +21,23 @@ type mcpStdioTransport struct {
 	mu     sync.Mutex
 	conn   *mcpStdioConn
 	closed bool
-	exited <-chan struct{} // stdout EOF: the signal that the server is gone
+	exited *mcpExitSignal // process exit or stdout EOF: the signal that the server is gone
 }
+
+// mcpExitSignal is closed by whichever observes the server exit first. The
+// process watcher does not depend on stdout, whose SDK reader may be blocked
+// on a final message while Close waits for this signal.
+type mcpExitSignal struct {
+	done   chan struct{}
+	signal func()
+}
+
+func newMCPExitSignal() *mcpExitSignal {
+	done := make(chan struct{})
+	return &mcpExitSignal{done: done, signal: sync.OnceFunc(func() { close(done) })}
+}
+
+func (s *mcpExitSignal) wait() <-chan struct{} { return s.done }
 
 // mcpCloseGraceWait is a test hook for observing the shutdown grace periods.
 // Production always uses the real clock.
@@ -45,8 +60,12 @@ func (t *mcpStdioTransport) Connect(ctx context.Context) (mcp.Connection, error)
 	t.tree = mcpAttachProcess(t.cmd)
 	// Keep stdout out of the connection's Close path: the server gets stdin
 	// EOF first, then the process tree is terminated, then stdout is closed.
-	exited := make(chan struct{})
-	reader := &mcpExitReader{ReadCloser: stdout, done: exited}
+	// Watch the process itself as well: a last stdout frame can leave the
+	// SDK's read goroutine waiting for the jsonrpc reader, so EOF is not a
+	// reliable exit signal during shutdown.
+	exited := newMCPExitSignal()
+	mcpWatchProcessExit(t.cmd, exited)
+	reader := &mcpExitReader{ReadCloser: stdout, exited: exited}
 	t.exited = exited
 	base := &mcp.IOTransport{Reader: reader, Writer: stdin, MaxLineLength: MCPMaxFrame}
 	conn, err := base.Connect(ctx)
@@ -84,18 +103,18 @@ func (t *mcpStdioTransport) Close() error {
 	return nil
 }
 
-// mcpExitReader closes done when the server's stdout reaches EOF. Unix uses
-// it to skip the stdin-EOF grace period when the process already exited.
+// mcpExitReader adds stdout EOF as a second exit signal: the process may be
+// gone before the SDK reaches the Read that sees EOF, or it may close stdout
+// while still shutting down.
 type mcpExitReader struct {
 	io.ReadCloser
-	once sync.Once
-	done chan struct{}
+	exited *mcpExitSignal
 }
 
 func (r *mcpExitReader) Read(p []byte) (int, error) {
 	n, err := r.ReadCloser.Read(p)
 	if err != nil {
-		r.once.Do(func() { close(r.done) })
+		r.exited.signal()
 	}
 	return n, err
 }
@@ -106,7 +125,7 @@ type mcpStdioConn struct {
 	tree   mcpProcessTree
 	stdin  io.WriteCloser
 	stdout io.ReadCloser
-	exited chan struct{}
+	exited *mcpExitSignal
 	once   sync.Once
 	err    error
 }
