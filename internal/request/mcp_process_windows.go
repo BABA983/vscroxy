@@ -4,6 +4,7 @@ package request
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -141,12 +142,19 @@ func mcpWatchProcessExit(cmd *exec.Cmd, exited *mcpExitSignal) {
 	go errorsx.Guard(func() {
 		handle, err := windows.OpenProcess(windows.SYNCHRONIZE, false, uint32(cmd.Process.Pid))
 		if err != nil {
-			exited.signal()
+			// ERROR_INVALID_PARAMETER means the pid no longer exists, so the
+			// process is already gone. Other errors are not exit evidence:
+			// stdout EOF and the grace timers decide as before.
+			if errors.Is(err, windows.ERROR_INVALID_PARAMETER) {
+				exited.signal()
+			}
 			return
 		}
 		defer windows.CloseHandle(handle)
-		_, _ = windows.WaitForSingleObject(handle, windows.INFINITE)
-		exited.signal()
+		event, err := windows.WaitForSingleObject(handle, windows.INFINITE)
+		if err == nil && event == windows.WAIT_OBJECT_0 {
+			exited.signal()
+		}
 	})
 }
 

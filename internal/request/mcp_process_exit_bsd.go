@@ -3,6 +3,7 @@
 package request
 
 import (
+	"errors"
 	"os/exec"
 
 	"github.com/baba983/vscroxy/internal/errorsx"
@@ -19,7 +20,7 @@ func mcpWatchProcessExit(cmd *exec.Cmd, exited *mcpExitSignal) {
 	go errorsx.Guard(func() {
 		kq, err := unix.Kqueue()
 		if err != nil {
-			exited.signal()
+			// No queue means no watch: stdout EOF and the grace timers decide.
 			return
 		}
 		defer unix.Close(kq)
@@ -28,16 +29,24 @@ func mcpWatchProcessExit(cmd *exec.Cmd, exited *mcpExitSignal) {
 		unix.SetKevent(&event, cmd.Process.Pid, unix.EVFILT_PROC, unix.EV_ADD|unix.EV_ONESHOT)
 		event.Fflags = unix.NOTE_EXIT
 		if _, err := unix.Kevent(kq, []unix.Kevent_t{event}, nil, nil); err != nil {
-			exited.signal()
+			// ESRCH means the pid is already gone when registering the watch.
+			// Other registration errors are not exit evidence.
+			if errors.Is(err, unix.ESRCH) {
+				exited.signal()
+			}
 			return
 		}
 		var watched [1]unix.Kevent_t
 		for {
 			n, err := unix.Kevent(kq, nil, watched[:], nil)
-			if err == unix.EINTR {
+			if errors.Is(err, unix.EINTR) {
 				continue
 			}
-			if err != nil || n > 0 {
+			if err != nil {
+				// A failed wait is not an exit event.
+				return
+			}
+			if n > 0 { // NOTE_EXIT fired
 				exited.signal()
 				return
 			}

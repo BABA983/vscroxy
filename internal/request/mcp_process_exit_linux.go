@@ -3,6 +3,7 @@
 package request
 
 import (
+	"errors"
 	"os/exec"
 
 	"github.com/baba983/vscroxy/internal/errorsx"
@@ -18,12 +19,19 @@ func mcpWatchProcessExit(cmd *exec.Cmd, exited *mcpExitSignal) {
 	}
 	go errorsx.Guard(func() {
 		var info unix.Siginfo
+		var err error
 		for {
-			err := unix.Waitid(unix.P_PID, cmd.Process.Pid, &info, unix.WEXITED|unix.WNOWAIT, nil)
+			err = unix.Waitid(unix.P_PID, cmd.Process.Pid, &info, unix.WEXITED|unix.WNOWAIT, nil)
 			if err != unix.EINTR {
 				break
 			}
 		}
-		exited.signal()
+		// A successful waitid is the exit itself. ECHILD means the child was
+		// already reaped before the watcher started, so it is gone too. Any
+		// other error is not exit evidence; leave the signal to stdout EOF
+		// and the grace timers.
+		if err == nil || errors.Is(err, unix.ECHILD) {
+			exited.signal()
+		}
 	})
 }
