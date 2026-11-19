@@ -5,10 +5,12 @@ import (
 	"strings"
 )
 
-// ProjectScriptPermission decides whether scripts from dir may run. A nil
-// permission allows them: callers that keep their own library have nothing to
-// ask. Sends hold the decision before any script runs, so a project asked once
-// keeps that answer for pre-request, post-response and nested scripts alike.
+// ProjectScriptPermission decides whether scripts from dir may run. It is
+// required when a request comes from a project: a missing permission fails
+// closed so no project script slips past the question. Callers with their own
+// library leave ProjectDir empty and never need a permission. Sends hold the
+// decision before any script runs, so a project asked once keeps that answer
+// for pre-request, post-response and nested scripts alike.
 type ProjectScriptPermission func(ctx context.Context, dir string) bool
 
 // hasScripts reports whether this send would run any code. An untrusted

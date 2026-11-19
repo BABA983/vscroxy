@@ -56,6 +56,17 @@ func (a *app) trustDecision(dir string) (allow, decided bool) {
 	return false, false
 }
 
+// activateTrustAskLocked puts the oldest unanswered folder in the prompt.
+// trustMu must be held.
+func (a *app) activateTrustAskLocked() {
+	if len(a.trustQueue) == 0 {
+		a.trustAskDir, a.trustAskOpen = "", false
+		return
+	}
+	a.trustAskDir, a.trustAskOpen = a.trustQueue[0], true
+	a.trustPrompts.Add(1)
+}
+
 // projectScriptPermission is the seam every request-script path uses. A send
 // with an untrusted answer still goes out; only its scripts are skipped. The
 // wait happens on the sending goroutine, never on the frame that draws the
@@ -82,8 +93,10 @@ func (a *app) projectScriptPermission(ctx context.Context, dir string) bool {
 	// A closed channel releases every send that arrived before the answer.
 	answer := make(chan struct{})
 	a.trustPending[key] = answer
-	a.trustAskDir = key
-	a.trustPrompts.Add(1)
+	a.trustQueue = append(a.trustQueue, key)
+	if a.trustAskDir == "" {
+		a.activateTrustAskLocked()
+	}
 	a.trustMu.Unlock()
 	a.invalidate()
 	return a.awaitTrust(ctx, key, answer)
@@ -122,7 +135,8 @@ func (a *app) answerTrust(allow bool) {
 	dir := a.trustAskDir
 	answer := a.trustPending[dir]
 	delete(a.trustPending, dir)
-	a.trustAskDir, a.trustAskOpen = "", false
+	a.trustQueue = slices.DeleteFunc(a.trustQueue, func(p string) bool { return p == dir })
+	a.activateTrustAskLocked()
 	if dir != "" {
 		if allow {
 			a.trustedProjects = append(a.trustedProjects, dir)
@@ -139,7 +153,9 @@ func (a *app) answerTrust(allow bool) {
 	}
 	if dir != "" {
 		a.bypassSettingsSave()
-		_ = a.persistSettings()
+		if err := a.persistSettings(); err != nil {
+			a.fail(locales.Settings(), err)
+		}
 		if allow {
 			a.done(locales.WorkspaceTrustTrusted())
 		} else {
@@ -160,7 +176,9 @@ func (a *app) revokeTrust(dir string) {
 	a.untrustedProjects = slices.DeleteFunc(a.untrustedProjects, func(p string) bool { return p == key })
 	a.trustMu.Unlock()
 	a.bypassSettingsSave()
-	_ = a.persistSettings()
+	if err := a.persistSettings(); err != nil {
+		a.fail(locales.Settings(), err)
+	}
 	a.done(locales.WorkspaceTrustRevoked())
 	a.invalidate()
 }

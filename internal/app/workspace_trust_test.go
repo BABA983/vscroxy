@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
 	"github.com/baba983/vscroxy/locales"
@@ -275,5 +276,192 @@ func TestCollectionRunAsksOnlyOnce(t *testing.T) {
 	}
 	if a.trustPrompts.Load() != 1 {
 		t.Fatalf("four requests and two iterations prompted %d times", a.trustPrompts.Load())
+	}
+}
+
+func TestLoadTestAsksBeforeProjectScripts(t *testing.T) {
+	var served, scriptRan atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		served.Add(1)
+		if r.Header.Get("X-Project-Script") != "" {
+			scriptRan.Add(1)
+		}
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+	project := t.TempDir()
+	a := trustTestApp(t, project)
+	a.requests = []savedRequest{{ID: "one", Name: "One", Collection: "Shop", Method: "GET", URL: upstream.URL,
+		Pre: `pm.request.headers.upsert("X-Project-Script", "ran")`}}
+	a.openLoadRunner()
+	a.loadRunner.collection, a.loadRunner.users, a.loadRunner.duration = "Shop", "1", "1s"
+	tt := ui.NewTester(a.view, 1180, 760)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		a.startLoadRunner()
+		select {
+		case <-a.loadRunner.done:
+		case <-t.Context().Done():
+			a.stopLoadRunner()
+			<-a.loadRunner.done
+		}
+		a.drainLoadRunner()
+	}()
+	awaitTrustPrompt(t, tt)
+	if err := tt.Click(locales.DontTrust()); err != nil {
+		t.Fatal(err)
+	}
+	<-done
+	if a.trustPrompts.Load() != 1 || a.trustChecks.Load() != 0 {
+		t.Fatalf("prompts %d, allowed script decisions %d", a.trustPrompts.Load(), a.trustChecks.Load())
+	}
+	if served.Load() == 0 || scriptRan.Load() != 0 {
+		t.Fatalf("load test served %d, ran script %d times", served.Load(), scriptRan.Load())
+	}
+}
+
+func TestLocalControlRunAsksBeforeProjectScripts(t *testing.T) {
+	var served, scriptRan atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		served.Add(1)
+		if r.Header.Get("X-Project-Script") != "" {
+			scriptRan.Add(1)
+		}
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+	project := t.TempDir()
+	a := trustTestApp(t, project)
+	a.requests = []savedRequest{{ID: "one", Name: "One", Collection: "Shop", Method: "GET", URL: upstream.URL,
+		Pre: `pm.request.headers.upsert("X-Project-Script", "ran")`}}
+	client := desktopClient(t, a)
+	tt := ui.NewTester(a.view, 1180, 760)
+	type callResult struct {
+		job struct {
+			ID string `json:"id"`
+		}
+		err error
+	}
+	calls := make(chan callResult, 1)
+	go func() {
+		var result callResult
+		result.err = client.Call(t.Context(), "collection.run", map[string]any{"collection": "Shop", "confirm": true}, &result.job)
+		calls <- result
+	}()
+	awaitTrustPrompt(t, tt)
+	if err := tt.Click(locales.DontTrust()); err != nil {
+		t.Fatal(err)
+	}
+	started := <-calls
+	if started.err != nil || started.job.ID == "" {
+		t.Fatalf("start: %+v, %v", started.job, started.err)
+	}
+	report := waitControlRun(t, client, started.job.ID)
+	if report.Completed != 1 || report.Failed != 0 {
+		t.Fatalf("report: %+v", report)
+	}
+	if a.trustPrompts.Load() != 1 || a.trustChecks.Load() != 0 {
+		t.Fatalf("prompts %d, allowed script decisions %d", a.trustPrompts.Load(), a.trustChecks.Load())
+	}
+	if served.Load() == 0 || scriptRan.Load() != 0 {
+		t.Fatalf("control run served %d, ran script %d times", served.Load(), scriptRan.Load())
+	}
+}
+
+func TestUntrustedProjectRuleScriptIsSkippedWithConsoleNotice(t *testing.T) {
+	project := t.TempDir()
+	a := trustTestApp(t, project)
+	a.untrustedProjects = []string{trustPath(project)}
+	parsed, err := request.ParseProxyScript("ProjectRule", `export function onRequest() {
+  pm.request.headers.upsert("X-Project-Script", "ran");
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &scriptStore{
+		parsed:     map[string]*request.ProxyScript{"ProjectRule.js": parsed},
+		trustDir:   project,
+		permission: a.projectScriptPermission,
+	}
+	x := &capture.ScriptExchange{Phase: "request", Method: "GET", URL: "https://api.test/", Header: http.Header{}}
+	if err := store.Run(t.Context(), "ProjectRule.js", x); err != nil {
+		t.Fatal(err)
+	}
+	if got := x.Header.Get("X-Project-Script"); got != "" {
+		t.Fatalf("untrusted rule script changed the request: %q", got)
+	}
+	store.mu.RLock()
+	console := slices.Clone(store.console)
+	store.mu.RUnlock()
+	if len(console) != 1 || console[0].text != locales.ScriptsSkippedRestrictedMode() || console[0].kind != "warning" {
+		t.Fatalf("console = %+v", console)
+	}
+}
+
+func awaitTrustPromptFor(t *testing.T, tt *ui.Tester, dir string) {
+	t.Helper()
+	detail := locales.WorkspaceTrustPromptDetail(trustPath(dir))
+	for range 30 {
+		tt.Frame()
+		if tt.HasText(detail) {
+			return
+		}
+	}
+	t.Fatalf("no prompt for %s: %v", dir, tt.Texts())
+}
+
+func pendingTrustCount(a *app) int {
+	a.trustMu.Lock()
+	defer a.trustMu.Unlock()
+	return len(a.trustPending)
+}
+
+func TestTwoPendingProjectsEachGetTheirOwnPrompt(t *testing.T) {
+	var served atomic.Int32
+	upstream := trustUpstream(t, &served)
+	defer upstream.Close()
+	first, second := t.TempDir(), t.TempDir()
+	a := trustTestApp(t, first)
+	tt := ui.NewTester(a.view, 1180, 760)
+	a.projectDir = first
+	inFirst := a.sendContext(trustScriptRequest(upstream.URL))
+	a.projectDir = second
+	inSecond := a.sendContext(trustScriptRequest(upstream.URL))
+	r := trustScriptRequest(upstream.URL)
+	doneFirst, doneSecond := make(chan request.Execution, 1), make(chan request.Execution, 1)
+	go func() { doneFirst <- r.Execute(t.Context(), a.srv, inFirst, map[string]string{}, nil) }()
+	go func() { doneSecond <- r.Execute(t.Context(), a.srv, inSecond, map[string]string{}, nil) }()
+	for range 30 {
+		tt.Frame()
+		if pendingTrustCount(a) == 2 {
+			break
+		}
+	}
+	if pendingTrustCount(a) != 2 {
+		t.Fatalf("only %d folders are waiting", pendingTrustCount(a))
+	}
+	awaitTrustPrompt(t, tt)
+	shownFirst := a.currentTrustAsk()
+	if shownFirst != trustPath(first) && shownFirst != trustPath(second) {
+		t.Fatalf("prompt names %q", shownFirst)
+	}
+	if err := tt.Click(locales.DontTrust()); err != nil {
+		t.Fatal(err)
+	}
+	shownSecond := trustPath(first)
+	if shownFirst == trustPath(first) {
+		shownSecond = trustPath(second)
+	}
+	awaitTrustPromptFor(t, tt, shownSecond)
+	if err := tt.Click(locales.DontTrust()); err != nil {
+		t.Fatal(err)
+	}
+	outFirst, outSecond := <-doneFirst, <-doneSecond
+	if !outFirst.ScriptsSkipped || !outSecond.ScriptsSkipped || served.Load() != 2 {
+		t.Fatalf("first %+v, second %+v, served %d", outFirst, outSecond, served.Load())
+	}
+	if a.trustPrompts.Load() != 2 || !containsTrust(a.untrustedProjects, first) || !containsTrust(a.untrustedProjects, second) {
+		t.Fatalf("prompts %d, untrusted %v", a.trustPrompts.Load(), a.untrustedProjects)
 	}
 }

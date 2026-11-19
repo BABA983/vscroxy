@@ -520,7 +520,8 @@ type app struct {
 	trustedProjects   []string
 	untrustedProjects []string
 	trustPending      map[string]chan struct{}
-	trustAskDir       string
+	trustQueue        []string // undecided folders, in the order they asked
+	trustAskDir       string   // the folder the current prompt is about
 	trustAskOpen      bool
 	trustManageOpen   bool
 	// trustChecks counts sends whose project scripts were allowed and

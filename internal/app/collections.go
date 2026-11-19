@@ -38,13 +38,16 @@ type folderEditor struct {
 
 // inheritance is what a request filed under path takes from its collection,
 // folders and the globals. Each level's Current values override its Initial
-// values locally. The vault joins it only for a send (sendContext).
+// values locally. The project's script permission belongs here too: load
+// tests and local-control runs build their contexts from this function, not
+// from sendContext. The vault joins it only for a send.
 func (a *app) inheritance(path string) request.Context {
 	folders := request.Chain(a.folders, path)
 	for i := range folders {
 		folders[i].Variables = a.folderVariables(folders[i].Path, folders[i].Variables)
 	}
-	return request.Context{Folders: folders, Globals: a.globalValues(), GlobalsInitial: maps.Clone(a.globals), Addons: a.addons.sources()}
+	return request.Context{Folders: folders, Globals: a.globalValues(), GlobalsInitial: maps.Clone(a.globals), Addons: a.addons.sources(),
+		ProjectDir: a.projectDir, ScriptPermission: a.projectScriptPermission}
 }
 
 // runResolver finds the requests a script calls with pm.execution.runRequest,
