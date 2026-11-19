@@ -429,12 +429,8 @@ func TestSessionsAnnotateCompareAndReopenWithoutChangingLiveTraffic(t *testing.T
 	}
 	t.Cleanup(b.sessions.close)
 	b.selectSession(before.key)
-	for deadline := time.Now().Add(5 * time.Second); !b.sessions.current().loaded; time.Sleep(time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatal("session never loaded")
-		}
-		b.checkpointSessions()
-	}
+	waitAppSignal(t, b, func() bool { return b.sessions.current().loaded }, b.checkpointSessions,
+		func() string { return "session never loaded" })
 	if got := b.sessions.current().data.Flows; len(got) != 1 || got[0].ResBody != "before" {
 		t.Fatalf("opened session = %+v", got)
 	}

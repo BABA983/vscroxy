@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -224,11 +225,8 @@ func TestOneClickTerminalLaunchesTheGeneratedScript(t *testing.T) {
 	if err := tt.Click("Open terminal"); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for a.clientUI.last == "" && time.Now().Before(deadline) {
-		tt.Frame()
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitAppSignal(t, a, func() bool { return a.clientUI.last != "" }, tt.Frame,
+		func() string { return "terminal launch did not finish" })
 	if a.clientUI.problem != "" {
 		t.Fatalf("launch problem: %s", a.clientUI.problem)
 	}
@@ -255,11 +253,8 @@ func TestOneClickTerminalMissingHelperIsReported(t *testing.T) {
 	if err := tt.Click("Open terminal"); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for a.message == "" && time.Now().Before(deadline) {
-		tt.Frame()
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitAppSignal(t, a, func() bool { return a.message != "" }, tt.Frame,
+		func() string { return "missing helper was not reported" })
 	if !strings.HasPrefix(a.message, "Open proxied terminal:") || !strings.Contains(a.message, "terminal emulator not found") || !strings.Contains(a.message, "xterm") {
 		t.Fatalf("missing terminal was not explained: %q", a.message)
 	}
@@ -436,14 +431,10 @@ func TestOneClickAndroidClearsRecordWhenReverseIsGone(t *testing.T) {
 	if err := tt.Click("Undo proxy"); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for len(a.clientUI.androidApplied) > 0 && time.Now().Before(deadline) {
-		tt.Frame()
-		time.Sleep(10 * time.Millisecond)
-	}
-	if len(a.clientUI.androidApplied) != 0 {
-		t.Fatalf("stale record survived a missing reverse listener: %+v", a.clientUI.androidApplied)
-	}
+	waitAppSignal(t, a, func() bool { return len(a.clientUI.androidApplied) == 0 }, tt.Frame,
+		func() string {
+			return fmt.Sprintf("stale record survived a missing reverse listener: %+v", a.clientUI.androidApplied)
+		})
 	if !strings.Contains(a.message, "listener not found") {
 		t.Fatalf("missing warning: %q", a.message)
 	}
@@ -487,11 +478,8 @@ func TestOneClickAndroidRejectsItsOwnPreviousProxy(t *testing.T) {
 	}
 	t.Setenv("PATH", binDir)
 	a.applyAndroidProxy()
-	deadline := time.Now().Add(5 * time.Second)
-	for a.clientUI.androidPending && time.Now().Before(deadline) {
-		a.drainClientSetup()
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitAppSignal(t, a, func() bool { return !a.clientUI.androidPending }, a.drainClientSetup,
+		func() string { return "reverse-proxy check did not finish" })
 	if len(a.clientUI.androidApplied) != 0 {
 		t.Fatalf("recorded vscroxy itself as the previous proxy: %+v", a.clientUI.androidApplied)
 	}
@@ -523,11 +511,8 @@ func TestOneClickAndroidPendingBlocksASecondSet(t *testing.T) {
 		t.Fatal("pending flag was not set")
 	}
 	a.applyAndroidProxy()
-	deadline := time.Now().Add(5 * time.Second)
-	for a.clientUI.androidPending && time.Now().Before(deadline) {
-		a.drainClientSetup()
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitAppSignal(t, a, func() bool { return !a.clientUI.androidPending }, a.drainClientSetup,
+		func() string { return "proxy setup did not finish" })
 	data, err := os.ReadFile(log)
 	if err != nil {
 		t.Fatal(err)
@@ -593,11 +578,8 @@ func TestOneClickAndroidPersistsAndClearsUndoState(t *testing.T) {
 	if err := tt.Click("Set proxy"); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for len(a.clientUI.androidApplied) == 0 && time.Now().Before(deadline) {
-		tt.Frame()
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitAppSignal(t, a, func() bool { return len(a.clientUI.androidApplied) > 0 }, tt.Frame,
+		func() string { return "proxy setup did not apply" })
 	state, ok := a.clientUI.androidApplied["emulator-5554"]
 	if !ok || state.Previous != "10.0.2.2:8888" || state.Port == 0 {
 		t.Fatalf("applied state: %+v", a.clientUI.androidApplied)
@@ -605,14 +587,8 @@ func TestOneClickAndroidPersistsAndClearsUndoState(t *testing.T) {
 	if err := tt.Click("Undo proxy"); err != nil {
 		t.Fatal(err)
 	}
-	deadline = time.Now().Add(5 * time.Second)
-	for len(a.clientUI.androidApplied) > 0 && time.Now().Before(deadline) {
-		tt.Frame()
-		time.Sleep(10 * time.Millisecond)
-	}
-	if len(a.clientUI.androidApplied) != 0 {
-		t.Fatalf("undo did not clear state: %+v", a.clientUI.androidApplied)
-	}
+	waitAppSignal(t, a, func() bool { return len(a.clientUI.androidApplied) == 0 }, tt.Frame,
+		func() string { return fmt.Sprintf("undo did not clear state: %+v", a.clientUI.androidApplied) })
 }
 
 func TestOneClickAndroidInstallsTheSystemCA(t *testing.T) {
@@ -642,14 +618,8 @@ func TestOneClickAndroidInstallsTheSystemCA(t *testing.T) {
 	if err := tt.Click("Install system CA"); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(10 * time.Second)
-	for a.clientUI.androidPending && time.Now().Before(deadline) {
-		tt.Frame()
-		time.Sleep(10 * time.Millisecond)
-	}
-	if a.clientUI.androidPending {
-		t.Fatal("the install did not finish")
-	}
+	waitAppSignal(t, a, func() bool { return !a.clientUI.androidPending }, tt.Frame,
+		func() string { return "the install did not finish" })
 	if !strings.Contains(a.message, "Installed CA in the Android system store") {
 		t.Fatalf("message: %q", a.message)
 	}

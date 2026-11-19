@@ -932,11 +932,18 @@ type fakeConn struct {
 	net.Conn
 	remote net.Addr
 	closed atomic.Bool
+	done   chan struct{}
+}
+
+func newFakeConn(remote net.Addr) *fakeConn {
+	return &fakeConn{remote: remote, done: make(chan struct{})}
 }
 
 func (c *fakeConn) RemoteAddr() net.Addr { return c.remote }
 func (c *fakeConn) Close() error {
-	c.closed.Store(true)
+	if c.closed.CompareAndSwap(false, true) && c.done != nil {
+		close(c.done)
+	}
 	return nil
 }
 
@@ -964,10 +971,10 @@ func TestPendingConnectionsAreCappedPerAddress(t *testing.T) {
 	gated := &gatedListener{Listener: listener, gate: gate, gateway: gateway, kind: proxyListener}
 	unknown := make([]*fakeConn, maxPendingPerAddress+1)
 	for i := range unknown {
-		unknown[i] = &fakeConn{remote: fakeAddr(fmt.Sprintf("192.168.1.11:%d", 5000+i))}
+		unknown[i] = newFakeConn(fakeAddr(fmt.Sprintf("192.168.1.11:%d", 5000+i)))
 		listener.conns <- unknown[i]
 	}
-	allowed := &fakeConn{remote: fakeAddr("192.168.1.10:6000")}
+	allowed := newFakeConn(fakeAddr("192.168.1.10:6000"))
 	listener.conns <- allowed
 	accepted := make(chan net.Conn, maxPendingPerAddress+1)
 	go func() {
@@ -980,11 +987,11 @@ func TestPendingConnectionsAreCappedPerAddress(t *testing.T) {
 		}
 	}()
 	<-askStarted
-	deadline := time.Now().Add(time.Second)
-	for !unknown[len(unknown)-1].closed.Load() && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if !unknown[len(unknown)-1].closed.Load() {
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	select {
+	case <-unknown[len(unknown)-1].done:
+	case <-timer.C:
 		t.Fatal("the connection over the per-address cap stayed open")
 	}
 	for i := 0; i < maxPendingPerAddress; i++ {
@@ -1002,12 +1009,14 @@ func TestPendingConnectionsAreCappedPerAddress(t *testing.T) {
 		t.Fatalf("asked %d times, want one shared prompt", got)
 	}
 	close(release)
-	deadline = time.Now().Add(time.Second)
-	for len(accepted) < maxPendingPerAddress+1 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if len(accepted) != maxPendingPerAddress+1 {
-		t.Fatalf("accepted %d connections, want %d", len(accepted), maxPendingPerAddress+1)
+	timer2 := time.NewTimer(time.Second)
+	defer timer2.Stop()
+	for range maxPendingPerAddress + 1 {
+		select {
+		case <-accepted:
+		case <-timer2.C:
+			t.Fatal("not all pending connections were accepted")
+		}
 	}
 	gateway.conns.closeAll()
 }

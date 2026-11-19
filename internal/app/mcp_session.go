@@ -61,6 +61,7 @@ type mcpSession struct {
 	closeOnce       sync.Once
 	clientCloseOnce sync.Once
 	notify          func()
+	changedSignal   chan struct{} // test hook: pulsed whenever the session state changes
 
 	state, problem string
 	connected      bool
@@ -120,6 +121,12 @@ func (s *mcpSession) snapshot() mcpSnapshot {
 }
 
 func (s *mcpSession) changed() {
+	if s.changedSignal != nil {
+		select {
+		case s.changedSignal <- struct{}{}:
+		default:
+		}
+	}
 	if s.notify != nil {
 		s.notify()
 	}
@@ -229,7 +236,8 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &mcpSession{
 		plan: plan, input: input, scope: scope, vars: maps.Clone(vars),
-		ctx: ctx, cancel: cancel, done: make(chan struct{}), lifetime: newSessionLifetime(cancel), notify: notify, state: "Connecting",
+		ctx: ctx, cancel: cancel, done: make(chan struct{}), lifetime: newSessionLifetime(cancel), notify: notify,
+		changedSignal: make(chan struct{}, 1), state: "Connecting",
 		connection: mcpConnectionInfo{
 			Transport: plan.Transport, Endpoint: mcpEndpointText(plan.URL), Command: plan.Command,
 			Timeout: mcpTimeoutText(plan.Timeout), Insecure: plan.Insecure, Proxied: plan.Proxy != "",

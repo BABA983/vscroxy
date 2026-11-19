@@ -27,6 +27,7 @@ type wsSession struct {
 	done              chan struct{}
 	lifetime          *lifecycle.DisposableStore
 	notify            func()
+	changedSignal     chan struct{} // test hook: pulsed whenever the session state changes
 	state             string
 	events            []wsSessionEvent
 	sent              []wsSessionSent
@@ -55,7 +56,8 @@ type wsSessionEvent struct {
 
 func openWSSession(proxy string, req *request.Prepared, ca []byte, certificates certs.Settings, jar http.CookieJar, notify func()) *wsSession {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &wsSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), lifetime: newSessionLifetime(cancel), notify: notify}
+	s := &wsSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), lifetime: newSessionLifetime(cancel),
+		notify: notify, changedSignal: make(chan struct{}, 1)}
 	go guarded(func() {
 		defer close(s.done)
 		c, err := request.DialWebSocket(ctx, proxy, req, ca, certificates, jar)
@@ -102,6 +104,12 @@ func (s *wsSession) add(event wsSessionEvent) {
 	}
 	s.events = append(s.events, event)
 	s.mu.Unlock()
+	if s.changedSignal != nil {
+		select {
+		case s.changedSignal <- struct{}{}:
+		default:
+		}
+	}
 	if s.notify != nil {
 		s.notify()
 	}

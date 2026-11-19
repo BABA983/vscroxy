@@ -9,6 +9,8 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -333,6 +335,21 @@ func TestMCPStdioHelper(t *testing.T) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+	// A test can hold the process open after stdin EOF, so Close must wait
+	// for the exit signal instead of relying on a wall-clock grace period.
+	if addr := os.Getenv("VSCROXY_MCP_RELEASE_ADDR"); addr != "" {
+		conn, err := net.Dial("tcp", addr)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		var b [1]byte
+		_, _ = io.ReadFull(conn, b[:])
+		// Notify the test on the same connection just before exiting, so it
+		// does not have to infer the process state from stdout EOF.
+		_, _ = conn.Write([]byte{2})
+		_ = conn.Close()
 	}
 	_ = session.Wait()
 	os.Exit(0)

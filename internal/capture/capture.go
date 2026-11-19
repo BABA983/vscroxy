@@ -381,6 +381,7 @@ type Server struct {
 	lookupPending []clientLookup
 	lookupRunning bool
 	closeOnce     sync.Once
+	stateChanged  chan struct{} // test hook: pulsed when replay/stream metadata changes
 	socketMu      sync.Mutex
 	socketWG      sync.WaitGroup
 	sockets       map[uuid.UUID]bool
@@ -540,6 +541,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		frameSeq:      make(map[uuid.UUID]int),
 		streams:       make(map[uuid.UUID]*streamBodies),
 		trailers:      make(map[uuid.UUID]*flowTrailers),
+		stateChanged:  make(chan struct{}, 1),
 		closed:        make(chan struct{}),
 		reverseToken:  uuid.NewString(),
 		reverseStatus: make(map[string]ReverseProxyStatus),
@@ -625,6 +627,17 @@ func (s *Server) Addr() string {
 
 // Running reports whether this server owns an active proxy listener.
 func (s *Server) Running() bool { return s.running.Load() }
+
+// StateChanged is a test hook for waiting on replay, stream and uncaptured
+// metadata cleanup without polling the server's maps. It never closes.
+func (s *Server) StateChanged() <-chan struct{} { return s.stateChanged }
+
+func (s *Server) noteStateChanged() {
+	select {
+	case s.stateChanged <- struct{}{}:
+	default:
+	}
+}
 
 // Listening reports whether this server still owns its listener. Running can
 // turn false before Serve exits; this is the socket state itself.
@@ -1914,6 +1927,7 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 				s.replayClients[local] = replayOrigin{source: f.ID, run: f.DebugRun, withoutRecording: suppressed}
 				addresses = append(addresses, local)
 				s.mu.Unlock()
+				s.noteStateChanged()
 			}
 			return conn, err
 		},
@@ -2735,6 +2749,7 @@ func (s *Server) noteClient(client *proxy.ClientConn, connected bool) {
 			delete(s.replayClients, addr.remote)
 		}
 		s.mu.Unlock()
+		s.noteStateChanged()
 		return
 	}
 	identity := clientIdentity{client: client, ready: make(chan struct{})}
@@ -3500,6 +3515,7 @@ func (s *Server) endFrames(f *proxy.Flow) {
 	}
 	delete(s.frameSeq, f.Id)
 	s.mu.Unlock()
+	s.noteStateChanged()
 }
 
 // keepFrame returns the frame the UI gets: the whole message, or its head with

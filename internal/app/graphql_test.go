@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/baba983/vscroxy/internal/graphql"
 	"github.com/baba983/vscroxy/internal/request"
@@ -75,6 +74,16 @@ func graphQLDraft(t *testing.T) (*app, *requestDocument) {
 	return a, d
 }
 
+func awaitSchemaResult(t *testing.T, a *app, d *requestDocument) {
+	t.Helper()
+	done := d.graphqlState().loadingDone
+	if done == nil {
+		t.Fatal("no schema request was started")
+	}
+	awaitChan(t, done, "schema fetch did not return")
+	a.drainGraphQL()
+}
+
 func TestGraphQLSchemaFetchUsesSendPath(t *testing.T) {
 	var got struct {
 		method, auth, contentType, query, operationName string
@@ -103,11 +112,7 @@ func TestGraphQLSchemaFetchUsesSendPath(t *testing.T) {
 	d.composePre, d.checks = "pm.request.body.update('not introspection');", request.Checks{Status: "599"}
 
 	a.fetchGraphQLSchema(d)
-	deadline := time.Now().Add(10 * time.Second)
-	for d.graphqlState().loading != nil && time.Now().Before(deadline) {
-		a.drainGraphQL()
-		time.Sleep(5 * time.Millisecond)
-	}
+	awaitSchemaResult(t, a, d)
 	g := d.graphqlState()
 	if g.loading != nil {
 		t.Fatal("schema fetch did not settle")
@@ -140,11 +145,7 @@ func TestGraphQLSchemaFetchReportsDisabledIntrospection(t *testing.T) {
 	d.graphql.Schema = appGraphQLSchema
 
 	a.fetchGraphQLSchema(d)
-	deadline := time.Now().Add(10 * time.Second)
-	for d.graphqlState().loading != nil && time.Now().Before(deadline) {
-		a.drainGraphQL()
-		time.Sleep(5 * time.Millisecond)
-	}
+	awaitSchemaResult(t, a, d)
 	g := d.graphqlState()
 	if !strings.Contains(g.problem, "introspection is disabled") || !strings.Contains(g.problem, "not allowed") {
 		t.Fatalf("problem = %q", g.problem)
@@ -293,11 +294,7 @@ func TestGraphQLSchemaFetchHTTPErrorNamesIntrospection(t *testing.T) {
 	d.composeURL, d.composeMethod = upstream.URL+"/graphql", "POST"
 
 	a.fetchGraphQLSchema(d)
-	deadline := time.Now().Add(10 * time.Second)
-	for d.graphqlState().loading != nil && time.Now().Before(deadline) {
-		a.drainGraphQL()
-		time.Sleep(5 * time.Millisecond)
-	}
+	awaitSchemaResult(t, a, d)
 	g := d.graphqlState()
 	if !strings.Contains(g.problem, "HTTP 400") || !strings.Contains(g.problem, "introspection is disabled") {
 		t.Fatalf("problem = %q", g.problem)

@@ -2,6 +2,7 @@ package capture
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -74,22 +75,19 @@ func TestReplaySessionSuppressedLinksOutliveClose(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("the upstream saw no request")
 	}
-	waitLinks := func(want int) bool {
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
+	waitLinks := func(want int) {
+		t.Helper()
+		waitState(t, srv, func() bool {
 			srv.mu.Lock()
-			got := len(srv.replayClients)
-			srv.mu.Unlock()
-			if got == want {
-				return true
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-		return false
+			defer srv.mu.Unlock()
+			return len(srv.replayClients) == want
+		}, func() string {
+			srv.mu.Lock()
+			defer srv.mu.Unlock()
+			return fmt.Sprintf("suppressed links = %d, want %d", len(srv.replayClients), want)
+		})
 	}
-	if !waitLinks(1) {
-		t.Fatal("the session did not register its socket")
-	}
+	waitLinks(1)
 	session.Close()
 	srv.mu.Lock()
 	kept := len(srv.replayClients)
@@ -104,7 +102,5 @@ func TestReplaySessionSuppressedLinksOutliveClose(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 	}
-	if !waitLinks(0) {
-		t.Fatal("the suppressed link survived the connection's disconnect")
-	}
+	waitLinks(0)
 }

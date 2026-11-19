@@ -50,21 +50,22 @@ type mqttEvent struct {
 // the UI thread, and a reconnect replaces only the connection, not the
 // timeline or the subscriptions the user chose.
 type mqttSession struct {
-	mu       sync.Mutex
-	conn     *request.MQTTClient
-	cancel   context.CancelFunc
-	ctx      context.Context
-	done     chan struct{}
-	lifetime *lifecycle.DisposableStore
-	notify   func()
-	state    string
-	problem  string
-	finished bool
-	busy     bool
-	events   []mqttEvent
-	seq      int
-	evicted  int
-	dropped  int
+	mu            sync.Mutex
+	conn          *request.MQTTClient
+	cancel        context.CancelFunc
+	ctx           context.Context
+	done          chan struct{}
+	lifetime      *lifecycle.DisposableStore
+	notify        func()
+	changedSignal chan struct{} // test hook: pulsed whenever the session state changes
+	state         string
+	problem       string
+	finished      bool
+	busy          bool
+	events        []mqttEvent
+	seq           int
+	evicted       int
+	dropped       int
 	// connDropped is the current connection's counter; dropped accumulates
 	// across reconnects instead of resetting with each new client.
 	connDropped int64
@@ -119,6 +120,12 @@ func (s *mqttSession) snapshot() mqttSnapshot {
 }
 
 func (s *mqttSession) changed() {
+	if s.changedSignal != nil {
+		select {
+		case s.changedSignal <- struct{}{}:
+		default:
+		}
+	}
 	if s.notify != nil {
 		s.notify()
 	}
@@ -235,6 +242,7 @@ func openMQTTSession(url string, input request.Request, scope request.Context, v
 	cfg request.MQTTConfig, proxy func() (string, []byte), verifyUpstream bool, tlsConfig func([]byte) (*tls.Config, error), notify func()) *mqttSession {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &mqttSession{state: "Connecting", cancel: cancel, ctx: ctx, done: make(chan struct{}), lifetime: newSessionLifetime(cancel), notify: notify,
+		changedSignal: make(chan struct{}, 1),
 		subscriptions: map[string]request.MQTTSubscription{}, input: input, scope: scope, vars: maps.Clone(vars), cfg: cfg}
 	runURL, runCfg, runProxy := url, cfg, proxy
 	runVerify, runTLS := verifyUpstream, tlsConfig
