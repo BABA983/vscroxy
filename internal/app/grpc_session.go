@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/grpcclient"
+	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/internal/request"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -35,6 +36,7 @@ type grpcSession struct {
 	call                    *grpcclient.Call
 	cancel                  context.CancelFunc
 	done                    chan struct{}
+	lifetime                *lifecycle.DisposableStore
 	notify                  func()
 	finished                bool
 	sending                 bool
@@ -73,7 +75,7 @@ func (s *grpcSession) snapshot() grpcSnapshot {
 
 func openGRPCSession(ctx context.Context, cancel context.CancelFunc, input request.Request, scope request.Context, vars map[string]string,
 	req *request.Prepared, schema *protoSchema, method protoreflect.MethodDescriptor, proxy string, tlsConfig *tls.Config, notify func()) *grpcSession {
-	s := &grpcSession{cancel: cancel, done: make(chan struct{}), notify: notify, state: "Connecting", sending: true,
+	s := &grpcSession{cancel: cancel, done: make(chan struct{}), lifetime: newSessionLifetime(cancel), notify: notify, state: "Connecting", sending: true,
 		input: input, scope: scope, vars: maps.Clone(vars)}
 	go guarded(func() {
 		defer close(s.done)
@@ -176,6 +178,17 @@ func (s *grpcSession) changed() {
 		s.notify()
 	}
 }
+
+// stop cancels the call without touching the document's own send cancel,
+// which may belong to a later unary request.
+func (s *grpcSession) stop() {
+	if s == nil {
+		return
+	}
+	stopSessionLifetime(s.lifetime, s.cancel)
+}
+
+func (s *grpcSession) Dispose() { s.stop() }
 
 func (s *grpcSession) add(direction, text string) {
 	s.mu.Lock()

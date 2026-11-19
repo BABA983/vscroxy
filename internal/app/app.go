@@ -355,7 +355,11 @@ type app struct {
 	systemProxy   proxySetup
 	// lifecycle owns graceful cleanup. The hooks let tests drive quit without
 	// starting MyGo's native event loop; nil means use the real MyGo calls.
-	lifecycle    *lifecycle.Lifecycle
+	lifecycle *lifecycle.Lifecycle
+	// sessionStore owns what belongs to one loaded capture: its body
+	// searches, message search and protobuf inspector. replaceSession
+	// disposes the whole store, then starts the next one.
+	sessionStore *lifecycle.DisposableStore
 	quitOnMain   func(func())
 	quitApp      func()
 	quitError    func(error)
@@ -899,6 +903,7 @@ func newApp() *app {
 	a.checkCertificate(false)
 	go guarded(func() { cleanupClientDirs() })
 	a.lifecycle = &lifecycle.Lifecycle{}
+	a.sessionStore = newCaptureSessionStore(a)
 	return a
 }
 

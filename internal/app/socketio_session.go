@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/certs"
+	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/gorilla/websocket"
 )
@@ -36,6 +37,7 @@ type socketIOSession struct {
 	conn           *request.SocketIOConn
 	cancel         context.CancelFunc
 	done           chan struct{}
+	lifetime       *lifecycle.DisposableStore
 	notify         func()
 	state, problem string
 	finished, busy bool
@@ -75,6 +77,17 @@ func (s *socketIOSession) changed() {
 	}
 }
 
+// stop cancels the connection. The document's Cancel button keeps the raw
+// function so it can end just the current send without closing the session.
+func (s *socketIOSession) stop() {
+	if s == nil {
+		return
+	}
+	stopSessionLifetime(s.lifetime, s.cancel)
+}
+
+func (s *socketIOSession) Dispose() { s.stop() }
+
 func (s *socketIOSession) append(direction, name, text string) {
 	s.seq++
 	if len(s.events) == 200 {
@@ -104,7 +117,7 @@ func socketIOMessageText(m request.SocketIOMessage) (string, string) {
 
 func openSocketIOSession(proxy string, ca []byte, certificates certs.Settings, jar http.CookieJar, input request.Request, scope request.Context, vars map[string]string, req *request.Prepared, cfg request.SocketIOConfig, notify func()) *socketIOSession {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &socketIOSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), notify: notify, owed: map[uint64]bool{}, input: input, scope: scope, vars: maps.Clone(vars)}
+	s := &socketIOSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), lifetime: newSessionLifetime(cancel), notify: notify, owed: map[uint64]bool{}, input: input, scope: scope, vars: maps.Clone(vars)}
 	go guarded(func() {
 		defer close(s.done)
 		defer cancel()

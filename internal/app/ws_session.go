@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/certs"
+	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/gorilla/websocket"
@@ -24,6 +25,7 @@ type wsSession struct {
 	conn              *websocket.Conn
 	cancel            context.CancelFunc
 	done              chan struct{}
+	lifetime          *lifecycle.DisposableStore
 	notify            func()
 	state             string
 	events            []wsSessionEvent
@@ -53,7 +55,7 @@ type wsSessionEvent struct {
 
 func openWSSession(proxy string, req *request.Prepared, ca []byte, certificates certs.Settings, jar http.CookieJar, notify func()) *wsSession {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &wsSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), notify: notify}
+	s := &wsSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), lifetime: newSessionLifetime(cancel), notify: notify}
 	go guarded(func() {
 		defer close(s.done)
 		c, err := request.DialWebSocket(ctx, proxy, req, ca, certificates, jar)
@@ -205,8 +207,17 @@ func (s *wsSession) disconnect() {
 		if c != nil {
 			_ = c.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(time.Second))
 		}
-		s.cancel()
+		stopSessionLifetime(s.lifetime, s.cancel)
 	})
+}
+
+// Dispose is the lifecycle form of Disconnect: send the same close frame and
+// produce the same local-disconnect event the button does.
+func (s *wsSession) Dispose() {
+	if s == nil {
+		return
+	}
+	s.disconnect()
 }
 
 func (s *wsSession) snapshot() (string, []wsSessionEvent, int) {

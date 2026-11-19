@@ -30,6 +30,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
@@ -398,6 +399,9 @@ type captureViews struct {
 
 	cache bodyCache
 	run   *bodySearch
+	// searchStop holds the current body search. Setting a new one cancels the
+	// previous search, so no worker outlives the query it was reading for.
+	searchStop lifecycle.MutableDisposable
 	// slotsCh bounds the body readers; it is made on the UI thread, before
 	// any worker starts.
 	slotsCh chan struct{}
@@ -729,6 +733,7 @@ func (v *captureViews) drain(a *app) {
 
 // stopSearch cancels the search in flight, if any. Its answers are dropped.
 func (v *captureViews) stopSearch() {
+	v.searchStop.Clear()
 	if v.run != nil {
 		v.run.cancel()
 		v.run = nil
@@ -755,6 +760,7 @@ func (v *captureViews) startSearch(a *app, query string, jobs []bodyJob) {
 		ctx, cancel := context.WithCancel(context.Background())
 		s = &bodySearch{query: query, ctx: ctx, cancel: cancel, notify: a.invalidate, inflight: make(map[int]bool)}
 		v.run = s
+		v.searchStop.Set(lifecycle.ToDisposable(cancel))
 	}
 	jobs = s.begin(jobs)
 	if len(jobs) == 0 {

@@ -35,7 +35,7 @@ func (d *requestDocument) socketIOState() *socketIODocument {
 
 func (u *socketIODocument) stop() {
 	if u.session != nil {
-		u.session.cancel()
+		u.session.stop()
 	}
 }
 
