@@ -3309,6 +3309,7 @@
   "stoppedTimedOut": "Stopped · timed out",
   "stoppingState": "Stopping",
   "stoppingStatus": "Stopping…",
+  "stoppingUIWatchdog": "Stopping UI watchdog",
   "stoppingWaitingForBody": "Stopping · waiting for body read",
   "streamEndedReconnectIsOff": "Stream ended · Reconnect is off",
   "@streamFailedWith": {

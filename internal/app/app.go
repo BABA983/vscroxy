@@ -38,6 +38,7 @@ import (
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/baba983/vscroxy/internal/upstream"
 	"github.com/baba983/vscroxy/internal/version"
+	"github.com/baba983/vscroxy/internal/watchdog"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -361,12 +362,13 @@ type app struct {
 	lastFlow            atomic.Int64
 	collectionRecording *collectionRecording
 
-	srv         *capture.Server
-	collecting  bool
-	win         *mygo.Window
-	control     *desktopControl
-	caPath      string
-	certificate certificateSetup
+	srv              *capture.Server
+	collecting       bool
+	captureReadyOnce sync.Once
+	win              *mygo.Window
+	control          *desktopControl
+	caPath           string
+	certificate      certificateSetup
 	// certBannerOff puts away the capture screen's certificate banner for
 	// this run: it is a statement of the state, not a dialog to answer.
 	certBannerOff bool
@@ -374,6 +376,12 @@ type app struct {
 	// lifecycle owns graceful cleanup. The hooks let tests drive quit without
 	// starting MyGo's native event loop; nil means use the real MyGo calls.
 	lifecycle *lifecycle.Lifecycle
+	// startupLifetime owns the watchdog started by the first frame and is
+	// released by the shutdown joiner in installShutdown.
+	startupLifetime *lifecycle.DisposableStore
+	uiWatchdog      *watchdog.Watchdog
+	firstFrameOnce  sync.Once
+	watchdogArmed   bool
 	// sessionStore owns what belongs to one loaded capture: its body
 	// searches, message search and protobuf inspector. replaceSession
 	// disposes the whole store, then starts the next one.
@@ -827,6 +835,7 @@ func newApp() *app {
 				a.keyLogPath = saved.KeyLogPath
 			}
 		}
+		markStartup(markSettingsLoaded)
 	}
 	if a.settingsPath != "" {
 		var problems []string
@@ -946,6 +955,7 @@ func newApp() *app {
 	a.checkCertificate(false)
 	go guarded(func() { cleanupClientDirs() })
 	a.lifecycle = &lifecycle.Lifecycle{}
+	a.startupLifetime = lifecycle.NewDisposableStore()
 	a.sessionStore = newCaptureSessionStore(a)
 	return a
 }
@@ -1169,6 +1179,7 @@ func (a *app) startCapture() {
 		a.invalidate()
 		return
 	}
+	a.captureReadyOnce.Do(func() { markStartup(markCaptureReady) })
 	if err := a.srv.SOCKSError(); err != nil {
 		a.warn(locales.SocksNotListening(err.Error()))
 	}
@@ -1855,6 +1866,7 @@ func (a *app) syncDetail() {
 
 func (a *app) view(c *ui.Context) {
 	defer uikit.FrameEnd(c)
+	a.firstFrame()
 	// A modifier release outside the main column still settles the quick
 	// switch; the column's input observer handles it when focus is inside.
 	if a.mruPending && c.Modifiers()&ui.Ctrl == 0 {
@@ -3673,6 +3685,7 @@ func (f flow) statusColor(t *ui.Theme) ui.Color {
 
 // Run starts the native desktop app and releases its resources on exit.
 func Run() error {
+	markStartup(markProcessStart)
 	// MyGo delivers second launches on the main thread. Register before
 	// taking the lock: another launch during startup must still focus this
 	// instance once its window exists, rather than being lost.
@@ -3713,6 +3726,9 @@ func Run() error {
 		defer a.srv.Close()
 	}
 	cleanup := a.installShutdown()
+	stopWatchdog := func() { a.startupLifetime.Dispose() }
+	defer stopWatchdog()
+	mygo.App.OnQuit(stopWatchdog) // native termination may not return from Run
 	defer a.closeControl()
 	mygo.App.OnQuit(a.closeControl)
 	mygo.App.OnQuit(a.closeLoadRunner)
@@ -3779,6 +3795,9 @@ func Run() error {
 		if err := mygo.App.Dock.SetIcon(iconPNG); err != nil && runtime.GOOS == "darwin" {
 			slog.Warn("dock icon", "err", err)
 		}
+		// The first frame arms the watchdog only in a real window; Tester
+		// views in tests have no app window to watch.
+		a.watchdogArmed = true
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:           "vscroxy",
 			Width:           1280,
@@ -3798,6 +3817,7 @@ func Run() error {
 			StateKey: "vscroxy",
 			Content:  ui.View(a.view),
 		})
+		markStartup(markWindowCreated)
 		// A window behind others shows its selections gray.
 		a.win.OnFocus(func() {
 			a.win.Update(func() {
@@ -3815,6 +3835,7 @@ func Run() error {
 			a.win.Focus()
 		}
 		a.startProjectWatch()
+		markStartup(markProjectWatch)
 		a.win.OnClose(func(e *mygo.CloseEvent) {
 			if a.lifecycle == nil || !a.lifecycle.ShutdownSucceeded() {
 				e.PreventDefault()
@@ -3834,6 +3855,7 @@ func Run() error {
 				a.fail(locales.EnableLocalAutomation(), err)
 			}
 		}
+		markStartup(markControlStarted)
 		go guarded(func() { a.startCapture() })
 	})
 	return mygo.App.Run()
