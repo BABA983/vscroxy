@@ -103,8 +103,8 @@ func reportOutcome(got request.Execution) string {
 		return got.Outcome()
 	}
 	switch got.Stage {
-	case "Request setup failed", "Pre-request script failed", "Access token failed",
-		"Network error", "Post-response script failed", "Digest authentication failed":
+	case "Request setup failed", request.StagePreRequestScript, "Access token failed",
+		"Network error", request.StagePostResponseScript, "Digest authentication failed":
 		return got.Stage
 	default:
 		return "Execution failed"

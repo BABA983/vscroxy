@@ -436,6 +436,7 @@ func workspaceApp() *app {
 		},
 		requests: []savedRequest{{Name: "List projects", Collection: "Workspace/API", Method: "GET", URL: "https://api.example.com/projects", Pre: `pm.request.headers.upsert("Accept", "application/json")`}},
 	}
+	a.initProblems()
 	a.recount()
 	a.applyFilter()
 	return a

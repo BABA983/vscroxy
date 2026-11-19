@@ -195,6 +195,9 @@ func (a *app) desktopContent(c *ui.Context) {
 				}
 			})
 		}
+		// The panel shares this page's column: wrapping the page in another
+		// Column would perturb committed focus between frames.
+		a.problemsPanel(c)
 	}
 	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(content)
 }
