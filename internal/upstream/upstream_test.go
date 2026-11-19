@@ -555,29 +555,39 @@ func TestPACRecursionStopsAtTheCallStackLimit(t *testing.T) {
 	}
 }
 
-// A full PAC result cache is cleared, not trimmed: a miss after the cap must
-// keep only the newly evaluated destination.
-func TestPACResultCacheCapacity(t *testing.T) {
+// A hit touches its destination; exceeding the cap drops only the least
+// recently used result instead of clearing the cache.
+func TestPACResultCacheEvictsLeastRecentlyUsed(t *testing.T) {
 	p, err := newPAC(`function FindProxyForURL() { return "DIRECT"; }`, "cache.pac", PACOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := range maxPACCache {
-		p.cache.Set(fmt.Sprintf("http://old-%d.example:80", i), pacResult{})
+	old := make([]string, maxPACCache)
+	for i := range old {
+		old[i] = fmt.Sprintf("http://old-%d.example:80", i)
+		p.cache.Set(old[i], pacResult{})
 	}
 	if got := p.cache.Size(); got != maxPACCache {
 		t.Fatalf("cache size = %d, want %d", got, maxPACCache)
 	}
+
+	before := p.evaluations.Load()
+	if _, _, err := p.findProxy(t.Context(), "http://old-0.example/", "old-0.example", 80); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.evaluations.Load(); got != before {
+		t.Fatal("a cached destination was evaluated again")
+	}
 	if _, _, err := p.findProxy(t.Context(), "http://new.example/", "new.example", 80); err != nil {
 		t.Fatal(err)
 	}
-	if got := p.cache.Size(); got != 1 {
-		t.Fatalf("cache size after the cap = %d, want 1", got)
+	if got := p.cache.Size(); got != maxPACCache {
+		t.Fatalf("cache size after the cap = %d, want %d", got, maxPACCache)
 	}
-	if _, ok := p.cache.Get("http://new.example:80"); !ok {
-		t.Error("the new destination was not cached")
+	if _, ok := p.cache.Get(old[0]); !ok {
+		t.Error("the recently used destination was evicted")
 	}
-	if _, ok := p.cache.Get("http://old-0.example:80"); ok {
-		t.Error("an entry from the full cache survived")
+	if _, ok := p.cache.Get(old[1]); ok {
+		t.Error("the least recently used destination survived")
 	}
 }

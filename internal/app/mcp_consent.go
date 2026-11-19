@@ -11,13 +11,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"maps"
 	"os"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/baba983/vscroxy/internal/linkedmap"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
@@ -112,14 +110,15 @@ func saveMCPConsents(path string, consents map[string]mcpConsentApproval) error 
 }
 
 // pruneMCPConsents keeps the most recently used approvals. The cap applies
-// to shape and full hashes together. The LinkedMap holds them from least to
-// most recent so Shift drops the same approvals the cap used to drop by
-// sorting, including the key tie-break between equal LastUsed times.
+// to shape and full hashes together.
 func pruneMCPConsents(consents map[string]mcpConsentApproval) map[string]mcpConsentApproval {
 	if len(consents) <= mcpConsentLimit {
 		return consents
 	}
-	keys := slices.Sorted(maps.Keys(consents))
+	keys := make([]string, 0, len(consents))
+	for key := range consents {
+		keys = append(keys, key)
+	}
 	slices.SortFunc(keys, func(a, b string) int {
 		left, right := consents[a].LastUsed, consents[b].LastUsed
 		switch {
@@ -131,16 +130,9 @@ func pruneMCPConsents(consents map[string]mcpConsentApproval) map[string]mcpCons
 			return strings.Compare(a, b)
 		}
 	})
-	ordered := linkedmap.NewLinkedMap[string, mcpConsentApproval]()
-	for _, key := range keys {
-		ordered.Set(key, consents[key], linkedmap.TouchAsOld)
-	}
-	for ordered.Size() > mcpConsentLimit {
-		ordered.Shift()
-	}
 	out := make(map[string]mcpConsentApproval, mcpConsentLimit)
-	for key, approval := range ordered.All() {
-		out[key] = approval
+	for _, key := range keys[:mcpConsentLimit] {
+		out[key] = consents[key]
 	}
 	return out
 }

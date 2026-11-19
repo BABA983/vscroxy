@@ -4,36 +4,54 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
 
-// The flow lookup clears once it grows past its cap; only the flow added in
-// that insert remains addressable for later frames.
-func TestFlowIDCacheClearsPastLimit(t *testing.T) {
+// A stream that keeps producing frames stays addressable while many newer
+// flows arrive. Clearing the whole cache at the cap would lose its ID.
+func TestFlowIDCacheKeepsActiveStream(t *testing.T) {
 	s, err := New("127.0.0.1:0", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	var first uuid.UUID
-	for i := 1; i <= flowIDsLimit+1; i++ {
-		id := uuid.New()
-		if i == 1 {
-			first = id
+	active := uuid.New()
+	s.flowIDs.Set(active, 7)
+	f := &proxy.Flow{Id: active}
+	in := frameInput{Direction: "in", Kind: "text", Data: []byte("ping")}
+	drain := func() {
+		for {
+			select {
+			case <-s.frames:
+			default:
+				return
+			}
 		}
-		s.cacheFlowID(id, i)
-	}
-	if got := s.flowIDs.Size(); got != flowIDsLimit+1 {
-		t.Fatalf("cache size = %d, want %d", got, flowIDsLimit+1)
 	}
 
-	latest := uuid.New()
-	s.cacheFlowID(latest, 9001)
-	if got := s.flowIDs.Size(); got != 1 {
-		t.Fatalf("cache size after the cap = %d, want 1", got)
+	for i := range flowIDsLimit + 1 {
+		s.flowIDs.Set(uuid.New(), 100+i)
+		if i%97 == 0 {
+			s.emitFrame(f, in)
+			drain()
+		}
 	}
-	if _, ok := s.flowIDs.Get(first); ok {
-		t.Error("a flow from the full cache survived")
+
+	s.emitFrame(f, in)
+	select {
+	case event := <-s.frames:
+		if event.FlowID != 7 {
+			t.Fatalf("frame attached to flow %d, want 7", event.FlowID)
+		}
+		if event.Frame.Seq == 0 {
+			t.Error("frame was published without a sequence number")
+		}
+	default:
+		t.Fatal("the active stream's frame was not attached")
 	}
-	if got, ok := s.flowIDs.Get(latest); !ok || got != 9001 {
-		t.Errorf("new flow = %d, %v; want 9001, true", got, ok)
+	if got := s.flowIDs.Size(); got != flowIDsLimit {
+		t.Fatalf("cache size = %d, want %d", got, flowIDsLimit)
+	}
+	if got, ok := s.flowIDs.Get(active); !ok || got != 7 {
+		t.Errorf("active flow = %d, %v; want 7, true", got, ok)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 
 	"github.com/baba983/vscroxy/internal/hosts"
+	"github.com/baba983/vscroxy/internal/linkedmap"
 )
 
 func TestServerAnswersTheRules(t *testing.T) {
@@ -134,28 +135,29 @@ func ask(t *testing.T, addr, name string, kind dnsmessage.Type) string {
 	}
 }
 
-// Reaching the lookup cache limit clears the old answers instead of growing;
-// repeating a name only updates its entry.
-func TestNoteLookupCacheCapacity(t *testing.T) {
-	s := &Server{}
+// Reading an answer touches its name; exceeding the cap drops only the least
+// recently used one instead of clearing the whole cache.
+func TestNoteLookupCacheEvictsLeastRecentlyUsed(t *testing.T) {
+	s := &Server{lookups: *linkedmap.NewLRUCache[string, Resolution](lookupCacheLimit)}
 	ip := net.ParseIP("10.1.2.3")
-	s.noteLookup("same.test", []net.IP{ip}, 0)
-	s.noteLookup("same.test", []net.IP{ip}, 0)
-	for i := range 1023 {
+	for i := range lookupCacheLimit {
 		s.noteLookup(fmt.Sprintf("old-%d.test", i), []net.IP{ip}, 0)
 	}
-	if got := s.lookups.Size(); got != 1024 {
-		t.Fatalf("cache size = %d, want 1024", got)
+	if got := s.lookups.Size(); got != lookupCacheLimit {
+		t.Fatalf("cache size = %d, want %d", got, lookupCacheLimit)
 	}
 
+	if _, ok := s.Resolved("old-0.test"); !ok {
+		t.Fatal("the oldest answer is not in the cache")
+	}
 	s.noteLookup("new.test", []net.IP{ip}, 0)
-	if got := s.lookups.Size(); got != 1 {
-		t.Fatalf("cache size after the cap = %d, want 1", got)
+	if got := s.lookups.Size(); got != lookupCacheLimit {
+		t.Fatalf("cache size after the cap = %d, want %d", got, lookupCacheLimit)
 	}
-	if _, ok := s.Resolved("same.test"); ok {
-		t.Error("an answer from the full cache survived")
+	if _, ok := s.Resolved("old-0.test"); !ok {
+		t.Error("the recently read name was evicted")
 	}
-	if _, ok := s.Resolved("new.test"); !ok {
-		t.Error("the new answer was not cached")
+	if _, ok := s.Resolved("old-1.test"); ok {
+		t.Error("the least recently used name survived")
 	}
 }

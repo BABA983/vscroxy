@@ -18,6 +18,10 @@ import (
 	"github.com/baba983/vscroxy/internal/linkedmap"
 )
 
+// lookupCacheLimit bounds the names whose answers stay visible in the
+// connection panel. Reaching it drops only the least recently used name.
+const lookupCacheLimit = 1024
+
 // Hit is a name the server answered from the rules.
 type Hit struct {
 	Name string
@@ -55,7 +59,7 @@ type Server struct {
 	// lookups are the names the server resolved lately, for the connection
 	// panel: the proxy dials through it, so it sees every lookup.
 	lookupMu sync.Mutex
-	lookups  linkedmap.LinkedMap[string, Resolution]
+	lookups  linkedmap.LRUCache[string, Resolution]
 }
 
 type pending struct {
@@ -73,7 +77,8 @@ func Start(upstream *net.Resolver) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{udp: udp, upstream: upstream, done: make(chan struct{}), pending: make(map[string]pending)}
+	s := &Server{udp: udp, upstream: upstream, done: make(chan struct{}), pending: make(map[string]pending),
+		lookups: *linkedmap.NewLRUCache[string, Resolution](lookupCacheLimit)}
 	s.rules.Store([]hosts.Rule(nil))
 	if tcp, err := net.Listen("tcp", udp.LocalAddr().String()); err == nil {
 		s.tcp = tcp
@@ -140,6 +145,8 @@ func (s *Server) Resolved(name string) (Resolution, bool) {
 	name = strings.ToLower(strings.TrimSuffix(name, "."))
 	s.lookupMu.Lock()
 	defer s.lookupMu.Unlock()
+	// Reading the answer also touches the name, so an active connection's
+	// name stays visible when the cache trims.
 	return s.lookups.Get(name)
 }
 
@@ -151,9 +158,6 @@ func (s *Server) noteLookup(name string, ips []net.IP, took time.Duration) {
 	}
 	s.lookupMu.Lock()
 	defer s.lookupMu.Unlock()
-	if s.lookups.Size() >= 1024 {
-		s.lookups.Clear()
-	}
 	entry, _ := s.lookups.Get(name)
 	kept := entry.IPs[:0]
 	for _, old := range entry.IPs {

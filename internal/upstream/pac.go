@@ -27,8 +27,8 @@ const (
 	maxPACSource = 2 << 20
 	// maxPACResult bounds what one FindProxyForURL call may return.
 	maxPACResult = 64 << 10
-	// maxPACCache bounds the per-host result cache. Reaching it clears the
-	// cache rather than growing without limit.
+	// maxPACCache bounds the per-host result cache. Reaching it drops only
+	// the least recently used destination.
 	maxPACCache = 4096
 	// defaultPACTimeout bounds one evaluation, including its DNS lookups.
 	defaultPACTimeout = 2 * time.Second
@@ -57,7 +57,7 @@ type PAC struct {
 	myIP    func() netip.Addr
 
 	mu    sync.Mutex
-	cache linkedmap.LinkedMap[string, pacResult]
+	cache linkedmap.LRUCache[string, pacResult]
 
 	evaluations atomic.Int64
 }
@@ -81,6 +81,7 @@ func newPAC(source, name string, opts PACOptions) (*PAC, error) {
 		now:     opts.Now,
 		lookup:  opts.Lookup,
 		myIP:    opts.MyIP,
+		cache:   *linkedmap.NewLRUCache[string, pacResult](maxPACCache),
 	}
 	if p.timeout <= 0 {
 		p.timeout = defaultPACTimeout
@@ -172,6 +173,8 @@ func (p *PAC) findProxy(ctx context.Context, rawURL, host string, port int) ([]C
 	// not only the host.
 	key := scheme + "://" + net.JoinHostPort(host, strconv.Itoa(port))
 	p.mu.Lock()
+	// A hit touches the destination, so a busy host stays cached as other
+	// destinations arrive and the cache trims only the least recent one.
 	if cached, ok := p.cache.Get(key); ok {
 		p.mu.Unlock()
 		return cloneCandidates(cached.candidates), cached.display, nil
@@ -191,9 +194,6 @@ func (p *PAC) findProxy(ctx context.Context, rawURL, host string, port int) ([]C
 	}
 	if cacheable {
 		p.mu.Lock()
-		if p.cache.Size() >= maxPACCache {
-			p.cache.Clear()
-		}
 		p.cache.Set(key, pacResult{candidates: cloneCandidates(candidates), display: display})
 		p.mu.Unlock()
 	}
