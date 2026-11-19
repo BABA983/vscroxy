@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -26,14 +27,23 @@ const (
 // notice is feedback on what just happened: one sentence, the raw error or
 // other detail under it, and at most one action such as Undo or Inspect.
 type notice struct {
+	id     uint64
+	at     time.Time
 	level  noticeLevel
 	text   string
 	detail string
 	action string
+	read   bool
 	// sticky keeps an info notice until it is closed, for something worth
 	// acting on that did not just happen, such as an available update.
 	sticky bool
 	run    func() // runs on the UI thread
+	// valid says whether the action still has a target. A notice whose
+	// target went away stays in the history, but its action is hidden.
+	valid func() bool
+	// spent is set once the action has been used, in a toast or in the
+	// center: Undo and Reload are one-shot and must not run a second time.
+	spent bool
 }
 
 // line is the notice as one line, as it was shown before levels existed.
@@ -44,15 +54,24 @@ func (n notice) line() string {
 	return n.text + ": " + n.detail
 }
 
-// notify queues n for the window in front, from any goroutine. Errors also go
-// to the log, which never holds request contents: only the text and detail.
+// notify queues n for the window in front, from any goroutine, and keeps it
+// in the in-memory notification history. Errors also go to the log, which
+// never holds request contents: only the text and detail.
 func (a *app) notify(n notice) {
 	if n.level == noticeError {
 		slog.Error(n.text, "detail", n.detail)
 	}
+	center := a.noticeCenter()
 	a.mu.Lock()
+	n.at = time.Now()
+	n.id = center.nextID
+	center.nextID++
 	a.notices = append(a.notices, n)
+	if len(a.notices) > noticeHistoryLimit {
+		a.notices = slices.Clone(a.notices[len(a.notices)-noticeHistoryLimit:])
+	}
 	a.message = n.line()
+	center.pending = append(center.pending, n)
 	a.mu.Unlock()
 	a.invalidate()
 	if a.settingsWin != nil {
@@ -98,15 +117,25 @@ func (a *app) fail(what string, err error) {
 	a.notify(n)
 }
 
-// showNotices hands queued notices to c as toasts. The Settings window shows
-// them while it has the focus; otherwise the main window does.
+// showNotices hands queued notices to c as toasts. The notices stay in the
+// in-memory history: a toast goes away, the notification center does not.
+// The Settings window shows them while it has the focus; otherwise the main
+// window does.
 func (a *app) showNotices(c *ui.Context) {
+	center := a.noticeCenter()
 	a.mu.Lock()
-	queued := a.notices
-	a.notices = nil
+	queued := center.pending
+	center.pending = nil
 	a.mu.Unlock()
 	for _, n := range queued {
-		t := ui.Toast{ID: n.line(), Title: n.text, Description: n.detail, Action: n.action, OnAction: n.run}
+		id := n.id
+		t := ui.Toast{ID: n.line(), Title: n.text, Description: n.detail, Action: n.action,
+			OnAction: func() {
+				a.markNoticeSpent(id)
+				if n.run != nil {
+					n.run()
+				}
+			}}
 		if n.action != "" {
 			t.Timeout = 10 * time.Second // time to read it and decide
 		}

@@ -35,11 +35,12 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 			a.proxyIndicator(c, t)
 		})
 		ui.Spacer(c)
-		// Four at most: the palette, the layout, the tools and everything
-		// else. Settings is in the app menu and in ⋯, so the bar does not
-		// carry a third way to it.
+		// Five at most: the palette, notifications, the layout, the tools
+		// and everything else. Settings is in the app menu and in ⋯, so
+		// the bar does not carry a third way to it.
 		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceHair)).AlignItems(ui.Center).PaddingEnd(max(bar.Right, t.Space(uikit.SpaceL))).Children(func() {
 			a.commandButton(c, t)
+			a.notificationButton(c, t)
 			a.layoutToggle(c)
 			uikit.MenuFace(c, func() {
 				uikit.IconButton(c, locales.Tools(), locales.ManageDebuggingRulesAndNetwork(), toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
@@ -124,6 +125,10 @@ func (a *app) brandBar(c *ui.Context, t *ui.Theme) {
 		DragWindow().Children(func() {
 		a.sidebarToggle(c)
 		a.brand(c, t)
+		// On macOS this row is the title bar while the sidebar is shown,
+		// so the unread count stays one click away there too.
+		ui.Spacer(c)
+		a.notificationButton(c, t)
 	})
 }
 

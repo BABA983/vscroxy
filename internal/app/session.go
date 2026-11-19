@@ -672,6 +672,10 @@ func (a *app) replaceSession(flows []flow, frames map[int][]frame) {
 	a.picked, a.pickedID, a.detailFor = 0, 0, -1
 	a.analysis = captureAnalysis{}
 	a.chosen.Clear()
+	// An undo from the old capture would insert its rows into this one.
+	// Dropping the stack also hides the action on any notice still holding
+	// one of those deletions.
+	a.deletions = nil
 	// One store for everything this capture owns. Register the current
 	// objects rather than their live jobs: each stop is idempotent, so a
 	// search or inspect started after the last replacement is reached too.

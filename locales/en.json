@@ -2359,7 +2359,9 @@
   },
   "nothingToImport": "{what}: nothing to import; {warnings}",
   "nothingToUndo": "Nothing to undo",
+  "noNotifications": "No notifications",
   "notification": "Notification",
+  "notifications": "Notifications",
   "@ntlmUsernameHidden": {
     "placeholders": {
       "user": {
@@ -5000,6 +5002,7 @@
   "clearFilters": "Clear filters",
   "clearHistory": "Clear runs…",
   "clearHistory2": "Clear runs?",
+  "clearNotifications": "Clear notifications",
   "clearRecords": "Clear records",
   "clearRequestDefaults": "Clear request defaults",
   "clearSchema": "Clear schema",
@@ -6964,6 +6967,7 @@
   "showFewer": "Show fewer",
   "showHistory": "Show History",
   "showLatestResponse": "Show latest response",
+  "showNotifications": "Show notifications",
   "showOnlyTheHostsAnd": "Show only the hosts and apps below. Everything else is still proxied, just not recorded.",
   "showSetupGuide": "Show setup guide",
   "showSidebar": "Show sidebar",

@@ -237,6 +237,8 @@ func registerGlobalCommands() *commandRegistry {
 
 	r.add("app.palette", locales.Commands(), func(x *commandContext) { x.a.workbench.openPalette() }).
 		keys(ui.Cmd, ui.KeyK)
+	r.add("notifications.show", locales.ShowNotifications(), func(x *commandContext) { x.a.openNotifications() })
+	r.add("notifications.clear", locales.ClearNotifications(), func(x *commandContext) { x.a.clearNotifications() })
 	r.add("view.search", "", func(x *commandContext) { x.search() }).
 		named(func(x *commandContext) string { return x.searchLabel }).
 		when(func(x *commandContext) bool { return x.capturing }, "").keys(ui.Cmd, ui.KeyF)
