@@ -37745,3 +37745,45 @@ func ProblemUnresolvedVariable(name string) string {
 func (msgs Messages) ProblemUnresolvedVariable(name string) string {
 	return Catalog.Format(msgs.locale, "problemUnresolvedVariable", map[string]any{"name": name})
 }
+
+// QuickFix says "Quick Fix…"
+// in the language the app shows.
+func QuickFix() string { return In(i18n.Locale()).QuickFix() }
+
+// QuickFix says "Quick Fix…"
+// in the language of msgs.
+func (msgs Messages) QuickFix() string {
+	return Catalog.Format(msgs.locale, "quickFix", nil)
+}
+
+// NoQuickFixesAvailable says "No quick fixes are available here"
+// in the language the app shows.
+func NoQuickFixesAvailable() string { return In(i18n.Locale()).NoQuickFixesAvailable() }
+
+// NoQuickFixesAvailable says "No quick fixes are available here"
+// in the language of msgs.
+func (msgs Messages) NoQuickFixesAvailable() string {
+	return Catalog.Format(msgs.locale, "noQuickFixesAvailable", nil)
+}
+
+// CreateVariableIn says "Create variable “{name}” in {scope}"
+// in the language the app shows.
+func CreateVariableIn(name string, scope string) string {
+	return In(i18n.Locale()).CreateVariableIn(name, scope)
+}
+
+// CreateVariableIn says "Create variable “{name}” in {scope}"
+// in the language of msgs.
+func (msgs Messages) CreateVariableIn(name string, scope string) string {
+	return Catalog.Format(msgs.locale, "createVariableIn", map[string]any{"name": name, "scope": scope})
+}
+
+// ChangeToVariable says "Change to “{name}”"
+// in the language the app shows.
+func ChangeToVariable(name string) string { return In(i18n.Locale()).ChangeToVariable(name) }
+
+// ChangeToVariable says "Change to “{name}”"
+// in the language of msgs.
+func (msgs Messages) ChangeToVariable(name string) string {
+	return Catalog.Format(msgs.locale, "changeToVariable", map[string]any{"name": name})
+}

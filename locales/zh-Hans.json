@@ -3872,5 +3872,26 @@
       }
     }
   },
-  "problemUnresolvedVariable": "未解析的变量：{name}"
+  "problemUnresolvedVariable": "未解析的变量：{name}",
+  "quickFix": "快速修复…",
+  "noQuickFixesAvailable": "此处没有可用的快速修复",
+  "@createVariableIn": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "createVariableIn": "在 {scope} 中创建变量“{name}”",
+  "@changeToVariable": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "changeToVariable": "改为“{name}”"
 }

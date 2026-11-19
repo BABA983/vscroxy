@@ -973,6 +973,9 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			}
 			a.unicodeMarker(c, "request-url", d.composeURL, false)
 			a.unicodeInputMarks(c, input, d.composeURL, false)
+			a.bindQuickFixShortcut(c, &d.urlInput)
+			a.trackInputQuickFix(d, problemFieldURL, &d.composeURL, input)
+			a.quickFixContextMenu(c, input, &d.composeURL)
 		})
 		sendLabel := locales.Send()
 		if d.composeWaiting {

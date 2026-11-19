@@ -408,6 +408,9 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		a.installUnicodeHover(d.bulkEditor)
 		a.appendUnicodeDiagnostics(d.bulkEditor, d.composeHeaders)
 		requestCodeEditor(c, d.bulkEditor, d.unicodeHandle("header-bulk"))
+		a.bindQuickFixShortcut(c, d.unicodeHandle("header-bulk"))
+		a.trackEditorQuickFix(d, problemFieldHeaderRaw, d.bulkEditor)
+		a.quickFixHandleMenu(c, d.unicodeHandle("header-bulk"), d.bulkEditor)
 		if text := d.bulkEditor.Buffer.String(); text != d.composeHeaders {
 			d.composeHeaders, d.bulkFor = text, text
 		}
@@ -919,9 +922,15 @@ func (a *app) requestScriptText(c *ui.Context, d *requestDocument) {
 	if d.scriptTab == 1 {
 		authoredText(c, &d.composePost, &d.postEditor, &d.postFor, locales.PostResponseScript(), "JavaScript", d.unicodeHandle(problemFieldPost))
 		a.installUnicodeHover(d.postEditor)
+		a.bindQuickFixShortcut(c, d.unicodeHandle(problemFieldPost))
+		a.trackEditorQuickFix(d, problemFieldPost, d.postEditor)
+		a.quickFixHandleMenu(c, d.unicodeHandle(problemFieldPost), d.postEditor)
 	} else {
 		authoredText(c, &d.composePre, &d.preEditor, &d.preFor, locales.PreRequestScript(), "JavaScript", d.unicodeHandle(problemFieldPre))
 		a.installUnicodeHover(d.preEditor)
+		a.bindQuickFixShortcut(c, d.unicodeHandle(problemFieldPre))
+		a.trackEditorQuickFix(d, problemFieldPre, d.preEditor)
+		a.quickFixHandleMenu(c, d.unicodeHandle(problemFieldPre), d.preEditor)
 	}
 }
 
@@ -956,6 +965,9 @@ func (a *app) requestBodyText(c *ui.Context, d *requestDocument) {
 	}
 	a.jsonPathBar(c, &d.jsonCrumbs, "draft", d.bodyEditor, func() { d.unicodeHandle("body").Focus(c) }, jsonCrumbSource{})
 	requestCodeEditor(c, d.bodyEditor, d.unicodeHandle("body"))
+	a.bindQuickFixShortcut(c, d.unicodeHandle("body"))
+	a.trackEditorQuickFix(d, problemFieldBody, d.bodyEditor)
+	a.quickFixHandleMenu(c, d.unicodeHandle("body"), d.bodyEditor)
 	a.wireVariableEditor(d.bodyEditor, d.composeCollection)
 	a.setVariableDiagnostics(d.bodyEditor, d.composeBody, d.composeCollection)
 	if text := d.bodyEditor.Buffer.String(); text != d.composeBody {
