@@ -3904,5 +3904,58 @@
   },
   "variableQuickFixes": "快速修复：{fixes}",
   "variableQuickFixesTitle": "快速修复",
-  "variableUndefined": "未定义"
+  "variableUndefined": "未定义",
+  "compare": "比较",
+  "compareExchanges": "比较请求与响应",
+  "compareReadingBodies": "正在后台读取限定大小的消息体…",
+  "compareReadOnlyNote": "只读 · 消息体上限 8 MiB；二进制与超大消息体显示大小和哈希",
+  "compareNormalized": "规范化",
+  "compareNormalizedTip": "差异比较前对请求头和 JSON 键排序",
+  "compareRaw": "原始",
+  "compareRawTip": "按记录时的顺序显示请求头和消息体",
+  "@compareExchangeLine": {
+    "placeholders": {
+      "side": {"type": "String"},
+      "label": {"type": "String"},
+      "method": {"type": "String"},
+      "url": {"type": "String"},
+      "status": {"type": "String"}
+    }
+  },
+  "compareExchangeLine": "{side} · {label} · {method} {url} · 状态 {status}",
+  "@compareBinaryBody": {
+    "placeholders": {
+      "size": {"type": "String"},
+      "hash": {"type": "String"}
+    }
+  },
+  "compareBinaryBody": "二进制消息体 · {size} · sha256 {hash}",
+  "@compareLargeBody": {
+    "placeholders": {
+      "size": {"type": "String"},
+      "hash": {"type": "String"}
+    }
+  },
+  "compareLargeBody": "超出显示上限 · {size} · sha256 {hash}",
+  "@compareBodyUnavailable": {
+    "placeholders": {
+      "error": {"type": "String"},
+      "size": {"type": "String"},
+      "hash": {"type": "String"}
+    }
+  },
+  "compareBodyUnavailable": "消息体不可用：{error} · {size} · sha256 {hash}",
+  "selectForCompare": "选择以比较",
+  "compareWithSelected": "与所选内容比较",
+  "clearCompareSelection": "清除比较选择",
+  "selectFirstExchangeForCompare": "请先使用“选择以比较”选定一个请求",
+  "compareNeedsTwoExchanges": "请选择另一个不同的请求作为比较的第二侧",
+  "compareSideIsNoLongerAvailable": "所选请求之一已不可用",
+  "compareNeedTwoRows": "请选择正好两个请求进行比较",
+  "@compareSelectedFor": {
+    "placeholders": {
+      "label": {"type": "String"}
+    }
+  },
+  "compareSelectedFor": "已选择比较：{label}"
 }

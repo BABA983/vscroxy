@@ -8033,5 +8033,58 @@
   },
   "variableQuickFixes": "Quick fixes: {fixes}",
   "variableQuickFixesTitle": "Quick fixes",
-  "variableUndefined": "undefined"
+  "variableUndefined": "undefined",
+  "compare": "Compare",
+  "compareExchanges": "Compare exchanges",
+  "compareReadingBodies": "Reading bounded bodies in the background…",
+  "compareReadOnlyNote": "Read-only · bodies limited to 8 MiB; binary and oversized bodies show a size and hash",
+  "compareNormalized": "Normalized",
+  "compareNormalizedTip": "Sorted headers and JSON keys for the diff",
+  "compareRaw": "Raw",
+  "compareRawTip": "Headers and body as they were recorded",
+  "@compareExchangeLine": {
+    "placeholders": {
+      "side": {"type": "String"},
+      "label": {"type": "String"},
+      "method": {"type": "String"},
+      "url": {"type": "String"},
+      "status": {"type": "String"}
+    }
+  },
+  "compareExchangeLine": "{side} · {label} · {method} {url} · {status}",
+  "@compareBinaryBody": {
+    "placeholders": {
+      "size": {"type": "String"},
+      "hash": {"type": "String"}
+    }
+  },
+  "compareBinaryBody": "Binary body · {size} · sha256 {hash}",
+  "@compareLargeBody": {
+    "placeholders": {
+      "size": {"type": "String"},
+      "hash": {"type": "String"}
+    }
+  },
+  "compareLargeBody": "Above the display limit · {size} · sha256 {hash}",
+  "@compareBodyUnavailable": {
+    "placeholders": {
+      "error": {"type": "String"},
+      "size": {"type": "String"},
+      "hash": {"type": "String"}
+    }
+  },
+  "compareBodyUnavailable": "Body unavailable: {error} · {size} · sha256 {hash}",
+  "selectForCompare": "Select for Compare",
+  "compareWithSelected": "Compare with Selected",
+  "clearCompareSelection": "Clear comparison selection",
+  "selectFirstExchangeForCompare": "Select an exchange with Select for Compare first",
+  "compareNeedsTwoExchanges": "Choose a different exchange for the second side",
+  "compareSideIsNoLongerAvailable": "One of the chosen exchanges is no longer available",
+  "compareNeedTwoRows": "Choose exactly two exchanges to compare",
+  "@compareSelectedFor": {
+    "placeholders": {
+      "label": {"type": "String"}
+    }
+  },
+  "compareSelectedFor": "Selected for compare: {label}"
 }

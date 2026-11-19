@@ -37827,3 +37827,213 @@ func VariableUndefined() string { return In(i18n.Locale()).VariableUndefined() }
 func (msgs Messages) VariableUndefined() string {
 	return Catalog.Format(msgs.locale, "variableUndefined", nil)
 }
+
+// Compare says "Compare"
+// in the language the app shows.
+func Compare() string { return In(i18n.Locale()).Compare() }
+
+// Compare says "Compare"
+// in the language of msgs.
+func (msgs Messages) Compare() string {
+	return Catalog.Format(msgs.locale, "compare", nil)
+}
+
+// CompareExchanges says "Compare exchanges"
+// in the language the app shows.
+func CompareExchanges() string { return In(i18n.Locale()).CompareExchanges() }
+
+// CompareExchanges says "Compare exchanges"
+// in the language of msgs.
+func (msgs Messages) CompareExchanges() string {
+	return Catalog.Format(msgs.locale, "compareExchanges", nil)
+}
+
+// CompareReadingBodies says "Reading bounded bodies in the background…"
+// in the language the app shows.
+func CompareReadingBodies() string { return In(i18n.Locale()).CompareReadingBodies() }
+
+// CompareReadingBodies says "Reading bounded bodies in the background…"
+// in the language of msgs.
+func (msgs Messages) CompareReadingBodies() string {
+	return Catalog.Format(msgs.locale, "compareReadingBodies", nil)
+}
+
+// CompareReadOnlyNote says "Read-only · bodies limited to 8 MiB; binary and oversized bodies show a size and hash"
+// in the language the app shows.
+func CompareReadOnlyNote() string { return In(i18n.Locale()).CompareReadOnlyNote() }
+
+// CompareReadOnlyNote says "Read-only · bodies limited to 8 MiB; binary and oversized bodies show a size and hash"
+// in the language of msgs.
+func (msgs Messages) CompareReadOnlyNote() string {
+	return Catalog.Format(msgs.locale, "compareReadOnlyNote", nil)
+}
+
+// CompareNormalized says "Normalized"
+// in the language the app shows.
+func CompareNormalized() string { return In(i18n.Locale()).CompareNormalized() }
+
+// CompareNormalized says "Normalized"
+// in the language of msgs.
+func (msgs Messages) CompareNormalized() string {
+	return Catalog.Format(msgs.locale, "compareNormalized", nil)
+}
+
+// CompareNormalizedTip says "Sorted headers and JSON keys for the diff"
+// in the language the app shows.
+func CompareNormalizedTip() string { return In(i18n.Locale()).CompareNormalizedTip() }
+
+// CompareNormalizedTip says "Sorted headers and JSON keys for the diff"
+// in the language of msgs.
+func (msgs Messages) CompareNormalizedTip() string {
+	return Catalog.Format(msgs.locale, "compareNormalizedTip", nil)
+}
+
+// CompareRaw says "Raw"
+// in the language the app shows.
+func CompareRaw() string { return In(i18n.Locale()).CompareRaw() }
+
+// CompareRaw says "Raw"
+// in the language of msgs.
+func (msgs Messages) CompareRaw() string {
+	return Catalog.Format(msgs.locale, "compareRaw", nil)
+}
+
+// CompareRawTip says "Headers and body as they were recorded"
+// in the language the app shows.
+func CompareRawTip() string { return In(i18n.Locale()).CompareRawTip() }
+
+// CompareRawTip says "Headers and body as they were recorded"
+// in the language of msgs.
+func (msgs Messages) CompareRawTip() string {
+	return Catalog.Format(msgs.locale, "compareRawTip", nil)
+}
+
+// CompareExchangeLine says "{side} · {label} · {method} {url} · {status}"
+// in the language the app shows.
+func CompareExchangeLine(side string, label string, method string, url string, status string) string {
+	return In(i18n.Locale()).CompareExchangeLine(side, label, method, url, status)
+}
+
+// CompareExchangeLine says "{side} · {label} · {method} {url} · {status}"
+// in the language of msgs.
+func (msgs Messages) CompareExchangeLine(side string, label string, method string, url string, status string) string {
+	return Catalog.Format(msgs.locale, "compareExchangeLine", map[string]any{"side": side, "label": label, "method": method, "url": url, "status": status})
+}
+
+// CompareBinaryBody says "Binary body · {size} · sha256 {hash}"
+// in the language the app shows.
+func CompareBinaryBody(size string, hash string) string {
+	return In(i18n.Locale()).CompareBinaryBody(size, hash)
+}
+
+// CompareBinaryBody says "Binary body · {size} · sha256 {hash}"
+// in the language of msgs.
+func (msgs Messages) CompareBinaryBody(size string, hash string) string {
+	return Catalog.Format(msgs.locale, "compareBinaryBody", map[string]any{"size": size, "hash": hash})
+}
+
+// CompareLargeBody says "Above the display limit · {size} · sha256 {hash}"
+// in the language the app shows.
+func CompareLargeBody(size string, hash string) string {
+	return In(i18n.Locale()).CompareLargeBody(size, hash)
+}
+
+// CompareLargeBody says "Above the display limit · {size} · sha256 {hash}"
+// in the language of msgs.
+func (msgs Messages) CompareLargeBody(size string, hash string) string {
+	return Catalog.Format(msgs.locale, "compareLargeBody", map[string]any{"size": size, "hash": hash})
+}
+
+// CompareBodyUnavailable says "Body unavailable: {error} · {size} · sha256 {hash}"
+// in the language the app shows.
+func CompareBodyUnavailable(error string, size string, hash string) string {
+	return In(i18n.Locale()).CompareBodyUnavailable(error, size, hash)
+}
+
+// CompareBodyUnavailable says "Body unavailable: {error} · {size} · sha256 {hash}"
+// in the language of msgs.
+func (msgs Messages) CompareBodyUnavailable(error string, size string, hash string) string {
+	return Catalog.Format(msgs.locale, "compareBodyUnavailable", map[string]any{"error": error, "size": size, "hash": hash})
+}
+
+// SelectForCompare says "Select for Compare"
+// in the language the app shows.
+func SelectForCompare() string { return In(i18n.Locale()).SelectForCompare() }
+
+// SelectForCompare says "Select for Compare"
+// in the language of msgs.
+func (msgs Messages) SelectForCompare() string {
+	return Catalog.Format(msgs.locale, "selectForCompare", nil)
+}
+
+// CompareWithSelected says "Compare with Selected"
+// in the language the app shows.
+func CompareWithSelected() string { return In(i18n.Locale()).CompareWithSelected() }
+
+// CompareWithSelected says "Compare with Selected"
+// in the language of msgs.
+func (msgs Messages) CompareWithSelected() string {
+	return Catalog.Format(msgs.locale, "compareWithSelected", nil)
+}
+
+// ClearCompareSelection says "Clear comparison selection"
+// in the language the app shows.
+func ClearCompareSelection() string { return In(i18n.Locale()).ClearCompareSelection() }
+
+// ClearCompareSelection says "Clear comparison selection"
+// in the language of msgs.
+func (msgs Messages) ClearCompareSelection() string {
+	return Catalog.Format(msgs.locale, "clearCompareSelection", nil)
+}
+
+// SelectFirstExchangeForCompare says "Select an exchange with Select for Compare first"
+// in the language the app shows.
+func SelectFirstExchangeForCompare() string { return In(i18n.Locale()).SelectFirstExchangeForCompare() }
+
+// SelectFirstExchangeForCompare says "Select an exchange with Select for Compare first"
+// in the language of msgs.
+func (msgs Messages) SelectFirstExchangeForCompare() string {
+	return Catalog.Format(msgs.locale, "selectFirstExchangeForCompare", nil)
+}
+
+// CompareNeedsTwoExchanges says "Choose a different exchange for the second side"
+// in the language the app shows.
+func CompareNeedsTwoExchanges() string { return In(i18n.Locale()).CompareNeedsTwoExchanges() }
+
+// CompareNeedsTwoExchanges says "Choose a different exchange for the second side"
+// in the language of msgs.
+func (msgs Messages) CompareNeedsTwoExchanges() string {
+	return Catalog.Format(msgs.locale, "compareNeedsTwoExchanges", nil)
+}
+
+// CompareSideIsNoLongerAvailable says "One of the chosen exchanges is no longer available"
+// in the language the app shows.
+func CompareSideIsNoLongerAvailable() string {
+	return In(i18n.Locale()).CompareSideIsNoLongerAvailable()
+}
+
+// CompareSideIsNoLongerAvailable says "One of the chosen exchanges is no longer available"
+// in the language of msgs.
+func (msgs Messages) CompareSideIsNoLongerAvailable() string {
+	return Catalog.Format(msgs.locale, "compareSideIsNoLongerAvailable", nil)
+}
+
+// CompareNeedTwoRows says "Choose exactly two exchanges to compare"
+// in the language the app shows.
+func CompareNeedTwoRows() string { return In(i18n.Locale()).CompareNeedTwoRows() }
+
+// CompareNeedTwoRows says "Choose exactly two exchanges to compare"
+// in the language of msgs.
+func (msgs Messages) CompareNeedTwoRows() string {
+	return Catalog.Format(msgs.locale, "compareNeedTwoRows", nil)
+}
+
+// CompareSelectedFor says "Selected for compare: {label}"
+// in the language the app shows.
+func CompareSelectedFor(label string) string { return In(i18n.Locale()).CompareSelectedFor(label) }
+
+// CompareSelectedFor says "Selected for compare: {label}"
+// in the language of msgs.
+func (msgs Messages) CompareSelectedFor(label string) string {
+	return Catalog.Format(msgs.locale, "compareSelectedFor", map[string]any{"label": label})
+}

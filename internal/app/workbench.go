@@ -150,6 +150,12 @@ func (a *app) desktopContent(c *ui.Context) {
 						if a.chosen.Len() > 1 {
 							ui.Row(c).Height(uikit.HeightControl).Padding(0, c.Theme().Space(uikit.SpaceM)).Gap(c.Theme().Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 								uikit.Caption(c, locales.SelectedCount(a.chosen.Len())).FontWeight(500).Grow(1)
+								if a.chosen.Len() == 2 {
+									compare := pick(a.actions(c), "compare.two")
+									if uikit.SecondaryButton(c, locales.Compare()).Disabled(!compare.enabled).Clicked() {
+										compare.run()
+									}
+								}
 								replay := pick(a.actions(c), "flow.replay")
 								if uikit.PrimaryButton(c, locales.ReplaySelected()).Disabled(!replay.enabled).Clicked() {
 									replay.run()
