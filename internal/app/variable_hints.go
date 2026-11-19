@@ -9,6 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/fuzzy"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui/editor"
@@ -314,24 +315,89 @@ func variableMarksWith(set variableSet, text string) []variableMark {
 	return marks
 }
 
-// variablePreview is the text an editor hover shows for one reference.
+// variablePreview is the text a hover shows for one reference. It reuses the
+// same resolution the Problems panel and quick fixes use: a defined name gets
+// its effective, masked value and its scope; an undefined one gets the fixes
+// PR #39 offers in the panel, even when no marker has been produced yet.
 func (a *app) variablePreview(collection, name string) string {
-	hint, ok := a.variableHint(collection, name)
+	set := a.variableHintSet(collection)
+	hint, ok := set.hint(name)
 	if !ok {
-		return fmt.Sprintf("%s\nUndefined variable · it stays literal when sent", name)
+		text := fmt.Sprintf("%s\n%s\n%s", name, locales.ProblemUnresolvedVariable(name), locales.StaysLiteralWhenSent())
+		if line := a.variableQuickFixLine(set, collection, name); line != "" {
+			text += "\n" + line
+		}
+		return text
 	}
 	return fmt.Sprintf("%s\n%s\n%s", name, hint.source(), hint.display())
+}
+
+// variableQuickFixLine is the hover's text for the PR #39 actions. Both the
+// editor card and the tooltip of a native field use it, so neither shows a
+// different set of fixes from the Problems panel.
+func (a *app) variableQuickFixLine(set variableSet, collection, name string) string {
+	if _, defined := set.hint(name); defined {
+		return ""
+	}
+	var labels []string
+	for _, proposal := range a.variableFixProposals(set, collection, name) {
+		labels = append(labels, proposal.label)
+	}
+	if len(labels) == 0 {
+		return ""
+	}
+	return locales.VariableQuickFixes(strings.Join(labels, " · "))
+}
+
+// variableCompletionLimit matches the editor's own maximum list length; the
+// "$" prefix lists every dynamic name, not just the first page.
+const variableCompletionLimit = 200
+
+// rankVariableHints orders the completion list by the same fuzzy scorer the
+// app's palettes use, then by scope and name for ties. A lateral match such as
+// "ten" still finds content_type, but the contiguous prefix of tenant wins;
+// scope alone must not decide between a near and a far name.
+func rankVariableHints(prefix string, hints []variableHint, limit int) []variableHint {
+	if limit < 0 {
+		limit = 0
+	}
+	if prefix == "" {
+		return append([]variableHint(nil), hints[:min(limit, len(hints))]...)
+	}
+	lower := strings.ToLower(prefix)
+	type ranked struct {
+		hint  variableHint
+		score int
+	}
+	var matches []ranked
+	for _, hint := range hints {
+		score := fuzzy.ScoreFuzzy(hint.Name, prefix, lower, true).Score
+		if score > 0 {
+			matches = append(matches, ranked{hint, score})
+		}
+	}
+	slices.SortStableFunc(matches, func(x, y ranked) int {
+		return cmp.Or(cmp.Compare(y.score, x.score),
+			variableScopeRank(x.hint)-variableScopeRank(y.hint),
+			strings.Compare(x.hint.Name, y.hint.Name))
+	})
+	out := make([]variableHint, 0, min(limit, len(matches)))
+	for _, match := range matches[:min(limit, len(matches))] {
+		out = append(out, match.hint)
+	}
+	return out
 }
 
 // variableCompletionItems are the editor's completions for the typed prefix.
 // suffix is "}}" unless the text after the caret already closes the braces.
 func (a *app) variableCompletionItems(collection, prefix, suffix string) []editor.Completion {
+	set := a.variableHintSet(collection)
 	var items []editor.Completion
-	for _, hint := range a.variableHints(collection) {
-		if prefix != "" && !strings.HasPrefix(strings.ToLower(hint.Name), strings.ToLower(prefix)) {
-			continue
-		}
-		items = append(items, editor.Completion{Label: hint.Name, Detail: hint.source(), Insert: hint.Name + suffix, Kind: editor.CompletionVariable})
+	for _, hint := range rankVariableHints(prefix, set.list, variableCompletionLimit) {
+		items = append(items, editor.Completion{
+			Label: hint.Name, Detail: hint.source(), Insert: hint.Name + suffix,
+			Kind: editor.CompletionVariable,
+		})
 	}
 	return items
 }

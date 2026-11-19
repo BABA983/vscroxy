@@ -954,7 +954,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 				}
 				input.TextRanges(ui.TextRange{Start: mark.Start, End: mark.End, Color: color, Weight: 500})
 			}
-			a.variableTooltip(c, input, marks, false)
+			a.variableTooltip(c, input, marks, false, set, d.composeCollection)
 			a.syncVariableCompletion(input, "URL", &d.composeURL)
 			a.variablePopover(c, input, "URL", &d.composeURL, set)
 			spans := urlSpans(d.composeURL, t, marks)

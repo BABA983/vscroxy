@@ -3894,5 +3894,15 @@
       }
     }
   },
-  "changeToVariable": "改为“{name}”"
+  "changeToVariable": "改为“{name}”",
+  "@variableQuickFixes": {
+    "placeholders": {
+      "fixes": {
+        "type": "String"
+      }
+    }
+  },
+  "variableQuickFixes": "快速修复：{fixes}",
+  "variableQuickFixesTitle": "快速修复",
+  "variableUndefined": "未定义"
 }

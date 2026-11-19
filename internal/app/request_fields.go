@@ -406,6 +406,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			d.bulkFor = d.composeHeaders
 		}
 		a.installUnicodeHover(d.bulkEditor)
+		a.wireVariableEditor(d.bulkEditor, d.composeCollection)
 		a.appendUnicodeDiagnostics(d.bulkEditor, d.composeHeaders)
 		requestCodeEditor(c, d.bulkEditor, d.unicodeHandle("header-bulk"))
 		a.bindQuickFixShortcut(c, d.unicodeHandle("header-bulk"))
@@ -922,12 +923,14 @@ func (a *app) requestScriptText(c *ui.Context, d *requestDocument) {
 	if d.scriptTab == 1 {
 		authoredText(c, &d.composePost, &d.postEditor, &d.postFor, locales.PostResponseScript(), "JavaScript", d.unicodeHandle(problemFieldPost))
 		a.installUnicodeHover(d.postEditor)
+		a.wireVariableEditor(d.postEditor, d.composeCollection)
 		a.bindQuickFixShortcut(c, d.unicodeHandle(problemFieldPost))
 		a.trackEditorQuickFix(d, problemFieldPost, d.postEditor)
 		a.quickFixHandleMenu(c, d.unicodeHandle(problemFieldPost), d.postEditor)
 	} else {
 		authoredText(c, &d.composePre, &d.preEditor, &d.preFor, locales.PreRequestScript(), "JavaScript", d.unicodeHandle(problemFieldPre))
 		a.installUnicodeHover(d.preEditor)
+		a.wireVariableEditor(d.preEditor, d.composeCollection)
 		a.bindQuickFixShortcut(c, d.unicodeHandle(problemFieldPre))
 		a.trackEditorQuickFix(d, problemFieldPre, d.preEditor)
 		a.quickFixHandleMenu(c, d.unicodeHandle(problemFieldPre), d.preEditor)

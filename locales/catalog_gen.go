@@ -37797,3 +37797,33 @@ func ChangeToVariable(name string) string { return In(i18n.Locale()).ChangeToVar
 func (msgs Messages) ChangeToVariable(name string) string {
 	return Catalog.Format(msgs.locale, "changeToVariable", map[string]any{"name": name})
 }
+
+// VariableQuickFixes says "Quick fixes: {fixes}"
+// in the language the app shows.
+func VariableQuickFixes(fixes string) string { return In(i18n.Locale()).VariableQuickFixes(fixes) }
+
+// VariableQuickFixes says "Quick fixes: {fixes}"
+// in the language of msgs.
+func (msgs Messages) VariableQuickFixes(fixes string) string {
+	return Catalog.Format(msgs.locale, "variableQuickFixes", map[string]any{"fixes": fixes})
+}
+
+// VariableQuickFixesTitle says "Quick fixes"
+// in the language the app shows.
+func VariableQuickFixesTitle() string { return In(i18n.Locale()).VariableQuickFixesTitle() }
+
+// VariableQuickFixesTitle says "Quick fixes"
+// in the language of msgs.
+func (msgs Messages) VariableQuickFixesTitle() string {
+	return Catalog.Format(msgs.locale, "variableQuickFixesTitle", nil)
+}
+
+// VariableUndefined says "undefined"
+// in the language the app shows.
+func VariableUndefined() string { return In(i18n.Locale()).VariableUndefined() }
+
+// VariableUndefined says "undefined"
+// in the language of msgs.
+func (msgs Messages) VariableUndefined() string {
+	return Catalog.Format(msgs.locale, "variableUndefined", nil)
+}
