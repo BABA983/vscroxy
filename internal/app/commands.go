@@ -25,6 +25,9 @@ type commandContext struct {
 	editing    bool
 	tab        bool
 	proxyReady bool
+	// compareTarget is the exchange a global compare command acts on: the
+	// captured row in focus. Row menus pass their own target directly.
+	compareTarget compareTarget
 	// Derived labels and targets are read from the snapshot, not recomputed
 	// by each menu, button and shortcut subscription in the same frame.
 	searchLabel string
@@ -69,6 +72,9 @@ func commandSnapshot(a *app, c *ui.Context, target *requestDocument) *commandCon
 		primaryLabel:   locales.FocusRequestList(),
 		recordingLabel: locales.PauseCapture(),
 		breakLabel:     a.breakActionLabel(),
+	}
+	if current {
+		x.compareTarget = flowTarget(f)
 	}
 	if w.focused {
 		x.focusLabel = locales.BackToList()
@@ -346,6 +352,31 @@ func registerGlobalCommands() *commandRegistry {
 		d := x.d
 		return x.editing && d.source != nil && d.response != nil && !d.composeWaiting
 	}, locales.SendDraftBeforeCompare()).keys(ui.Cmd|ui.Shift, ui.KeyD)
+	// The two-step compare follows VS Code's compareActions: one side is
+	// held, then a second target opens the diff. The two-row form skips the
+	// held side when both rows were chosen together.
+	r.add("compare.select", locales.SelectForCompare(), func(x *commandContext) {
+		x.a.selectForCompare(x.compareTarget)
+	}).when(func(x *commandContext) bool {
+		return x.capturing && x.current && x.compareTarget.valid()
+	}, locales.SelectCapturedRequestsFirst())
+	r.add("compare.with-selected", locales.CompareWithSelected(), func(x *commandContext) {
+		x.a.compareWithSelected(x.compareTarget)
+	}).when(func(x *commandContext) bool {
+		return x.capturing && x.current && x.compareTarget.valid() &&
+			x.a.compare.selected.valid() && !x.a.compare.selected.same(x.compareTarget)
+	}, locales.SelectFirstExchangeForCompare())
+	r.add("compare.two", locales.Compare(), func(x *commandContext) {
+		selected := x.a.selectedFlows()
+		if len(selected) == 2 {
+			x.a.compareTwo(flowTarget(selected[0]), flowTarget(selected[1]))
+		}
+	}).when(func(x *commandContext) bool {
+		return x.capturing && len(x.a.selectedFlows()) == 2
+	}, locales.CompareNeedTwoRows())
+	r.add("compare.clear-selection", locales.ClearCompareSelection(), func(x *commandContext) {
+		x.a.compare.selected = compareTarget{}
+	}).when(func(x *commandContext) bool { return x.a.compare.selected.valid() }, "")
 	r.add("request.close", locales.CloseRequest(), func(x *commandContext) { x.a.requestClose(x.d) }).
 		when(func(x *commandContext) bool { return x.tab && !x.d.composeWaiting }, locales.OpenARequestDraftWait()).keys(ui.Cmd, ui.KeyW)
 	r.add("request.close-others", locales.CloseOtherRequests(), func(x *commandContext) { x.a.closeOtherDocuments(x.d) }).

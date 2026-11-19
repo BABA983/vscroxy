@@ -193,7 +193,10 @@ type app struct {
 	apiCollection   string
 
 	// chosen are the rows chosen for a bulk action, by flow id.
-	chosen           ui.Selection[int]
+	chosen ui.Selection[int]
+	// compare holds the two-command selection and the read-only diff view,
+	// independent of the traffic table's own selection and diffs.
+	compare          compareState
 	overviewScope    overviewScope
 	overviewCache    overviewCache
 	deviceAskMu      sync.Mutex
@@ -1939,6 +1942,7 @@ func (a *app) view(c *ui.Context) {
 	a.applyPendingMove()
 	a.drain()
 	a.drainSearch()
+	a.drainCompare()
 	a.syncProblems()
 	if !a.problems.fixMenuOpen {
 		// The focused field records the caret target as the view builds.
@@ -2153,6 +2157,7 @@ func (a *app) view(c *ui.Context) {
 	a.mcpConsentModal(c, t)
 	a.runnerModal(c, t)
 	a.testDiffModal(c, t)
+	a.compareModal(c, t)
 	a.loadRunnerModal(c, t)
 	a.cookiesModal(c, t)
 	a.deviceAskModal(c, t)
@@ -2435,9 +2440,20 @@ func (a *app) clearCaptured() {
 	a.mu.Lock()
 	a.pending = nil
 	a.mu.Unlock()
+	// DeleteFunc compacts the backing array, so collect the removed IDs before
+	// it runs; iterating the slice afterwards would visit the survivors.
+	removed := make([]int, 0, len(a.flows))
+	for _, f := range a.flows {
+		if !f.pinned {
+			removed = append(removed, f.id)
+		}
+	}
 	a.flows = slices.DeleteFunc(a.flows, func(f flow) bool { return !f.pinned })
 	a.frames = pruneMessages(a.frames, a.flows)
 	a.chosen.Clear()
+	for _, id := range removed {
+		a.clearCompareSelection(compareTarget{kind: "flow", id: id})
+	}
 	a.totalBytes = 0
 	for _, f := range a.flows {
 		a.totalBytes += int64(f.bytes)
@@ -4058,9 +4074,20 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 func (a *app) flowActions(c *ui.Context, f flow) []action {
 	services := c.Services()
 	requests := a.requestActions(c, f, true)
+	target := flowTarget(f)
+	held := a.compare.selected
 	actions := []action{
 		pick(requests, "flow.replay").as(locales.Replay()).in("open"),
 		pick(requests, "flow.edit").in("open"),
+		do("compare.select", locales.SelectForCompare(), func() { a.selectForCompare(target) }).
+			when(target.valid(), locales.SelectCapturedRequestsFirst()).in("open"),
+		do("compare.with-selected", locales.CompareWithSelected(), func() { a.compareWithSelected(target) }).
+			when(target.valid() && held.valid() && !held.same(target), locales.SelectFirstExchangeForCompare()).in("open"),
+	}
+	if held.valid() {
+		actions = append(actions, do("compare.clear-selection", locales.ClearCompareSelection(), func() {
+			a.compare.selected = compareTarget{}
+		}).in("open"))
 	}
 	if f.kind == "" && f.url != "" {
 		actions = append(actions, do("flow.open-browser", locales.OpenInBrowser(), func() { services.OpenURL(f.url) }).in("open"))
@@ -4112,11 +4139,17 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 		submenu(locales.HttpsDecryption(), append(a.appInspectionActions(capture.SSLApp{Name: f.process, Path: f.processPath}),
 			do("https.rules", locales.ViewHttpsRules(), func() { a.sslOpen = true }))...).in("host"),
 	)
-	var saveChosen action
+	var saveChosen, compareChosen action
 	if chosen := a.selectedFlows(); len(chosen) > 1 {
 		saveChosen = do("flow.save-chosen", locales.SaveRequestsEllipsis(len(chosen)), func() { a.openCollectionSave(chosen) }).in("save")
 	}
+	if chosen := a.selectedFlows(); len(chosen) == 2 {
+		compareChosen = do("compare.two", locales.Compare(), func() {
+			a.compareTwo(flowTarget(chosen[0]), flowTarget(chosen[1]))
+		}).in("open")
+	}
 	return append(actions,
+		compareChosen,
 		do("flow.pin", cmp.Or(pinLabel(f), locales.Pin()), func() { a.togglePin(f) }).in("keep"),
 		do("flow.mark", locales.Mark(), func() { a.openMark(f) }).in("keep"),
 		submenu(locales.FilterCaptures(), filters...).in("keep"),

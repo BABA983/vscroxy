@@ -346,7 +346,8 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					uikit.Tip(c, ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
 						uikit.Caption(c, label).FontFeatures("tnum").SingleLine()
 						uikit.Meta(c, r.Summary).SingleLine()
-					}), r.Draft.Method+" "+r.Draft.URL+"\n"+r.Summary)
+					}), r.Draft.Method+" "+r.Draft.URL+"\n"+r.Summary).
+						PopoverMenu(func(m *ui.Menu) { actionMenu(m, a.runCompareActions(runTarget(r))) })
 				}).FillWidth()
 				if selected >= 0 && selected < len(visible) && visible[selected].ID != s.picked {
 					s.pick(visible[selected].ID)
@@ -488,6 +489,9 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					s.picked = 0
 					s.left = 0
 					s.reader = nil
+					if a.compare.selected.kind == "run" {
+						a.compare.selected = compareTarget{}
+					}
 					s.clearing = false
 					s.persist()
 				}

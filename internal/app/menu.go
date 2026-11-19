@@ -72,6 +72,10 @@ func (a *app) menu() *mygo.Menu {
 		mygo.Separator(),
 		command("request.send", locales.SendRequest()),
 		command("request.compare-source", locales.CompareWithSource()),
+		mygo.Separator(),
+		command("compare.select", locales.SelectForCompare()),
+		command("compare.with-selected", locales.CompareWithSelected()),
+		command("compare.two", locales.Compare()),
 	}}, &mygo.MenuItem{Label: locales.View(), Submenu: []*mygo.MenuItem{
 		command("go.live", locales.LiveTraffic()),
 		command("go.collections", locales.Collections()),

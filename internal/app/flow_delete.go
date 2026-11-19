@@ -97,6 +97,9 @@ func (a *app) deleteFlows(flows []flow) {
 	for id := range ids {
 		a.chosen.Remove(id)
 	}
+	for _, f := range deletion.flows {
+		a.clearCompareSelection(flowTarget(f))
+	}
 	a.recount()
 	a.pickedID = nextID
 	a.applyFilter()
