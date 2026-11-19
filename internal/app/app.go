@@ -32,6 +32,7 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/lifecycle"
+	"github.com/baba983/vscroxy/internal/linkedmap"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/system"
@@ -112,7 +113,9 @@ type app struct {
 	// query/library/variables/history key. Repeated palette frames with an
 	// unchanged query are lookups, not rescans of the request library.
 	paletteAssets map[paletteAssetCacheKey]paletteAssetResult
-	renameOpen    bool
+	// fuzzyLists holds scored name-list hits by owner, query and generation.
+	fuzzyLists *linkedmap.LRUCache[fuzzyListKey, fuzzyListCacheValue]
+	renameOpen bool
 	// saveAfterRename makes the rename dialog Save to collection.
 	saveAfterRename bool
 	settingsOpen    bool
@@ -2582,11 +2585,12 @@ func (a *app) collectionsPane(c *ui.Context, t *ui.Theme) {
 			Margin(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
 		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 			a.collectionTree(c)
-			query := strings.ToLower(strings.TrimSpace(a.requestQuery))
-			for _, d := range a.apis {
-				if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
-					continue
-				}
+			query := strings.TrimSpace(a.requestQuery)
+			hits := a.fuzzyList(query, "collections-contracts", strconv.Itoa(len(a.apis))+":"+strconv.Itoa(a.requestGen), len(a.apis), func(i int) fuzzyListItem {
+				return fuzzyListItem{label: a.apis[i].title()}
+			}, false)
+			for _, hit := range hits {
+				d := a.apis[hit.index]
 				uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label(locales.ApiTitle(d.title())).Children(func() {
 					if d.dirty() {
 						ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label(locales.UnsavedApi())

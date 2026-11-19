@@ -353,13 +353,20 @@ func (a *app) querySuggestions(prefix string, asked bool) []querySuggestion {
 		if prefix == "" && !asked {
 			return nil
 		}
-		lower := strings.ToLower(prefix)
-		for _, k := range queryKeys {
-			if strings.HasPrefix(k.name, lower) {
-				out = append(out, querySuggestion{k.name + ":", queryKeyHint(k.name)})
-			}
+		// Suggestions are IntelliSense, not a tree find: VS Code's
+		// suggestModel.ts filters with fuzzyScore, so rank by the same
+		// quick-open scorer the palette uses (fuzzyScorer.ts).
+		keyHints := make([]string, len(queryKeys))
+		for i, k := range queryKeys {
+			keyHints[i] = k.name + ":" + queryKeyHint(k.name)
 		}
-		if strings.HasPrefix("slow", lower) && lower != "slow" {
+		for _, hit := range a.fuzzyList(prefix, "query-suggest-keys", strings.Join(keyHints, "\x00"), len(queryKeys), func(i int) fuzzyListItem {
+			return fuzzyListItem{label: queryKeys[i].name + ":", detail: queryKeyHint(queryKeys[i].name)}
+		}, true) {
+			k := queryKeys[hit.index]
+			out = append(out, querySuggestion{k.name + ":", queryKeyHint(k.name)})
+		}
+		if fuzzyTextMatches(prefix, "slow") && !strings.EqualFold(strings.Trim(prefix, `"`), "slow") {
 			out = append(out, querySuggestion{"slow", "1 s or longer"})
 		}
 		return out
@@ -388,19 +395,23 @@ func (a *app) querySuggestions(prefix string, asked bool) []querySuggestion {
 			values = append(values, querySuggestion{m, fmt.Sprint(seen[m])})
 		}
 	}
-	typed = strings.ToLower(strings.Trim(typed, `"`))
-	var later []querySuggestion
-	for _, v := range values {
-		switch l := strings.ToLower(v.text); {
-		case l == typed:
-			// Already written: a space or Enter takes it.
-		case strings.HasPrefix(l, typed):
-			out = append(out, querySuggestion{queryChip(key, v.text), v.hint})
-		case strings.Contains(l, typed):
-			later = append(later, querySuggestion{queryChip(key, v.text), v.hint})
-		}
+	typed = strings.Trim(typed, `"`)
+	names := make([]string, len(values))
+	for i, v := range values {
+		names[i] = v.text
 	}
-	return append(out, later...)
+	hits := a.fuzzyList(typed, "query-suggest-"+key, strings.Join(names, "\x00"), len(values), func(i int) fuzzyListItem {
+		return fuzzyListItem{label: values[i].text, detail: values[i].hint}
+	}, true)
+	for _, hit := range hits {
+		v := values[hit.index]
+		if strings.EqualFold(v.text, typed) {
+			// Already written: a space or Enter takes it.
+			continue
+		}
+		out = append(out, querySuggestion{queryChip(key, v.text), v.hint})
+	}
+	return out
 }
 
 // completeQuery writes text in place of the token holding caret, in runes,

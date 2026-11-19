@@ -4,10 +4,12 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/fuzzy"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
@@ -72,8 +74,26 @@ func branchArrow(c *ui.Context, open *bool) {
 
 // collectionTree uses full paths for identity and short names for presentation.
 // Search opens matching ancestors without rewriting the user's collapsed state.
+// VS Code's tree FindFilter (src/vs/base/browser/ui/tree/abstractTree.ts)
+// scores in place, so matching requests and folders stay in their path order
+// and only the label's matched runes are highlighted.
 func (a *app) collectionTree(c *ui.Context) {
-	query := strings.ToLower(strings.TrimSpace(a.requestQuery))
+	query := strings.TrimSpace(a.requestQuery)
+	source := strconv.Itoa(a.requestGen)
+	requests := a.fuzzyList(query, "collection-tree-request", source, len(a.requests), func(i int) fuzzyListItem {
+		r := a.requests[i]
+		return fuzzyListItem{label: r.Name, detail: r.Collection + " " + r.URL + " " + cmp.Or(r.Protocol, r.Method)}
+	}, false)
+	folders := a.fuzzyList(query, "collection-tree-folder", source, len(a.folders), func(i int) fuzzyListItem {
+		path := a.folders[i].Path
+		_, name, found := strings.CutLast(path, "/")
+		if !found {
+			name = path
+		}
+		return fuzzyListItem{label: name, detail: path}
+	}, false)
+	requestMatches := make(map[string][]fuzzy.Match, len(requests))
+	folderMatches := make(map[string][]fuzzy.Match, len(folders))
 	paths := map[string]bool{}
 	addPath := func(path string) {
 		for path != "" {
@@ -85,15 +105,14 @@ func (a *app) collectionTree(c *ui.Context) {
 			path = parent
 		}
 	}
-	for _, r := range a.requests {
-		if query == "" || strings.Contains(strings.ToLower(r.Collection+" "+r.Name+" "+r.URL+" "+cmp.Or(r.Protocol, r.Method)), query) {
-			addPath(r.Collection)
-		}
+	for _, hit := range requests {
+		requestMatches[a.requests[hit.index].key()] = hit.matches
+		addPath(a.requests[hit.index].Collection)
 	}
-	for _, f := range a.folders {
-		if query == "" || strings.Contains(strings.ToLower(f.Path), query) {
-			addPath(f.Path)
-		}
+	for _, hit := range folders {
+		path := a.folders[hit.index].Path
+		folderMatches[path] = hit.matches
+		addPath(path)
 	}
 	tree := ui.TreeBase(c)
 	var branch func(string, int)
@@ -139,7 +158,7 @@ func (a *app) collectionTree(c *ui.Context) {
 			row := treeRow(c, parts, depth).Label(locales.CollectionPath(path)).PopoverMenu(menu)
 			row.Children(func() {
 				branchArrow(c, open)
-				uikit.Body(c, name).SingleLine().Grow(1)
+				fuzzyListBody(c, name, folderMatches[path]).SingleLine().Grow(1)
 				action := uikit.MoreMenu(c, locales.CollectionActionsPrefix(path), menu).
 					Absolute().Right(uikit.RowActionInset).Top(uikit.RowActionInset).Background(uikit.Colors(c.Theme()).Window)
 				if !row.Hovered() && !row.FocusWithin() {
@@ -149,8 +168,9 @@ func (a *app) collectionTree(c *ui.Context) {
 			parts.Group(func() { branch(path, depth+1) })
 		}
 		for _, r := range a.requests {
+			requestMatch, shown := requestMatches[r.key()]
 			method := cmp.Or(r.Protocol, r.Method)
-			if r.Collection != parent || query != "" && !strings.Contains(strings.ToLower(r.Collection+" "+r.Name+" "+r.URL+" "+method), query) {
+			if r.Collection != parent || !shown {
 				continue
 			}
 			menu := func(m *ui.Menu) {
@@ -180,7 +200,7 @@ func (a *app) collectionTree(c *ui.Context) {
 				ui.Box(c).Size(uikit.IconLarge, uikit.IconLarge).Shrink(0)
 				ui.Row(c).Grow(1).FillHeight().Gap(c.Theme().Space(uikit.SpaceM)).AlignItems(ui.Center).Label(method + "  " + r.Name).Children(func() {
 					methodCell(c, method, a.treeMethodSlot())
-					uikit.Body(c, r.Name).SingleLine().Grow(1)
+					fuzzyListBody(c, r.Name, requestMatch).SingleLine().Grow(1)
 					if edited {
 						unsavedDot(c)
 					}
@@ -220,11 +240,19 @@ const unsavedGroup = "\x00unsaved"
 // collections: with one request on screen at a time, this is where a new
 // one waits while another is shown.
 func (a *app) unsavedRequests(c *ui.Context, tree ui.TreeParts, query string) {
-	var unsaved []*requestDocument
-	for _, d := range a.documents {
-		if d.savedKey == "" && (query == "" || strings.Contains(strings.ToLower(d.title()+" "+d.composeURL+" "+cmp.Or(d.protocol, d.composeMethod)), query)) {
-			unsaved = append(unsaved, d)
+	hits := a.fuzzyList(query, "collection-tree-unsaved", strconv.Itoa(len(a.documents))+":"+strconv.Itoa(a.requestGen), len(a.documents), func(i int) fuzzyListItem {
+		d := a.documents[i]
+		return fuzzyListItem{label: d.title(), detail: d.composeURL + " " + cmp.Or(d.protocol, d.composeMethod)}
+	}, false)
+	unsaved := make([]*requestDocument, 0, len(hits))
+	matches := make(map[*requestDocument][]fuzzy.Match, len(hits))
+	for _, hit := range hits {
+		d := a.documents[hit.index]
+		if d.savedKey != "" {
+			continue
 		}
+		unsaved = append(unsaved, d)
+		matches[d] = hit.matches
 	}
 	if len(unsaved) == 0 {
 		return
@@ -249,7 +277,7 @@ func (a *app) unsavedRequests(c *ui.Context, tree ui.TreeParts, query string) {
 			}
 			item.Children(func() {
 				methodCell(c, method, a.treeMethodSlot())
-				uikit.Body(c, d.title()).SingleLine().Grow(1)
+				fuzzyListBody(c, d.title(), matches[d]).SingleLine().Grow(1)
 			})
 		}
 	})

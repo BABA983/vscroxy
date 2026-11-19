@@ -51,7 +51,7 @@ func NewFuzzyScorerCache() FuzzyScorerCache {
 
 // ScoreItemFuzzy corresponds to scoreItemFuzzy. It returns a pointer so a
 // cache hit has the same identity as VS Code's returned cached object.
-func ScoreItemFuzzy[T any](item T, query IPreparedQuery, allowNonContiguousMatches bool, accessor IItemAccessor[T], cache FuzzyScorerCache) *IItemScore {
+func ScoreItemFuzzy[T any](item T, query IPreparedQuery, allowNonContiguousMatches bool, accessor IItemAccessor[T], cache FuzzyScorerCache, scratch ...*ScoreScratch) *IItemScore {
 	if isNil(item) || query.Normalized == "" {
 		return noItemScore()
 	}
@@ -69,7 +69,11 @@ func ScoreItemFuzzy[T any](item T, query IPreparedQuery, allowNonContiguousMatch
 	if cached, ok := cache[key]; ok {
 		return cached
 	}
-	score := doScoreItemFuzzy(label, description, hasDescription, path, hasPath, query, allowNonContiguousMatches)
+	var work *ScoreScratch
+	if len(scratch) > 0 {
+		work = scratch[0]
+	}
+	score := doScoreItemFuzzy(label, description, hasDescription, path, hasPath, query, allowNonContiguousMatches, work)
 	cache[key] = score
 	return score
 }
@@ -190,7 +194,7 @@ func isNil[T any](item T) bool {
 	}
 }
 
-func doScoreItemFuzzy(label, description string, hasDescription bool, path string, hasPath bool, query IPreparedQuery, allow bool) *IItemScore {
+func doScoreItemFuzzy(label, description string, hasDescription bool, path string, hasPath bool, query IPreparedQuery, allow bool, scratch *ScoreScratch) *IItemScore {
 	preferLabelMatches := !hasPath || !query.ContainsPathSeparator
 
 	// Identity matches on the full path rank highest.
@@ -207,17 +211,17 @@ func doScoreItemFuzzy(label, description string, hasDescription bool, path strin
 	}
 
 	if len(query.Values) > 1 {
-		return doScoreItemFuzzyMultiple(label, description, hasDescription, path, hasPath, query.Values, preferLabelMatches, allow)
+		return doScoreItemFuzzyMultiple(label, description, hasDescription, path, hasPath, query.Values, preferLabelMatches, allow, scratch)
 	}
-	return doScoreItemFuzzySingle(label, description, hasDescription, path, hasPath, query.IPreparedQueryPiece, preferLabelMatches, allow)
+	return doScoreItemFuzzySingle(label, description, hasDescription, path, hasPath, query.IPreparedQueryPiece, preferLabelMatches, allow, scratch)
 }
 
-func doScoreItemFuzzyMultiple(label, description string, hasDescription bool, path string, hasPath bool, query []IPreparedQueryPiece, preferLabelMatches, allow bool) *IItemScore {
+func doScoreItemFuzzyMultiple(label, description string, hasDescription bool, path string, hasPath bool, query []IPreparedQueryPiece, preferLabelMatches, allow bool, scratch *ScoreScratch) *IItemScore {
 	totalScore := 0
 	totalLabelMatches := make([]Match, 0)
 	totalDescriptionMatches := make([]Match, 0)
 	for _, piece := range query {
-		result := doScoreItemFuzzySingle(label, description, hasDescription, path, hasPath, piece, preferLabelMatches, allow)
+		result := doScoreItemFuzzySingle(label, description, hasDescription, path, hasPath, piece, preferLabelMatches, allow, scratch)
 		if result.Score == 0 {
 			return noItemScore()
 		}
@@ -232,9 +236,9 @@ func doScoreItemFuzzyMultiple(label, description string, hasDescription bool, pa
 	}
 }
 
-func doScoreItemFuzzySingle(label, description string, hasDescription bool, path string, hasPath bool, query IPreparedQueryPiece, preferLabelMatches, allow bool) *IItemScore {
+func doScoreItemFuzzySingle(label, description string, hasDescription bool, path string, hasPath bool, query IPreparedQueryPiece, preferLabelMatches, allow bool, scratch *ScoreScratch) *IItemScore {
 	if preferLabelMatches || !hasDescription {
-		labelResult := ScoreFuzzy(label, query.Normalized, query.NormalizedLowercase, allow && !query.ExpectContiguousMatch)
+		labelResult := ScoreFuzzyWithScratch(label, query.Normalized, query.NormalizedLowercase, allow && !query.ExpectContiguousMatch, scratch)
 		if labelResult.Score != 0 {
 			baseScore := labelScoreThreshold
 			labelMatches := CreateMatches(labelResult.Matches)
@@ -255,7 +259,7 @@ func doScoreItemFuzzySingle(label, description string, hasDescription bool, path
 		}
 		descriptionPrefixLength := runeLen(descriptionPrefix)
 		descriptionAndLabel := descriptionPrefix + label
-		result := ScoreFuzzy(descriptionAndLabel, query.Normalized, query.NormalizedLowercase, allow && !query.ExpectContiguousMatch)
+		result := ScoreFuzzyWithScratch(descriptionAndLabel, query.Normalized, query.NormalizedLowercase, allow && !query.ExpectContiguousMatch, scratch)
 		if result.Score != 0 {
 			labelMatches := make([]Match, 0)
 			descriptionMatches := make([]Match, 0)
