@@ -113,7 +113,8 @@ func (a *app) deleteFlows(flows []flow) {
 	// later restores these rows and not a more recent deletion.
 	id := deletion.id
 	a.notify(notice{level: noticeSuccess, text: locales.DeletedRequests(len(deletion.flows)), action: locales.Undo(),
-		run: func() { a.undoDeletion(id) }})
+		valid: func() bool { return a.hasDeletion(id) },
+		run:   func() { a.undoDeletion(id) }})
 }
 
 // undoDelete restores the most recent deletion, as Cmd-Z does.
@@ -142,6 +143,15 @@ func (a *app) undoDeletion(id uint64) {
 	a.pickedID = d.flows[0].id
 	a.applyFilter()
 	a.choosePicked()
+}
+
+// hasDeletion says whether this undo is still possible. A notice keeps its
+// action only while its deletion is on the stack; replacing the session clears
+// that stack, so the action hides instead of inserting old rows into it.
+func (a *app) hasDeletion(id uint64) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.ContainsFunc(a.deletions, func(d flowDeletion) bool { return d.id == id })
 }
 
 // flowInsertAt places a restored row among the rows still here, using the

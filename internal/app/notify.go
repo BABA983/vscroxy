@@ -38,6 +38,9 @@ type notice struct {
 	// acting on that did not just happen, such as an available update.
 	sticky bool
 	run    func() // runs on the UI thread
+	// valid says whether the action still has a target. A notice whose
+	// target went away stays in the history, but its action is hidden.
+	valid func() bool
 	// spent is set once the action has been used, in a toast or in the
 	// center: Undo and Reload are one-shot and must not run a second time.
 	spent bool

@@ -243,7 +243,7 @@ func (a *app) noticeRow(c *ui.Context, t *ui.Theme, center *noticeCenter, n noti
 				uikit.Body(c, n.detail).FillWidth().MinWidth(0).Selectable()
 			}
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
-				if n.action != "" && n.run != nil && !n.spent {
+				if n.action != "" && n.run != nil && !n.spent && (n.valid == nil || n.valid()) {
 					uikit.SecondaryButton(c, n.action).OnClick(func() { a.notificationAction(n.id) })
 				}
 				ui.Spacer(c)

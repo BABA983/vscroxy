@@ -104,6 +104,32 @@ func TestStaleDeleteUndoRestoresItsOwnRows(t *testing.T) {
 	if got := flowIDs(a); !slices.Equal(got, []int{1, 2, 3}) {
 		t.Fatalf("flows after undoing B = %v, want all three", got)
 	}
+
+	// A session replace discards the old capture's undo stack. The notice
+	// stays, but its action no-ops and is no longer offered in the list.
+	a.clearNotifications()
+	a.deleteFlows([]flow{a.flows[0]})
+	a.replaceSession([]flow{{id: 9, method: "GET", url: "https://session-b.example/test"}}, nil)
+	if len(a.deletions) != 0 {
+		t.Fatalf("deletions after a session replace = %d, want none", len(a.deletions))
+	}
+	a.notices[0].run()
+	if got := flowIDs(a); !slices.Equal(got, []int{9}) {
+		t.Fatalf("flows after a stale session undo = %v, want only session B", got)
+	}
+	a.openNotifications()
+	tt := notificationTester(t, a, false)
+	row, ok := tt.AccessByRole(ui.RoleDisclosure, "")
+	if !ok {
+		t.Fatalf("deletion notice not listed: %v", tt.Texts())
+	}
+	box := row.Bounds
+	tt.ClickAt(box.X+box.W-20, box.Y+box.H/2)
+	tt.Advance(300 * time.Millisecond)
+	tt.Frame()
+	if tt.HasText(locales.Undo()) {
+		t.Errorf("a stale session undo is still offered: %v", tt.Texts())
+	}
 }
 
 func TestClearNotificationsEmptiesTheCenter(t *testing.T) {
