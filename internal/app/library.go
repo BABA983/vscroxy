@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/datadir"
 	"github.com/baba983/vscroxy/internal/library"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
@@ -365,8 +366,8 @@ func (l *libraryState) apply(files map[string][]byte) error {
 
 // setProjectDir makes dir the project folder: the collections, environments,
 // OpenAPI specs and addons are read from and saved to its .vscroxy directory,
-// or to ~/.vscroxy when dir is empty. A missing folder is refused, so a typo
-// cannot start a library somewhere unintended.
+// or to the data root when dir is empty. A missing folder is refused, so a
+// typo cannot start a library somewhere unintended.
 func (a *app) setProjectDir(dir string) {
 	dir = strings.TrimSpace(dir)
 	home, err := os.UserHomeDir()
@@ -395,16 +396,16 @@ func (a *app) setProjectDir(dir string) {
 }
 
 // placeProjectFiles points the library, the OpenAPI specs and the addons at
-// the project folder's .vscroxy directory, or at ~/.vscroxy when no project
-// folder is set.
+// the project folder's .vscroxy directory, or at the data root when no
+// project folder is set.
 func (a *app) placeProjectFiles() {
-	home, err := os.UserHomeDir()
+	root, err := datadir.Root()
 	if err != nil {
 		return
 	}
-	a.library.root = a.projectPath(filepath.Join(home, ".vscroxy", "collections"), "collections")
-	a.apisPath = a.projectPath(filepath.Join(home, ".vscroxy", "apis.json"), "apis.json")
-	a.addons.dir = a.projectPath(filepath.Join(home, ".vscroxy", "tools", "addons"), "addons")
+	a.library.root = a.projectPath(filepath.Join(root, "collections"), "collections")
+	a.apisPath = a.projectPath(filepath.Join(root, "apis.json"), "apis.json")
+	a.addons.dir = a.projectPath(filepath.Join(root, "tools", "addons"), "addons")
 }
 
 // projectPath is where a project file lives: in the project folder's .vscroxy

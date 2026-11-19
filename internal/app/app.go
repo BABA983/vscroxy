@@ -31,6 +31,7 @@ import (
 	"github.com/baba983/vscroxy/internal/async"
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/certs"
+	"github.com/baba983/vscroxy/internal/datadir"
 	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/internal/linkedmap"
 	"github.com/baba983/vscroxy/internal/request"
@@ -450,6 +451,10 @@ type app struct {
 	// its selections then turn gray.
 	windowBehind bool
 
+	// dataDir is the root of every private file this app owns, including
+	// the log. It comes from the shared resolver, never from each caller's
+	// idea of home.
+	dataDir string
 	// settings are what the window keeps between launches, besides its
 	// bounds, which MyGo saves with the window's StateKey.
 	settingsPath     string
@@ -667,7 +672,7 @@ type app struct {
 	cookiesPath       string
 	cookiePersistence bool
 	// localControl is the saved choice to run the local automation endpoint;
-	// controlPath is its discovery file in ~/.vscroxy.
+	// controlPath is its discovery file in the data root.
 	localControl bool
 	controlPath  string
 	cookieUI     cookieEditor
@@ -771,42 +776,43 @@ func newApp() *app {
 	a.attention = newAttentionService(a, liveAttentionChannels{win: func() *mygo.Window { return a.win }})
 	// The engine reads SSLKEYLOGFILE on its first handshake, so a key log the
 	// settings ask for has to be in the environment before it starts.
-	if home, err := os.UserHomeDir(); err == nil {
-		a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
-		a.androidProxyPath = filepath.Join(home, ".vscroxy", "android-proxy.json")
-		a.backupDir = filepath.Join(home, ".vscroxy", "backups")
+	if root, err := datadir.Root(); err == nil {
+		a.dataDir = root
+		a.settingsPath = filepath.Join(root, "settings.json")
+		a.androidProxyPath = filepath.Join(root, "android-proxy.json")
+		a.backupDir = filepath.Join(root, "backups")
 		// A first launch. The log opened before this already made the
 		// directory, so the settings file is what tells the two apart.
 		if firstLaunch(a.settingsPath) {
 			a.guide = true
 		}
-		a.caPath = capture.CACertPath(home)
-		a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
-		a.network.path = filepath.Join(home, ".vscroxy", "network-presets.json")
-		a.bpTemplatesPath = filepath.Join(home, ".vscroxy", "breakpoint-templates.json")
-		a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
-		a.library.root = filepath.Join(home, ".vscroxy", "collections")
+		a.caPath = capture.CACertPath(root)
+		a.rulesPath = filepath.Join(root, "rules.json")
+		a.network.path = filepath.Join(root, "network-presets.json")
+		a.bpTemplatesPath = filepath.Join(root, "breakpoint-templates.json")
+		a.sslPath = filepath.Join(root, "ssl.json")
+		a.library.root = filepath.Join(root, "collections")
 		a.library.backupDir = a.backupDir
-		a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
-		a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
-		a.allowPath = filepath.Join(home, ".vscroxy", "allow.txt")
-		a.allowAppsPath = filepath.Join(home, ".vscroxy", "allow-apps.txt")
-		a.profiles.dir = filepath.Join(home, ".vscroxy", "tools", "hosts")
-		a.scripts.dir = filepath.Join(home, ".vscroxy", "tools", "scripts")
-		a.addons.dir, a.addons.addon = filepath.Join(home, ".vscroxy", "tools", "addons"), true
-		a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
-		a.cookiesPath = filepath.Join(home, ".vscroxy", "cookies.json")
-		a.mcpConsentsPath = filepath.Join(home, ".vscroxy", "mcp-consents.json")
-		a.mcpConsentsKeyPath = filepath.Join(home, ".vscroxy", "mcp-consents.key")
+		a.ignorePath = filepath.Join(root, "ignore.txt")
+		a.ignoreAppsPath = filepath.Join(root, "ignore-apps.txt")
+		a.allowPath = filepath.Join(root, "allow.txt")
+		a.allowAppsPath = filepath.Join(root, "allow-apps.txt")
+		a.profiles.dir = filepath.Join(root, "tools", "hosts")
+		a.scripts.dir = filepath.Join(root, "tools", "scripts")
+		a.addons.dir, a.addons.addon = filepath.Join(root, "tools", "addons"), true
+		a.envsPath = filepath.Join(root, "env.json")
+		a.cookiesPath = filepath.Join(root, "cookies.json")
+		a.mcpConsentsPath = filepath.Join(root, "mcp-consents.json")
+		a.mcpConsentsKeyPath = filepath.Join(root, "mcp-consents.key")
 		a.mcpConsentsKey, _ = loadOrCreateMCPConsentKey(a.mcpConsentsKeyPath)
 		if len(a.mcpConsentsKey) != mcpConsentKeySize {
 			a.mcpConsentsKey = newMCPConsentKey()
 		}
 		a.mcpConsents, _ = loadMCPConsents(a.mcpConsentsPath)
-		a.vault.path = filepath.Join(home, ".vscroxy", "vault.json")
-		a.controlPath = filepath.Join(home, ".vscroxy", "control.json")
-		a.vault.keyPath = filepath.Join(home, ".vscroxy", "vault.key")
-		a.oauthTokens.path = filepath.Join(home, ".vscroxy", "oauth-tokens.json")
+		a.vault.path = filepath.Join(root, "vault.json")
+		a.controlPath = filepath.Join(root, "control.json")
+		a.vault.keyPath = filepath.Join(root, "vault.key")
+		a.oauthTokens.path = filepath.Join(root, "oauth-tokens.json")
 		a.tokens.SetSave(a.saveOAuthTokens)
 		if saved, err := loadSettings(a.settingsPath); err != nil {
 			a.errText = err.Error()
@@ -947,15 +953,15 @@ func newApp() *app {
 	a.loadSavedAPIs()
 	a.recount()
 	a.applyFilter()
-	if home, err := os.UserHomeDir(); err == nil {
-		a.views.init(a, filepath.Join(home, ".vscroxy", "views.json"))
-		a.protobuf.init(filepath.Join(home, ".vscroxy", "protobuf.pb"))
-		a.protoTypesPath = filepath.Join(home, ".vscroxy", "protobuf-types.json")
+	if a.dataDir != "" {
+		a.views.init(a, filepath.Join(a.dataDir, "views.json"))
+		a.protobuf.init(filepath.Join(a.dataDir, "protobuf.pb"))
+		a.protoTypesPath = filepath.Join(a.dataDir, "protobuf-types.json")
 		a.loadProtoTypeRules()
-		a.queriesPath = queryPath(home)
+		a.queriesPath = queryPath(a.dataDir)
 		a.loadQueries()
-		a.loadExperiments(filepath.Join(home, ".vscroxy", "experiments.json"))
-		if err := a.sessions.load(filepath.Join(home, ".vscroxy", "sessions")); err != nil {
+		a.loadExperiments(filepath.Join(a.dataDir, "experiments.json"))
+		if err := a.sessions.load(filepath.Join(a.dataDir, "sessions")); err != nil {
 			a.sessions.problem = err.Error()
 			a.fail(locales.Sessions(), err)
 		}
@@ -3707,7 +3713,8 @@ func Run() error {
 	// instance once its window exists, rather than being lost.
 	var active *app
 	var focusOnReady bool
-	mygo.App.OnSecondInstance(func([]string, string) {
+	mygo.App.OnSecondInstance(func(args []string, _ string) {
+		slog.Info("second instance handed off", "args", len(args))
 		if active != nil && active.win != nil {
 			active.win.Restore()
 			active.win.Focus()
@@ -3715,19 +3722,35 @@ func Run() error {
 		}
 		focusOnReady = true
 	})
-	// Only the GUI owns the proxy. A second launch hands its arguments to the
-	// running instance and leaves without touching settings or capture.
-	if !mygo.App.RequestSingleInstanceLock() {
+	root, err := datadir.Root()
+	if err != nil {
+		return err
+	}
+	// MyGo keys its single-instance socket by the app name. Key it by the
+	// data root too, so two roots forward launches to their own window,
+	// and a second launch on this root hands off before any file lock.
+	// Restore the name before anything else looks at it.
+	name := mygo.App.Name()
+	mygo.App.SetName(name + "-" + datadir.InstanceKey(root))
+	single := mygo.App.RequestSingleInstanceLock()
+	mygo.App.SetName(name)
+	if !single {
 		return nil
 	}
-	if home, err := os.UserHomeDir(); err == nil {
-		if logs, err := applog.Open(filepath.Join(home, ".vscroxy", "logs")); err != nil {
-			slog.Warn("log file unavailable; logging to stderr only", "err", err)
-		} else {
-			defer logs.Close()
-		}
+	// The file lock is only a guard for a crashed socket or a headless
+	// runner; it must never turn a normal second launch into an error.
+	lock, err := datadir.LockRoot(root)
+	if err != nil {
+		return err
 	}
-	slog.Info("vscroxy starting", "version", version.String(), "commit", version.CommitString(), "os", runtime.GOOS, "arch", runtime.GOARCH)
+	defer lock.Close()
+	mygo.App.OnQuit(func() { _ = lock.Close() })
+	if logs, err := applog.Open(filepath.Join(root, "logs")); err != nil {
+		slog.Warn("log file unavailable; logging to stderr only", "err", err)
+	} else {
+		defer logs.Close()
+	}
+	slog.Info("vscroxy starting", "dataDir", root, "version", version.String(), "commit", version.CommitString(), "os", runtime.GOOS, "arch", runtime.GOARCH)
 	a := newApp()
 	active = a
 	setUnexpectedErrorHandler(a.fail)
@@ -4429,7 +4452,11 @@ func (a *app) keyLogModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, locales.TlsKeyLog())
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 				uikit.Meta(c, locales.TheSecretsGoToA())
-				uikit.Input(c, &a.keyLogInput).Placeholder("~/.vscroxy/keys.log").Label(locales.File())
+				placeholder := "~/.vscroxy/keys.log"
+				if a.dataDir != "" {
+					placeholder = shortenHome(filepath.Join(a.dataDir, "keys.log"))
+				}
+				uikit.Input(c, &a.keyLogInput).Placeholder(placeholder).Label(locales.File())
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if a.keyLogPath != "" && uikit.SecondaryButton(c, locales.TurnOff()).Clicked() {

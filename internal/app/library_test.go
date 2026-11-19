@@ -409,7 +409,7 @@ func TestLibraryRoundTripsMCPDocument(t *testing.T) {
 
 func TestProjectFolderKeepsTheLibraryInsideTheProject(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	useTempHome(t, home)
 	a := libraryApp(t)
 	a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
 	project := t.TempDir()
@@ -446,7 +446,7 @@ func TestProjectFolderKeepsTheLibraryInsideTheProject(t *testing.T) {
 
 func TestProjectFolderHoldsOpenAPISpecsAndAddons(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	useTempHome(t, home)
 	a := libraryApp(t)
 	a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
 	a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
@@ -498,7 +498,7 @@ func TestProjectFolderHoldsOpenAPISpecsAndAddons(t *testing.T) {
 
 func TestProjectFolderReloadsOutsideChangesButKeepsDrafts(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	useTempHome(t, home)
 	a := libraryApp(t)
 	a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
 	a.envsPath = filepath.Join(home, ".vscroxy", "env.json")

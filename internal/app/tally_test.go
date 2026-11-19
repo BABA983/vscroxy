@@ -68,7 +68,7 @@ func TestIncrementalArrivalMatchesAFullRecount(t *testing.T) {
 // says, or the # column steps backwards.
 func TestRowsReadByTheirNumberNotByArrival(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	useTempHome(t, home)
 	t.Setenv("USERPROFILE", home)
 	a := newApp()
 	defer a.views.stopSearch()

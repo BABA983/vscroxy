@@ -11,7 +11,7 @@ import (
 // Stop closes the port the client used and Start listens again: the capture
 // switch is not the one-way shutdown at quit.
 func TestStopCaptureClosesThePortAndStartCapturesAgain(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	useTempHome(t, t.TempDir())
 	a := newApp()
 	if a.srv == nil {
 		t.Fatal(a.errText)

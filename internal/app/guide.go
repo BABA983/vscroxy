@@ -2,10 +2,10 @@ package app
 
 // The setup guide: four steps from a fresh install to the first decrypted
 // request, shown in place of the traffic list on the first launch (no
-// ~/.vscroxy yet). Each step completes from what the app observes, not from
-// a button the user presses: the OS proxy read back, the certificate check,
-// a decryption rule, a decrypted request. Skip guide closes it; the command
-// palette opens it again.
+// settings file in the data root yet). Each step completes from what the app
+// observes, not from a button the user presses: the OS proxy read back, the
+// certificate check, a decryption rule, a decrypted request. Skip guide
+// closes it; the command palette opens it again.
 
 import (
 	"fmt"

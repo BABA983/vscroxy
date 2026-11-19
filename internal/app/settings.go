@@ -48,8 +48,8 @@ type settings struct {
 	// key log is off.
 	KeyLogPath string `json:"keyLogPath,omitempty"`
 	// ProjectDir is this computer's project folder. Its .vscroxy/collections
-	// holds the request library instead of ~/.vscroxy/collections; empty keeps
-	// the default.
+	// holds the request library instead of the data root's collections;
+	// empty keeps the default.
 	ProjectDir string `json:"projectDir,omitempty"`
 	// ProxyPort is the fixed loopback port, or zero for automatic selection.
 	ProxyPort int `json:"proxyPort,omitzero"`

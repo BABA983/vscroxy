@@ -229,8 +229,8 @@ func (a *app) caDirectory() string {
 	if a.caPath != "" {
 		return filepath.Dir(a.caPath)
 	}
-	if home, err := os.UserHomeDir(); err == nil {
-		return capture.CADir(home)
+	if a.dataDir != "" {
+		return capture.CADir(a.dataDir)
 	}
 	return ""
 }

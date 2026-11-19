@@ -6,20 +6,19 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 
 	"github.com/baba983/vscroxy/internal/certs"
+	"github.com/baba983/vscroxy/internal/datadir"
 )
 
 // loadCertificates reads the desktop's certificate configuration and sealed
 // passphrases. A headless run uses the same client certificates and roots as
 // Send and the desktop Runner. No settings file means no certificates.
 func loadCertificates() (certs.Settings, error) {
-	home, err := os.UserHomeDir()
+	path, err := datadir.Path("settings.json")
 	if err != nil {
 		return certs.Settings{}, nil
 	}
-	path := filepath.Join(home, ".vscroxy", "settings.json")
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return certs.Settings{}, nil

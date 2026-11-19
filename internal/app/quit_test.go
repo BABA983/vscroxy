@@ -44,7 +44,7 @@ func startQuitForTest(t *testing.T, a *app) func() {
 }
 
 func TestQuitProxyReleaseFailureCanBeRetried(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	useTempHome(t, t.TempDir())
 	a := newApp()
 	a.installShutdown()
 	a.quitOnMain = func(fn func()) { fn() }
@@ -113,7 +113,7 @@ func TestQuitProxyReleaseFailureCanBeRetried(t *testing.T) {
 }
 
 func TestQuitLastJoinerFailureStillQuits(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	useTempHome(t, t.TempDir())
 	a := newApp()
 	a.installShutdown()
 	a.quitOnMain = func(fn func()) { fn() }

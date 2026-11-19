@@ -35704,6 +35704,26 @@ func (msgs Messages) AboutVscroxy() string {
 	return Catalog.Format(msgs.locale, "aboutVscroxy", nil)
 }
 
+// DataFolder says "Data folder"
+// in the language the app shows.
+func DataFolder() string { return In(i18n.Locale()).DataFolder() }
+
+// DataFolder says "Data folder"
+// in the language of msgs.
+func (msgs Messages) DataFolder() string {
+	return Catalog.Format(msgs.locale, "dataFolder", nil)
+}
+
+// DataFolderHint says "Settings, cookies, captures and logs live here. Use --user-data-dir or VSCROXY_HOME before launch to move them."
+// in the language the app shows.
+func DataFolderHint() string { return In(i18n.Locale()).DataFolderHint() }
+
+// DataFolderHint says "Settings, cookies, captures and logs live here. Use --user-data-dir or VSCROXY_HOME before launch to move them."
+// in the language of msgs.
+func (msgs Messages) DataFolderHint() string {
+	return Catalog.Format(msgs.locale, "dataFolderHint", nil)
+}
+
 // Commit says "Commit"
 // in the language the app shows.
 func Commit() string { return In(i18n.Locale()).Commit() }

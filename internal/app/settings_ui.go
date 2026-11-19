@@ -165,8 +165,20 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			}, locales.AboutLicenseLine())
+			a.dataFolderRow(c, t)
 		})
 	})
+}
+
+// dataFolderRow shows the root every private file resolves against. The flag
+// and the environment are read at launch, so the path is read-only here.
+func (a *app) dataFolderRow(c *ui.Context, t *ui.Theme) ui.Element {
+	return settingsCardRow(c, locales.DataFolder(), func() ui.Element {
+		if a.dataDir == "" {
+			return uikit.Body(c, locales.Unknown()).TextColor(t.Warning)
+		}
+		return uikit.Mono(c, shortenHome(a.dataDir)).Selectable()
+	}, locales.DataFolderHint())
 }
 
 func (a *app) appearanceSettings(c *ui.Context, t *ui.Theme) {
