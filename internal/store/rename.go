@@ -19,6 +19,7 @@ const (
 // waiting for real time or real contention.
 var (
 	rename        = os.Rename
+	renameLstat   = os.Lstat
 	renameClock   = time.Now
 	renameSleep   = time.Sleep
 	retryOnRename = isSharingViolation
@@ -26,7 +27,7 @@ var (
 
 func replaceFile(from, to string) error {
 	err := rename(from, to)
-	if err == nil || !retryOnRename(err) {
+	if err == nil || !retryOnRename(to, err) {
 		return err
 	}
 	deadline := renameClock().Add(renameRetryFor)
@@ -37,9 +38,22 @@ func replaceFile(from, to string) error {
 		}
 		renameSleep(min(delay, left))
 		err = rename(from, to)
-		if err == nil || !retryOnRename(err) {
+		if err == nil || !retryOnRename(to, err) {
 			return err
 		}
 		delay = min(delay*2, renameRetryMax)
 	}
+}
+
+// permanentRenameTarget rules out errors that waiting cannot fix: renaming
+// onto a directory, or onto a read-only file (on Windows, the read-only
+// attribute is part of FileMode's permission bits). Without this check,
+// ERROR_ACCESS_DENIED for either would freeze the caller for the whole retry
+// window before failing anyway.
+func permanentRenameTarget(path string) bool {
+	info, err := renameLstat(path)
+	if err != nil {
+		return false // a missing target is not a read-only target
+	}
+	return info.IsDir() || info.Mode().Perm()&0o200 == 0
 }

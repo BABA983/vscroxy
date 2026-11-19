@@ -16,6 +16,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/cli"
+	"github.com/baba983/vscroxy/internal/datadir"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/testcert"
 )
@@ -46,6 +47,8 @@ func TestRunUsesDesktopClientCertificates(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	home := t.TempDir()
+	datadir.Reset()
+	t.Cleanup(datadir.Reset)
 	t.Setenv("HOME", home)
 	settingsPath := filepath.Join(home, ".vscroxy", "settings.json")
 	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o700); err != nil {

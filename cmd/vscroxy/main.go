@@ -50,6 +50,13 @@ func parseLaunchArgs(args []string) (guard []string, showVersion bool, err error
 			showVersion = true
 		case "--proxy-guard":
 			return args[i+1:], showVersion, nil
+		default:
+			if value, ok := datadir.FlagValue(args[i]); ok {
+				if value == "" {
+					return nil, false, errors.New("--user-data-dir needs a path")
+				}
+				datadir.SetFlag(value)
+			}
 		}
 	}
 	return nil, showVersion, nil

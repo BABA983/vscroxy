@@ -15,12 +15,23 @@ import (
 
 // TestCustomDataRootOwnsEveryAppFileAndLog is the contract behind --user-data-dir
 // and VSCROXY_HOME: no app file falls back to a home directory.
-func TestCustomDataRootOwnsEveryAppFileAndLog(t *testing.T) {
-	home, root := t.TempDir(), t.TempDir()
+// useTempHome starts a test with a fresh data root: Root is cached for the
+// process, as it is in a launched app, so each test that changes HOME must
+// reset that cache and restore it after the environment is restored.
+func useTempHome(t *testing.T, home string) {
+	t.Helper()
+	datadir.Reset()
+	t.Cleanup(datadir.Reset)
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
+}
+
+func TestCustomDataRootOwnsEveryAppFileAndLog(t *testing.T) {
+	home, root := t.TempDir(), t.TempDir()
+	datadir.Reset()
+	t.Cleanup(datadir.Reset)
 	t.Setenv(datadir.Env, root)
-	t.Cleanup(func() { datadir.SetFlag("") })
+	useTempHome(t, home)
 
 	a := newApp()
 	if a.dataDir != root {

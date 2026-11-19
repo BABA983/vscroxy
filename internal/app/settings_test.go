@@ -97,7 +97,7 @@ func TestLoadSettingsWithoutAFile(t *testing.T) {
 
 func TestStartupUsesSavedProxyPort(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	useTempHome(t, home)
 	t.Setenv("USERPROFILE", home)
 	path := filepath.Join(home, ".vscroxy", "settings.json")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -146,7 +146,7 @@ func TestStartupRejectsInvalidSavedProxyPorts(t *testing.T) {
 	for _, port := range []int{-1, 80, 1023, 65536} {
 		t.Run(strconv.Itoa(port), func(t *testing.T) {
 			home := t.TempDir()
-			t.Setenv("HOME", home)
+			useTempHome(t, home)
 			t.Setenv("USERPROFILE", home)
 			path := filepath.Join(home, ".vscroxy", "settings.json")
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -173,7 +173,7 @@ func TestStartupRejectsInvalidSavedProxyPorts(t *testing.T) {
 
 func TestStartupFailureKeepsLocalAssetsUsable(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	useTempHome(t, home)
 	t.Setenv("USERPROFILE", home)
 	dir := filepath.Join(home, ".vscroxy")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -204,7 +204,7 @@ func TestStartupFailureKeepsLocalAssetsUsable(t *testing.T) {
 
 func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	useTempHome(t, home)
 	t.Setenv("USERPROFILE", home)
 	dir := filepath.Join(home, ".vscroxy")
 	if err := os.MkdirAll(dir, 0o700); err != nil {

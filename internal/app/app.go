@@ -3,9 +3,7 @@ package app
 import (
 	"cmp"
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -3715,7 +3713,8 @@ func Run() error {
 	// instance once its window exists, rather than being lost.
 	var active *app
 	var focusOnReady bool
-	mygo.App.OnSecondInstance(func([]string, string) {
+	mygo.App.OnSecondInstance(func(args []string, _ string) {
+		slog.Info("second instance handed off", "args", len(args))
 		if active != nil && active.win != nil {
 			active.win.Restore()
 			active.win.Focus()
@@ -3727,23 +3726,25 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	// MyGo keys its single-instance socket by the app name. Key it by the
+	// data root too, so two roots forward launches to their own window,
+	// and a second launch on this root hands off before any file lock.
+	// Restore the name before anything else looks at it.
+	name := mygo.App.Name()
+	mygo.App.SetName(name + "-" + datadir.InstanceKey(root))
+	single := mygo.App.RequestSingleInstanceLock()
+	mygo.App.SetName(name)
+	if !single {
+		return nil
+	}
+	// The file lock is only a guard for a crashed socket or a headless
+	// runner; it must never turn a normal second launch into an error.
 	lock, err := datadir.LockRoot(root)
 	if err != nil {
 		return err
 	}
 	defer lock.Close()
 	mygo.App.OnQuit(func() { _ = lock.Close() })
-	// MyGo keys its single-instance socket by the app name. Key it by the
-	// data root too, so two roots forward launches to their own window.
-	// Restore the name before anything else looks at it.
-	name := mygo.App.Name()
-	sum := sha256.Sum256([]byte(root))
-	mygo.App.SetName(name + "-" + hex.EncodeToString(sum[:6]))
-	single := mygo.App.RequestSingleInstanceLock()
-	mygo.App.SetName(name)
-	if !single {
-		return nil
-	}
 	if logs, err := applog.Open(filepath.Join(root, "logs")); err != nil {
 		slog.Warn("log file unavailable; logging to stderr only", "err", err)
 	} else {

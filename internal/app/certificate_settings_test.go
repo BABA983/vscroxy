@@ -16,7 +16,7 @@ import (
 
 func TestStartupReportsInvalidCertificateHost(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	useTempHome(t, home)
 	t.Setenv("USERPROFILE", home)
 	path := filepath.Join(home, ".vscroxy", "settings.json")
 	if err := writeSettings(path, settings{Certificates: certs.Settings{Clients: []certs.Client{{

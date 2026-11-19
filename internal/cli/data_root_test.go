@@ -11,10 +11,11 @@ import (
 
 func TestDesktopFilesComeFromTheSharedDataRoot(t *testing.T) {
 	home, root := t.TempDir(), t.TempDir()
+	datadir.Reset()
+	t.Cleanup(datadir.Reset)
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	t.Setenv(datadir.Env, root)
-	t.Cleanup(func() { datadir.SetFlag("") })
 
 	// A decoy in the home directory must lose to the configured root.
 	settings := `{"certificates":{"trustSystemRoots":false}}`
@@ -44,5 +45,15 @@ func TestDesktopFilesComeFromTheSharedDataRoot(t *testing.T) {
 	}
 	if found, err := datadir.Root(); err != nil || found != root {
 		t.Fatalf("--user-data-dir root = %q, %v; want %q", found, err, root)
+	}
+
+	equalsRoot := filepath.Join(t.TempDir(), "equals")
+	datadir.Reset()
+	out.Reset()
+	if code := Run(t.Context(), []string{"--user-data-dir=" + equalsRoot, "--help"}, &out, &errOut); code != 0 {
+		t.Fatalf("CLI with --user-data-dir=<path> exited %d: %s", code, errOut.String())
+	}
+	if found, err := datadir.Root(); err != nil || found != equalsRoot {
+		t.Fatalf("--user-data-dir=<path> root = %q, %v; want %q", found, err, equalsRoot)
 	}
 }

@@ -30,17 +30,30 @@ import (
 // 124 whole-run deadline, 130 cancellation. Flags precede the input path.
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	// Like the desktop, a command can be prefixed with a data root; the CLI
-	// otherwise uses the same VSCROXY_HOME / ~/.vscroxy resolver.
-	for len(args) >= 2 && (args[0] == "--user-data-dir" || args[0] == "-user-data-dir") {
-		datadir.SetFlag(args[1])
-		args = args[2:]
+	// otherwise uses the same VSCROXY_HOME / ~/.vscroxy resolver. Both
+	// --user-data-dir <path> and --user-data-dir=<path> are accepted.
+	for len(args) > 0 {
+		if args[0] == "--user-data-dir" || args[0] == "-user-data-dir" {
+			if len(args) < 2 {
+				break
+			}
+			datadir.SetFlag(args[1])
+			args = args[2:]
+			continue
+		}
+		if path, ok := datadir.FlagValue(args[0]); ok && path != "" {
+			datadir.SetFlag(path)
+			args = args[1:]
+			continue
+		}
+		break
 	}
 	if len(args) == 1 && (args[0] == "--version" || args[0] == "-version") {
 		fmt.Fprintln(stdout, "vscroxy-cli "+version.String())
 		return 0
 	}
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
-		fmt.Fprintln(stdout, "Usage: vscroxy-cli run [options] <collections-root | postman.json>\n       vscroxy-cli load [options] <collections-root | postman.json>\n       vscroxy-cli ab [options] <collections-root | postman.json | session.json>\n       vscroxy-cli mock [options] <collections-root | postman.json>\n       vscroxy-cli openapi lint [options] <spec>\n       vscroxy-cli control --file <discovery> [options] <action>\nPrefix a command with --user-data-dir <path> to use another data folder.\nUse 'run --help', 'load --help', 'ab --help', 'mock --help' or 'control --help' for options.")
+		fmt.Fprintln(stdout, "Usage: vscroxy-cli run [options] <collections-root | postman.json>\n       vscroxy-cli load [options] <collections-root | postman.json>\n       vscroxy-cli ab [options] <collections-root | postman.json | session.json>\n       vscroxy-cli mock [options] <collections-root | postman.json>\n       vscroxy-cli openapi lint [options] <spec>\n       vscroxy-cli control --file <discovery> [options] <action>\nPrefix a command with --user-data-dir <path> (or --user-data-dir=<path>) to use another data folder.\nUse 'run --help', 'load --help', 'ab --help', 'mock --help' or 'control --help' for options.")
 		return 0
 	}
 	if args[0] == "control" {

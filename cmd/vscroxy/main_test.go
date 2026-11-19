@@ -10,10 +10,11 @@ import (
 
 func TestParseLaunchArgsSetsDataRootAndGuardArguments(t *testing.T) {
 	home, root := t.TempDir(), t.TempDir()
+	datadir.Reset()
+	t.Cleanup(datadir.Reset)
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	t.Setenv(datadir.Env, "")
-	t.Cleanup(func() { datadir.SetFlag("") })
 	guard := []string{"journal.json", "127.0.0.1:7890", `["localhost"]`}
 
 	args := append([]string{"--user-data-dir", root, "--proxy-guard"}, guard...)
@@ -39,5 +40,26 @@ func TestParseLaunchArgsSetsDataRootAndGuardArguments(t *testing.T) {
 	}
 	if _, _, err := parseLaunchArgs([]string{"--user-data-dir"}); err == nil {
 		t.Fatal("a missing --user-data-dir path was accepted")
+	}
+}
+
+func TestParseLaunchArgsAcceptsVSCodeEqualsForm(t *testing.T) {
+	datadir.Reset()
+	t.Cleanup(datadir.Reset)
+	wd := t.TempDir()
+	t.Chdir(wd)
+	guard := []string{"journal.json", "target"}
+	got, _, err := parseLaunchArgs(append([]string{"--user-data-dir=relative-root", "--proxy-guard"}, guard...))
+	if err != nil || !reflect.DeepEqual(got, guard) {
+		t.Fatalf("parse = %v, %v", got, err)
+	}
+	t.Chdir(t.TempDir())
+	if found, err := datadir.Root(); err != nil || found != filepath.Join(wd, "relative-root") {
+		t.Fatalf("equals root moved with cwd: %q, %v", found, err)
+	}
+
+	datadir.Reset()
+	if _, _, err := parseLaunchArgs([]string{"--user-data-dir="}); err == nil {
+		t.Fatal("an empty --user-data-dir= was accepted")
 	}
 }

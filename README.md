@@ -75,8 +75,9 @@ go tool mygo build
 The proxy prefers `127.0.0.1:7890` and shows its actual listening address in the
 window. HTTPS inspection requires configuring the client to trust the generated
 CA. Settings, captures and logs live in `~/.vscroxy`, or in the folder selected
-with `--user-data-dir <path>` or `VSCROXY_HOME` (a flag wins over the variable;
-relative paths are relative to the working directory). Settings → General →
+with `--user-data-dir <path>` / `--user-data-dir=<path>` or `VSCROXY_HOME` (a
+flag wins over the variable; relative paths are relative to the working
+directory). Settings → General →
 About shows the folder in use. The CLI accepts the same flag and variable.
 
 See the [user guide](docs/guide.md) for client and device setup, filtering,

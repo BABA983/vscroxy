@@ -220,7 +220,7 @@ func TestEnvsRoundTrip(t *testing.T) {
 
 func TestProjectEnvironmentsHoldInitialValuesOnly(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	useTempHome(t, home)
 	a := libraryApp(t)
 	a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
 	a.envsPath = filepath.Join(home, ".vscroxy", "env.json")

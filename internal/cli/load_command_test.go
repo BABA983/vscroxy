@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/cli"
+	"github.com/baba983/vscroxy/internal/datadir"
 	"github.com/baba983/vscroxy/internal/postman"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
@@ -47,6 +48,8 @@ func TestLoadNativeAndPostmanPrivateUserState(t *testing.T) {
 			if err := os.MkdirAll(temp, 0o700); err != nil {
 				t.Fatal(err)
 			}
+			datadir.Reset()
+			t.Cleanup(datadir.Reset)
 			t.Setenv("HOME", home)
 			t.Setenv("USERPROFILE", home)
 			t.Setenv("TMPDIR", temp)

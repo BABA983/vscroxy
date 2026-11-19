@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"testing"
@@ -29,7 +30,7 @@ func withFakeRename(t *testing.T, c *fakeClock, renameErr func(int) error) *int 
 		*attempts = *attempts + 1
 		return renameErr(*attempts)
 	}
-	retryOnRename = func(err error) bool { return errors.Is(err, errBusyFile) }
+	retryOnRename = func(to string, err error) bool { return errors.Is(err, errBusyFile) }
 	return attempts
 }
 
@@ -80,11 +81,43 @@ func TestOnlyWindowsTreatsSharingErrorsAsRetryable(t *testing.T) {
 	for _, code := range []syscall.Errno{5, 32, 33} {
 		err := &os.LinkError{Op: "rename", Err: code}
 		want := runtime.GOOS == "windows"
-		if got := isSharingViolation(err); got != want {
+		if got := isSharingViolation("target", err); got != want {
 			t.Errorf("errno %d retryable = %v on %s, want %v", code, got, runtime.GOOS, want)
 		}
 	}
-	if isSharingViolation(os.ErrPermission) {
+	if isSharingViolation("target", os.ErrPermission) {
 		t.Error("a plain permission error is not a Windows sharing violation")
+	}
+}
+
+func TestAccessDeniedDoesNotRetryForReadOnlyOrDirectory(t *testing.T) {
+	dir := t.TempDir()
+	readOnly := filepath.Join(dir, "read-only")
+	if err := os.WriteFile(readOnly, []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(readOnly, 0o600) })
+	if err := os.Chmod(readOnly, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	subdir := filepath.Join(dir, "directory")
+	if err := os.Mkdir(subdir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writable := filepath.Join(dir, "writable")
+	if err := os.WriteFile(writable, []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !permanentRenameTarget(readOnly) {
+		t.Error("a read-only target must not be retried")
+	}
+	if !permanentRenameTarget(subdir) {
+		t.Error("a directory target must not be retried")
+	}
+	if permanentRenameTarget(writable) {
+		t.Error("a writable target can have a transient sharing violation")
+	}
+	if permanentRenameTarget(filepath.Join(dir, "missing")) {
+		t.Error("a missing target is not a permanent one")
 	}
 }
