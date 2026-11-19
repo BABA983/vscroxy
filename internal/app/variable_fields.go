@@ -90,7 +90,7 @@ func (a *app) attachVariables(c *ui.Context, in ui.Element, key string, value *s
 	// the tip names code points, never the value that contained them.
 	a.unicodeInputMarks(c, in, *value, mask)
 	a.syncVariableCompletion(in, key, value)
-	a.variablePopover(c, in, key, value, set)
+	a.variablePopover(c, in, key, value, set, nil)
 	a.trackInputQuickFix(a.requestDocument, quickFixFieldCode(key), value, in)
 	a.quickFixContextMenu(c, in, value)
 }
@@ -186,8 +186,10 @@ func (a *app) syncVariableCompletion(in ui.Element, key string, value *string) {
 }
 
 // variablePopover shows the filtered variables below the field and handles
-// Up/Down/Enter/Tab/Escape while the field keeps the keyboard.
-func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, value *string, set variableSet) {
+// Up/Down/Enter/Tab/Escape while the field keeps the keyboard. next receives
+// the keys the completion does not own, so a field can also have history.
+func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, value *string, set variableSet, next func(ui.TextKey) bool) {
+	anchor.OnTextKey(next)
 	if a.varsComplete.field != key || !a.varsComplete.open {
 		return
 	}
@@ -197,7 +199,6 @@ func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, valu
 	}
 	items := rankVariableHints(prefix, set.list, variableCompletionLimit)
 	if len(items) == 0 {
-		anchor.OnTextKey(nil)
 		return
 	}
 	if a.varsComplete.selected >= len(items) {
@@ -224,7 +225,9 @@ func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, valu
 			a.varsComplete.open, a.varsComplete.dismissed = false, token
 			return true
 		}
-		return false
+		// A key the completion does not use belongs to the field, such as
+		// Up/Down walking the request URL history once {{ is closed.
+		return next != nil && next(k)
 	})
 	panel := ui.PopoverBase(c, anchor, &a.varsComplete.open, func(panel ui.Element) {
 		uikit.PopoverPanel(c, panel).Width(320).Padding(t.Space(uikit.SpaceXS))

@@ -949,6 +949,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			}), t.Space(uikit.SpaceM))
 			start, end := input.TextSelection()
 			a.urlPasteSelection = [2]int{start, end}
+			caret := [2]int{start, end}
 			var set variableSet
 			var marks []variableMark
 			if strings.Contains(d.composeURL, "{{") {
@@ -964,7 +965,9 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			}
 			a.variableTooltip(c, input, marks, false, set, d.composeCollection)
 			a.syncVariableCompletion(input, "URL", &d.composeURL)
-			a.variablePopover(c, input, "URL", &d.composeURL, set)
+			a.variablePopover(c, input, "URL", &d.composeURL, set, func(k ui.TextKey) bool {
+				return a.urlHistory.textKey(k, caret)
+			})
 			spans := urlSpans(d.composeURL, t, marks)
 			hasVariables := len(marks) > 0
 			if !input.Focused() && hasVariables {

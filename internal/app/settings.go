@@ -111,6 +111,10 @@ type settings struct {
 	// zero uses the defaults (100 records, 32 MiB).
 	HistoryLimit  int `json:"historyLimit,omitzero"`
 	HistorySizeMB int `json:"historySizeMB,omitzero"`
+	// URLHistory and FilterHistory are the applied values of the two input
+	// fields, oldest first. URL values are redacted before they get here.
+	URLHistory    []string `json:"urlHistory,omitempty"`
+	FilterHistory []string `json:"filterHistory,omitempty"`
 }
 
 // reverseProxySetting is one saved reverse proxy entry. ID keeps a row's
@@ -200,6 +204,13 @@ func writeSettings(path string, s settings, backupDir string) error {
 	return store.WriteFileVersioned(path, store.Settings, append(data, '\n'), backupDir)
 }
 
+// saveInputHistory writes through the pending layout write, so a history
+// applied now cannot be lost when a divider is also being dragged.
+func (a *app) saveInputHistory() {
+	a.bypassSettingsSave()
+	_ = a.persistSettings()
+}
+
 // layout turns the saved columns into the table's.
 func (c columnLayout) layout() ui.TableLayout {
 	return ui.TableLayout{Order: slices.Clone(c.Order), Widths: maps.Clone(c.Widths)}
@@ -246,6 +257,7 @@ func sameSettings(x, y settings) bool {
 		x.AllowList == y.AllowList &&
 		x.FlowLimit == y.FlowLimit && x.MemoryLimit == y.MemoryLimit && x.DiskLimit == y.DiskLimit &&
 		x.HistoryLimit == y.HistoryLimit && x.HistorySizeMB == y.HistorySizeMB &&
+		slices.Equal(x.URLHistory, y.URLHistory) && slices.Equal(x.FilterHistory, y.FilterHistory) &&
 		slices.Equal(x.Columns.Order, y.Columns.Order) &&
 		maps.Equal(x.Columns.Widths, y.Columns.Widths) &&
 		slices.Equal(x.CustomColumns, y.CustomColumns) &&

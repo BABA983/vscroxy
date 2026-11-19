@@ -116,6 +116,8 @@ func (a *app) currentSettings() settings {
 		DiskLimit:            a.diskLimit,
 		HistoryLimit:         a.historyLimit,
 		HistorySizeMB:        a.historySizeMB,
+		URLHistory:           slices.Clone(a.urlHistory.entries),
+		FilterHistory:        slices.Clone(a.filterHistory.entries),
 	}
 }
 
@@ -133,10 +135,10 @@ func (a *app) configLists() map[string]*string {
 func (a *app) exportConfig() (b configBundle, notes []string) {
 	s := a.currentSettings()
 	// The key log, project folder, setup guide, cookie retention, attention
-	// signals, link approvals and local automation are this computer's: a
-	// configuration file never turns those on elsewhere.
+	// signals, link approvals, input history and local automation are this
+	// computer's: a configuration file never carries those elsewhere.
 	s.KeyLogPath, s.ProjectDir, s.Guide, s.CookiePersistence, s.LocalControl = "", "", false, false, false
-	s.TrustedLinkHosts = nil
+	s.TrustedLinkHosts, s.URLHistory, s.FilterHistory = nil, nil, nil
 	s.DisableUpdateCheck = false
 	s.AttentionSignals = ""
 	s.Language = ""      // the reader's language, not the bundle's
