@@ -5056,6 +5056,16 @@ func (msgs Messages) NothingToUndo() string {
 	return Catalog.Format(msgs.locale, "nothingToUndo", nil)
 }
 
+// NoNotifications says "No notifications"
+// in the language the app shows.
+func NoNotifications() string { return In(i18n.Locale()).NoNotifications() }
+
+// NoNotifications says "No notifications"
+// in the language of msgs.
+func (msgs Messages) NoNotifications() string {
+	return Catalog.Format(msgs.locale, "noNotifications", nil)
+}
+
 // Notification says "Notification"
 // in the language the app shows.
 func Notification() string { return In(i18n.Locale()).Notification() }
@@ -5064,6 +5074,16 @@ func Notification() string { return In(i18n.Locale()).Notification() }
 // in the language of msgs.
 func (msgs Messages) Notification() string {
 	return Catalog.Format(msgs.locale, "notification", nil)
+}
+
+// Notifications says "Notifications"
+// in the language the app shows.
+func Notifications() string { return In(i18n.Locale()).Notifications() }
+
+// Notifications says "Notifications"
+// in the language of msgs.
+func (msgs Messages) Notifications() string {
+	return Catalog.Format(msgs.locale, "notifications", nil)
 }
 
 // NtlmUsernameHidden says "NTLM · username {user} · password hidden"
@@ -11942,6 +11962,16 @@ func ClearHistory2() string { return In(i18n.Locale()).ClearHistory2() }
 // in the language of msgs.
 func (msgs Messages) ClearHistory2() string {
 	return Catalog.Format(msgs.locale, "clearHistory2", nil)
+}
+
+// ClearNotifications says "Clear notifications"
+// in the language the app shows.
+func ClearNotifications() string { return In(i18n.Locale()).ClearNotifications() }
+
+// ClearNotifications says "Clear notifications"
+// in the language of msgs.
+func (msgs Messages) ClearNotifications() string {
+	return Catalog.Format(msgs.locale, "clearNotifications", nil)
 }
 
 // ClearRecords says "Clear records"
@@ -30280,6 +30310,16 @@ func ShowLatestResponse() string { return In(i18n.Locale()).ShowLatestResponse()
 // in the language of msgs.
 func (msgs Messages) ShowLatestResponse() string {
 	return Catalog.Format(msgs.locale, "showLatestResponse", nil)
+}
+
+// ShowNotifications says "Show notifications"
+// in the language the app shows.
+func ShowNotifications() string { return In(i18n.Locale()).ShowNotifications() }
+
+// ShowNotifications says "Show notifications"
+// in the language of msgs.
+func (msgs Messages) ShowNotifications() string {
+	return Catalog.Format(msgs.locale, "showNotifications", nil)
 }
 
 // ShowOnlyTheHostsAnd says "Show only the hosts and apps below. Everything else is still proxied, just not recorded."
