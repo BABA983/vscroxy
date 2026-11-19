@@ -226,6 +226,14 @@ func (a *app) searchPlaceholder(c *ui.Context) string {
 }
 
 func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
+	// Leaving the search field applies what was typed, just as Enter does.
+	// Once the field is gone its text can still hold a filter that nothing
+	// will commit, so remember it at the moment focus leaves.
+	focused := a.search.Focused(c)
+	if a.searchFocused && !focused {
+		a.rememberFilterHistory(a.query)
+	}
+	a.searchFocused = focused
 	width := a.contentWidth(c)
 	// The protocol tabs are six short labels: they keep enough room to show
 	// them all down to a narrow window, and the search field keeps the rest.
@@ -267,6 +275,15 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				a.queryCaret = nil
 			}
 			caret, _ := search.TextSelection()
+			// The suggestion list owns Up/Down while it is open. A closed
+			// list leaves them to the field's filter history.
+			searchCaret := [2]int{caret, caret}
+			search.OnTextKey(func(k ui.TextKey) bool {
+				if a.queryOpen {
+					return false
+				}
+				return a.filterHistory.textKey(k, searchCaret)
+			})
 			_, _, prefix := queryTokenAt(a.query, caret)
 			suggestions := a.querySuggestions(prefix, !cb.Filtering())
 			first := false
@@ -320,6 +337,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				a.applyFilter()
 			}
 			if search.Submitted() {
+				a.rememberFilterHistory(a.query)
 				a.commitQuery(true)
 				if a.queryProblem == "" && a.searchProblem == "" {
 					a.focusTraffic(c)

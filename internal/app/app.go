@@ -95,6 +95,10 @@ type app struct {
 	// queryOpen is whether the field's autocomplete showed in the last
 	// build, to tell Down opening it from Down meant for the requests.
 	queryOpen bool
+	// filterHistory holds the applied traffic filters, newest last.
+	filterHistory inputHistory
+	filterLast    string // the text Enter or blur last put in the history
+	searchFocused bool   // the search field's focus in the previous build
 	// guide shows the setup guide in place of the traffic list (guide.go).
 	guide  bool
 	filter string
@@ -708,6 +712,7 @@ type app struct {
 	urlPaste          *urlPasteEdit
 	urlPasteUndo      *urlPasteEdit
 	urlPasteSelection [2]int
+	urlHistory        inputHistory
 	// tokens are the OAuth 2.0 access tokens, kept sealed by oauthTokens.
 	tokens            request.Tokens
 	oauthTokens       oauthTokenStore
@@ -868,6 +873,8 @@ func newApp() *app {
 			a.errText = err.Error()
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
+			a.urlHistory.load(saved.URLHistory)
+			a.filterHistory.load(saved.FilterHistory)
 			a.trustedLinkHosts = slices.Clone(saved.TrustedLinkHosts)
 			a.attention.setMode(saved.AttentionSignals)
 			a.updateCheck = !saved.DisableUpdateCheck
@@ -4481,6 +4488,9 @@ func (a *app) sendComposed() {
 	if d == nil || d.composeWaiting {
 		return
 	}
+	// Send is the URL field's apply point. Keep what the user authored,
+	// before variables or a script can change the URL on the wire.
+	a.rememberURLHistory(d.composeURL)
 	if d.protocol == "Socket.IO" {
 		a.connectSocketIO(d)
 		return

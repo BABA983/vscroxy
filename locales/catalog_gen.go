@@ -5128,6 +5128,16 @@ func (msgs Messages) NothingToUndo() string {
 	return Catalog.Format(msgs.locale, "nothingToUndo", nil)
 }
 
+// NoInputHistoryToClear says "No input history to clear"
+// in the language the app shows.
+func NoInputHistoryToClear() string { return In(i18n.Locale()).NoInputHistoryToClear() }
+
+// NoInputHistoryToClear says "No input history to clear"
+// in the language of msgs.
+func (msgs Messages) NoInputHistoryToClear() string {
+	return Catalog.Format(msgs.locale, "noInputHistoryToClear", nil)
+}
+
 // NoNotifications says "No notifications"
 // in the language the app shows.
 func NoNotifications() string { return In(i18n.Locale()).NoNotifications() }
@@ -12342,6 +12352,16 @@ func ClearHistory2() string { return In(i18n.Locale()).ClearHistory2() }
 // in the language of msgs.
 func (msgs Messages) ClearHistory2() string {
 	return Catalog.Format(msgs.locale, "clearHistory2", nil)
+}
+
+// ClearInputHistory says "Clear input history"
+// in the language the app shows.
+func ClearInputHistory() string { return In(i18n.Locale()).ClearInputHistory() }
+
+// ClearInputHistory says "Clear input history"
+// in the language of msgs.
+func (msgs Messages) ClearInputHistory() string {
+	return Catalog.Format(msgs.locale, "clearInputHistory", nil)
 }
 
 // ClearNotifications says "Clear notifications"
@@ -20232,6 +20252,16 @@ func InitialValuesAreSharedAnd2() string { return In(i18n.Locale()).InitialValue
 // in the language of msgs.
 func (msgs Messages) InitialValuesAreSharedAnd2() string {
 	return Catalog.Format(msgs.locale, "initialValuesAreSharedAnd2", nil)
+}
+
+// InputHistoryCleared says "URL and filter history cleared"
+// in the language the app shows.
+func InputHistoryCleared() string { return In(i18n.Locale()).InputHistoryCleared() }
+
+// InputHistoryCleared says "URL and filter history cleared"
+// in the language of msgs.
+func (msgs Messages) InputHistoryCleared() string {
+	return Catalog.Format(msgs.locale, "inputHistoryCleared", nil)
 }
 
 // InputSchema says "Input schema"

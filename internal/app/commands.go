@@ -288,6 +288,12 @@ func registerGlobalCommands() *commandRegistry {
 		when(func(x *commandContext) bool { return x.copyJSONPath != nil }, locales.JsonBreadcrumbNoPath())
 	r.add("notifications.show", locales.ShowNotifications(), func(x *commandContext) { x.a.openNotifications() })
 	r.add("notifications.clear", locales.ClearNotifications(), func(x *commandContext) { x.a.clearNotifications() })
+	r.add("history.clear-input", locales.ClearInputHistory(), func(x *commandContext) {
+		x.a.clearInputHistory()
+		x.a.done(locales.InputHistoryCleared())
+	}).when(func(x *commandContext) bool {
+		return len(x.a.urlHistory.entries) > 0 || len(x.a.filterHistory.entries) > 0
+	}, locales.NoInputHistoryToClear()).in("history")
 	r.add("problems.focus", locales.FocusProblems(), func(x *commandContext) { x.a.focusProblems() }).
 		keys(ui.Cmd|ui.Shift, ui.KeyM)
 	r.add("problems.next", locales.NextProblem(), func(x *commandContext) { x.a.navigateProblems(1) }).
