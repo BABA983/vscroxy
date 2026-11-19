@@ -327,9 +327,13 @@ type app struct {
 	bodyPrettyFor [2]string
 	bodyReader    [2]ui.Handle
 	bodyFind      [2]bodyFindState
-	bodyNotice    [2]string
-	jsonScroll    [2]ui.ListState
-	hexScroll     [2]ui.ListState
+	// jsonCrumbs holds the path at each pane's caret. The answer is reused
+	// while neither the caret nor the reader's text version changes.
+	jsonCrumbs     [2]jsonBreadcrumbs
+	activeJSONPath activeJSONPath
+	bodyNotice     [2]string
+	jsonScroll     [2]ui.ListState
+	hexScroll      [2]ui.ListState
 	// The wire text and its reader are built once per exchange, not per frame.
 	rawText   [2]string
 	rawEditor [2]*editor.State

@@ -29,6 +29,9 @@ type commandContext struct {
 	// by each menu, button and shortcut subscription in the same frame.
 	searchLabel string
 	search      func()
+	// copyJSONPath owns the frame's clipboard service: the palette steals
+	// focus but keeps this action available.
+	copyJSONPath func()
 	// find is the focused find bar: the body's or the Search view's. Both
 	// expose the same three options, so Alt+C/W/R has one owner.
 	find           findTarget
@@ -77,6 +80,9 @@ func commandSnapshot(a *app, c *ui.Context, target *requestDocument) *commandCon
 		x.primaryLabel = locales.FocusRequestURL()
 	}
 	x.search = func() { a.search.Focus(c) }
+	if path := a.activeJSONPath.path; path != "" && c != nil {
+		x.copyJSONPath = func() { a.copyJSONPath(c, path) }
+	}
 	for side := range 2 {
 		if c != nil && capturing && a.bodyText[side] != nil && a.bodyReader[side].FocusWithin(c) {
 			x.searchLabel = locales.FindInBodyLabel()
@@ -259,6 +265,8 @@ func registerGlobalCommands() *commandRegistry {
 
 	r.add("app.palette", locales.Commands(), func(x *commandContext) { x.a.workbench.openPalette() }).
 		keys(ui.Cmd, ui.KeyK)
+	r.add("json.copy-path", locales.JsonBreadcrumbCopyPath(), func(x *commandContext) { x.copyJSONPath() }).
+		when(func(x *commandContext) bool { return x.copyJSONPath != nil }, locales.JsonBreadcrumbNoPath())
 	r.add("notifications.show", locales.ShowNotifications(), func(x *commandContext) { x.a.openNotifications() })
 	r.add("notifications.clear", locales.ClearNotifications(), func(x *commandContext) { x.a.clearNotifications() })
 	r.add("problems.focus", locales.FocusProblems(), func(x *commandContext) { x.a.focusProblems() }).

@@ -819,12 +819,12 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 	case 2:
 		reader := a.jsonReaderFor(c, side, key, shown, f.contentType(side == 0))
 		if !reader.ready {
-			a.prettyBody(c, shown, side, reader)
+			a.prettyBody(c, key, shown, side, reader)
 			return
 		}
 		if len(reader.result.tree.roots) == 0 {
 			uikit.Meta(c, locales.BodyIsNotJsonShowing()).Padding(t.Space(uikit.SpaceL))
-			a.prettyBody(c, shown, side, reader)
+			a.prettyBody(c, key, shown, side, reader)
 			return
 		}
 		a.jsonBody(c, side)
@@ -841,7 +841,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		case "Merged stream":
 			a.mergedBody(c, f, shown, side)
 		default:
-			a.prettyBody(c, shown, side, a.jsonReaderFor(c, side, key, shown, f.contentType(side == 0)))
+			a.prettyBody(c, key, shown, side, a.jsonReaderFor(c, side, key, shown, f.contentType(side == 0)))
 		}
 	}
 }
@@ -985,7 +985,7 @@ func formatNDJSON(body string, options jsonc.FormattingOptions) string {
 	return out.String()
 }
 
-func (a *app) prettyBody(c *ui.Context, body string, side int, json *jsonReader) {
+func (a *app) prettyBody(c *ui.Context, key, body string, side int, json *jsonReader) {
 	if json != nil && json.ready && json.result.tree.stop != "" {
 		t := c.Theme()
 		uikit.Meta(c, json.result.tree.stop).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM))
@@ -1004,6 +1004,7 @@ func (a *app) prettyBody(c *ui.Context, body string, side int, json *jsonReader)
 	a.decoderMenu(view)
 	view.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
 	view.Theme = uikit.EditorTheme(c.Theme())
+	a.jsonPathBar(c, &a.jsonCrumbs[side], key, view, func() { a.bodyReader[side].Focus(c) })
 	editor.View(c, view).Bind(&a.bodyReader[side]).Grow(1)
 }
 
