@@ -289,6 +289,8 @@ func (s *Server) startReverseLocked(r ReverseProxy, httpAddr, socksAddr string) 
 	entry := &reverseEntry{cfg: r, target: target, listener: ln, server: server, transport: transport}
 	s.reverses = append(s.reverses, entry)
 	s.reverseStatus[r.ID] = ReverseProxyStatus{ID: r.ID, Addr: ln.Addr().String()}
+	// This loop belongs to net/http. Close stops the server on teardown and
+	// it owns no app cleanup, so the app's panic guard is not needed here.
 	go func() { _ = server.Serve(ln) }()
 	return nil
 }

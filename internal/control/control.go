@@ -20,6 +20,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/baba983/vscroxy/internal/errorsx"
 )
 
 const (
@@ -127,6 +129,8 @@ func Start(discoveryPath string, dispatch Dispatch) (*Server, error) {
 		// Never let net/http log arbitrary panic values or request information.
 		ErrorLog: log.New(io.Discard, "", 0),
 	}
+	// net/http owns this Serve loop. Close stops it, and the deferred close
+	// of done still runs if the server stops, so it needs no panic guard.
 	go func() {
 		defer close(s.done)
 		_ = s.http.Serve(listener)
@@ -238,7 +242,7 @@ func serveCall(w http.ResponseWriter, r *http.Request, d discovery, dispatch Dis
 		err   error
 	}
 	finished := make(chan outcome, 1)
-	go func() {
+	go errorsx.Guard(func() {
 		result := outcome{}
 		defer func() {
 			if recover() != nil {
@@ -247,7 +251,7 @@ func serveCall(w http.ResponseWriter, r *http.Request, d discovery, dispatch Dis
 			finished <- result
 		}()
 		result.value, result.err = dispatch(ctx, command)
-	}()
+	})
 	select {
 	case <-ctx.Done():
 		writeError(w, http.StatusGatewayTimeout, "dispatch canceled or timed out")

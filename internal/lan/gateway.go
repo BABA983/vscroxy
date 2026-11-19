@@ -27,6 +27,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/baba983/vscroxy/internal/errorsx"
 )
 
 const (
@@ -260,8 +262,10 @@ func (g *Gateway) forward(client *trackedConn) {
 	defer upstream.Close()
 
 	done := make(chan struct{}, 2)
-	go pipeFrom(upstream, br, done)
-	go pipe(client, upstream, done)
+	upstreamCopy, readerCopy, doneCopy := upstream, br, done
+	clientCopy := client
+	go errorsx.Guard(func() { pipeFrom(upstreamCopy, readerCopy, doneCopy) })
+	go errorsx.Guard(func() { pipe(clientCopy, upstreamCopy, doneCopy) })
 	<-done
 	<-done
 }
@@ -269,18 +273,20 @@ func (g *Gateway) forward(client *trackedConn) {
 // pipeFrom copies one direction from a buffered reader and passes its end on
 // as a half-close, like pipe.
 func pipeFrom(dst *trackedConn, src io.Reader, done chan<- struct{}) {
+	// Signal even when the guarded goroutine recovers a panic, or the peer's
+	// handle would wait forever for a second direction that never finishes.
+	defer func() { done <- struct{}{} }()
 	_, _ = io.Copy(dst, src)
 	_ = dst.CloseWrite()
-	done <- struct{}{}
 }
 
 // pipe copies one direction and passes its end on as a half-close, so a client
 // that stops sending still gets its response and a core that finishes still
 // lets the client finish sending.
 func pipe(dst, src *trackedConn, done chan<- struct{}) {
+	defer func() { done <- struct{}{} }()
 	_, _ = io.Copy(dst, src)
 	_ = dst.CloseWrite()
-	done <- struct{}{}
 }
 
 // note records the client each listener admitted, for the UI's status line.
@@ -702,7 +708,7 @@ func (l *gatedListener) accept() (*trackedConn, error) {
 			_ = conn.Close()
 			return nil, net.ErrClosed
 		}
-		go func() {
+		go errorsx.Guard(func() {
 			defer l.gate.release(addr)
 			if l.gate.decide(addr) {
 				l.gateway.note(l.kind, tracked.RemoteAddr().String())
@@ -710,7 +716,7 @@ func (l *gatedListener) accept() (*trackedConn, error) {
 				return
 			}
 			pending.deny()
-		}()
+		})
 		return tracked, nil
 	}
 }

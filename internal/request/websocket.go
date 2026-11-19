@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/certs"
+	"github.com/baba983/vscroxy/internal/errorsx"
 	"github.com/gorilla/websocket"
 	"golang.org/x/net/http/httpguts"
 )
@@ -153,7 +154,7 @@ func wsSendMessages(ctx context.Context, proxyAddr string, req *Prepared, messag
 	conn.SetReadLimit(MaxWebSocketMessage)
 	frames, readErr, stop := make(chan []byte, 64), make(chan error, 1), make(chan struct{})
 	defer close(stop)
-	go func() {
+	go errorsx.Guard(func() {
 		for {
 			_, data, err := conn.ReadMessage()
 			if err != nil {
@@ -169,7 +170,7 @@ func wsSendMessages(ctx context.Context, proxyAddr string, req *Prepared, messag
 				return
 			}
 		}
-	}()
+	})
 	window := func(exchange *WebSocketExchange) (bool, error) {
 		timer := time.NewTimer(wait)
 		defer timer.Stop()

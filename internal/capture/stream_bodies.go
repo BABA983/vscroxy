@@ -25,6 +25,8 @@ import (
 	"github.com/andybalholm/brotli"
 	"github.com/klauspost/compress/zstd"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
+
+	"github.com/baba983/vscroxy/internal/errorsx"
 )
 
 // errStreamAborted is what a body whose transfer stopped before its end is
@@ -420,7 +422,10 @@ func (s *Server) captureStream(f *proxy.Flow, side string, in io.Reader, enc str
 		return in
 	}
 	if watch {
-		go s.awaitStream(f)
+		// Copy the go statement's argument before capturing it: a closure
+		// would otherwise read the variable later, not the flow passed now.
+		streamed := f
+		go errorsx.Guard(func() { s.awaitStream(streamed) })
 	}
 	return &streamReader{src: in, body: body, flow: f, side: side, server: s}
 }

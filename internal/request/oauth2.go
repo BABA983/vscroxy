@@ -318,6 +318,8 @@ func (o OAuth2) authorize(ctx context.Context, send Sender, open func(string) er
 		default:
 		}
 	})}
+	// The loop belongs to net/http; Close stops it when the browser flow
+	// settles, and it owns no app cleanup, so it needs no panic guard.
 	go server.Serve(listener)
 	defer server.Close()
 	if err := open(auth.String()); err != nil {
@@ -423,6 +425,8 @@ func (o OAuth2) authorizeImplicit(ctx context.Context, open func(string) error) 
 		default:
 		}
 	})}
+	// The loop belongs to net/http; Close stops it when the browser flow
+	// settles, and it owns no app cleanup, so it needs no panic guard.
 	go server.Serve(listener)
 	defer server.Close()
 	if err := open(auth.String()); err != nil {
