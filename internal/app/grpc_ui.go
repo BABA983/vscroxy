@@ -60,8 +60,8 @@ func (g *grpcDocument) stop() {
 	if g.cancelImport != nil {
 		g.cancelImport()
 	}
-	if g.session != nil && g.session.cancel != nil {
-		g.session.cancel()
+	if g.session != nil {
+		g.session.stop()
 	}
 	g.loading = nil
 }

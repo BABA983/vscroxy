@@ -37,6 +37,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/dnsmap"
+	"github.com/baba983/vscroxy/internal/errorsx"
 	"github.com/baba983/vscroxy/internal/graphql"
 	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/procinfo"
@@ -1512,10 +1513,11 @@ func (s *Server) Start() error {
 	}
 	s.listener, s.addr = ln, ln.Addr().String()
 	s.running.Store(true)
-	go func() {
-		_ = s.proxy.Serve(ln)
-		s.running.Store(false)
-	}()
+	serveLn := ln
+	go errorsx.Guard(func() {
+		defer s.running.Store(false)
+		_ = s.proxy.Serve(serveLn)
+	})
 	// The extra entries belong to this listener's lifetime: start them while
 	// the listener lock is held, so a concurrent Close cannot miss them.
 	// Reverse proxies bind first, so an automatic SOCKS5 port cannot land on
@@ -2001,7 +2003,10 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 			// capture finishes. No correlation header reaches the upstream.
 			*raw = *raw.WithContext(context.WithValue(raw.Context(), replaySourceKey{}, source))
 			if source.withoutRecording {
-				go a.server.awaitUnrecorded(f.Id, f.Done())
+				// Copy the go statement's argument values before wrapping: a
+				// closure would otherwise evaluate them when it runs.
+				flowID, flowDone := f.Id, f.Done()
+				go errorsx.Guard(func() { a.server.awaitUnrecorded(flowID, flowDone) })
 			}
 		}
 	}
@@ -2498,10 +2503,11 @@ func localResponse(flow *proxy.Flow, r Rule, file string) (*proxy.Response, erro
 	resp.BodyReader = handle
 	// The engine finishes the flow after it has written the body, including
 	// a client that goes away part way.
-	go func() {
-		<-flow.Done()
+	flowDone := flow.Done()
+	go errorsx.Guard(func() {
+		<-flowDone
 		handle.Close()
-	}()
+	})
 	return resp, nil
 }
 
@@ -2748,7 +2754,7 @@ func (s *Server) queueLookup(req clientLookup) {
 	}
 	s.lookupRunning = true
 	s.lookupMu.Unlock()
-	go func() {
+	go errorsx.Guard(func() {
 		for {
 			// Let the burst arrive before asking the OS once for all of it.
 			time.Sleep(30 * time.Millisecond)
@@ -2781,7 +2787,7 @@ func (s *Server) queueLookup(req clientLookup) {
 				s.mu.Unlock()
 			}
 		}
-	}()
+	})
 }
 
 // socketProcess returns the owner of the exact accepted connection. It waits
@@ -2901,7 +2907,9 @@ func (s *Server) publish(f *proxy.Flow) {
 	// Waiting for a late owner there would delay forwarding, so publish that
 	// wait on its own goroutine; only the UI publication is deferred.
 	if f.Response != nil && !f.Stream && !isSSE(f.Response) && s.needsClientIdentity() && s.clientIdentityPending(f) {
-		go s.publishFlow(snapshotFlow(f), "http", nil, 0)
+		// Snapshot now: the proxy may still be writing f when this runs.
+		snapshot := snapshotFlow(f)
+		go errorsx.Guard(func() { s.publishFlow(snapshot, "http", nil, 0) })
 		return
 	}
 	s.publishFlow(f, "http", nil, 0)

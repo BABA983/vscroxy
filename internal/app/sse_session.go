@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/certs"
+	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/internal/request"
 )
 
@@ -21,6 +22,7 @@ type sseSession struct {
 	mu           sync.Mutex
 	cancel       context.CancelFunc
 	done         chan struct{}
+	lifetime     *lifecycle.DisposableStore
 	notify       func()
 	state        string
 	finished     bool
@@ -39,7 +41,7 @@ type sseSessionEvent struct {
 
 func openSSESession(proxy string, req *request.Prepared, ca []byte, certificates certs.Settings, jar http.CookieJar, reconnect bool, notify func()) *sseSession {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &sseSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), notify: notify}
+	s := &sseSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), lifetime: newSessionLifetime(cancel), notify: notify}
 	go guarded(func() {
 		defer close(s.done)
 		defer cancel()
@@ -127,8 +129,17 @@ func (s *sseSession) stop() {
 	}
 	s.stopping, s.state = true, "Stopping"
 	s.mu.Unlock()
-	s.cancel()
+	stopSessionLifetime(s.lifetime, s.cancel)
 	s.changed()
+}
+
+// Dispose is the lifecycle form of Stop: a replaced stream stops before the
+// next one starts, keeping this session's own finish events and notice.
+func (s *sseSession) Dispose() {
+	if s == nil {
+		return
+	}
+	s.stop()
 }
 
 func (s *sseSession) snapshot() (string, bool, []sseSessionEvent, int) {

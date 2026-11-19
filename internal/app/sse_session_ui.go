@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
@@ -17,9 +18,12 @@ type sseWorkbench struct {
 	url, headers, query, problem string
 	reconnect                    bool
 	session                      *sseSession
-	picked, choice               int
-	list                         ui.ListState
-	reader                       *editor.State
+	// stream owns the current stream. Reconnect stops the old one before a
+	// new session's worker can publish into the workbench.
+	stream         lifecycle.MutableDisposable
+	picked, choice int
+	list           ui.ListState
+	reader         *editor.State
 }
 
 func (a *app) openSSE() {
@@ -51,7 +55,10 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 			s.problem = locales.EnterAbsoluteURLNoCredentials()
 			return
 		}
-		s.session = openSSESession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.certificates, a.requestCookies(), reconnect || s.reconnect, a.invalidate)
+		s.stream.Clear()
+		next := openSSESession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.certificates, a.requestCookies(), reconnect || s.reconnect, a.invalidate)
+		s.session = next
+		s.stream.Set(next)
 		s.problem, s.query, s.picked, s.reader = "", "", 0, nil
 		s.list, s.choice = ui.ListState{}, 0
 	}
@@ -87,7 +94,6 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 						// way out, Reconnect is the exception. Only a finished
 						// session offers Connect/Reconnect as the main action.
 						if uikit.SecondaryButton(c, locales.Reconnect()).Clicked() {
-							s.session.stop()
 							start(true)
 						}
 						if uikit.PrimaryButton(c, locales.StopSse()).Clicked() {

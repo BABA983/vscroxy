@@ -25,6 +25,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
@@ -517,6 +518,9 @@ type messagePanel struct {
 	searchResults chan bodyResult
 	searchContext context.Context
 	searchCancel  context.CancelFunc
+	// searchStop holds the current search. Starting another one cancels the
+	// earlier context before any worker for the new query begins.
+	searchStop lifecycle.MutableDisposable
 }
 
 // view draws the Messages tab for one flow: the search and direction filter,
@@ -825,6 +829,7 @@ func (p *messagePanel) payload(f flow, m messageView) string {
 }
 
 func (p *messagePanel) stopSearch() {
+	p.searchStop.Clear()
 	if p.searchCancel != nil {
 		p.searchCancel()
 	}
@@ -839,6 +844,7 @@ func (p *messagePanel) searchMessages(a *app, list []messageView) {
 		p.stopSearch()
 		p.searchCache = bodyCache{query: query, matches: make(map[int]bool), errs: make(map[int]string)}
 		p.searchContext, p.searchCancel = context.WithCancel(context.Background())
+		p.searchStop.Set(lifecycle.ToDisposable(p.searchCancel))
 		p.searchResults = make(chan bodyResult, bodyWorkers)
 		p.searchPending = make(map[int]bool)
 	}

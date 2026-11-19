@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/async"
+	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/internal/request"
 )
 
@@ -55,6 +57,7 @@ type mcpSession struct {
 	cancel          context.CancelFunc
 	opCancel        context.CancelFunc
 	done            chan struct{}
+	lifetime        *lifecycle.DisposableStore
 	closeOnce       sync.Once
 	clientCloseOnce sync.Once
 	notify          func()
@@ -226,7 +229,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &mcpSession{
 		plan: plan, input: input, scope: scope, vars: maps.Clone(vars),
-		ctx: ctx, cancel: cancel, done: make(chan struct{}), notify: notify, state: "Connecting",
+		ctx: ctx, cancel: cancel, done: make(chan struct{}), lifetime: newSessionLifetime(cancel), notify: notify, state: "Connecting",
 		connection: mcpConnectionInfo{
 			Transport: plan.Transport, Endpoint: mcpEndpointText(plan.URL), Command: plan.Command,
 			Timeout: mcpTimeoutText(plan.Timeout), Insecure: plan.Insecure, Proxied: plan.Proxy != "",
@@ -236,9 +239,12 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 	go guarded(func() {
 		defer cancel()
 		defer close(s.done)
-		var timer *time.Timer
+		// VS Code's connect timeout is one TimeoutTimer: dialing cancels it,
+		// and a late firing still cancels this session's context.
+		var dialTimer *async.TimeoutTimer
 		if plan.Timeout > 0 {
-			timer = time.AfterFunc(plan.Timeout, cancel)
+			dialTimer = async.NewTimeoutTimer(func() error { cancel(); return nil }, plan.Timeout)
+			defer dialTimer.Dispose()
 		}
 		handlers := request.MCPHandlers{
 			Notification: func(method, text string) {
@@ -281,8 +287,8 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 			},
 		}
 		client, err := request.DialMCP(ctx, plan, handlers)
-		if timer != nil {
-			timer.Stop()
+		if dialTimer != nil {
+			dialTimer.Dispose()
 		}
 		if err == nil && ctx.Err() != nil {
 			_ = client.Close()
@@ -611,9 +617,7 @@ func (s *mcpSession) beginClose() {
 		s.mu.Lock()
 		cancel, client := s.cancel, s.client
 		s.mu.Unlock()
-		if cancel != nil {
-			cancel()
-		}
+		stopSessionLifetime(s.lifetime, cancel)
 		if client != nil {
 			closingClient := client
 			go guarded(func() { s.closeClient(closingClient) })
@@ -631,6 +635,10 @@ func (s *mcpSession) closeClient(client *request.MCPClient) {
 func (s *mcpSession) disconnect() {
 	s.beginClose()
 }
+
+// Dispose is the lifecycle form of Disconnect. Quit's closeNow still joins the
+// transport after this, so a process cannot exit before the client is closed.
+func (s *mcpSession) Dispose() { s.disconnect() }
 
 // closeNow closes the session and waits for its transport, including a stdio
 // process tree. Quit uses it so os.Exit cannot race the close goroutine.

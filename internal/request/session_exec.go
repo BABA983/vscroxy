@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/errorsx"
 )
 
 // DefaultSocketIOWait is the reply window after a Socket.IO emit, and after
@@ -119,7 +120,7 @@ func (r Request) executeSocketIO(ctx context.Context, srv *capture.Server, in Co
 	readErr := make(chan error, 1)
 	stop := make(chan struct{})
 	defer close(stop)
-	go func() {
+	go errorsx.Guard(func() {
 		for {
 			message, err := conn.Read()
 			if err != nil {
@@ -135,7 +136,7 @@ func (r Request) executeSocketIO(ctx context.Context, srv *capture.Server, in Co
 				return
 			}
 		}
-	}()
+	})
 	var received []SocketIOMessage
 	collect := func(until func(SocketIOMessage) bool, wait time.Duration) {
 		timer := time.NewTimer(wait)

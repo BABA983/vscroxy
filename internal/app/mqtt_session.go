@@ -16,6 +16,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/async"
+	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/internal/request"
 )
 
@@ -53,6 +55,7 @@ type mqttSession struct {
 	cancel   context.CancelFunc
 	ctx      context.Context
 	done     chan struct{}
+	lifetime *lifecycle.DisposableStore
 	notify   func()
 	state    string
 	problem  string
@@ -122,11 +125,13 @@ func (s *mqttSession) changed() {
 }
 
 func (s *mqttSession) stop() {
-	if s == nil || s.cancel == nil {
+	if s == nil {
 		return
 	}
-	s.cancel()
+	stopSessionLifetime(s.lifetime, s.cancel)
 }
+
+func (s *mqttSession) Dispose() { s.stop() }
 
 // stopAndWait cancels the session and gives the connection loop a moment to
 // send DISCONNECT. Quitting uses it so the broker does not publish the will
@@ -154,11 +159,12 @@ func (s *mqttSession) await(delay time.Duration) {
 	if s == nil || s.done == nil {
 		return
 	}
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
+	expired := make(chan struct{})
+	timer := async.NewTimeoutTimer(func() error { close(expired); return nil }, delay)
+	defer timer.Dispose()
 	select {
 	case <-s.done:
-	case <-timer.C:
+	case <-expired:
 	}
 }
 
@@ -228,7 +234,7 @@ func (s *mqttSession) finish(state, problem string) {
 func openMQTTSession(url string, input request.Request, scope request.Context, vars map[string]string,
 	cfg request.MQTTConfig, proxy func() (string, []byte), verifyUpstream bool, tlsConfig func([]byte) (*tls.Config, error), notify func()) *mqttSession {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &mqttSession{state: "Connecting", cancel: cancel, ctx: ctx, done: make(chan struct{}), notify: notify,
+	s := &mqttSession{state: "Connecting", cancel: cancel, ctx: ctx, done: make(chan struct{}), lifetime: newSessionLifetime(cancel), notify: notify,
 		subscriptions: map[string]request.MQTTSubscription{}, input: input, scope: scope, vars: maps.Clone(vars), cfg: cfg}
 	runURL, runCfg, runProxy := url, cfg, proxy
 	runVerify, runTLS := verifyUpstream, tlsConfig
@@ -379,12 +385,13 @@ func reconnectDelay(attempt int) time.Duration {
 }
 
 func (s *mqttSession) wait(delay time.Duration) bool {
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
+	expired := make(chan struct{})
+	timer := async.NewTimeoutTimer(func() error { close(expired); return nil }, delay)
+	defer timer.Dispose()
 	select {
 	case <-s.ctx.Done():
 		return false
-	case <-timer.C:
+	case <-expired:
 		return true
 	}
 }

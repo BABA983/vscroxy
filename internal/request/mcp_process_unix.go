@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"syscall"
 	"time"
+
+	"github.com/baba983/vscroxy/internal/errorsx"
 )
 
 type mcpProcessTree struct {
@@ -85,7 +87,7 @@ func mcpCloseProcess(cmd *exec.Cmd, tree mcpProcessTree, stdin io.Closer, stdout
 	}
 	mcpTerminateProcessTree(tree, true)
 	wait := make(chan error, 1)
-	go func() { wait <- cmd.Wait() }()
+	go errorsx.Guard(func() { wait <- cmd.Wait() })
 	select {
 	case err := <-wait:
 		if stdout != nil {

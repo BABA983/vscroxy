@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/baba983/vscroxy/internal/errorsx"
 )
 
 const (
@@ -117,7 +119,7 @@ func (s *Server) startSOCKS() {
 	s.socksMu.Unlock()
 
 	s.socksWG.Add(1)
-	go func() {
+	go errorsx.Guard(func() {
 		defer s.socksWG.Done()
 		for {
 			conn, err := ln.Accept()
@@ -133,15 +135,15 @@ func (s *Server) startSOCKS() {
 			s.socksConns[conn] = struct{}{}
 			s.socksMu.Unlock()
 			s.socksWG.Add(1)
-			go func() {
+			go errorsx.Guard(func() {
 				defer s.socksWG.Done()
 				s.serveSOCKS(conn, cfg)
 				s.socksMu.Lock()
 				delete(s.socksConns, conn)
 				s.socksMu.Unlock()
-			}()
+			})
 		}
-	}()
+	})
 }
 
 func (s *Server) serveSOCKS(conn net.Conn, cfg SOCKSConfig) {

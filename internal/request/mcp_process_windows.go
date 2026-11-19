@@ -12,6 +12,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/baba983/vscroxy/internal/errorsx"
 	"golang.org/x/sys/windows"
 )
 
@@ -140,7 +141,7 @@ func mcpCloseProcess(cmd *exec.Cmd, tree mcpProcessTree, stdin io.Closer, stdout
 		mcpTerminateProcessTree(tree, true)
 	}
 	wait := make(chan error, 1)
-	go func() { wait <- cmd.Wait() }()
+	go errorsx.Guard(func() { wait <- cmd.Wait() })
 	if grace {
 		// Let the server exit after stdin EOF. If it already exited, Wait
 		// returns immediately instead of sleeping a fixed grace period.

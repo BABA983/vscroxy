@@ -672,16 +672,20 @@ func (a *app) replaceSession(flows []flow, frames map[int][]frame) {
 	a.picked, a.pickedID, a.detailFor = 0, 0, -1
 	a.analysis = captureAnalysis{}
 	a.chosen.Clear()
-	a.views.stopSearch()
+	// One store for everything this capture owns. Register the current
+	// objects rather than their live jobs: each stop is idempotent, so a
+	// search or inspect started after the last replacement is reached too.
+	if a.sessionStore != nil {
+		a.sessionStore.Dispose()
+	}
+	a.sessionStore = newCaptureSessionStore(a)
 	a.views.cache = bodyCache{}
 	for _, view := range a.views.views {
 		view.picked, view.pickedID = 0, 0
 		view.activity = activityRange{}
 		view.list = ui.ListState{}
 	}
-	a.messageUI.stopSearch()
 	a.messageUI = messagePanel{}
-	a.protobuf.stop()
 	// An unchanged draft is its capture: read the replaced session's flow
 	// into it in place, so what the reader was showing stays chosen.
 	if d := a.live; d != nil && !d.dirty() && !d.sentSet && !d.composeWaiting {
