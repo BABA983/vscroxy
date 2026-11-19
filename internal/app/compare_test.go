@@ -48,6 +48,18 @@ func TestCompareJSONSortsObjectKeysButKeepsArrayOrder(t *testing.T) {
 	if plain.normalized != plain.raw {
 		t.Fatalf("plain text was rewritten: %q -> %q", plain.raw, plain.normalized)
 	}
+	// IDs beyond float64 precision must stay literal: normalizing must not
+	// hide a real one-digit difference between two responses.
+	big1 := prepareCompareBody(compareBodySource{inline: `{"id":12345678901234567891}`, contentType: "application/json"})
+	big2 := prepareCompareBody(compareBodySource{inline: `{"id":12345678901234567892}`, contentType: "application/json"})
+	if big1.normalized == big2.normalized || !strings.Contains(big1.normalized, "12345678901234567891") ||
+		!strings.Contains(big2.normalized, "12345678901234567892") {
+		t.Fatalf("large ids collapsed: %q / %q", big1.normalized, big2.normalized)
+	}
+	decimal := prepareCompareBody(compareBodySource{inline: `{"v":1.0}`, contentType: "application/json"})
+	if !strings.Contains(decimal.normalized, `"v": 1.0`) {
+		t.Fatalf("number spelling was changed: %q", decimal.normalized)
+	}
 }
 
 func TestCompareBodyReadsTheWholeSpillFile(t *testing.T) {
@@ -84,7 +96,7 @@ func TestCompareBinaryBodyShowsSizeAndHashSummary(t *testing.T) {
 func TestCompareRawToggleSwitchesTheDiffBuffers(t *testing.T) {
 	a := workspaceApp()
 	a.compare = compareState{
-		open: true, ready: true, part: locales.ResponseHeaders(),
+		open: true, ready: true, part: comparePartResponseHeaders,
 		sides: [2]compareExchange{
 			{resHeaders: compareHeaders("Z-Trace: one\nAccept: application/json")},
 			{resHeaders: compareHeaders("Accept: text/plain\nZ-Trace: two")},
@@ -143,7 +155,7 @@ func TestCompareSelectionPersistsAcrossTheTwoCommands(t *testing.T) {
 	}
 	withAction.run()
 	if !a.compare.open || a.compare.generation != 1 {
-		t.Fatalf("comparison did not start: %+v", a.compare)
+		t.Fatalf("comparison did not start: open=%v generation=%d", a.compare.open, a.compare.generation)
 	}
 	if !a.compare.sources[0].target.same(flowTarget(a.flows[0])) ||
 		!a.compare.sources[1].target.same(flowTarget(a.flows[1])) {
@@ -164,6 +176,35 @@ func TestCompareSelectionClearedWhenCaptureIsDeleted(t *testing.T) {
 	a.deleteFlows([]flow{a.flows[0]})
 	if a.compare.selected != (compareTarget{}) {
 		t.Fatalf("selection survived deletion: %+v", a.compare.selected)
+	}
+}
+
+func TestCompareSelectionClearedByClearCaptured(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		selectIndex int
+		wantCleared bool
+	}{
+		{"pinned row stays selected", 1, false},
+		{"unpinned row loses selection", 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := workspaceApp()
+			a.flows[1].pinned = true
+			target := flowTarget(a.flows[tc.selectIndex])
+			a.selectForCompare(target)
+			a.clearCaptured()
+			if len(a.flows) != 1 || a.flows[0].id != 2 {
+				t.Fatalf("clear kept %+v, want only the pinned row", a.flows)
+			}
+			if tc.wantCleared {
+				if a.compare.selected != (compareTarget{}) {
+					t.Fatalf("unpinned selection survived: %+v", a.compare.selected)
+				}
+			} else if !a.compare.selected.same(target) {
+				t.Fatalf("pinned selection was lost: %+v", a.compare.selected)
+			}
+		})
 	}
 }
 
@@ -195,7 +236,7 @@ func TestRunHistoryCompareBuildsBothSides(t *testing.T) {
 	}
 	secondActions[1].run()
 	if !a.compare.open || a.compare.generation != 1 {
-		t.Fatalf("run comparison did not start: %+v", a.compare)
+		t.Fatalf("run comparison did not start: open=%v generation=%d", a.compare.open, a.compare.generation)
 	}
 	if a.compare.sources[0].label != locales.RunNumberLabel(10) ||
 		a.compare.sources[1].label != locales.RunNumberLabel(11) {

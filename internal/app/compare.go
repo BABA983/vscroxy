@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/inspect"
@@ -105,21 +106,84 @@ type comparePrepared struct {
 	sides      [2]compareExchange
 }
 
+// comparePartKind is the section being diffed. The localized name is derived
+// when it is drawn, so changing language while the dialog is open cannot make
+// the view lose track of its section.
+type comparePartKind uint8
+
+const (
+	comparePartResponseBody comparePartKind = iota
+	comparePartResponseHeaders
+	comparePartRequestBody
+	comparePartRequestHeaders
+)
+
+var comparePartOptions = [...]comparePartKind{
+	comparePartResponseBody, comparePartResponseHeaders, comparePartRequestBody, comparePartRequestHeaders,
+}
+
+func (p comparePartKind) label() string {
+	switch p {
+	case comparePartResponseHeaders:
+		return locales.ResponseHeaders()
+	case comparePartRequestBody:
+		return locales.RequestBody()
+	case comparePartRequestHeaders:
+		return locales.RequestHeaders()
+	default:
+		return locales.ResponseBody()
+	}
+}
+
 // compareState is the two-command selection and the view reading its result.
 // A generation drops a worker's answer when a newer pair was chosen meanwhile.
 type compareState struct {
 	selected    compareTarget
 	open, ready bool
+	mu          sync.Mutex
 	generation  uint64
+	pending     *comparePrepared
 	sources     [2]compareSource
 	sides       [2]compareExchange
 	labels      [2]string
-	part        string
+	part        comparePartKind
 	raw         bool
 	swapped     bool
 	diff        *editor.DiffState
 	diffKey     string
-	results     chan comparePrepared
+}
+
+// nextGeneration invalidates any answer still in flight and returns the id
+// the worker for the new pair must carry.
+func (s *compareState) nextGeneration() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.generation++
+	s.pending = nil
+	return s.generation
+}
+
+// publish keeps the current generation's answer in one slot. It cannot be
+// dropped because a bounded channel was full: that would leave the dialog on
+// Reading forever. An answer from a superseded pair is never published.
+func (s *compareState) publish(result comparePrepared) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if result.generation == s.generation {
+		latest := result
+		s.pending = &latest
+	}
+}
+
+func (s *compareState) take() (comparePrepared, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pending == nil {
+		return comparePrepared{}, false
+	}
+	result := *s.pending
+	s.pending = nil
+	return result, true
 }
 
 // compareSourceOf copies what a comparison needs from a capture or a run. It
@@ -213,26 +277,19 @@ func (a *app) startCompare(left, right compareTarget) {
 		return
 	}
 	s := &a.compare
-	s.generation++
+	gen := s.nextGeneration()
 	s.open, s.ready = true, false
 	s.sources = sources
 	s.labels = [2]string{left.label(), right.label()}
 	s.sides = [2]compareExchange{}
-	s.part, s.raw, s.swapped = locales.ResponseBody(), false, false
+	s.part, s.raw, s.swapped = comparePartResponseBody, false, false
 	s.diff, s.diffKey = nil, ""
-	if s.results == nil {
-		s.results = make(chan comparePrepared, 2)
-	}
-	gen := s.generation
 	go guarded(func() {
 		prepared := comparePrepared{generation: gen}
 		for i, source := range sources {
 			prepared.sides[i] = prepareCompareExchange(source)
 		}
-		select {
-		case s.results <- prepared:
-		default:
-		}
+		s.publish(prepared)
 		a.invalidate()
 	})
 }
@@ -323,21 +380,10 @@ func sizeName(size int) string {
 // older pair is dropped rather than shown over the newer one's frame.
 func (a *app) drainCompare() {
 	s := &a.compare
-	if s.results == nil {
-		return
-	}
-	for {
-		select {
-		case result := <-s.results:
-			if result.generation != s.generation || !s.open {
-				continue
-			}
-			s.sides, s.ready = result.sides, true
-			s.diff, s.diffKey = nil, ""
-			a.invalidate()
-		default:
-			return
-		}
+	if result, ok := s.take(); ok && s.open && result.generation == s.generation {
+		s.sides, s.ready = result.sides, true
+		s.diff, s.diffKey = nil, ""
+		a.invalidate()
 	}
 }
 
@@ -369,11 +415,11 @@ func (s *compareState) exchange(i int) compareExchange {
 
 func (s *compareState) partTexts(e compareExchange) (string, string) {
 	switch s.part {
-	case locales.RequestHeaders():
+	case comparePartRequestHeaders:
 		return e.reqHeaders.raw, e.reqHeaders.normalized
-	case locales.ResponseHeaders():
+	case comparePartResponseHeaders:
 		return e.resHeaders.raw, e.resHeaders.normalized
-	case locales.RequestBody():
+	case comparePartRequestBody:
 		return e.reqBody.raw, e.reqBody.normalized
 	default:
 		return e.resBody.raw, e.resBody.normalized
@@ -403,9 +449,14 @@ func (a *app) compareModal(c *ui.Context, t *ui.Theme) {
 				return
 			}
 			ui.Row(c).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Wrap().Children(func() {
-				uikit.SelectLabels(c, &s.part, []string{locales.ResponseBody(), locales.ResponseHeaders(),
-					locales.RequestBody(), locales.RequestHeaders()}, optionLabel).
-					Label(locales.CompareContent()).Width(165).Height(uikit.HeightRow).Radius(uikit.RadiusControl)
+				uikit.MenuSelect(c, s.part.label(), func(m *ui.Menu) {
+					for _, part := range comparePartOptions {
+						if m.Item(part.label()).Chosen() {
+							s.part = part
+							s.diffKey = ""
+						}
+					}
+				}).Label(locales.CompareContent()).Width(165).Height(uikit.HeightRow).Radius(uikit.RadiusControl)
 				label, tip := locales.CompareNormalized(), locales.CompareNormalizedTip()
 				if s.raw {
 					label, tip = locales.CompareRaw(), locales.CompareRawTip()
@@ -442,7 +493,7 @@ func (a *app) compareModal(c *ui.Context, t *ui.Theme) {
 			if s.raw {
 				oldText, newText = oldRaw, newRaw
 			}
-			key := strings.Join([]string{s.part, strconv.FormatBool(s.raw), left.target.label(),
+			key := strings.Join([]string{strconv.Itoa(int(s.part)), strconv.FormatBool(s.raw), left.target.label(),
 				right.target.label(), strconv.FormatBool(s.swapped)}, "|")
 			if s.diff == nil || s.diffKey != key {
 				layout := editor.DiffSplit

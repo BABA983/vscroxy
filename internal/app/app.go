@@ -2440,12 +2440,19 @@ func (a *app) clearCaptured() {
 	a.mu.Lock()
 	a.pending = nil
 	a.mu.Unlock()
-	removed := a.flows
+	// DeleteFunc compacts the backing array, so collect the removed IDs before
+	// it runs; iterating the slice afterwards would visit the survivors.
+	removed := make([]int, 0, len(a.flows))
+	for _, f := range a.flows {
+		if !f.pinned {
+			removed = append(removed, f.id)
+		}
+	}
 	a.flows = slices.DeleteFunc(a.flows, func(f flow) bool { return !f.pinned })
 	a.frames = pruneMessages(a.frames, a.flows)
 	a.chosen.Clear()
-	for _, f := range removed {
-		a.clearCompareSelection(flowTarget(f))
+	for _, id := range removed {
+		a.clearCompareSelection(compareTarget{kind: "flow", id: id})
 	}
 	a.totalBytes = 0
 	for _, f := range a.flows {
