@@ -59,6 +59,65 @@ func openBodyFind(t *testing.T, body string) (*app, *ui.Tester, *ui.Context, *ed
 	return a, tt, c, find
 }
 
+// TestBodyFindOptionKeysPressOnce sends the real Option+letter keys with the
+// find bar focused. A key that reaches both the query and the command registry
+// toggles twice; one that reaches text input inserts a letter into the query.
+func TestBodyFindOptionKeysPressOnce(t *testing.T) {
+	tests := []struct {
+		name  string
+		key   ui.Key
+		value func(*editor.FindBar) *bool
+	}{
+		{"match-case", ui.KeyC, func(f *editor.FindBar) *bool { return f.CaseSensitive() }},
+		{"whole-word", ui.KeyW, func(f *editor.FindBar) *bool { return f.WholeWord() }},
+		{"regexp", ui.KeyR, func(f *editor.FindBar) *bool { return f.Regexp() }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a, tester, c, _ := openBodyFind(t, "alpha beta")
+			// The bar's state is rebound on some frames; always read the one
+			// the view is using now, not the pointer from the first frame.
+			current := func() *editor.FindBar { return a.bodyFind[0].find }
+			if !a.bodyFind[0].handle.FocusWithin(c) {
+				t.Fatal("the find bar is not focused")
+			}
+			*current().Query() = "alpha"
+			tester.Frame()
+			wantCase, wantWord, wantRegexp := *current().CaseSensitive(), *current().WholeWord(), *current().Regexp()
+			for press := range 2 {
+				if !a.bodyFind[0].handle.FocusWithin(c) {
+					settleBodyFind(t, a, tester, c)
+				}
+				tester.Key(ui.Alt, tt.key)
+				tester.Frame()
+				find := current()
+				if find == nil {
+					t.Fatalf("press %d left no find bar", press+1)
+				}
+				var want bool
+				switch tt.name {
+				case "match-case":
+					wantCase, want = !wantCase, !wantCase
+				case "whole-word":
+					wantWord, want = !wantWord, !wantWord
+				case "regexp":
+					wantRegexp, want = !wantRegexp, !wantRegexp
+				}
+				if got := *tt.value(find); got != want {
+					t.Fatalf("press %d did not flip %s exactly once: got %v, want %v", press+1, tt.name, got, want)
+				}
+				if *find.Query() != "alpha" {
+					t.Errorf("press %d changed the query to %q", press+1, *find.Query())
+				}
+				if *find.CaseSensitive() != wantCase || *find.WholeWord() != wantWord || *find.Regexp() != wantRegexp {
+					t.Errorf("press %d changed another option: case %v, word %v, regexp %v",
+						press+1, *find.CaseSensitive(), *find.WholeWord(), *find.Regexp())
+				}
+			}
+		})
+	}
+}
+
 func TestBodyFindCaseSensitiveNeedsFindFocus(t *testing.T) {
 	a, tt, c, find := openBodyFind(t, "error Error error")
 	find.Close()

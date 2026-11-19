@@ -780,7 +780,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		a.structured[side].view(c, a, capturedInspectionBody(f, side), f.bodyContentType(side == 0))
 		return
 	}
-	if mode == 5 {
+	if modes[mode] == "Protobuf" {
 		// One inspector reads one side: the other says where to read.
 		if a.protobufReadElsewhere(c, side) {
 			return
@@ -914,7 +914,8 @@ func (a *app) htmlPreview(c *ui.Context, key, body string, side int) {
 	// the box around it.
 	t := c.Theme()
 	ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
-		richtext.EditorBase(c, a.htmlDoc[side], richtext.EditorOptions{ReadOnly: true}).Grow(1)
+		richtext.EditorBase(c, a.htmlDoc[side], richtext.EditorOptions{ReadOnly: true,
+			OnLink: func(raw string) { a.openCapturedLink(c, raw) }}).Grow(1)
 	})
 }
 
@@ -1084,7 +1085,8 @@ func (a *app) markdownBody(c *ui.Context, f flow, body string, side int) {
 	}
 	t := c.Theme()
 	ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
-		richtext.EditorBase(c, a.markdownDoc[side], richtext.EditorOptions{ReadOnly: true}).Grow(1)
+		richtext.EditorBase(c, a.markdownDoc[side], richtext.EditorOptions{ReadOnly: true,
+			OnLink: func(raw string) { a.openCapturedLink(c, raw) }}).Grow(1)
 	})
 }
 
