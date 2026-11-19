@@ -3,6 +3,7 @@
 package system
 
 import (
+	"bytes"
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
@@ -84,9 +85,17 @@ func (f *fakeKDEDesktop) run(name string, args ...string) error {
 		key := args[5]
 		switch {
 		case slices.Equal(args[6:], []string{"--delete"}):
-			delete(f.values, key)
+			// kwriteconfig's delete of a plain key removes every flagged
+			// spelling of that key; deleting a flagged key removes only it.
+			base, _ := splitKDEKeyFlag(key)
+			for stored := range f.values {
+				storedBase, _ := splitKDEKeyFlag(stored)
+				if stored == key || (key == base && storedBase == base) {
+					delete(f.values, stored)
+				}
+			}
 		case len(args) == 7:
-			f.values[key] = args[6]
+			f.values[key] = args[6] // kwriteconfig takes the logical, unescaped value
 		default:
 			return fmt.Errorf("unexpected kwriteconfig value %q", args[6:])
 		}
@@ -109,11 +118,44 @@ func (f *fakeKDEDesktop) writeConfig() {
 	text.WriteString(f.head)
 	text.WriteString("[" + kdeProxyGroup + "]\n")
 	for _, key := range keys {
-		fmt.Fprintf(&text, "%s=%s\n", key, f.values[key])
+		fmt.Fprintf(&text, "%s=%s\n", kconfigEscapeKey(key), kconfigEscapeValue(f.values[key]))
 	}
 	if err := os.WriteFile(f.path, []byte(text.String()), 0o600); err != nil {
 		panic(err)
 	}
+}
+
+// These mirror the subset of KConfig's stringToPrintable that kwriteconfig
+// uses: protect leading/trailing spaces, backslash, control characters, and
+// escape bracketed flag keys. Values passed to kwriteconfig stay logical.
+func kconfigEscapeKey(key string) string {
+	key = strings.ReplaceAll(key, "[", `\x5b`)
+	return strings.ReplaceAll(key, "]", `\x5d`)
+}
+
+func kconfigEscapeValue(value string) string {
+	var out strings.Builder
+	for i := 0; i < len(value); i++ {
+		switch value[i] {
+		case ' ':
+			if i == 0 || i == len(value)-1 {
+				out.WriteString(`\s`)
+			} else {
+				out.WriteByte(' ')
+			}
+		case '\\':
+			out.WriteString(`\\`)
+		case '\n':
+			out.WriteString(`\n`)
+		case '\t':
+			out.WriteString(`\t`)
+		case '\r':
+			out.WriteString(`\r`)
+		default:
+			out.WriteByte(value[i])
+		}
+	}
+	return out.String()
 }
 
 func (f *fakeKDEDesktop) hasCommand(want ...string) bool {
@@ -207,6 +249,151 @@ func TestKDESetAndRestoreRoundTripEveryProxyKey(t *testing.T) {
 				t.Fatalf("journal restore = %q, want %q exactly", f.values, original)
 			}
 		})
+	}
+}
+
+func TestKDEEscapedValuesRoundTripByteForByte(t *testing.T) {
+	pac := `file:///home/u/my proxy\x.pac`
+	bypass := " .internal.example,localhost"
+	f := newFakeKDEDesktop(t, initialKDEValues("2", pac, bypass))
+	beforeFile, err := os.ReadFile(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := snapshotProxy("127.0.0.1:7890")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ptrText(before.KDE.Values[kdePACKey]); got != pac {
+		t.Fatalf("PAC snapshot = %q, want logical %q", got, pac)
+	}
+	if got := ptrText(before.KDE.Values[kdeBypassKey]); got != bypass {
+		t.Fatalf("NoProxyFor snapshot = %q, want logical %q", got, bypass)
+	}
+	bypassList := []string{"localhost", "*.corp.example"}
+	if err := before.applyProxy("127.0.0.1:7890", bypassList, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := restoreProxy(before, "127.0.0.1:7890", bypassList, true); err != nil {
+		t.Fatal(err)
+	}
+	afterFile, err := os.ReadFile(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(beforeFile, afterFile) {
+		t.Fatalf("kioslaverc changed:\nbefore %q\nafter  %q", beforeFile, afterFile)
+	}
+	want := []string{"kwriteconfig5", "--file", kdeProxyFile, "--group", kdeProxyGroup,
+		"--key", kdeBypassKey, bypass} // logical leading space, not \s
+	if !f.hasCommand(want...) {
+		t.Fatalf("restore did not pass the logical value %q: %q", bypass, f.commands)
+	}
+}
+
+func TestKDEKeyFlagsSurviveEnableAndRestore(t *testing.T) {
+	for _, tc := range []struct{ name, original string }{
+		{"e", "$NO_PROXY"},
+		{"i", "orig.example"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			flag := "[$" + tc.name + "]"
+			values := initialKDEValues("2", "", "localhost")
+			values[kdeBypassKey+flag] = tc.original
+			delete(values, kdeBypassKey)
+			f := newFakeKDEDesktop(t, values)
+			beforeFile, err := os.ReadFile(f.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before, err := snapshotProxy("127.0.0.1:7890")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := before.KDE.Flags[kdeBypassKey]; got != flag {
+				t.Fatalf("NoProxyFor flag = %q, want %q", got, flag)
+			}
+			if got := ptrText(before.KDE.Values[kdeBypassKey]); got != tc.original {
+				t.Fatalf("flagged NoProxyFor = %q", got)
+			}
+			bypass := []string{"localhost", "*.corp.example"}
+			if err := before.applyProxy("127.0.0.1:7890", bypass, true); err != nil {
+				t.Fatal(err)
+			}
+			deleteAll := []string{"kwriteconfig5", "--file", kdeProxyFile, "--group", kdeProxyGroup, "--key", kdeBypassKey, "--delete"}
+			if !f.hasCommand(deleteAll...) {
+				t.Fatalf("apply did not clear the flagged key first: %q", f.commands)
+			}
+			if got := f.values[kdeBypassKey]; got != "localhost,*.corp.example" {
+				t.Fatalf("enabled NoProxyFor = %q", got)
+			}
+			if err := restoreProxy(before, "127.0.0.1:7890", bypass, true); err != nil {
+				t.Fatal(err)
+			}
+			if !maps.Equal(f.values, values) {
+				t.Fatalf("restored = %q, want %q", f.values, values)
+			}
+			restoreFlag := []string{"kwriteconfig5", "--file", kdeProxyFile, "--group", kdeProxyGroup,
+				"--key", kdeBypassKey + flag, tc.original}
+			if !f.hasCommand(restoreFlag...) {
+				t.Fatalf("restore did not restore the flag: %q", f.commands)
+			}
+			afterFile, err := os.ReadFile(f.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(beforeFile, afterFile) {
+				t.Fatalf("flagged kioslaverc changed:\nbefore %q\nafter  %q", beforeFile, afterFile)
+			}
+		})
+	}
+}
+
+func TestKDERestoreKeepsOriginalServersBesideAReplacement(t *testing.T) {
+	f := newFakeKDEDesktop(t, initialKDEValues("2", "http://pac.example/original", "localhost"))
+	before, err := snapshotProxy("127.0.0.1:7890")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := before.applyProxy("127.0.0.1:7890", nil, false); err != nil {
+		t.Fatal(err)
+	}
+	// Another program replaces one protocol while the manual proxy is active.
+	if err := f.run("kwriteconfig5", "--file", kdeProxyFile, "--group", kdeProxyGroup,
+		"--key", "httpsProxy", "http://other.example 9999"); err != nil {
+		t.Fatal(err)
+	}
+	if err := restoreProxy(before, "127.0.0.1:7890", nil, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.values["httpProxy"]; got != "http://corporate.example 3128" {
+		t.Fatalf("original HTTP server was not restored: %q", got)
+	}
+	if got := f.values["httpsProxy"]; got != "http://other.example 9999" {
+		t.Fatalf("replacement HTTPS server was lost: %q", got)
+	}
+	if got := f.values[kdeTypeKey]; got != "2" {
+		t.Fatalf("ProxyType = %q, want the original 2", got)
+	}
+	if got := f.values[kdePACKey]; got != "http://pac.example/original" {
+		t.Fatalf("PAC URL = %q", got)
+	}
+}
+
+func TestKDEDecodesKConfigEscapes(t *testing.T) {
+	for _, tc := range []struct{ raw, want string }{
+		{`file:///home/u/my proxy\\x.pac`, `file:///home/u/my proxy\x.pac`},
+		{`\s leading`, "  leading"},
+		{`trailing\s`, "trailing "},
+		{`a\tb\nc\rd`, "a\tb\nc\rd"},
+		{`a\\b`, `a\b`},
+		{`a\;b\,c`, `a\;b\,c`}, // KConfig keeps these two escapes
+		{`\x41\x42`, "AB"},
+		{`a\qb`, `a\qb`},
+	} {
+		if got := decodeKDEEscapes(tc.raw); got != tc.want {
+			t.Errorf("decodeKDEEscapes(%q) = %q, want %q", tc.raw, got, tc.want)
+		}
 	}
 }
 
@@ -481,7 +668,8 @@ func TestKDERealKWriteConfigRoundTrip(t *testing.T) {
 		readFile: os.ReadFile,
 	}
 	t.Cleanup(func() { kdeCmd = previous })
-	initial := initialKDEValues("2", "http://pac.example/original", "localhost,.internal.example")
+	backslash := string([]byte{92})
+	initial := initialKDEValues("2", "file:///home/u/my proxy"+backslash+"x.pac", " .internal.example,localhost")
 	command := ""
 	for _, name := range []string{"kwriteconfig6", "kwriteconfig5"} {
 		if _, err := exec.LookPath(name); err == nil {
@@ -519,6 +707,9 @@ func TestKDERealKWriteConfigRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("restored:\n%s", restored)
+	if !bytes.Equal(beforeText, restored) {
+		t.Fatalf("real kwriteconfig changed the file:\nbefore %q\nafter  %q", beforeText, restored)
+	}
 	state, err := kdeReadConfigAt(filepath.Join(dir, kdeProxyFile))
 	if err != nil {
 		t.Fatal(err)

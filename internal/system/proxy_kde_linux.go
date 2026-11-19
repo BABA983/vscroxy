@@ -40,15 +40,19 @@ var kdeCmd = kdeCommands{
 }
 
 // kdeSnapshot is the Proxy Settings section as it was read, including keys we
-// never write. A nil value means the key was absent, which restoration deletes
-// rather than leaving an empty value behind.
+// never write. Values are KConfig's logical values: file escapes are decoded,
+// because kwriteconfig escapes them again when it writes. Flags records the
+// original key suffix, for example [$e] or [$i], by logical key name. A nil
+// value means the key was absent, which restoration deletes.
 type kdeSnapshot struct {
 	Path   string
 	Values map[string]*string
+	Flags  map[string]string `json:",omitempty"`
 }
 
 type kdeWrite struct {
 	key   string
+	flag  string // original KConfig key suffix, empty for a plain key
 	value *string
 }
 
@@ -76,23 +80,25 @@ func kdeReadConfig() (kdeSnapshot, error) {
 func kdeReadConfigAt(path string) (kdeSnapshot, error) {
 	data, err := kdeCmd.readFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return kdeSnapshot{Path: path, Values: map[string]*string{}}, nil
+		return kdeSnapshot{Path: path, Values: map[string]*string{}, Flags: map[string]string{}}, nil
 	}
 	if err != nil {
 		return kdeSnapshot{}, err
 	}
+	raw, flags := parseKDEProxyConfig(data)
 	values := map[string]*string{}
-	for key, text := range parseKDEProxyConfig(data) {
+	for key, text := range raw {
 		value := text
 		values[key] = &value
 	}
-	return kdeSnapshot{Path: path, Values: values}, nil
+	return kdeSnapshot{Path: path, Values: values, Flags: flags}, nil
 }
 
-// parseKDEProxyConfig reads the Proxy Settings section as KConfig writes it.
-// Values stay byte for byte; only the section and key syntax is interpreted.
-func parseKDEProxyConfig(data []byte) map[string]string {
-	values := map[string]string{}
+// parseKDEProxyConfig reads the Proxy Settings section as KConfig writes it,
+// returning logical keys and values. A key's [$e]/[$i]/[$d] suffix is recorded
+// separately so restoration can put the same flag back.
+func parseKDEProxyConfig(data []byte) (map[string]string, map[string]string) {
+	values, flags := map[string]string{}, map[string]string{}
 	inSection := false
 	for line := range strings.SplitSeq(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -103,12 +109,84 @@ func parseKDEProxyConfig(data []byte) map[string]string {
 		if !inSection || trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, ";") {
 			continue
 		}
-		key, value, ok := strings.Cut(line, "=")
-		if ok {
-			values[strings.TrimSpace(key)] = value
+		keyText, valueText, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key, flag := splitKDEKeyFlag(decodeKDEEscapes(strings.TrimSpace(keyText)))
+		values[key] = decodeKDEEscapes(valueText)
+		if flag != "" {
+			flags[key] = flag
+		} else {
+			delete(flags, key)
 		}
 	}
-	return values
+	return values, flags
+}
+
+// splitKDEKeyFlag separates KConfig's option suffix from the key name. KConfig
+// stores both a literal "[...]" suffix and kwriteconfig's escaped "\x5b...\x5d"
+// spelling as a flag; any other bracketed suffix is part of the key.
+func splitKDEKeyFlag(key string) (string, string) {
+	start := strings.LastIndex(key, "[$")
+	if start < 0 || !strings.HasSuffix(key, "]") {
+		return key, ""
+	}
+	options := key[start+2 : len(key)-1]
+	if options == "" {
+		return key, ""
+	}
+	for _, option := range options {
+		if option != 'e' && option != 'i' && option != 'd' {
+			return key, ""
+		}
+	}
+	return key[:start], key[start:]
+}
+
+// decodeKDEEscapes mirrors KConfigIniBackend::printableToString. kwriteconfig
+// escapes values again when writing, so snapshots and comparisons must use the
+// logical value. KConfig deliberately keeps backslash-semicolon and
+// backslash-comma as written; they are not escape sequences there.
+func decodeKDEEscapes(text string) string {
+	data := []byte(text)
+	out := make([]byte, 0, len(data))
+	for i := 0; i < len(data); i++ {
+		if data[i] != '\\' || i+1 >= len(data) {
+			out = append(out, data[i])
+			continue
+		}
+		i++
+		switch data[i] {
+		case 's':
+			out = append(out, ' ')
+		case 't':
+			out = append(out, '\t')
+		case 'n':
+			out = append(out, '\n')
+		case 'r':
+			out = append(out, '\r')
+		case '\\':
+			out = append(out, '\\')
+		case ';', ',':
+			out = append(out, '\\', data[i])
+		case 'x':
+			if i+2 < len(data) {
+				value, err := strconv.ParseUint(string(data[i+1:i+3]), 16, 8)
+				if err != nil {
+					out = append(out, 'x') // KConfig reports the invalid hex and drops it
+				} else {
+					out = append(out, byte(value))
+				}
+				i += 2
+			} else {
+				out = append(out, 'x')
+			}
+		default:
+			out = append(out, '\\', data[i])
+		}
+	}
+	return string(out)
 }
 
 // kdeEndpoint reads KIO's "http://host port" spelling of a fixed server. KIO
@@ -206,7 +284,7 @@ func kdeApplyWrites(s kdeSnapshot, writes []kdeWrite) error {
 		return err
 	}
 	for _, item := range writes {
-		args := []string{"--file", kdeProxyFile, "--group", kdeProxyGroup, "--key", item.key}
+		args := []string{"--file", kdeProxyFile, "--group", kdeProxyGroup, "--key", item.key + item.flag}
 		if item.value == nil {
 			args = append(args, "--delete")
 		} else {
@@ -217,6 +295,22 @@ func kdeApplyWrites(s kdeSnapshot, writes []kdeWrite) error {
 		}
 	}
 	return kdeNotify()
+}
+
+// kdeFlagDeletes clears the original flagged spelling of each key before a
+// plain write. A plain kwriteconfig write leaves a [$e]/[$i] entry in place,
+// and that entry would keep deciding what KDE reads.
+func kdeFlagDeletes(before kdeSnapshot, writes []kdeWrite) []kdeWrite {
+	var deletes []kdeWrite
+	seen := map[string]bool{}
+	for _, item := range writes {
+		key := item.key
+		if before.Flags[key] != "" && !seen[key] {
+			seen[key] = true
+			deletes = append(deletes, kdeWrite{key: key}) // delete every spelling of the key
+		}
+	}
+	return deletes
 }
 
 func kdeSame(a, b *string) bool {
@@ -249,7 +343,7 @@ func (s kdeSnapshot) applyProxy(addr string, bypass []string, set bool) error {
 	}
 	manual := "1"
 	writes = append(writes, kdeWrite{key: kdeTypeKey, value: &manual})
-	if err := kdeApplyWrites(s, writes); err != nil {
+	if err := kdeApplyWrites(s, append(kdeFlagDeletes(s, writes), writes...)); err != nil {
 		return err
 	}
 	current, err := kdeReadConfigAt(s.Path)
@@ -270,7 +364,8 @@ func kdeClearProxy() error {
 		return err
 	}
 	none := "0"
-	return kdeApplyWrites(state, []kdeWrite{{key: kdeTypeKey, value: &none}})
+	writes := []kdeWrite{{key: kdeTypeKey, value: &none}}
+	return kdeApplyWrites(state, append(kdeFlagDeletes(state, writes), writes...))
 }
 
 // restoreKDEProxy puts back each value this session wrote if the desktop still
@@ -296,12 +391,9 @@ func restoreKDEProxy(before kdeSnapshot, target string, applied []string, set bo
 		expected[key] = value
 	}
 	endpoints := []string{"httpProxy", "httpsProxy", "ftpProxy", "socksProxy"}
-	allOwned := true
 	for _, key := range endpoints {
 		if owned(key, server) {
 			expected[key] = before.Values[key]
-		} else {
-			allOwned = false
 		}
 	}
 	if set && owned(kdeBypassKey, list) {
@@ -310,21 +402,23 @@ func restoreKDEProxy(before kdeSnapshot, target string, applied []string, set bo
 	if owned(kdeTypeKey, "1") {
 		expected[kdeTypeKey] = before.Values[kdeTypeKey]
 	}
-	if !allOwned && ptrText(before.Values[kdeTypeKey]) != "1" {
-		// Manual mode must stay on for the replacement: do not reactivate an
-		// old server we restored for a protocol nobody changed.
-		for _, key := range endpoints {
-			if owned(key, server) {
-				expected[key] = nil
-			}
-		}
-	}
 	order := append(endpoints, kdeBypassKey, kdePACKey, kdeTypeKey)
 	var writes []kdeWrite
 	for _, key := range order {
-		if !kdeSame(current.Values[key], expected[key]) {
-			writes = append(writes, kdeWrite{key: key, value: expected[key]})
+		if kdeSame(current.Values[key], expected[key]) {
+			continue
 		}
+		if expected[key] == nil {
+			writes = append(writes, kdeWrite{key: key}) // remove the key we added
+			continue
+		}
+		// An earlier [$e] or [$i] key was deleted before apply; write it back
+		// with its original flag, so KDE sees the original expansion or
+		// immutability, not a plain key with the same text.
+		if before.Flags[key] != "" {
+			writes = append(writes, kdeWrite{key: key}) // clear our plain entry first
+		}
+		writes = append(writes, kdeWrite{key: key, flag: before.Flags[key], value: expected[key]})
 	}
 	if len(writes) == 0 {
 		return nil
@@ -337,7 +431,11 @@ func restoreKDEProxy(before kdeSnapshot, target string, applied []string, set bo
 		return err
 	}
 	for key, want := range expected {
-		if !kdeSame(after.Values[key], want) {
+		wantFlag := current.Flags[key]
+		if kdeSame(want, before.Values[key]) && !kdeSame(current.Values[key], before.Values[key]) {
+			wantFlag = before.Flags[key]
+		}
+		if !kdeSame(after.Values[key], want) || after.Flags[key] != wantFlag {
 			return fmt.Errorf("KDE %s proxy restoration was not accepted", key)
 		}
 	}
