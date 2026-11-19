@@ -112,7 +112,7 @@ type app struct {
 	// paletteAssets caches scored and sorted resource candidates for one
 	// query/library/variables/history key. Repeated palette frames with an
 	// unchanged query are lookups, not rescans of the request library.
-	paletteAssets map[paletteAssetCacheKey]paletteAssetResult
+	paletteAssets *linkedmap.LRUCache[paletteAssetCacheKey, paletteAssetResult]
 	// fuzzyLists holds scored name-list hits by owner, query and generation.
 	fuzzyLists *linkedmap.LRUCache[fuzzyListKey, fuzzyListCacheValue]
 	renameOpen bool
@@ -163,7 +163,7 @@ type app struct {
 	docsPath       string
 	docsMarkdown   markdown.Options
 	docsSampleLang map[string]int
-	contractCache  map[string]contractResult
+	contractCache  *linkedmap.LRUCache[string, contractResult]
 	// aboutOpen shows the About window; aboutTab picks its licenses page.
 	// aboutLicense and aboutNotices are the texts the package ships.
 	aboutOpen     bool
@@ -544,7 +544,7 @@ type app struct {
 	filterBody    string
 	filterTriage  captureTriage
 	// textExprs holds the compiled text conditions of the filters, by field and text.
-	textExprs    map[string]textExpr
+	textExprs    *linkedmap.LRUCache[string, textExpr]
 	filterAny    bool
 	activity     activityRange
 	activityRows []int // matching rows before the time brush, for its full context

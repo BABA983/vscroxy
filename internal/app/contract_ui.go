@@ -10,12 +10,17 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/linkedmap"
 	"github.com/baba983/vscroxy/internal/openapi"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/getkin/kin-openapi/openapi3"
 )
+
+// contractCacheLimit bounds how many exchanges keep their check result.
+// Reaching it drops only the least recently used exchange.
+const contractCacheLimit = 256
 
 // contractResult is one exchange checked against every saved contract.
 type contractResult struct {
@@ -39,11 +44,20 @@ func (a *app) contractSpecsKey() string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
+func (a *app) contractCheckCache() *linkedmap.LRUCache[string, contractResult] {
+	if a.contractCache == nil {
+		a.contractCache = linkedmap.NewLRUCache[string, contractResult](contractCacheLimit)
+	}
+	return a.contractCache
+}
+
 // contractCheck validates ex against every saved contract and caches the
-// result by exchange identity and contract contents.
+// result by exchange identity and contract contents. A hit also makes that
+// exchange the most recently used one.
 func (a *app) contractCheck(key string, ex openapi.Exchange) contractResult {
 	cacheKey := a.contractSpecsKey() + "|" + key
-	if result, ok := a.contractCache[cacheKey]; ok {
+	cache := a.contractCheckCache()
+	if result, ok := cache.Get(cacheKey); ok {
 		return result
 	}
 	var result contractResult
@@ -82,10 +96,7 @@ func (a *app) contractCheck(key string, ex openapi.Exchange) contractResult {
 		}
 	}
 	result.NotCovered = len(result.Drifts) == 0
-	if a.contractCache == nil || len(a.contractCache) > 256 {
-		a.contractCache = map[string]contractResult{}
-	}
-	a.contractCache[cacheKey] = result
+	cache.Set(cacheKey, result)
 	return result
 }
 

@@ -19,12 +19,17 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/linkedmap"
 	"github.com/baba983/vscroxy/locales"
 )
 
 // maxTextPattern is the longest regular expression a condition may hold, as
 // the search field's patterns are.
 const maxTextPattern = 4096
+
+// textExprCacheLimit bounds the compiled conditions kept for filter fields.
+// Reaching it drops only the least recently used field and text.
+const textExprCacheLimit = 256
 
 // textCondition is one condition of a text field. op is '=', '^', '~' or '/'.
 type textCondition struct {
@@ -181,20 +186,23 @@ func (c textCondition) hit(targets []string) bool {
 	return false
 }
 
+func (a *app) textExprCache() *linkedmap.LRUCache[string, textExpr] {
+	if a.textExprs == nil {
+		a.textExprs = linkedmap.NewLRUCache[string, textExpr](textExprCacheLimit)
+	}
+	return a.textExprs
+}
+
 // textFor compiles a field's text once for each distinct text, so a pass over
-// the rows parses each condition once. It runs on the UI thread only.
+// the rows parses each condition once. It runs on the UI thread only, and a
+// hit makes that field and text the most recently used one.
 func (a *app) textFor(expr string, def byte) textExpr {
 	key := string(def) + expr
-	if e, ok := a.textExprs[key]; ok {
+	cache := a.textExprCache()
+	if e, ok := cache.Get(key); ok {
 		return e
 	}
-	if len(a.textExprs) >= 256 {
-		a.textExprs = nil
-	}
-	if a.textExprs == nil {
-		a.textExprs = make(map[string]textExpr)
-	}
 	e, _ := parseTextExpr(expr, def)
-	a.textExprs[key] = e
+	cache.Set(key, e)
 	return e
 }
