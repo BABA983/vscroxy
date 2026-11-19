@@ -1589,6 +1589,9 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	}
 	switch d.responseTab {
 	case resViewBody:
+		var responseFocus ui.Handle
+		outline := outlineTarget{key: "draft:response", kind: outlineJSON,
+			crumbs: &a.responseCrumbs, focus: func() { responseFocus.Focus(c) }}
 		body := strings.Join(d.composeReplies, "\n\n")
 		if len(d.composeExchanges) > 0 {
 			body = webSocketTranscript(d.composeExchanges)
@@ -1610,7 +1613,9 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				d.responseEditor = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.ResponseBody()}
 			}
 			a.decoderMenu(d.responseEditor)
-			editor.View(c, d.responseEditor).Grow(1)
+			a.outlineEditor(c, d.responseEditor, outline, func() {
+				editor.View(c, d.responseEditor).Bind(&responseFocus).FillWidth().Grow(1)
+			})
 		case 2:
 			a.responseHex(c, d, body)
 		default:
@@ -1628,7 +1633,9 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 			a.decoderMenu(d.responseEditor)
 			d.responseEditor.Theme = uikit.EditorTheme(t)
-			editor.View(c, d.responseEditor).Grow(1)
+			a.outlineEditor(c, d.responseEditor, outline, func() {
+				editor.View(c, d.responseEditor).Bind(&responseFocus).FillWidth().Grow(1)
+			})
 		}
 	case resViewContract:
 		if d.response == nil {

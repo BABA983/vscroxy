@@ -41,6 +41,7 @@ type commandContext struct {
 	focusSearch    func()
 	focusTraffic   func()
 	focusInspector func()
+	focusOutline   func()
 	focusURL       func()
 	focusLabel     string
 	primaryLabel   string
@@ -66,6 +67,11 @@ func commandSnapshot(a *app, c *ui.Context, target *requestDocument) *commandCon
 		focusSearch:    func() { a.focusSearch(c) },
 		focusTraffic:   func() { a.focusTraffic(c) },
 		focusInspector: func() { a.workbench.inspector.Focus(c) },
+		focusOutline: func() {
+			if p := a.outline.active; p != nil {
+				p.input.Focus(c)
+			}
+		},
 		focusURL:       func() { d.urlInput.Focus(c) },
 		searchLabel:    locales.SearchHostOrPath(),
 		focusLabel:     locales.FocusInspector(),
@@ -283,6 +289,22 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("problems.previous", locales.PreviousProblem(), func(x *commandContext) { x.a.navigateProblems(-1) }).
 		when(func(x *commandContext) bool { return len(x.a.visibleProblems()) > 0 }, locales.NoProblems()).
 		keys(ui.Shift, ui.KeyF8)
+	// The outline belongs to the body shown now. Its commands stay in the
+	// palette and menus with the other view commands; only focus has a key.
+	r.add("outline.toggle", locales.ToggleOutline(), func(x *commandContext) {
+		x.a.outline.open = !x.a.outline.open
+		if x.a.outline.open {
+			x.focusOutline()
+		}
+	}).when(func(x *commandContext) bool { return x.capturing || x.editing }, locales.OpenABodyFirst()).
+		mark(func(x *commandContext) check { return checkbox(x.a.outline.open) }).in("view")
+	r.add("outline.focus", locales.FocusOutline(), func(x *commandContext) {
+		if !x.a.outline.open {
+			x.a.outline.open = true
+		}
+		x.focusOutline()
+	}).when(func(x *commandContext) bool { return x.a.outline.active != nil }, locales.OpenABodyFirst()).
+		in("view").keys(ui.Cmd|ui.Shift, ui.KeyO)
 	// The editor's own fields bind Cmd/Ctrl+. within their focus scope,
 	// so this key has no global owner to conflict with Start/Stop capture.
 	r.add("problems.quickFix", locales.QuickFix(), func(x *commandContext) {

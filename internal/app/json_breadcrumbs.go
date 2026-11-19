@@ -27,17 +27,43 @@ type jsonCrumbSource struct {
 // to a changed buffer, not to a caret: moving through a large document walks
 // the same tree and only rebuilds the path and sibling lists.
 type jsonBreadcrumbs struct {
-	key      string
-	buf      *editor.Buffer
-	version  uint64
-	cursor   int
-	ready    bool
-	treeRead bool
-	text     string
-	root     *jsonc.Node
-	path     jsonc.BreadcrumbPath
-	parse    func(string) (*jsonc.Node, []jsonc.ParseError)      // seam for parse counting
-	scan     func(*jsonc.Node, string, int) jsonc.BreadcrumbPath // seam for path counting
+	key     string
+	buf     *editor.Buffer
+	version uint64
+	cursor  int
+	ready   bool
+	text    string
+	root    *jsonc.Node
+	path    jsonc.BreadcrumbPath
+	parse   func(string) (*jsonc.Node, []jsonc.ParseError)      // seam for parse counting
+	scan    func(*jsonc.Node, string, int) jsonc.BreadcrumbPath // seam for path counting
+}
+
+// treeFor is the one place a JSON editor's tree is built. The breadcrumb bar
+// and the outline both read it, so showing both never parses the same text
+// twice. A fault-tolerant reader can hand over the tree it made for the bytes
+// it shows; only then is no other parse needed.
+func (b *jsonBreadcrumbs) treeFor(key string, view *editor.State, provided jsonCrumbSource) (*jsonc.Node, string) {
+	version := view.Buffer.Version()
+	if b.ready && b.key == key && b.buf == view.Buffer && b.version == version {
+		return b.root, b.text
+	}
+	b.key, b.buf, b.version, b.ready = key, view.Buffer, version, true
+	b.root, b.text, b.path, b.cursor = nil, "", jsonc.BreadcrumbPath{}, 0
+	text := view.Buffer.String()
+	if len(text) > 0 && len(text) <= jsonBreadcrumbScanLimit {
+		if provided.root != nil && provided.text == text {
+			b.root, b.text = provided.root, text
+		} else {
+			parse := b.parse
+			if parse == nil {
+				parse = func(text string) (*jsonc.Node, []jsonc.ParseError) { return jsonc.ParseTree(text) }
+			}
+			b.root, _ = parse(text)
+			b.text = text
+		}
+	}
+	return b.root, b.text
 }
 
 func (b *jsonBreadcrumbs) refresh(key string, view *editor.State, cursor int) jsonc.BreadcrumbPath {
@@ -47,36 +73,20 @@ func (b *jsonBreadcrumbs) refresh(key string, view *editor.State, cursor int) js
 func (b *jsonBreadcrumbs) refreshWith(key string, view *editor.State, cursor int, provided jsonCrumbSource) jsonc.BreadcrumbPath {
 	version := view.Buffer.Version()
 	sameBuffer := b.ready && b.key == key && b.buf == view.Buffer && b.version == version
+	root, text := b.treeFor(key, view, provided)
 	if sameBuffer && b.cursor == cursor {
 		return b.path
 	}
 	b.key, b.buf, b.version, b.cursor, b.ready = key, view.Buffer, version, cursor, true
-	if !sameBuffer || !b.treeRead {
-		b.treeRead = true
-		b.root, b.text = nil, ""
-		text := view.Buffer.String()
-		if len(text) > 0 && len(text) <= jsonBreadcrumbScanLimit {
-			if provided.root != nil && provided.text == text {
-				b.root, b.text = provided.root, text
-			} else {
-				parse := b.parse
-				if parse == nil {
-					parse = func(text string) (*jsonc.Node, []jsonc.ParseError) { return jsonc.ParseTree(text) }
-				}
-				b.root, _ = parse(text)
-				b.text = text
-			}
-		}
-	}
 	b.path = jsonc.BreadcrumbPath{}
-	if b.root == nil {
+	if root == nil {
 		return b.path
 	}
 	scan := b.scan
 	if scan == nil {
 		scan = jsonc.BreadcrumbsIn
 	}
-	b.path = scan(b.root, b.text, cursor)
+	b.path = scan(root, text, cursor)
 	return b.path
 }
 
