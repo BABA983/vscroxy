@@ -97,6 +97,31 @@ func TestProblemResolverRunsOnlyOnChangedInputs(t *testing.T) {
 	if calls != 7 {
 		t.Fatalf("inheritance change resolved %d times, want both requests", calls-5)
 	}
+	changed := a.documents[0]
+	changed.auth = request.Auth{Type: "Bearer", Token: "{{auth_token}}"}
+	a.syncProblems()
+	if calls != 8 {
+		t.Fatalf("auth edit resolved %d times, want 1", calls-7)
+	}
+	changed.formFields = []request.Field{{Name: "token", Value: "{{form_token}}"}}
+	a.syncProblems()
+	if calls != 9 {
+		t.Fatalf("form edit resolved %d times, want 1", calls-8)
+	}
+	changed.composeCollection = "Other"
+	a.syncProblems()
+	if calls != 10 {
+		t.Fatalf("collection change resolved %d times, want 1", calls-9)
+	}
+	changed.graphql.Query = "query { {{graphql_token}} }"
+	a.syncProblems()
+	if calls != 11 {
+		t.Fatalf("GraphQL edit resolved %d times, want 1", calls-10)
+	}
+	a.syncProblems()
+	if calls != 11 {
+		t.Fatalf("frame after a GraphQL edit resolved again: %d", calls)
+	}
 }
 
 func TestUnresolvedVariableMarkerFollowsEdits(t *testing.T) {
@@ -145,6 +170,41 @@ func TestUnresolvedVariableMarkerFollowsEdits(t *testing.T) {
 	a.closeDocument(d)
 	if n := len(a.markers.Read(markers.Filter{Resource: resource})); n != 0 {
 		t.Fatalf("%d markers remain after closing the request", n)
+	}
+}
+
+func TestUnresolvedVariableMarkersInAuthAndForm(t *testing.T) {
+	a := workspaceApp()
+	a.addDocument(savedRequest{Name: "Fields", Method: "GET", URL: "https://api.example.com/items"}, "saved:fields")
+	d := a.requestDocument
+	resource := problemResource(d)
+	read := func() []markers.Marker {
+		return a.markers.Read(markers.Filter{Owner: problemOwnerVariables, Resource: resource})
+	}
+
+	d.auth = request.Auth{Type: "Bearer", Token: "{{auth_token}}"}
+	a.syncProblems()
+	got := read()
+	if len(got) != 1 || got[0].Message != locales.ProblemUnresolvedVariable("auth_token") {
+		t.Fatalf("auth variable markers = %+v", got)
+	}
+	d.auth = request.Auth{}
+	a.syncProblems()
+	if n := len(read()); n != 0 {
+		t.Fatalf("%d auth variable markers remain after clearing the field", n)
+	}
+
+	d.bodyMode = "Form"
+	d.formFields = []request.Field{{Name: "token", Value: "{{form_token}}"}}
+	a.syncProblems()
+	got = read()
+	if len(got) != 1 || got[0].Message != locales.ProblemUnresolvedVariable("form_token") {
+		t.Fatalf("form variable markers = %+v", got)
+	}
+	d.formFields = nil
+	a.syncProblems()
+	if n := len(read()); n != 0 {
+		t.Fatalf("%d form variable markers remain after clearing the row", n)
 	}
 }
 

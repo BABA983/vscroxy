@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"reflect"
@@ -44,6 +45,11 @@ var problemSeverities = []markers.Severity{markers.Error, markers.Warning, marke
 // a large body just to find {{variables}} again.
 type problemInputKey struct {
 	url, headers, pre, post string
+	collection, method      string
+	auth, graphQL, forms    string
+	protocol                string
+	pathVariables           string
+	bodyFile                string
 	bodyVersion             uint64
 	bodyLength              int
 	checkStatus             string
@@ -222,12 +228,50 @@ func (a *app) applySendProblems(result requestResult) {
 	a.writeProblems(problemOwnerScripts, resource, scriptErrors)
 }
 
-// problemInputKey reads only small authoring fields. The body's editor keeps
-// a version, and code that replaces composeBody bumps d.problemBodyGen.
+// problemSignature is a compact, comparable form of a small struct. Auth and
+// the protocol configs are what request.Request.Variables reads beyond plain
+// text fields; JSON gives every nested field a stable name without repeating
+// that switch here.
+func problemSignature(value any) string {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprintf("%T:%v", value, value)
+	}
+	return string(data)
+}
+
+func problemFieldsSignature(fields []request.Field) string {
+	var b strings.Builder
+	for _, field := range fields {
+		b.WriteString(strconv.FormatBool(field.Disabled))
+		b.WriteByte(0)
+		b.WriteString(strconv.FormatBool(field.File))
+		b.WriteByte(0)
+		b.WriteString(field.Name)
+		b.WriteByte(0)
+		b.WriteString(field.Value)
+		b.WriteByte(0)
+	}
+	return b.String()
+}
+
+// problemInputKey reads only small authoring fields. It covers every input
+// d.value() passes to request.Request.Variables: authoring text, auth, form
+// and GraphQL fields, protocol configs, collection and method. The large body
+// is represented by its editor version or the generation bumped where code
+// replaces composeBody, so an unchanged frame never copies or scans it.
 func (d *requestDocument) problemInputKey() problemInputKey {
 	key := problemInputKey{
 		url: d.composeURL, headers: d.composeHeaders, pre: d.composePre, post: d.composePost,
-		bodyVersion: d.problemBodyGen, bodyLength: len(d.composeBody),
+		collection: d.composeCollection, method: d.composeMethod,
+		auth:    problemSignature(d.auth),
+		graphQL: d.graphql.Query + "\x00" + d.graphql.Variables + "\x00" + d.graphql.OperationName,
+		forms:   problemFieldsSignature(d.formFields),
+		protocol: d.protocol + "\x00" + problemSignature(d.socketIOConfig) +
+			"\x00" + problemSignature(d.mqttConfig) + "\x00" + problemSignature(d.mcpConfig),
+		pathVariables: problemFieldsSignature(d.pathRows),
+		bodyFile:      d.bodyFile,
+		bodyVersion:   d.problemBodyGen, bodyLength: len(d.composeBody),
 		checkStatus: d.checks.Status, checkHeaders: d.checks.Headers,
 		checkJSON: d.checks.JSON, checkSnapshot: d.checks.Snapshot,
 	}
@@ -272,6 +316,7 @@ func (a *app) problemVariablesKey() string {
 	for _, folder := range folders {
 		b.WriteString(folder.Path)
 		b.WriteByte(0)
+		b.WriteString(problemSignature(folder.Auth)) // inherited auth can define variables too
 		for _, variable := range folder.Variables {
 			b.WriteString(variable.Name)
 			b.WriteByte('=')
