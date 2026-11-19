@@ -477,6 +477,10 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("collection.settings", locales.CollectionSettings(), func(x *commandContext) {
 		x.a.openFolder(x.d.composeCollection)
 	}).when(func(x *commandContext) bool { return x.editing && x.d.composeCollection != "" }, locales.SaveRequestToCollectionFirst())
+	r.add("library.move", locales.MoveToEllipsis(), func(x *commandContext) {
+		x.a.openMoveTo(x.a.libraryMoveTarget())
+	}).when(func(x *commandContext) bool { return x.a.libraryMoveTarget().valid() }, locales.MoveNoSelection()).
+		in("collection")
 	r.add("request.new", locales.NewRequest(), func(x *commandContext) { x.a.openCompose() }).keys(ui.Cmd, ui.KeyN)
 	r.add("request.import-curl", locales.ImportCurl(), func(x *commandContext) { x.a.openCurlImport() })
 	r.add("collection.reload", locales.ReloadCollectionsFromDisk(), func(x *commandContext) {

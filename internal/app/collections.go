@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/library"
+	"github.com/baba983/vscroxy/internal/natural"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/vault"
 	"github.com/baba983/vscroxy/locales"
@@ -332,10 +333,31 @@ func folderVariablesOf(rows []variableRow) ([]request.Variable, map[string]strin
 	return vars, current, credentials, nil
 }
 
-// writeFolders saves the collection and folder settings, sorted by path,
-// and makes them the ones in use.
+// writeFolders saves the collection and folder settings and makes them the
+// ones in use. Existing manual order is kept; folders new to it are placed
+// among their peers by natural name, so req2 comes before req10.
 func (a *app) writeFolders(folders []request.Folder) error {
-	slices.SortFunc(folders, func(x, y request.Folder) int { return strings.Compare(x.Path, y.Path) })
+	rank := make(map[string]int)
+	if len(a.library.folderOrder) > 0 {
+		for i, f := range a.folders {
+			rank[f.Path] = i
+		}
+	}
+	slices.SortStableFunc(folders, func(x, y request.Folder) int {
+		xRank, xKnown := rank[x.Path]
+		yRank, yKnown := rank[y.Path]
+		switch {
+		case xKnown && yKnown:
+			if xRank != yRank {
+				return xRank - yRank
+			}
+		case xKnown:
+			return -1
+		case yKnown:
+			return 1
+		}
+		return natural.Compare(x.Path, y.Path)
+	})
 	return a.writeLibrary(a.requests, folders)
 }
 

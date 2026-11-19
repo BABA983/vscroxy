@@ -18,6 +18,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/datadir"
 	"github.com/baba983/vscroxy/internal/library"
+	"github.com/baba983/vscroxy/internal/natural"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/locales"
@@ -51,13 +52,18 @@ type libraryState struct {
 	root      string
 	known     map[string][]byte
 	backupDir string
+	// folderOrder is the saved order of a directory's child folders. A
+	// directory absent from it has no manual order and sorts naturally.
+	folderOrder map[string][]string
 }
 
 // folderFile is a directory's folder.json: the settings of the collection
-// or folder it is, and the order of the requests directly in it.
+// or folder it is, the order of the requests directly in it and the order
+// of its subfolders.
 type folderFile struct {
 	request.Folder
-	Order []string `json:"order,omitempty"`
+	Order       []string `json:"order,omitempty"`
+	FolderOrder []string `json:"folderOrder,omitempty"`
 }
 
 // libraryConflict is one file someone else changed while this app held a
@@ -142,6 +148,70 @@ func dirOf(collection string) string {
 	return strings.Join(parts, "/")
 }
 
+// readFolderOrder recovers the saved order of child folders from the
+// folder.json files a restart read. A directory without folderOrder has no
+// manual order and keeps sorting naturally.
+func readFolderOrder(known map[string][]byte) map[string][]string {
+	var orders map[string][]string
+	for name, data := range known {
+		if path.Base(name) != folderFileName {
+			continue
+		}
+		data, err := store.Collection.Read(data)
+		if err != nil {
+			continue
+		}
+		var file struct {
+			FolderOrder []string `json:"folderOrder,omitempty"`
+		}
+		if err := json.Unmarshal(data, &file); err != nil || len(file.FolderOrder) == 0 {
+			continue
+		}
+		parent := strings.TrimSuffix(name, "/"+folderFileName)
+		if parent == name {
+			parent = ""
+		}
+		if orders == nil {
+			orders = map[string][]string{}
+		}
+		orders[parent] = file.FolderOrder
+	}
+	return orders
+}
+
+// keepFolderOrder drops folders that are gone from a manual order and adds
+// new ones by natural name, so a drag's order survives later saves while a
+// folder added outside the app still appears.
+func keepFolderOrder(order map[string][]string, requests []savedRequest, folders []request.Folder) map[string][]string {
+	if len(order) == 0 {
+		return nil
+	}
+	paths := libraryPathsOf(requests, folders)
+	next := make(map[string][]string, len(order))
+	for parent, old := range order {
+		seen := map[string]bool{}
+		names := make([]string, 0, len(old))
+		for _, name := range old {
+			if seen[name] || !paths[path.Join(parent, name)] {
+				continue
+			}
+			seen[name] = true
+			names = append(names, name)
+		}
+		var extra []string
+		for p := range paths {
+			if parentPath(p) == parent && !seen[nameOfPath(p)] {
+				extra = append(extra, nameOfPath(p))
+			}
+		}
+		slices.SortStableFunc(extra, natural.Compare)
+		if names = append(names, extra...); len(names) > 0 {
+			next[parent] = names
+		}
+	}
+	return next
+}
+
 func marshalFile(v any) ([]byte, error) {
 	data, err := json.Marshal(v, jsontext.WithIndent("  "))
 	if err != nil {
@@ -152,7 +222,7 @@ func marshalFile(v any) ([]byte, error) {
 
 // libraryFiles lays requests and folders out as the files of the tree,
 // keyed by slash-separated path relative to the root.
-func libraryFiles(requests []savedRequest, folders []request.Folder) (map[string][]byte, error) {
+func libraryFiles(requests []savedRequest, folders []request.Folder, folderOrder map[string][]string) (map[string][]byte, error) {
 	files := map[string][]byte{}
 	settings := map[string]folderFile{}
 	dirs := map[string]string{} // case-folded directory → collection path
@@ -197,6 +267,16 @@ func libraryFiles(requests []savedRequest, folders []request.Folder) (map[string
 		f := settings[collection]
 		f.Order = append(f.Order, stem)
 		settings[collection] = f
+	}
+	// A parent with a manual folder order writes it; one without simply
+	// lets a reader sort its children by name.
+	for parent, order := range folderOrder {
+		if len(order) == 0 {
+			continue
+		}
+		f := settings[parent]
+		f.FolderOrder = slices.Clone(order)
+		settings[parent] = f
 	}
 	for collection, f := range settings {
 		f.Path = ""
@@ -262,8 +342,9 @@ func (a *app) writeLibrary(requests []savedRequest, folders []request.Folder) er
 		folders[i].Path = cleanPath(folders[i].Path)
 	}
 	l := &a.library
+	order := keepFolderOrder(l.folderOrder, requests, folders)
 	if l.root != "" {
-		files, err := libraryFiles(requests, folders)
+		files, err := libraryFiles(requests, folders, order)
 		if err != nil {
 			return err
 		}
@@ -273,7 +354,7 @@ func (a *app) writeLibrary(requests []savedRequest, folders []request.Folder) er
 					// The notice can be answered after other saves succeeded.
 					// Write the library as it is now; only the refused files
 					// take their bytes from the compare view.
-					current, err := libraryFiles(a.requests, a.folders)
+					current, err := libraryFiles(a.requests, a.folders, order)
 					if err != nil {
 						return err
 					}
@@ -302,6 +383,7 @@ func (a *app) writeLibrary(requests []savedRequest, folders []request.Folder) er
 		}
 	}
 	a.requests, a.folders = requests, folders
+	a.library.folderOrder = order
 	a.requestGen++
 	return nil
 }
@@ -429,6 +511,7 @@ func (a *app) loadRequestLibrary() {
 		return
 	}
 	a.requests, a.folders, l.known = requests, folders, known
+	l.folderOrder = readFolderOrder(known)
 	a.requestGen++
 }
 
@@ -473,55 +556,7 @@ func (a *app) renameFolder(from, name string) error {
 	if at := strings.LastIndex(from, "/"); at >= 0 {
 		to = from[:at+1] + name
 	}
-	if to == from {
-		return nil
-	}
-	under := func(p, root string) bool { return p == root || strings.HasPrefix(p, root+"/") }
-	moved := func(p string) string { return to + strings.TrimPrefix(p, from) }
-	for _, r := range a.requests {
-		if under(r.Collection, to) {
-			return fmt.Errorf("“%s” already exists", to)
-		}
-	}
-	for _, f := range a.folders {
-		if under(f.Path, to) {
-			return fmt.Errorf("“%s” already exists", to)
-		}
-	}
-	requests, folders := slices.Clone(a.requests), slices.Clone(a.folders)
-	for i := range requests {
-		if under(requests[i].Collection, from) {
-			requests[i].Collection = moved(requests[i].Collection)
-		}
-	}
-	for i := range folders {
-		if under(folders[i].Path, from) {
-			folders[i].Path = moved(folders[i].Path)
-		}
-	}
-	if err := a.writeLibrary(requests, folders); err != nil {
-		return err
-	}
-	a.moveFolderCurrent(from, to)
-	for _, d := range a.documents {
-		if under(d.composeCollection, from) {
-			d.composeCollection = moved(d.composeCollection)
-		}
-		if d.savedKey != "" && under(d.baseline.Collection, from) {
-			d.baseline.Collection = moved(d.baseline.Collection)
-		}
-	}
-	for _, p := range slices.Collect(maps.Keys(a.collectionOpen)) {
-		if under(p, from) {
-			a.collectionOpen[moved(p)] = a.collectionOpen[p]
-			delete(a.collectionOpen, p)
-		}
-	}
-	if under(a.runner.collection, from) {
-		a.runner.collection = moved(a.runner.collection)
-		a.runner.load(a.requests)
-	}
-	return nil
+	return a.moveFolderTo(from, to, libraryDrag{}, false)
 }
 
 // moveFolderCurrent follows a rename, so a collection's or folder's local
