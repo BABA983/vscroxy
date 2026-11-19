@@ -318,6 +318,12 @@ func (s shortcut) accelerator() string {
 		return text + "."
 	case s.key == ui.KeyBracketLeft:
 		return text + "["
+	case s.key == ui.KeyLeft:
+		return text + "Left"
+	case s.key == ui.KeyRight:
+		return text + "Right"
+	case s.key == ui.KeyMinus:
+		return text + "-"
 	}
 	return ""
 }
@@ -327,7 +333,9 @@ func (s shortcut) String() string {
 	if runtime.GOOS == "darwin" {
 		modifier = "Cmd"
 	}
-	return strings.ReplaceAll(s.accelerator(), "CmdOrCtrl", modifier)
+	text := strings.ReplaceAll(s.accelerator(), "CmdOrCtrl", modifier)
+	// Native accelerators name the arrow keys; visible hints draw arrows.
+	return strings.NewReplacer("+Left", "+←", "+Right", "+→").Replace(text)
 }
 
 // keycap spells the shortcut as a keycap: symbols on macOS, words elsewhere.

@@ -44,6 +44,9 @@ type desktopWorkbench struct {
 	// listFocusAsked is set once the traffic list took the keys for this
 	// visit to LIVE, so Tab can leave it again.
 	listFocusAsked bool
+	// navigation is the Go Back / Go Forward history. It is recorded once a
+	// frame here, after the app has reconciled its documents and selection.
+	navigation navigationStack
 }
 
 func (w *desktopWorkbench) openPalette() {
@@ -541,6 +544,10 @@ func (a *app) clearQuery(c *ui.Context) {
 
 func (a *app) commandPalette(c *ui.Context) {
 	w := &a.workbench
+	// The one place history is recorded: every screen change has already
+	// been committed by this point in the frame. navigate() suppresses its
+	// own frame so restoring a stop cannot clear the forward half.
+	w.navigation.observe(a)
 	if !w.paletteOpen {
 		return
 	}
