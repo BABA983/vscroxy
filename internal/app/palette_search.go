@@ -123,6 +123,7 @@ const paletteAssetCacheLimit = 16
 // reads values, and keeping them out of a key avoids retaining secrets.
 type paletteAssetCacheKey struct {
 	query      string
+	scope      paletteScope
 	requestGen int
 	varsGen    uint64
 	historyGen uint64
@@ -139,6 +140,44 @@ type paletteAssetResult struct {
 type paletteSearch struct {
 	entries []paletteEntry
 	more    int
+}
+
+// paletteScope is the quick-access prefix typed at the start of the field.
+// VS Code chooses a registered provider this way; unprefixed results stay
+// mixed. The prefix is stripped before any scoring, so it never becomes part
+// of the fuzzy query.
+type paletteScope uint8
+
+const (
+	paletteMixed paletteScope = iota
+	paletteCommandsOnly
+	paletteRequestsOnly
+	paletteConfigOnly
+	paletteHelp
+)
+
+type paletteQuery struct {
+	scope paletteScope
+	text  string
+}
+
+func splitPaletteQuery(query string) paletteQuery {
+	q := strings.TrimSpace(query)
+	if q == "" {
+		return paletteQuery{}
+	}
+	switch q[0] {
+	case '>':
+		return paletteQuery{paletteCommandsOnly, strings.TrimSpace(q[1:])}
+	case '#':
+		return paletteQuery{paletteRequestsOnly, strings.TrimSpace(q[1:])}
+	case '$':
+		return paletteQuery{paletteConfigOnly, strings.TrimSpace(q[1:])}
+	case '?':
+		return paletteQuery{paletteHelp, strings.TrimSpace(q[1:])}
+	default:
+		return paletteQuery{text: q}
+	}
 }
 
 // paletteSearchEntries is paletteSearch without the overflow count.
@@ -244,6 +283,15 @@ func scorePaletteItem(item paletteScoreItem, query fuzzy.IPreparedQuery, cache f
 }
 
 func paletteCandidateFor(label, detail, path, key string, prepared fuzzy.IPreparedQuery, cache fuzzy.FuzzyScorerCache) paletteCandidate {
+	// A bare prefix such as "#" lists its whole scope. An empty prepared
+	// query scores zero in VS Code's scorer, so give these rows an equal
+	// standing rank and let recency order them as it does a real match.
+	if prepared.Normalized == "" {
+		return paletteCandidate{
+			key: key, label: label, detail: detail, path: path,
+			score: 1, itemScore: &fuzzy.IItemScore{Score: 1}, enabled: true,
+		}
+	}
 	score := scorePaletteItem(paletteScoreItem{label: label, detail: detail, path: path}, prepared, cache)
 	return paletteCandidate{
 		key: key, label: label, detail: detail, path: path,
@@ -326,9 +374,10 @@ func (a *app) paletteVarsGen() uint64 {
 
 // paletteAssetsFor returns scored, zero-filtered and ranked resource
 // candidates. An unchanged query on a frame costs a map lookup.
-func (a *app) paletteAssetsFor(query fuzzy.IPreparedQuery) paletteAssetResult {
+func (a *app) paletteAssetsFor(query fuzzy.IPreparedQuery, scope paletteScope) paletteAssetResult {
 	key := paletteAssetCacheKey{
 		query:      paletteQueryKey(query),
+		scope:      scope,
 		requestGen: a.requestGen,
 		varsGen:    a.paletteVarsGen(),
 		historyGen: a.workbench.paletteHistoryGen,
@@ -344,7 +393,7 @@ func (a *app) paletteAssetsFor(query fuzzy.IPreparedQuery) paletteAssetResult {
 	}
 
 	cache := fuzzy.NewFuzzyScorerCache()
-	candidates := a.paletteAssetCandidates(query, cache)
+	candidates := a.paletteAssetCandidates(query, cache, scope)
 	candidates = slices.DeleteFunc(candidates, func(c paletteCandidate) bool { return c.score == 0 })
 	sortPaletteCandidates(candidates, a.workbench.paletteHistoryRanks(), query)
 	result := paletteAssetResult{
@@ -355,63 +404,68 @@ func (a *app) paletteAssetsFor(query fuzzy.IPreparedQuery) paletteAssetResult {
 	return result
 }
 
-// paletteAssetCandidates scores every collection, request, environment and
-// variable. No rows or closures are created here, so a broad query does not
-// allocate thousands of entries that would never be shown.
-func (a *app) paletteAssetCandidates(prepared fuzzy.IPreparedQuery, cache fuzzy.FuzzyScorerCache) []paletteCandidate {
+// paletteAssetCandidates scores the collections, requests, environments and
+// variables in scope. No rows or closures are created here, so a broad query
+// does not allocate thousands of entries that would never be shown.
+func (a *app) paletteAssetCandidates(prepared fuzzy.IPreparedQuery, cache fuzzy.FuzzyScorerCache, scope paletteScope) []paletteCandidate {
 	idx := a.requestSearch()
 	candidates := make([]paletteCandidate, 0, len(idx.paths)+len(idx.requests))
-	for _, p := range idx.paths {
-		detail := p.kind + " · " + p.path
-		if p.description != "" {
-			detail += " · " + p.description
+	if scope == paletteMixed || scope == paletteRequestsOnly {
+		if scope == paletteMixed {
+			for _, p := range idx.paths {
+				detail := p.kind + " · " + p.path
+				if p.description != "" {
+					detail += " · " + p.description
+				}
+				c := paletteCandidateFor(p.label, detail, p.path, "path:"+p.path, prepared, cache)
+				c.kind, c.resource, c.meta = paletteRevealPath, true, p.kind
+				// ScoreItemFuzzy appends a separator to a description when a path is
+				// present, so its detail offsets can run one rune past the displayed
+				// detail. Skip description highlighting on path rows instead.
+				c.detailMatches = nil
+				candidates = append(candidates, c)
+			}
 		}
-		c := paletteCandidateFor(p.label, detail, p.path, "path:"+p.path, prepared, cache)
-		c.kind, c.resource, c.meta = paletteRevealPath, true, p.kind
-		// ScoreItemFuzzy appends a separator to a description when a path is
-		// present, so its detail offsets can run one rune past the displayed
-		// detail. Skip description highlighting on path rows instead.
-		c.detailMatches = nil
-		candidates = append(candidates, c)
-	}
-	for _, r := range idx.requests {
-		c := paletteCandidateFor(r.label, r.detail, "", "request:"+r.key, prepared, cache)
-		c.kind, c.resource, c.meta, c.request = paletteOpenRequest, true, locales.Request(), r.key
-		candidates = append(candidates, c)
-	}
-
-	envs := slices.Clone(a.envs)
-	slices.SortFunc(envs, func(x, y environment) int { return strings.Compare(x.Name, y.Name) })
-	for _, env := range envs {
-		c := paletteCandidateFor(env.Name, locales.EnvironmentDotName(env.Name), "", "env:"+env.Name, prepared, cache)
-		c.kind, c.resource, c.meta, c.env = paletteOpenEnvironment, true, "Environment", env.Name
-		candidates = append(candidates, c)
-
-		names := make(map[string]bool)
-		for name := range maps.Keys(env.Vars) {
-			names[name] = true
-		}
-		for name := range maps.Keys(env.Current) {
-			names[name] = true
-		}
-		for _, name := range slices.Sorted(maps.Keys(names)) {
-			c := paletteCandidateFor(name, locales.VariableDotName(env.Name), "", "var:"+env.Name+"\x00"+name, prepared, cache)
-			c.kind, c.resource, c.meta, c.env = paletteEditVariables, true, "Variable", env.Name
+		for _, r := range idx.requests {
+			c := paletteCandidateFor(r.label, r.detail, "", "request:"+r.key, prepared, cache)
+			c.kind, c.resource, c.meta, c.request = paletteOpenRequest, true, locales.Request(), r.key
 			candidates = append(candidates, c)
 		}
 	}
+	if scope == paletteMixed || scope == paletteConfigOnly {
+		envs := slices.Clone(a.envs)
+		slices.SortFunc(envs, func(x, y environment) int { return strings.Compare(x.Name, y.Name) })
+		for _, env := range envs {
+			c := paletteCandidateFor(env.Name, locales.EnvironmentDotName(env.Name), "", "env:"+env.Name, prepared, cache)
+			c.kind, c.resource, c.meta, c.env = paletteOpenEnvironment, true, "Environment", env.Name
+			candidates = append(candidates, c)
 
-	globals := make(map[string]bool)
-	for name := range maps.Keys(a.globals) {
-		globals[name] = true
-	}
-	for name := range maps.Keys(a.globalsCurrent) {
-		globals[name] = true
-	}
-	for _, name := range slices.Sorted(maps.Keys(globals)) {
-		c := paletteCandidateFor(name, locales.GlobalVariable(), "", "global:"+name, prepared, cache)
-		c.kind, c.resource, c.meta, c.global = paletteEditVariables, true, "Variable", true
-		candidates = append(candidates, c)
+			names := make(map[string]bool)
+			for name := range maps.Keys(env.Vars) {
+				names[name] = true
+			}
+			for name := range maps.Keys(env.Current) {
+				names[name] = true
+			}
+			for _, name := range slices.Sorted(maps.Keys(names)) {
+				c := paletteCandidateFor(name, locales.VariableDotName(env.Name), "", "var:"+env.Name+"\x00"+name, prepared, cache)
+				c.kind, c.resource, c.meta, c.env = paletteEditVariables, true, "Variable", env.Name
+				candidates = append(candidates, c)
+			}
+		}
+
+		globals := make(map[string]bool)
+		for name := range maps.Keys(a.globals) {
+			globals[name] = true
+		}
+		for name := range maps.Keys(a.globalsCurrent) {
+			globals[name] = true
+		}
+		for _, name := range slices.Sorted(maps.Keys(globals)) {
+			c := paletteCandidateFor(name, locales.GlobalVariable(), "", "global:"+name, prepared, cache)
+			c.kind, c.resource, c.meta, c.global = paletteEditVariables, true, "Variable", true
+			candidates = append(candidates, c)
+		}
 	}
 	return candidates
 }
@@ -431,12 +485,21 @@ func paletteCommandCandidates(actions []action, available bool, query fuzzy.IPre
 		}
 		candidates = append(candidates, paletteCandidate{
 			kind: paletteRunAction, key: "command:" + item.id, label: item.label,
-			detail: item.why(), meta: item.shortcut.keycap(), why: item.why(), action: item,
+			detail: item.why(), meta: paletteKeycap(item.shortcut), why: item.why(), action: item,
 			enabled: item.enabled, isAction: true,
 			score: score.Score, matches: score.LabelMatch, itemScore: score,
 		})
 	}
 	return candidates
+}
+
+// paletteKeycap includes the navigation bindings, whose arrow and minus keys
+// shortcut.keycap does not spell. All other commands use the usual keycap.
+func paletteKeycap(s shortcut) string {
+	if s.key == ui.KeyLeft || s.key == ui.KeyRight || s.key == ui.KeyMinus {
+		return navigationKeycap(s)
+	}
+	return s.keycap()
 }
 
 // paletteHistoryRanks maps a recently used key to its recency: 0 is the most
@@ -596,15 +659,77 @@ func (a *app) paletteMergeFinalize(assets paletteAssetResult, commands []palette
 	return out
 }
 
+// paletteHelpItems are the quick-access prefixes, in the order VS Code lists
+// its providers. Choosing one fills the field with the prefix rather than
+// running a command, leaving the rest of the query to the reader.
+var paletteHelpItems = []struct {
+	prefix, label, detail string
+}{
+	{">", ">  Commands", "Run a command"},
+	{"#", "#  Requests", "Open a saved request"},
+	{"$", "$  Environments and variables", "Edit an environment or variable"},
+	{"?", "?  Quick access", "Show these prefixes"},
+}
+
+func (a *app) paletteHelp(q paletteQuery) paletteSearch {
+	prepared := fuzzy.PrepareQuery(q.text)
+	cache := fuzzy.NewFuzzyScorerCache()
+	ranks := a.workbench.paletteHistoryRanks()
+	if prepared.Normalized == "" {
+		// Equal standing scores would sort by label length; VS Code lists
+		// providers in registration order until one has been used.
+		if ranks == nil {
+			ranks = make(map[string]int)
+		}
+		for i, item := range paletteHelpItems {
+			if _, used := ranks["help:"+item.prefix]; !used {
+				ranks["help:"+item.prefix] = i
+			}
+		}
+	}
+	candidates := make([]paletteCandidate, 0, len(paletteHelpItems))
+	for _, item := range paletteHelpItems {
+		c := paletteCandidateFor(item.label, item.detail, "", "help:"+item.prefix, prepared, cache)
+		c.kind, c.resource = paletteRunAction, false
+		candidates = append(candidates, c)
+	}
+	sortPaletteCandidates(candidates, ranks, prepared)
+	var result paletteSearch
+	for _, c := range candidates {
+		if c.score == 0 {
+			continue
+		}
+		prefix, _ := strings.CutPrefix(c.key, "help:")
+		entry := c.entry(a)
+		remember := entry.run
+		entry.run = func() {
+			if remember != nil {
+				remember()
+			}
+			w := &a.workbench
+			w.query, w.command = prefix, 0
+			w.commands.ScrollTo(0, ui.Start)
+		}
+		result.entries = append(result.entries, entry)
+	}
+	return result
+}
+
 // paletteSearch finds collections, folders, requests, environments and
 // variable names with VS Code's fuzzy scorer. Variable values are never part
 // of a label, detail or score, so typing a secret cannot reveal it exists.
 func (a *app) paletteSearch(query string) paletteSearch {
-	prepared := fuzzy.PrepareQuery(strings.TrimSpace(query))
-	if prepared.Normalized == "" {
+	q := splitPaletteQuery(query)
+	switch q.scope {
+	case paletteMixed:
+		return a.paletteSearchMixed(query)
+	case paletteHelp:
+		return a.paletteHelp(q)
+	case paletteCommandsOnly:
 		return paletteSearch{}
 	}
-	assets := a.paletteAssetsFor(prepared)
+	prepared := fuzzy.PrepareQuery(q.text)
+	assets := a.paletteAssetsFor(prepared, q.scope)
 	visible := assets.candidates
 	if len(visible) > paletteResultLimit {
 		visible = visible[:paletteResultLimit]
@@ -614,37 +739,100 @@ func (a *app) paletteSearch(query string) paletteSearch {
 	return out
 }
 
-// paletteRankedResults ranks commands and saved entries together. Empty
-// queries list the commands that can run now; a search also finds unavailable
-// commands, after the available ones, so asking for one explains why it
-// cannot run instead of hiding it.
+func (a *app) paletteSearchMixed(query string) paletteSearch {
+	prepared := fuzzy.PrepareQuery(strings.TrimSpace(query))
+	if prepared.Normalized == "" {
+		return paletteSearch{}
+	}
+	assets := a.paletteAssetsFor(prepared, paletteMixed)
+	visible := assets.candidates
+	if len(visible) > paletteResultLimit {
+		visible = visible[:paletteResultLimit]
+	}
+	out := a.paletteFinalize(visible)
+	out.more = assets.overflow
+	return out
+}
+
+// paletteRankedResults ranks commands and saved entries together. An
+// unprefixed query keeps the mixed list; a quick-access prefix narrows it to
+// one scope without letting the prefix take part in the fuzzy query.
 func (a *app) paletteRankedResults(query string, actions []action) paletteSearch {
+	q := splitPaletteQuery(query)
+	switch q.scope {
+	case paletteMixed:
+		return a.paletteRankedMixed(query, actions)
+	case paletteHelp:
+		return a.paletteHelp(q)
+	default:
+		return a.paletteRankedScoped(q, actions)
+	}
+}
+
+func paletteEnabledCommands(actions []action, ranks map[string]int, query fuzzy.IPreparedQuery) []paletteCandidate {
+	var enabled []paletteCandidate
+	for _, item := range actions {
+		if item.id == "app.palette" || !item.enabled || len(item.items) > 0 {
+			continue
+		}
+		enabled = append(enabled, paletteCandidate{
+			kind: paletteRunAction, key: "command:" + item.id, label: item.label,
+			meta: paletteKeycap(item.shortcut), action: item, enabled: true, isAction: true, score: 1,
+			itemScore: &fuzzy.IItemScore{Score: 1},
+		})
+	}
+	sortPaletteCandidates(enabled, ranks, query)
+	return enabled
+}
+
+// paletteRankedMixed is VS Code's unprefixed quick access: the commands that
+// can run now for an empty query, otherwise commands and library entries
+// ranked together. Unavailable commands stay last, to explain why.
+func (a *app) paletteRankedMixed(query string, actions []action) paletteSearch {
 	prepared := fuzzy.PrepareQuery(strings.TrimSpace(query))
 	cache := fuzzy.NewFuzzyScorerCache()
 	ranks := a.workbench.paletteHistoryRanks()
 	if prepared.Normalized == "" {
-		var enabled []paletteCandidate
-		for _, item := range actions {
-			if item.id == "app.palette" || !item.enabled || len(item.items) > 0 {
-				continue
-			}
-			enabled = append(enabled, paletteCandidate{
-				kind: paletteRunAction, key: "command:" + item.id, label: item.label,
-				meta: item.shortcut.keycap(), action: item, enabled: true, isAction: true, score: 1,
-				itemScore: &fuzzy.IItemScore{Score: 1},
-			})
-		}
-		sortPaletteCandidates(enabled, ranks, prepared)
-		return a.paletteFinalize(enabled)
+		return a.paletteFinalize(paletteEnabledCommands(actions, ranks, prepared))
 	}
 
 	commands := paletteCommandCandidates(actions, true, prepared, cache)
 	sortPaletteCandidates(commands, ranks, prepared)
-	result := a.paletteMergeFinalize(a.paletteAssetsFor(prepared), commands, ranks, prepared)
+	result := a.paletteMergeFinalize(a.paletteAssetsFor(prepared, paletteMixed), commands, ranks, prepared)
 
 	unavailable := paletteCommandCandidates(actions, false, prepared, cache)
 	sortPaletteCandidates(unavailable, ranks, prepared)
 	result.entries = append(result.entries, a.paletteFinalize(unavailable).entries...)
+	return result
+}
+
+// paletteRankedScoped applies one prefix. Assets and commands are generated
+// only for the scope in play, so a "#" search cannot be crowded out by
+// commands or have its overflow count inflated by variables.
+func (a *app) paletteRankedScoped(q paletteQuery, actions []action) paletteSearch {
+	prepared := fuzzy.PrepareQuery(q.text)
+	cache := fuzzy.NewFuzzyScorerCache()
+	ranks := a.workbench.paletteHistoryRanks()
+	if q.scope == paletteCommandsOnly {
+		var commands []paletteCandidate
+		if prepared.Normalized == "" {
+			commands = paletteEnabledCommands(actions, ranks, prepared)
+		} else {
+			commands = paletteCommandCandidates(actions, true, prepared, cache)
+			sortPaletteCandidates(commands, ranks, prepared)
+			unavailable := paletteCommandCandidates(actions, false, prepared, cache)
+			sortPaletteCandidates(unavailable, ranks, prepared)
+			commands = append(commands, unavailable...)
+		}
+		return a.paletteFinalize(commands)
+	}
+	assets := a.paletteAssetsFor(prepared, q.scope)
+	visible := assets.candidates
+	if len(visible) > paletteResultLimit {
+		visible = visible[:paletteResultLimit]
+	}
+	result := a.paletteFinalize(visible)
+	result.more = assets.overflow
 	return result
 }
 
