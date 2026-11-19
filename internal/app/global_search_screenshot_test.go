@@ -13,20 +13,20 @@ import (
 // source, so both themes show the groups, resources and highlighted runs
 // rather than a long list the window has to scroll.
 func searchScreenshotResults(a *app) []searchResult {
-	match := func(text, resource string, source searchSource, key, field string, flowID, side int) searchResult {
+	match := func(text, resource string, source searchSource, key, field string, kind searchFieldKind, flowID, side int) searchResult {
 		at := strings.Index(strings.ToLower(text), "findme")
-		return searchResult{source: source, key: key, resource: resource, field: field, text: text,
+		return searchResult{source: source, key: key, resource: resource, field: field, kind: kind, text: text,
 			start: at, end: at + len("findme"), line: 1, flowID: flowID, side: side}
 	}
 	const request = "Workspace/Orders / Findme Request"
 	const flow = "GET https://api.example.com/findme-flow"
 	return []searchResult{
-		match("Findme Request", request, searchCollections, "saved:find-1", locales.Name(), 0, -1),
-		match("https://api.example.com/findme", request, searchCollections, "saved:find-1", locales.Url(), 0, -1),
-		match("findme_var = findme-value", "Findme Local", searchEnvironments, "Findme Local", locales.Initial(), 0, -1),
-		match("findme_global = global-value", locales.GlobalVariable(), searchEnvironments, "", locales.GlobalVariable(), 0, -1),
-		match("https://api.example.com/findme-flow", flow, searchFlows, "1", locales.Url(), 1, -1),
-		match(`{"findme":2}`, flow, searchFlows, "1", locales.ResponseBody(), 1, 1),
+		match("Findme Request", request, searchCollections, "saved:find-1", locales.Name(), searchFieldOther, 0, -1),
+		match("https://api.example.com/findme", request, searchCollections, "saved:find-1", locales.Url(), searchFieldOther, 0, -1),
+		match("findme_var = findme-value", "Findme Local", searchEnvironments, "Findme Local", locales.Initial(), searchFieldOther, 0, -1),
+		match("findme_global = global-value", locales.GlobalVariable(), searchEnvironments, "", locales.GlobalVariable(), searchFieldOther, 0, -1),
+		match("https://api.example.com/findme-flow", flow, searchFlows, "1", locales.Url(), searchFieldOther, 1, -1),
+		match(`{"findme":2}`, flow, searchFlows, "1", locales.ResponseBody(), searchFieldFlowBody, 1, 1),
 	}
 }
 
@@ -44,7 +44,7 @@ func TestGlobalSearchViewGroupsResults(t *testing.T) {
 	tt := ui.NewTester(func(c *ui.Context) { a.view(c) }, 1100, 800)
 	tt.Frame()
 	for _, text := range []string{
-		locales.Collections(), locales.Environments(), locales.CapturedRequests(),
+		locales.Collections(), locales.QuickAccessEnvironmentsAndVariables(), locales.CapturedRequests(),
 		"Workspace/Orders / Findme Request", locales.OpenSearchResult("Findme Local"),
 		locales.SearchResultCount(len(a.searchAll.results)),
 	} {

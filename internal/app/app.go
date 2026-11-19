@@ -94,10 +94,10 @@ type app struct {
 	// build, to tell Down opening it from Down meant for the requests.
 	queryOpen bool
 	// guide shows the setup guide in place of the traffic list (guide.go).
-	guide     bool
-	filter    string
-	chip      int
-	search    ui.Handle
+	guide  bool
+	filter string
+	chip   int
+	search ui.Handle
 	// searchAll is the Search view: one query over saved requests,
 	// environments and captured flows. Its worker never holds a UI element.
 	searchAll globalSearch
@@ -2593,6 +2593,11 @@ func (a *app) trafficRegion(c *ui.Context, t *ui.Theme) {
 	// scopes or scrolling them away.
 	uikit.SidebarList(c, "traffic-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
 		uikit.SidebarHeading(c, locales.Traffic(), traffic, func() {
+			// Search sits in the heading, like an activity-bar entry: it must
+			// not take a row from the scopes and views below it.
+			if uikit.RowIconButton(c, locales.SearchEverywhere(), locales.SearchEverywhere(), searchIcon).Clicked() {
+				a.goTo("search")
+			}
 			if uikit.RowIconButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon).Clicked() {
 				a.views.capture(a)
 				a.views.newView(a)
@@ -2742,7 +2747,6 @@ func (a *app) trafficRows(c *ui.Context) {
 		{"slow", captureIcon, locales.Slow(), a.tally.slow},
 		{"pinned", pinIcon, locales.Pinned(), a.tally.pinned},
 		{"overview", overviewIcon, locales.Overview(), 0},
-		{"search", searchIcon, locales.SearchEverywhere(), 0},
 	}
 	for _, row := range rows {
 		uikit.SidebarItem(c, row.id, row.icon, row.label, a.sidebarChoice == row.id, !a.windowBehind).Children(func() {

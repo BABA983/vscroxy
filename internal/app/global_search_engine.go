@@ -46,8 +46,8 @@ type searchRequest struct {
 	regexpQuery bool
 }
 
-func (s *globalSearch) caseOption() *bool { return &s.matchCase }
-func (s *globalSearch) wordOption() *bool { return &s.wholeWord }
+func (s *globalSearch) caseOption() *bool   { return &s.matchCase }
+func (s *globalSearch) wordOption() *bool   { return &s.wholeWord }
 func (s *globalSearch) regexpOption() *bool { return &s.regexpQuery }
 
 func (s *globalSearch) request() searchRequest {
@@ -255,7 +255,7 @@ func (a *app) focusSearch(c *ui.Context) {
 // searchReveal is the match to select after a result opens its resource.
 type searchReveal struct {
 	key      string
-	field    string
+	kind     searchFieldKind
 	text     string
 	line     int
 	env      string
@@ -269,7 +269,7 @@ func (a *app) openSearchResult(r searchResult) {
 	if at := slices.Index(s.results, r); at >= 0 {
 		s.current = at
 	}
-	s.reveal = searchReveal{key: r.key, field: r.field, text: r.match(), line: r.line,
+	s.reveal = searchReveal{key: r.key, kind: r.kind, text: r.match(), line: r.line,
 		env: r.env, variable: r.variable, flowID: r.flowID, side: r.side}
 	switch r.source {
 	case searchCollections:
@@ -307,26 +307,27 @@ func (a *app) revealSearchMatch() {
 		if d == nil || d.savedKey != reveal.key {
 			return
 		}
-		switch reveal.field {
-		case locales.RequestBody(), locales.PreRequestScript(), locales.PostResponseScript():
-			var state *editor.State
-			switch reveal.field {
-			case locales.RequestBody():
-				state = d.bodyEditor
-			case locales.PreRequestScript():
-				d.composeTab, d.scriptTab = composeTabScripts, 0
-				state = d.preEditor
-			case locales.PostResponseScript():
-				d.composeTab, d.scriptTab = composeTabScripts, 1
-				state = d.postEditor
-			}
-			if state == nil {
+		switch reveal.kind {
+		case searchFieldRequestBody:
+			if d.bodyEditor == nil {
 				return // the editor for this field is not built yet
 			}
-			a.requestFind(state, reveal)
-		case locales.Headers():
+			a.requestFind(d.bodyEditor, reveal)
+		case searchFieldPreScript:
+			d.composeTab, d.scriptTab = composeTabScripts, 0
+			if d.preEditor == nil {
+				return
+			}
+			a.requestFind(d.preEditor, reveal)
+		case searchFieldPostScript:
+			d.composeTab, d.scriptTab = composeTabScripts, 1
+			if d.postEditor == nil {
+				return
+			}
+			a.requestFind(d.postEditor, reveal)
+		case searchFieldHeaders:
 			d.composeTab = composeTabHeaders
-		case locales.Description():
+		case searchFieldDescription:
 			d.composeTab = composeTabDocs
 		}
 		s.reveal = searchReveal{}
@@ -377,4 +378,3 @@ func searchProblemText(problem string) string {
 func searchIsCanceled(err error) bool {
 	return errors.Is(err, context.Canceled)
 }
-

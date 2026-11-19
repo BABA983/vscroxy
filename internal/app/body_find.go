@@ -84,6 +84,6 @@ type bodyFindState struct {
 	find   *editor.FindBar
 }
 
-func (s *bodyFindState) caseOption() *bool { return s.find.CaseSensitive() }
-func (s *bodyFindState) wordOption() *bool { return s.find.WholeWord() }
+func (s *bodyFindState) caseOption() *bool   { return s.find.CaseSensitive() }
+func (s *bodyFindState) wordOption() *bool   { return s.find.WholeWord() }
 func (s *bodyFindState) regexpOption() *bool { return s.find.Regexp() }

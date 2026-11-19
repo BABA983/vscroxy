@@ -33,11 +33,26 @@ func (source searchSource) label() string {
 	case searchCollections:
 		return locales.Collections()
 	case searchEnvironments:
-		return locales.Environments()
+		return locales.QuickAccessEnvironmentsAndVariables()
 	default:
 		return locales.CapturedRequests()
 	}
 }
+
+// searchFieldKind routes a result to the editor that reveals it. The label a
+// result shows is localized; the kind is not, so changing the app's language
+// between searching and clicking cannot misdirect a reveal.
+type searchFieldKind uint8
+
+const (
+	searchFieldOther searchFieldKind = iota
+	searchFieldRequestBody
+	searchFieldPreScript
+	searchFieldPostScript
+	searchFieldHeaders
+	searchFieldDescription
+	searchFieldFlowBody
+)
 
 // searchResult is one matching line. start and end are byte offsets in text,
 // so a result can be highlighted without keeping the whole source string.
@@ -45,7 +60,8 @@ type searchResult struct {
 	source   searchSource
 	key      string // saved request key, environment name or flow id
 	resource string
-	field    string
+	field    string // catalog label for display
+	kind     searchFieldKind
 	text     string
 	start    int
 	end      int
@@ -254,21 +270,28 @@ func (a *app) searchSnapshot(query searchQuery) searchSnapshot {
 	}
 }
 
+type searchField struct {
+	label string
+	kind  searchFieldKind
+	text  string
+}
+
 // searchFieldsOf are the authored text parts of one saved request. A field is
-// labelled with a catalog message; its value is kept as written, including
-// {{variables}}, which is what the collection stores.
-func searchFieldsOf(r savedRequest) []struct{ label, text string } {
-	return []struct{ label, text string }{
-		{locales.Name(), r.Name},
-		{locales.Url(), r.URL},
-		{locales.Headers(), r.Headers},
-		{locales.RequestBody(), r.Body},
-		{locales.PreRequestScript(), r.Pre},
-		{locales.PostResponseScript(), r.Post},
-		{locales.Description(), r.Description},
-		{locales.GraphqlQuery(), r.GraphQL.Query},
-		{locales.GraphqlVariables(), r.GraphQL.Variables},
-		{locales.GrpcMethod(), r.GRPC.Method},
+// labelled with a catalog message and carries a stable kind for revealing;
+// its value is kept as written, including {{variables}}, which is what the
+// collection stores.
+func searchFieldsOf(r savedRequest) []searchField {
+	return []searchField{
+		{locales.Name(), searchFieldOther, r.Name},
+		{locales.Url(), searchFieldOther, r.URL},
+		{locales.Headers(), searchFieldHeaders, r.Headers},
+		{locales.RequestBody(), searchFieldRequestBody, r.Body},
+		{locales.PreRequestScript(), searchFieldPreScript, r.Pre},
+		{locales.PostResponseScript(), searchFieldPostScript, r.Post},
+		{locales.Description(), searchFieldDescription, r.Description},
+		{locales.GraphqlQuery(), searchFieldOther, r.GraphQL.Query},
+		{locales.GraphqlVariables(), searchFieldOther, r.GraphQL.Variables},
+		{locales.GrpcMethod(), searchFieldOther, r.GRPC.Method},
 	}
 }
 
@@ -358,10 +381,10 @@ func scanSavedRequests(ctx context.Context, s searchSnapshot, add func(searchRes
 		}
 		key, resource := s.secrets.key(r.key()), s.secrets.resource(resource)
 		for _, field := range searchFieldsOf(r) {
-			label := field.label
+			label, kind := field.label, field.kind
 			if !scanField(ctx, s, func(line string, number, from, to int) searchResult {
 				return searchResult{source: searchCollections, key: key, resource: resource,
-					field: label, text: line, start: from, end: to, line: number}
+					field: label, kind: kind, text: line, start: from, end: to, line: number}
 			}, add, field.text) {
 				return false
 			}
@@ -371,8 +394,9 @@ func scanSavedRequests(ctx context.Context, s searchSnapshot, add func(searchRes
 }
 
 // scanEnvironments includes the environment names, its variables and the
-// globals. Credential-marked and sensitive Current values stay masked here,
-// as they do in the variable editor.
+// globals. A credential or conventionally sensitive variable keeps its name
+// searchable but never its value, in either the Initial or Current column,
+// as in the variable editor.
 func scanEnvironments(ctx context.Context, s searchSnapshot, add func(searchResult) bool) bool {
 	envs := slices.Clone(s.envs)
 	slices.SortFunc(envs, func(a, b environment) int { return strings.Compare(a.Name, b.Name) })
@@ -388,37 +412,36 @@ func scanEnvironments(ctx context.Context, s searchSnapshot, add func(searchResu
 			return false
 		}
 		for _, name := range slices.Sorted(maps.Keys(env.Vars)) {
-			if !scanVariable(ctx, s, add, env.Name, name, locales.Initial(), env.Vars[name]) {
+			sensitive := env.Credentials[name] || sensitiveVariable(name)
+			if !scanVariable(ctx, s, add, env.Name, name, locales.Initial(), env.Vars[name], !sensitive) {
 				return false
 			}
 		}
 		for _, name := range slices.Sorted(maps.Keys(env.Current)) {
-			if env.Credentials[name] || sensitiveVariable(name) {
-				continue
-			}
-			if !scanVariable(ctx, s, add, env.Name, name, locales.Current(), env.Current[name]) {
+			sensitive := env.Credentials[name] || sensitiveVariable(name)
+			if !scanVariable(ctx, s, add, env.Name, name, locales.Current(), env.Current[name], !sensitive) {
 				return false
 			}
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(s.globals)) {
-		if !scanVariable(ctx, s, add, "", name, locales.GlobalVariable(), s.globals[name]) {
+		if !scanVariable(ctx, s, add, "", name, locales.GlobalVariable(), s.globals[name], !sensitiveVariable(name)) {
 			return false
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(s.globalsCurrent)) {
-		if sensitiveVariable(name) {
-			continue
-		}
-		if !scanVariable(ctx, s, add, "", name, locales.GlobalVariable(), s.globalsCurrent[name]) {
+		if !scanVariable(ctx, s, add, "", name, locales.GlobalVariable(), s.globalsCurrent[name], !sensitiveVariable(name)) {
 			return false
 		}
 	}
 	return true
 }
 
-func scanVariable(ctx context.Context, s searchSnapshot, add func(searchResult) bool, env, name, field, value string) bool {
-	text := name + " = " + value
+func scanVariable(ctx context.Context, s searchSnapshot, add func(searchResult) bool, env, name, field, value string, showValue bool) bool {
+	text := name
+	if showValue {
+		text += " = " + value
+	}
 	key, resource := s.secrets.key(env), s.secrets.resource(cmp.Or(env, locales.GlobalVariable()))
 	return scanField(ctx, s, func(line string, number, from, to int) searchResult {
 		return searchResult{source: searchEnvironments, key: key, resource: resource,
@@ -438,12 +461,13 @@ func scanFlows(ctx context.Context, s searchSnapshot, add func(searchResult) boo
 		key := s.secrets.key(strconv.Itoa(f.id))
 		fields := []struct {
 			label string
+			kind  searchFieldKind
 			text  string
 			side  int
 		}{
-			{locales.Url(), f.url, -1},
-			{locales.RequestHeaders(), f.reqHeaders, -1},
-			{locales.ResponseHeaders(), f.resHeaders, -1},
+			{locales.Url(), searchFieldOther, f.url, -1},
+			{locales.RequestHeaders(), searchFieldOther, f.reqHeaders, -1},
+			{locales.ResponseHeaders(), searchFieldOther, f.resHeaders, -1},
 		}
 		for side := range 2 {
 			body, _ := f.bodyPreview(side == 1)
@@ -453,15 +477,17 @@ func scanFlows(ctx context.Context, s searchSnapshot, add func(searchResult) boo
 			}
 			fields = append(fields, struct {
 				label string
+				kind  searchFieldKind
 				text  string
 				side  int
-			}{label, body, side})
+			}{label, searchFieldFlowBody, body, side})
 		}
 		for _, field := range fields {
-			side, label := field.side, field.label
+			side, label, kind := field.side, field.label, field.kind
 			if !scanField(ctx, s, func(line string, number, from, to int) searchResult {
 				return searchResult{source: searchFlows, key: key, resource: resource,
-					field: label, text: line, start: from, end: to, line: number, flowID: f.id, side: side}
+					field: label, kind: kind, text: line, start: from, end: to, line: number,
+					flowID: f.id, side: side}
 			}, add, field.text) {
 				return false
 			}

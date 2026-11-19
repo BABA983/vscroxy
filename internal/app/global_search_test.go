@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -168,25 +169,46 @@ func TestGlobalSearchOptionsChangeMatches(t *testing.T) {
 }
 
 func TestGlobalSearchNeverShowsVaultSecrets(t *testing.T) {
-	const secret = "s3cr3t-needle"
+	const (
+		secret       = "s3cr3t-needle"
+		initialValue = "initial-needle-value"
+		globalValue  = "global-needle-value"
+	)
 	a := globalSearchTestApp()
 	a.vault.secrets = vault.Secrets{{Name: "token", Value: secret}}
 	a.requests[0].Name = "Build " + secret
 	a.requests[0].Headers = "Authorization: Bearer " + secret
 	a.envs[0].Name = "Team " + secret
+	a.envs[0].Vars["token"] = initialValue
 	a.envs[0].Current["api_token"] = secret
+	a.globals["password"] = globalValue
 	a.flows[0].url = "https://api.example.com/" + secret
 	a.flows[0].reqBody = secret
 
-	for _, r := range scanQuery(t, a, "needle").results {
-		for _, text := range []string{r.text, r.resource, r.field, r.key, r.match()} {
-			if strings.Contains(strings.ToLower(text), secret) {
-				t.Errorf("vault secret leaked into result %+v", r)
+	hidden := map[string]bool{secret: true, initialValue: true, globalValue: true}
+	check := func(query string) []searchResult {
+		results := scanQuery(t, a, query).results
+		for _, r := range results {
+			for _, text := range []string{r.text, r.resource, r.field, r.key, r.match()} {
+				for value := range hidden {
+					if strings.Contains(strings.ToLower(text), value) {
+						t.Errorf("%q leaked into result %+v", value, r)
+					}
+				}
 			}
 		}
+		return results
 	}
-	if got := scanQuery(t, a, secret).results; len(got) != 0 {
-		t.Errorf("%d results matched the vault secret: %+v", len(got), got)
+	check("needle")
+	// A sensitive name stays searchable; only its value is withheld.
+	names := check("token")
+	if len(names) == 0 || !slices.ContainsFunc(names, func(r searchResult) bool { return r.text == "token" }) {
+		t.Errorf("sensitive variable name is no longer searchable: %+v", names)
+	}
+	for query := range hidden {
+		if got := check(query); len(got) != 0 {
+			t.Errorf("%d results matched a hidden value %q", len(got), query)
+		}
 	}
 }
 
@@ -306,7 +328,7 @@ func TestGlobalSearchClickOpensResult(t *testing.T) {
 		{source: searchCollections, key: "saved:find-1", resource: "Workspace/Orders / Findme Request", field: locales.Name(),
 			text: "Findme Request", start: 0, end: 6},
 		{source: searchFlows, key: "1", resource: "GET https://api.example.com/findme-flow", field: locales.RequestBody(),
-			text: "{\"findme\":1}", start: 2, end: 8, flowID: 1, side: 0},
+			kind: searchFieldFlowBody, text: "{\"findme\":1}", start: 2, end: 8, flowID: 1, side: 0},
 	}
 	var c *ui.Context
 	tt := ui.NewTester(func(ctx *ui.Context) { c = ctx; a.view(ctx) }, 1100, 760)
@@ -329,7 +351,7 @@ func TestGlobalSearchClickOpensResult(t *testing.T) {
 	// The reveal is consumed once the flow's body reader exists; until then
 	// it stays queued. Either way the target is this flow's request body.
 	reveal := a.searchAll.reveal
-	if reveal.flowID != 0 && (reveal.flowID != 1 || reveal.side != 0) {
+	if reveal.flowID != 0 && (reveal.flowID != 1 || reveal.side != 0 || reveal.kind != searchFieldFlowBody) {
 		t.Fatalf("flow reveal = %+v", reveal)
 	}
 	if reveal.flowID == 0 {
