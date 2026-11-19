@@ -67,8 +67,33 @@ func (f *fakeKDEDesktop) install(t *testing.T) {
 			}
 			return os.ReadFile(path)
 		},
+		atomicWrite: func(path string, data []byte) error {
+			info, err := os.Stat(path)
+			if err != nil {
+				return err
+			}
+			if err := os.WriteFile(path, data, info.Mode().Perm()); err != nil {
+				return err
+			}
+			f.reloadValues()
+			return nil
+		},
 	}
 	t.Cleanup(func() { kdeCmd = previous })
+}
+
+// reloadValues lets tests inspect the same physical file the restoration
+// edits, including literal flagged lines put back by the raw-line writer.
+func (f *fakeKDEDesktop) reloadValues() {
+	data, err := os.ReadFile(f.path)
+	if err != nil {
+		panic(err)
+	}
+	parsed := parseKDEProxyConfig(data)
+	f.values = map[string]string{}
+	for key, value := range parsed.Values {
+		f.values[key+parsed.Flags[key]] = value
+	}
 }
 
 func (f *fakeKDEDesktop) run(name string, args ...string) error {
@@ -85,17 +110,25 @@ func (f *fakeKDEDesktop) run(name string, args ...string) error {
 		key := args[5]
 		switch {
 		case slices.Equal(args[6:], []string{"--delete"}):
-			// kwriteconfig's delete of a plain key removes every flagged
-			// spelling of that key; deleting a flagged key removes only it.
-			base, _ := splitKDEKeyFlag(key)
+			// A plain delete removes every spelling of that key. A flagged
+			// key argument is a literal key name to kwriteconfig, not a flag.
+			base, flag := splitKDEKeyFlag(key)
 			for stored := range f.values {
-				storedBase, _ := splitKDEKeyFlag(stored)
-				if stored == key || (key == base && storedBase == base) {
+				storedBase, storedFlag := splitKDEKeyFlag(stored)
+				match := stored == kconfigEscapeKey(key)
+				if flag == "" && (storedBase == base || strings.HasPrefix(stored, kconfigEscapeKey(base)+`\x5b`)) {
+					match = true
+				} else if flag != "" && storedBase == base && storedFlag == flag {
+					match = true
+				}
+				if match {
 					delete(f.values, stored)
 				}
 			}
 		case len(args) == 7:
-			f.values[key] = args[6] // kwriteconfig takes the logical, unescaped value
+			// kwriteconfig takes a logical value but a literal key name, so
+			// a bracketed flag becomes an escaped, non-flagged key in the file.
+			f.values[kconfigEscapeKey(key)] = args[6]
 		default:
 			return fmt.Errorf("unexpected kwriteconfig value %q", args[6:])
 		}
@@ -118,7 +151,7 @@ func (f *fakeKDEDesktop) writeConfig() {
 	text.WriteString(f.head)
 	text.WriteString("[" + kdeProxyGroup + "]\n")
 	for _, key := range keys {
-		fmt.Fprintf(&text, "%s=%s\n", kconfigEscapeKey(key), kconfigEscapeValue(f.values[key]))
+		fmt.Fprintf(&text, "%s=%s\n", key, kconfigEscapeValue(f.values[key]))
 	}
 	if err := os.WriteFile(f.path, []byte(text.String()), 0o600); err != nil {
 		panic(err)
@@ -274,6 +307,7 @@ func TestKDEEscapedValuesRoundTripByteForByte(t *testing.T) {
 	if err := before.applyProxy("127.0.0.1:7890", bypassList, true); err != nil {
 		t.Fatal(err)
 	}
+	f.commands = nil // restoration must edit lines directly, not call kwriteconfig
 	if err := restoreProxy(before, "127.0.0.1:7890", bypassList, true); err != nil {
 		t.Fatal(err)
 	}
@@ -284,10 +318,10 @@ func TestKDEEscapedValuesRoundTripByteForByte(t *testing.T) {
 	if !bytes.Equal(beforeFile, afterFile) {
 		t.Fatalf("kioslaverc changed:\nbefore %q\nafter  %q", beforeFile, afterFile)
 	}
-	want := []string{"kwriteconfig5", "--file", kdeProxyFile, "--group", kdeProxyGroup,
-		"--key", kdeBypassKey, bypass} // logical leading space, not \s
-	if !f.hasCommand(want...) {
-		t.Fatalf("restore did not pass the logical value %q: %q", bypass, f.commands)
+	for _, command := range f.commands {
+		if command[0] == "kwriteconfig5" || command[0] == "kwriteconfig6" {
+			t.Fatalf("restore went through kwriteconfig and could double-escape: %q", command)
+		}
 	}
 }
 
@@ -327,16 +361,17 @@ func TestKDEKeyFlagsSurviveEnableAndRestore(t *testing.T) {
 			if got := f.values[kdeBypassKey]; got != "localhost,*.corp.example" {
 				t.Fatalf("enabled NoProxyFor = %q", got)
 			}
+			f.commands = nil // a flagged key must be restored as a raw line
 			if err := restoreProxy(before, "127.0.0.1:7890", bypass, true); err != nil {
 				t.Fatal(err)
 			}
 			if !maps.Equal(f.values, values) {
 				t.Fatalf("restored = %q, want %q", f.values, values)
 			}
-			restoreFlag := []string{"kwriteconfig5", "--file", kdeProxyFile, "--group", kdeProxyGroup,
-				"--key", kdeBypassKey + flag, tc.original}
-			if !f.hasCommand(restoreFlag...) {
-				t.Fatalf("restore did not restore the flag: %q", f.commands)
+			for _, command := range f.commands {
+				if command[0] == "kwriteconfig5" || command[0] == "kwriteconfig6" {
+					t.Fatalf("restore tried to write a flag with kwriteconfig: %q", command)
+				}
 			}
 			afterFile, err := os.ReadFile(f.path)
 			if err != nil {
@@ -462,8 +497,12 @@ func TestKDEUsesKWriteConfig5When6IsMissingAndSignalsKIO(t *testing.T) {
 			t.Fatalf("restoration tried the missing kwriteconfig6: %q", command)
 		}
 	}
-	if !f.hasCommand("kwriteconfig5", "--file", "kioslaverc", "--group", "Proxy Settings", "--key", "httpProxy", "http://corporate.example 3128") {
-		t.Fatalf("restoration did not put back the previous server: %q", f.commands)
+	if got := f.values["httpProxy"]; got != "http://corporate.example 3128" {
+		t.Fatalf("restoration did not put back the previous server: %q", got)
+	}
+	if !f.hasCommand("dbus-send", "--type=signal", "/KIO/Scheduler",
+		"org.kde.KIO.Scheduler.reparseSlaveConfiguration", "string:") {
+		t.Fatalf("restoration did not notify KIO: %q", f.commands)
 	}
 }
 
@@ -647,7 +686,8 @@ func TestKDERealKWriteConfigRoundTrip(t *testing.T) {
 	t.Setenv("XDG_CURRENT_DESKTOP", "KDE")
 	previous := kdeCmd
 	kdeCmd = kdeCommands{
-		lookPath: exec.LookPath,
+		lookPath:    exec.LookPath,
+		atomicWrite: kdeAtomicWrite,
 		run: func(name string, args ...string) error {
 			if name == "dbus-send" {
 				return nil // no session bus in the orb
@@ -718,5 +758,87 @@ func TestKDERealKWriteConfigRoundTrip(t *testing.T) {
 		if got := ptrText(state.Values[key]); got != want {
 			t.Fatalf("restored %s = %q, want %q", key, got, want)
 		}
+	}
+}
+
+func TestKDERealKWriteConfigFlaggedKeyRoundTrip(t *testing.T) {
+	if _, err := exec.LookPath("kwriteconfig6"); err != nil {
+		if _, err := exec.LookPath("kwriteconfig5"); err != nil {
+			t.Skip("kwriteconfig6 and kwriteconfig5 are not installed")
+		}
+	}
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+	t.Setenv("XDG_CURRENT_DESKTOP", "KDE")
+	previous := kdeCmd
+	kdeCmd = kdeCommands{
+		lookPath:    exec.LookPath,
+		atomicWrite: kdeAtomicWrite,
+		run: func(name string, args ...string) error {
+			if name == "dbus-send" {
+				return nil // no session bus in the orb
+			}
+			return run(name, args...)
+		},
+		env:      os.Getenv,
+		readFile: os.ReadFile,
+	}
+	t.Cleanup(func() { kdeCmd = previous })
+	slash := string([]byte{92})
+	// This is the physical file KDE writes for an environment-expanded key.
+	initial := "[Proxy Settings]\n" +
+		"NoProxyFor[$e]=$HOME_HOST," + slash + "slocalhost\n" +
+		"Proxy Config Script=file:///home/u/my proxy" + slash + slash + "x.pac\n" +
+		"ProxyType=2\n" +
+		"httpProxy=http://old.example 3128\n"
+	path := filepath.Join(dir, kdeProxyFile)
+	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	beforeText, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := snapshotProxy("127.0.0.1:7890")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := before.KDE.Flags[kdeBypassKey]; got != "[$e]" {
+		t.Fatalf("NoProxyFor flag = %q, want [$e]", got)
+	}
+	if got := ptrText(before.KDE.Values[kdeBypassKey]); got != "$HOME_HOST, localhost" {
+		t.Fatalf("flagged NoProxyFor = %q", got)
+	}
+	bypass := []string{"localhost", "*.corp"}
+	if err := before.applyProxy("127.0.0.1:7890", bypass, true); err != nil {
+		t.Fatal(err)
+	}
+	enabled, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("enabled:\n%s", enabled)
+	if err := restoreProxy(before, "127.0.0.1:7890", bypass, true); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("before:\n%s", beforeText)
+	t.Logf("restored:\n%s", restored)
+	if !bytes.Equal(beforeText, restored) {
+		t.Fatalf("flagged kioslaverc changed:\nbefore %q\nafter  %q", beforeText, restored)
+	}
+	if !strings.Contains(string(restored), "NoProxyFor[$e]=") || strings.Contains(string(restored), `\x5b`) {
+		t.Fatalf("flagged key was replaced by a literal key: %q", restored)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("file mode = %v, want 0600", got)
 	}
 }
