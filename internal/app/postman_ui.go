@@ -291,6 +291,7 @@ func (a *app) reportImport(title string, warnings []string, review ...string) {
 		r.review = review[0]
 	}
 	a.importReport = r
+	a.dialogs.arrive(dialogImportReport)
 }
 
 func (a *app) importReportModal(c *ui.Context, t *ui.Theme) {

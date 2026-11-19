@@ -389,9 +389,16 @@ type app struct {
 	collecting       bool
 	captureReadyOnce sync.Once
 	win              *mygo.Window
-	control          *desktopControl
-	caPath           string
-	certificate      certificateSetup
+	// titleWindow is the main window through a seam tests can count; the
+	// title and the edited flag are published only when they change.
+	titleWindow  titleWindow
+	windowTitle  string
+	windowEdited bool
+	titleSynced  bool
+	dialogs      dialogQueue
+	control      *desktopControl
+	caPath       string
+	certificate  certificateSetup
 	// certBannerOff puts away the capture screen's certificate banner for
 	// this run: it is a statement of the state, not a dialog to answer.
 	certBannerOff bool
@@ -1305,6 +1312,7 @@ func (a *app) showBreakpoint(bp *capture.Breakpoint) {
 	a.bpTemplate, a.bpSaving, a.bpNote = "", false, ""
 	a.bpRawMode, a.bpRawNote = false, ""
 	a.splitTables()
+	a.dialogs.arrive(dialogBreakpoint)
 }
 
 // resolveBreak answers the paused exchange and lets the proxy go on. drop
@@ -2124,10 +2132,8 @@ func (a *app) view(c *ui.Context) {
 		locales.WhileTheAllowListIs(),
 		a.allowAppsPath, &a.allowAppsText, func([]string) { a.applyAllow() })
 	a.varsModal(c, t)
-	a.importReportModal(c, t)
 	a.moveToModal(c)
 	a.folderModal(c, t)
-	a.saveConflictModal(c, t)
 	a.historyModal(c, t)
 	a.docsModal(c, t)
 	// A link in an imported description can be clicked while Documentation
@@ -2154,13 +2160,11 @@ func (a *app) view(c *ui.Context) {
 	a.sseModal(c, t)
 	a.requestRenameModal(c, t)
 	a.headerWarnModal(c, t)
-	a.mcpConsentModal(c, t)
 	a.runnerModal(c, t)
 	a.testDiffModal(c, t)
 	a.compareModal(c, t)
 	a.loadRunnerModal(c, t)
 	a.cookiesModal(c, t)
-	a.deviceAskModal(c, t)
 	a.decoderModal(c)
 	a.jsonQueryModal(c)
 	a.exportModal(c, t)
@@ -2169,9 +2173,12 @@ func (a *app) view(c *ui.Context) {
 	a.collectionWizardModal(c, t)
 	a.collectionRecordingModal(c, t)
 	a.tokenLinksModal(c, t)
-	a.breakpointModal(c, t) // A live WebSocket's pause must cover its session panel.
 	a.protobuf.modal(c, a)
+	// Last of the dialogs: an event-driven prompt, especially a breakpoint
+	// holding traffic, must never draw beneath a modal the reader opened.
+	a.autoDialogs(c)
 	a.views.capture(a)
+	a.syncTitle()
 	// Last, since every SetTheme above paints the root again: the shell paints
 	// its own surface, so nothing of the desktop shows through it.
 	c.Root().Background(uikit.Colors(c.Theme()).Window)
@@ -3916,6 +3923,8 @@ func Run() error {
 			Content:  ui.View(a.view),
 		})
 		markStartup(markWindowCreated)
+		a.titleWindow = a.win
+		a.syncTitle()
 		// A window behind others shows its selections gray.
 		a.win.OnFocus(func() {
 			a.win.Update(func() {

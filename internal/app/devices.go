@@ -150,6 +150,7 @@ func (a *app) askDevice(addr netip.Addr) lan.Verdict {
 	}
 	a.deviceAskPending = request
 	a.deviceAskMu.Unlock()
+	a.dialogs.arrive(dialogDeviceAsk)
 	a.invalidate()
 	select {
 	case verdict := <-request.reply:

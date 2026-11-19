@@ -6095,6 +6095,7 @@
   },
   "listeningNoRequests": "Listening at {addr} · no retained requests yet",
   "listeningOn": "Listening on",
+  "live": "Live",
   "liveTraffic": "Live traffic",
   "loadASchemaSelectA": "Load a schema, select a method and send a JSON message.",
   "loadCollection": "Load collection",
