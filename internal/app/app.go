@@ -451,6 +451,7 @@ type app struct {
 	settingsSaver    *async.RunOnceScheduler
 	settingsOnce     sync.Once
 	settingsClock    async.Clock // tests inject a fake clock here
+	clock            async.Clock // injectable clock for the app's timers; nil means real time
 	columns          ui.TableLayout
 	proxyPort        int
 	proxyPortInput   string

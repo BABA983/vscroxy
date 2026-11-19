@@ -5,9 +5,11 @@ import (
 	"log/slog"
 	"net"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/request"
@@ -222,21 +224,23 @@ func TestMQTTDroppedAccumulatesAcrossReconnects(t *testing.T) {
 }
 
 func TestMQTTQuitWaitsOnceForAllSessions(t *testing.T) {
-	sessions := make([]*mqttSession, 3)
-	for i := range sessions {
-		sessions[i] = &mqttSession{done: make(chan struct{})}
-	}
-	for i, delay := range []time.Duration{100 * time.Millisecond, 600 * time.Millisecond, 600 * time.Millisecond} {
-		go func(i int, delay time.Duration) {
-			time.Sleep(delay)
-			close(sessions[i].done)
-		}(i, delay)
-	}
-	start := time.Now()
-	waitMQTTSessions(sessions, time.Second)
-	if elapsed := time.Since(start); elapsed > 1100*time.Millisecond {
-		t.Fatalf("waited %s for all sessions; the timeout was spent per session", elapsed)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		sessions := make([]*mqttSession, 3)
+		for i := range sessions {
+			sessions[i] = &mqttSession{done: make(chan struct{})}
+		}
+		for i, delay := range []time.Duration{100 * time.Millisecond, 600 * time.Millisecond, 600 * time.Millisecond} {
+			go guarded(func() {
+				<-time.After(delay)
+				close(sessions[i].done)
+			})
+		}
+		start := time.Now()
+		waitMQTTSessions(sessions, time.Second)
+		if elapsed := time.Since(start); elapsed > 1100*time.Millisecond {
+			t.Fatalf("waited %s for all sessions; the timeout was spent per session", elapsed)
+		}
+	})
 }
 
 func TestMQTTEmptyClientIDStaysClean(t *testing.T) {
@@ -332,13 +336,27 @@ func TestMQTT5AssignedClientIDReusedOnReconnect(t *testing.T) {
 	}
 	s := openMQTTSession(prepared.URL, input, scope, nil, cfg, nil, false, nil, nil)
 	t.Cleanup(s.stop)
-	waitMQTT(t, "first connection", func() bool { return s.snapshot().ready })
+	waitMQTT(t, "first connection", func() bool {
+		snapshot := s.snapshot()
+		// The drop must happen after the first subscribe completes, or there
+		// is no active subscription for the reconnection to restore.
+		return snapshot.ready && slices.Contains(snapshot.subscriptions, "assigned/topic")
+	})
 	firstID := s.snapshot().clientID
 	if firstID == "" {
 		t.Fatal("broker did not assign a client ID")
 	}
 	drop()
 	waitMQTT(t, "reconnecting state", func() bool { return s.snapshot().state == "Reconnecting" })
+	waitMQTT(t, "resumed session", func() bool {
+		snapshot := s.snapshot()
+		// Publish only after the reconnect has re-applied its subscription;
+		// ready and sessionPresent still precede that step.
+		return snapshot.ready && snapshot.sessionPresent && slices.Contains(snapshot.subscriptions, "assigned/topic")
+	})
+	if got := s.snapshot().clientID; got != firstID {
+		t.Fatalf("reconnect client ID = %q, want %q", got, firstID)
+	}
 
 	pubInput := request.Request{Protocol: "MQTT", URL: "mqtt://" + address,
 		MQTT: request.MQTTConfig{Version: request.MQTT5, ClientID: "assigned-pub"}}
@@ -355,13 +373,6 @@ func TestMQTT5AssignedClientIDReusedOnReconnect(t *testing.T) {
 	}
 	pub.Close()
 
-	waitMQTT(t, "resumed session", func() bool {
-		snapshot := s.snapshot()
-		return snapshot.ready && snapshot.sessionPresent
-	})
-	if got := s.snapshot().clientID; got != firstID {
-		t.Fatalf("reconnect client ID = %q, want %q", got, firstID)
-	}
 	waitMQTT(t, "queued message", func() bool {
 		for _, event := range s.snapshot().events {
 			if event.direction == "In" && event.name == "assigned/topic" && string(event.payload) == "queued" {

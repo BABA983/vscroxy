@@ -45,6 +45,7 @@ func TestMCPStopDocumentsKillsStdioTreeOnExit(t *testing.T) {
 		if syscall.Kill(pid, 0) != nil {
 			return
 		}
+		// Polling the real grandchild process; it has no readiness signal.
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("stdio grandchild %d survived app exit", pid)
@@ -97,6 +98,7 @@ func waitAppPIDFile(t *testing.T, path string) int {
 				return pid
 			}
 		}
+		// Waiting for a real child to write its pid file; no channel signal.
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("no pid in %s", path)

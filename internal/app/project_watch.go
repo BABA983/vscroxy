@@ -10,6 +10,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/async"
 	"github.com/baba983/vscroxy/internal/library"
 )
 
@@ -39,14 +40,22 @@ func (a *app) startProjectWatch() {
 // watchProject looks at the folder's fingerprint every two seconds and asks the
 // UI thread to sync when it changed, or while a change waits on unsaved edits.
 func (a *app) watchProject(dir string, stop <-chan struct{}) {
-	tick := time.NewTicker(2 * time.Second)
-	defer tick.Stop()
+	clock := a.timerClock()
+	ticks := make(chan struct{}, 1)
+	tick := async.NewIntervalTimer(func() error {
+		select {
+		case ticks <- struct{}{}:
+		default:
+		}
+		return nil
+	}, 2*time.Second, async.WithClock(clock))
+	defer tick.Dispose()
 	var seen string
 	for {
 		select {
 		case <-stop:
 			return
-		case <-tick.C:
+		case <-ticks:
 		}
 		fp := projectFingerprint(dir)
 		if fp == seen && !a.projectPending.Load() {

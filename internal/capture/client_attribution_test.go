@@ -139,11 +139,15 @@ func TestClientLookupDrainsArrivalsDuringAPass(t *testing.T) {
 	}
 	var mu sync.Mutex
 	calls := 0
+	firstBatch := make(chan struct{})
+	releaseBatch := make(chan struct{})
+	var once sync.Once
 	s.lookupBatch = func(endpoints []procinfo.Endpoint) []procinfo.Process {
 		mu.Lock()
 		calls++
 		mu.Unlock()
-		time.Sleep(40 * time.Millisecond)
+		once.Do(func() { close(firstBatch) })
+		<-releaseBatch
 		out := make([]procinfo.Process, len(endpoints))
 		for i := range out {
 			out[i] = procinfo.Process{Name: "batch", Path: "/batch"}
@@ -186,8 +190,14 @@ func TestClientLookupDrainsArrivalsDuringAPass(t *testing.T) {
 		}
 	}
 	add(10)
-	time.Sleep(50 * time.Millisecond)
+	// The later arrivals join while the first batch is still running.
+	select {
+	case <-firstBatch:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the first lookup batch never started")
+	}
 	add(10)
+	close(releaseBatch)
 	for _, p := range all {
 		identity, ok := s.waitLookup(p.addr, p.client, time.Second)
 		if !ok || identity.process.Name != "batch" {

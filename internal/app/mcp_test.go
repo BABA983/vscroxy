@@ -74,7 +74,10 @@ func TestMCPSessionCatalogAndOperations(t *testing.T) {
 	if _, err := s.callTool(request.MCPConfig{Transport: request.MCPTransportStreamableHTTP, Tool: "echo", ToolArgs: `{"text":"hello"}`}); err != nil {
 		t.Fatal(err)
 	}
-	snapshot = waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return !snapshot.busy && snapshot.result != nil })
+	snapshot = waitMCPSession(t, s, func(snapshot mcpSnapshot) bool {
+		return !snapshot.busy && snapshot.result != nil && len(snapshot.events) > 0 &&
+			strings.Contains(snapshot.events[len(snapshot.events)-1].text, "echo: hello")
+	})
 	if snapshot.result == nil || !strings.Contains(snapshot.result.Text, "echo: hello") || !strings.Contains(snapshot.result.Structured, `"text": "hello"`) {
 		t.Errorf("tool result = %+v", snapshot.result)
 	}

@@ -50,6 +50,18 @@ func (s *syncText) String() string {
 	return s.b.String()
 }
 
+// waitMockOutput waits for a line the mock writes after its HTTP address.
+func waitMockOutput(t *testing.T, stdout *syncText, marker string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for !strings.Contains(stdout.String(), marker) {
+		if time.Now().After(deadline) {
+			t.Fatalf("mock never printed %q: stdout=%q", marker, stdout.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 // startMock runs vscroxy-cli mock in the background. It returns the base URL
 // printed on start, the stderr so far, and stop, which cancels the command the
 // way Ctrl-C does and returns its exit code.
@@ -185,8 +197,9 @@ func TestMockServesUnaryGRPCExamples(t *testing.T) {
 	})
 	_, stdout, stderr, stop := startMock(t, filepath.Join(root, "collections"))
 	defer stop()
-	text := stdout.String()
 	marker := "gRPC examples at "
+	waitMockOutput(t, stdout, marker)
+	text := stdout.String()
 	i := strings.Index(text, marker)
 	if i < 0 {
 		t.Fatalf("no gRPC address: stdout=%q stderr=%q", text, stderr.String())

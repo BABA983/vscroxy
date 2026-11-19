@@ -49,8 +49,9 @@ type testBroker struct {
 // properties a broker may not forward (such as will properties).
 type connectRecorder struct {
 	mqtt.HookBase
-	mu       sync.Mutex
-	connects map[string]packets.Packet
+	mu        sync.Mutex
+	connects  map[string]packets.Packet
+	onConnect chan string
 }
 
 func (h *connectRecorder) ID() string { return "test-connect-recorder" }
@@ -64,6 +65,10 @@ func (h *connectRecorder) OnConnect(_ *mqtt.Client, pk packets.Packet) error {
 		h.connects = map[string]packets.Packet{}
 	}
 	h.connects[pk.Connect.ClientIdentifier] = pk
+	select {
+	case h.onConnect <- pk.Connect.ClientIdentifier:
+	default:
+	}
 	return nil
 }
 func (h *connectRecorder) connect(clientID string) (packets.Packet, bool) {
@@ -79,7 +84,7 @@ func startTestBroker(t *testing.T, tlsConfig *tls.Config, websocket bool) *testB
 	if err := server.AddHook(new(auth.AllowHook), nil); err != nil {
 		t.Fatal(err)
 	}
-	recorder := &connectRecorder{}
+	recorder := &connectRecorder{onConnect: make(chan string, 64)}
 	if err := server.AddHook(recorder, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -126,6 +131,7 @@ func waitForListener(t *testing.T, address string) {
 			_ = conn.Close()
 			return
 		}
+		// The real listener has no readiness signal; probe it again shortly.
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("listener %s did not start", address)
@@ -420,15 +426,16 @@ func TestMQTTLastWill(t *testing.T) {
 				// so inspect the CONNECT packet the client sent.
 				var pk packets.Packet
 				var ok bool
-				deadline := time.Now().Add(5 * time.Second)
-				for time.Now().Before(deadline) {
-					if pk, ok = broker.recorder.connect(clientID); ok {
-						break
+				deadline := time.After(5 * time.Second)
+				for !ok {
+					select {
+					case id := <-broker.recorder.onConnect:
+						if id == clientID {
+							pk, ok = broker.recorder.connect(clientID)
+						}
+					case <-deadline:
+						t.Fatal("broker did not record the CONNECT packet")
 					}
-					time.Sleep(10 * time.Millisecond)
-				}
-				if !ok {
-					t.Fatal("broker did not record the CONNECT packet")
 				}
 				props := pk.Connect.WillProperties
 				if props.ContentType != "application/json" || props.PayloadFormat != 1 ||

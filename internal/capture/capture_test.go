@@ -3266,7 +3266,10 @@ func TestMockOfAnExampleAnswersForAnUnresolvableHTTPSHost(t *testing.T) {
 // A request the client gives up on still ends: the error flow publishes, and
 // the number it was given at its start is gone with the rest of its state.
 func TestAbortedRequestLeavesNoReservedID(t *testing.T) {
+	reachedUpstream := make(chan struct{})
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(reachedUpstream)
+		// The response is deliberately late; the client abandons it.
 		time.Sleep(2 * time.Second)
 		fmt.Fprint(w, "late")
 	}))
@@ -3278,7 +3281,11 @@ func TestAbortedRequestLeavesNoReservedID(t *testing.T) {
 	}
 	host := upstream.Listener.Addr().String()
 	fmt.Fprintf(conn, "GET http://%s/slow HTTP/1.1\r\nHost: %s\r\n\r\n", host, host)
-	time.Sleep(200 * time.Millisecond)
+	select {
+	case <-reachedUpstream:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the aborted request never reached the upstream")
+	}
 	conn.Close()
 	f := waitFlow(t, s)
 	if f.Conn.Error == "" {

@@ -19,6 +19,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -805,38 +806,41 @@ func TestGateAsksForAnUnknownClientOnce(t *testing.T) {
 }
 
 func TestGateSharesOnePromptForConcurrentConnections(t *testing.T) {
-	var calls atomic.Int32
-	started := make(chan struct{})
-	release := make(chan struct{})
-	var once sync.Once
-	gate, err := newGate([]string{"192.168.1.10"}, func(netip.Addr) Verdict {
-		calls.Add(1)
-		once.Do(func() { close(started) })
-		<-release
-		return VerdictAllow
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	addr := netip.MustParseAddr("192.168.1.11")
-	var wg sync.WaitGroup
-	results := make(chan bool, 16)
-	for range 16 {
-		wg.Go(func() { results <- gate.decide(addr) })
-	}
-	<-started
-	time.Sleep(20 * time.Millisecond) // let the other connections join the prompt
-	close(release)
-	wg.Wait()
-	close(results)
-	for allowed := range results {
-		if !allowed {
-			t.Fatal("a connection sharing the prompt was refused")
+	synctest.Test(t, func(t *testing.T) {
+		var calls atomic.Int32
+		started := make(chan struct{})
+		release := make(chan struct{})
+		var once sync.Once
+		gate, err := newGate([]string{"192.168.1.10"}, func(netip.Addr) Verdict {
+			calls.Add(1)
+			once.Do(func() { close(started) })
+			<-release
+			return VerdictAllow
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	if got := calls.Load(); got != 1 {
-		t.Fatalf("asked %d times for one address", got)
-	}
+		addr := netip.MustParseAddr("192.168.1.11")
+		var wg sync.WaitGroup
+		results := make(chan bool, 16)
+		for range 16 {
+			wg.Go(func() { results <- gate.decide(addr) })
+		}
+		<-started
+		// Every other call is now blocked on the shared prompt's channel.
+		synctest.Wait()
+		close(release)
+		wg.Wait()
+		close(results)
+		for allowed := range results {
+			if !allowed {
+				t.Fatal("a connection sharing the prompt was refused")
+			}
+		}
+		if got := calls.Load(); got != 1 {
+			t.Fatalf("asked %d times for one address", got)
+		}
+	})
 }
 
 func TestGateUndecidedIsNotRemembered(t *testing.T) {

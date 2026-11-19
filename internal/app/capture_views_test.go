@@ -687,9 +687,12 @@ func TestCaptureViewBodySearchIsCancellable(t *testing.T) {
 	)
 	started := make(chan string, 8)
 	cancelled := make(chan struct{}, 8)
+	bothReaders := make(chan struct{})
 	var calls atomic.Int64
 	v.search = func(ctx context.Context, job bodyJob, needle string) (bool, error) {
-		calls.Add(1)
+		if calls.Add(1) == 2 {
+			close(bothReaders)
+		}
 		if needle != "alpha" {
 			return strings.Contains(job.resHead, needle), nil
 		}
@@ -716,8 +719,12 @@ func TestCaptureViewBodySearchIsCancellable(t *testing.T) {
 			t.Fatal("the search never started")
 		}
 	}
-	// Give a duplicate reader the chance to show up.
-	time.Sleep(20 * time.Millisecond)
+	// Wait for the duplicate reader itself, not for a fixed delay.
+	select {
+	case <-bothReaders:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("two flows were handed to the reader %d times", calls.Load())
+	}
 	if n := calls.Load(); n != 2 {
 		t.Fatalf("two flows were handed to the reader %d times", n)
 	}

@@ -74,6 +74,7 @@ func TestDeviceAskTimeoutIsNotRemembered(t *testing.T) {
 	}
 	deviceAskTimeout = time.Second
 	go func() {
+		// A late answer is the case under test: it must not reuse the timed-out prompt.
 		time.Sleep(20 * time.Millisecond)
 		a.answerDeviceAsk(lan.VerdictAllow)
 	}()

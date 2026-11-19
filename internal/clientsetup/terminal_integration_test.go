@@ -115,6 +115,7 @@ exit 0
 		if time.Now().After(deadline) {
 			t.Fatalf("terminal produced no result: %v", err)
 		}
+		// xterm writes these files asynchronously; no completion signal exists.
 		time.Sleep(100 * time.Millisecond)
 	}
 }

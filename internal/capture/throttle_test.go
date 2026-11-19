@@ -27,7 +27,7 @@ func TestThrottledReaderPacesReads(t *testing.T) {
 		payload := bytes.Repeat([]byte{0, 255, 42, 7}, 4096)
 		r := throttleReader(t.Context(), nil, bytes.NewReader(payload), 64<<10)
 		// Construction and unrelated waiting must not grant a burst budget.
-		time.Sleep(time.Second)
+		synctest.Sleep(time.Second)
 		start := time.Now()
 		got, err := io.ReadAll(r)
 		if err != nil || !bytes.Equal(got, payload) {
@@ -208,15 +208,15 @@ func TestWebSocketNetworkRuleDropsEveryMessage(t *testing.T) {
 	if elapsed := time.Since(start); elapsed < 35*time.Millisecond {
 		t.Fatalf("the dropped message did not wait for the rule's latency: %v", elapsed)
 	}
-	// Give the upstream a moment to prove it never saw the message.
-	time.Sleep(50 * time.Millisecond)
-	if received.Load() != 0 {
-		t.Fatalf("upstream received %d dropped messages", received.Load())
-	}
 	f := waitFlow(t, s)
 	out := waitFrame(t, s)
 	if out.FlowID != f.ID || out.Frame.Direction != "out" || out.Frame.Kind != "dropped text" {
 		t.Fatalf("dropped frame = %+v", out)
+	}
+	// The flow and frame prove the rule handled the message; the upstream
+	// must still never have seen it.
+	if received.Load() != 0 {
+		t.Fatalf("upstream received %d dropped messages", received.Load())
 	}
 }
 

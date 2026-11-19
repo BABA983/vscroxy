@@ -4,8 +4,17 @@ import (
 	"slices"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/async"
 	"github.com/baba983/vscroxy/internal/capture"
 )
+
+// timerClock is the clock used by the app's timers. A nil clock means real time.
+func (a *app) timerClock() async.Clock {
+	if a.clock != nil {
+		return a.clock
+	}
+	return async.RealClock()
+}
 
 // rateWindow counts the recorded flows of each second in the last minute,
 // the recording pill's curve. The newest second is the last bucket.
@@ -65,16 +74,14 @@ func (a *app) record(pending []capture.Flow) []capture.Flow {
 // tickRate redraws once a second while the pill or five-minute activity
 // overview has something in it to move, until capture stops.
 func (a *app) tickRate(done <-chan struct{}) {
-	tick := time.NewTicker(time.Second)
-	defer tick.Stop()
-	for {
-		select {
-		case <-done:
-			return
-		case now := <-tick.C:
-			if now.Unix()-a.lastFlow.Load() <= int64(activitySpan/time.Second)+1 {
-				a.win.Invalidate()
-			}
+	clock := a.timerClock()
+	tick := async.NewIntervalTimer(func() error {
+		now := clock.Now()
+		if now.Unix()-a.lastFlow.Load() <= int64(activitySpan/time.Second)+1 {
+			a.win.Invalidate()
 		}
-	}
+		return nil
+	}, time.Second, async.WithClock(clock))
+	defer tick.Dispose()
+	<-done
 }

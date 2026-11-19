@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/async"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/internal/upstream"
 	"github.com/baba983/vscroxy/locales"
@@ -33,7 +34,7 @@ type upstreamLoadResult struct {
 // Only URL PACs retry automatically; the Retry button uses the same settings
 // for a file PAC or a validation error.
 type upstreamRetry struct {
-	timer    *time.Timer
+	timer    *async.RunOnceScheduler
 	attempt  int
 	retrying bool
 	epoch    uint64
@@ -258,7 +259,7 @@ func (a *app) drainUpstream() {
 // keeps the backoff sequence; a new save starts it again.
 func (a *app) scheduleUpstreamRetry(settings upstream.Settings, secrets map[string]string, epoch uint64) {
 	if a.upstreamRetry.timer != nil {
-		a.upstreamRetry.timer.Stop()
+		a.upstreamRetry.timer.Dispose()
 		a.upstreamRetry.timer = nil
 	}
 	attempt := 0
@@ -275,14 +276,17 @@ func (a *app) scheduleUpstreamRetry(settings upstream.Settings, secrets map[stri
 	if win == nil {
 		return // headless tests drive retryUpstream directly
 	}
-	a.upstreamRetry.timer = time.AfterFunc(upstreamRetryDelay(attempt), func() {
+	retry := async.NewRunOnceScheduler(func() error {
 		win.Update(func() { a.retryUpstream() })
-	})
+		return nil
+	}, upstreamRetryDelay(attempt), async.WithClock(a.timerClock()))
+	retry.Schedule()
+	a.upstreamRetry.timer = retry
 }
 
 func (a *app) stopUpstreamRetry() {
 	if a.upstreamRetry.timer != nil {
-		a.upstreamRetry.timer.Stop()
+		a.upstreamRetry.timer.Dispose()
 	}
 	a.upstreamRetry = upstreamRetry{}
 }
@@ -292,7 +296,7 @@ func (a *app) stopUpstreamRetry() {
 func (a *app) retryUpstream() {
 	r := a.upstreamRetry
 	if r.timer != nil {
-		r.timer.Stop()
+		r.timer.Dispose()
 		a.upstreamRetry.timer = nil
 	}
 	if r.epoch != a.upstreamEpoch.Load() || !r.settings.Enabled() {
