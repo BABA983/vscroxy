@@ -107,6 +107,7 @@ func (a *app) currentSettings() settings {
 		CookiePersistence:    a.cookiePersistence,
 		LocalControl:         a.localControl,
 		DisableUpdateCheck:   !a.updateCheck,
+		AttentionSignals:     a.attentionMode(),
 		Guide:                a.guide,
 		AllowList:            a.allowOn,
 		FlowLimit:            a.flowLimit,
@@ -130,11 +131,12 @@ func (a *app) configLists() map[string]*string {
 // or too large stay paths on this computer.
 func (a *app) exportConfig() (b configBundle, notes []string) {
 	s := a.currentSettings()
-	// The key log, project folder, setup guide, cookie retention and local
-	// automation are this computer's: a configuration file never turns cookie
-	// persistence or the control endpoint on elsewhere.
+	// The key log, project folder, setup guide, cookie retention, attention
+	// signals and local automation are this computer's: a configuration file
+	// never turns cookie persistence or the control endpoint on elsewhere.
 	s.KeyLogPath, s.ProjectDir, s.Guide, s.CookiePersistence, s.LocalControl = "", "", false, false, false
 	s.DisableUpdateCheck = false
+	s.AttentionSignals = ""
 	s.Language = ""      // the reader's language, not the bundle's
 	s.SOCKSPassword = "" // a credential, never in a shared bundle
 	ssl := a.inspectionConfig()
@@ -476,6 +478,9 @@ func (a *app) applySettingsPrepared(s settings, prepared *upstream.Config) error
 	a.customColumns, a.hiddenColumns = slices.Clone(s.CustomColumns), slices.Clone(s.HiddenColumns)
 	a.shownColumns = slices.Clone(s.ShownColumns)
 	a.proxyPort, a.vault.scripts, a.allowOn = s.ProxyPort, s.VaultScripts, s.AllowList
+	if a.attention != nil {
+		a.attention.setMode(s.AttentionSignals)
+	}
 	// A shared bundle never carries the SOCKS5 password. Keep this
 	// computer's password when the imported entry asks for authentication;
 	// without one, authentication cannot be on, so turn it off instead of

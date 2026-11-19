@@ -4761,6 +4761,69 @@
   "authorizationAndUrlCredentials": "Authorization and URL credentials",
   "authorizationType": "Authorization type",
   "authorizationUrl": "Authorization URL",
+  "@attentionBreakpoint": {
+    "placeholders": {
+      "method": {
+        "type": "String"
+      },
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "attentionBreakpoint": "{method} {host} is paused at a breakpoint",
+  "@attentionBreakpointAnnouncement": {
+    "placeholders": {
+      "method": {
+        "type": "String"
+      },
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "attentionBreakpointAnnouncement": "Breakpoint · {method} {host}",
+  "attentionBreakpointTitle": "Breakpoint needs attention",
+  "attentionMcpConsentBody": "A local MCP server is waiting for your approval.",
+  "attentionMcpConsentTitle": "MCP approval needed",
+  "@attentionRunFailedAnnouncement": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
+  "attentionRunFailedAnnouncement": "Collection run failed · {completed, number, ::group-off} completed · {failed, number, ::group-off} failed",
+  "attentionRunFailedTitle": "Collection run failed",
+  "@attentionRunFinishedAnnouncement": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
+  "attentionRunFinishedAnnouncement": "Collection run finished · {completed, number, ::group-off} completed · {failed, number, ::group-off} failed",
+  "attentionRunFinishedTitle": "Collection run finished",
+  "@attentionRunResult": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
+  "attentionRunResult": "{completed, number, ::group-off} completed · {failed, number, ::group-off} failed",
+  "attentionSignals": "Attention signals",
+  "attentionSignalsHint": "Auto flashes the window, badges the app and notifies only while the window is not in front. On always signals; off silences those three, but screen readers still hear announcements.",
+  "attentionSignalsOn": "On",
   "auto": "Auto",
   "autoSelect": "Auto-select",
   "autoSelectCount": "{count} new",
