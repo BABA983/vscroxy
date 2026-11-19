@@ -699,7 +699,7 @@ func (a *app) autoBodyMode(f flow, side int, body string) int {
 		return 4
 	case inspect.BodyFormat(f.bodyContentType(side == 0)) != "":
 		return slices.Index(a.bodyModes(f, side), inspect.BodyFormat(f.bodyContentType(side == 0)))
-	case ct == "application/octet-stream", !utf8.ValidString(body), strings.ContainsRune(body, 0):
+	case inspect.BinaryContentType(ct), !utf8.ValidString(body), strings.ContainsRune(body, 0):
 		return 3
 	default:
 		return 1
@@ -747,13 +747,21 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 	if side == 1 {
 		body = a.reqBody
 	}
+	// shown is a read-only display form. The captured bytes still flow to
+	// copy, save, replay and the hex view.
+	shown := body
+	if !utf8.ValidString(body) || strings.ContainsRune(body, 0) {
+		if text, ok := a.displayText(f, side, body); ok {
+			shown = text
+		}
+	}
 	modes := a.bodyModes(f, side)
 	if a.bodyMode[side] >= len(modes) {
 		a.bodyMode[side] = 0
 	}
 	mode := a.bodyMode[side]
 	if mode == 0 {
-		mode = a.autoBodyMode(f, side, body)
+		mode = a.autoBodyMode(f, side, shown)
 		if mode >= len(modes) {
 			mode = 1
 		}
@@ -779,6 +787,9 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		a.protobufReader(c, f, side)
 		return
 	}
+	if shown != body && mode != 3 {
+		a.encodingLabel(c, side)
+	}
 	if body == "" {
 		message := locales.EmptyBody()
 		if a.bodyNotice[side] != "" {
@@ -799,31 +810,31 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 	}
 	switch mode {
 	case 2:
-		reader := a.jsonReaderFor(c, side, key, body, f.contentType(side == 0))
+		reader := a.jsonReaderFor(c, side, key, shown, f.contentType(side == 0))
 		if !reader.ready {
-			a.prettyBody(c, body, side, reader)
+			a.prettyBody(c, shown, side, reader)
 			return
 		}
 		if len(reader.result.tree.roots) == 0 {
 			uikit.Meta(c, locales.BodyIsNotJsonShowing()).Padding(t.Space(uikit.SpaceL))
-			a.prettyBody(c, body, side, reader)
+			a.prettyBody(c, shown, side, reader)
 			return
 		}
 		a.jsonBody(c, side)
 	case 3:
 		a.hexBody(c, body, side)
 	case 4:
-		a.previewBody(c, f, body, side)
+		a.previewBody(c, f, shown, side)
 	default:
 		switch modes[mode] {
 		case "JavaScript", "CSS":
-			a.codeBody(c, f, body, side, modes[mode])
+			a.codeBody(c, f, shown, side, modes[mode])
 		case "Markdown":
-			a.markdownBody(c, f, body, side)
+			a.markdownBody(c, f, shown, side)
 		case "Merged stream":
-			a.mergedBody(c, f, body, side)
+			a.mergedBody(c, f, shown, side)
 		default:
-			a.prettyBody(c, body, side, a.jsonReaderFor(c, side, key, body, f.contentType(side == 0)))
+			a.prettyBody(c, shown, side, a.jsonReaderFor(c, side, key, shown, f.contentType(side == 0)))
 		}
 	}
 }

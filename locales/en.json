@@ -5517,6 +5517,14 @@
   "enableVariable": "Enable variable {index}",
   "encrypted": "Encrypted",
   "encryptedTunnelConnectSuccessIs": "Encrypted tunnel; CONNECT success is not a decrypted response",
+  "@encodingLabel": {
+    "placeholders": {
+      "encoding": {
+        "type": "String"
+      }
+    }
+  },
+  "encodingLabel": "Encoding: {encoding}",
   "@endpointNamed": {
     "placeholders": {
       "name": {

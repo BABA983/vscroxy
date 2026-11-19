@@ -298,6 +298,8 @@ type app struct {
 	bodyQuery        [2]string
 	headerScroll     [2]ui.ScrollState
 	bodyText         [2]*editor.State
+	// bodyDisplayCache holds the one decoded view of each side's raw body.
+	bodyDisplayCache [2]bodyDisplayCache
 	// bodyPrettyFor is the body the pretty reader holds, so a draft's changed
 	// bytes never show in an older reader.
 	bodyPrettyFor [2]string
