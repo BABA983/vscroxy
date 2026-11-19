@@ -150,6 +150,65 @@ func TestRenameInBodyEditorKeepsUndo(t *testing.T) {
 	}
 }
 
+// A code action can be chosen long after its range was found. If the field
+// changed in between, the old offsets might point at unrelated text.
+func TestQuickFixRenameRejectsStaleRange(t *testing.T) {
+	a, d := quickFixTestApp(t, savedRequest{Name: "Stale range", Method: "GET",
+		URL: "https://api.example.com/{{tenat}}"})
+	m := markerFor(t, a, d, "tenat")
+	fixes := a.quickFixesForMarker(m)
+	var rename quickFix
+	for _, fix := range fixes {
+		if strings.Contains(fix.label, locales.ChangeToVariable("tenant")) {
+			rename = fix
+			break
+		}
+	}
+	if rename.apply == nil {
+		t.Fatalf("no rename among %+v", fixes)
+	}
+	a.problems.fixMenuOpen = true
+	// The reader kept typing while the action list was open.
+	d.composeURL = "https://api.example.com/v2/{{tenat}}"
+	want := d.composeURL
+	rename.apply()
+	if d.composeURL != want {
+		t.Fatalf("stale range rewrote %q, want %q", d.composeURL, want)
+	}
+	if a.problems.fixMenuOpen {
+		t.Fatal("stale action left the menu open")
+	}
+}
+
+func TestQuickFixSkipsEnvironmentScopeWithNoActiveEnvironment(t *testing.T) {
+	a := workspaceApp()
+	a.activeEnv, a.envs = "", nil
+	a.addDocument(savedRequest{Name: "No env", Method: "GET",
+		Collection: "Shop", URL: "{{no_env}}"}, "saved:no-env")
+	d := a.requestDocument
+	a.folders = []request.Folder{{Path: "Shop"}}
+	a.syncProblems()
+	m := markerFor(t, a, d, "no_env")
+	fixes := a.quickFixesForMarker(m)
+	for _, fix := range fixes {
+		if strings.Contains(fix.label, locales.Environment()) {
+			t.Fatalf("no environment is active, but offered %q", fix.label)
+		}
+	}
+	for _, fix := range fixes {
+		if strings.Contains(fix.label, locales.ScopeGlobal()) {
+			fix.apply()
+			break
+		}
+	}
+	if a.activeEnv != "" || len(a.envs) != 0 {
+		t.Fatalf("create changed the environment to %q, %+v", a.activeEnv, a.envs)
+	}
+	if value, ok := a.globals["no_env"]; !ok || value != "" {
+		t.Fatalf("global variable = %q, %v", value, ok)
+	}
+}
+
 func TestCreateVariableInChosenScopeClearsMarker(t *testing.T) {
 	t.Run("environment", func(t *testing.T) {
 		a, d := quickFixTestApp(t, savedRequest{Name: "Create env", Method: "GET", URL: "{{env_only}}"})

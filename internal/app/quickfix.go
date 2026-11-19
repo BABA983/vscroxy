@@ -305,7 +305,12 @@ func (a *app) quickFixes(target quickFixTarget) []quickFix {
 		fixes = append(fixes, quickFix{
 			label: locales.ChangeToVariable(to),
 			apply: func() {
-				target.rename(at, end, to)
+				if !target.rename(at, end, to) {
+					// The field changed while the action list was open.
+					// Dropping the menu is safer than editing new text at
+					// an offset from the old field.
+					a.problems.fixMenuOpen = false
+				}
 				a.invalidate()
 			},
 		})
@@ -319,12 +324,32 @@ func (t quickFixTarget) ok() bool {
 		!strings.ContainsAny((*t.text)[t.start:t.end], "\r\n")
 }
 
+// stillMatches checks that the captured range still holds the reference the
+// action was offered for. The field can have been typed in, undone or rewritten
+// while the menu was open; reusing the old offsets would edit the wrong text.
+// VariableRefs also accepts spaces inside the braces, as the producer does.
+func (t quickFixTarget) stillMatches() bool {
+	if !t.ok() || t.state != nil && t.state.Buffer.String() != *t.text {
+		return false
+	}
+	if (*t.text)[t.start:t.end] == "{{"+t.name+"}}" {
+		return true
+	}
+	for _, ref := range request.VariableRefs(*t.text) {
+		if ref.Start == t.start && ref.End == t.end && ref.Name == t.name {
+			return true
+		}
+	}
+	return false
+}
+
 // rename applies the code action through the field's own edit path. A code
 // editor edits its buffer, so undo and redo know the step; plain strings are
 // written where the producer reads them. Only the marker's byte range moves.
-func (t quickFixTarget) rename(start, end int, name string) {
-	if !t.ok() || start != t.start || end != t.end {
-		return
+// It reports false when the range no longer holds the same reference.
+func (t quickFixTarget) rename(start, end int, name string) bool {
+	if !t.stillMatches() || start != t.start || end != t.end {
+		return false
 	}
 	replacement := "{{" + name + "}}"
 	if t.state != nil && t.state.Buffer.String() == *t.text && end <= t.state.Buffer.Len() {
@@ -342,18 +367,18 @@ func (t quickFixTarget) rename(start, end int, name string) {
 	if t.bodyGeneration != nil {
 		*t.bodyGeneration++
 	}
-	if t.doc == nil {
-		return
+	if t.doc != nil {
+		switch {
+		case t.field == problemFieldHeaderRaw:
+			t.doc.headerFor = ""
+		case strings.HasPrefix(t.field, "header-"):
+			t.doc.composeHeaders = headerRowsText(t.doc.headerRows)
+			t.doc.headerFor = t.doc.composeHeaders
+		case t.field == problemFieldURL:
+			t.doc.querySource = ""
+		}
 	}
-	switch {
-	case t.field == problemFieldHeaderRaw:
-		t.doc.headerFor = ""
-	case strings.HasPrefix(t.field, "header-"):
-		t.doc.composeHeaders = headerRowsText(t.doc.headerRows)
-		t.doc.headerFor = t.doc.composeHeaders
-	case t.field == problemFieldURL:
-		t.doc.querySource = ""
-	}
+	return true
 }
 
 // similarVariableNames ranks existing names by how close they are to the
@@ -434,10 +459,12 @@ func damerauLevenshtein(left, right []rune) int {
 // quickFixScopes lists the places a missing name can be created, nearest
 // first: the environment in use, the request's folder, its collection, then
 // globals. Each scope writes through the same store its editor saves to.
+// With no environment in use there is no environment scope: inventing and
+// activating "default" would change what every other request resolves against.
 func (a *app) quickFixScopes(collection string) []quickFixScope {
 	var scopes []quickFixScope
-	if a.envsProblem == "" {
-		name := cmp.Or(a.activeEnv, "default")
+	if a.envsProblem == "" && a.activeEnv != "" {
+		name := a.activeEnv
 		scopes = append(scopes, quickFixScope{
 			label: locales.KindPath(locales.Environment(), name),
 			add: func(variable string) error {
