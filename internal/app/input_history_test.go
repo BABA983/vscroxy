@@ -85,8 +85,15 @@ func TestInputHistoryIgnoresEmptyAndWhitespace(t *testing.T) {
 func TestRedactHistoryURLKeepsOnlySafeAuthoredText(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
 		{"https://api.example.com/p?token=abc&page=2", "https://api.example.com/p?token=&page=2"},
+		{"https://{{host}}/a/{{id}}?token=abc&page=2", "https://{{host}}/a/{{id}}?token=&page=2"},
+		{"{{base}}/users/{{id}}?api_key=xyz", "{{base}}/users/{{id}}?api_key="},
+		{"https://api.test/x y?token=abc&page=2", "https://api.test/x y?token=&page=2"},
 		{"https://api.example.com/p?q={{token}}&page=2", "https://api.example.com/p?q={{token}}&page=2"},
 		{"https://api.example.com/p?TOKEN=abc&code=xyz&page=2", "https://api.example.com/p?TOKEN=&code=&page=2"},
+		{"https://api.example.com/p?token=abc#frag?token=abc", "https://api.example.com/p?token=#frag?token=abc"},
+		{"https://user:secret@api.test/p", "https://user:@api.test/p"},
+		{"https://user:{{password}}@api.test/p", "https://user:{{password}}@api.test/p"},
+		{"api.test/p?to%ZZken=abc", "api.test/p?to%ZZken="},
 	} {
 		if got := redactHistoryURL(tc.in); got != tc.want {
 			t.Errorf("redactHistoryURL(%q) = %q, want %q", tc.in, got, tc.want)

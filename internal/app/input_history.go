@@ -142,26 +142,24 @@ func (a *app) clearInputHistory() {
 	a.saveInputHistory()
 }
 
-// redactHistoryURL keeps an authored URL's shape while removing values that
-// would disclose a credential. Query parameter names use the app's own
-// secret-name rules; {{variable}} references stay unresolved and unchanged,
-// since a sent request expands them only in the traffic it produces.
+// redactHistoryURL keeps an authored URL's bytes while removing values that
+// would disclose a credential. It works on the string, not a parsed URL: a
+// {{variable}} in the host or path is not a parseable URL, and re-encoding a
+// parsed one escapes the references a recalled entry must keep verbatim.
+// Query parameter names use the app's own secret-name rules; {{references}}
+// stay unresolved, since a send expands them only in the traffic it produces.
 func redactHistoryURL(raw string) string {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return raw
-	}
-	if u.User != nil {
-		if password, set := u.User.Password(); set && !strings.Contains(password, "{{") {
-			u.User = url.UserPassword(u.User.Username(), "")
-		}
-	}
-	if u.RawQuery != "" {
-		parts := strings.Split(u.RawQuery, "&")
+	base, fragment, hasFragment := strings.Cut(raw, "#")
+	before, query, hasQuery := strings.Cut(base, "?")
+	before = redactHistoryUserInfo(before)
+	if hasQuery {
+		parts := strings.Split(query, "&")
 		for i, part := range parts {
 			name, value, hasValue := strings.Cut(part, "=")
 			decoded, err := url.QueryUnescape(name)
-			if err != nil || !request.IsSensitiveQuery(decoded) || strings.Contains(value, "{{") {
+			// An undecodable name may hide a credential; drop its value
+			// rather than trusting a guessed name.
+			if err == nil && !request.IsSensitiveQuery(decoded) || strings.Contains(value, "{{") {
 				continue
 			}
 			if hasValue {
@@ -170,7 +168,33 @@ func redactHistoryURL(raw string) string {
 				parts[i] = name
 			}
 		}
-		u.RawQuery = strings.Join(parts, "&")
+		before += "?" + strings.Join(parts, "&")
 	}
-	return u.String()
+	if hasFragment {
+		before += "#" + fragment
+	}
+	return before
+}
+
+// redactHistoryUserInfo blanks a literal password in scheme://user:pass@host.
+// A {{reference}} is not a stored secret and stays as written.
+func redactHistoryUserInfo(url string) string {
+	scheme, rest, ok := strings.Cut(url, "://")
+	if !ok {
+		return url
+	}
+	authority, tail, slash := strings.Cut(rest, "/")
+	userinfo, host, at := strings.CutLast(authority, "@")
+	if !at {
+		return url
+	}
+	user, password, hasPassword := strings.Cut(userinfo, ":")
+	if !hasPassword || strings.Contains(password, "{{") {
+		return url
+	}
+	redacted := scheme + "://" + user + ":@" + host
+	if slash {
+		redacted += "/" + tail
+	}
+	return redacted
 }
