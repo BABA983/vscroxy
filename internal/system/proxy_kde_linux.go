@@ -22,9 +22,14 @@ const (
 	kdeTypeKey    = "ProxyType"
 	kdePACKey     = "Proxy Config Script"
 	kdeBypassKey  = "NoProxyFor"
-	// KConfig writes an immutable group as "[Group][$i]" and recognises
-	// exactly that suffix when reading; see src/core/kconfigini.cpp in
-	// https://github.com/KDE/kconfig (parseConfig and writeEntries).
+	// KConfig writes an immutable group as "[Group][$i]", an immutable key
+	// as "Key[$i]", and marks a whole file with a standalone "[$i]" line.
+	// See src/core/kconfigini.cpp parseConfig in
+	// https://github.com/KDE/kconfig: the group/file suffix sets
+	// EntryImmutable on the group or every entry, and an entry's option sets
+	// it on that key. KDE's kiosk docs say system files under
+	// XDG_CONFIG_DIRS are read before the user's file, so their markers make
+	// user-level values ineffective.
 	kdeImmutableOption = "[$i]"
 )
 
@@ -59,6 +64,18 @@ type kdeSnapshot struct {
 	Flags       map[string]string   `json:",omitempty"`
 	Lines       map[string][]string `json:",omitempty"`
 	GroupLocked bool                `json:",omitempty"`
+	// Locks records immutable markers that Flags and GroupLocked do not
+	// carry: a standalone [$i] file marker, and system-level key or group
+	// markers from XDG_CONFIG_DIRS, which make user values ineffective.
+	Locks kdeLocks `json:",omitempty"`
+}
+
+// kdeLocks is what KConfig treats as immutable outside the user file's own
+// key flags. A locked system file or group locks every key we write.
+type kdeLocks struct {
+	Flags       map[string]string `json:",omitempty"`
+	GroupLocked bool              `json:",omitempty"`
+	FileLocked  bool              `json:",omitempty"`
 }
 
 type kdeWrite struct {
@@ -79,12 +96,71 @@ func kdeConfigPath(getenv func(string) string) (string, error) {
 	return filepath.Join(home, ".config", kdeProxyFile), nil
 }
 
+// kdeSystemConfigPaths lists the kioslaverc files KConfig cascades beneath
+// the user's file. XDG_CONFIG_DIRS is a preference-ordered path list and
+// defaults to /etc/xdg; relative entries are ignored as in the XDG spec.
+func kdeSystemConfigPaths(getenv func(string) string) []string {
+	dirs := strings.TrimSpace(getenv("XDG_CONFIG_DIRS"))
+	if dirs == "" {
+		dirs = "/etc/xdg"
+	}
+	var paths []string
+	for _, dir := range filepath.SplitList(dirs) {
+		dir = strings.TrimSpace(dir)
+		if dir == "" || !filepath.IsAbs(dir) {
+			continue
+		}
+		paths = append(paths, filepath.Join(dir, kdeProxyFile))
+	}
+	return paths
+}
+
+// kdeReadSystemLocks collects the immutable markers from every cascaded
+// kioslaverc. KConfig reads these files before the user's file, so an
+// immutable key, group or whole file here decides what KDE applies.
+func kdeReadSystemLocks() (kdeLocks, error) {
+	locks := kdeLocks{Flags: map[string]string{}}
+	for _, path := range kdeSystemConfigPaths(kdeCmd.env) {
+		data, err := kdeCmd.readFile(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return kdeLocks{}, err
+		}
+		parsed := parseKDEProxyConfig(data)
+		if parsed.FileLocked {
+			locks.FileLocked = true
+		}
+		if parsed.GroupLocked {
+			locks.GroupLocked = true
+		}
+		for key, flag := range parsed.Flags {
+			if strings.Contains(flag, "i") {
+				locks.Flags[key] = flag
+			}
+		}
+	}
+	return locks, nil
+}
+
 func kdeReadConfig() (kdeSnapshot, error) {
 	path, err := kdeConfigPath(kdeCmd.env)
 	if err != nil {
 		return kdeSnapshot{}, err
 	}
-	return kdeReadConfigAt(path)
+	state, err := kdeReadConfigAt(path)
+	if err != nil {
+		return kdeSnapshot{}, err
+	}
+	systemLocks, err := kdeReadSystemLocks()
+	if err != nil {
+		return kdeSnapshot{}, err
+	}
+	state.Locks.Flags = systemLocks.Flags
+	state.Locks.GroupLocked = systemLocks.GroupLocked
+	state.Locks.FileLocked = state.Locks.FileLocked || systemLocks.FileLocked
+	return state, nil
 }
 
 type kdeConfigData struct {
@@ -92,6 +168,7 @@ type kdeConfigData struct {
 	Flags       map[string]string
 	Lines       map[string][]string
 	GroupLocked bool
+	FileLocked  bool
 }
 
 func kdeReadConfigAt(path string) (kdeSnapshot, error) {
@@ -108,7 +185,8 @@ func kdeReadConfigAt(path string) (kdeSnapshot, error) {
 		value := text
 		values[key] = &value
 	}
-	return kdeSnapshot{Path: path, Values: values, Flags: parsed.Flags, Lines: parsed.Lines, GroupLocked: parsed.GroupLocked}, nil
+	return kdeSnapshot{Path: path, Values: values, Flags: parsed.Flags, Lines: parsed.Lines,
+		GroupLocked: parsed.GroupLocked, Locks: kdeLocks{Flags: map[string]string{}, FileLocked: parsed.FileLocked}}, nil
 }
 
 // parseKDEProxyConfig reads the Proxy Settings section while keeping each
@@ -124,6 +202,12 @@ func parseKDEProxyConfig(data []byte) kdeConfigData {
 	inSection := false
 	for line := range strings.SplitSeq(string(data), "\n") {
 		trimmed := strings.TrimSpace(line)
+		if trimmed == kdeImmutableOption {
+			// KConfig makes the whole file immutable; see parseConfig's
+			// fileOptionImmutable branch in kconfigini.cpp.
+			parsed.FileLocked = true
+			continue
+		}
 		if name, locked, ok := kdeGroupHeader(trimmed); ok {
 			inSection = name == kdeProxyGroup
 			if inSection && locked {
@@ -353,16 +437,17 @@ func kdeApplyWrites(s kdeSnapshot, writes []kdeWrite) error {
 	return kdeNotify()
 }
 
-// lockedWrite refuses a write that KConfig would reject with kwriteconfig's
-// exit status 2: an immutable key, or the whole Proxy Settings group marked
-// [$i]. It runs before the first command so no setting is half written.
+// lockedWrite refuses a write that KConfig would reject or ignore with an
+// immutable marker: a key's [$i] option, a locked Proxy Settings group, or a
+// whole file locked in the user's or a cascaded system kioslaverc. It runs
+// before the first command so no setting is half written.
 func (s kdeSnapshot) lockedWrite(writes []kdeWrite) error {
 	for _, item := range writes {
-		if strings.Contains(s.Flags[item.key], "i") {
+		if strings.Contains(s.Flags[item.key], "i") || strings.Contains(s.Locks.Flags[item.key], "i") {
 			return &KDELockedError{Key: item.key}
 		}
 	}
-	if s.GroupLocked && len(writes) > 0 {
+	if len(writes) > 0 && (s.GroupLocked || s.Locks.GroupLocked || s.Locks.FileLocked) {
 		return &KDELockedError{Key: writes[0].key, Group: kdeProxyGroup}
 	}
 	return nil
