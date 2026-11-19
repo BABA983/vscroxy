@@ -114,8 +114,8 @@ const paletteResultLimit = 50
 const paletteHistoryLimit = 100
 
 // paletteAssetCacheLimit bounds how many distinct queries keep their sorted
-// resource candidates around. Clearing the map is enough: every result is
-// rebuilt from requestIndex and the current variables on the next query.
+// resource candidates around. Reaching it drops only the least recently used
+// query: every result is rebuilt from requestIndex and the current variables.
 const paletteAssetCacheLimit = 16
 
 // paletteAssetCacheKey includes everything that can change the scored and
@@ -372,8 +372,16 @@ func (a *app) paletteVarsGen() uint64 {
 	return hash.Sum64()
 }
 
+func (a *app) paletteAssetCache() *linkedmap.LRUCache[paletteAssetCacheKey, paletteAssetResult] {
+	if a.paletteAssets == nil {
+		a.paletteAssets = linkedmap.NewLRUCache[paletteAssetCacheKey, paletteAssetResult](paletteAssetCacheLimit)
+	}
+	return a.paletteAssets
+}
+
 // paletteAssetsFor returns scored, zero-filtered and ranked resource
-// candidates. An unchanged query on a frame costs a map lookup.
+// candidates. An unchanged query on a frame costs a cache lookup, which makes
+// it the most recently used query.
 func (a *app) paletteAssetsFor(query fuzzy.IPreparedQuery, scope paletteScope) paletteAssetResult {
 	key := paletteAssetCacheKey{
 		query:      paletteQueryKey(query),
@@ -382,14 +390,9 @@ func (a *app) paletteAssetsFor(query fuzzy.IPreparedQuery, scope paletteScope) p
 		varsGen:    a.paletteVarsGen(),
 		historyGen: a.workbench.paletteHistoryGen,
 	}
-	if cached, ok := a.paletteAssets[key]; ok {
+	assets := a.paletteAssetCache()
+	if cached, ok := assets.Get(key); ok {
 		return cached
-	}
-	if a.paletteAssets == nil {
-		a.paletteAssets = make(map[paletteAssetCacheKey]paletteAssetResult)
-	}
-	if len(a.paletteAssets) >= paletteAssetCacheLimit {
-		clear(a.paletteAssets)
 	}
 
 	cache := fuzzy.NewFuzzyScorerCache()
@@ -400,7 +403,7 @@ func (a *app) paletteAssetsFor(query fuzzy.IPreparedQuery, scope paletteScope) p
 		candidates: candidates,
 		overflow:   max(0, len(candidates)-paletteResultLimit),
 	}
-	a.paletteAssets[key] = result
+	assets.Set(key, result)
 	return result
 }
 
