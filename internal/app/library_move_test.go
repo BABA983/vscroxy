@@ -130,6 +130,42 @@ func TestMoveUndoKeepsLaterWork(t *testing.T) {
 	}
 }
 
+// Undo of an earlier move expires once the same request has been moved
+// again: a stale notice must not pull it back out of its newest folder.
+func TestStaleRequestMoveUndoIsNotOffered(t *testing.T) {
+	a := libraryApp(t)
+	if err := a.writeLibrary([]savedRequest{
+		{Request: request.Request{ID: "r", Name: "R", Collection: "A", Method: "GET"}},
+	}, []request.Folder{
+		{Path: "A", Description: "A"}, {Path: "B", Description: "B"}, {Path: "C", Description: "C"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !a.moveLibrary(libraryMove{item: libraryDrag{kind: requestItem, id: "saved:r"}, to: libraryDrop{parent: "B"}}) {
+		t.Fatal("first move refused")
+	}
+	stale := a.notices[len(a.notices)-1]
+	if !a.moveLibrary(libraryMove{item: libraryDrag{kind: requestItem, id: "saved:r"}, to: libraryDrop{parent: "C"}}) {
+		t.Fatal("second move refused")
+	}
+	latest := a.notices[len(a.notices)-1]
+	if stale.valid == nil || stale.valid() {
+		t.Fatalf("a stale Undo is still offered after the second move")
+	}
+	if latest.valid == nil || !latest.valid() {
+		t.Fatal("the newest Undo was not offered")
+	}
+	stale.run()
+	got, ok := a.savedRequest("saved:r")
+	if !ok || got.Collection != "C" {
+		t.Fatalf("stale Undo moved the request to %q", got.Collection)
+	}
+	onDisk, _, _, err := loadLibrary(a.library.root)
+	if err != nil || len(onDisk) != 1 || onDisk[0].Collection != "C" {
+		t.Fatalf("disk after stale Undo = %+v, %v", onDisk, err)
+	}
+}
+
 func TestFolderMoveUndoRestoresSubtree(t *testing.T) {
 	a := libraryApp(t)
 	if err := a.writeLibrary([]savedRequest{
