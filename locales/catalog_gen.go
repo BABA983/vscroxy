@@ -33954,6 +33954,180 @@ func (msgs Messages) TrustingTheCaMakesDecryption() string {
 	return Catalog.Format(msgs.locale, "trustingTheCaMakesDecryption", nil)
 }
 
+// WorkspaceTrust says "Workspace Trust"
+// in the language the app shows.
+func WorkspaceTrust() string { return In(i18n.Locale()).WorkspaceTrust() }
+
+// WorkspaceTrust says "Workspace Trust"
+// in the language of msgs.
+func (msgs Messages) WorkspaceTrust() string {
+	return Catalog.Format(msgs.locale, "workspaceTrust", nil)
+}
+
+// WorkspaceTrustPrompt says "Trust scripts in this project?"
+// in the language the app shows.
+func WorkspaceTrustPrompt() string { return In(i18n.Locale()).WorkspaceTrustPrompt() }
+
+// WorkspaceTrustPrompt says "Trust scripts in this project?"
+// in the language of msgs.
+func (msgs Messages) WorkspaceTrustPrompt() string {
+	return Catalog.Format(msgs.locale, "workspaceTrustPrompt", nil)
+}
+
+// WorkspaceTrustPromptDetail says "Scripts in {project} can send requests and read environment variables. Trust only projects you recognize."
+// in the language the app shows.
+func WorkspaceTrustPromptDetail(project string) string {
+	return In(i18n.Locale()).WorkspaceTrustPromptDetail(project)
+}
+
+// WorkspaceTrustPromptDetail says "Scripts in {project} can send requests and read environment variables. Trust only projects you recognize."
+// in the language of msgs.
+func (msgs Messages) WorkspaceTrustPromptDetail(project string) string {
+	return Catalog.Format(msgs.locale, "workspaceTrustPromptDetail", map[string]any{"project": project})
+}
+
+// DontTrust says "Don't trust"
+// in the language the app shows.
+func DontTrust() string { return In(i18n.Locale()).DontTrust() }
+
+// DontTrust says "Don't trust"
+// in the language of msgs.
+func (msgs Messages) DontTrust() string {
+	return Catalog.Format(msgs.locale, "dontTrust", nil)
+}
+
+// ScriptsSkippedRestrictedMode says "Scripts skipped · restricted mode"
+// in the language the app shows.
+func ScriptsSkippedRestrictedMode() string { return In(i18n.Locale()).ScriptsSkippedRestrictedMode() }
+
+// ScriptsSkippedRestrictedMode says "Scripts skipped · restricted mode"
+// in the language of msgs.
+func (msgs Messages) ScriptsSkippedRestrictedMode() string {
+	return Catalog.Format(msgs.locale, "scriptsSkippedRestrictedMode", nil)
+}
+
+// WorkspaceTrustHint says "Each project folder keeps its own answer. Collections in the user library always run their scripts."
+// in the language the app shows.
+func WorkspaceTrustHint() string { return In(i18n.Locale()).WorkspaceTrustHint() }
+
+// WorkspaceTrustHint says "Each project folder keeps its own answer. Collections in the user library always run their scripts."
+// in the language of msgs.
+func (msgs Messages) WorkspaceTrustHint() string {
+	return Catalog.Format(msgs.locale, "workspaceTrustHint", nil)
+}
+
+// ManageWorkspaceTrust says "Manage workspace trust…"
+// in the language the app shows.
+func ManageWorkspaceTrust() string { return In(i18n.Locale()).ManageWorkspaceTrust() }
+
+// ManageWorkspaceTrust says "Manage workspace trust…"
+// in the language of msgs.
+func (msgs Messages) ManageWorkspaceTrust() string {
+	return Catalog.Format(msgs.locale, "manageWorkspaceTrust", nil)
+}
+
+// TrustedProjects says "Trusted projects"
+// in the language the app shows.
+func TrustedProjects() string { return In(i18n.Locale()).TrustedProjects() }
+
+// TrustedProjects says "Trusted projects"
+// in the language of msgs.
+func (msgs Messages) TrustedProjects() string {
+	return Catalog.Format(msgs.locale, "trustedProjects", nil)
+}
+
+// UntrustedProjects says "Untrusted projects"
+// in the language the app shows.
+func UntrustedProjects() string { return In(i18n.Locale()).UntrustedProjects() }
+
+// UntrustedProjects says "Untrusted projects"
+// in the language of msgs.
+func (msgs Messages) UntrustedProjects() string {
+	return Catalog.Format(msgs.locale, "untrustedProjects", nil)
+}
+
+// NoTrustedProjects says "No trusted projects."
+// in the language the app shows.
+func NoTrustedProjects() string { return In(i18n.Locale()).NoTrustedProjects() }
+
+// NoTrustedProjects says "No trusted projects."
+// in the language of msgs.
+func (msgs Messages) NoTrustedProjects() string {
+	return Catalog.Format(msgs.locale, "noTrustedProjects", nil)
+}
+
+// NoUntrustedProjects says "No untrusted projects."
+// in the language the app shows.
+func NoUntrustedProjects() string { return In(i18n.Locale()).NoUntrustedProjects() }
+
+// NoUntrustedProjects says "No untrusted projects."
+// in the language of msgs.
+func (msgs Messages) NoUntrustedProjects() string {
+	return Catalog.Format(msgs.locale, "noUntrustedProjects", nil)
+}
+
+// RevokeTrust says "Revoke"
+// in the language the app shows.
+func RevokeTrust() string { return In(i18n.Locale()).RevokeTrust() }
+
+// RevokeTrust says "Revoke"
+// in the language of msgs.
+func (msgs Messages) RevokeTrust() string {
+	return Catalog.Format(msgs.locale, "revokeTrust", nil)
+}
+
+// WorkspaceTrustTrusted says "Project scripts are trusted"
+// in the language the app shows.
+func WorkspaceTrustTrusted() string { return In(i18n.Locale()).WorkspaceTrustTrusted() }
+
+// WorkspaceTrustTrusted says "Project scripts are trusted"
+// in the language of msgs.
+func (msgs Messages) WorkspaceTrustTrusted() string {
+	return Catalog.Format(msgs.locale, "workspaceTrustTrusted", nil)
+}
+
+// WorkspaceTrustRestricted says "Project scripts stay in restricted mode"
+// in the language the app shows.
+func WorkspaceTrustRestricted() string { return In(i18n.Locale()).WorkspaceTrustRestricted() }
+
+// WorkspaceTrustRestricted says "Project scripts stay in restricted mode"
+// in the language of msgs.
+func (msgs Messages) WorkspaceTrustRestricted() string {
+	return Catalog.Format(msgs.locale, "workspaceTrustRestricted", nil)
+}
+
+// WorkspaceTrustRevoked says "Trust decision removed · the next script run will ask again"
+// in the language the app shows.
+func WorkspaceTrustRevoked() string { return In(i18n.Locale()).WorkspaceTrustRevoked() }
+
+// WorkspaceTrustRevoked says "Trust decision removed · the next script run will ask again"
+// in the language of msgs.
+func (msgs Messages) WorkspaceTrustRevoked() string {
+	return Catalog.Format(msgs.locale, "workspaceTrustRevoked", nil)
+}
+
+// WorkspaceTrustNone says "No decision yet"
+// in the language the app shows.
+func WorkspaceTrustNone() string { return In(i18n.Locale()).WorkspaceTrustNone() }
+
+// WorkspaceTrustNone says "No decision yet"
+// in the language of msgs.
+func (msgs Messages) WorkspaceTrustNone() string {
+	return Catalog.Format(msgs.locale, "workspaceTrustNone", nil)
+}
+
+// ProjectDecisionCount says "Trusted: {trusted} · untrusted: {untrusted}"
+// in the language the app shows.
+func ProjectDecisionCount(trusted int, untrusted int) string {
+	return In(i18n.Locale()).ProjectDecisionCount(trusted, untrusted)
+}
+
+// ProjectDecisionCount says "Trusted: {trusted} · untrusted: {untrusted}"
+// in the language of msgs.
+func (msgs Messages) ProjectDecisionCount(trusted int, untrusted int) string {
+	return Catalog.Format(msgs.locale, "projectDecisionCount", map[string]any{"trusted": trusted, "untrusted": untrusted})
+}
+
 // Tunnel says "Tunnel"
 // in the language the app shows.
 func Tunnel() string { return In(i18n.Locale()).Tunnel() }

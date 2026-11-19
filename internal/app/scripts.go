@@ -43,6 +43,11 @@ type scriptLog struct {
 type scriptStore struct {
 	dir   string
 	addon bool // the addons, not the rule scripts
+	// Rule scripts can be pulled from a Git project with its addons, and
+	// can send requests from pm. They need the same decision as request
+	// scripts before their code runs.
+	trustDir   string
+	permission request.ProjectScriptPermission
 
 	mu      sync.RWMutex
 	parsed  map[string]*request.ProxyScript // by file name, those that parse
@@ -84,6 +89,19 @@ func (s *scriptStore) Run(ctx context.Context, file string, x *capture.ScriptExc
 	p, env := s.parsed[file], s.env
 	s.mu.RUnlock()
 	if p == nil && x.Phase != "mock" {
+		return nil
+	}
+	if s.trustDir != "" && s.permission != nil && !s.permission(ctx, s.trustDir) {
+		// A rule script from a project can import that project's addons and
+		// call pm.sendRequest. Skipping it must show up in its Console.
+		name := strings.TrimSuffix(file, ".js")
+		s.mu.Lock()
+		s.log(scriptLog{at: time.Now(), script: name, rule: x.Rule, phase: x.Phase, kind: "warning", text: locales.ScriptsSkippedRestrictedMode()})
+		changed := s.changed
+		s.mu.Unlock()
+		if changed != nil {
+			changed()
+		}
 		return nil
 	}
 	var out request.ProxyRun
@@ -176,6 +194,7 @@ func (a *app) shownScripts() *scriptStore {
 func (a *app) loadScripts() {
 	a.addons.addon = true
 	a.loadScriptDir(&a.addons)
+	a.scripts.trustDir, a.scripts.permission = a.projectDir, a.projectScriptPermission
 	a.loadScriptDir(&a.scripts)
 }
 

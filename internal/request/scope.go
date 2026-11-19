@@ -66,6 +66,12 @@ type Context struct {
 	Data map[string]string
 	// Addons are the user's modules scripts require by name, as source.
 	Addons map[string]string
+	// ProjectDir is the folder whose .vscroxy holds this request's library.
+	// Empty is the user's own library, which never needs a trust decision.
+	ProjectDir string
+	// ScriptPermission asks whether this project's scripts may run. It is
+	// called once per send with scripts, before the first of them executes.
+	ScriptPermission ProjectScriptPermission
 	// Resolve finds the requests scripts call with pm.execution.runRequest.
 	// nil means this run cannot call requests, and such calls fail.
 	Resolve Resolver

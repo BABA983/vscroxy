@@ -28,6 +28,10 @@ func runSummary(r request.Execution) string {
 	if r.Skipped {
 		return locales.SkippedByItsPreRequest()
 	}
+	// The request still went out; say plainly that its scripts did not.
+	if r.ScriptsSkipped {
+		return locales.ScriptsSkippedRestrictedMode() + " · " + executionOutcome(r)
+	}
 	if r.Response == nil {
 		if r.Err != nil {
 			return ntlmErrorText(r.Err)

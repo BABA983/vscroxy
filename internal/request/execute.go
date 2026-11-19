@@ -38,6 +38,9 @@ type Execution struct {
 	Locals map[string]string
 	// Writes are the scripts' global, collection and vault changes, in order.
 	Writes []Write
+	// ScriptsSkipped says the project was not trusted, so no pre-request or
+	// post-response script ran around a request that was still sent.
+	ScriptsSkipped bool
 	// Skipped is a pre-request script's pm.execution.skipRequest(): nothing
 	// was sent. Next is pm.execution.setNextRequest: nil keeps the Runner's
 	// order, "" stops the run, otherwise a request's name or ID.
@@ -103,6 +106,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	out = Execution{Vars: run.vars, Stage: "Request setup failed"}
 	defer func() {
 		out.Locals, out.Writes, out.Next = run.locals, run.writes, run.next
+		out.ScriptsSkipped = run.scriptsDenied
 		out.Console = slices.Clone(run.console)
 		if out.Err != nil {
 			out.Console = append(out.Console, ConsoleMessage{run.phase, "error", out.Err.Error()})
@@ -141,6 +145,11 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 		Header: ParseHeaderBlock(r.Headers), Auth: &r.Auth, editedHeaders: map[string]bool{}}
 	run.target = func() string { return ExpandVars(template.URL, run.effective()) }
 	out.Stage = StagePreRequestScript
+	if in.ProjectDir != "" && hasScripts(r, in.Folders) {
+		// The answer covers all of this send's phases, including scripts a
+		// nested runRequest starts. No script runs before it is known.
+		run.scriptsDenied = in.ScriptPermission == nil || !in.ScriptPermission(ctx, in.ProjectDir)
+	}
 	if err := run.scripts(ctx, "pre-request", in.Folders, func(f Folder) string { return f.Pre }, r.Pre, map[string]any{"req": template}); err != nil {
 		out.Err = err
 		out.Tests, out.Vars = run.tests, run.vars
@@ -423,6 +432,9 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 // scripts runs one phase's scripts: each folder's, the collection first,
 // then the request's own. The console tags folder output with its path.
 func (run *scriptRun) scripts(ctx context.Context, phase string, folders []Folder, src func(Folder) string, own string, objects map[string]any) error {
+	if run.scriptsDenied {
+		return nil
+	}
 	title := strings.ToUpper(phase[:1]) + phase[1:] + " script"
 	for _, f := range folders {
 		run.phase = phase + " · " + f.Path

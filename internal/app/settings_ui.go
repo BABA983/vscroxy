@@ -84,6 +84,17 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, locales.AttentionSignalsHint())
 		})
+		uikit.SettingsCard(c, locales.WorkspaceTrust(), func() {
+			trusted, untrusted := a.trustLists()
+			settingsCardRow(c, locales.WorkspaceTrust(), func() ui.Element {
+				return ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+					if uikit.SecondaryButton(c, locales.ManageWorkspaceTrust()).Clicked() {
+						a.openWorkspaceTrust()
+					}
+					uikit.Hint(c, locales.ProjectDecisionCount(len(trusted), len(untrusted)))
+				})
+			}, locales.WorkspaceTrustHint())
+		})
 		uikit.SettingsCard(c, locales.Collections(), func() {
 			a.settingBlock(c, "general.projectFolder", locales.ProjectFolder(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {

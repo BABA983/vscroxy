@@ -74,6 +74,7 @@ type configImport struct {
 func (a *app) currentSettings() settings {
 	certificates := a.certificates.Clone()
 	certificates.Secrets, certificates.SecretsProblem = nil, ""
+	trusted, untrusted := a.trustLists()
 	return settings{
 		Appearance:           a.appearance,
 		Language:             a.language,
@@ -108,6 +109,8 @@ func (a *app) currentSettings() settings {
 		LocalControl:         a.localControl,
 		DisableUpdateCheck:   !a.updateCheck,
 		TrustedLinkHosts:     slices.Clone(a.trustedLinkHosts),
+		TrustedProjects:      trusted,
+		UntrustedProjects:    untrusted,
 		AttentionSignals:     a.attentionMode(),
 		Guide:                a.guide,
 		AllowList:            a.allowOn,
@@ -135,10 +138,11 @@ func (a *app) configLists() map[string]*string {
 func (a *app) exportConfig() (b configBundle, notes []string) {
 	s := a.currentSettings()
 	// The key log, project folder, setup guide, cookie retention, attention
-	// signals, link approvals, input history and local automation are this
-	// computer's: a configuration file never carries those elsewhere.
+	// signals, link approvals, project trust, input history and local
+	// automation are this computer's: a bundle never carries those elsewhere.
 	s.KeyLogPath, s.ProjectDir, s.Guide, s.CookiePersistence, s.LocalControl = "", "", false, false, false
 	s.TrustedLinkHosts, s.URLHistory, s.FilterHistory = nil, nil, nil
+	s.TrustedProjects, s.UntrustedProjects = nil, nil
 	s.DisableUpdateCheck = false
 	s.AttentionSignals = ""
 	s.Language = ""      // the reader's language, not the bundle's

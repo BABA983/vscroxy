@@ -7450,6 +7450,40 @@
   "trustTheLocalCaOn": "Trust the local CA on this computer; approve system authorization if requested",
   "trustedRoots": "Trusted roots",
   "trustingTheCaMakesDecryption": "Trusting the CA makes decryption possible; decryption chooses which connections are read. Changes apply to new connections.",
+  "@workspaceTrustPromptDetail": {
+    "placeholders": {
+      "project": {
+        "type": "String"
+      }
+    }
+  },
+  "workspaceTrust": "Workspace Trust",
+  "workspaceTrustPrompt": "Trust scripts in this project?",
+  "workspaceTrustPromptDetail": "Scripts in {project} can send requests and read environment variables. Trust only projects you recognize.",
+  "dontTrust": "Don't trust",
+  "scriptsSkippedRestrictedMode": "Scripts skipped · restricted mode",
+  "workspaceTrustHint": "Each project folder keeps its own answer. Collections in the user library always run their scripts.",
+  "manageWorkspaceTrust": "Manage workspace trust…",
+  "trustedProjects": "Trusted projects",
+  "untrustedProjects": "Untrusted projects",
+  "noTrustedProjects": "No trusted projects.",
+  "noUntrustedProjects": "No untrusted projects.",
+  "revokeTrust": "Revoke",
+  "workspaceTrustTrusted": "Project scripts are trusted",
+  "workspaceTrustRestricted": "Project scripts stay in restricted mode",
+  "workspaceTrustRevoked": "Trust decision removed · the next script run will ask again",
+  "workspaceTrustNone": "No decision yet",
+  "@projectDecisionCount": {
+    "placeholders": {
+      "trusted": {
+        "type": "int"
+      },
+      "untrusted": {
+        "type": "int"
+      }
+    }
+  },
+  "projectDecisionCount": "Trusted: {trusted} · untrusted: {untrusted}",
   "tunnel": "Tunnel",
   "tunnelTooltip": "CONNECT {status} · encrypted tunnel, not an HTTP response",
   "turnOff": "Turn off",
