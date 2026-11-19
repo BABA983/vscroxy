@@ -185,8 +185,11 @@ type app struct {
 	picked   int
 	pickedID int
 	// deletions is the in-memory undo stack for removed capture rows; it is
-	// deliberately not persisted and clears when the app exits.
-	deletions []flowDeletion
+	// deliberately not persisted and clears when the app exits. Each deletion
+	// gets its own id so a notice's Undo restores that deletion, not whichever
+	// one happens to be on top later.
+	deletions      []flowDeletion
+	nextDeletionID uint64
 	// pendingFlowDelete waits for the next view pass: the row menu is built
 	// while the table is building, so removing rows in its action would leave
 	// the table drawing rows that no longer exist.
@@ -674,6 +677,8 @@ type app struct {
 	bps           []capture.Breakpoint
 	err           error
 	notices       []notice
+	// noticeUI is the notification center's in-memory state, guarded by mu.
+	noticeUI      noticeCenter
 	message       string // the last notice as one line
 	replayResults []replayResult
 }

@@ -3,7 +3,6 @@ package app
 import (
 	"slices"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/uikit"
@@ -29,26 +28,10 @@ type noticeCenter struct {
 	expanded map[uint64]*bool
 }
 
-// noticeCenters keeps one center per in-memory app, so tests and detached
-// windows never share the list's open state.
-var noticeCenters struct {
-	sync.Mutex
-	byApp map[*app]*noticeCenter
-}
-
-func (a *app) noticeCenter() *noticeCenter {
-	noticeCenters.Lock()
-	defer noticeCenters.Unlock()
-	if noticeCenters.byApp == nil {
-		noticeCenters.byApp = make(map[*app]*noticeCenter)
-	}
-	center := noticeCenters.byApp[a]
-	if center == nil {
-		center = &noticeCenter{expanded: make(map[uint64]*bool)}
-		noticeCenters.byApp[a] = center
-	}
-	return center
-}
+// noticeCenter is the app's own notification state. Its fields are read and
+// written under a.mu, except expanded, which MyGo's disclosure owns on the UI
+// thread.
+func (a *app) noticeCenter() *noticeCenter { return &a.noticeUI }
 
 // notificationItems is the history as the list sees it: a copy, so the UI
 // never walks a slice a background notice can append to.
@@ -198,7 +181,7 @@ func (a *app) notificationList(c *ui.Context, t *ui.Theme, anchor, panel ui.Elem
 	items := a.notificationItems()
 	width, height := c.Size()
 	uikit.PopoverPanel(c, panel).AttachTo(anchor, ui.AnchorBottomRight, ui.AnchorTopRight).
-		Margin(0, 0, t.Space(uikit.SpaceS), 0).Padding(t.Space(uikit.SpaceM)).
+		Margin(t.Space(uikit.SpaceS), 0, 0, 0).Padding(t.Space(uikit.SpaceM)).
 		Width(min(420, width-32)).MaxHeight(min(520, height-80)).
 		Gap(t.Space(uikit.SpaceXS))
 
@@ -228,6 +211,9 @@ func (a *app) notificationList(c *ui.Context, t *ui.Theme, anchor, panel ui.Elem
 // noticeRow draws one notice. The trigger is the one-line summary; its panel
 // holds the detail, the action and the dismiss control.
 func (a *app) noticeRow(c *ui.Context, t *ui.Theme, center *noticeCenter, n notice) {
+	if center.expanded == nil {
+		center.expanded = make(map[uint64]*bool)
+	}
 	p := uikit.Colors(t)
 	icon, ink := infoIcon, p.Info
 	switch n.level {
@@ -261,7 +247,7 @@ func (a *app) noticeRow(c *ui.Context, t *ui.Theme, center *noticeCenter, n noti
 					uikit.SecondaryButton(c, n.action).OnClick(func() { a.notificationAction(n.id) })
 				}
 				ui.Spacer(c)
-				uikit.LinkButton(c, locales.DismissNotification(), closeIcon).
+				uikit.RowIconButton(c, locales.DismissNotification(), locales.DismissNotification(), closeIcon).
 					OnClick(func() { a.dismissNotice(n.id) })
 			})
 		})

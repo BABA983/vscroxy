@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -65,6 +66,9 @@ func TestNotificationsActionRunsFromTheCenter(t *testing.T) {
 	tt.ClickAt(box.X+box.W-20, box.Y+box.H/2) // expand the detail and action
 	tt.Advance(300 * time.Millisecond)
 	tt.Frame()
+	if _, ok := tt.AccessByRole(ui.RoleButton, locales.DismissNotification()); !ok {
+		t.Error("the icon-only dismiss has no accessible name")
+	}
 	if err := tt.Click("Retry"); err != nil {
 		t.Fatalf("click Retry: %v (texts %v)", err, tt.Texts())
 	}
@@ -74,6 +78,31 @@ func TestNotificationsActionRunsFromTheCenter(t *testing.T) {
 	tt.Frame()
 	if tt.HasText("Retry") {
 		t.Error("a used one-shot action is still offered")
+	}
+}
+
+func TestStaleDeleteUndoRestoresItsOwnRows(t *testing.T) {
+	a := deleteTestApp()
+	a.deleteFlows([]flow{a.flows[0]}) // delete A
+	a.deleteFlows([]flow{a.flows[0]}) // delete B
+	if got := flowIDs(a); !slices.Equal(got, []int{3}) {
+		t.Fatalf("flows after two deletes = %v, want [3]", got)
+	}
+	a.openNotifications()
+	if len(a.notices) != 2 || a.notices[0].run == nil || a.notices[1].run == nil {
+		t.Fatalf("two deletes should leave two Undo actions: %+v", a.notices)
+	}
+	a.notices[0].run() // Undo on A's older notice, as the center offers it
+	if got := flowIDs(a); !slices.Equal(got, []int{1, 3}) {
+		t.Fatalf("flows after undoing A = %v, want [1 3] (B stays deleted)", got)
+	}
+	a.notices[0].run() // the same deletion is no longer on the stack
+	if got := flowIDs(a); !slices.Equal(got, []int{1, 3}) {
+		t.Fatalf("repeating A's undo = %v, want no change", got)
+	}
+	a.notices[1].run() // B's own undo still works
+	if got := flowIDs(a); !slices.Equal(got, []int{1, 2, 3}) {
+		t.Fatalf("flows after undoing B = %v, want all three", got)
 	}
 }
 
