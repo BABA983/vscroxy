@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -163,40 +164,29 @@ func TestWebSocketSessionSendAllUsesTheSavedOrder(t *testing.T) {
 	if err := tt.Click("Connect"); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		state, _, _ := a.socket.session.snapshot()
-		if state == "Connected" {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("did not connect: %v", tt.Texts())
-		}
-		tt.Frame()
-	}
+	ws := a.socket.session
+	waitSignal(t, ws.changedSignal, ws.done,
+		func() bool { state, _, _ := ws.snapshot(); return state == "Connected" },
+		func() string { return fmt.Sprintf("did not connect: %v", tt.Texts()) })
 	a.socket.saved = []request.WebSocketMessage{{Payload: "one"}, {Payload: "two"}}
 	a.socket.wait = 10 * time.Millisecond
 	tt.Frame()
 	if err := tt.Click("Send saved"); err != nil {
 		t.Fatal(err)
 	}
-	for {
-		_, events, _ := a.socket.session.snapshot()
-		var sent []string
+	sent := func() []string {
+		_, events, _ := ws.snapshot()
+		var out []string
 		for _, event := range events {
 			if event.Direction == "Out" {
-				sent = append(sent, string(event.Data))
+				out = append(out, string(event.Data))
 			}
 		}
-		if slices.Equal(sent, []string{"one", "two"}) {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("sent %q, want both saved messages", sent)
-		}
-		tt.Frame()
-		time.Sleep(10 * time.Millisecond)
+		return out
 	}
+	waitSignal(t, ws.changedSignal, ws.done,
+		func() bool { return slices.Equal(sent(), []string{"one", "two"}) },
+		func() string { return fmt.Sprintf("sent %q, want both saved messages", sent()) })
 	a.socket.session.disconnect()
 }
 

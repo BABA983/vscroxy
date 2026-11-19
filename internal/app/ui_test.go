@@ -426,7 +426,8 @@ func TestCaptureSaysHttpsStaysEncryptedUntilTheCertificateIsTrusted(t *testing.T
 
 func workspaceApp() *app {
 	a := &app{
-		filter: "all", sidebarWidth: 220, tablePercent: 56,
+		changed: make(chan struct{}, 1),
+		filter:  "all", sidebarWidth: 220, tablePercent: 56,
 		collectionOpen: make(map[string]*bool), icons: make(map[string]ui.ImageSource),
 		detailFor: -1, frames: make(map[int][]frame), workbench: desktopWorkbench{layout: "right"},
 		flows: []flow{
@@ -2286,13 +2287,7 @@ func TestEmptyCaptureOffersTheProxyAndClientSetup(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	deadline := time.Now().Add(5 * time.Second)
-	for !srv.Running() {
-		if time.Now().After(deadline) {
-			t.Fatal("the empty list did not start the proxy")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+	waitAppSignal(t, a, srv.Running, tt.Frame, func() string { return "the empty list did not start the proxy" })
 }
 
 func TestCaptureStartsBelowFourBars(t *testing.T) {
@@ -3586,16 +3581,9 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	}
 	waitForResponse := func() {
 		t.Helper()
-		deadline := time.Now().Add(5 * time.Second)
 		// The capture's own result says 200 OK too: wait for the send.
 		done := func() bool { return !tt.HasText("Sending…") && tt.HasText("200 OK") }
-		for !done() && time.Now().Before(deadline) {
-			time.Sleep(10 * time.Millisecond)
-			tt.Frame()
-		}
-		if !done() {
-			t.Fatalf("send did not complete: %v", tt.Texts())
-		}
+		waitAppSignal(t, a, done, tt.Frame, func() string { return fmt.Sprintf("send did not complete: %v", tt.Texts()) })
 	}
 	// The captured request is the document: edit and send it in place.
 	edit("URL", upstream.URL+"/items?variant=edited")
@@ -3695,31 +3683,21 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	}
 	waitFor := func(label string) {
 		t.Helper()
-		deadline := time.Now().Add(5 * time.Second)
-		for !tt.HasText(label) && time.Now().Before(deadline) {
-			time.Sleep(10 * time.Millisecond)
-			tt.Frame()
-		}
-		if !tt.HasText(label) {
-			t.Fatalf("did not show %q: %v", label, tt.Texts())
-		}
+		waitAppSignal(t, a, func() bool { return tt.HasText(label) }, tt.Frame,
+			func() string { return fmt.Sprintf("did not show %q: %v", label, tt.Texts()) })
 	}
 	// The response header can appear before its post-response script has
 	// produced the Checks view; wait for that result, not for a fixed delay.
 	waitForChecks := func() {
 		t.Helper()
-		deadline := time.Now().Add(5 * time.Second)
-		for time.Now().Before(deadline) {
-			if d := a.requestDocument; d != nil && len(d.composeTests) > 0 {
-				// Build the frame that carries the checks into the response
-				// pane's menu; the last frame predates them.
-				tt.Frame()
-				return
-			}
-			time.Sleep(10 * time.Millisecond)
-			tt.Frame()
+		checks := func() bool {
+			d := a.requestDocument
+			return d != nil && len(d.composeTests) > 0
 		}
-		t.Fatal("response checks never arrived")
+		waitAppSignal(t, a, checks, tt.Frame, func() string { return "response checks never arrived" })
+		// Build the frame that carries the checks into the response pane's
+		// menu; the last frame predates them.
+		tt.Frame()
 	}
 	tt.Key(ui.Cmd, ui.Key2)
 	click("Slow request")
@@ -4914,11 +4892,8 @@ func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
 	if err := tt.Click("Send replays"); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for a.replayUI.updates != nil && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-		tt.Frame()
-	}
+	waitAppSignal(t, a, func() bool { return a.replayUI.updates == nil }, tt.Frame,
+		func() string { return "the batch replay did not finish" })
 	if !tt.HasText("2/2 started · 2 succeeded · 0 failed") || !a.page.capture() {
 		t.Fatalf("batch incomplete or stole focus: %v", tt.Texts())
 	}
@@ -5158,13 +5133,7 @@ func TestSetupGuideHidesTrafficChromeAndStartsCapture(t *testing.T) {
 	if err := tt.Click("Start capture"); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for !srv.Running() {
-		if time.Now().After(deadline) {
-			t.Fatal("Start capture did not start the listener")
-		}
-		tt.Frame()
-	}
+	waitAppSignal(t, a, srv.Running, tt.Frame, func() string { return "Start capture did not start the listener" })
 	tt.Frame()
 	if !tt.HasText("Listening at") {
 		t.Fatalf("the guide did not advance after capture started: %v", tt.Texts())
@@ -5623,13 +5592,9 @@ func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *t
 		t.Fatal("in-flight send could be repeated")
 	}
 	release <- struct{}{}
-	deadline := time.Now().Add(time.Minute)
 	done := func() bool { return !tt.HasText("Sending…") && tt.HasText("Last attempt") }
-	for !done() && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-		tt.Frame()
-	}
-	if !done() || sends.Load() != 1 {
+	waitAppSignal(t, a, done, tt.Frame, func() string { return fmt.Sprintf("send did not complete once: %v", tt.Texts()) })
+	if sends.Load() != 1 {
 		t.Fatalf("send did not complete once: %v", tt.Texts())
 	}
 	tt.Key(ui.Cmd|ui.Shift, ui.KeyD)

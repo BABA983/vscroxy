@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -81,38 +82,25 @@ func replayTestApp(t *testing.T, handler http.HandlerFunc) (*app, []flow) {
 
 func waitReplay(t *testing.T, a *app, tt *ui.Tester) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for a.replayUI.updates != nil {
-		if time.Now().After(deadline) {
-			t.Fatal("replay did not finish")
-		}
-		time.Sleep(time.Millisecond)
-		tt.Frame()
-	}
+	waitAppSignal(t, a, func() bool { return a.replayUI.updates == nil }, tt.Frame,
+		func() string { return "replay did not finish" })
 }
 
 // waitForText draws frames until the view shows every want. A notice queued
 // after showNotices in one frame is drawn in the next; a fixed number of
 // frames would depend on which frame drained the last replay outcome.
-func waitForText(t *testing.T, tt *ui.Tester, wants ...string) {
+func waitForText(t *testing.T, a *app, tt *ui.Tester, wants ...string) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		missing := false
+	shown := func() bool {
 		for _, want := range wants {
 			if !tt.HasText(want) {
-				missing = true
-				break
+				return false
 			}
 		}
-		if !missing {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("view never showed %v: %v", wants, tt.Texts())
-		}
-		tt.Frame()
+		return true
 	}
+	waitAppSignal(t, a, shown, tt.Frame,
+		func() string { return fmt.Sprintf("view never showed %v: %v", wants, tt.Texts()) })
 }
 
 func TestAdvancedReplayRunsConcurrentlyAndSummarizesStatuses(t *testing.T) {
@@ -285,7 +273,7 @@ func TestReplayDialogSingleSendRestoresInspectNotification(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitReplay(t, a, tt)
-	waitForText(t, tt, "Replayed Capture #1", "Inspect replay")
+	waitForText(t, a, tt, "Replayed Capture #1", "Inspect replay")
 	if a.replayUI.done != 1 || a.replayUI.failed != 0 || a.replayUI.canceled != 0 {
 		t.Fatalf("done=%d failed=%d canceled=%d", a.replayUI.done, a.replayUI.failed, a.replayUI.canceled)
 	}

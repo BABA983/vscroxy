@@ -65,6 +65,10 @@ func (p page) capture() bool { return p == pageLive }
 
 // app is the state the window shows; view reads it and the controls write it.
 type app struct {
+	// changed is a test hook: workers pulse it when they ask the UI to redraw,
+	// so tests can wait for the state change instead of polling the clock.
+	changed chan struct{}
+
 	flows   []flow
 	visible []int
 	domains []domain
@@ -1016,6 +1020,12 @@ func (a *app) reloadConfig() {
 
 // invalidate asks for a frame, so what a goroutine changed shows.
 func (a *app) invalidate() {
+	if a.changed != nil {
+		select {
+		case a.changed <- struct{}{}:
+		default:
+		}
+	}
 	if a.win != nil {
 		a.win.Invalidate()
 	}

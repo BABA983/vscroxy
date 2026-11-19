@@ -125,6 +125,7 @@ type MCPHandlers struct {
 // MCPClient owns one initialized MCP session.
 type MCPClient struct {
 	session         *mcp.ClientSession
+	stdio           *mcpStdioTransport // test hook: exposes the server-exit signal
 	info            MCPServerInfo
 	protocolVersion string
 	nextProgress    atomic.Uint64
@@ -257,7 +258,7 @@ func DialMCP(ctx context.Context, plan MCPPlan, handlers MCPHandlers) (*MCPClien
 	if info.Capabilities == "" {
 		info.Capabilities = "{}"
 	}
-	c := &MCPClient{session: session, info: info, protocolVersion: negotiated}
+	c := &MCPClient{session: session, stdio: stdio, info: info, protocolVersion: negotiated}
 	c.catalogBudget.Store(MCPMaxCatalogBytes)
 	return c, nil
 }

@@ -159,7 +159,8 @@ func TestMessageSearchAndDirection(t *testing.T) {
 // its detail pane shows the Messages tab.
 func messagesApp(frames map[int][]frame) *app {
 	a := &app{
-		filter: "all", sidebarWidth: 220, tablePercent: 56,
+		changed: make(chan struct{}, 1),
+		filter:  "all", sidebarWidth: 220, tablePercent: 56,
 		collectionOpen: make(map[string]*bool), icons: make(map[string]ui.ImageSource),
 		detailFor: -1, frames: frames,
 		flows: []flow{{
@@ -213,11 +214,8 @@ func TestMessagesPaneShowsTheWholeChosenMessage(t *testing.T) {
 	}
 	t.Cleanup(a.messageUI.stopSearch)
 	tt.Type("END-ONLY-needle-tail")
-	deadline := time.Now().Add(3 * time.Second)
-	for !tt.HasText("1 of 2 messages") && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-		tt.Frame()
-	}
+	waitAppSignal(t, a, func() bool { return tt.HasText("1 of 2 messages") }, tt.Frame,
+		func() string { return "message search did not report a match" })
 	if !tt.HasText("1 of 2 messages") || !tt.HasText("END-ONLY-needle-tail") {
 		t.Fatal("message search did not find text beyond the 4 KiB inline head")
 	}

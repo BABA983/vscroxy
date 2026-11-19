@@ -41,20 +41,14 @@ func assertNoRecording(t *testing.T, s *Server) {
 // completion/disconnection also releases metadata, not merely the output row.
 func awaitRecordingCleanup(t *testing.T, s *Server) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
+	left := func() int {
 		s.mu.Lock()
-		left := len(s.started) + len(s.firstByte) + len(s.original) + len(s.dnsHits) +
+		defer s.mu.Unlock()
+		return len(s.started) + len(s.firstByte) + len(s.original) + len(s.dnsHits) +
 			len(s.trailers) + len(s.streams) + len(s.replayClients) + len(s.frameSeq)
-		s.mu.Unlock()
-		if left == 0 {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("%d metadata entries survived completion/disconnection", left)
-		}
-		time.Sleep(time.Millisecond)
 	}
+	waitState(t, s, func() bool { return left() == 0 },
+		func() string { return fmt.Sprintf("%d metadata entries survived completion/disconnection", left()) })
 }
 
 func TestWithoutRecordingBodies(t *testing.T) {

@@ -104,17 +104,27 @@ func waitFrame(t *testing.T, s *Server) FrameEvent {
 
 func waitStreamEnd(t *testing.T, s *Server, id, messages int) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if end := s.StreamEnd(id); !end.At.IsZero() {
-			if end.Messages != messages {
-				t.Fatalf("ended with %d messages, want %d", end.Messages, messages)
-			}
-			return
-		}
-		time.Sleep(time.Millisecond)
+	waitState(t, s, func() bool { return !s.StreamEnd(id).At.IsZero() },
+		func() string { return "no stream completion recorded" })
+	if end := s.StreamEnd(id); end.Messages != messages {
+		t.Fatalf("ended with %d messages, want %d", end.Messages, messages)
 	}
-	t.Fatal("no stream completion recorded")
+}
+
+// waitState waits for a real cleanup/registration notification from the
+// server, rechecking the condition only when it signals. The timer is a guard
+// against a hung worker, not the way the state is observed.
+func waitState(t *testing.T, s *Server, done func() bool, failure func() string) {
+	t.Helper()
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	for !done() {
+		select {
+		case <-s.StateChanged():
+		case <-timer.C:
+			t.Fatal(failure())
+		}
+	}
 }
 
 func waitFlow(t *testing.T, s *Server) Flow {

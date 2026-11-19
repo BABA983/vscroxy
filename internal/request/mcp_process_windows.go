@@ -152,7 +152,7 @@ func mcpCloseProcess(cmd *exec.Cmd, tree mcpProcessTree, stdin io.Closer, stdout
 				_ = stdout.Close()
 			}
 			return err
-		case <-time.After(2 * time.Second):
+		case <-mcpCloseGraceWait(2 * time.Second):
 		}
 	}
 	mcpTerminateProcessTree(tree, true)

@@ -87,16 +87,28 @@ func startAppTCPProxy(t *testing.T, target string) (string, func()) {
 	return listener.Addr().String(), drop
 }
 
-func waitMQTT(t *testing.T, what string, check func() bool) {
+func waitMQTT(t *testing.T, s *mqttSession, what string, check func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
+	changed := s.changedSignal
+	if changed == nil {
 		if check() {
 			return
 		}
-		time.Sleep(10 * time.Millisecond)
+		t.Fatal("the MQTT session has no change signal")
 	}
-	t.Fatalf("timed out waiting for %s", what)
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+	for {
+		if check() {
+			return
+		}
+		select {
+		case <-changed:
+		case <-s.done:
+		case <-timer.C:
+			t.Fatalf("timed out waiting for %s", what)
+		}
+	}
 }
 
 func TestMQTTSessionConnectsPublishesAndSubscribes(t *testing.T) {
@@ -113,10 +125,10 @@ func TestMQTTSessionConnectsPublishesAndSubscribes(t *testing.T) {
 	}
 	s := openMQTTSession(prepared.URL, input, scope, nil, cfg, nil, false, nil, nil)
 	t.Cleanup(s.stop)
-	waitMQTT(t, "connection", func() bool { return s.snapshot().ready })
-	waitMQTT(t, "subscription", func() bool { return len(s.snapshot().subscriptions) == 1 })
+	waitMQTT(t, s, "connection", func() bool { return s.snapshot().ready })
+	waitMQTT(t, s, "subscription", func() bool { return len(s.snapshot().subscriptions) == 1 })
 	s.publish(request.MQTTPublish{Topic: "app/out", Payload: []byte("hello"), QoS: 1}, "greeting")
-	waitMQTT(t, "outgoing event", func() bool {
+	waitMQTT(t, s, "outgoing event", func() bool {
 		for _, e := range s.snapshot().events {
 			if e.direction == "Out" && e.name == "app/out" && string(e.payload) == "hello" {
 				return true
@@ -308,9 +320,11 @@ func TestMQTT311ConnectGeneratesClientIDWithoutSavingIt(t *testing.T) {
 	}}, "")
 	d := a.requestDocument
 	a.connectMQTT(d)
-	waitMQTT(t, "connection", func() bool {
-		return d.mqttUI != nil && d.mqttUI.session != nil && d.mqttUI.session.snapshot().ready
-	})
+	s := d.mqttUI.session
+	if s == nil {
+		t.Fatal("connect did not create an MQTT session")
+	}
+	waitMQTT(t, s, "connection", func() bool { return s.snapshot().ready })
 	snapshot := d.mqttUI.session.snapshot()
 	if d.mqttConfig.ClientID != "" {
 		t.Fatalf("connect wrote generated client ID %q into the document", d.mqttConfig.ClientID)
@@ -336,7 +350,7 @@ func TestMQTT5AssignedClientIDReusedOnReconnect(t *testing.T) {
 	}
 	s := openMQTTSession(prepared.URL, input, scope, nil, cfg, nil, false, nil, nil)
 	t.Cleanup(s.stop)
-	waitMQTT(t, "first connection", func() bool {
+	waitMQTT(t, s, "first connection", func() bool {
 		snapshot := s.snapshot()
 		// The drop must happen after the first subscribe completes, or there
 		// is no active subscription for the reconnection to restore.
@@ -347,8 +361,8 @@ func TestMQTT5AssignedClientIDReusedOnReconnect(t *testing.T) {
 		t.Fatal("broker did not assign a client ID")
 	}
 	drop()
-	waitMQTT(t, "reconnecting state", func() bool { return s.snapshot().state == "Reconnecting" })
-	waitMQTT(t, "resumed session", func() bool {
+	waitMQTT(t, s, "reconnecting state", func() bool { return s.snapshot().state == "Reconnecting" })
+	waitMQTT(t, s, "resumed session", func() bool {
 		snapshot := s.snapshot()
 		// Publish only after the reconnect has re-applied its subscription;
 		// ready and sessionPresent still precede that step.
@@ -373,7 +387,7 @@ func TestMQTT5AssignedClientIDReusedOnReconnect(t *testing.T) {
 	}
 	pub.Close()
 
-	waitMQTT(t, "queued message", func() bool {
+	waitMQTT(t, s, "queued message", func() bool {
 		for _, event := range s.snapshot().events {
 			if event.direction == "In" && event.name == "assigned/topic" && string(event.payload) == "queued" {
 				return true
@@ -464,7 +478,7 @@ func TestMQTTQuitSendsDisconnect(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := openMQTTSession(prepared.URL, input, scope, nil, cfg, nil, false, nil, nil)
-	waitMQTT(t, "connection", func() bool { return s.snapshot().ready })
+	waitMQTT(t, s, "connection", func() bool { return s.snapshot().ready })
 	s.stopAndWait()
 	select {
 	case <-disconnected:

@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -34,14 +35,33 @@ func mockCollection(t *testing.T) string {
 
 // syncText is written by the command while the test reads it.
 type syncText struct {
-	mu sync.Mutex
-	b  bytes.Buffer
+	mu      sync.Mutex
+	b       bytes.Buffer
+	written chan struct{}
+}
+
+func (s *syncText) changes() <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.written == nil {
+		s.written = make(chan struct{}, 1)
+	}
+	return s.written
 }
 
 func (s *syncText) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.b.Write(p)
+	if s.written == nil {
+		s.written = make(chan struct{}, 1)
+	}
+	ch := s.written
+	n, err := s.b.Write(p)
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
+	return n, err
 }
 
 func (s *syncText) String() string {
@@ -53,12 +73,24 @@ func (s *syncText) String() string {
 // waitMockOutput waits for a line the mock writes after its HTTP address.
 func waitMockOutput(t *testing.T, stdout *syncText, marker string) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for !strings.Contains(stdout.String(), marker) {
-		if time.Now().After(deadline) {
-			t.Fatalf("mock never printed %q: stdout=%q", marker, stdout.String())
+	waitMockLine(t, stdout, marker, func() string {
+		return fmt.Sprintf("mock never printed %q: stdout=%q", marker, stdout.String())
+	})
+}
+
+func waitMockLine(t *testing.T, out *syncText, marker string, failure func() string) {
+	t.Helper()
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+	for {
+		if strings.Contains(out.String(), marker) {
+			return
 		}
-		time.Sleep(10 * time.Millisecond)
+		select {
+		case <-out.changes():
+		case <-timer.C:
+			t.Fatal(failure())
+		}
 	}
 }
 
@@ -73,13 +105,9 @@ func startMock(t *testing.T, args ...string) (string, *syncText, *syncText, func
 	stderr := &syncText{}
 	exit := make(chan int, 1)
 	go func() { exit <- cli.Run(ctx, append([]string{"mock"}, args...), &stdout, stderr) }()
-	deadline := time.Now().Add(10 * time.Second)
-	for !strings.Contains(stdout.String(), "http://") {
-		if time.Now().After(deadline) {
-			t.Fatalf("mock did not start: stdout=%q stderr=%q", stdout.String(), stderr.String())
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitMockLine(t, &stdout, "http://", func() string {
+		return fmt.Sprintf("mock did not start: stdout=%q stderr=%q", stdout.String(), stderr.String())
+	})
 	line := stdout.String()
 	i := strings.Index(line, "http://")
 	base := strings.Fields(line[i:])[0]

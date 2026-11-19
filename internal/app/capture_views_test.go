@@ -63,23 +63,23 @@ func captureViewsFrame(a *app, v *captureViews) func(*ui.Context) {
 // that comes in between would otherwise count as done without being applied.
 func settle(t *testing.T, a *app, v *captureViews) {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
-	for {
+	check := func() bool {
 		s := v.run
 		if s == nil {
-			return
+			return true
 		}
 		done, total := s.progress()
-		v.drain(a)
 		if done >= total {
-			return
+			return true
 		}
-		if time.Now().After(deadline) {
-			note, _ := v.status()
-			t.Fatalf("the body search did not finish: %s", note)
-		}
-		time.Sleep(2 * time.Millisecond)
+		v.drain(a)
+		done, total = s.progress()
+		return done >= total
 	}
+	waitAppSignal(t, a, check, nil, func() string {
+		note, _ := v.status()
+		return "the body search did not finish: " + note
+	})
 }
 
 func visibleIDs(a *app) []int {

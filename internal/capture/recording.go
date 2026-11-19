@@ -49,4 +49,5 @@ func (s *Server) awaitUnrecorded(id uuid.UUID, done <-chan struct{}) {
 	s.flowIDs.Delete(id)
 	delete(s.frameSeq, id)
 	s.mu.Unlock()
+	s.noteStateChanged()
 }

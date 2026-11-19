@@ -23,9 +23,10 @@ import (
 // graphqlDocument is a GraphQL body's schema state. The schema text itself is
 // saved with the request; parsed values are rebuilt only when it changes.
 type graphqlDocument struct {
-	loading chan graphqlSchemaResult
-	cancel  context.CancelFunc
-	problem string
+	loading     chan graphqlSchemaResult
+	loadingDone chan struct{} // test hook: closed when the worker sends its result
+	cancel      context.CancelFunc
+	problem     string
 
 	parsed      *graphql.Schema
 	parsedFor   string
@@ -184,7 +185,8 @@ func (a *app) fetchGraphQLSchema(d *requestDocument) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	g.cancel, g.problem = cancel, ""
 	answers := make(chan graphqlSchemaResult, 1)
-	g.loading = answers
+	g.loading, g.loadingDone = answers, make(chan struct{})
+	done := g.loadingDone
 	source := d.composeURL
 	go guarded(func() {
 		defer cancel()
@@ -214,6 +216,7 @@ func (a *app) fetchGraphQLSchema(d *requestDocument) {
 			}
 		}
 		answers <- result
+		close(done)
 	})
 }
 

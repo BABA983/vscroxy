@@ -64,7 +64,7 @@ func mcpCloseProcess(cmd *exec.Cmd, tree mcpProcessTree, stdin io.Closer, stdout
 		if exited != nil {
 			select {
 			case <-exited:
-			case <-time.After(2 * time.Second):
+			case <-mcpCloseGraceWait(2 * time.Second):
 			}
 		} else {
 			time.Sleep(2 * time.Second)
@@ -79,7 +79,7 @@ func mcpCloseProcess(cmd *exec.Cmd, tree mcpProcessTree, stdin io.Closer, stdout
 		if exited != nil {
 			select {
 			case <-exited:
-			case <-time.After(time.Second):
+			case <-mcpCloseGraceWait(time.Second):
 			}
 		} else {
 			time.Sleep(time.Second)

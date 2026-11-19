@@ -32,16 +32,26 @@ func appMCPFixture() *mcp.Server {
 
 func waitMCPSession(t *testing.T, s *mcpSession, done func(mcpSnapshot) bool) mcpSnapshot {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		snapshot := s.snapshot()
-		if done(snapshot) {
+	changed := s.changedSignal
+	if changed == nil {
+		if snapshot := s.snapshot(); done(snapshot) {
 			return snapshot
 		}
-		time.Sleep(10 * time.Millisecond)
+		t.Fatal("the MCP session has no change signal")
 	}
-	t.Fatalf("MCP session did not settle: %+v", s.snapshot())
-	return mcpSnapshot{}
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+	for {
+		if snapshot := s.snapshot(); done(snapshot) {
+			return snapshot
+		}
+		select {
+		case <-changed:
+		case <-s.done:
+		case <-timer.C:
+			t.Fatalf("MCP session did not settle: %+v", s.snapshot())
+		}
+	}
 }
 
 func TestMCPSessionCatalogAndOperations(t *testing.T) {

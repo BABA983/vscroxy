@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/binary"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/egoist/mygo/ui"
@@ -357,14 +357,8 @@ func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 	}
 	wait := func(text string) {
 		t.Helper()
-		deadline := time.Now().Add(5 * time.Second)
-		for !tt.HasText(text) && time.Now().Before(deadline) {
-			tt.Frame()
-			time.Sleep(time.Millisecond)
-		}
-		if !tt.HasText(text) {
-			t.Fatalf("missing %q: %v", text, tt.Texts())
-		}
+		waitAppSignal(t, a, func() bool { return tt.HasText(text) }, tt.Frame,
+			func() string { return fmt.Sprintf("missing %q: %v", text, tt.Texts()) })
 	}
 	click("Body")
 	wait("2 of 2 messages")

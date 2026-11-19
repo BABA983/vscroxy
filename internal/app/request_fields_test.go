@@ -426,15 +426,11 @@ func TestFormErrorsDoNotSilentlyFallBackToRawBody(t *testing.T) {
 
 func waitRunner(t *testing.T, a *app) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for a.runner.running && time.Now().Before(deadline) {
-		a.drainRunner()
-		time.Sleep(time.Millisecond)
-	}
-	if a.runner.running {
-		a.runner.cancel()
-		t.Fatal("runner did not finish")
-	}
+	waitAppSignal(t, a, func() bool { return !a.runner.running }, a.drainRunner,
+		func() string {
+			a.runner.cancel()
+			return "runner did not finish"
+		})
 }
 
 func TestRequestDiagnosticsKeepPhasesErrorsAndSentVariables(t *testing.T) {
@@ -615,15 +611,12 @@ func TestInFlightCurrentCredentialsStayOutOfExports(t *testing.T) {
 				}
 				wait := func(pending func() bool) {
 					t.Helper()
-					deadline := time.Now().Add(5 * time.Second)
-					for pending() && time.Now().Before(deadline) {
+					drain := func() {
 						a.drain()
 						a.drainRunner()
-						time.Sleep(time.Millisecond)
 					}
-					if pending() {
-						t.Fatal("request did not finish")
-					}
+					waitAppSignal(t, a, func() bool { return !pending() }, drain,
+						func() string { return "request did not finish" })
 				}
 				if removal == "script unset" {
 					a.addDocument(savedRequest{Name: "Unset", Method: "GET", URL: upstream.URL + "/unset", Post: `pm.environment.unset("token")`}, "")

@@ -21,7 +21,12 @@ type mcpStdioTransport struct {
 	mu     sync.Mutex
 	conn   *mcpStdioConn
 	closed bool
+	exited <-chan struct{} // stdout EOF: the signal that the server is gone
 }
+
+// mcpCloseGraceWait is a test hook for observing the shutdown grace periods.
+// Production always uses the real clock.
+var mcpCloseGraceWait = time.After
 
 func (t *mcpStdioTransport) Connect(ctx context.Context) (mcp.Connection, error) {
 	stdout, err := t.cmd.StdoutPipe()
@@ -42,6 +47,7 @@ func (t *mcpStdioTransport) Connect(ctx context.Context) (mcp.Connection, error)
 	// EOF first, then the process tree is terminated, then stdout is closed.
 	exited := make(chan struct{})
 	reader := &mcpExitReader{ReadCloser: stdout, done: exited}
+	t.exited = exited
 	base := &mcp.IOTransport{Reader: reader, Writer: stdin, MaxLineLength: MCPMaxFrame}
 	conn, err := base.Connect(ctx)
 	if err != nil {
