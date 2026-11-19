@@ -32,6 +32,22 @@ func (a *app) displayText(f flow, side int, body string) (string, bool) {
 	return cached.text, cached.decoded
 }
 
+// displayedBodyText reports the decoded text behind one pane, so the copy
+// action can put the text the reader shows on a text clipboard. A stale cache
+// entry from another flow or body must never be copied.
+func (a *app) displayedBodyText(side int, body string) (string, bool) {
+	f, ok := a.current()
+	if !ok {
+		return "", false
+	}
+	cached := &a.bodyDisplayCache[side]
+	if cached.decoded && cached.flow == f.id && cached.body == body &&
+		cached.contentType == f.bodyContentType(side == 0) {
+		return cached.text, true
+	}
+	return "", false
+}
+
 // encodingLabel names the character set only when the viewer decoded the
 // body; a plain UTF-8 or hex body needs no badge.
 func (a *app) encodingLabel(c *ui.Context, side int) {

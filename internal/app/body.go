@@ -699,7 +699,7 @@ func (a *app) autoBodyMode(f flow, side int, body string) int {
 		return 4
 	case inspect.BodyFormat(f.bodyContentType(side == 0)) != "":
 		return slices.Index(a.bodyModes(f, side), inspect.BodyFormat(f.bodyContentType(side == 0)))
-	case ct == "application/octet-stream", !utf8.ValidString(body), strings.ContainsRune(body, 0):
+	case inspect.BinaryContentType(ct), !utf8.ValidString(body), strings.ContainsRune(body, 0):
 		return 3
 	default:
 		return 1

@@ -1,6 +1,7 @@
 package inspect
 
 import (
+	"encoding/binary"
 	"strings"
 	"testing"
 
@@ -32,6 +33,13 @@ func TestDisplayText(t *testing.T) {
 	utf16Text := "Hello, 中文!"
 	utf16ASCII := "Hello, world!"
 
+	// A little-endian uint16 array begins 01 00 02 00 ... like UTF-16LE but
+	// decodes to C0 controls; VS Code only guesses when the text looks clean.
+	uint16Array := make([]byte, 64)
+	for i := range 32 {
+		binary.LittleEndian.PutUint16(uint16Array[i*2:], uint16(i+1))
+	}
+
 	gbkBytes := encoded(t, simplifiedchinese.GBK, chinese)
 	utf16LE := encoded(t, unicode.UTF16(unicode.LittleEndian, unicode.UseBOM), utf16Text)
 	// VS Code's zero-byte check only sees alternating ASCII/NUL bytes, so
@@ -46,7 +54,7 @@ func TestDisplayText(t *testing.T) {
 		{"shift_jis header", "text/plain; charset=shift_jis", shiftJIS, "Shift_JIS", encoded(t, japanese.ShiftJIS, shiftJIS), true},
 		{"euc-kr header", "text/plain; charset=euc-kr", eucKR, "EUC-KR", encoded(t, korean.EUCKR, eucKR), true},
 		{"latin-1 header", "text/plain; charset=iso-8859-1", latin1, "windows-1252", encoded(t, charmap.ISO8859_1, latin1), true},
-		{"utf-16le bom", "application/octet-stream", utf16Text, "UTF-16LE", utf16LE, true},
+		{"utf-16le bom", "text/plain", utf16Text, "UTF-16LE", utf16LE, true},
 		{"utf-16be zero bytes", "text/plain", utf16ASCII, "UTF-16BE", utf16BE, true},
 		{"utf-16be declared", "text/plain; charset=utf-16be", utf16Text, "UTF-16BE",
 			encoded(t, unicode.UTF16(unicode.BigEndian, unicode.IgnoreBOM), utf16Text), true},
@@ -55,6 +63,14 @@ func TestDisplayText(t *testing.T) {
 		{"unknown charset", "text/plain; charset=x-not-real", "", "", gbkBytes, false},
 		{"invalid bytes without a signal", "application/octet-stream", "", "",
 			[]byte{0x81, 0x30, 0xfe, 0x41}, false},
+		{"two-byte binary, octet-stream", "application/octet-stream", "", "", []byte{0x01, 0x00}, false},
+		{"uint16 array, octet-stream", "application/octet-stream", "", "", uint16Array, false},
+		{"two-byte binary, png", "image/png", "", "", []byte{0x01, 0x00}, false},
+		{"uint16 array, protobuf", "application/x-protobuf", "", "", uint16Array, false},
+		{"two-byte binary, no type", "", "", "", []byte{0x01, 0x00}, false},
+		{"uint16 array, no type", "", "", "", uint16Array, false},
+		{"bom cannot unmask a binary type", "image/png; charset=utf-16le", "", "",
+			append([]byte("\xff\xfe"), "image"...), false},
 		{"valid utf-8 unchanged", "text/plain; charset=utf-8", "", "", []byte(chinese), false},
 	}
 	for _, tc := range cases {

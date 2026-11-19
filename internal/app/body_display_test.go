@@ -9,13 +9,14 @@ import (
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
-// Decoding for display must not travel with the body anywhere it leaves the
-// viewer: copy, save, replay and the capture itself keep the captured bytes.
-func TestDecodedBodyDisplayKeepsRawBytesOnCopySaveAndReplay(t *testing.T) {
+// Copy puts readable text on a text clipboard: the decoded form for a legacy
+// charset. Save and replay still use the captured bytes unchanged.
+func TestDecodedBodyDisplayCopiesTextAndKeepsRawBytesOnSaveAndReplay(t *testing.T) {
 	const requestText, responseText = "请求原文", "响应中文正文"
 	encode := func(text string) string {
 		b, err := simplifiedchinese.GBK.NewEncoder().Bytes([]byte(text))
@@ -64,8 +65,8 @@ func TestDecodedBodyDisplayKeepsRawBytesOnCopySaveAndReplay(t *testing.T) {
 	if err := chooseMenu(tt, "Copy shown body"); err != nil {
 		t.Fatal(err)
 	}
-	if got := tt.Clipboard(); got != rawResponse {
-		t.Fatalf("copy wrote %q, want the captured GBK bytes", got)
+	if got := tt.Clipboard(); got != responseText {
+		t.Fatalf("copy wrote %q, want the decoded Chinese text", got)
 	}
 
 	path := filepath.Join(t.TempDir(), "response.bin")
@@ -85,5 +86,36 @@ func TestDecodedBodyDisplayKeepsRawBytesOnCopySaveAndReplay(t *testing.T) {
 	}
 	if got := <-sent; got != rawRequest {
 		t.Fatalf("replay sent %q, want the captured GBK request bytes", got)
+	}
+}
+
+func TestBinaryBodyCopyWarnsAndLeavesClipboardAlone(t *testing.T) {
+	a := workspaceApp()
+	body := string([]byte{0x01, 0x00, 0xff, 0x00})
+	a.flows[0].resBody = body
+	a.flows[0].respHeader = http.Header{"Content-Type": {"application/octet-stream"}}
+	a.detailFor = -1
+	a.applyFilter()
+	a.syncDetail()
+	openResponseBody(a)
+
+	tt := ui.NewTester(a.view, 960, 700)
+	tt.SetClipboard("sentinel")
+	tt.Frame()
+	if err := tt.Click("Response pane options"); err != nil {
+		t.Fatal(err)
+	}
+	if err := chooseMenu(tt, "Copy shown body"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if got := tt.Clipboard(); got != "sentinel" {
+		t.Fatalf("binary copy wrote %q to the clipboard", got)
+	}
+	if !tt.HasText(locales.BinaryBytesCannotBeCopied()) {
+		t.Fatalf("binary copy gave no warning: %v", tt.Texts())
+	}
+	if a.body != body {
+		t.Fatal("copying a binary body changed the capture")
 	}
 }
