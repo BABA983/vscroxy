@@ -77,6 +77,7 @@ func (a *app) currentSettings() settings {
 	trusted, untrusted := a.trustLists()
 	return settings{
 		Appearance:           a.appearance,
+		LogLevel:             a.saved.LogLevel,
 		Language:             a.language,
 		SidebarWidth:         a.sidebarWidth,
 		TablePercent:         a.tablePercent,
@@ -138,11 +139,12 @@ func (a *app) configLists() map[string]*string {
 func (a *app) exportConfig() (b configBundle, notes []string) {
 	s := a.currentSettings()
 	// The key log, project folder, setup guide, cookie retention, attention
-	// signals, link approvals, project trust, input history and local
-	// automation are this computer's: a bundle never carries those elsewhere.
+	// signals, link approvals, project trust, input history, log level and
+	// local automation are this computer's: a bundle never carries those elsewhere.
 	s.KeyLogPath, s.ProjectDir, s.Guide, s.CookiePersistence, s.LocalControl = "", "", false, false, false
 	s.TrustedLinkHosts, s.URLHistory, s.FilterHistory = nil, nil, nil
 	s.TrustedProjects, s.UntrustedProjects = nil, nil
+	s.LogLevel = ""
 	s.DisableUpdateCheck = false
 	s.AttentionSignals = ""
 	s.Language = ""      // the reader's language, not the bundle's

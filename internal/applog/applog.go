@@ -9,7 +9,10 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 const (
@@ -17,6 +20,108 @@ const (
 	maxSize  = 5 << 20 // bytes before the file rotates
 	keep     = 5       // files kept, the current one included
 )
+
+// Level names are identifiers in settings.json and on the command line, not
+// text for the UI: the catalogs name them for the person choosing one.
+const (
+	LevelTrace   = "trace"
+	LevelDebug   = "debug"
+	LevelInfo    = "info"
+	LevelWarning = "warning"
+	LevelError   = "error"
+	LevelOff     = "off"
+)
+
+var (
+	levelNames = []string{LevelTrace, LevelDebug, LevelInfo, LevelWarning, LevelError, LevelOff}
+	// levels holds the one source of truth for filtering: handler uses this
+	// LevelVar, so setting a level takes effect on the very next record in
+	// an already-open file. Off is above Error and suppresses everything.
+	levels = func() *slog.LevelVar {
+		v := new(slog.LevelVar)
+		v.Set(slog.LevelInfo)
+		return v
+	}()
+	// flagLevel is set once by --log-level. It wins over the saved setting
+	// for this run only and is never written back to settings.json.
+	flagLevel atomic.Bool
+)
+
+// LevelNames returns the levels in the order a picker shows them.
+func LevelNames() []string { return slices.Clone(levelNames) }
+
+// EffectiveLevel names the level records are currently filtered by.
+func EffectiveLevel() string { return levelName(levels.Level()) }
+
+// FlagLevelOverridden reports whether --log-level is deciding this run's level.
+func FlagLevelOverridden() bool { return flagLevel.Load() }
+
+// SetLevel applies a saved or freshly chosen level. A --log-level override
+// keeps control of this run, while the caller may still save the new choice.
+func SetLevel(name string) error {
+	level, err := parseLevel(name)
+	if err != nil {
+		return err
+	}
+	if !flagLevel.Load() {
+		levels.Set(level)
+	}
+	return nil
+}
+
+// SetFlagLevel installs the one-run override from the command line.
+func SetFlagLevel(name string) error {
+	level, err := parseLevel(name)
+	if err != nil {
+		return err
+	}
+	flagLevel.Store(true)
+	levels.Set(level)
+	return nil
+}
+
+func parseLevel(name string) (slog.Level, error) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "", LevelInfo:
+		return slog.LevelInfo, nil
+	case LevelTrace:
+		return slog.Level(-8), nil // between slog.LevelDebug and nothing
+	case LevelDebug:
+		return slog.LevelDebug, nil
+	case LevelWarning:
+		return slog.LevelWarn, nil
+	case LevelError:
+		return slog.LevelError, nil
+	case LevelOff:
+		return slog.Level(12), nil // above Error, so every record is filtered
+	default:
+		return 0, fmt.Errorf("unknown log level %q; want %s", name, strings.Join(levelNames, ", "))
+	}
+}
+
+func levelName(level slog.Level) string {
+	switch {
+	case level <= -8:
+		return LevelTrace
+	case level < slog.LevelInfo:
+		return LevelDebug
+	case level < slog.LevelWarn:
+		return LevelInfo
+	case level < slog.LevelError:
+		return LevelWarning
+	case level < 12:
+		return LevelError
+	default:
+		return LevelOff
+	}
+}
+
+// For returns a logger for one subsystem. It reads the default logger at the
+// call site: the log file is opened after packages are initialised, and there
+// is no second handler or logger to keep in step with it.
+func For(component string) *slog.Logger {
+	return slog.Default().With("component", component)
+}
 
 // Open makes the log under dir the default for log/slog and, through it, the
 // standard log package. Lines also go to stderr. Close flushes nothing; it
@@ -29,7 +134,7 @@ func Open(dir string) (io.Closer, error) {
 	if err := f.open(); err != nil {
 		return nil, err
 	}
-	handler := slog.NewTextHandler(io.MultiWriter(os.Stderr, f), &slog.HandlerOptions{Level: slog.LevelInfo})
+	handler := slog.NewTextHandler(io.MultiWriter(os.Stderr, f), &slog.HandlerOptions{Level: levels})
 	slog.SetDefault(slog.New(handler))
 	return f, nil
 }

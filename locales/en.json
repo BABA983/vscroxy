@@ -8321,5 +8321,16 @@
   "settingMemoryLimitHint": "How much captured body data stays in memory",
   "settingDiskLimit": "Disk limit",
   "settingTrustSystemRootsHint": "Also trust the certificate roots this computer already trusts",
-  "settingTrustedRootsHint": "Extra certificate roots used to verify upstream servers"
+  "settingTrustedRootsHint": "Extra certificate roots used to verify upstream servers",
+  "logging": "Logging",
+  "logLevel": "Log level",
+  "logLevelHint": "How much the app writes to its log. Changes apply at once.",
+  "logLevelFlagOverride": "A --log-level flag is setting the level for this run.",
+  "setLogLevel": "Set Log Level…",
+  "logLevelTrace": "Trace",
+  "logLevelDebug": "Debug",
+  "logLevelInfo": "Info",
+  "logLevelWarning": "Warning",
+  "logLevelError": "Error",
+  "logLevelOff": "Off"
 }

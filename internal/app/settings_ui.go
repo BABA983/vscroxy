@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/internal/version"
@@ -60,6 +61,25 @@ func (a *app) settingMenu(spec settingSpec) func(*ui.Menu) {
 	}
 }
 
+// logLevelLabel names a stored level in the reader's language; the value in
+// settings.json and on the command line stays an applog identifier.
+func logLevelLabel(name string) string {
+	switch name {
+	case applog.LevelTrace:
+		return locales.LogLevelTrace()
+	case applog.LevelDebug:
+		return locales.LogLevelDebug()
+	case applog.LevelWarning:
+		return locales.LogLevelWarning()
+	case applog.LevelError:
+		return locales.LogLevelError()
+	case applog.LevelOff:
+		return locales.LogLevelOff()
+	default:
+		return locales.LogLevelInfo()
+	}
+}
+
 // restartPending marks a saved setting the running app does not use yet.
 func restartPending(c *ui.Context, pending bool) {
 	if pending {
@@ -94,6 +114,17 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 					uikit.Hint(c, locales.ProjectDecisionCount(len(trusted), len(untrusted)))
 				})
 			}, locales.WorkspaceTrustHint())
+		})
+		uikit.SettingsCard(c, locales.Logging(), func() {
+			a.settingRow(c, "general.logLevel", locales.LogLevel(), func() ui.Element {
+				selected := applog.EffectiveLevel()
+				control := uikit.SelectLabels(c, &selected, applog.LevelNames(), logLevelLabel).
+					Label(locales.LogLevel()).Width(uikit.WidthField).Disabled(applog.FlagLevelOverridden())
+				if control.Changed() {
+					a.setLogLevel(selected)
+				}
+				return control
+			}, logLevelHint())
 		})
 		uikit.SettingsCard(c, locales.Collections(), func() {
 			a.settingBlock(c, "general.projectFolder", locales.ProjectFolder(), func() ui.Element {

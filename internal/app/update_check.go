@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/update"
 	"github.com/baba983/vscroxy/internal/version"
 	"github.com/baba983/vscroxy/locales"
@@ -22,6 +23,7 @@ func (a *app) checkForUpdate() {
 	if err != nil {
 		return
 	}
+	applog.For("update").Debug("update check finished", "found", release.Tag != "")
 	a.offerUpdate(release)
 }
 

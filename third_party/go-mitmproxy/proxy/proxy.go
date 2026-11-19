@@ -153,7 +153,7 @@ func (proxy *Proxy) Start() error {
 // This lets callers reserve an OS-assigned port without a close/rebind race.
 func (proxy *Proxy) Serve(ln net.Listener) error {
 	go func() {
-		if err := proxy.attacker.start(); err != nil {
+		if err := proxy.attacker.start(); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, net.ErrClosed) {
 			log.Error(err)
 		}
 	}()
@@ -161,6 +161,7 @@ func (proxy *Proxy) Serve(ln net.Listener) error {
 }
 
 func (proxy *Proxy) Close() error {
+	_ = proxy.attacker.close()
 	return proxy.entry.close()
 }
 

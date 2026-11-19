@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
@@ -196,6 +197,7 @@ func (a *app) setSystemProxy(on bool) {
 	s.applying, s.writeErr = true, nil
 	go guarded(func() {
 		applied := s.change(on, addr, write)
+		applog.For("system-proxy").Debug("system proxy change applied", "on", on, "succeeded", applied == nil)
 		pending <- proxyResult{wrote: true, on: on, applied: applied, check: read(target)}
 		a.invalidate()
 	})

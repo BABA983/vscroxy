@@ -6,12 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"github.com/baba983/vscroxy/internal/applog"
 )
 
 // ProxySession keeps a pipe open to an independent recovery process. That
@@ -204,7 +205,7 @@ func GuardProxy(path, target, bypassJSON string, input io.Reader, output io.Writ
 			if err := recoverProxy(path); err == nil {
 				return
 			} else {
-				log.Printf("proxy recovery attempt %d: %v", attempt+1, err)
+				applog.For("system-proxy").Warn("proxy recovery attempt failed", "attempt", attempt+1, "err", err)
 			}
 			if attempt < 3 {
 				time.Sleep(time.Duration(1<<attempt) * time.Second)

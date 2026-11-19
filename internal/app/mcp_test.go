@@ -67,7 +67,7 @@ func TestMCPSessionCatalogAndOperations(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := openMCPSession(plan, r, request.Context{}, nil, nil)
-	defer s.disconnect()
+	defer s.closeNow(mcpCloseTimeout)
 	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool {
 		return snapshot.connected && !snapshot.busy && len(snapshot.tools) == 1 && len(snapshot.resources) == 1
 	})

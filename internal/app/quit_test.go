@@ -46,6 +46,7 @@ func startQuitForTest(t *testing.T, a *app) func() {
 func TestQuitProxyReleaseFailureCanBeRetried(t *testing.T) {
 	useTempHome(t, t.TempDir())
 	a := newApp()
+	t.Cleanup(func() { _ = a.srv.Close() })
 	a.installShutdown()
 	a.quitOnMain = func(fn func()) { fn() }
 	quits := make(chan struct{}, 2)
@@ -115,6 +116,7 @@ func TestQuitProxyReleaseFailureCanBeRetried(t *testing.T) {
 func TestQuitLastJoinerFailureStillQuits(t *testing.T) {
 	useTempHome(t, t.TempDir())
 	a := newApp()
+	t.Cleanup(func() { _ = a.srv.Close() })
 	a.installShutdown()
 	a.quitOnMain = func(fn func()) { fn() }
 	quits := make(chan struct{}, 1)

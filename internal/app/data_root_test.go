@@ -34,6 +34,7 @@ func TestCustomDataRootOwnsEveryAppFileAndLog(t *testing.T) {
 	useTempHome(t, home)
 
 	a := newApp()
+	t.Cleanup(func() { _ = a.srv.Close() })
 	if a.dataDir != root {
 		t.Fatalf("dataDir = %q, want %q", a.dataDir, root)
 	}

@@ -11,13 +11,13 @@ package errorsx
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"sync"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/locales"
 )
 
@@ -52,7 +52,7 @@ func ReportUnexpected(err error) {
 // headers or secrets and must not be written to the log or a notice.
 func ReportPanic(value any, stack []byte) {
 	err := fmt.Errorf("background goroutine panicked (%T)", value)
-	slog.Error(locales.UnexpectedBackgroundError(), "detail", err.Error(), "stack", string(stack))
+	applog.For("errorsx").Error(locales.UnexpectedBackgroundError(), "detail", err.Error(), "stack", string(stack))
 	ReportUnexpected(err)
 }
 

@@ -223,6 +223,9 @@ func TestStartupFailureKeepsLocalAssetsUsable(t *testing.T) {
 	}
 	a := newApp()
 	defer a.views.stopSearch()
+	if a.srv != nil {
+		t.Cleanup(func() { _ = a.srv.Close() })
+	}
 	if a.srv != nil || len(a.requests) != 1 || a.activeVars()["host"] != "local" || len(a.flows) != 0 {
 		t.Fatalf("failed proxy hid assets or fabricated traffic: requests %v, vars %v, flows %d", a.requests, a.activeVars(), len(a.flows))
 	}

@@ -14,6 +14,7 @@ func TestFlowIDCacheKeepsActiveStream(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = s.Close() })
 	active := uuid.New()
 	s.flowIDs.Set(active, 7)
 	f := &proxy.Flow{Id: active}

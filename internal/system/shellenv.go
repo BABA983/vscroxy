@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"maps"
 	"os"
 	"os/exec"
@@ -17,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/baba983/vscroxy/internal/applog"
 )
 
 // shellEnvTimeout is VS Code's default for resolving a login shell. A profile
@@ -84,7 +85,7 @@ func ShellEnv(ctx context.Context) []string {
 	}
 	values, err := resolvedShellEnv()
 	if err != nil {
-		slog.Warn("using the current environment; shell environment unavailable", "err", err)
+		applog.For("system").Warn("using the current environment; shell environment unavailable", "err", err)
 		return current
 	}
 	return mergeShellEnv(current, values)

@@ -2,9 +2,9 @@ package app
 
 import (
 	"errors"
-	"log/slog"
 	"sync"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
@@ -117,7 +117,7 @@ func (a *app) finishQuit(err error) {
 	}
 	// A Last joiner ran after the proxy was released and teardown has already
 	// happened: log the error through applog's default logger and still exit.
-	slog.Error(locales.Failed(), "detail", err)
+	applog.For("app").Error(locales.Failed(), "detail", err)
 	a.quit()
 }
 

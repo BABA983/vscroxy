@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -607,6 +608,9 @@ func registerGlobalCommands() *commandRegistry {
 		x.a.openSettings(-1)
 		x.a.settingsFocusSearch++
 	}).keys(ui.Cmd, ui.KeyComma)
+	r.add("workbench.action.setLogLevel", locales.SetLogLevel(), func(x *commandContext) {
+		x.a.logLevelPicker, x.a.logLevelPickerOpen = applog.EffectiveLevel(), true
+	})
 	r.add("go.live", locales.GoToLiveTraffic(), func(x *commandContext) {
 		a := x.a
 		a.page = pageLive

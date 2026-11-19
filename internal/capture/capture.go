@@ -35,6 +35,7 @@ import (
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 	"github.com/sirupsen/logrus"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/datadir"
 	"github.com/baba983/vscroxy/internal/dnsmap"
@@ -1532,6 +1533,7 @@ func (s *Server) Start() error {
 	}
 	s.listener, s.addr = ln, ln.Addr().String()
 	s.running.Store(true)
+	applog.For("proxy").Debug("proxy listener started", "address", s.addr)
 	serveLn := ln
 	go errorsx.Guard(func() {
 		defer s.running.Store(false)
@@ -1562,10 +1564,12 @@ func (s *Server) Stop() error {
 	s.DropConnections()
 	err := s.listener.Close()
 	s.listener = nil
+	applog.For("proxy").Debug("proxy listener stopped")
 	return err
 }
 
-// Close stops the proxy and closes Flows.
+// Close stops the proxy and closes the queues the UI reads: Flows, frames
+// and breakpoints. Their collectors are blocking range loops.
 func (s *Server) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
@@ -1595,10 +1599,14 @@ func (s *Server) Close() error {
 		if s.dns != nil {
 			_ = s.dns.Close()
 		}
-		// Nothing may publish into Flows once it is closed.
+		// Nothing may publish into the queues once they are closed. All
+		// connections have finished, so their frame and breakpoint senders
+		// cannot race these closes.
 		s.sendMu.Lock()
 		s.sendClosed = true
 		close(s.out)
+		close(s.frames)
+		close(s.breakpoints)
 		s.sendMu.Unlock()
 		s.mu.Lock()
 		streams := s.streams
@@ -2778,7 +2786,19 @@ func (s *Server) queueLookup(req clientLookup) {
 	go errorsx.Guard(func() {
 		for {
 			// Let the burst arrive before asking the OS once for all of it.
-			time.Sleep(30 * time.Millisecond)
+			// Close interrupts the wait instead of leaving this goroutine
+			// asleep after the server is gone.
+			delay := time.NewTimer(30 * time.Millisecond)
+			select {
+			case <-delay.C:
+			case <-s.closed:
+				delay.Stop()
+				s.lookupMu.Lock()
+				s.lookupPending = nil
+				s.lookupRunning = false
+				s.lookupMu.Unlock()
+				return
+			}
 			s.lookupMu.Lock()
 			pending := s.lookupPending
 			s.lookupPending = nil
