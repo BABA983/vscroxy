@@ -99,6 +99,28 @@ func TestWatchdogDumpsOnceForOneHangAndLogsRecovery(t *testing.T) {
 	}
 }
 
+// A ping answered inside its deadline is healthy traffic, not a recovered
+// hang: the watchdog must leave the log and the dump count alone.
+func TestWatchdogAnsweredPingLogsNothing(t *testing.T) {
+	clock, main, logs, w, dumps := fixture(t)
+	w.Start()
+
+	clock.Advance(time.Second)            // first ping is on the main thread
+	clock.Advance(499 * time.Millisecond) // still inside the answer deadline
+	if !main.answer() {
+		t.Fatal("no ping waiting to be answered")
+	}
+	clock.Advance(time.Second) // any answer timer left running would fire here
+	main.answerAll()           // the next ping is answered on time too
+
+	if logs.Len() != 0 {
+		t.Fatalf("an on-time answer wrote to the log: %q", logs.String())
+	}
+	if *dumps != 0 {
+		t.Fatalf("dumps after on-time answers = %d, want 0", *dumps)
+	}
+}
+
 func TestWatchdogRateLimitsDumpsInsideTheWindow(t *testing.T) {
 	// Production uses one minute; a short injected window drives the same
 	// path with a few fake seconds.

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -148,6 +149,72 @@ func TestBodyFindCaseSensitiveNeedsFindFocus(t *testing.T) {
 	strict, _ := find.Matches()
 	if loose != 3 || strict != 2 {
 		t.Errorf("matches = %d insensitive, %d sensitive; want 3 then 2", loose, strict)
+	}
+}
+
+// A fault-tolerant answer that reformats the body must change the existing
+// reader, not close its find bar: query, options and focus survive, and the
+// next build searches the formatted text.
+func TestBodyFindSurvivesReformattedAnswer(t *testing.T) {
+	body := `{"a":1,// note
+"b":2,}`
+	result := computeFaultTolerantBody(body)
+	formatted, isJSON := prettyBodyText(body, &jsonReader{ready: true, result: result})
+	query := `"a": 1` // only the formatted text has the space
+	if !result.prettyOK || !isJSON || formatted == body || !strings.Contains(formatted, query) {
+		t.Fatalf("the fixture answer did not format the query into the body: %q", formatted)
+	}
+
+	a := snapshotApp()
+	a.flows[0].resBody, a.body, a.detailFor = body, body, a.flows[0].id
+	a.bodyModes(a.flows[0], 0)
+	a.bodyMode[0] = 1
+	// Hold the worker's answer so it lands after the query and the option are
+	// set, without depending on when the parsing goroutine finishes.
+	a.jsonReader[0] = jsonReader{key: "1:0", body: body, contentType: "application/json", pending: true}
+	var c *ui.Context
+	tt := ui.NewTester(func(ctx *ui.Context) { c = ctx; a.view(ctx) }, 1440, 900)
+	tt.Frame()
+	if a.bodyText[0] == nil {
+		t.Fatal("the response body has no reader")
+	}
+	a.bodyText[0].Run(editor.Find)
+	settleBodyFind(t, a, tt, c)
+	tt.Type(query)
+	tt.Frame()
+	find := a.bodyFind[0].find
+	if got := *find.Query(); got != query {
+		t.Fatalf("typed query = %q, want %q", got, query)
+	}
+	if n, _ := find.Matches(); n != 0 {
+		t.Fatalf("%d matches before the answer, want 0", n)
+	}
+	runFindToggle(t, a, tt, c, "find.match-case")
+	if !*a.bodyFind[0].find.CaseSensitive() {
+		t.Fatal("the option was not set before the answer")
+	}
+
+	reader := a.bodyText[0]
+	a.finishJSONRead(0, "1:0", body, "application/json", result)
+	tt.Frame()
+	if a.bodyText[0] != reader {
+		t.Fatal("the answer replaced the reader and its find bar")
+	}
+	if got := a.bodyText[0].Buffer.String(); got != formatted {
+		t.Fatalf("reader text = %q, want %q", got, formatted)
+	}
+	if !a.bodyFind[0].handle.FocusWithin(c) {
+		t.Fatal("the answer took focus from the find bar")
+	}
+	find = a.bodyFind[0].find
+	if find == nil {
+		t.Fatal("the answer left no find bar")
+	}
+	if got := *find.Query(); got != query || !*find.CaseSensitive() {
+		t.Fatalf("after the answer: query %q, case %v; want %q, true", got, *find.CaseSensitive(), query)
+	}
+	if n, current := find.Matches(); n != 1 || current != 0 {
+		t.Fatalf("formatted body search = %d matches, current %d; want 1, 0", n, current)
 	}
 }
 

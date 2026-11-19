@@ -431,7 +431,14 @@ func (a *app) finishJSONRead(side int, key, body, contentType string, result jso
 	}
 	r.pending, r.ready, r.result = false, true, result
 	r.answers, r.cancel = nil, nil
-	a.bodyText[side] = nil // replace the plain text with the formatted answer
+	// Change the text inside the reader instead of replacing it: a new
+	// editor would close its find bar and lose the query, options and focus
+	// on whichever frame the answer arrives. The buffer edit moves the
+	// selections and the next build searches the formatted text again.
+	if a.bodyText[side] != nil && result.prettyOK && result.pretty != body {
+		shown, _ := prettyBodyText(body, r)
+		a.bodyText[side].Buffer.Set(shown)
+	}
 	a.storeJSONTree(side, result.tree)
 }
 

@@ -268,14 +268,13 @@ func (a *app) observeMRUInput(ev ui.InputEvent) {
 	a.commitMRUPick()
 }
 
-// activateDocument records an explicit visit to a tab; cycling through the
-// MRU list does not, so repeated Ctrl+Tab keeps walking the same order.
+// activateDocument records an explicit visit to a tab, or to LIVE when d is
+// nil; cycling through the MRU list does not, so repeated Ctrl+Tab keeps
+// walking the same order.
 func (a *app) activateDocument(d *requestDocument) {
 	a.commitMRUPick()
 	a.showDocument(d)
-	if d != nil {
-		a.touchDocument(d)
-	}
+	a.touchDocument(d)
 }
 
 // mruOrder lists the quick switch's targets, most recently used first. Tabs
