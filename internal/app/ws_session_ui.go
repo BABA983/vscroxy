@@ -20,6 +20,7 @@ import (
 type websocketWorkbench struct {
 	open                                             bool
 	url, headers, message, query, direction, problem string
+	fuzzyGen                                         uint64 // bumped on reconnect, shared by WS and SSE
 	subprotocols, encoding                           string
 	session                                          *wsSession
 	// document is the draft the session was opened from. Its saved message
@@ -100,6 +101,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 				header.Set("Sec-WebSocket-Protocol", s.subprotocols)
 			}
 			s.session = openWSSession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: header}, a.srv.CACertificate(), a.certificates, a.requestCookies(), a.invalidate)
+			s.fuzzyGen++
 			s.problem = ""
 			s.picked, s.choice = 0, 0
 			s.list = ui.ListState{}
@@ -222,12 +224,10 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 				if len(events) == 0 {
 					uikit.EmptyState(c, locales.Connected(), locales.WaitingForMessages(), nil)
 				} else {
+					found, matches := filterWSSessionEvents(a, s, events, s.query)
 					var shown []wsSessionEvent
-					for _, e := range events {
+					for _, e := range found {
 						if s.direction != "All" && !(s.direction == e.Direction || s.direction == "Events" && e.Direction == "") {
-							continue
-						}
-						if !strings.Contains(strings.ToLower(string(e.Data)+e.Detail), strings.ToLower(s.query)) {
 							continue
 						}
 						shown = append(shown, e)
@@ -260,7 +260,8 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 									kind = "Binary"
 								}
 								ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
-									uikit.Body(c, clamp(head, 48)).TextColor(t.Text).SingleLine()
+									drawn := clamp(head, 48)
+									fuzzyListBody(c, drawn, fuzzyListLabelMatches(matches[e.Sequence], drawn)).TextColor(t.Text).SingleLine()
 									uikit.Meta(c, locales.TimeKindSize(e.At.Format("15:04:05.000"), kind, e.Size)).SingleLine()
 								})
 							}).Grow(1).MinHeight(0)

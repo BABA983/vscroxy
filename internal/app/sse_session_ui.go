@@ -16,6 +16,7 @@ import (
 type sseWorkbench struct {
 	open                         bool
 	url, headers, query, problem string
+	fuzzyGen                     uint64 // bumped on reconnect
 	reconnect                    bool
 	session                      *sseSession
 	// stream owns the current stream. Reconnect stops the old one before a
@@ -58,6 +59,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 		s.stream.Clear()
 		next := openSSESession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.certificates, a.requestCookies(), reconnect || s.reconnect, a.invalidate)
 		s.session = next
+		s.fuzzyGen++
 		s.stream.Set(next)
 		s.problem, s.query, s.picked, s.reader = "", "", 0, nil
 		s.list, s.choice = ui.ListState{}, 0
@@ -115,12 +117,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 				})
 			})
 			ui.Row(c).Grow(1).MinHeight(84).Gap(t.Space(uikit.SpaceXL)).AlignItems(ui.Stretch).Children(func() {
-				var shown []sseSessionEvent
-				for _, e := range events {
-					if strings.Contains(strings.ToLower(e.eventType+"\n"+e.id+"\n"+e.data+"\n"+e.detail), strings.ToLower(s.query)) {
-						shown = append(shown, e)
-					}
-				}
+				shown, matches := filterSSESessionEvents(a, s, events, s.query)
 				uikit.Panel(c).Width(280).MinWidth(0).Shrink(1).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM)).Children(func() {
 					if len(shown) == 0 {
 						uikit.Hint(c, locales.NoMatchingEventsYet())
@@ -150,7 +147,10 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 							head = "Event"
 						}
 						ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
-							uikit.Body(c, fmt.Sprintf("#%d · %s", e.seq, clamp(head, 48))).TextColor(t.Text).SingleLine()
+							prefix := fmt.Sprintf("#%d · ", e.seq)
+							drawn := prefix + clamp(head, 48)
+							shifted := fuzzyShiftMatches(matches[e.seq], len([]rune(prefix)))
+							fuzzyListBody(c, drawn, fuzzyListLabelMatches(shifted, drawn)).TextColor(t.Text).SingleLine()
 							uikit.Meta(c, locales.KindWithSize(e.at.Format("15:04:05.000"), e.size)).SingleLine()
 						})
 					}).Grow(1).MinHeight(0)
