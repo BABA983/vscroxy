@@ -23,6 +23,23 @@ func settleBodyFind(t *testing.T, a *app, tt *ui.Tester, c *ui.Context) *editor.
 	return nil
 }
 
+// runFindToggle uses the registry's command for the focused bar. MyGo turns
+// Option+letter into text on macOS before a shortcut sees it, so pressing a
+// key in a tester is not the contract; the registry's owner and its focus
+// precondition are.
+func runFindToggle(t *testing.T, a *app, tt *ui.Tester, c *ui.Context, id string) {
+	t.Helper()
+	action := pick(a.actions(c), id)
+	if action.id == "" || !action.enabled {
+		t.Fatalf("find command %s is unavailable while the bar is focused", id)
+	}
+	if action.shortcut.key == 0 {
+		t.Fatalf("find command %s has no shortcut owner", id)
+	}
+	action.run()
+	tt.Frame()
+}
+
 // openBodyFind opens the response body's find bar in the real window, so the
 // shortcuts come from the command registry and the bar has the focus.
 func openBodyFind(t *testing.T, body string) (*app, *ui.Tester, *ui.Context, *editor.FindBar) {
@@ -46,20 +63,17 @@ func TestBodyFindCaseSensitiveNeedsFindFocus(t *testing.T) {
 	a, tt, c, find := openBodyFind(t, "error Error error")
 	find.Close()
 	tt.Frame()
-	tt.KeyAt(ui.Alt, ui.KeyC)
-	tt.Frame()
-	if *find.CaseSensitive() {
-		t.Fatal("Alt+C changed find options while the bar was closed")
+	if x := pick(a.actions(c), "find.match-case"); x.enabled {
+		t.Fatal("Alt+C owns a find toggle while no bar is focused")
 	}
 	a.bodyText[0].Run(editor.Find)
 	find = settleBodyFind(t, a, tt, c)
 	*find.Query() = "error"
 	tt.Frame()
 	loose, _ := find.Matches()
-	tt.KeyAt(ui.Alt, ui.KeyC)
-	tt.Frame()
+	runFindToggle(t, a, tt, c, "find.match-case")
 	if !*find.CaseSensitive() {
-		t.Fatal("Alt+C did not toggle case sensitivity in the focused find bar")
+		t.Fatal("the focused case command did not toggle case sensitivity")
 	}
 	strict, _ := find.Matches()
 	if loose != 3 || strict != 2 {
@@ -68,14 +82,13 @@ func TestBodyFindCaseSensitiveNeedsFindFocus(t *testing.T) {
 }
 
 func TestBodyFindWholeWordExcludesSubstrings(t *testing.T) {
-	_, tt, _, find := openBodyFind(t, "error errors error")
+	a, tt, c, find := openBodyFind(t, "error errors error")
 	*find.Query() = "error"
 	tt.Frame()
 	before, _ := find.Matches()
-	tt.KeyAt(ui.Alt, ui.KeyW)
-	tt.Frame()
+	runFindToggle(t, a, tt, c, "find.match-whole-word")
 	if !*find.WholeWord() {
-		t.Fatal("Alt+W did not toggle whole word")
+		t.Fatal("the focused whole-word command did not toggle whole word")
 	}
 	after, _ := find.Matches()
 	if before != 3 || after != 2 {
@@ -84,16 +97,15 @@ func TestBodyFindWholeWordExcludesSubstrings(t *testing.T) {
 }
 
 func TestBodyFindBadRegexShowsTheErrorAndNoMatches(t *testing.T) {
-	_, tt, _, find := openBodyFind(t, "error Error")
+	a, tt, c, find := openBodyFind(t, "error Error")
 	*find.Query() = "error"
 	tt.Frame()
 	if count, _ := find.Matches(); count != 2 {
 		t.Fatalf("%d matches before regexp, want 2", count)
 	}
-	tt.KeyAt(ui.Alt, ui.KeyR)
-	tt.Frame()
+	runFindToggle(t, a, tt, c, "find.use-regexp")
 	if !*find.Regexp() {
-		t.Fatal("Alt+R did not toggle regular expressions")
+		t.Fatal("the focused regexp command did not toggle regular expressions")
 	}
 	*find.Query() = "["
 	tt.Frame()
