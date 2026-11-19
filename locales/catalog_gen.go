@@ -6052,6 +6052,16 @@ func (msgs Messages) RemoveColumnNamed(name string) string {
 	return Catalog.Format(msgs.locale, "removeColumnNamed", map[string]any{"name": name})
 }
 
+// ReopenClosedRequest says "Reopen closed request"
+// in the language the app shows.
+func ReopenClosedRequest() string { return In(i18n.Locale()).ReopenClosedRequest() }
+
+// ReopenClosedRequest says "Reopen closed request"
+// in the language of msgs.
+func (msgs Messages) ReopenClosedRequest() string {
+	return Catalog.Format(msgs.locale, "reopenClosedRequest", nil)
+}
+
 // ReplaceBodyJSONCells says "Replace request and response JSON cells."
 // in the language the app shows.
 func ReplaceBodyJSONCells() string { return In(i18n.Locale()).ReplaceBodyJSONCells() }
@@ -12368,6 +12378,16 @@ func (msgs Messages) CloseKeepsRunningQuitCancels() string {
 	return Catalog.Format(msgs.locale, "closeKeepsRunningQuitCancels", nil)
 }
 
+// CloseOtherRequests says "Close other requests"
+// in the language the app shows.
+func CloseOtherRequests() string { return In(i18n.Locale()).CloseOtherRequests() }
+
+// CloseOtherRequests says "Close other requests"
+// in the language of msgs.
+func (msgs Messages) CloseOtherRequests() string {
+	return Catalog.Format(msgs.locale, "closeOtherRequests", nil)
+}
+
 // CloseRequest says "Close request"
 // in the language the app shows.
 func CloseRequest() string { return In(i18n.Locale()).CloseRequest() }
@@ -12376,6 +12396,16 @@ func CloseRequest() string { return In(i18n.Locale()).CloseRequest() }
 // in the language of msgs.
 func (msgs Messages) CloseRequest() string {
 	return Catalog.Format(msgs.locale, "closeRequest", nil)
+}
+
+// CloseSavedRequests says "Close saved requests"
+// in the language the app shows.
+func CloseSavedRequests() string { return In(i18n.Locale()).CloseSavedRequests() }
+
+// CloseSavedRequests says "Close saved requests"
+// in the language of msgs.
+func (msgs Messages) CloseSavedRequests() string {
+	return Catalog.Format(msgs.locale, "closeSavedRequests", nil)
 }
 
 // CloseSearchEsc says "Close search · Esc"
@@ -22566,6 +22596,16 @@ func (msgs Messages) NextOpenRequest() string {
 	return Catalog.Format(msgs.locale, "nextOpenRequest", nil)
 }
 
+// NextRecentlyUsedRequest says "Next recently used request"
+// in the language the app shows.
+func NextRecentlyUsedRequest() string { return In(i18n.Locale()).NextRecentlyUsedRequest() }
+
+// NextRecentlyUsedRequest says "Next recently used request"
+// in the language of msgs.
+func (msgs Messages) NextRecentlyUsedRequest() string {
+	return Catalog.Format(msgs.locale, "nextRecentlyUsedRequest", nil)
+}
+
 // NextStep says "Next: {step}"
 // in the language the app shows.
 func NextStep(step string) string { return In(i18n.Locale()).NextStep(step) }
@@ -24962,6 +25002,16 @@ func PreviousOpenRequest() string { return In(i18n.Locale()).PreviousOpenRequest
 // in the language of msgs.
 func (msgs Messages) PreviousOpenRequest() string {
 	return Catalog.Format(msgs.locale, "previousOpenRequest", nil)
+}
+
+// PreviousRecentlyUsedRequest says "Previous recently used request"
+// in the language the app shows.
+func PreviousRecentlyUsedRequest() string { return In(i18n.Locale()).PreviousRecentlyUsedRequest() }
+
+// PreviousRecentlyUsedRequest says "Previous recently used request"
+// in the language of msgs.
+func (msgs Messages) PreviousRecentlyUsedRequest() string {
+	return Catalog.Format(msgs.locale, "previousRecentlyUsedRequest", nil)
 }
 
 // PreviousResponseLeft says "Previous response (left)"

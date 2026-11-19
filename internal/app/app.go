@@ -615,9 +615,16 @@ type app struct {
 	// The active document is embedded so the editor's fields always belong
 	// to that tab. Workers return results to their originating document.
 	*requestDocument
-	documents       []*requestDocument
-	nextDocument    int
+	documents    []*requestDocument
+	nextDocument int
+	// recentlyClosed is the in-memory Reopen Closed Editor stack, keyed by
+	// document id and ordered from oldest to newest. documentRecency is the
+	// MRU order for Ctrl/Cmd+Tab; nil is the LIVE traffic view.
+	recentlyClosed  *linkedmap.LinkedMap[int, closedDocument]
+	documentRecency *linkedmap.LinkedMap[*requestDocument, struct{}]
 	closingDocument *requestDocument
+	closingQueue    []*requestDocument
+	closingReturnTo *requestDocument
 	requestResults  []requestResult
 	importReport    importReport
 	// urlPaste is a cURL command pasted into the URL field, applied on the
@@ -4714,9 +4721,7 @@ func (a *app) saveComposed() bool {
 func (a *app) openSaved(key string) {
 	for _, d := range a.documents {
 		if d.savedKey == key {
-			a.requestDocument = d
-			a.requestChoice = key
-			a.page = pageRequest
+			a.activateDocument(d)
 			return
 		}
 	}

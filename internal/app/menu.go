@@ -38,6 +38,9 @@ func (a *app) menu() *mygo.Menu {
 		mygo.Separator(),
 		command("request.save", locales.SaveRequest()),
 		command("request.close", locales.CloseRequest()),
+		command("request.close-others", locales.CloseOtherRequests()),
+		command("request.close-saved", locales.CloseSavedRequests()),
+		command("request.reopen-closed", locales.ReopenClosedRequest()),
 		mygo.Separator(),
 		{Role: mygo.RoleClose, Label: locales.CloseWindow(), Accelerator: "CmdOrCtrl+Shift+W"},
 	}}
@@ -86,6 +89,8 @@ func (a *app) menu() *mygo.Menu {
 		command("view.focus-inspector", locales.FocusInspectorBackToList()),
 		command("request.next-tab", locales.NextOpenRequest()),
 		command("request.previous-tab", locales.PreviousOpenRequest()),
+		command("request.switch-mru-next", locales.NextRecentlyUsedRequest()),
+		command("request.switch-mru-previous", locales.PreviousRecentlyUsedRequest()),
 		mygo.Separator(), {Role: mygo.RoleToggleFullScreen},
 	}}, &mygo.MenuItem{Role: mygo.RoleWindowMenu})
 	return mygo.NewMenu(items)

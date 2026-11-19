@@ -109,6 +109,9 @@ func (a *app) syncDocument() {
 		} else if n := len(a.documents); n > 0 {
 			a.requestDocument = a.documents[n-1]
 		}
+		if a.requestDocument != nil {
+			a.touchDocument(a.requestDocument)
+		}
 	}
 }
 

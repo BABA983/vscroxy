@@ -65,8 +65,7 @@ func (a *app) loadExperiments(path string) {
 		a.setDebugSource(draft.Source)
 	}
 	if len(a.documents) > 0 {
-		a.requestDocument = a.documents[min(max(log.Active, 0), len(a.documents)-1)]
-		a.requestChoice = a.savedKey
+		a.activateDocument(a.documents[min(max(log.Active, 0), len(a.documents)-1)])
 	}
 }
 
