@@ -1873,7 +1873,28 @@
       }
     }
   },
+  "jsonBreadcrumbBar": "JSON path",
+  "jsonBreadcrumbCopyPath": "Copy path",
+  "@jsonBreadcrumbMore": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@jsonBreadcrumbSiblingFor": {
+    "placeholders": {
+      "segment": {
+        "type": "String"
+      }
+    }
+  },
+  "jsonBreadcrumbMore": "{count} more",
+  "jsonBreadcrumbNoPath": "Put the caret in a JSON body first",
+  "jsonBreadcrumbNoSiblings": "No siblings at this level",
+  "jsonBreadcrumbSiblingFor": "Sibling keys and indices: {segment}",
   "jsonLineRecord": "Line {line}",
+  "jsonPathCopied": "JSON path copied",
   "jsonPathSegments": "JSON path segments: {path}",
   "@jsonParsingStopped": {
     "placeholders": {

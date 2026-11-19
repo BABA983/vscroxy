@@ -3862,6 +3862,68 @@ func (msgs Messages) JdkCacertsAreUnavailable() string {
 	return Catalog.Format(msgs.locale, "jdkCacertsAreUnavailable", nil)
 }
 
+// JsonBreadcrumbBar says "JSON path"
+// in the language the app shows.
+func JsonBreadcrumbBar() string { return In(i18n.Locale()).JsonBreadcrumbBar() }
+
+// JsonBreadcrumbBar says "JSON path"
+// in the language of msgs.
+func (msgs Messages) JsonBreadcrumbBar() string {
+	return Catalog.Format(msgs.locale, "jsonBreadcrumbBar", nil)
+}
+
+// JsonBreadcrumbCopyPath says "Copy path"
+// in the language the app shows.
+func JsonBreadcrumbCopyPath() string { return In(i18n.Locale()).JsonBreadcrumbCopyPath() }
+
+// JsonBreadcrumbCopyPath says "Copy path"
+// in the language of msgs.
+func (msgs Messages) JsonBreadcrumbCopyPath() string {
+	return Catalog.Format(msgs.locale, "jsonBreadcrumbCopyPath", nil)
+}
+
+// JsonBreadcrumbMore says "{count} more"
+// in the language the app shows.
+func JsonBreadcrumbMore(count int) string { return In(i18n.Locale()).JsonBreadcrumbMore(count) }
+
+// JsonBreadcrumbMore says "{count} more"
+// in the language of msgs.
+func (msgs Messages) JsonBreadcrumbMore(count int) string {
+	return Catalog.Format(msgs.locale, "jsonBreadcrumbMore", map[string]any{"count": count})
+}
+
+// JsonBreadcrumbNoPath says "Put the caret in a JSON body first"
+// in the language the app shows.
+func JsonBreadcrumbNoPath() string { return In(i18n.Locale()).JsonBreadcrumbNoPath() }
+
+// JsonBreadcrumbNoPath says "Put the caret in a JSON body first"
+// in the language of msgs.
+func (msgs Messages) JsonBreadcrumbNoPath() string {
+	return Catalog.Format(msgs.locale, "jsonBreadcrumbNoPath", nil)
+}
+
+// JsonBreadcrumbNoSiblings says "No siblings at this level"
+// in the language the app shows.
+func JsonBreadcrumbNoSiblings() string { return In(i18n.Locale()).JsonBreadcrumbNoSiblings() }
+
+// JsonBreadcrumbNoSiblings says "No siblings at this level"
+// in the language of msgs.
+func (msgs Messages) JsonBreadcrumbNoSiblings() string {
+	return Catalog.Format(msgs.locale, "jsonBreadcrumbNoSiblings", nil)
+}
+
+// JsonBreadcrumbSiblingFor says "Sibling keys and indices: {segment}"
+// in the language the app shows.
+func JsonBreadcrumbSiblingFor(segment string) string {
+	return In(i18n.Locale()).JsonBreadcrumbSiblingFor(segment)
+}
+
+// JsonBreadcrumbSiblingFor says "Sibling keys and indices: {segment}"
+// in the language of msgs.
+func (msgs Messages) JsonBreadcrumbSiblingFor(segment string) string {
+	return Catalog.Format(msgs.locale, "jsonBreadcrumbSiblingFor", map[string]any{"segment": segment})
+}
+
 // JsonLineRecord says "Line {line}"
 // in the language the app shows.
 func JsonLineRecord(line int) string { return In(i18n.Locale()).JsonLineRecord(line) }
@@ -3870,6 +3932,16 @@ func JsonLineRecord(line int) string { return In(i18n.Locale()).JsonLineRecord(l
 // in the language of msgs.
 func (msgs Messages) JsonLineRecord(line int) string {
 	return Catalog.Format(msgs.locale, "jsonLineRecord", map[string]any{"line": line})
+}
+
+// JsonPathCopied says "JSON path copied"
+// in the language the app shows.
+func JsonPathCopied() string { return In(i18n.Locale()).JsonPathCopied() }
+
+// JsonPathCopied says "JSON path copied"
+// in the language of msgs.
+func (msgs Messages) JsonPathCopied() string {
+	return Catalog.Format(msgs.locale, "jsonPathCopied", nil)
 }
 
 // JsonPathSegments says "JSON path segments: {path}"

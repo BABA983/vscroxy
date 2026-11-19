@@ -69,6 +69,9 @@ type requestDocument struct {
 	mcpUI          *mcpDocument
 	composeHeaders string
 	composeBody    string
+	// jsonCrumbs holds the authored body's breadcrumb path, recalculated
+	// only when its caret or editor version changes.
+	jsonCrumbs jsonBreadcrumbs
 	// problemBodyGen changes when code replaces composeBody outside the body
 	// editor, so the Problems panel can skip an unchanged scan of a large body.
 	problemBodyGen uint64

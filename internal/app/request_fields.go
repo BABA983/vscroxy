@@ -908,7 +908,7 @@ func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
 		if a.bodyPrettyFor[1] != body {
 			a.bodyPrettyFor[1], a.bodyText[1] = body, nil
 		}
-		a.prettyBody(c, body, 1, a.jsonReaderFor(c, 1, "draft", body, ct))
+		a.prettyBody(c, "draft", body, 1, a.jsonReaderFor(c, 1, "draft", body, ct))
 	}
 }
 
@@ -954,6 +954,7 @@ func (a *app) requestBodyText(c *ui.Context, d *requestDocument) {
 		d.bodyEditor = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: locales.RequestBody()}
 		d.bodyFor = d.composeBody
 	}
+	a.jsonPathBar(c, &d.jsonCrumbs, "draft", d.bodyEditor, func() { d.unicodeHandle("body").Focus(c) }, jsonCrumbSource{})
 	requestCodeEditor(c, d.bodyEditor, d.unicodeHandle("body"))
 	a.wireVariableEditor(d.bodyEditor, d.composeCollection)
 	a.setVariableDiagnostics(d.bodyEditor, d.composeBody, d.composeCollection)
