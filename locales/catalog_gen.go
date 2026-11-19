@@ -36427,3 +36427,255 @@ func UnexpectedBackgroundError() string { return In(i18n.Locale()).UnexpectedBac
 func (msgs Messages) UnexpectedBackgroundError() string {
 	return Catalog.Format(msgs.locale, "unexpectedBackgroundError", nil)
 }
+
+// CompareWithDisk says "Compare with disk"
+// in the language the app shows.
+func CompareWithDisk() string { return In(i18n.Locale()).CompareWithDisk() }
+
+// CompareWithDisk says "Compare with disk"
+// in the language of msgs.
+func (msgs Messages) CompareWithDisk() string {
+	return Catalog.Format(msgs.locale, "compareWithDisk", nil)
+}
+
+// OverwriteWithDraft says "Overwrite with draft"
+// in the language the app shows.
+func OverwriteWithDraft() string { return In(i18n.Locale()).OverwriteWithDraft() }
+
+// OverwriteWithDraft says "Overwrite with draft"
+// in the language of msgs.
+func (msgs Messages) OverwriteWithDraft() string {
+	return Catalog.Format(msgs.locale, "overwriteWithDraft", nil)
+}
+
+// SaveConflictTitle says "Collections changed on disk"
+// in the language the app shows.
+func SaveConflictTitle() string { return In(i18n.Locale()).SaveConflictTitle() }
+
+// SaveConflictTitle says "Collections changed on disk"
+// in the language of msgs.
+func (msgs Messages) SaveConflictTitle() string {
+	return Catalog.Format(msgs.locale, "saveConflictTitle", nil)
+}
+
+// SaveConflictDetail says "{files} changed outside vscroxy; your draft is kept. Compare the versions or overwrite the file."
+// in the language the app shows.
+func SaveConflictDetail(files string) string { return In(i18n.Locale()).SaveConflictDetail(files) }
+
+// SaveConflictDetail says "{files} changed outside vscroxy; your draft is kept. Compare the versions or overwrite the file."
+// in the language of msgs.
+func (msgs Messages) SaveConflictDetail(files string) string {
+	return Catalog.Format(msgs.locale, "saveConflictDetail", map[string]any{"files": files})
+}
+
+// SaveConflictFile says "Conflict file"
+// in the language the app shows.
+func SaveConflictFile() string { return In(i18n.Locale()).SaveConflictFile() }
+
+// SaveConflictFile says "Conflict file"
+// in the language of msgs.
+func (msgs Messages) SaveConflictFile() string {
+	return Catalog.Format(msgs.locale, "saveConflictFile", nil)
+}
+
+// DiskVersion says "On disk"
+// in the language the app shows.
+func DiskVersion() string { return In(i18n.Locale()).DiskVersion() }
+
+// DiskVersion says "On disk"
+// in the language of msgs.
+func (msgs Messages) DiskVersion() string {
+	return Catalog.Format(msgs.locale, "diskVersion", nil)
+}
+
+// YourDraft says "Your draft"
+// in the language the app shows.
+func YourDraft() string { return In(i18n.Locale()).YourDraft() }
+
+// YourDraft says "Your draft"
+// in the language of msgs.
+func (msgs Messages) YourDraft() string {
+	return Catalog.Format(msgs.locale, "yourDraft", nil)
+}
+
+// OverwriteConfirmDetail says "The version now on disk is copied to local history first, so you can restore it later."
+// in the language the app shows.
+func OverwriteConfirmDetail() string { return In(i18n.Locale()).OverwriteConfirmDetail() }
+
+// OverwriteConfirmDetail says "The version now on disk is copied to local history first, so you can restore it later."
+// in the language of msgs.
+func (msgs Messages) OverwriteConfirmDetail() string {
+	return Catalog.Format(msgs.locale, "overwriteConfirmDetail", nil)
+}
+
+// OverwriteFile says "Overwrite file"
+// in the language the app shows.
+func OverwriteFile() string { return In(i18n.Locale()).OverwriteFile() }
+
+// OverwriteFile says "Overwrite file"
+// in the language of msgs.
+func (msgs Messages) OverwriteFile() string {
+	return Catalog.Format(msgs.locale, "overwriteFile", nil)
+}
+
+// SaveConflictOverwritten says "Draft written over the changed file"
+// in the language the app shows.
+func SaveConflictOverwritten() string { return In(i18n.Locale()).SaveConflictOverwritten() }
+
+// SaveConflictOverwritten says "Draft written over the changed file"
+// in the language of msgs.
+func (msgs Messages) SaveConflictOverwritten() string {
+	return Catalog.Format(msgs.locale, "saveConflictOverwritten", nil)
+}
+
+// LocalHistory says "Local history"
+// in the language the app shows.
+func LocalHistory() string { return In(i18n.Locale()).LocalHistory() }
+
+// LocalHistory says "Local history"
+// in the language of msgs.
+func (msgs Messages) LocalHistory() string {
+	return Catalog.Format(msgs.locale, "localHistory", nil)
+}
+
+// LocalHistoryMissing says "Choose a saved request first"
+// in the language the app shows.
+func LocalHistoryMissing() string { return In(i18n.Locale()).LocalHistoryMissing() }
+
+// LocalHistoryMissing says "Choose a saved request first"
+// in the language of msgs.
+func (msgs Messages) LocalHistoryMissing() string {
+	return Catalog.Format(msgs.locale, "localHistoryMissing", nil)
+}
+
+// LocalHistoryFor says "Local history · {name}"
+// in the language the app shows.
+func LocalHistoryFor(name string) string { return In(i18n.Locale()).LocalHistoryFor(name) }
+
+// LocalHistoryFor says "Local history · {name}"
+// in the language of msgs.
+func (msgs Messages) LocalHistoryFor(name string) string {
+	return Catalog.Format(msgs.locale, "localHistoryFor", map[string]any{"name": name})
+}
+
+// LocalHistoryEllipsis says "History…"
+// in the language the app shows.
+func LocalHistoryEllipsis() string { return In(i18n.Locale()).LocalHistoryEllipsis() }
+
+// LocalHistoryEllipsis says "History…"
+// in the language of msgs.
+func (msgs Messages) LocalHistoryEllipsis() string {
+	return Catalog.Format(msgs.locale, "localHistoryEllipsis", nil)
+}
+
+// LocalHistoryHint says "Versions are kept for each file, newest first."
+// in the language the app shows.
+func LocalHistoryHint() string { return In(i18n.Locale()).LocalHistoryHint() }
+
+// LocalHistoryHint says "Versions are kept for each file, newest first."
+// in the language of msgs.
+func (msgs Messages) LocalHistoryHint() string {
+	return Catalog.Format(msgs.locale, "localHistoryHint", nil)
+}
+
+// SavedAt says "Saved {time}"
+// in the language the app shows.
+func SavedAt(time_ string) string { return In(i18n.Locale()).SavedAt(time_) }
+
+// SavedAt says "Saved {time}"
+// in the language of msgs.
+func (msgs Messages) SavedAt(time_ string) string {
+	return Catalog.Format(msgs.locale, "savedAt", map[string]any{"time": time_})
+}
+
+// SavedVersions says "Saved versions"
+// in the language the app shows.
+func SavedVersions() string { return In(i18n.Locale()).SavedVersions() }
+
+// SavedVersions says "Saved versions"
+// in the language of msgs.
+func (msgs Messages) SavedVersions() string {
+	return Catalog.Format(msgs.locale, "savedVersions", nil)
+}
+
+// SelectedVersion says "Selected version"
+// in the language the app shows.
+func SelectedVersion() string { return In(i18n.Locale()).SelectedVersion() }
+
+// SelectedVersion says "Selected version"
+// in the language of msgs.
+func (msgs Messages) SelectedVersion() string {
+	return Catalog.Format(msgs.locale, "selectedVersion", nil)
+}
+
+// CurrentVersion says "Current file"
+// in the language the app shows.
+func CurrentVersion() string { return In(i18n.Locale()).CurrentVersion() }
+
+// CurrentVersion says "Current file"
+// in the language of msgs.
+func (msgs Messages) CurrentVersion() string {
+	return Catalog.Format(msgs.locale, "currentVersion", nil)
+}
+
+// NoSavedVersions says "No saved versions yet"
+// in the language the app shows.
+func NoSavedVersions() string { return In(i18n.Locale()).NoSavedVersions() }
+
+// NoSavedVersions says "No saved versions yet"
+// in the language of msgs.
+func (msgs Messages) NoSavedVersions() string {
+	return Catalog.Format(msgs.locale, "noSavedVersions", nil)
+}
+
+// RestoreVersionEllipsis says "Restore…"
+// in the language the app shows.
+func RestoreVersionEllipsis() string { return In(i18n.Locale()).RestoreVersionEllipsis() }
+
+// RestoreVersionEllipsis says "Restore…"
+// in the language of msgs.
+func (msgs Messages) RestoreVersionEllipsis() string {
+	return Catalog.Format(msgs.locale, "restoreVersionEllipsis", nil)
+}
+
+// RestoreVersion says "Restore version"
+// in the language the app shows.
+func RestoreVersion() string { return In(i18n.Locale()).RestoreVersion() }
+
+// RestoreVersion says "Restore version"
+// in the language of msgs.
+func (msgs Messages) RestoreVersion() string {
+	return Catalog.Format(msgs.locale, "restoreVersion", nil)
+}
+
+// RestoreVersionConfirm says "Restore the version saved {time}?"
+// in the language the app shows.
+func RestoreVersionConfirm(time_ string) string {
+	return In(i18n.Locale()).RestoreVersionConfirm(time_)
+}
+
+// RestoreVersionConfirm says "Restore the version saved {time}?"
+// in the language of msgs.
+func (msgs Messages) RestoreVersionConfirm(time_ string) string {
+	return Catalog.Format(msgs.locale, "restoreVersionConfirm", map[string]any{"time": time_})
+}
+
+// RestoreVersionDetail says "The current file is copied to local history first, so this can be undone."
+// in the language the app shows.
+func RestoreVersionDetail() string { return In(i18n.Locale()).RestoreVersionDetail() }
+
+// RestoreVersionDetail says "The current file is copied to local history first, so this can be undone."
+// in the language of msgs.
+func (msgs Messages) RestoreVersionDetail() string {
+	return Catalog.Format(msgs.locale, "restoreVersionDetail", nil)
+}
+
+// RestoredVersion says "Restored the version saved {time}"
+// in the language the app shows.
+func RestoredVersion(time_ string) string { return In(i18n.Locale()).RestoredVersion(time_) }
+
+// RestoredVersion says "Restored the version saved {time}"
+// in the language of msgs.
+func (msgs Messages) RestoredVersion(time_ string) string {
+	return Catalog.Format(msgs.locale, "restoredVersion", map[string]any{"time": time_})
+}

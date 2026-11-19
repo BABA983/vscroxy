@@ -142,7 +142,10 @@ func (a *app) collectionTree(c *ui.Context) {
 				if slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Scenario == path }) {
 					mock = locales.RebuildScenarioFromExamples(path)
 				}
-				actions := append([]action{do("collection.docs", locales.ViewDocumentation(), func() { a.openDocs(path) }).in("open")}, a.folderSettingsActions(path)...)
+				actions := append([]action{
+					do("collection.docs", locales.ViewDocumentation(), func() { a.openDocs(path) }).in("open"),
+					do("collection.history", locales.LocalHistoryEllipsis(), func() { a.openFolderHistory(path) }).in("open"),
+				}, a.folderSettingsActions(path)...)
 				serve := do("collection.mockserve", locales.StartMockServer(), func() { a.startCollectionMock(path) }).
 					when(a.examplesUnder(path), locales.SaveAResponseAsAn()).in("edit")
 				if running := a.mocks[path]; running != nil {
@@ -176,6 +179,7 @@ func (a *app) collectionTree(c *ui.Context) {
 			menu := func(m *ui.Menu) {
 				actionMenu(m, append(append([]action{
 					do("request.open", locales.Open(), func() { a.openSaved(r.key()) }).in("open"),
+					do("request.history", locales.LocalHistoryEllipsis(), func() { a.openRequestHistory(r.key()) }).in("open"),
 				}, a.folderSettingsActions(r.Collection)...),
 					do("request.delete", locales.DeleteRequest(), func() { a.confirmDeleteRequest(r.key(), r.Name) }).in("danger")))
 			}

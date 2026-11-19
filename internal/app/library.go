@@ -59,6 +59,34 @@ type folderFile struct {
 	Order []string `json:"order,omitempty"`
 }
 
+// libraryConflict is one file someone else changed while this app held a
+// draft. Both sides are kept so the draft can be compared with the disk
+// version, and an overwrite can still be refused later without losing it.
+type libraryConflict struct {
+	Name    string // slash-separated, relative to the library root
+	Disk    []byte
+	Draft   []byte
+	Removed bool // the draft deletes this file
+}
+
+// libraryConflictError refuses a save that would replace an outside change.
+// It unwraps to store.ErrChanged so the same notice handles guarded files,
+// and carries the writes that can resolve it once the reader chooses.
+type libraryConflictError struct {
+	Files   []libraryConflict
+	resolve func(edits map[string][]byte) error
+}
+
+func (e *libraryConflictError) Error() string {
+	names := make([]string, len(e.Files))
+	for i, file := range e.Files {
+		names[i] = file.Name
+	}
+	return "collection files changed outside vscroxy; your draft is kept: " + strings.Join(names, ", ")
+}
+
+func (e *libraryConflictError) Unwrap() error { return store.ErrChanged }
+
 // cleanPath normalizes a collection path: segments trimmed, empty ones
 // dropped. "" is outside any collection.
 func cleanPath(p string) string {
@@ -239,6 +267,36 @@ func (a *app) writeLibrary(requests []savedRequest, folders []request.Folder) er
 			return err
 		}
 		if err := l.apply(files); err != nil {
+			if conflict := new(libraryConflictError); errors.As(err, &conflict) {
+				conflict.resolve = func(edits map[string][]byte) error {
+					// The notice can be answered after other saves succeeded.
+					// Write the library as it is now; only the refused files
+					// take their bytes from the compare view.
+					current, err := libraryFiles(a.requests, a.folders)
+					if err != nil {
+						return err
+					}
+					if l.known == nil {
+						l.known = map[string][]byte{}
+					}
+					for _, file := range conflict.Files {
+						// The outside versions become the new baseline: the
+						// next guarded save compares against what was on disk.
+						l.known[file.Name] = bytes.Clone(file.Disk)
+						if file.Removed && len(edits[file.Name]) == 0 {
+							delete(current, file.Name)
+						} else {
+							current[file.Name] = bytes.Clone(edits[file.Name])
+						}
+					}
+					if err := l.apply(current); err != nil {
+						return err
+					}
+					a.loadRequestLibrary()
+					a.refreshDocuments()
+					return nil
+				}
+			}
 			return err
 		}
 	}
@@ -265,6 +323,7 @@ func (l *libraryState) apply(files map[string][]byte) error {
 	}
 	slices.Sort(writes)
 	slices.Sort(deletes)
+	var conflicts []libraryConflict
 	for _, name := range append(slices.Clone(writes), deletes...) {
 		disk, err := os.ReadFile(filepath.Join(l.root, filepath.FromSlash(name)))
 		switch {
@@ -272,8 +331,11 @@ func (l *libraryState) apply(files map[string][]byte) error {
 		case err != nil:
 			return err
 		case !bytes.Equal(disk, l.known[name]):
-			return fmt.Errorf("%s was changed outside vscroxy; choose “Reload collections from disk” before saving", filepath.Join(l.root, filepath.FromSlash(name)))
+			conflicts = append(conflicts, libraryConflict{Name: name, Disk: bytes.Clone(disk), Draft: bytes.Clone(files[name]), Removed: files[name] == nil})
 		}
+	}
+	if len(conflicts) > 0 {
+		return &libraryConflictError{Files: conflicts}
 	}
 	for _, name := range writes {
 		target := filepath.Join(l.root, filepath.FromSlash(name))

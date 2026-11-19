@@ -341,13 +341,62 @@ func Backup(dir, path string) error {
 	if err != nil {
 		return err
 	}
-	sum := sha256.Sum256([]byte(path))
-	prefix := hex.EncodeToString(sum[:4]) + "-"
-	name := prefix + filepath.Base(path) + "." + time.Now().UTC().Format("20060102T150405.000000000")
+	prefix := backupPrefix(path)
+	name := prefix + filepath.Base(path) + "." + time.Now().UTC().Format(backupTimeLayout)
 	if err := WriteFile(filepath.Join(dir, name), data); err != nil {
 		return err
 	}
 	return pruneBackups(dir, prefix)
+}
+
+const backupTimeLayout = "20060102T150405.000000000"
+
+func backupPrefix(path string) string {
+	sum := sha256.Sum256([]byte(path))
+	return hex.EncodeToString(sum[:4]) + "-"
+}
+
+// BackupEntry is one copy of one path, newest first in the result of
+// ListBackups. Path points at the private copy; At is when it was made.
+type BackupEntry struct {
+	Path string
+	At   time.Time
+}
+
+// ListBackups finds the copies Backup made of path, newest first. Copies of
+// other paths in the same directory, and names that are not timestamps, are
+// ignored: a shared backup directory holds files from the whole library.
+func ListBackups(dir, path string) ([]BackupEntry, error) {
+	if dir == "" || path == "" {
+		return nil, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	prefix := backupPrefix(path) + filepath.Base(path) + "."
+	var found []BackupEntry
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		at, err := time.Parse(backupTimeLayout, strings.TrimPrefix(name, prefix))
+		if err != nil {
+			continue
+		}
+		found = append(found, BackupEntry{Path: filepath.Join(dir, name), At: at})
+	}
+	slices.SortFunc(found, func(x, y BackupEntry) int {
+		if c := y.At.Compare(x.At); c != 0 {
+			return c
+		}
+		return strings.Compare(y.Path, x.Path)
+	})
+	return found, nil
 }
 
 func pruneBackups(dir, prefix string) error {
