@@ -10,11 +10,12 @@ import (
 // The self-opening dialogs that share the queue. Every other modal keeps its
 // own place in view(), including the link confirmation that follows a click.
 const (
-	dialogBreakpoint   = "breakpoint"
-	dialogDeviceAsk    = "device-ask"
-	dialogMCPConsent   = "mcp-consent"
-	dialogSaveConflict = "save-conflict"
-	dialogImportReport = "import-report"
+	dialogBreakpoint     = "breakpoint"
+	dialogDeviceAsk      = "device-ask"
+	dialogMCPConsent     = "mcp-consent"
+	dialogSaveConflict   = "save-conflict"
+	dialogImportReport   = "import-report"
+	dialogWorkspaceTrust = "workspace-trust"
 )
 
 // autoDialog points at an existing modal's flag, so the queue never copies
@@ -95,6 +96,12 @@ func (a *app) autoDialogs(c *ui.Context) {
 		a.deviceAskOpen = true
 		a.dialogs.arrive(dialogDeviceAsk)
 	}
+	// A worker starts the trust prompt; bring its arrival onto this frame
+	// before the queue reads the flags.
+	if a.hasTrustAsk() {
+		a.trustAskOpen = true
+		a.dialogs.arrive(dialogWorkspaceTrust)
+	}
 	var conflict *bool
 	if a.conflict != nil {
 		conflict = &a.conflict.open
@@ -105,5 +112,6 @@ func (a *app) autoDialogs(c *ui.Context) {
 		{id: dialogMCPConsent, open: &a.mcpConsent.open, draw: func(c *ui.Context) { a.mcpConsentModal(c, c.Theme()) }},
 		{id: dialogSaveConflict, open: conflict, draw: func(c *ui.Context) { a.saveConflictModal(c, c.Theme()) }},
 		{id: dialogImportReport, open: &a.importReport.open, draw: func(c *ui.Context) { a.importReportModal(c, c.Theme()) }},
+		{id: dialogWorkspaceTrust, open: &a.trustAskOpen, draw: func(c *ui.Context) { a.trustPromptModal(c, c.Theme()) }},
 	})
 }

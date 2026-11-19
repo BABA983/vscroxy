@@ -125,6 +125,7 @@ func (a *app) vaultKey(create bool) (key []byte, inFile bool, err error) {
 // send in flight is unaffected by later edits.
 func (a *app) sendContext(r request.Request) request.Context {
 	in := a.inheritance(r.Collection)
+	in.ProjectDir, in.ScriptPermission = a.projectDir, a.projectScriptPermission
 	in.Environment, in.ScriptVault, in.Tokens = a.activeEnv, a.vault.scripts, &a.tokens
 	in.Certificates = a.certificates.Clone()
 	in.EnvironmentInitial = maps.Clone(a.activeEnvironment().Vars)

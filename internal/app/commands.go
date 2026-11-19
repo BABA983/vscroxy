@@ -286,6 +286,8 @@ func registerGlobalCommands() *commandRegistry {
 		keys(ui.Cmd, ui.KeyK)
 	r.add("json.copy-path", locales.JsonBreadcrumbCopyPath(), func(x *commandContext) { x.copyJSONPath() }).
 		when(func(x *commandContext) bool { return x.copyJSONPath != nil }, locales.JsonBreadcrumbNoPath())
+	r.add("workbench.trust.manage", locales.ManageWorkspaceTrust(), func(x *commandContext) { x.a.openWorkspaceTrust() }).
+		in("workbench")
 	r.add("notifications.show", locales.ShowNotifications(), func(x *commandContext) { x.a.openNotifications() })
 	r.add("notifications.clear", locales.ClearNotifications(), func(x *commandContext) { x.a.clearNotifications() })
 	r.add("history.clear-input", locales.ClearInputHistory(), func(x *commandContext) {

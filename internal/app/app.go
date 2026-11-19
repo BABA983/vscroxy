@@ -513,6 +513,21 @@ type app struct {
 	// trustedLinkHosts are local approvals to open links from content
 	// without asking again. Keys name one scheme, host and port.
 	trustedLinkHosts []string
+	// project trust is a local decision per project folder. A worker can be
+	// waiting for an answer while frames keep drawing, so the pending asks
+	// and the saved lists share one lock.
+	trustMu           sync.Mutex
+	trustedProjects   []string
+	untrustedProjects []string
+	trustPending      map[string]chan struct{}
+	trustAskDir       string
+	trustAskOpen      bool
+	trustManageOpen   bool
+	// trustChecks counts sends whose project scripts were allowed and
+	// trustPrompts the times a project had to be asked; tests use them as
+	// seams for which scripts ran and how often a person was interrupted.
+	trustChecks  atomic.Int64
+	trustPrompts atomic.Int64
 	// linkPrompt is the pending confirmation for one untrusted destination.
 	linkPrompt linkPrompt
 	// updateCheck asks GitHub for the latest release once per launch; the
@@ -876,6 +891,7 @@ func newApp() *app {
 			a.urlHistory.load(saved.URLHistory)
 			a.filterHistory.load(saved.FilterHistory)
 			a.trustedLinkHosts = slices.Clone(saved.TrustedLinkHosts)
+			a.trustedProjects, a.untrustedProjects = normalizeTrustPaths(saved.TrustedProjects), normalizeTrustPaths(saved.UntrustedProjects)
 			a.attention.setMode(saved.AttentionSignals)
 			a.updateCheck = !saved.DisableUpdateCheck
 			a.language = saved.Language
@@ -2137,6 +2153,7 @@ func (a *app) view(c *ui.Context) {
 		})
 	})
 	a.settingsModal(c, t)
+	a.workspaceTrustModal(c, t)
 	a.sslModal(c, t)
 	a.toolsModal(c, t)
 	a.configImportDialog(c, t)

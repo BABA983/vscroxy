@@ -96,6 +96,11 @@ type settings struct {
 	// person approved from a link confirmation. Also local: a shared
 	// configuration never carries another computer's approvals.
 	TrustedLinkHosts []string `json:"trustedLinkHosts,omitempty"`
+	// TrustedProjects and UntrustedProjects are the cleaned absolute paths of
+	// project folders whose scripts may or may not run. Also local: a shared
+	// configuration never carries another computer's decisions.
+	TrustedProjects   []string `json:"trustedProjects,omitempty"`
+	UntrustedProjects []string `json:"untrustedProjects,omitempty"`
 	// AttentionSignals is "auto", "on" or "off"; empty is auto. Auto asks
 	// for attention only when the window is not in front.
 	AttentionSignals string `json:"attentionSignals,omitempty"`
@@ -253,6 +258,8 @@ func sameSettings(x, y settings) bool {
 		x.LocalControl == y.LocalControl &&
 		x.DisableUpdateCheck == y.DisableUpdateCheck &&
 		slices.Equal(x.TrustedLinkHosts, y.TrustedLinkHosts) &&
+		slices.Equal(x.TrustedProjects, y.TrustedProjects) &&
+		slices.Equal(x.UntrustedProjects, y.UntrustedProjects) &&
 		x.AttentionSignals == y.AttentionSignals &&
 		x.AllowList == y.AllowList &&
 		x.FlowLimit == y.FlowLimit && x.MemoryLimit == y.MemoryLimit && x.DiskLimit == y.DiskLimit &&

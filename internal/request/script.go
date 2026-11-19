@@ -286,7 +286,10 @@ type scriptRun struct {
 	console                      []ConsoleMessage
 	info                         scriptInfo
 	skipped                      bool
-	next                         *string
+	// scriptsDenied comes from the project's trust decision. Every phase of
+	// this send skips its code, while Checks and the request still run.
+	scriptsDenied bool
+	next          *string
 	// readOnly are the scopes a script may read but not write; env is
 	// process.env, which only rule scripts have.
 	readOnly map[string]bool
