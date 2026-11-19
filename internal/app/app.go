@@ -266,18 +266,18 @@ type app struct {
 
 	// detailFor is the flow the detail panes were built from, so the text and
 	// the diff buffers are rebuilt only when the choice changes.
-	detailFor          int
-	body               string
-	reqBody            string
-	diff               *editor.DiffState
-	diffSplit          float32
-	diffBaseline       bool
+	detailFor    int
+	body         string
+	reqBody      string
+	diff         *editor.DiffState
+	diffSplit    float32
+	diffBaseline bool
 	// testDiff holds the failed assertion's two sides while its read-only
 	// comparison is open, independent of a captured response's diff.
-	testDiff       *editor.DiffState
-	testDiffOpen   bool
-	testDiffName   string
-	testDiffSplit  float32
+	testDiff           *editor.DiffState
+	testDiffOpen       bool
+	testDiffName       string
+	testDiffSplit      float32
 	analysis           captureAnalysis
 	replayUI           replaySetup
 	bulkSaveUI         collectionSave // saves the chosen rows into a collection
@@ -1394,13 +1394,6 @@ func (a *app) drain() {
 		d.sendOutcome = result.outcome
 		d.composeResult = result.summary
 		d.composeTests = result.tests
-		if len(d.rerunFailedNames) > 0 {
-			retry := d.rerunFailedNames
-			d.composeTests = slices.DeleteFunc(slices.Clone(result.tests), func(test request.TestResult) bool {
-				return !slices.Contains(retry, test.Name)
-			})
-			d.rerunFailedNames = nil
-		}
 		d.composeReplies = result.replies
 		d.composeExchanges = result.exchanges
 		d.console = result.console
@@ -4307,11 +4300,7 @@ func (a *app) sendBudget(r savedRequest) time.Duration {
 // lands in the table with the rest of the traffic. Variables fill it in, the
 // pre-request script may change it, and the post-response script sees what came
 // back and asserts on it.
-func (a *app) sendComposed() { a.sendComposedForTests(nil) }
-
-// sendComposedForTests keeps only the named assertions from the next result;
-// a normal send passes no names and keeps them all.
-func (a *app) sendComposedForTests(names []string) {
+func (a *app) sendComposed() {
 	d := a.requestDocument
 	if d == nil || d.composeWaiting {
 		return
@@ -4337,7 +4326,6 @@ func (a *app) sendComposedForTests(names []string) {
 		return
 	}
 	d.composeTests = nil
-	d.rerunFailedNames = names
 	d.composeReplies = nil
 	d.composeExchanges = nil
 	d.console = nil

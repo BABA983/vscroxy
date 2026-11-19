@@ -146,9 +146,6 @@ type requestDocument struct {
 	postEditor       *editor.State
 	postFor          string
 	composeTests     []request.TestResult
-	// rerunFailedNames are the assertions to keep from the next send when
-	// the Checks panel asks for a rerun of failures only.
-	rerunFailedNames []string
 	composeReplies   []string
 	composeExchanges []request.WebSocketExchange
 	console          []request.ConsoleMessage
@@ -1680,24 +1677,17 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	}
 }
 
-// rerunFailedChecks sends the request again, keeping only the assertions
-// that failed on the last send. A script still runs in full: the filtering
-// is what lets the reader retry failures without keeping the others.
+// rerunFailedChecks sends the request again after a failed assertion. Every
+// assertion of that send is shown: one that passed before can fail now, and
+// a results panel must never hide it.
 func (a *app) rerunFailedChecks() {
 	d := a.requestDocument
 	if d == nil || d.composeWaiting {
 		return
 	}
-	var names []string
-	for _, test := range d.composeTests {
-		if !test.Pass && !test.Skipped {
-			names = append(names, test.Name)
-		}
+	if slices.ContainsFunc(d.composeTests, func(test request.TestResult) bool { return !test.Pass && !test.Skipped }) {
+		a.sendComposed()
 	}
-	if len(names) == 0 {
-		return
-	}
-	a.sendComposedForTests(names)
 }
 
 // testResultRow is one assertion: its mark and name, and why a failed one

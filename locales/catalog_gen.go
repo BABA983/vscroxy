@@ -20024,21 +20024,21 @@ func (msgs Messages) RerunFailed() string {
 	return Catalog.Format(msgs.locale, "rerunFailed", nil)
 }
 
-// RerunFailedChecksTip says "Send this request again and show only the assertions that failed."
+// RerunFailedChecksTip says "Send this request again. Every assertion of the new result is shown, including new failures."
 // in the language the app shows.
 func RerunFailedChecksTip() string { return In(i18n.Locale()).RerunFailedChecksTip() }
 
-// RerunFailedChecksTip says "Send this request again and show only the assertions that failed."
+// RerunFailedChecksTip says "Send this request again. Every assertion of the new result is shown, including new failures."
 // in the language of msgs.
 func (msgs Messages) RerunFailedChecksTip() string {
 	return Catalog.Format(msgs.locale, "rerunFailedChecksTip", nil)
 }
 
-// RerunFailedRunnerTip says "Run only the requests that failed in the shown run."
+// RerunFailedRunnerTip says "Rerun only the failed attempts, each with its own data row and starting variables. Requests run in isolation, without…"
 // in the language the app shows.
 func RerunFailedRunnerTip() string { return In(i18n.Locale()).RerunFailedRunnerTip() }
 
-// RerunFailedRunnerTip says "Run only the requests that failed in the shown run."
+// RerunFailedRunnerTip says "Rerun only the failed attempts, each with its own data row and starting variables. Requests run in isolation, without…"
 // in the language of msgs.
 func (msgs Messages) RerunFailedRunnerTip() string {
 	return Catalog.Format(msgs.locale, "rerunFailedRunnerTip", nil)
