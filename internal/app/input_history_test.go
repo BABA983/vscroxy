@@ -90,10 +90,18 @@ func TestRedactHistoryURLKeepsOnlySafeAuthoredText(t *testing.T) {
 		{"https://api.test/x y?token=abc&page=2", "https://api.test/x y?token=&page=2"},
 		{"https://api.example.com/p?q={{token}}&page=2", "https://api.example.com/p?q={{token}}&page=2"},
 		{"https://api.example.com/p?TOKEN=abc&code=xyz&page=2", "https://api.example.com/p?TOKEN=&code=&page=2"},
-		{"https://api.example.com/p?token=abc#frag?token=abc", "https://api.example.com/p?token=#frag?token=abc"},
+		{"https://api.example.com/p?token=abc#frag?token=abc", "https://api.example.com/p?token=#frag?token="},
 		{"https://user:secret@api.test/p", "https://user:@api.test/p"},
 		{"https://user:{{password}}@api.test/p", "https://user:{{password}}@api.test/p"},
+		{"https://u:abc{{p}}@h/p", "https://u:@h/p"},
 		{"api.test/p?to%ZZken=abc", "api.test/p?to%ZZken="},
+		{"https://h/cb#access_token=SECRET1&x=1", "https://h/cb#access_token=&x=1"},
+		{"https://h/p#/cb?access_token=SECRET1&x=1", "https://h/p#/cb?access_token=&x=1"},
+		{"https://h/cb#access_token=abc{{x}}&x=1", "https://h/cb#access_token=&x=1"},
+		{"https://h/cb#access_token={{x}}", "https://h/cb#access_token={{x}}"},
+		{"https://h/p#section", "https://h/p#section"},
+		{"https://h/?token=abc{{x}}", "https://h/?token="},
+		{"https://h/?token={{x}}", "https://h/?token={{x}}"},
 	} {
 		if got := redactHistoryURL(tc.in); got != tc.want {
 			t.Errorf("redactHistoryURL(%q) = %q, want %q", tc.in, got, tc.want)

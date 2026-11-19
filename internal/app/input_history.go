@@ -146,38 +146,78 @@ func (a *app) clearInputHistory() {
 // would disclose a credential. It works on the string, not a parsed URL: a
 // {{variable}} in the host or path is not a parseable URL, and re-encoding a
 // parsed one escapes the references a recalled entry must keep verbatim.
-// Query parameter names use the app's own secret-name rules; {{references}}
-// stay unresolved, since a send expands them only in the traffic it produces.
+// Parameter names in the query and in a name=value fragment use the app's
+// own secret-name rules; a value made only of {{references}} stays unresolved,
+// since a send expands it only in the traffic it produces.
 func redactHistoryURL(raw string) string {
 	base, fragment, hasFragment := strings.Cut(raw, "#")
 	before, query, hasQuery := strings.Cut(base, "?")
 	before = redactHistoryUserInfo(before)
 	if hasQuery {
-		parts := strings.Split(query, "&")
-		for i, part := range parts {
-			name, value, hasValue := strings.Cut(part, "=")
-			decoded, err := url.QueryUnescape(name)
-			// An undecodable name may hide a credential; drop its value
-			// rather than trusting a guessed name.
-			if err == nil && !request.IsSensitiveQuery(decoded) || strings.Contains(value, "{{") {
-				continue
-			}
-			if hasValue {
-				parts[i] = name + "="
-			} else {
-				parts[i] = name
-			}
-		}
-		before += "?" + strings.Join(parts, "&")
+		before += "?" + redactHistoryPairs(query)
 	}
 	if hasFragment {
-		before += "#" + fragment
+		before += "#" + redactHistoryFragment(fragment)
 	}
 	return before
 }
 
+// redactHistoryPairs drops the value of a credential-like name. An
+// undecodable name may hide a credential, so its value goes too.
+func redactHistoryPairs(pairs string) string {
+	parts := strings.Split(pairs, "&")
+	for i, part := range parts {
+		name, value, hasValue := strings.Cut(part, "=")
+		decoded, err := url.QueryUnescape(name)
+		sensitive := err != nil || request.IsSensitiveQuery(decoded)
+		if !sensitive || onlyVariableReferences(value) {
+			continue
+		}
+		if hasValue {
+			parts[i] = name + "="
+		} else {
+			parts[i] = name
+		}
+	}
+	return strings.Join(parts, "&")
+}
+
+// onlyVariableReferences says a value is nothing but {{…}} references. A
+// literal mixed in, such as the "abc" in abc{{x}}, is still a secret to drop.
+func onlyVariableReferences(value string) bool {
+	for value != "" {
+		start := strings.Index(value, "{{")
+		if start != 0 {
+			return false
+		}
+		end := strings.Index(value[2:], "}}")
+		if end < 0 {
+			return false
+		}
+		value = value[2+end+2:]
+	}
+	return true
+}
+
+// redactHistoryFragment treats an OAuth callback's fragment like a query. A
+// fragment that is not name=value pairs, such as a section or route, stays.
+func redactHistoryFragment(fragment string) string {
+	prefix := ""
+	pairs := fragment
+	if before, query, ok := strings.CutLast(fragment, "?"); ok {
+		prefix, pairs = before+"?", query
+	}
+	for part := range strings.SplitSeq(pairs, "&") {
+		name, _, pair := strings.Cut(part, "=")
+		if pair && strings.TrimSpace(name) != "" {
+			return prefix + redactHistoryPairs(pairs)
+		}
+	}
+	return fragment
+}
+
 // redactHistoryUserInfo blanks a literal password in scheme://user:pass@host.
-// A {{reference}} is not a stored secret and stays as written.
+// A value made only of {{references}} is not a stored secret and stays.
 func redactHistoryUserInfo(url string) string {
 	scheme, rest, ok := strings.Cut(url, "://")
 	if !ok {
@@ -189,7 +229,7 @@ func redactHistoryUserInfo(url string) string {
 		return url
 	}
 	user, password, hasPassword := strings.Cut(userinfo, ":")
-	if !hasPassword || strings.Contains(password, "{{") {
+	if !hasPassword || onlyVariableReferences(password) {
 		return url
 	}
 	redacted := scheme + "://" + user + ":@" + host
