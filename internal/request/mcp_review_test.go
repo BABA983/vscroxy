@@ -602,9 +602,10 @@ func TestMCPStdioCloseReturnsWhenProcessExits(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Grace timers may only fire after the helper confirms its own exit on
-	// the socket. Until then Close has no time-based way to finish, so load
-	// cannot make this assertion pass or fail by elapsed time.
+	// Shutdown grace timers can never fire during this test: their channels
+	// close only at cleanup. Close can therefore return only through the
+	// real stdout-EOF signal, with no elapsed-time assertion that load can
+	// break.
 	wait := mcpCloseGraceWait
 	graceStarted := make(chan struct{}, 2)
 	unblock := make(chan time.Time)
@@ -615,11 +616,9 @@ func TestMCPStdioCloseReturnsWhenProcessExits(t *testing.T) {
 		}
 		return unblock
 	}
-	var once sync.Once
-	allowGrace := func() { once.Do(func() { close(unblock) }) }
 	t.Cleanup(func() {
-		allowGrace()
 		mcpCloseGraceWait = wait
+		close(unblock)
 	})
 	closed := make(chan error, 1)
 	go func() { closed <- client.Close() }()
@@ -654,13 +653,9 @@ func TestMCPStdioCloseReturnsWhenProcessExits(t *testing.T) {
 		t.Fatalf("unexpected exit confirmation %d", reply[0])
 	}
 	_ = conn.Close()
-	allowGrace()
 	select {
 	case err := <-closed:
-		// The shutdown sequence signals the process tree after stdin EOF. A
-		// helper that is still tearing down can report that signal as its
-		// exit status; it still returned promptly after the confirmation.
-		if err != nil && !strings.Contains(err.Error(), "signal:") && !strings.Contains(err.Error(), "already finished") {
+		if err != nil {
 			t.Fatalf("close: %v", err)
 		}
 	case <-ctx.Done():
