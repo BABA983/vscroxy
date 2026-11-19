@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
@@ -1036,16 +1035,12 @@ func (a *app) bodyFormatActions(side int) []action {
 	return items
 }
 
-// copyPaneBody copies exactly the bytes the pane shows, without formatting
-// or display warnings.
+// copyPaneBody copies the captured bytes, not the decoded display form,
+// formatting, or display warnings.
 func (a *app) copyPaneBody(c *ui.Context, side int) {
 	body := a.body
 	if side == 1 {
 		body = a.reqBody
-	}
-	if !utf8.ValidString(body) || strings.ContainsRune(body, 0) {
-		a.warn(locales.BinaryBytesCannotBeCopied())
-		return
 	}
 	c.Services().WriteClipboard(body)
 	a.done(locales.CopiedShownBodyReviewCredentials())

@@ -16014,6 +16014,16 @@ func (msgs Messages) EncryptedTunnelConnectSuccessIs() string {
 	return Catalog.Format(msgs.locale, "encryptedTunnelConnectSuccessIs", nil)
 }
 
+// EncodingLabel says "Encoding: {encoding}"
+// in the language the app shows.
+func EncodingLabel(encoding string) string { return In(i18n.Locale()).EncodingLabel(encoding) }
+
+// EncodingLabel says "Encoding: {encoding}"
+// in the language of msgs.
+func (msgs Messages) EncodingLabel(encoding string) string {
+	return Catalog.Format(msgs.locale, "encodingLabel", map[string]any{"encoding": encoding})
+}
+
 // EndpointNamed says "Endpoint {name}"
 // in the language the app shows.
 func EndpointNamed(name string) string { return In(i18n.Locale()).EndpointNamed(name) }

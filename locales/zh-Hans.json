@@ -1415,6 +1415,7 @@
   "enableVariable": "启用变量 {index}",
   "encrypted": "已加密",
   "encryptedTunnelConnectSuccessIs": "加密隧道；CONNECT 成功不是解密后的响应",
+  "encodingLabel": "编码：{encoding}",
   "endpointNamed": "端点 {name}",
   "endpoints": "端点",
   "endpointsUnavailable": "端点不可用",
