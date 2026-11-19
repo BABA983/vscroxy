@@ -77,7 +77,7 @@ func (a *app) currentSettings() settings {
 	trusted, untrusted := a.trustLists()
 	return settings{
 		Appearance:           a.appearance,
-		LogLevel:             a.saved.LogLevel,
+		LogLevel:             a.logLevel,
 		Language:             a.language,
 		SidebarWidth:         a.sidebarWidth,
 		TablePercent:         a.tablePercent,

@@ -143,6 +143,9 @@ type app struct {
 	// settingsFocusSearch is a request token: zero leaves focus alone, each
 	// increment asks the search field for focus again.
 	settingsFocusSearch uint64
+	// logLevel is the live setting that currentSettings saves. It stays
+	// separate from saved.LogLevel until the write succeeds.
+	logLevel string
 	// logLevelPickerOpen is the palette's Set Log Level dialog; the level
 	// is a draft until Done, then it changes the open log and settings.json.
 	logLevelPickerOpen bool
@@ -892,6 +895,7 @@ func newApp() *app {
 			a.errText = err.Error()
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
+			a.logLevel = saved.LogLevel
 			a.urlHistory.load(saved.URLHistory)
 			a.filterHistory.load(saved.FilterHistory)
 			a.trustedLinkHosts = slices.Clone(saved.TrustedLinkHosts)
@@ -4927,6 +4931,7 @@ func (a *app) saveComposed() bool {
 			a.errText = err.Error()
 		} else {
 			a.saved = saved
+			a.logLevel = saved.LogLevel
 			a.appearance = saved.Appearance
 			if saved.SidebarWidth > 0 {
 				a.sidebarWidth = saved.SidebarWidth

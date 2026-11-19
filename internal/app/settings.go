@@ -180,11 +180,18 @@ func (a *app) saveProxyPort() {
 // setLogLevel changes the level of the already-open log and saves the choice.
 // applog keeps a --log-level override in force for this run when one was given.
 func (a *app) setLogLevel(name string) {
+	previousLog, previousSetting := applog.EffectiveLevel(), a.logLevel
 	if err := applog.SetLevel(name); err != nil {
+		a.fail(locales.Settings(), err)
 		return
 	}
-	a.saved.LogLevel = name
-	_ = a.persistSettings()
+	a.logLevel = name
+	a.bypassSettingsSave()
+	if err := a.persistSettings(); err != nil {
+		// persistSettings has already reported the failed write.
+		a.logLevel = previousSetting
+		_ = applog.SetLevel(previousLog)
+	}
 }
 
 // columnLayout is a table's columns as the user arranged them, saved with

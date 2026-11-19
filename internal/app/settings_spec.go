@@ -122,10 +122,10 @@ var settingsRegistry = []settingSpec{
 		title: locales.LogLevel, description: locales.LogLevelHint,
 		// An omitted level means Info in settings.json too.
 		value: settingValue{get: func(a *app) any {
-			if a.saved.LogLevel == "" {
+			if a.logLevel == "" {
 				return applog.LevelInfo
 			}
-			return a.saved.LogLevel
+			return a.logLevel
 		}, def: applog.LevelInfo,
 			set: func(a *app, v any) { a.setLogLevel(v.(string)) }},
 	},

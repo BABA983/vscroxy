@@ -51,6 +51,32 @@ func TestSetLogLevelAppliesAtOnceAndSavesTheChoice(t *testing.T) {
 	}
 }
 
+func TestSetLogLevelReportsErrorsAndKeepsTheEffectiveLevel(t *testing.T) {
+	restoreLogLevel(t)
+	before := applog.EffectiveLevel()
+	a := workspaceApp()
+	a.settingsPath = t.TempDir() // a directory cannot be replaced by settings.json
+
+	a.setLogLevel("loud")
+	if len(a.notices) == 0 || a.notices[len(a.notices)-1].level != noticeError {
+		t.Fatal("an unknown level was not reported")
+	}
+	if got := applog.EffectiveLevel(); got != before {
+		t.Fatalf("unknown level changed the log to %q", got)
+	}
+
+	a.setLogLevel(applog.LevelDebug)
+	if len(a.notices) != 2 || a.notices[len(a.notices)-1].level != noticeError {
+		t.Fatal("a failed settings write was not reported")
+	}
+	if got := applog.EffectiveLevel(); got != before {
+		t.Fatalf("failed write left the log at %q, want %q", got, before)
+	}
+	if a.saved.LogLevel != "" {
+		t.Fatalf("failed write kept unsaved level %q", a.saved.LogLevel)
+	}
+}
+
 func TestSetLogLevelCommandOffersThePicker(t *testing.T) {
 	restoreLogLevel(t)
 	a := workspaceApp()
