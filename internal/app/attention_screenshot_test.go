@@ -46,7 +46,7 @@ func TestAttentionSignalsScreenshots(t *testing.T) {
 			scale := 2
 			crop := image.Rect(
 				int(label.X-24)*scale, int(label.Y-42)*scale,
-				int(label.X+615)*scale, int(label.Y+74)*scale,
+				int(label.X+615)*scale, int(label.Y+95)*scale,
 			).Intersect(full.Bounds())
 			out := image.NewRGBA(image.Rect(0, 0, crop.Dx(), crop.Dy()))
 			draw.Draw(out, out.Bounds(), full, crop.Min, draw.Src)

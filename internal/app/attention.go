@@ -49,10 +49,9 @@ const (
 )
 
 // signalChannels is the fixed signals table: one entry per event, saying
-// which channels it uses. Announcement is always on while signals are on;
-// it is the one channel that does not depend on the window's focus. The
-// badge counts only things the user still has to handle, so a finished
-// run raises no pending item.
+// which channels it uses. Announcement is always on, independent of focus
+// and of the other signals' on/off setting. The badge counts only things
+// the user still has to handle, so a finished run raises no pending item.
 type signalChannels struct {
 	signal       AccessibilitySignal
 	flash        bool
@@ -169,8 +168,9 @@ func (a *app) setAttentionMode(mode string) {
 }
 
 // play runs the signals table for one event. "on" signals even while the
-// window is in front; "auto" only when it is not. "off" fires nothing at
-// all, including no screen-reader announcement.
+// window is in front; "auto" only when it is not. "off" disables the flash,
+// badge and notification only: announcements stay on for screen readers,
+// as VS Code keeps them separate from the other signals.
 func (s *attentionService) play(item attentionItem) {
 	if s == nil || s.channels == nil {
 		return
@@ -179,19 +179,15 @@ func (s *attentionService) play(item attentionItem) {
 	s.mu.Lock()
 	mode, silent := s.mode, !channels.announcement
 	s.mu.Unlock()
-	if mode == attentionOff || silent {
+	if silent {
 		return
 	}
 	// Read the window's focus before taking the lock: MyGo may need the
 	// main thread, which can be drawing a frame that waits for this lock.
-	// Announce even when the window is in front: a screen reader user is
-	// already there and still needs the news, without a visual signal.
-	awake := mode == attentionOn || s.focused == nil || !s.focused()
+	// Announce even when the window is in front or signals are off: a
+	// screen reader user still needs the news, without a visual signal.
+	awake := mode == attentionOn || mode != attentionOff && (s.focused == nil || !s.focused())
 	s.mu.Lock()
-	if s.mode == attentionOff {
-		s.mu.Unlock()
-		return
-	}
 	s.announcements = append(s.announcements, item.announcement)
 	if !awake {
 		s.mu.Unlock()
@@ -403,29 +399,36 @@ func (a *app) focusAttentionWindow(mode FocusMode) {
 }
 
 // openQueuedBreakpoint shows the exact paused exchange the notification
-// named. A pause already in the editor goes back in front of the queue so
-// it is not lost; its edits are not carried over when it opens again.
+// named, unless a breakpoint is already being edited: replacing that editor
+// would throw away unsent edits. The queued one stays in place and comes up
+// normally once the current pause is resolved; a notice names it meanwhile.
 func (a *app) openQueuedBreakpoint(id string) {
 	if id == "" {
 		return
 	}
 	a.mu.Lock()
-	var next *capture.Breakpoint
-	if a.bp != nil && strconv.Itoa(a.bp.ID) == id {
-		next = a.bp
-	} else if i := slices.IndexFunc(a.bps, func(bp capture.Breakpoint) bool {
+	var waiting *capture.Breakpoint
+	open := ""
+	if i := slices.IndexFunc(a.bps, func(bp capture.Breakpoint) bool {
 		return strconv.Itoa(bp.ID) == id
 	}); i >= 0 {
 		bp := a.bps[i]
-		a.bps = slices.Delete(a.bps, i, i+1)
-		if a.bp != nil && a.bp.ID != bp.ID {
-			a.bps = append([]capture.Breakpoint{*a.bp}, a.bps...)
-		}
-		next = &bp
+		waiting = &bp
+	}
+	if a.bp != nil {
+		open = strconv.Itoa(a.bp.ID)
 	}
 	a.mu.Unlock()
-	if next != nil {
-		a.showBreakpoint(next)
+
+	if open != "" {
+		if waiting != nil && open != id {
+			item := breakpointAttention(waiting.Method, waiting.URL)
+			a.inform(item.body)
+		}
+		return
+	}
+	if waiting != nil {
+		a.showBreakpoint(waiting)
 	}
 }
 

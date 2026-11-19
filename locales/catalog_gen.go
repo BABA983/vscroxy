@@ -10080,11 +10080,11 @@ func (msgs Messages) AttentionSignals() string {
 	return Catalog.Format(msgs.locale, "attentionSignals", nil)
 }
 
-// AttentionSignalsHint says "Auto flashes the window, badges the app and notifies only while the window is not in front. On always signals; off se…"
+// AttentionSignalsHint says "Auto flashes the window, badges the app and notifies only while the window is not in front. On always signals; off si…"
 // in the language the app shows.
 func AttentionSignalsHint() string { return In(i18n.Locale()).AttentionSignalsHint() }
 
-// AttentionSignalsHint says "Auto flashes the window, badges the app and notifies only while the window is not in front. On always signals; off se…"
+// AttentionSignalsHint says "Auto flashes the window, badges the app and notifies only while the window is not in front. On always signals; off si…"
 // in the language of msgs.
 func (msgs Messages) AttentionSignalsHint() string {
 	return Catalog.Format(msgs.locale, "attentionSignalsHint", nil)
