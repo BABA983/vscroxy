@@ -3625,6 +3625,8 @@
   "tokenRefreshFailed": "刷新失败：{problem}",
   "@tokenRefreshFailed": {"placeholders": {"problem": {"type": "String"}}},
   "aboutVscroxy": "关于 vscroxy",
+  "dataFolder": "数据文件夹",
+  "dataFolderHint": "设置、Cookie、抓包和日志都保存在这里。启动前使用 --user-data-dir 或 VSCROXY_HOME 可以更改位置。",
   "commit": "提交",
   "platform": "平台",
   "license": "许可证",

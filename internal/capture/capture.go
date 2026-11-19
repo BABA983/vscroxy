@@ -36,6 +36,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/baba983/vscroxy/internal/certs"
+	"github.com/baba983/vscroxy/internal/datadir"
 	"github.com/baba983/vscroxy/internal/dnsmap"
 	"github.com/baba983/vscroxy/internal/errorsx"
 	"github.com/baba983/vscroxy/internal/graphql"
@@ -496,20 +497,20 @@ type Server struct {
 // directory. Clients trust this file; the signing key beside it is private.
 const CACertFile = mitmcert.RootCACertFile
 
-// CADir is the app's own CA directory under home. It is the one place the
-// engine, the desktop settings and client setup look for the signing CA; the
-// engine's old ~/.mitmproxy default is never used.
-func CADir(home string) string {
-	return filepath.Join(home, filepath.FromSlash(mitmcert.DefaultStoreDir))
+// CADir is the app's own CA directory under the data root. It is the one
+// place the engine, the desktop settings and client setup look for the
+// signing CA; the engine's old ~/.mitmproxy default is never used.
+func CADir(dataDir string) string {
+	return filepath.Join(dataDir, "ca")
 }
 
 // CACertPath is the public CA certificate clients trust.
-func CACertPath(home string) string {
-	return filepath.Join(CADir(home), CACertFile)
+func CACertPath(dataDir string) string {
+	return filepath.Join(CADir(dataDir), CACertFile)
 }
 
 // New builds a proxy to listen on addr, with its CA under caRootPath, or in
-// ~/.vscroxy/ca when that is empty. An empty addr prefers
+// ca/ under the configured data root when that is empty. An empty addr prefers
 // 127.0.0.1:7890 and falls back to an OS-assigned port if it cannot be bound.
 // An explicit addr is used as-is; port 0 requests an OS-assigned port directly.
 func New(addr, caRootPath string) (*Server, error) {
@@ -518,8 +519,8 @@ func New(addr, caRootPath string) (*Server, error) {
 		addr = "127.0.0.1:7890"
 	}
 	if caRootPath == "" {
-		if home, err := os.UserHomeDir(); err == nil {
-			caRootPath = CADir(home)
+		if root, err := datadir.Root(); err == nil {
+			caRootPath = CADir(root)
 		}
 	}
 	s := &Server{

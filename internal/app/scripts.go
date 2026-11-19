@@ -1,8 +1,8 @@
 package app
 
-// Rule scripts: JavaScript files under ~/.vscroxy/tools/scripts that Script
-// rules run on the traffic they match, with the pm API request scripts use.
-// Addons, under ~/.vscroxy/tools/addons, are modules request and rule scripts
+// Rule scripts: JavaScript files under the data root's tools/scripts that
+// Script rules run on the traffic they match, with the pm API request scripts
+// use. Addons, under tools/addons, are modules request and rule scripts
 // load with require("name"). The Scripts page of Tools edits both, the rule
 // scripts with a Console of what they printed.
 

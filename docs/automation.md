@@ -26,7 +26,8 @@ silently discarded.
 - `--env` explicitly reads a native env.json (shared values plus Current
   overrides) or a Postman environment/globals file. `--environment` selects a
   native environment; otherwise its `active` name is used. There is no automatic
-  read of `~/.vscroxy`, desktop Vault or desktop OAuth tokens.
+  read of the desktop data folder (`VSCROXY_HOME` / `--user-data-dir`, by
+  default `~/.vscroxy`), desktop Vault or desktop OAuth tokens.
 - Repeated `--var KEY=VALUE` overrides environment values. For secrets prefer
   an explicitly selected private environment file: arguments can appear in shell
   history and process listings.

@@ -128,4 +128,4 @@ func (a *app) deleteQuery(name string) bool {
 }
 
 // queryPath is the file saved queries live in under the app's directory.
-func queryPath(home string) string { return filepath.Join(home, ".vscroxy", "queries.json") }
+func queryPath(dataDir string) string { return filepath.Join(dataDir, "queries.json") }

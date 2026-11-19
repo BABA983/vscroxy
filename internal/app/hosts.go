@@ -3,7 +3,7 @@ package app
 // Host profiles: named hosts files the proxy resolves itself
 // (internal/hosts). The title bar switches them, the Tools window edits
 // them, and a request's Remote IP and connection details say which profile
-// mapped it. Each profile is a file under ~/.vscroxy/tools/hosts, which a
+// mapped it. Each profile is a file under the data root's tools/hosts, which a
 // person may edit by hand or keep in Git; profiles.json keeps their order,
 // switches, subscriptions and mode.
 

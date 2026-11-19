@@ -50,7 +50,7 @@ func Write(path string, write func(io.Writer) error) error {
 	if err != nil {
 		return err
 	}
-	return os.Rename(f.Name(), path)
+	return replaceFile(f.Name(), path)
 }
 
 // File is one file the app owns and a person may also edit. It remembers what

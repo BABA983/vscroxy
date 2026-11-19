@@ -7717,6 +7717,8 @@
     }
   },
   "aboutVscroxy": "About vscroxy",
+  "dataFolder": "Data folder",
+  "dataFolderHint": "Settings, cookies, captures and logs live here. Use --user-data-dir or VSCROXY_HOME before launch to move them.",
   "commit": "Commit",
   "platform": "Platform",
   "license": "License",
