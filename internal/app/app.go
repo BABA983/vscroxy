@@ -457,6 +457,11 @@ type app struct {
 	// backupDir keeps the last copies of the files the app replaces, so an
 	// upgrade or a mistaken save never loses what was there.
 	backupDir string
+	// trustedLinkHosts are local approvals to open links from content
+	// without asking again. Keys name one scheme, host and port.
+	trustedLinkHosts []string
+	// linkPrompt is the pending confirmation for one untrusted destination.
+	linkPrompt linkPrompt
 	// updateCheck asks GitHub for the latest release once per launch; the
 	// setting turns it off. It never downloads or installs anything.
 	updateCheck bool
@@ -807,6 +812,7 @@ func newApp() *app {
 			a.errText = err.Error()
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
+			a.trustedLinkHosts = slices.Clone(saved.TrustedLinkHosts)
 			a.attention.setMode(saved.AttentionSignals)
 			a.updateCheck = !saved.DisableUpdateCheck
 			a.language = saved.Language
@@ -2080,6 +2086,9 @@ func (a *app) view(c *ui.Context) {
 	a.saveConflictModal(c, t)
 	a.historyModal(c, t)
 	a.docsModal(c, t)
+	// A link in an imported description can be clicked while Documentation
+	// is open, so its confirmation has to draw above that modal.
+	a.linkModal(c)
 	a.aboutModal(c, t)
 	a.deleteModal(c, t)
 	a.codeModal(c, t)

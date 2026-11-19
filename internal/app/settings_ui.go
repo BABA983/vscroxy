@@ -100,6 +100,25 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, locales.OneFileWithTheSettings())
 		})
+		uikit.SettingsCard(c, locales.ExternalLinksSettings(), func() {
+			settingsCardBlock(c, locales.TrustedLinkHosts(), func() ui.Element {
+				hosts := slices.Clone(a.trustedLinkHosts)
+				slices.Sort(hosts)
+				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+					if len(hosts) == 0 {
+						uikit.Hint(c, locales.NoTrustedLinkHosts())
+					}
+					for _, host := range hosts {
+						uikit.Mono(c, host).Selectable()
+					}
+					if uikit.SecondaryButton(c, locales.ClearTrustedLinkHosts()).Disabled(len(hosts) == 0).Clicked() {
+						a.trustedLinkHosts = nil
+						a.persistSettings()
+						a.done(locales.TrustedLinkHostsCleared())
+					}
+				})
+			}, locales.TrustedLinkHostsHint())
+		})
 		uikit.SettingsCard(c, locales.LocalAutomation(), func() {
 			settingsCardRow(c, locales.EnableLocalAutomation(), func() ui.Element {
 				on := a.controlRunning()

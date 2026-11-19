@@ -92,6 +92,10 @@ type settings struct {
 	// the latest release number. It is this computer's choice and is never
 	// exported; the default is to check.
 	DisableUpdateCheck bool `json:"disableUpdateCheck,omitzero"`
+	// TrustedLinkHosts are the exact scheme, host and port combinations a
+	// person approved from a link confirmation. Also local: a shared
+	// configuration never carries another computer's approvals.
+	TrustedLinkHosts []string `json:"trustedLinkHosts,omitempty"`
 	// AttentionSignals is "auto", "on" or "off"; empty is auto. Auto asks
 	// for attention only when the window is not in front.
 	AttentionSignals string `json:"attentionSignals,omitempty"`
@@ -237,6 +241,7 @@ func sameSettings(x, y settings) bool {
 		x.Guide == y.Guide &&
 		x.LocalControl == y.LocalControl &&
 		x.DisableUpdateCheck == y.DisableUpdateCheck &&
+		slices.Equal(x.TrustedLinkHosts, y.TrustedLinkHosts) &&
 		x.AttentionSignals == y.AttentionSignals &&
 		x.AllowList == y.AllowList &&
 		x.FlowLimit == y.FlowLimit && x.MemoryLimit == y.MemoryLimit && x.DiskLimit == y.DiskLimit &&

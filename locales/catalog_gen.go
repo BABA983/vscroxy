@@ -5282,6 +5282,16 @@ func (msgs Messages) OpenExampleNamed(name string) string {
 	return Catalog.Format(msgs.locale, "openExampleNamed", map[string]any{"name": name})
 }
 
+// OpenExternalLink says "Open"
+// in the language the app shows.
+func OpenExternalLink() string { return In(i18n.Locale()).OpenExternalLink() }
+
+// OpenExternalLink says "Open"
+// in the language of msgs.
+func (msgs Messages) OpenExternalLink() string {
+	return Catalog.Format(msgs.locale, "openExternalLink", nil)
+}
+
 // OpenProxiedTerminal says "Open proxied terminal"
 // in the language the app shows.
 func OpenProxiedTerminal() string { return In(i18n.Locale()).OpenProxiedTerminal() }
@@ -10464,6 +10474,46 @@ func (msgs Messages) BlankIsAutomaticPrefers7890() string {
 	return Catalog.Format(msgs.locale, "blankIsAutomaticPrefers7890", nil)
 }
 
+// BlockedDataLink says "data: links carry their own content instead of an address, so links from content are never opened."
+// in the language the app shows.
+func BlockedDataLink() string { return In(i18n.Locale()).BlockedDataLink() }
+
+// BlockedDataLink says "data: links carry their own content instead of an address, so links from content are never opened."
+// in the language of msgs.
+func (msgs Messages) BlockedDataLink() string {
+	return Catalog.Format(msgs.locale, "blockedDataLink", nil)
+}
+
+// BlockedFileLink says "file: links open local files, so links from content are never opened."
+// in the language the app shows.
+func BlockedFileLink() string { return In(i18n.Locale()).BlockedFileLink() }
+
+// BlockedFileLink says "file: links open local files, so links from content are never opened."
+// in the language of msgs.
+func (msgs Messages) BlockedFileLink() string {
+	return Catalog.Format(msgs.locale, "blockedFileLink", nil)
+}
+
+// BlockedLinkTitle says "vscroxy will not open this link"
+// in the language the app shows.
+func BlockedLinkTitle() string { return In(i18n.Locale()).BlockedLinkTitle() }
+
+// BlockedLinkTitle says "vscroxy will not open this link"
+// in the language of msgs.
+func (msgs Messages) BlockedLinkTitle() string {
+	return Catalog.Format(msgs.locale, "blockedLinkTitle", nil)
+}
+
+// BlockedScriptLink says "javascript: links can run code in a browser, so links from content are never opened."
+// in the language the app shows.
+func BlockedScriptLink() string { return In(i18n.Locale()).BlockedScriptLink() }
+
+// BlockedScriptLink says "javascript: links can run code in a browser, so links from content are never opened."
+// in the language of msgs.
+func (msgs Messages) BlockedScriptLink() string {
+	return Catalog.Format(msgs.locale, "blockedScriptLink", nil)
+}
+
 // BlockAction says "Block action"
 // in the language the app shows.
 func BlockAction() string { return In(i18n.Locale()).BlockAction() }
@@ -13920,6 +13970,16 @@ func (msgs Messages) CopyAs() string {
 	return Catalog.Format(msgs.locale, "copyAs", nil)
 }
 
+// CopyLink says "Copy link"
+// in the language the app shows.
+func CopyLink() string { return In(i18n.Locale()).CopyLink() }
+
+// CopyLink says "Copy link"
+// in the language of msgs.
+func (msgs Messages) CopyLink() string {
+	return Catalog.Format(msgs.locale, "copyLink", nil)
+}
+
 // CopyAsCsv says "Copy as CSV"
 // in the language the app shows.
 func CopyAsCsv() string { return In(i18n.Locale()).CopyAsCsv() }
@@ -16724,6 +16784,98 @@ func ExpectedValue() string { return In(i18n.Locale()).ExpectedValue() }
 // in the language of msgs.
 func (msgs Messages) ExpectedValue() string {
 	return Catalog.Format(msgs.locale, "expectedValue", nil)
+}
+
+// ExternalLinkAddressWarning says "It points to a loopback, private or link-local address."
+// in the language the app shows.
+func ExternalLinkAddressWarning() string { return In(i18n.Locale()).ExternalLinkAddressWarning() }
+
+// ExternalLinkAddressWarning says "It points to a loopback, private or link-local address."
+// in the language of msgs.
+func (msgs Messages) ExternalLinkAddressWarning() string {
+	return Catalog.Format(msgs.locale, "externalLinkAddressWarning", nil)
+}
+
+// ExternalLinkConfirmationTitle says "Do you want vscroxy to open this external website?"
+// in the language the app shows.
+func ExternalLinkConfirmationTitle() string { return In(i18n.Locale()).ExternalLinkConfirmationTitle() }
+
+// ExternalLinkConfirmationTitle says "Do you want vscroxy to open this external website?"
+// in the language of msgs.
+func (msgs Messages) ExternalLinkConfirmationTitle() string {
+	return Catalog.Format(msgs.locale, "externalLinkConfirmationTitle", nil)
+}
+
+// ExternalLinkFromContent says "This address came from captured or imported content. Check it before you open it."
+// in the language the app shows.
+func ExternalLinkFromContent() string { return In(i18n.Locale()).ExternalLinkFromContent() }
+
+// ExternalLinkFromContent says "This address came from captured or imported content. Check it before you open it."
+// in the language of msgs.
+func (msgs Messages) ExternalLinkFromContent() string {
+	return Catalog.Format(msgs.locale, "externalLinkFromContent", nil)
+}
+
+// ExternalLinkNoHostWarning says "It has no host to check."
+// in the language the app shows.
+func ExternalLinkNoHostWarning() string { return In(i18n.Locale()).ExternalLinkNoHostWarning() }
+
+// ExternalLinkNoHostWarning says "It has no host to check."
+// in the language of msgs.
+func (msgs Messages) ExternalLinkNoHostWarning() string {
+	return Catalog.Format(msgs.locale, "externalLinkNoHostWarning", nil)
+}
+
+// ExternalLinkNumericHostWarning says "It looks like an IP address but is not a valid one."
+// in the language the app shows.
+func ExternalLinkNumericHostWarning() string {
+	return In(i18n.Locale()).ExternalLinkNumericHostWarning()
+}
+
+// ExternalLinkNumericHostWarning says "It looks like an IP address but is not a valid one."
+// in the language of msgs.
+func (msgs Messages) ExternalLinkNumericHostWarning() string {
+	return Catalog.Format(msgs.locale, "externalLinkNumericHostWarning", nil)
+}
+
+// ExternalLinkSchemeWarning says "It does not use http or https. Opening it can run another program."
+// in the language the app shows.
+func ExternalLinkSchemeWarning() string { return In(i18n.Locale()).ExternalLinkSchemeWarning() }
+
+// ExternalLinkSchemeWarning says "It does not use http or https. Opening it can run another program."
+// in the language of msgs.
+func (msgs Messages) ExternalLinkSchemeWarning() string {
+	return Catalog.Format(msgs.locale, "externalLinkSchemeWarning", nil)
+}
+
+// ExternalLinkUnusual says "Check this address carefully before opening it."
+// in the language the app shows.
+func ExternalLinkUnusual() string { return In(i18n.Locale()).ExternalLinkUnusual() }
+
+// ExternalLinkUnusual says "Check this address carefully before opening it."
+// in the language of msgs.
+func (msgs Messages) ExternalLinkUnusual() string {
+	return Catalog.Format(msgs.locale, "externalLinkUnusual", nil)
+}
+
+// ExternalLinkUserinfoWarning says "It contains user information before the host, which can disguise the real website."
+// in the language the app shows.
+func ExternalLinkUserinfoWarning() string { return In(i18n.Locale()).ExternalLinkUserinfoWarning() }
+
+// ExternalLinkUserinfoWarning says "It contains user information before the host, which can disguise the real website."
+// in the language of msgs.
+func (msgs Messages) ExternalLinkUserinfoWarning() string {
+	return Catalog.Format(msgs.locale, "externalLinkUserinfoWarning", nil)
+}
+
+// ExternalLinksSettings says "External links"
+// in the language the app shows.
+func ExternalLinksSettings() string { return In(i18n.Locale()).ExternalLinksSettings() }
+
+// ExternalLinksSettings says "External links"
+// in the language of msgs.
+func (msgs Messages) ExternalLinksSettings() string {
+	return Catalog.Format(msgs.locale, "externalLinksSettings", nil)
 }
 
 // ExperimentNote says "Experiment note"
@@ -20748,6 +20900,16 @@ func Light() string { return In(i18n.Locale()).Light() }
 // in the language of msgs.
 func (msgs Messages) Light() string {
 	return Catalog.Format(msgs.locale, "light", nil)
+}
+
+// LinkCopied says "Link copied"
+// in the language the app shows.
+func LinkCopied() string { return In(i18n.Locale()).LinkCopied() }
+
+// LinkCopied says "Link copied"
+// in the language of msgs.
+func (msgs Messages) LinkCopied() string {
+	return Catalog.Format(msgs.locale, "linkCopied", nil)
 }
 
 // LinkLocalAddressTheDevice says "Link-local address: the device needs a compatible address on the same network link."
@@ -33422,6 +33584,66 @@ func TrustSystemRoots() string { return In(i18n.Locale()).TrustSystemRoots() }
 // in the language of msgs.
 func (msgs Messages) TrustSystemRoots() string {
 	return Catalog.Format(msgs.locale, "trustSystemRoots", nil)
+}
+
+// TrustThisHost says "Trust this host next time"
+// in the language the app shows.
+func TrustThisHost() string { return In(i18n.Locale()).TrustThisHost() }
+
+// TrustThisHost says "Trust this host next time"
+// in the language of msgs.
+func (msgs Messages) TrustThisHost() string {
+	return Catalog.Format(msgs.locale, "trustThisHost", nil)
+}
+
+// TrustedLinkHosts says "Trusted hosts"
+// in the language the app shows.
+func TrustedLinkHosts() string { return In(i18n.Locale()).TrustedLinkHosts() }
+
+// TrustedLinkHosts says "Trusted hosts"
+// in the language of msgs.
+func (msgs Messages) TrustedLinkHosts() string {
+	return Catalog.Format(msgs.locale, "trustedLinkHosts", nil)
+}
+
+// TrustedLinkHostsCleared says "Trusted hosts cleared"
+// in the language the app shows.
+func TrustedLinkHostsCleared() string { return In(i18n.Locale()).TrustedLinkHostsCleared() }
+
+// TrustedLinkHostsCleared says "Trusted hosts cleared"
+// in the language of msgs.
+func (msgs Messages) TrustedLinkHostsCleared() string {
+	return Catalog.Format(msgs.locale, "trustedLinkHostsCleared", nil)
+}
+
+// TrustedLinkHostsHint says "Hosts you allowed from a link confirmation. Links from other hosts ask again."
+// in the language the app shows.
+func TrustedLinkHostsHint() string { return In(i18n.Locale()).TrustedLinkHostsHint() }
+
+// TrustedLinkHostsHint says "Hosts you allowed from a link confirmation. Links from other hosts ask again."
+// in the language of msgs.
+func (msgs Messages) TrustedLinkHostsHint() string {
+	return Catalog.Format(msgs.locale, "trustedLinkHostsHint", nil)
+}
+
+// NoTrustedLinkHosts says "No hosts are trusted. Every link from content asks first."
+// in the language the app shows.
+func NoTrustedLinkHosts() string { return In(i18n.Locale()).NoTrustedLinkHosts() }
+
+// NoTrustedLinkHosts says "No hosts are trusted. Every link from content asks first."
+// in the language of msgs.
+func (msgs Messages) NoTrustedLinkHosts() string {
+	return Catalog.Format(msgs.locale, "noTrustedLinkHosts", nil)
+}
+
+// ClearTrustedLinkHosts says "Clear trusted hosts"
+// in the language the app shows.
+func ClearTrustedLinkHosts() string { return In(i18n.Locale()).ClearTrustedLinkHosts() }
+
+// ClearTrustedLinkHosts says "Clear trusted hosts"
+// in the language of msgs.
+func (msgs Messages) ClearTrustedLinkHosts() string {
+	return Catalog.Format(msgs.locale, "clearTrustedLinkHosts", nil)
 }
 
 // TrustTheLocalCaOn says "Trust the local CA on this computer; approve system authorization if requested"

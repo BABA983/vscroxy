@@ -15,9 +15,17 @@ import (
 
 // markdownOptions follows the window's current theme. Markdown's Theme is a
 // concrete look, so it cannot be left on the app's zero Options when Light and
-// Dark switch while the window is open.
-func markdownOptions(c *ui.Context, opts *markdown.Options) *markdown.Options {
+// Dark switch while the window is open. Descriptions can come from an imported
+// collection, so their links go through the same confirmation as capture.
+func markdownOptions(a *app, c *ui.Context, opts *markdown.Options) *markdown.Options {
 	opts.Theme = uikit.MarkdownTheme(c.Theme())
+	opts.OnLink = func(dest string) {
+		if strings.HasPrefix(dest, "#") {
+			opts.Anchor, opts.AnchorVersion = strings.TrimPrefix(dest, "#"), opts.AnchorVersion+1
+			return
+		}
+		a.openCapturedLink(c, dest)
+	}
 	return opts
 }
 
@@ -55,7 +63,7 @@ func (a *app) docsModal(c *ui.Context, t *ui.Theme) {
 				if strings.TrimSpace(description) == "" {
 					uikit.Hint(c, locales.NoDescriptionYet(docsLevel(path)))
 				} else {
-					markdown.View(c, description, markdownOptions(c, &a.docsMarkdown))
+					markdown.View(c, description, markdownOptions(a, c, &a.docsMarkdown))
 				}
 				ui.Divider(c)
 				uikit.Label(c, locales.RequestsCount(len(entries)))
@@ -94,7 +102,7 @@ func (a *app) docsEntryView(c *ui.Context, t *ui.Theme, entry docsEntry) {
 		})
 		uikit.Mono(c, entry.URL).TextColor(t.TextMuted).Selectable()
 		if strings.TrimSpace(entry.Description) != "" {
-			markdown.View(c, entry.Description, markdownOptions(c, &a.docsMarkdown))
+			markdown.View(c, entry.Description, markdownOptions(a, c, &a.docsMarkdown))
 		}
 		uikit.Meta(c, locales.Auth()+" · "+entry.Auth)
 		if len(entry.Headers) > 0 {

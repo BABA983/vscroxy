@@ -107,6 +107,7 @@ func (a *app) currentSettings() settings {
 		CookiePersistence:    a.cookiePersistence,
 		LocalControl:         a.localControl,
 		DisableUpdateCheck:   !a.updateCheck,
+		TrustedLinkHosts:     slices.Clone(a.trustedLinkHosts),
 		AttentionSignals:     a.attentionMode(),
 		Guide:                a.guide,
 		AllowList:            a.allowOn,
@@ -132,9 +133,10 @@ func (a *app) configLists() map[string]*string {
 func (a *app) exportConfig() (b configBundle, notes []string) {
 	s := a.currentSettings()
 	// The key log, project folder, setup guide, cookie retention, attention
-	// signals and local automation are this computer's: a configuration file
-	// never turns cookie persistence or the control endpoint on elsewhere.
+	// signals, link approvals and local automation are this computer's: a
+	// configuration file never turns those on elsewhere.
 	s.KeyLogPath, s.ProjectDir, s.Guide, s.CookiePersistence, s.LocalControl = "", "", false, false, false
+	s.TrustedLinkHosts = nil
 	s.DisableUpdateCheck = false
 	s.AttentionSignals = ""
 	s.Language = ""      // the reader's language, not the bundle's

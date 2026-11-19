@@ -63,7 +63,7 @@ func (a *app) aboutModal(c *ui.Context, t *ui.Theme) {
 					if a.aboutNotices == "" {
 						uikit.Hint(c, locales.AboutNoticesMissing())
 					} else {
-						markdown.View(c, withoutComments(a.aboutNotices), markdownOptions(c, &a.aboutMarkdown))
+						markdown.View(c, withoutComments(a.aboutNotices), markdownOptions(a, c, &a.aboutMarkdown))
 					}
 					return
 				}
@@ -79,7 +79,7 @@ func (a *app) aboutModal(c *ui.Context, t *ui.Theme) {
 				if a.aboutLicense == "" {
 					uikit.Hint(c, locales.AboutLicenseMissing())
 				} else {
-					markdown.View(c, a.aboutLicense, markdownOptions(c, &a.aboutMarkdown))
+					markdown.View(c, a.aboutLicense, markdownOptions(a, c, &a.aboutMarkdown))
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {
