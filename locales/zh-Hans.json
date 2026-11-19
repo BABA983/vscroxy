@@ -3818,5 +3818,42 @@
     }
   },
   "openSearchResult": "打开结果：{resource}",
-  "searchHiddenResource": "已隐藏的密钥"
+  "searchHiddenResource": "已隐藏的密钥",
+  "problems": "问题",
+  "filterProblems": "筛选问题",
+  "closeProblems": "关闭问题",
+  "focusProblems": "聚焦问题",
+  "nextProblem": "下一个问题",
+  "previousProblem": "上一个问题",
+  "problemError": "错误",
+  "problemWarning": "警告",
+  "problemInfo": "信息",
+  "problemHint": "提示",
+  "noProblems": "尚未报告问题",
+  "noProblemsHint": "发送、编辑或导入后会在此显示问题",
+  "noMatchingProblems": "没有符合当前筛选条件的问题",
+  "@problemCheckFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "problemCheckFailed": "检查失败：{name}",
+  "@problemScriptFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "problemScriptFailed": "脚本失败：{error}",
+  "@problemUnresolvedVariable": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "problemUnresolvedVariable": "未解析的变量：{name}"
 }

@@ -196,7 +196,10 @@ func (a *app) desktopContent(c *ui.Context) {
 			})
 		}
 	}
-	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(content)
+	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(content)
+		a.problemsPanel(c)
+	})
 }
 
 var captureKinds = []string{"All", "HTTP", "HTTPS", "WebSocket", "SSE", "JSON", "Images", "HTML", "Form", "XML", "JS", "CSS", "Media", "h1", "h2"}

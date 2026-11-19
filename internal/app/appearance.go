@@ -61,6 +61,7 @@ var (
 	successIcon       = lucide.CircleCheck()
 	checkIcon         = lucide.Check()
 	warningIcon       = lucide.TriangleAlert()
+	hintIcon          = lucide.Lightbulb()
 	saveIcon          = lucide.Save()
 	persistIcon       = lucide.ArrowUpToLine()
 	resetIcon         = lucide.Undo2()

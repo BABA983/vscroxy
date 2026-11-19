@@ -37411,3 +37411,165 @@ func SearchHiddenResource() string { return In(i18n.Locale()).SearchHiddenResour
 func (msgs Messages) SearchHiddenResource() string {
 	return Catalog.Format(msgs.locale, "searchHiddenResource", nil)
 }
+
+// Problems says "Problems"
+// in the language the app shows.
+func Problems() string { return In(i18n.Locale()).Problems() }
+
+// Problems says "Problems"
+// in the language of msgs.
+func (msgs Messages) Problems() string {
+	return Catalog.Format(msgs.locale, "problems", nil)
+}
+
+// FilterProblems says "Filter problems"
+// in the language the app shows.
+func FilterProblems() string { return In(i18n.Locale()).FilterProblems() }
+
+// FilterProblems says "Filter problems"
+// in the language of msgs.
+func (msgs Messages) FilterProblems() string {
+	return Catalog.Format(msgs.locale, "filterProblems", nil)
+}
+
+// CloseProblems says "Close Problems"
+// in the language the app shows.
+func CloseProblems() string { return In(i18n.Locale()).CloseProblems() }
+
+// CloseProblems says "Close Problems"
+// in the language of msgs.
+func (msgs Messages) CloseProblems() string {
+	return Catalog.Format(msgs.locale, "closeProblems", nil)
+}
+
+// FocusProblems says "Focus Problems"
+// in the language the app shows.
+func FocusProblems() string { return In(i18n.Locale()).FocusProblems() }
+
+// FocusProblems says "Focus Problems"
+// in the language of msgs.
+func (msgs Messages) FocusProblems() string {
+	return Catalog.Format(msgs.locale, "focusProblems", nil)
+}
+
+// NextProblem says "Next Problem"
+// in the language the app shows.
+func NextProblem() string { return In(i18n.Locale()).NextProblem() }
+
+// NextProblem says "Next Problem"
+// in the language of msgs.
+func (msgs Messages) NextProblem() string {
+	return Catalog.Format(msgs.locale, "nextProblem", nil)
+}
+
+// PreviousProblem says "Previous Problem"
+// in the language the app shows.
+func PreviousProblem() string { return In(i18n.Locale()).PreviousProblem() }
+
+// PreviousProblem says "Previous Problem"
+// in the language of msgs.
+func (msgs Messages) PreviousProblem() string {
+	return Catalog.Format(msgs.locale, "previousProblem", nil)
+}
+
+// ProblemError says "Error"
+// in the language the app shows.
+func ProblemError() string { return In(i18n.Locale()).ProblemError() }
+
+// ProblemError says "Error"
+// in the language of msgs.
+func (msgs Messages) ProblemError() string {
+	return Catalog.Format(msgs.locale, "problemError", nil)
+}
+
+// ProblemWarning says "Warning"
+// in the language the app shows.
+func ProblemWarning() string { return In(i18n.Locale()).ProblemWarning() }
+
+// ProblemWarning says "Warning"
+// in the language of msgs.
+func (msgs Messages) ProblemWarning() string {
+	return Catalog.Format(msgs.locale, "problemWarning", nil)
+}
+
+// ProblemInfo says "Info"
+// in the language the app shows.
+func ProblemInfo() string { return In(i18n.Locale()).ProblemInfo() }
+
+// ProblemInfo says "Info"
+// in the language of msgs.
+func (msgs Messages) ProblemInfo() string {
+	return Catalog.Format(msgs.locale, "problemInfo", nil)
+}
+
+// ProblemHint says "Hint"
+// in the language the app shows.
+func ProblemHint() string { return In(i18n.Locale()).ProblemHint() }
+
+// ProblemHint says "Hint"
+// in the language of msgs.
+func (msgs Messages) ProblemHint() string {
+	return Catalog.Format(msgs.locale, "problemHint", nil)
+}
+
+// NoProblems says "No problems have been reported"
+// in the language the app shows.
+func NoProblems() string { return In(i18n.Locale()).NoProblems() }
+
+// NoProblems says "No problems have been reported"
+// in the language of msgs.
+func (msgs Messages) NoProblems() string {
+	return Catalog.Format(msgs.locale, "noProblems", nil)
+}
+
+// NoProblemsHint says "Problems appear after a send, an edit or an import"
+// in the language the app shows.
+func NoProblemsHint() string { return In(i18n.Locale()).NoProblemsHint() }
+
+// NoProblemsHint says "Problems appear after a send, an edit or an import"
+// in the language of msgs.
+func (msgs Messages) NoProblemsHint() string {
+	return Catalog.Format(msgs.locale, "noProblemsHint", nil)
+}
+
+// NoMatchingProblems says "No problems match the current filters"
+// in the language the app shows.
+func NoMatchingProblems() string { return In(i18n.Locale()).NoMatchingProblems() }
+
+// NoMatchingProblems says "No problems match the current filters"
+// in the language of msgs.
+func (msgs Messages) NoMatchingProblems() string {
+	return Catalog.Format(msgs.locale, "noMatchingProblems", nil)
+}
+
+// ProblemCheckFailed says "Check failed: {name}"
+// in the language the app shows.
+func ProblemCheckFailed(name string) string { return In(i18n.Locale()).ProblemCheckFailed(name) }
+
+// ProblemCheckFailed says "Check failed: {name}"
+// in the language of msgs.
+func (msgs Messages) ProblemCheckFailed(name string) string {
+	return Catalog.Format(msgs.locale, "problemCheckFailed", map[string]any{"name": name})
+}
+
+// ProblemScriptFailed says "Script failed: {error}"
+// in the language the app shows.
+func ProblemScriptFailed(error string) string { return In(i18n.Locale()).ProblemScriptFailed(error) }
+
+// ProblemScriptFailed says "Script failed: {error}"
+// in the language of msgs.
+func (msgs Messages) ProblemScriptFailed(error string) string {
+	return Catalog.Format(msgs.locale, "problemScriptFailed", map[string]any{"error": error})
+}
+
+// ProblemUnresolvedVariable says "Unresolved variable: {name}"
+// in the language the app shows.
+func ProblemUnresolvedVariable(name string) string {
+	return In(i18n.Locale()).ProblemUnresolvedVariable(name)
+}
+
+// ProblemUnresolvedVariable says "Unresolved variable: {name}"
+// in the language of msgs.
+func (msgs Messages) ProblemUnresolvedVariable(name string) string {
+	return Catalog.Format(msgs.locale, "problemUnresolvedVariable", map[string]any{"name": name})
+}

@@ -188,6 +188,7 @@ type requestResult struct {
 	document    *requestDocument
 	summary     string
 	outcome     string
+	err         error
 	response    *capture.Flow
 	tests       []request.TestResult
 	replies     []string
@@ -449,6 +450,7 @@ func (a *app) closeDocument(d *requestDocument) {
 		a.mcpConsent = mcpConsentState{}
 	}
 	a.documents = slices.Delete(a.documents, at, at+1)
+	a.clearDocumentProblems(d)
 	if a.requestDocument == d {
 		a.requestDocument = nil
 		a.requestChoice = ""

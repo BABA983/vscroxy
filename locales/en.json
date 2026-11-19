@@ -7916,5 +7916,42 @@
     }
   },
   "openSearchResult": "Open result: {resource}",
-  "searchHiddenResource": "Hidden secret"
+  "searchHiddenResource": "Hidden secret",
+  "problems": "Problems",
+  "filterProblems": "Filter problems",
+  "closeProblems": "Close Problems",
+  "focusProblems": "Focus Problems",
+  "nextProblem": "Next Problem",
+  "previousProblem": "Previous Problem",
+  "problemError": "Error",
+  "problemWarning": "Warning",
+  "problemInfo": "Info",
+  "problemHint": "Hint",
+  "noProblems": "No problems have been reported",
+  "noProblemsHint": "Problems appear after a send, an edit or an import",
+  "noMatchingProblems": "No problems match the current filters",
+  "@problemCheckFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "problemCheckFailed": "Check failed: {name}",
+  "@problemScriptFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "problemScriptFailed": "Script failed: {error}",
+  "@problemUnresolvedVariable": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "problemUnresolvedVariable": "Unresolved variable: {name}"
 }

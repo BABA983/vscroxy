@@ -464,6 +464,7 @@ func (a *app) sendUnaryGRPC(d *requestDocument) {
 		return
 	}
 	d.composeTests, d.composeReplies, d.console, d.composeExchanges = nil, nil, nil, nil
+	a.clearSendProblemMarkers(d)
 	d.composeWaiting, d.composeResult, d.sendOutcome = true, locales.Sending(), ""
 	r, env, vars, srv, jar := d.draft(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
 	in := a.sendContext(r.Request)
@@ -474,7 +475,7 @@ func (a *app) sendUnaryGRPC(d *requestDocument) {
 	go guarded(func() {
 		defer cancel()
 		got := r.Execute(ctx, srv, in, vars, jar)
-		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: executionOutcome(got),
+		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: executionOutcome(got), err: got.Err,
 			response: got.Response, tests: got.Tests, console: got.Console, varsBefore: vars, vars: got.Vars, writes: got.Writes,
 			grpc: grpcSessionFromExecution(got)}
 		a.mu.Lock()

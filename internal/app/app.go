@@ -34,6 +34,7 @@ import (
 	"github.com/baba983/vscroxy/internal/datadir"
 	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/internal/linkedmap"
+	"github.com/baba983/vscroxy/internal/markers"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/system"
@@ -645,6 +646,9 @@ type app struct {
 	*requestDocument
 	documents    []*requestDocument
 	nextDocument int
+	// markers is the VS Code-style MarkerService behind the Problems panel.
+	markers  *markers.Service
+	problems problemsState
 	// recentlyClosed is the in-memory Reopen Closed Editor stack, keyed by
 	// document id and ordered from oldest to newest. documentRecency is the
 	// MRU order for Ctrl/Cmd+Tab; nil is the LIVE traffic view.
@@ -978,6 +982,9 @@ func newApp() *app {
 	go guarded(func() { cleanupClientDirs() })
 	a.lifecycle = &lifecycle.Lifecycle{}
 	a.startupLifetime = lifecycle.NewDisposableStore()
+	a.initProblems()
+	a.startupLifetime.Add(a.problems.subscription)
+	a.startupLifetime.Add(lifecycle.ToDisposable(a.markers.Dispose))
 	a.sessionStore = newCaptureSessionStore(a)
 	return a
 }
@@ -1421,6 +1428,7 @@ func (a *app) drain() {
 		d.sendOutcome = result.outcome
 		d.composeResult = result.summary
 		d.composeTests = result.tests
+		a.applySendProblems(result)
 		d.composeReplies = result.replies
 		d.composeExchanges = result.exchanges
 		d.console = result.console
@@ -1919,6 +1927,8 @@ func (a *app) view(c *ui.Context) {
 	a.inspectorEditing = a.workbench.inspector.FocusWithin(c)
 	a.drain()
 	a.drainSearch()
+	a.syncProblems()
+	a.applyProblemLocation()
 	a.pruneURLPaste()
 	// A row the reader picked by hand is theirs: Auto-select steps aside.
 	// A missing row normalizes to -1; that is the list being empty, not the
@@ -4396,6 +4406,7 @@ func (a *app) sendComposed() {
 		return
 	}
 	d.composeTests = nil
+	a.clearSendProblemMarkers(d)
 	d.composeReplies = nil
 	d.composeExchanges = nil
 	d.console = nil
@@ -4432,7 +4443,7 @@ func (a *app) sendComposed() {
 	go guarded(func() {
 		defer cancel()
 		got := r.Execute(ctx, srv, in, vars, jar)
-		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: executionOutcome(got), response: got.Response, tests: got.Tests, replies: got.Replies, exchanges: got.WebSocket, console: got.Console, varsBefore: vars, vars: got.Vars, writes: got.Writes}
+		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: executionOutcome(got), err: got.Err, response: got.Response, tests: got.Tests, replies: got.Replies, exchanges: got.WebSocket, console: got.Console, varsBefore: vars, vars: got.Vars, writes: got.Writes}
 		record := snapshotExperiment(0, r, env, got)
 		record.RunKey, record.DraftKey, record.Source = runKey, draftKey, origin
 		result.experiment = &record

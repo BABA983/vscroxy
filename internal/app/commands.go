@@ -261,6 +261,14 @@ func registerGlobalCommands() *commandRegistry {
 		keys(ui.Cmd, ui.KeyK)
 	r.add("notifications.show", locales.ShowNotifications(), func(x *commandContext) { x.a.openNotifications() })
 	r.add("notifications.clear", locales.ClearNotifications(), func(x *commandContext) { x.a.clearNotifications() })
+	r.add("problems.focus", locales.FocusProblems(), func(x *commandContext) { x.a.focusProblems() }).
+		keys(ui.Cmd|ui.Shift, ui.KeyM)
+	r.add("problems.next", locales.NextProblem(), func(x *commandContext) { x.a.navigateProblems(1) }).
+		when(func(x *commandContext) bool { return len(x.a.visibleProblems()) > 0 }, locales.NoProblems()).
+		keys(0, ui.KeyF8)
+	r.add("problems.previous", locales.PreviousProblem(), func(x *commandContext) { x.a.navigateProblems(-1) }).
+		when(func(x *commandContext) bool { return len(x.a.visibleProblems()) > 0 }, locales.NoProblems()).
+		keys(ui.Shift, ui.KeyF8)
 	r.add("view.search", "", func(x *commandContext) { x.search() }).
 		named(func(x *commandContext) string { return x.searchLabel }).
 		when(func(x *commandContext) bool { return x.capturing }, "").keys(ui.Cmd, ui.KeyF)

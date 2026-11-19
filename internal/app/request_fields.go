@@ -917,24 +917,24 @@ func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
 // The document's string stays the source of truth for running and saving.
 func (a *app) requestScriptText(c *ui.Context, d *requestDocument) {
 	if d.scriptTab == 1 {
-		authoredText(c, &d.composePost, &d.postEditor, &d.postFor, locales.PostResponseScript(), "JavaScript")
+		authoredText(c, &d.composePost, &d.postEditor, &d.postFor, locales.PostResponseScript(), "JavaScript", d.unicodeHandle(problemFieldPost))
 		a.installUnicodeHover(d.postEditor)
 	} else {
-		authoredText(c, &d.composePre, &d.preEditor, &d.preFor, locales.PreRequestScript(), "JavaScript")
+		authoredText(c, &d.composePre, &d.preEditor, &d.preFor, locales.PreRequestScript(), "JavaScript", d.unicodeHandle(problemFieldPre))
 		a.installUnicodeHover(d.preEditor)
 	}
 }
 
 // authoredText edits a template in the body's reader; *text stays the source of
 // truth, and seen is what the reader was last built from.
-func authoredText(c *ui.Context, text *string, state **editor.State, seen *string, label, language string) {
+func authoredText(c *ui.Context, text *string, state **editor.State, seen *string, label, language string, focus ...*ui.Handle) {
 	if *state == nil || *seen != *text {
 		buf := editor.NewBuffer(*text)
 		buf.SetLanguage(editor.LanguageNamed(language))
 		*state = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: label}
 		*seen = *text
 	}
-	requestCodeEditor(c, *state)
+	requestCodeEditor(c, *state, focus...)
 	if current := (*state).Buffer.String(); current != *text {
 		*text, *seen = current, current
 		// Tools built above the editor must see the new text next frame.
