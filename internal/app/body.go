@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"mime"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -1012,36 +1011,10 @@ func (a *app) bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar, s
 		// The three option toggles share the inspector's width with the query.
 		queryWidth := float32(uikit.WidthPicker - 40)
 		query := uikit.Input(c, find.Query()).Label(locales.SearchBody()).Placeholder(locales.FindInBody()).Width(queryWidth).Shrink(1)
-		// On macOS an Option+letter's keydown is taken by text input, so the
-		// query takes its keyup to run the same shortcut.
-		keyKind := ui.InputKeyDown
-		if runtime.GOOS == "darwin" {
-			keyKind = ui.InputKeyUp
-		}
-		query.HandleInput(func(ev ui.InputEvent) bool {
-			if ev.Kind != keyKind || ev.Mods != ui.Alt {
-				return false
-			}
-			switch {
-			case ev.Key == ui.KeyC || ev.Code == ui.CodeKeyC:
-				state.toggleCase()
-			case ev.Key == ui.KeyW || ev.Code == ui.CodeKeyW:
-				state.toggleWord()
-			case ev.Key == ui.KeyR || ev.Code == ui.CodeKeyR:
-				state.toggleRegexp()
-			default:
-				return false
-			}
-			return true
-		})
+		bindFindOptionKeys(query, state)
 		find.QueryInput(query)
 		uikit.Meta(c, find.Status()).FontFeatures("tnum").MinWidth(40).Role(ui.RoleStatus)
-		caseToggle := ui.Toggle(c, find.CaseSensitive(), locales.FindCaseMark()).KeepFocus().KeyShortcuts(ui.Alt, ui.KeyC)
-		uikit.Tip(c, caseToggle.Label(locales.FindMatchCase()), locales.FindMatchCaseTip())
-		wordToggle := ui.Toggle(c, find.WholeWord(), locales.FindWordMark()).KeepFocus().KeyShortcuts(ui.Alt, ui.KeyW)
-		uikit.Tip(c, wordToggle.Label(locales.FindMatchWholeWord()), locales.FindMatchWholeWordTip())
-		regexToggle := ui.Toggle(c, find.Regexp(), locales.FindRegexpMark()).KeepFocus().KeyShortcuts(ui.Alt, ui.KeyR)
-		uikit.Tip(c, regexToggle.Label(locales.FindUseRegexp()), locales.FindUseRegexpTip())
+		findOptionToggles(c, state)
 		if uikit.Tip(c, uikit.SecondaryButton(c, "↑").Label(locales.PreviousBodyMatch()), locales.PreviousMatchShiftEnter()).KeepFocus().Clicked() {
 			find.Previous()
 		}

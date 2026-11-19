@@ -37311,3 +37311,103 @@ func RestoredVersion(time_ string) string { return In(i18n.Locale()).RestoredVer
 func (msgs Messages) RestoredVersion(time_ string) string {
 	return Catalog.Format(msgs.locale, "restoredVersion", map[string]any{"time": time_})
 }
+
+// SearchEverywhere says "Search Everywhere"
+// in the language the app shows.
+func SearchEverywhere() string { return In(i18n.Locale()).SearchEverywhere() }
+
+// SearchEverywhere says "Search Everywhere"
+// in the language of msgs.
+func (msgs Messages) SearchEverywhere() string {
+	return Catalog.Format(msgs.locale, "searchEverywhere", nil)
+}
+
+// SearchAcrossAssets says "Search requests, variables and traffic"
+// in the language the app shows.
+func SearchAcrossAssets() string { return In(i18n.Locale()).SearchAcrossAssets() }
+
+// SearchAcrossAssets says "Search requests, variables and traffic"
+// in the language of msgs.
+func (msgs Messages) SearchAcrossAssets() string {
+	return Catalog.Format(msgs.locale, "searchAcrossAssets", nil)
+}
+
+// SearchResultCount says "{count} results"
+// in the language the app shows.
+func SearchResultCount(count int) string { return In(i18n.Locale()).SearchResultCount(count) }
+
+// SearchResultCount says "{count} results"
+// in the language of msgs.
+func (msgs Messages) SearchResultCount(count int) string {
+	return Catalog.Format(msgs.locale, "searchResultCount", map[string]any{"count": count})
+}
+
+// SearchResultsLimited says "Results limited to {count} matches"
+// in the language the app shows.
+func SearchResultsLimited(count int) string { return In(i18n.Locale()).SearchResultsLimited(count) }
+
+// SearchResultsLimited says "Results limited to {count} matches"
+// in the language of msgs.
+func (msgs Messages) SearchResultsLimited(count int) string {
+	return Catalog.Format(msgs.locale, "searchResultsLimited", map[string]any{"count": count})
+}
+
+// SearchNoResults says "No results in requests, variables or traffic"
+// in the language the app shows.
+func SearchNoResults() string { return In(i18n.Locale()).SearchNoResults() }
+
+// SearchNoResults says "No results in requests, variables or traffic"
+// in the language of msgs.
+func (msgs Messages) SearchNoResults() string {
+	return Catalog.Format(msgs.locale, "searchNoResults", nil)
+}
+
+// SearchRunning says "Searching…"
+// in the language the app shows.
+func SearchRunning() string { return In(i18n.Locale()).SearchRunning() }
+
+// SearchRunning says "Searching…"
+// in the language of msgs.
+func (msgs Messages) SearchRunning() string {
+	return Catalog.Format(msgs.locale, "searchRunning", nil)
+}
+
+// NextSearchMatch says "Next Search Match"
+// in the language the app shows.
+func NextSearchMatch() string { return In(i18n.Locale()).NextSearchMatch() }
+
+// NextSearchMatch says "Next Search Match"
+// in the language of msgs.
+func (msgs Messages) NextSearchMatch() string {
+	return Catalog.Format(msgs.locale, "nextSearchMatch", nil)
+}
+
+// PreviousSearchMatch says "Previous Search Match"
+// in the language the app shows.
+func PreviousSearchMatch() string { return In(i18n.Locale()).PreviousSearchMatch() }
+
+// PreviousSearchMatch says "Previous Search Match"
+// in the language of msgs.
+func (msgs Messages) PreviousSearchMatch() string {
+	return Catalog.Format(msgs.locale, "previousSearchMatch", nil)
+}
+
+// OpenSearchResult says "Open result: {resource}"
+// in the language the app shows.
+func OpenSearchResult(resource string) string { return In(i18n.Locale()).OpenSearchResult(resource) }
+
+// OpenSearchResult says "Open result: {resource}"
+// in the language of msgs.
+func (msgs Messages) OpenSearchResult(resource string) string {
+	return Catalog.Format(msgs.locale, "openSearchResult", map[string]any{"resource": resource})
+}
+
+// SearchHiddenResource says "Hidden secret"
+// in the language the app shows.
+func SearchHiddenResource() string { return In(i18n.Locale()).SearchHiddenResource() }
+
+// SearchHiddenResource says "Hidden secret"
+// in the language of msgs.
+func (msgs Messages) SearchHiddenResource() string {
+	return Catalog.Format(msgs.locale, "searchHiddenResource", nil)
+}

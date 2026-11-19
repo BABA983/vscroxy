@@ -61,6 +61,7 @@ const (
 	pageRuns                    // the run records, which take the window
 	pageDiagnostics             // connection diagnostics
 	pageOverview                // session or selection overview
+	pageSearch                  // one query across requests, variables and traffic
 )
 
 // capture reports whether the page reads captured traffic.
@@ -94,10 +95,13 @@ type app struct {
 	// build, to tell Down opening it from Down meant for the requests.
 	queryOpen bool
 	// guide shows the setup guide in place of the traffic list (guide.go).
-	guide     bool
-	filter    string
-	chip      int
-	search    ui.Handle
+	guide  bool
+	filter string
+	chip   int
+	search ui.Handle
+	// searchAll is the Search view: one query over saved requests,
+	// environments and captured flows. Its worker never holds a UI element.
+	searchAll globalSearch
 	clearOpen bool
 
 	// Capture filters and the request library have independent selections.
@@ -1914,6 +1918,7 @@ func (a *app) view(c *ui.Context) {
 	c.SetMenuPresentation(ui.PopoverMenus)
 	a.inspectorEditing = a.workbench.inspector.FocusWithin(c)
 	a.drain()
+	a.drainSearch()
 	a.pruneURLPaste()
 	// A row the reader picked by hand is theirs: Auto-select steps aside.
 	// A missing row normalizes to -1; that is the list being empty, not the
@@ -2038,6 +2043,8 @@ func (a *app) view(c *ui.Context) {
 		}
 		a.footer(c.Key("workspace-footer"), t)
 	})
+	// The target editor exists now: selecting a Search result can reveal it.
+	a.revealSearchMatch()
 	a.persistSettings()
 	a.checkpointExperiments(c)
 	a.checkpointSessions()
@@ -2433,6 +2440,10 @@ func (a *app) goTo(choice string) {
 		a.openOverview()
 		return
 	}
+	if choice == "search" {
+		a.page, a.sidebarChoice = pageSearch, "search"
+		return
+	}
 	a.page = pageLive
 	if host, ok := strings.CutPrefix(choice, "host:"); ok {
 		a.filterTriage.Host = host
@@ -2588,6 +2599,11 @@ func (a *app) trafficRegion(c *ui.Context, t *ui.Theme) {
 	// scopes or scrolling them away.
 	uikit.SidebarList(c, "traffic-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
 		uikit.SidebarHeading(c, locales.Traffic(), traffic, func() {
+			// Search sits in the heading, like an activity-bar entry: it must
+			// not take a row from the scopes and views below it.
+			if uikit.RowIconButton(c, locales.SearchEverywhere(), locales.SearchEverywhere(), searchIcon).Clicked() {
+				a.goTo("search")
+			}
 			if uikit.RowIconButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon).Clicked() {
 				a.views.capture(a)
 				a.views.newView(a)

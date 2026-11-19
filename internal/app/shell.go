@@ -386,6 +386,8 @@ func (a *app) footerCountsText() string {
 		return locales.ConnectionDiagnosticsReadOnly()
 	case pageOverview:
 		return locales.CapturesOverview(len(a.flows))
+	case pageSearch:
+		return locales.SearchResultCount(len(a.searchAll.results))
 	case pageSession:
 		return locales.SavedSessionsEvidence(len(a.sessions.items))
 	case pageRequest:
@@ -797,6 +799,10 @@ func (a *app) syncSections() {
 	}
 	if a.page == pageOverview {
 		a.sidebarChoice = "overview"
+		return
+	}
+	if a.page == pageSearch {
+		a.sidebarChoice = "search"
 		return
 	}
 	if !a.page.capture() {

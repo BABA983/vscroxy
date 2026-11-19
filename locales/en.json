@@ -7885,5 +7885,36 @@
   "restoreVersion": "Restore version",
   "restoreVersionConfirm": "Restore the version saved {time}?",
   "restoreVersionDetail": "The current file is copied to local history first, so this can be undone.",
-  "restoredVersion": "Restored the version saved {time}"
+  "restoredVersion": "Restored the version saved {time}",
+  "searchEverywhere": "Search Everywhere",
+  "searchAcrossAssets": "Search requests, variables and traffic",
+  "@searchResultCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "searchResultCount": "{count} results",
+  "@searchResultsLimited": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "searchResultsLimited": "Results limited to {count} matches",
+  "searchNoResults": "No results in requests, variables or traffic",
+  "searchRunning": "Searching…",
+  "nextSearchMatch": "Next Search Match",
+  "previousSearchMatch": "Previous Search Match",
+  "@openSearchResult": {
+    "placeholders": {
+      "resource": {
+        "type": "String"
+      }
+    }
+  },
+  "openSearchResult": "Open result: {resource}",
+  "searchHiddenResource": "Hidden secret"
 }

@@ -72,6 +72,7 @@ func (a *app) installShutdown() shutdownCleanup {
 
 // cancelQuitRequests stops work that can still publish into the closing views.
 func (a *app) cancelQuitRequests() {
+	a.stopSearch()
 	a.columnRead.stop()
 	a.structured[0].stop()
 	a.structured[1].stop()

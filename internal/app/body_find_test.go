@@ -26,17 +26,28 @@ func settleBodyFind(t *testing.T, a *app, tt *ui.Tester, c *ui.Context) *editor.
 // runFindToggle uses the registry's command for the focused bar. MyGo turns
 // Option+letter into text on macOS before a shortcut sees it, so pressing a
 // key in a tester is not the contract; the registry's owner and its focus
-// precondition are.
+// precondition are. Focus can move for a frame while a tester builds, so let
+// the bar settle before asking the registry as the tests do when opening it.
 func runFindToggle(t *testing.T, a *app, tt *ui.Tester, c *ui.Context, id string) {
 	t.Helper()
-	action := pick(a.actions(c), id)
-	if action.id == "" || !action.enabled {
+	var found action
+	for range 6 {
+		found = pick(a.actions(c), id)
+		if found.id != "" && found.enabled {
+			break
+		}
+		if a.bodyText[0] != nil {
+			a.bodyText[0].Run(editor.Find)
+		}
+		tt.Frame()
+	}
+	if found.id == "" || !found.enabled {
 		t.Fatalf("find command %s is unavailable while the bar is focused", id)
 	}
-	if action.shortcut.key == 0 {
+	if found.shortcut.key == 0 {
 		t.Fatalf("find command %s has no shortcut owner", id)
 	}
-	action.run()
+	found.run()
 	tt.Frame()
 }
 
