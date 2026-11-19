@@ -32,6 +32,7 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/lifecycle"
+	"github.com/baba983/vscroxy/internal/linkedmap"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/system"
@@ -112,7 +113,7 @@ type app struct {
 	// for the current query and source generation. Keys include the source
 	// generation; appends and library edits get a new key instead of a stale
 	// result list.
-	fuzzyLists map[fuzzyListKey][]fuzzyListHit
+	fuzzyLists *linkedmap.LRUCache[fuzzyListKey, fuzzyListCacheValue]
 	renameOpen bool
 	// saveAfterRename makes the rename dialog Save to collection.
 	saveAfterRename bool

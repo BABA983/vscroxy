@@ -13,6 +13,7 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/baba983/vscroxy/internal/fuzzy"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui/editor"
@@ -295,12 +296,33 @@ func (f sessionFlow) flow() flow {
 }
 
 // matches narrows a saved session's exchanges in arrival order, like VS Code's
-// tree FindFilter (src/vs/base/browser/ui/tree/abstractTree.ts). The search
-// still sees every field it did before, but as one fuzzy label: "gtusr"
-// reaches an exchange whose URL only spells "GetUser" across word breaks.
+// tree FindFilter (src/vs/base/browser/ui/tree/abstractTree.ts). Fields are
+// scored separately, as quickInputList scores labels and descriptions: a hit
+// cannot straddle Method/URL/Status, and a long URL cannot push the errors
+// out of the scored head. Literal text still searches every field and the
+// joined haystack the old filter used.
 func (f sessionFlow) matches(notes, query string) bool {
-	return fuzzyTextMatches(query, strings.Join([]string{
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return true
+	}
+	prepared := fuzzy.PrepareQuery(query)
+	fields := []string{
 		f.Method, f.URL, fmt.Sprint(f.Status), f.Note, notes,
 		f.ReqError, f.ResError, f.ConnectionError, f.ConnectionStage,
-	}, " "))
+	}
+	for _, field := range fields {
+		item := fuzzyListItem{label: field}
+		if fuzzyListPossible(item, prepared) {
+			if score, _ := fuzzyListScoreText(field, prepared, nil); score != 0 {
+				return true
+			}
+		}
+	}
+	for _, field := range fields {
+		if fuzzyListLiteral(fuzzyListItem{label: field}, prepared) {
+			return true
+		}
+	}
+	return fuzzyListLiteral(fuzzyListItem{label: strings.Join(fields, " ")}, prepared)
 }

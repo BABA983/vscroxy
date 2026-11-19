@@ -32,7 +32,7 @@ func TestFuzzyListFindsWhatSubstringCannot(t *testing.T) {
 	if strings.Contains(strings.ToLower(events[0].name), query) {
 		t.Fatalf("test query is a substring; it cannot prove fuzzy matching")
 	}
-	shown, matches := filterMQTTEvents(a, events, query)
+	shown, matches := filterMQTTEvents(a, &mqttDocument{}, events, query)
 	if len(shown) != 1 || shown[0].seq != 1 {
 		t.Fatalf("fuzzy event list = %+v, want only seq 1", shown)
 	}
@@ -49,17 +49,17 @@ func TestFuzzyListKeepsArrivalOrderAndLiteralPayloadHits(t *testing.T) {
 		{seq: 2, direction: "In", name: "beta", payload: []byte("mid-dle-of-a-very-long-payload-that-still-has-the-needle-inside")},
 		{seq: 3, direction: "In", name: "delta", payload: []byte("other")},
 	}
-	shown, _ := filterMQTTEvents(a, events, "alp gam")
+	shown, _ := filterMQTTEvents(a, &mqttDocument{}, events, "alp gam")
 	if ids := eventSeqs(shown); !slices.Equal(ids, []int{1}) {
 		t.Fatalf("multi-piece fuzzy list = %v, want [1]", ids)
 	}
-	shown, _ = filterMQTTEvents(a, events, "")
+	shown, _ = filterMQTTEvents(a, &mqttDocument{}, events, "")
 	if ids := eventSeqs(shown); !slices.Equal(ids, []int{1, 2, 3}) {
 		t.Fatalf("empty query lost arrival order: %v", ids)
 	}
 	// Beyond the scored head the exact substring must still work. The row has
 	// no label highlight because the hit is in the payload, not the name.
-	shown, matches := filterMQTTEvents(a, events, "needle-inside")
+	shown, matches := filterMQTTEvents(a, &mqttDocument{}, events, "needle-inside")
 	if ids := eventSeqs(shown); !slices.Equal(ids, []int{2}) {
 		t.Fatalf("literal deep payload search = %v, want [2]", ids)
 	}
@@ -76,21 +76,54 @@ func eventSeqs(events []mqttEvent) []int {
 	return out
 }
 
-func TestFuzzyListCacheFollowsSourceGeneration(t *testing.T) {
+func TestFuzzyListCacheHasOwnerAndReusesAppend(t *testing.T) {
 	a := workspaceApp()
+	doc := &mqttDocument{}
 	events := []mqttEvent{{seq: 1, direction: "In", name: "alpha"}}
-	first, _ := filterMQTTEvents(a, events, "alp")
-	second, _ := filterMQTTEvents(a, events, "alp")
+	first, _ := filterMQTTEvents(a, doc, events, "alp")
+	second, _ := filterMQTTEvents(a, doc, events, "alp")
 	if len(first) != 1 || len(second) != 1 {
 		t.Fatalf("repeated query lost the row: %d / %d", len(first), len(second))
 	}
-	if len(a.fuzzyLists) != 1 {
-		t.Fatalf("repeated frames cached %d queries, want 1", len(a.fuzzyLists))
+	if a.fuzzyLists.Size() != 1 {
+		t.Fatalf("repeated frames cached %d queries, want 1", a.fuzzyLists.Size())
 	}
 	events = append(events, mqttEvent{seq: 2, direction: "In", name: "alphabet"})
-	third, _ := filterMQTTEvents(a, events, "alp")
+	third, _ := filterMQTTEvents(a, doc, events, "alp")
 	if len(third) != 2 {
-		t.Fatalf("appended event did not invalidate the cache: %+v", third)
+		t.Fatalf("appended event was not scored: %+v", third)
+	}
+	cached, ok := a.fuzzyLists.Get(fuzzyListKey{scope: "mqtt-timeline", owner: fuzzyListOwner(doc, doc.fuzzyGen), query: "alp"})
+	if !ok || cached.window.last != 2 || cached.window.count != 2 {
+		t.Fatalf("cached window after append = %+v, want last/count 2", cached.window)
+	}
+
+	// A second document with identical seqs but different content must not
+	// inherit the first one's cached indices.
+	other := &mqttDocument{}
+	reversed := []mqttEvent{
+		{seq: 1, direction: "In", name: "garage/door"},
+		{seq: 2, direction: "In", name: "kitchen/temp"},
+	}
+	original := []mqttEvent{
+		{seq: 1, direction: "In", name: "kitchen/temp"},
+		{seq: 2, direction: "In", name: "garage/door"},
+	}
+	fromOriginal, _ := filterMQTTEvents(a, doc, original, "kitchen")
+	fromOther, _ := filterMQTTEvents(a, other, reversed, "kitchen")
+	if len(fromOriginal) != 1 || fromOriginal[0].name != "kitchen/temp" {
+		t.Fatalf("first document = %+v", fromOriginal)
+	}
+	if len(fromOther) != 1 || fromOther[0].name != "kitchen/temp" {
+		t.Fatalf("cache collided across documents: %+v", fromOther)
+	}
+
+	// A reconnect restarting at seq 1 is a different generation, even on
+	// the same document: the old window must not be reused.
+	doc.fuzzyGen++
+	reconnected, _ := filterMQTTEvents(a, doc, reversed, "kitchen")
+	if len(reconnected) != 1 || reconnected[0].name != "kitchen/temp" {
+		t.Fatalf("reconnect reused the previous generation: %+v", reconnected)
 	}
 }
 
@@ -110,6 +143,41 @@ func TestFuzzyTreeFindsRequestSubstringCannot(t *testing.T) {
 	}
 	if got := matchedLabelRuns(a.requests[1].Name, hits[0].matches); !slices.Equal(got, []string{"L", "st", "t", "m", "3"}) {
 		t.Fatalf("tree highlights = %v", got)
+	}
+}
+
+func TestHighlightsFitClampedStreamLabels(t *testing.T) {
+	long := "#1 · " + strings.Repeat("event-name-", 8) + "needle"
+	if len([]rune(long)) <= 48 {
+		t.Fatalf("label is not longer than the drawn 48 runes")
+	}
+	full := []fuzzy.Match{{Start: 55, End: 60}, {Start: 2, End: 7}}
+	drawn := clamp(long, 48)
+	clipped := fuzzyListLabelMatches(full, drawn)
+	if len(clipped) != 1 || clipped[0] != (fuzzy.Match{Start: 2, End: 7}) {
+		t.Fatalf("clamped WS label highlights = %v, want only the run inside 48", clipped)
+	}
+	// SSE shifts after its "#n · " prefix, then clips to the drawn text.
+	prefix := "#1 · "
+	shifted := fuzzyListLabelMatches(fuzzyShiftMatches(full, len([]rune(prefix))), prefix+drawn)
+	if !slices.Equal(shifted, []fuzzy.Match{{Start: 7, End: 12}}) {
+		t.Fatalf("SSE clamped highlights = %v, want only the run inside the drawn text", shifted)
+	}
+}
+
+func TestInlineScorerMatchesPortedVSCodeScorer(t *testing.T) {
+	for _, target := range []string{
+		"In · sensors/kitchen/temperature", "List items 3", "GET /api/getUserProfile",
+		"中文 mixed 标签", "commands/device-7/reply",
+	} {
+		for _, query := range []string{"ktchn", "lsttm3", "gtusr", "dev7", "中文", "zzzz"} {
+			want := fuzzy.ScoreFuzzy(target, query, query, true)
+			got := fuzzyScoreInline(target, query)
+			if got.score != want.Score || !slices.Equal(got.positions, want.Matches) {
+				t.Errorf("score(%q, %q) = %d/%v, want %d/%v", target, query,
+					got.score, got.positions, want.Score, want.Matches)
+			}
+		}
 	}
 }
 

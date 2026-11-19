@@ -70,6 +70,7 @@ type mqttDocument struct {
 	willPayloadType   string
 
 	query       string
+	fuzzyGen    uint64 // bumped on reconnect: a new session restarts at seq 1
 	payloadView int
 	reader      *editor.State
 	readerKey   string
@@ -687,7 +688,7 @@ func (a *app) mqttResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			uikit.Input(c, &u.query).Label(locales.SearchMqttMessages()).Placeholder(locales.SearchTopicPayloadOrProperties()).Grow(1).MinWidth(0)
 			uikit.Meta(c, locales.RetainedPreview3(len(s.events), s.evicted, s.dropped)).SingleLine()
 		})
-		events, matches := filterMQTTEvents(a, s.events, u.query)
+		events, matches := filterMQTTEvents(a, u, s.events, u.query)
 		if len(events) == 0 {
 			if strings.TrimSpace(u.query) != "" {
 				uikit.EmptyState(c, locales.NoMatchingMqttMessages(), locales.ChangeTheSearchOrWait2(), nil)
@@ -863,6 +864,7 @@ func (a *app) connectMQTT(d *requestDocument) {
 		return in.Certificates.TLSConfig(address, proxyCA, !verify)
 	}
 	u.session = openMQTTSession(prepared.URL, r, in, vars, cfg, proxy, verify, tlsConfig, a.invalidate)
+	u.fuzzyGen++
 	u.problem, u.query, u.readerKey, u.reader, u.selected = "", "", "", nil, 0
 	u.list = ui.ListState{}
 	d.composeWaiting, d.sendCancel, d.sendCancelling = true, u.session.cancel, false

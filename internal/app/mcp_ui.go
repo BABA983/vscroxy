@@ -40,6 +40,7 @@ type mcpDocument struct {
 	selected     int
 	problem      string
 	query        string
+	fuzzyGen     uint64 // bumped on reconnect
 	reader       *editor.State
 	readerKey    string
 	argsEditor   *editor.State
@@ -146,6 +147,7 @@ func (a *app) startMCP(d *requestDocument, plan request.MCPPlan) {
 	r := d.value().Request
 	in, vars := a.sendContext(r), a.activeVars()
 	u.session = openMCPSession(plan, r, in, vars, a.invalidate)
+	u.fuzzyGen++
 	u.problem, u.query, u.readerKey, u.reader, u.selected = "", "", "", nil, 0
 	u.argsEditor, u.argsFor, u.schemaReader, u.schemaFor = nil, "", nil, ""
 	u.responseTab, u.toolTab = 0, 0
@@ -565,7 +567,7 @@ func (a *app) mcpTimeline(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnaps
 		uikit.Input(c, &u.query).Label(locales.SearchMcpTimeline()).Placeholder(locales.SearchKindNameOrPayload()).Grow(1).MinWidth(0)
 		uikit.Meta(c, locales.RetainedPreview2(len(s.events), s.evicted)).SingleLine()
 	})
-	events, matches := filterMCPEvents(a, s.events, u.query)
+	events, matches := filterMCPEvents(a, u, s.events, u.query)
 	if len(events) == 0 {
 		uikit.EmptyState(c, locales.NoMatchingMcpEvents(), locales.ChangeTheSearchOrWait(), nil)
 		return

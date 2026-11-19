@@ -1,12 +1,14 @@
 package app
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/fuzzy"
+	"github.com/baba983/vscroxy/internal/linkedmap"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
 )
@@ -37,13 +39,28 @@ const (
 )
 
 type fuzzyListKey struct {
-	scope  string
-	source string
-	query  string
+	scope string
+	owner string
+	query string
+}
+
+// fuzzyListRange is the sequence-number window a stream returned. Its edges
+// let an appended event be scored on its own while the earlier matching rows
+// are reused; a reset stream has a key of its own.
+type fuzzyListRange struct {
+	first int
+	last  int
+	count int
+}
+
+type fuzzyListCacheValue struct {
+	window fuzzyListRange
+	hits   []fuzzyListHit
 }
 
 type fuzzyListHit struct {
 	index   int
+	seq     int
 	score   int
 	matches []fuzzy.Match // rune ranges of the displayed label
 }
@@ -79,6 +96,13 @@ func fuzzySource(count, first, last int) string {
 	return strconv.Itoa(count) + ":" + strconv.Itoa(first) + ":" + strconv.Itoa(last)
 }
 
+// fuzzyListOwner identifies the document and the current session generation.
+// A reconnect resets sequence numbers, so it must not share cached hits with
+// the earlier session even when the two windows look identical.
+func fuzzyListOwner(document any, generation uint64) string {
+	return fmt.Sprintf("%p:%d", document, generation)
+}
+
 // fuzzyListHead returns the first limit runes without converting the rest of
 // a possibly very large payload to a rune slice.
 func fuzzyListHead(s string, limit int) string {
@@ -93,13 +117,19 @@ func fuzzyListHead(s string, limit int) string {
 }
 
 func fuzzyListPossible(item fuzzyListItem, query fuzzy.IPreparedQuery) bool {
-	words := item.label + " " + item.detail
 	pieces := query.Values
 	if len(pieces) == 0 {
 		pieces = []fuzzy.IPreparedQueryPiece{query.IPreparedQueryPiece}
 	}
 	for _, piece := range pieces {
-		if !fuzzyPatternInWord(piece.NormalizedLowercase, words) {
+		pattern := piece.NormalizedLowercase
+		if fuzzyPatternInWord(pattern, item.label) || fuzzyPatternInWord(pattern, item.detail) {
+			continue
+		}
+		// The old haystack put label and detail next to each other, so keep
+		// that last resort but avoid the concatenation when the label alone
+		// already qualifies.
+		if !fuzzyPatternInWord(pattern, item.label+" "+item.detail) {
 			return false
 		}
 	}
@@ -125,14 +155,17 @@ func fuzzyPatternInWord(pattern, word string) bool {
 	for i := range word {
 		if word[i] >= utf8.RuneSelf {
 			asciiWord = false
-			break
+			continue
 		}
 		if at < len(pattern) && lowerASCII(word[i]) == pattern[at] {
 			at++
 		}
 	}
+	if at == len(pattern) {
+		return true
+	}
 	if asciiWord {
-		return at == len(pattern)
+		return false
 	}
 	return fuzzy.PatternInWord(pattern, strings.ToLower(word))
 }
@@ -219,8 +252,8 @@ func fuzzyListLabelMatches(matches []fuzzy.Match, label string) []fuzzy.Match {
 // fuzzyListScores scores one candidate for in-place list find. VS Code's
 // FindFilter scores the keyboard navigation label; a payload hit from the
 // app's older full-text search stays a literal hit with no label highlight.
-func fuzzyListScores(item fuzzyListItem, query fuzzy.IPreparedQuery, cache fuzzy.FuzzyScorerCache) (int, []fuzzy.Match) {
-	if score, matches := fuzzyListScoreText(item.label, query, cache); score != 0 {
+func fuzzyListScores(item fuzzyListItem, query fuzzy.IPreparedQuery, state *fuzzyScoreState) (int, []fuzzy.Match) {
+	if score, matches := fuzzyListScoreText(item.label, query, state); score != 0 {
 		return score, matches
 	}
 	if fuzzyListLiteral(item, query) {
@@ -229,18 +262,36 @@ func fuzzyListScores(item fuzzyListItem, query fuzzy.IPreparedQuery, cache fuzzy
 	return 0, nil
 }
 
-// fuzzyListScoreText uses the palette's quick-open scorer (fuzzyScorer.ts's
-// scoreFuzzy) and its per-query cache. The Go port's fuzzyScore2 needs fixed
-// 129x129 scratch tables per call, which is far too much to allocate for
-// every row of a thousand-row timeline; scoreFuzzy also returns VS Code's
-// matched rune positions, and the cache reuses a repeated label's score.
-func fuzzyListScoreText(text string, query fuzzy.IPreparedQuery, cache fuzzy.FuzzyScorerCache) (int, []fuzzy.Match) {
-	score := fuzzy.ScoreItemFuzzy(fuzzyListItem{label: fuzzyListHead(text, fuzzyListFieldRunes)},
-		query, true, fuzzyListAccessor{}, cache)
-	if score.Score == 0 {
-		return 0, nil
+// fuzzyListScoreText applies fuzzyScorer.ts's scoreFuzzy through the inline
+// scorer, so a large list does not allocate a score matrix per row. A prefix
+// hit uses VS Code's contiguous match ranges, as scoreItemFuzzy does.
+func fuzzyListScoreText(text string, query fuzzy.IPreparedQuery, state *fuzzyScoreState) (int, []fuzzy.Match) {
+	if state == nil {
+		state = &fuzzyScoreState{}
 	}
-	return score.Score, fuzzyListLabelMatches(score.LabelMatch, text)
+	head := fuzzyListHead(text, fuzzyListFieldRunes)
+	target := state.target(head)
+	pieces := query.Values
+	if len(pieces) == 0 {
+		pieces = []fuzzy.IPreparedQueryPiece{query.IPreparedQueryPiece}
+	}
+	total := 0
+	var positions []int
+	for _, piece := range pieces {
+		score := state.scoreRunes(target, state.original(piece.Normalized), state.pattern(piece.Normalized))
+		if score.score == 0 {
+			return 0, nil
+		}
+		total += score.score
+		positions = append(positions, score.positions...)
+	}
+	matches := inlineLabelMatches(positions, text)
+	if len(pieces) == 1 {
+		if prefix := inlinePrefix(query.Normalized, head); prefix != nil {
+			matches = prefix
+		}
+	}
+	return total, matches
 }
 
 func fuzzyShiftMatches(matches []fuzzy.Match, by int) []fuzzy.Match {
@@ -265,10 +316,25 @@ func fuzzyTextMatches(query, text string) bool {
 	if !fuzzyListPossible(item, prepared) {
 		return false
 	}
-	if score, _ := fuzzyListScoreText(text, prepared, fuzzy.NewFuzzyScorerCache()); score != 0 {
+	if score, _ := fuzzyListScoreText(text, prepared, nil); score != 0 {
 		return true
 	}
 	return fuzzyListLiteral(item, prepared)
+}
+
+func (a *app) fuzzyListCache() *linkedmap.LRUCache[fuzzyListKey, fuzzyListCacheValue] {
+	if a.fuzzyLists == nil {
+		a.fuzzyLists = linkedmap.NewLRUCache[fuzzyListKey, fuzzyListCacheValue](fuzzyListCacheLimit)
+	}
+	return a.fuzzyLists
+}
+
+func fuzzyAllHits(count int, seq func(int) int) []fuzzyListHit {
+	hits := make([]fuzzyListHit, 0, count)
+	for i := range count {
+		hits = append(hits, fuzzyListHit{index: i, seq: seq(i)})
+	}
+	return hits
 }
 
 // fuzzyList returns the matching source indices in display order, with the
@@ -276,30 +342,77 @@ func fuzzyTextMatches(query, text string) bool {
 // otherwise the source order is kept, as VS Code's find filters do.
 func (a *app) fuzzyList(query, scope, source string, count int, item func(int) fuzzyListItem, ranked bool) []fuzzyListHit {
 	if query == "" {
-		hits := make([]fuzzyListHit, 0, count)
-		for i := range count {
-			hits = append(hits, fuzzyListHit{index: i})
+		return fuzzyAllHits(count, func(i int) int { return i })
+	}
+	key := fuzzyListKey{scope: scope, owner: source, query: query}
+	if cached, ok := a.fuzzyListCache().Get(key); ok {
+		return cached.hits
+	}
+	hits := fuzzyScoreHits(query, count, item, func(i int) int { return i }, ranked)
+	a.fuzzyListCache().Set(key, fuzzyListCacheValue{
+		window: fuzzyListRange{first: 0, last: count - 1, count: count}, hits: hits,
+	})
+	return hits
+}
+
+// fuzzyListStream caches by document identity and session generation, never
+// by the stream's end sequence alone. When the only change since the last
+// frame is an appended tail (and optional eviction from the front), it reuses
+// the cached hits and scores just the new events.
+func (a *app) fuzzyListStream(query, scope, owner string, window fuzzyListRange, seq func(int) int, item func(int) fuzzyListItem) []fuzzyListHit {
+	if query == "" {
+		return fuzzyAllHits(window.count, seq)
+	}
+	key := fuzzyListKey{scope: scope, owner: owner, query: query}
+	cache := a.fuzzyListCache()
+	if old, ok := cache.Get(key); ok && old.window == window {
+		return old.hits
+	}
+	if old, ok := cache.Get(key); ok &&
+		window.first >= old.window.first && window.last > old.window.last &&
+		window.count >= old.window.count-(window.first-old.window.first) {
+		hits := make([]fuzzyListHit, 0, len(old.hits)+window.count-old.window.count+1)
+		for _, hit := range old.hits {
+			if hit.seq >= window.first {
+				hits = append(hits, hit)
+			}
 		}
-		return hits
-	}
-	key := fuzzyListKey{scope: scope, source: source, query: query}
-	if cached, ok := a.fuzzyLists[key]; ok {
-		return cached
-	}
-	if a.fuzzyLists == nil {
-		a.fuzzyLists = make(map[fuzzyListKey][]fuzzyListHit)
-	}
-	if len(a.fuzzyLists) >= fuzzyListCacheLimit {
-		clear(a.fuzzyLists)
+		prepared := fuzzy.PrepareQuery(query)
+		state := &fuzzyScoreState{}
+		for i := range window.count {
+			eventSeq := seq(i)
+			if eventSeq <= old.window.last {
+				continue
+			}
+			entry := item(i)
+			if !fuzzyListPossible(entry, prepared) {
+				continue
+			}
+			if score, matches := fuzzyListScores(entry, prepared, state); score != 0 {
+				hits = append(hits, fuzzyListHit{
+					index: i, seq: eventSeq, score: score, matches: matches,
+				})
+			}
+		}
+		value := fuzzyListCacheValue{window: window, hits: hits}
+		cache.Set(key, value)
+		return value.hits
 	}
 
+	hits := fuzzyScoreHits(query, window.count, item, seq, false)
+	cache.Set(key, fuzzyListCacheValue{window: window, hits: hits})
+	return hits
+}
+
+// fuzzyScoreHits is the full cold pass, shared by static and stream lists.
+func fuzzyScoreHits(query string, count int, item func(int) fuzzyListItem, seq func(int) int, ranked bool) []fuzzyListHit {
 	prepared := fuzzy.PrepareQuery(query)
 	cache := fuzzy.NewFuzzyScorerCache()
 	if ranked {
 		var candidates []fuzzyListCandidate
 		for i := range count {
 			entry := item(i)
-			if !fuzzyListPossible(entry, prepared) && !fuzzyListLiteral(entry, prepared) {
+			if !fuzzyListPossible(entry, prepared) {
 				continue
 			}
 			score := fuzzy.ScoreItemFuzzy(entry, prepared, true, fuzzyListAccessor{}, cache)
@@ -310,7 +423,7 @@ func (a *app) fuzzyList(query, scope, source string, count int, item func(int) f
 				continue
 			}
 			candidates = append(candidates, fuzzyListCandidate{
-				hit: fuzzyListHit{index: i, score: score.Score,
+				hit: fuzzyListHit{index: i, seq: seq(i), score: score.Score,
 					matches: fuzzyListLabelMatches(score.LabelMatch, entry.label)},
 				item: entry, score: score,
 			})
@@ -322,23 +435,22 @@ func (a *app) fuzzyList(query, scope, source string, count int, item func(int) f
 		for i, candidate := range candidates {
 			hits[i] = candidate.hit
 		}
-		a.fuzzyLists[key] = hits
 		return hits
 	}
 
 	var hits []fuzzyListHit
+	state := &fuzzyScoreState{}
 	for i := range count {
 		entry := item(i)
-		if !fuzzyListPossible(entry, prepared) && !fuzzyListLiteral(entry, prepared) {
+		if !fuzzyListPossible(entry, prepared) {
 			continue
 		}
-		score, matches := fuzzyListScores(entry, prepared, cache)
-		if score == 0 {
-			continue
+		if score, matches := fuzzyListScores(entry, prepared, state); score != 0 {
+			hits = append(hits, fuzzyListHit{
+				index: i, seq: seq(i), score: score, matches: matches,
+			})
 		}
-		hits = append(hits, fuzzyListHit{index: i, score: score, matches: matches})
 	}
-	a.fuzzyLists[key] = hits
 	return hits
 }
 
