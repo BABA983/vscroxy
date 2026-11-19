@@ -309,6 +309,7 @@ type app struct {
 	// bytes never show in an older reader.
 	bodyPrettyFor [2]string
 	bodyReader    [2]ui.Handle
+	bodyFind      [2]bodyFindState
 	bodyNotice    [2]string
 	jsonScroll    [2]ui.ListState
 	hexScroll     [2]ui.ListState
@@ -619,6 +620,12 @@ type app struct {
 	closingDocument *requestDocument
 	requestResults  []requestResult
 	importReport    importReport
+	// urlPaste is a cURL command pasted into the URL field, applied on the
+	// next build; urlPasteUndo is the accepted action, restored on the build
+	// after it. urlPasteSelection is the input's selection at paste time.
+	urlPaste          *urlPasteEdit
+	urlPasteUndo      *urlPasteEdit
+	urlPasteSelection [2]int
 	// tokens are the OAuth 2.0 access tokens, kept sealed by oauthTokens.
 	tokens            request.Tokens
 	oauthTokens       oauthTokenStore
@@ -1861,6 +1868,7 @@ func (a *app) view(c *ui.Context) {
 	c.SetMenuPresentation(ui.PopoverMenus)
 	a.inspectorEditing = a.workbench.inspector.FocusWithin(c)
 	a.drain()
+	a.pruneURLPaste()
 	// A row the reader picked by hand is theirs: Auto-select steps aside.
 	// A missing row normalizes to -1; that is the list being empty, not the
 	// reader taking over. Only a move between two real rows is a manual pick.

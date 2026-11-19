@@ -26,8 +26,10 @@ type commandContext struct {
 	proxyReady bool
 	// Derived labels and targets are read from the snapshot, not recomputed
 	// by each menu, button and shortcut subscription in the same frame.
-	searchLabel    string
-	search         func()
+	searchLabel string
+	search      func()
+	// find is the focused body find bar, when its options can be toggled.
+	find           *bodyFindState
 	focusTraffic   func()
 	focusInspector func()
 	focusURL       func()
@@ -75,6 +77,12 @@ func commandSnapshot(a *app, c *ui.Context, target *requestDocument) *commandCon
 		if c != nil && capturing && a.bodyText[side] != nil && a.bodyReader[side].FocusWithin(c) {
 			x.searchLabel = locales.FindInBodyLabel()
 			x.search = func() { a.bodyText[side].Run(editor.Find) }
+		}
+		if c != nil {
+			state := &a.bodyFind[side]
+			if state.find != nil && state.handle.FocusWithin(c) {
+				x.find = state
+			}
 		}
 	}
 	if d != nil {
@@ -242,6 +250,15 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("view.search", "", func(x *commandContext) { x.search() }).
 		named(func(x *commandContext) string { return x.searchLabel }).
 		when(func(x *commandContext) bool { return x.capturing }, "").keys(ui.Cmd, ui.KeyF)
+	// The find bar's options take Alt+C/W/R only while that bar has the
+	// focus; the commands own the keys so menus and the palette see one
+	// owner, and the precondition keeps them off everywhere else.
+	r.add("find.match-case", "", func(x *commandContext) { x.find.toggleCase() }).
+		when(func(x *commandContext) bool { return x.find != nil }, "").keys(ui.Alt, ui.KeyC)
+	r.add("find.match-whole-word", "", func(x *commandContext) { x.find.toggleWord() }).
+		when(func(x *commandContext) bool { return x.find != nil }, "").keys(ui.Alt, ui.KeyW)
+	r.add("find.use-regexp", "", func(x *commandContext) { x.find.toggleRegexp() }).
+		when(func(x *commandContext) bool { return x.find != nil }, "").keys(ui.Alt, ui.KeyR)
 	r.add("view.primary", "", func(x *commandContext) {
 		if x.tab {
 			x.focusURL()
