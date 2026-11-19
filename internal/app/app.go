@@ -115,6 +115,10 @@ type app struct {
 	// its request index only when the requests do.
 	requestGen   int
 	requestIndex requestSearchIndex
+	// pendingMove is the drop a tree row queued during the view pass; the
+	// next pass applies it, as a menu action that removes rows does.
+	pendingMove *libraryMove
+	moveTo      moveToState
 	// paletteAssets caches scored and sorted resource candidates for one
 	// query/library/variables/history key. Repeated palette frames with an
 	// unchanged query are lookups, not rescans of the request library.
@@ -1917,6 +1921,7 @@ func (a *app) view(c *ui.Context) {
 	c.SetTheme(theme)
 	c.SetMenuPresentation(ui.PopoverMenus)
 	a.inspectorEditing = a.workbench.inspector.FocusWithin(c)
+	a.applyPendingMove()
 	a.drain()
 	a.drainSearch()
 	a.pruneURLPaste()
@@ -2095,6 +2100,7 @@ func (a *app) view(c *ui.Context) {
 		a.allowAppsPath, &a.allowAppsText, func([]string) { a.applyAllow() })
 	a.varsModal(c, t)
 	a.importReportModal(c, t)
+	a.moveToModal(c)
 	a.folderModal(c, t)
 	a.saveConflictModal(c, t)
 	a.historyModal(c, t)

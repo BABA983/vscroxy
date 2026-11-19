@@ -6179,9 +6179,35 @@
   "moreCaptureOptions": "More capture options",
   "moreCommands": "More commands",
   "moreResults": "{count} more results · narrow the search",
+  "move": "Move",
+  "moveDestination": "Destination",
+  "@moveItemTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "moveItemTo": "Move {name} to",
   "moveDown": "Move down",
+  "@movedTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "movedTo": "Moved {name} to {path}",
+  "moveHereHint": "Choose the folder to move this item into.",
+  "moveIntoItself": "A folder cannot be moved into itself or its own descendant.",
+  "moveNoSelection": "Select a saved request or folder first.",
   "moveRequestDown": "Move request {index} down",
   "moveRequestUp": "Move request {index} up",
+  "moveToEllipsis": "Move to…",
+  "moveUndone": "Move undone",
   "moveUp": "Move up",
   "mqtt50ConnectProperties": "MQTT 5.0 connect properties",
   "mqtt50MayLeave": "MQTT 5.0 may leave this empty; the broker assigns one. 3.1.1 generates one for a clean session; a persistent session needs an explicit ID.",
@@ -6271,6 +6297,7 @@
   "noAssertionsAddResponseChecks": "No assertions. Add response Checks, or pm.test(name, fn) in a script.",
   "noAuthorizationCookieOrApi": "No Authorization, Cookie or API-key headers found.",
   "noCaching": "No Caching",
+  "noCollection": "(No collection)",
   "noCachingIsOnConditional": "No Caching is on: conditional cache headers will be removed.",
   "noCapturedResponseToSave": "No captured response to save",
   "noClientCertificates": "No client certificates",

@@ -117,17 +117,7 @@ func (a *app) collectionTree(c *ui.Context) {
 	tree := ui.TreeBase(c)
 	var branch func(string, int)
 	branch = func(parent string, depth int) {
-		var children []string
-		for path := range paths {
-			prefix, _, found := strings.CutLast(path, "/")
-			if !found {
-				prefix = ""
-			}
-			if prefix == parent {
-				children = append(children, path)
-			}
-		}
-		slices.Sort(children)
+		children := folderOrder(parent, paths, a.library.folderOrder)
 		for _, path := range children {
 			_, name, found := strings.CutLast(path, "/")
 			if !found {
@@ -137,6 +127,7 @@ func (a *app) collectionTree(c *ui.Context) {
 			if query != "" {
 				open = new(true)
 			}
+			folderDrag := libraryDrag{kind: folderItem, id: path}
 			menu := func(m *ui.Menu) {
 				mock := locales.MockFromExamples(path)
 				if slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Scenario == path }) {
@@ -155,10 +146,16 @@ func (a *app) collectionTree(c *ui.Context) {
 					serve,
 					do("collection.mock", mock, func() { a.scenarioFromExamples(path) }).
 						when(a.examplesUnder(path), locales.SaveAResponseAsAn()).in("edit"),
+					do("library.move", locales.MoveToEllipsis(), func() { a.openMoveTo(folderDrag) }).in("edit"),
 					do("collection.delete", locales.DeletePathEllipsis(path), func() { a.confirmDeleteFolder(path) }).in("danger")))
 			}
 			parts := tree.Item(open)
-			row := treeRow(c, parts, depth).Label(locales.CollectionPath(path)).PopoverMenu(menu)
+			row := treeRow(c, parts, depth).Label(locales.CollectionPath(path)).
+				Drag(folderDrag).PopoverMenu(menu)
+			if row.Dragging() {
+				row.Opacity(0.5)
+			}
+			a.queueTreeDrop(c, row, folderDrag, true, parent, paths)
 			row.Children(func() {
 				branchArrow(c, open)
 				fuzzyListBody(c, name, folderMatches[path]).SingleLine().Grow(1)
@@ -176,17 +173,24 @@ func (a *app) collectionTree(c *ui.Context) {
 			if r.Collection != parent || !shown {
 				continue
 			}
+			requestDrag := libraryDrag{kind: requestItem, id: r.key()}
 			menu := func(m *ui.Menu) {
 				actionMenu(m, append(append([]action{
 					do("request.open", locales.Open(), func() { a.openSaved(r.key()) }).in("open"),
 					do("request.history", locales.LocalHistoryEllipsis(), func() { a.openRequestHistory(r.key()) }).in("open"),
 				}, a.folderSettingsActions(r.Collection)...),
+					do("library.move", locales.MoveToEllipsis(), func() { a.openMoveTo(requestDrag) }).in("edit"),
 					do("request.delete", locales.DeleteRequest(), func() { a.confirmDeleteRequest(r.key(), r.Name) }).in("danger")))
 			}
 			// The sidebar has one choice: a request only while it is shown.
 			chosen := a.page == pageRequest && a.requestChoice == r.key()
 			edited := slices.ContainsFunc(a.documents, func(d *requestDocument) bool { return d.savedKey == r.key() && d.dirty() })
-			base := treeRow(c, tree.Item(nil), depth).Label(r.Name).Selected(chosen)
+			base := treeRow(c, tree.Item(nil), depth).Label(r.Name).Selected(chosen).
+				Drag(requestDrag)
+			if base.Dragging() {
+				base.Opacity(0.5)
+			}
+			a.queueTreeDrop(c, base, requestDrag, false, parent, paths)
 			// The row shows the name and method; the card carries the whole
 			// address and where the request lives.
 			card := uikit.HoverCard{Title: r.Name, Meta: method, Rows: []uikit.HoverCardRow{{Key: "URL", Value: r.URL}}}

@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/natural"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 )
@@ -25,12 +26,14 @@ const (
 
 type folderFile struct {
 	request.Folder
-	Order []string `json:"order,omitempty"`
+	Order       []string `json:"order,omitempty"`
+	FolderOrder []string `json:"folderOrder,omitempty"`
 }
 
 // Read reads the tree at root, in saved request order within each directory,
-// followed by unlisted requests in file-name order, then subdirectories in
-// unescaped name order. Dot-prefixed entries and files other than folder.json
+// followed by unlisted requests in natural file-name order, then subdirectories
+// in their saved folder order or, where there is none, natural name order.
+// Dot-prefixed entries and files other than folder.json
 // and regular *.request.json files are ignored. A missing or empty root is an
 // empty library.
 //
@@ -75,6 +78,10 @@ func Read[T any](root string, decode func(data []byte, collection string) (T, er
 		for i, stem := range settings.Order {
 			rank[stem] = i + 1
 		}
+		folderRank := map[string]int{}
+		for i, name := range settings.FolderOrder {
+			folderRank[name] = i + 1
+		}
 		var here []string
 		var subdirs []fs.DirEntry
 		for _, e := range entries {
@@ -86,10 +93,10 @@ func Read[T any](root string, decode func(data []byte, collection string) (T, er
 				here = append(here, strings.TrimSuffix(name, requestFileSuffix))
 			}
 		}
-		// Listed requests keep their order; others follow by name.
-		slices.SortFunc(here, func(x, y string) int {
+		// Listed requests keep their order; others follow by natural name.
+		slices.SortStableFunc(here, func(x, y string) int {
 			unlisted := func(stem string) int { return min(rank[stem], 1) ^ 1 }
-			return cmp.Or(cmp.Compare(unlisted(x), unlisted(y)), cmp.Compare(rank[x], rank[y]), cmp.Compare(x, y))
+			return cmp.Or(cmp.Compare(unlisted(x), unlisted(y)), cmp.Compare(rank[x], rank[y]), natural.Compare(UnescapeName(x), UnescapeName(y)))
 		})
 		for _, stem := range here {
 			file := path.Join(dir, stem+requestFileSuffix)
@@ -104,7 +111,11 @@ func Read[T any](root string, decode func(data []byte, collection string) (T, er
 			known[file] = data
 			requests = append(requests, r)
 		}
-		slices.SortFunc(subdirs, func(x, y fs.DirEntry) int { return cmp.Compare(UnescapeName(x.Name()), UnescapeName(y.Name())) })
+		slices.SortStableFunc(subdirs, func(x, y fs.DirEntry) int {
+			return cmp.Or(cmp.Compare(min(folderRank[UnescapeName(x.Name())], 1)^1, min(folderRank[UnescapeName(y.Name())], 1)^1),
+				cmp.Compare(folderRank[UnescapeName(x.Name())], folderRank[UnescapeName(y.Name())]),
+				natural.Compare(UnescapeName(x.Name()), UnescapeName(y.Name())))
+		})
 		for _, e := range subdirs {
 			if err := walk(path.Join(dir, e.Name()), strings.TrimPrefix(collection+"/"+UnescapeName(e.Name()), "/")); err != nil {
 				return err

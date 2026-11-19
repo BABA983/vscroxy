@@ -39,7 +39,7 @@ func (a *app) savedRequestPath(r savedRequest) (string, error) {
 	if a.library.root == "" {
 		return "", errors.New("no library folder is open")
 	}
-	files, err := libraryFiles(a.requests, a.folders)
+	files, err := libraryFiles(a.requests, a.folders, a.library.folderOrder)
 	if err != nil {
 		return "", err
 	}

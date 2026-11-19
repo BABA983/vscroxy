@@ -93,6 +93,43 @@ func TestReadTree(t *testing.T) {
 	}
 }
 
+// Requests with no saved order and folders with no saved folder order are
+// sorted naturally, while a folderOrder in folder.json still wins over it.
+func TestReadNaturalAndSavedOrder(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "folder.json", `{"folderOrder":["f10","f2"]}`)
+	for name, label := range map[string]string{
+		"req2": "Two", "req10": "Ten", "req3": "Three", "plain": "Plain",
+	} {
+		writeFile(t, root, name+".request.json", `{"name":"`+label+`"}`)
+	}
+	for dir, label := range map[string]string{"f2": "Two", "f10": "Ten", "f3": "Three"} {
+		writeFile(t, root, dir+"/one.request.json", `{"name":"`+label+`"}`)
+		if dir != "f3" {
+			writeFile(t, root, dir+"/folder.json", `{"description":"`+label+`"}`)
+		}
+	}
+	requests, folders, _, err := library.Read(root, decodeRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, r := range requests {
+		names = append(names, r.Collection+"/"+r.Name)
+	}
+	want := []string{"/Plain", "/Two", "/Three", "/Ten", "f10/Ten", "f2/Two", "f3/Three"}
+	if !slices.Equal(names, want) {
+		t.Fatalf("requests = %q, want %q", names, want)
+	}
+	var paths []string
+	for _, f := range folders {
+		paths = append(paths, f.Path)
+	}
+	if !slices.Equal(paths, []string{"f10", "f2"}) {
+		t.Errorf("folders = %q, want saved folder order", paths)
+	}
+}
+
 func TestReadWithCallerMetadata(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "Shop/one.request.json", `{"name":"One","source":{"key":"capture"}}`)

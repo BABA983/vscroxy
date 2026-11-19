@@ -37,6 +37,7 @@ func (a *app) menu() *mygo.Menu {
 		command("capture.start", locales.StartCapture()),
 		mygo.Separator(),
 		command("request.save", locales.SaveRequest()),
+		command("library.move", locales.MoveToEllipsis()),
 		command("request.close", locales.CloseRequest()),
 		command("request.close-others", locales.CloseOtherRequests()),
 		command("request.close-saved", locales.CloseSavedRequests()),

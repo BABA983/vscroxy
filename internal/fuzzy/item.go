@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/baba983/vscroxy/internal/natural"
 )
 
 // IItemAccessor corresponds to IItemAccessor in fuzzyScorer.ts. VS Code's
@@ -393,39 +395,8 @@ func compareByPrefix(a, b, lookFor string) int {
 }
 
 func compareFileNames(a, b string) int {
-	if compared := naturalCompare(a, b); compared != 0 {
+	if compared := natural.Compare(a, b); compared != 0 {
 		return compared
 	}
 	return cmp.Compare(runeLen(a), runeLen(b))
-}
-
-func naturalCompare(a, b string) int {
-	ar, br := []rune(a), []rune(b)
-	i, j := 0, 0
-	for i < len(ar) && j < len(br) {
-		if ar[i] >= '0' && ar[i] <= '9' && br[j] >= '0' && br[j] <= '9' {
-			startA, startB := i, j
-			for i < len(ar) && ar[i] >= '0' && ar[i] <= '9' {
-				i++
-			}
-			for j < len(br) && br[j] >= '0' && br[j] <= '9' {
-				j++
-			}
-			numberA := strings.TrimLeft(string(ar[startA:i]), "0")
-			numberB := strings.TrimLeft(string(br[startB:j]), "0")
-			if compared := cmp.Compare(len(numberA), len(numberB)); compared != 0 {
-				return compared
-			}
-			if compared := strings.Compare(numberA, numberB); compared != 0 {
-				return compared
-			}
-			continue
-		}
-		if compared := cmp.Compare(ar[i], br[j]); compared != 0 {
-			return compared
-		}
-		i++
-		j++
-	}
-	return cmp.Compare(len(ar)-i, len(br)-j)
 }

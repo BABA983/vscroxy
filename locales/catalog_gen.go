@@ -22044,6 +22044,36 @@ func (msgs Messages) MoreResults(count int) string {
 	return Catalog.Format(msgs.locale, "moreResults", map[string]any{"count": count})
 }
 
+// Move says "Move"
+// in the language the app shows.
+func Move() string { return In(i18n.Locale()).Move() }
+
+// Move says "Move"
+// in the language of msgs.
+func (msgs Messages) Move() string {
+	return Catalog.Format(msgs.locale, "move", nil)
+}
+
+// MoveDestination says "Destination"
+// in the language the app shows.
+func MoveDestination() string { return In(i18n.Locale()).MoveDestination() }
+
+// MoveDestination says "Destination"
+// in the language of msgs.
+func (msgs Messages) MoveDestination() string {
+	return Catalog.Format(msgs.locale, "moveDestination", nil)
+}
+
+// MoveItemTo says "Move {name} to"
+// in the language the app shows.
+func MoveItemTo(name string) string { return In(i18n.Locale()).MoveItemTo(name) }
+
+// MoveItemTo says "Move {name} to"
+// in the language of msgs.
+func (msgs Messages) MoveItemTo(name string) string {
+	return Catalog.Format(msgs.locale, "moveItemTo", map[string]any{"name": name})
+}
+
 // MoveDown says "Move down"
 // in the language the app shows.
 func MoveDown() string { return In(i18n.Locale()).MoveDown() }
@@ -22052,6 +22082,46 @@ func MoveDown() string { return In(i18n.Locale()).MoveDown() }
 // in the language of msgs.
 func (msgs Messages) MoveDown() string {
 	return Catalog.Format(msgs.locale, "moveDown", nil)
+}
+
+// MovedTo says "Moved {name} to {path}"
+// in the language the app shows.
+func MovedTo(name string, path string) string { return In(i18n.Locale()).MovedTo(name, path) }
+
+// MovedTo says "Moved {name} to {path}"
+// in the language of msgs.
+func (msgs Messages) MovedTo(name string, path string) string {
+	return Catalog.Format(msgs.locale, "movedTo", map[string]any{"name": name, "path": path})
+}
+
+// MoveHereHint says "Choose the folder to move this item into."
+// in the language the app shows.
+func MoveHereHint() string { return In(i18n.Locale()).MoveHereHint() }
+
+// MoveHereHint says "Choose the folder to move this item into."
+// in the language of msgs.
+func (msgs Messages) MoveHereHint() string {
+	return Catalog.Format(msgs.locale, "moveHereHint", nil)
+}
+
+// MoveIntoItself says "A folder cannot be moved into itself or its own descendant."
+// in the language the app shows.
+func MoveIntoItself() string { return In(i18n.Locale()).MoveIntoItself() }
+
+// MoveIntoItself says "A folder cannot be moved into itself or its own descendant."
+// in the language of msgs.
+func (msgs Messages) MoveIntoItself() string {
+	return Catalog.Format(msgs.locale, "moveIntoItself", nil)
+}
+
+// MoveNoSelection says "Select a saved request or folder first."
+// in the language the app shows.
+func MoveNoSelection() string { return In(i18n.Locale()).MoveNoSelection() }
+
+// MoveNoSelection says "Select a saved request or folder first."
+// in the language of msgs.
+func (msgs Messages) MoveNoSelection() string {
+	return Catalog.Format(msgs.locale, "moveNoSelection", nil)
 }
 
 // MoveRequestDown says "Move request {index} down"
@@ -22072,6 +22142,26 @@ func MoveRequestUp(index int) string { return In(i18n.Locale()).MoveRequestUp(in
 // in the language of msgs.
 func (msgs Messages) MoveRequestUp(index int) string {
 	return Catalog.Format(msgs.locale, "moveRequestUp", map[string]any{"index": index})
+}
+
+// MoveToEllipsis says "Move to…"
+// in the language the app shows.
+func MoveToEllipsis() string { return In(i18n.Locale()).MoveToEllipsis() }
+
+// MoveToEllipsis says "Move to…"
+// in the language of msgs.
+func (msgs Messages) MoveToEllipsis() string {
+	return Catalog.Format(msgs.locale, "moveToEllipsis", nil)
+}
+
+// MoveUndone says "Move undone"
+// in the language the app shows.
+func MoveUndone() string { return In(i18n.Locale()).MoveUndone() }
+
+// MoveUndone says "Move undone"
+// in the language of msgs.
+func (msgs Messages) MoveUndone() string {
+	return Catalog.Format(msgs.locale, "moveUndone", nil)
 }
 
 // MoveUp says "Move up"
@@ -22906,6 +22996,16 @@ func NoCaching() string { return In(i18n.Locale()).NoCaching() }
 // in the language of msgs.
 func (msgs Messages) NoCaching() string {
 	return Catalog.Format(msgs.locale, "noCaching", nil)
+}
+
+// NoCollection says "(No collection)"
+// in the language the app shows.
+func NoCollection() string { return In(i18n.Locale()).NoCollection() }
+
+// NoCollection says "(No collection)"
+// in the language of msgs.
+func (msgs Messages) NoCollection() string {
+	return Catalog.Format(msgs.locale, "noCollection", nil)
 }
 
 // NoCachingIsOnConditional says "No Caching is on: conditional cache headers will be removed."
