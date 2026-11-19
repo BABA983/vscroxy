@@ -334,6 +334,10 @@ type app struct {
 	// while neither the caret nor the reader's text version changes.
 	jsonCrumbs     [2]jsonBreadcrumbs
 	activeJSONPath activeJSONPath
+	// responseCrumbs caches the tree the sent response's Outline reads; its
+	// breadcrumb bar is not drawn, but the parse belongs to this one editor.
+	responseCrumbs jsonBreadcrumbs
+	outline        outlineUI
 	bodyNotice     [2]string
 	jsonScroll     [2]ui.ListState
 	hexScroll      [2]ui.ListState

@@ -38047,3 +38047,139 @@ func CompareSelectedFor(label string) string { return In(i18n.Locale()).CompareS
 func (msgs Messages) CompareSelectedFor(label string) string {
 	return Catalog.Format(msgs.locale, "compareSelectedFor", map[string]any{"label": label})
 }
+
+// Outline says "Outline"
+// in the language the app shows.
+//
+// Title of the document symbols side section of a body view.
+func Outline() string { return In(i18n.Locale()).Outline() }
+
+// Outline says "Outline"
+// in the language of msgs.
+//
+// Title of the document symbols side section of a body view.
+func (msgs Messages) Outline() string {
+	return Catalog.Format(msgs.locale, "outline", nil)
+}
+
+// ToggleOutline says "Toggle Outline"
+// in the language the app shows.
+//
+// Command that shows or hides the document symbols section.
+func ToggleOutline() string { return In(i18n.Locale()).ToggleOutline() }
+
+// ToggleOutline says "Toggle Outline"
+// in the language of msgs.
+//
+// Command that shows or hides the document symbols section.
+func (msgs Messages) ToggleOutline() string {
+	return Catalog.Format(msgs.locale, "toggleOutline", nil)
+}
+
+// FocusOutline says "Focus Outline"
+// in the language the app shows.
+//
+// Command that moves the keyboard focus to the outline's filter box.
+func FocusOutline() string { return In(i18n.Locale()).FocusOutline() }
+
+// FocusOutline says "Focus Outline"
+// in the language of msgs.
+//
+// Command that moves the keyboard focus to the outline's filter box.
+func (msgs Messages) FocusOutline() string {
+	return Catalog.Format(msgs.locale, "focusOutline", nil)
+}
+
+// HideOutline says "Hide Outline"
+// in the language the app shows.
+func HideOutline() string { return In(i18n.Locale()).HideOutline() }
+
+// HideOutline says "Hide Outline"
+// in the language of msgs.
+func (msgs Messages) HideOutline() string {
+	return Catalog.Format(msgs.locale, "hideOutline", nil)
+}
+
+// FilterOutline says "Filter symbols"
+// in the language the app shows.
+func FilterOutline() string { return In(i18n.Locale()).FilterOutline() }
+
+// FilterOutline says "Filter symbols"
+// in the language of msgs.
+func (msgs Messages) FilterOutline() string {
+	return Catalog.Format(msgs.locale, "filterOutline", nil)
+}
+
+// NoOutlineSymbols says "No symbols in this body"
+// in the language the app shows.
+func NoOutlineSymbols() string { return In(i18n.Locale()).NoOutlineSymbols() }
+
+// NoOutlineSymbols says "No symbols in this body"
+// in the language of msgs.
+func (msgs Messages) NoOutlineSymbols() string {
+	return Catalog.Format(msgs.locale, "noOutlineSymbols", nil)
+}
+
+// OutlineMore says "{count, plural, one {# more} other {# more}}"
+// in the language the app shows.
+//
+// Last row of an outline node that has more children than are listed.
+func OutlineMore(count int) string { return In(i18n.Locale()).OutlineMore(count) }
+
+// OutlineMore says "{count, plural, one {# more} other {# more}}"
+// in the language of msgs.
+//
+// Last row of an outline node that has more children than are listed.
+func (msgs Messages) OutlineMore(count int) string {
+	return Catalog.Format(msgs.locale, "outlineMore", map[string]any{"count": count})
+}
+
+// OutlineIncomplete says "incomplete"
+// in the language the app shows.
+func OutlineIncomplete() string { return In(i18n.Locale()).OutlineIncomplete() }
+
+// OutlineIncomplete says "incomplete"
+// in the language of msgs.
+func (msgs Messages) OutlineIncomplete() string {
+	return Catalog.Format(msgs.locale, "outlineIncomplete", nil)
+}
+
+// OutlineAnonymousFunction says "(anonymous function)"
+// in the language the app shows.
+func OutlineAnonymousFunction() string { return In(i18n.Locale()).OutlineAnonymousFunction() }
+
+// OutlineAnonymousFunction says "(anonymous function)"
+// in the language of msgs.
+func (msgs Messages) OutlineAnonymousFunction() string {
+	return Catalog.Format(msgs.locale, "outlineAnonymousFunction", nil)
+}
+
+// OutlineTest says "test"
+// in the language the app shows.
+func OutlineTest() string { return In(i18n.Locale()).OutlineTest() }
+
+// OutlineTest says "test"
+// in the language of msgs.
+func (msgs Messages) OutlineTest() string {
+	return Catalog.Format(msgs.locale, "outlineTest", nil)
+}
+
+// OutlineTooLarge says "Outline is not available for bodies over 1 MiB"
+// in the language the app shows.
+func OutlineTooLarge() string { return In(i18n.Locale()).OutlineTooLarge() }
+
+// OutlineTooLarge says "Outline is not available for bodies over 1 MiB"
+// in the language of msgs.
+func (msgs Messages) OutlineTooLarge() string {
+	return Catalog.Format(msgs.locale, "outlineTooLarge", nil)
+}
+
+// OpenABodyFirst says "Open a body first"
+// in the language the app shows.
+func OpenABodyFirst() string { return In(i18n.Locale()).OpenABodyFirst() }
+
+// OpenABodyFirst says "Open a body first"
+// in the language of msgs.
+func (msgs Messages) OpenABodyFirst() string {
+	return Catalog.Format(msgs.locale, "openABodyFirst", nil)
+}

@@ -3958,5 +3958,17 @@
       "label": {"type": "String"}
     }
   },
-  "compareSelectedFor": "已选择比较：{label}"
+  "compareSelectedFor": "已选择比较：{label}",
+  "outline": "大纲",
+  "toggleOutline": "切换大纲",
+  "focusOutline": "聚焦大纲",
+  "hideOutline": "隐藏大纲",
+  "filterOutline": "筛选符号",
+  "noOutlineSymbols": "此正文中没有符号",
+  "outlineMore": "{count, plural, other {另有 {count} 项}}",
+  "outlineIncomplete": "未完成",
+  "outlineAnonymousFunction": "（匿名函数）",
+  "outlineTest": "测试",
+  "outlineTooLarge": "超过 1 MiB 的正文不提供大纲",
+  "openABodyFirst": "请先打开正文"
 }

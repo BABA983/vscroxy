@@ -8087,5 +8087,34 @@
       "label": {"type": "String"}
     }
   },
-  "compareSelectedFor": "Selected for compare: {label}"
+  "compareSelectedFor": "Selected for compare: {label}",
+  "outline": "Outline",
+  "@outline": {
+    "description": "Title of the document symbols side section of a body view."
+  },
+  "toggleOutline": "Toggle Outline",
+  "@toggleOutline": {
+    "description": "Command that shows or hides the document symbols section."
+  },
+  "focusOutline": "Focus Outline",
+  "@focusOutline": {
+    "description": "Command that moves the keyboard focus to the outline's filter box."
+  },
+  "hideOutline": "Hide Outline",
+  "filterOutline": "Filter symbols",
+  "noOutlineSymbols": "No symbols in this body",
+  "outlineMore": "{count, plural, one {# more} other {# more}}",
+  "@outlineMore": {
+    "description": "Last row of an outline node that has more children than are listed.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "outlineIncomplete": "incomplete",
+  "outlineAnonymousFunction": "(anonymous function)",
+  "outlineTest": "test",
+  "outlineTooLarge": "Outline is not available for bodies over 1 MiB",
+  "openABodyFirst": "Open a body first"
 }

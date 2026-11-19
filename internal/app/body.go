@@ -841,12 +841,12 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 	case 2:
 		reader := a.jsonReaderFor(c, side, key, shown, f.contentType(side == 0))
 		if !reader.ready {
-			a.prettyBody(c, key, shown, side, reader)
+			a.prettyBody(c, &a.jsonCrumbs[side], key, shown, side, reader)
 			return
 		}
 		if len(reader.result.tree.roots) == 0 {
 			uikit.Meta(c, locales.BodyIsNotJsonShowing()).Padding(t.Space(uikit.SpaceL))
-			a.prettyBody(c, key, shown, side, reader)
+			a.prettyBody(c, &a.jsonCrumbs[side], key, shown, side, reader)
 			return
 		}
 		a.jsonBody(c, side)
@@ -863,7 +863,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		case "Merged stream":
 			a.mergedBody(c, f, shown, side)
 		default:
-			a.prettyBody(c, key, shown, side, a.jsonReaderFor(c, side, key, shown, f.contentType(side == 0)))
+			a.prettyBody(c, &a.jsonCrumbs[side], key, shown, side, a.jsonReaderFor(c, side, key, shown, f.contentType(side == 0)))
 		}
 	}
 }
@@ -1007,7 +1007,7 @@ func formatNDJSON(body string, options jsonc.FormattingOptions) string {
 	return out.String()
 }
 
-func (a *app) prettyBody(c *ui.Context, key, body string, side int, json *jsonReader) {
+func (a *app) prettyBody(c *ui.Context, crumbs *jsonBreadcrumbs, key, body string, side int, json *jsonReader) {
 	if json != nil && json.ready && json.result.tree.stop != "" {
 		t := c.Theme()
 		uikit.Meta(c, json.result.tree.stop).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM))
@@ -1030,8 +1030,11 @@ func (a *app) prettyBody(c *ui.Context, key, body string, side int, json *jsonRe
 	if json != nil && json.ready && json.result.crumbRoot != nil {
 		provided = jsonCrumbSource{root: json.result.crumbRoot, text: json.result.crumbText}
 	}
-	a.jsonPathBar(c, &a.jsonCrumbs[side], key, view, func() { a.bodyReader[side].Focus(c) }, provided)
-	editor.View(c, view).Bind(&a.bodyReader[side]).Grow(1)
+	a.jsonPathBar(c, crumbs, key, view, func() { a.bodyReader[side].Focus(c) }, provided)
+	a.outlineEditor(c, view, outlineTarget{key: key, kind: outlineJSON,
+		crumbs: crumbs, crumb: provided, focus: func() { a.bodyReader[side].Focus(c) }}, func() {
+		editor.View(c, view).Bind(&a.bodyReader[side]).FillWidth().Grow(1)
+	})
 }
 
 // Keep the library's search semantics, with controls that fit a side inspector.

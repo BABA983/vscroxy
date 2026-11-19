@@ -736,7 +736,9 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 			a.setVariableDiagnostics(d.varsEditor, d.graphql.Variables, d.composeCollection)
 		} else {
 			uikit.Hint(c, locales.QueryOrMutationVariablesSupported())
-			authoredText(c.Key("graphql-query"), &d.graphql.Query, &d.queryEditor, &d.queryFor, locales.GraphqlQuery(), "GraphQL")
+			a.authoredTextOutlined(c.Key("graphql-query"), &d.graphql.Query, &d.queryEditor, &d.queryFor,
+				locales.GraphqlQuery(), "GraphQL", outlineTarget{key: "draft:graphql", kind: outlineGraphQL},
+				d.unicodeHandle("graphql-query"))
 			a.wireGraphQLQueryEditor(d)
 			a.installUnicodeHover(d.queryEditor)
 			a.setGraphQLDiagnostics(d)
@@ -912,7 +914,7 @@ func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
 		if a.bodyPrettyFor[1] != body {
 			a.bodyPrettyFor[1], a.bodyText[1] = body, nil
 		}
-		a.prettyBody(c, "draft", body, 1, a.jsonReaderFor(c, 1, "draft", body, ct))
+		a.prettyBody(c, &a.jsonCrumbs[1], "draft", body, 1, a.jsonReaderFor(c, 1, "draft", body, ct))
 	}
 }
 
@@ -921,14 +923,18 @@ func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
 // The document's string stays the source of truth for running and saving.
 func (a *app) requestScriptText(c *ui.Context, d *requestDocument) {
 	if d.scriptTab == 1 {
-		authoredText(c, &d.composePost, &d.postEditor, &d.postFor, locales.PostResponseScript(), "JavaScript", d.unicodeHandle(problemFieldPost))
+		a.authoredTextOutlined(c, &d.composePost, &d.postEditor, &d.postFor,
+			locales.PostResponseScript(), "JavaScript", outlineTarget{key: "draft:script:post", kind: outlineScript},
+			d.unicodeHandle(problemFieldPost))
 		a.installUnicodeHover(d.postEditor)
 		a.wireVariableEditor(d.postEditor, d.composeCollection)
 		a.bindQuickFixShortcut(c, d.unicodeHandle(problemFieldPost))
 		a.trackEditorQuickFix(d, problemFieldPost, d.postEditor)
 		a.quickFixHandleMenu(c, d.unicodeHandle(problemFieldPost), d.postEditor)
 	} else {
-		authoredText(c, &d.composePre, &d.preEditor, &d.preFor, locales.PreRequestScript(), "JavaScript", d.unicodeHandle(problemFieldPre))
+		a.authoredTextOutlined(c, &d.composePre, &d.preEditor, &d.preFor,
+			locales.PreRequestScript(), "JavaScript", outlineTarget{key: "draft:script:pre", kind: outlineScript},
+			d.unicodeHandle(problemFieldPre))
 		a.installUnicodeHover(d.preEditor)
 		a.wireVariableEditor(d.preEditor, d.composeCollection)
 		a.bindQuickFixShortcut(c, d.unicodeHandle(problemFieldPre))
@@ -954,6 +960,28 @@ func authoredText(c *ui.Context, text *string, state **editor.State, seen *strin
 	}
 }
 
+// authoredTextOutlined is authoredText for the three bodies with document
+// symbols. The outline reads the same editor state, so editing the buffer is
+// the only thing that recomputes its symbols.
+func (a *app) authoredTextOutlined(c *ui.Context, text *string, state **editor.State, seen *string,
+	label, language string, target outlineTarget, focus ...*ui.Handle) {
+	if *state == nil || *seen != *text {
+		buf := editor.NewBuffer(*text)
+		buf.SetLanguage(editor.LanguageNamed(language))
+		*state = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: label}
+		*seen = *text
+	}
+	if len(focus) > 0 && focus[0] != nil && target.focus == nil {
+		handle := focus[0]
+		target.focus = func() { handle.Focus(c) }
+	}
+	a.outlineEditor(c, *state, target, func() { requestCodeEditor(c, *state, focus...) })
+	if current := (*state).Buffer.String(); current != *text {
+		*text, *seen = current, current
+		c.Invalidate()
+	}
+}
+
 // requestBodyText edits the raw body in the same reader the inspector uses:
 // line numbers, JSON highlighting, find and undo. The document's string stays
 // the source of truth for saving, sending and copying.
@@ -967,7 +995,11 @@ func (a *app) requestBodyText(c *ui.Context, d *requestDocument) {
 		d.bodyFor = d.composeBody
 	}
 	a.jsonPathBar(c, &d.jsonCrumbs, "draft", d.bodyEditor, func() { d.unicodeHandle("body").Focus(c) }, jsonCrumbSource{})
-	requestCodeEditor(c, d.bodyEditor, d.unicodeHandle("body"))
+	bodyFocus := d.unicodeHandle("body")
+	a.outlineEditor(c, d.bodyEditor, outlineTarget{key: "draft", kind: outlineJSON,
+		crumbs: &d.jsonCrumbs, focus: func() { bodyFocus.Focus(c) }}, func() {
+		requestCodeEditor(c, d.bodyEditor, bodyFocus)
+	})
 	a.bindQuickFixShortcut(c, d.unicodeHandle("body"))
 	a.trackEditorQuickFix(d, problemFieldBody, d.bodyEditor)
 	a.quickFixHandleMenu(c, d.unicodeHandle("body"), d.bodyEditor)
