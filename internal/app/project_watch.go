@@ -10,6 +10,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/async"
 	"github.com/baba983/vscroxy/internal/library"
 )
 
@@ -21,7 +22,7 @@ import (
 
 // startProjectWatch replaces the watch with one for the current project folder.
 // It does nothing without a window, as in tests.
-func (a *app) startProjectWatch() {
+func (a *app) startProjectWatch(clocks ...async.Clock) {
 	if a.projectWatchStop != nil {
 		close(a.projectWatchStop)
 		a.projectWatchStop = nil
@@ -33,20 +34,28 @@ func (a *app) startProjectWatch() {
 	stop := make(chan struct{})
 	a.projectWatchStop = stop
 	watchDir, watchStop := a.projectDir, stop
-	go guarded(func() { a.watchProject(watchDir, watchStop) })
+	go guarded(func() { a.watchProject(watchDir, watchStop, clocks...) })
 }
 
 // watchProject looks at the folder's fingerprint every two seconds and asks the
 // UI thread to sync when it changed, or while a change waits on unsaved edits.
-func (a *app) watchProject(dir string, stop <-chan struct{}) {
-	tick := time.NewTicker(2 * time.Second)
-	defer tick.Stop()
+func (a *app) watchProject(dir string, stop <-chan struct{}, clocks ...async.Clock) {
+	clock := timerClock(clocks)
+	ticks := make(chan struct{}, 1)
+	tick := async.NewIntervalTimer(func() error {
+		select {
+		case ticks <- struct{}{}:
+		default:
+		}
+		return nil
+	}, 2*time.Second, async.WithClock(clock))
+	defer tick.Dispose()
 	var seen string
 	for {
 		select {
 		case <-stop:
 			return
-		case <-tick.C:
+		case <-ticks:
 		}
 		fp := projectFingerprint(dir)
 		if fp == seen && !a.projectPending.Load() {

@@ -246,6 +246,7 @@ func TestMCP2026LoggingProgressAndServerRequests(t *testing.T) {
 
 	var mu sync.Mutex
 	var logs, rpc []string
+	logReady := make(chan struct{}, 1)
 	progress := make(chan string, 4)
 	plan := MCPPlan{Transport: MCPTransportStreamableHTTP, URL: httpServer.URL, Timeout: 10 * time.Second}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -255,6 +256,10 @@ func TestMCP2026LoggingProgressAndServerRequests(t *testing.T) {
 			mu.Lock()
 			logs = append(logs, level+" "+logger+" "+text)
 			mu.Unlock()
+			select {
+			case logReady <- struct{}{}:
+			default:
+			}
 		},
 		Progress: func(token string, p, total float64, message string) {
 			select {
@@ -278,15 +283,10 @@ func TestMCP2026LoggingProgressAndServerRequests(t *testing.T) {
 	if _, err := client.CallTool(ctx, "log", jsontext.Value(`{}`)); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		mu.Lock()
-		got := len(logs) > 0
-		mu.Unlock()
-		if got {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	select {
+	case <-logReady:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no log notification arrived")
 	}
 	mu.Lock()
 	gotLogs := append([]string(nil), logs...)
@@ -678,12 +678,18 @@ func waitProcessGone(t *testing.T, pid int) {
 func TestMCPStandaloneGETReconnectsWithoutReplayingPOST(t *testing.T) {
 	server := mcpFixture(t)
 	var gets atomic.Int32
+	reconnected := make(chan struct{})
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && gets.Add(1) <= 4 {
-			ctx, cancel := context.WithTimeout(r.Context(), 100*time.Millisecond)
-			defer cancel()
-			r = r.WithContext(ctx)
+		if r.Method == http.MethodGet {
+			if n := gets.Add(1); n <= 4 {
+				if n == 4 {
+					close(reconnected)
+				}
+				ctx, cancel := context.WithTimeout(r.Context(), 100*time.Millisecond)
+				defer cancel()
+				r = r.WithContext(ctx)
+			}
 		}
 		handler.ServeHTTP(w, r)
 	})
@@ -697,11 +703,9 @@ func TestMCPStandaloneGETReconnectsWithoutReplayingPOST(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	deadline := time.Now().Add(30 * time.Second)
-	for time.Now().Before(deadline) && gets.Load() < 4 {
-		time.Sleep(50 * time.Millisecond)
-	}
-	if gets.Load() < 4 {
+	select {
+	case <-reconnected:
+	case <-time.After(30 * time.Second):
 		t.Fatalf("standalone GET stopped reconnecting: GETs=%d", gets.Load())
 	}
 	if _, err := client.CallTool(ctx, "echo", jsontext.Value(`{"text":"after"}`)); err != nil {

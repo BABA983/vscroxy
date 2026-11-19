@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/async"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
@@ -153,7 +154,8 @@ func (a *app) startReplay(seconds int) {
 // interval spaces successive starts. A one-request, one-repeat batch records
 // its result like a single Replay. Cancellation stops new work and cancels
 // in-flight requests; only errors.Is(context.Canceled) is counted as canceled.
-func (a *app) runReplay(ctx context.Context, flows []flow, settings replaySettings, seconds int, updates chan<- replayOutcome) {
+func (a *app) runReplay(ctx context.Context, flows []flow, settings replaySettings, seconds int, updates chan<- replayOutcome, clocks ...async.Clock) {
+	clock := timerClock(clocks)
 	started := time.Now()
 	record := settings.repeat == 1 && len(flows) == 1
 	jobs := make(chan flow)
@@ -185,25 +187,27 @@ func (a *app) runReplay(ctx context.Context, flows []flow, settings replaySettin
 			}
 		})
 	}
-	next := time.Now()
+	pace := async.NewRunOnceScheduler(func() error { return nil }, settings.interval, async.WithClock(clock))
+	defer pace.Dispose()
+	next := clock.Now()
 scheduler:
 	for range settings.repeat {
 		for _, f := range flows {
 			if ctx.Err() != nil {
 				break scheduler
 			}
-			if wait := time.Until(next); wait > 0 {
-				timer := time.NewTimer(wait)
+			if wait := next.Sub(clock.Now()); wait > 0 {
+				fired := pace.Schedule(wait)
 				select {
-				case <-timer.C:
+				case <-fired:
 				case <-ctx.Done():
-					timer.Stop()
+					pace.Cancel()
 					break scheduler
 				}
 			}
 			select {
 			case jobs <- f:
-				next = time.Now().Add(settings.interval)
+				next = clock.Now().Add(settings.interval)
 			case <-ctx.Done():
 				break scheduler
 			}

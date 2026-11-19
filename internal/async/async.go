@@ -75,6 +75,10 @@ func (realClock) Now() time.Time { return time.Now() }
 
 func (realClock) AfterFunc(d time.Duration, f func()) Timer { return time.AfterFunc(d, f) }
 
+// RealClock returns the standard-library clock used by primitives by default.
+// Callers that need to read the same time their timers use can inject it.
+func RealClock() Clock { return realClock{} }
+
 // Option configures a primitive's time source.
 type Option func(*options)
 

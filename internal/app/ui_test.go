@@ -2291,7 +2291,7 @@ func TestEmptyCaptureOffersTheProxyAndClientSetup(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatal("the empty list did not start the proxy")
 		}
-		time.Sleep(5 * time.Millisecond)
+		runtime.Gosched()
 	}
 }
 
@@ -3590,7 +3590,7 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 		// The capture's own result says 200 OK too: wait for the send.
 		done := func() bool { return !tt.HasText("Sending…") && tt.HasText("200 OK") }
 		for !done() && time.Now().Before(deadline) {
-			time.Sleep(10 * time.Millisecond)
+			runtime.Gosched()
 			tt.Frame()
 		}
 		if !done() {
@@ -3697,7 +3697,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 		t.Helper()
 		deadline := time.Now().Add(5 * time.Second)
 		for !tt.HasText(label) && time.Now().Before(deadline) {
-			time.Sleep(10 * time.Millisecond)
+			runtime.Gosched()
 			tt.Frame()
 		}
 		if !tt.HasText(label) {
@@ -3716,7 +3716,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 				tt.Frame()
 				return
 			}
-			time.Sleep(10 * time.Millisecond)
+			runtime.Gosched()
 			tt.Frame()
 		}
 		t.Fatal("response checks never arrived")
@@ -4916,7 +4916,7 @@ func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for a.replayUI.updates != nil && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
+		runtime.Gosched()
 		tt.Frame()
 	}
 	if !tt.HasText("2/2 started · 2 succeeded · 0 failed") || !a.page.capture() {
@@ -5626,7 +5626,7 @@ func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *t
 	deadline := time.Now().Add(time.Minute)
 	done := func() bool { return !tt.HasText("Sending…") && tt.HasText("Last attempt") }
 	for !done() && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
+		runtime.Gosched()
 		tt.Frame()
 	}
 	if !done() || sends.Load() != 1 {

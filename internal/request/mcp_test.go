@@ -344,6 +344,7 @@ func TestMCPNotifications(t *testing.T) {
 	var mu sync.Mutex
 	var notifications []string
 	var logs []string
+	logReady := make(chan struct{}, 1)
 	r := Request{Protocol: "MCP", Method: "POST", MCP: MCPConfig{Transport: MCPTransportStdio, Command: os.Args[0],
 		Args: "-test.run=TestMCPStdioHelper\n-test.v=false", ProtocolVersion: "2025-11-25",
 		Env: []Field{{Name: "VSCROXY_MCP_STDIO_HELPER", Value: "1"}}}}
@@ -361,6 +362,10 @@ func TestMCPNotifications(t *testing.T) {
 			mu.Lock()
 			logs = append(logs, level+" "+logger+" "+text)
 			mu.Unlock()
+			select {
+			case logReady <- struct{}{}:
+			default:
+			}
 		},
 	})
 	if err != nil {
@@ -370,15 +375,10 @@ func TestMCPNotifications(t *testing.T) {
 	if _, err := client.CallTool(ctx, "log", jsontextValue(t, `{}`)); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		mu.Lock()
-		gotLog := len(logs) > 0
-		mu.Unlock()
-		if gotLog {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
+	select {
+	case <-logReady:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no log notification arrived")
 	}
 	mu.Lock()
 	defer mu.Unlock()

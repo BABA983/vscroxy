@@ -96,6 +96,7 @@ func waitForCaptureMQTT(t *testing.T, address string) {
 			_ = conn.Close()
 			return
 		}
+		// The real listener has no readiness signal; probe it again shortly.
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("listener %s did not start", address)

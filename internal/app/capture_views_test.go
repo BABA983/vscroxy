@@ -7,6 +7,7 @@ import (
 	"github.com/baba983/vscroxy/internal/uikit"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -78,7 +79,7 @@ func settle(t *testing.T, a *app, v *captureViews) {
 			note, _ := v.status()
 			t.Fatalf("the body search did not finish: %s", note)
 		}
-		time.Sleep(2 * time.Millisecond)
+		runtime.Gosched()
 	}
 }
 
@@ -716,8 +717,12 @@ func TestCaptureViewBodySearchIsCancellable(t *testing.T) {
 			t.Fatal("the search never started")
 		}
 	}
-	// Give a duplicate reader the chance to show up.
-	time.Sleep(20 * time.Millisecond)
+	// Wait for the duplicate reader itself, not for a fixed delay.
+	guard, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	for calls.Load() < 2 && guard.Err() == nil {
+		runtime.Gosched()
+	}
 	if n := calls.Load(); n != 2 {
 		t.Fatalf("two flows were handed to the reader %d times", n)
 	}

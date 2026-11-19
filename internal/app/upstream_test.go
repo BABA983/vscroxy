@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/async"
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/baba983/vscroxy/internal/upstream"
@@ -354,7 +355,8 @@ func TestSettingsUpstreamErrorRedactsPACSecrets(t *testing.T) {
 
 func TestCloseControlStopsUpstreamRetry(t *testing.T) {
 	a := workspaceApp()
-	a.upstreamRetry.timer = time.AfterFunc(time.Hour, func() {})
+	a.upstreamRetry.timer = async.NewRunOnceScheduler(func() error { return nil }, time.Hour)
+	a.upstreamRetry.timer.Schedule()
 	a.closeControl()
 	if a.upstreamRetry.timer != nil {
 		t.Fatal("closing the app left the upstream retry timer running")

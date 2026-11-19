@@ -22,6 +22,33 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// streamableMCPServer reports when the client opens the standalone GET stream
+// that carries server-initiated requests and notifications. Tests that depend
+// on those messages wait for this signal before calling a tool.
+func streamableMCPServer(server *mcp.Server) (*httptest.Server, <-chan struct{}) {
+	get := make(chan struct{}, 1)
+	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			select {
+			case get <- struct{}{}:
+			default:
+			}
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	return httpServer, get
+}
+
+func waitMCPStream(t *testing.T, get <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-get:
+	case <-time.After(10 * time.Second):
+		t.Fatal("MCP did not open its notification stream")
+	}
+}
+
 func TestMCPConsentKeysTrackShapeAndValues(t *testing.T) {
 	d := &requestDocument{debugKey: "doc-1"}
 	key := []byte("0123456789abcdef0123456789abcdef")
@@ -194,12 +221,15 @@ func TestMCPStdioConnectWaitsForConsent(t *testing.T) {
 }
 
 func TestMCPDisconnectEndsSessionAndSendsDelete(t *testing.T) {
-	var deletes atomic.Int32
+	deleted := make(chan struct{}, 1)
 	server := appMCPFixture()
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
-			deletes.Add(1)
+			select {
+			case deleted <- struct{}{}:
+			default:
+			}
 		}
 		handler.ServeHTTP(w, r)
 	}))
@@ -215,11 +245,9 @@ func TestMCPDisconnectEndsSessionAndSendsDelete(t *testing.T) {
 	if state := d.mcpUI.session.snapshot().state; state != "Disconnected" {
 		t.Fatalf("state after disconnect = %q", state)
 	}
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) && deletes.Load() == 0 {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if deletes.Load() == 0 {
+	select {
+	case <-deleted:
+	case <-time.After(3 * time.Second):
 		t.Fatal("disconnect did not send DELETE")
 	}
 }
@@ -362,7 +390,14 @@ func TestMCPRefreshMarksCachedCatalog(t *testing.T) {
 	if !s.refreshCatalog() {
 		t.Fatal("second refresh did not start")
 	}
-	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return !snapshot.busy })
+	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool {
+		if snapshot.busy {
+			return false
+		}
+		return slices.ContainsFunc(snapshot.events, func(e mcpEvent) bool {
+			return e.kind == "Cache" && strings.Contains(e.name, "tools/list")
+		})
+	})
 	var cached bool
 	for _, event := range snapshot.events {
 		if event.kind == "Cache" && strings.Contains(event.name, "tools/list") {
@@ -382,7 +417,7 @@ func TestMCPProgressAppearsInSnapshotAndTimeline(t *testing.T) {
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "done"}}}, struct{}{}, nil
 	})
-	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil))
+	httpServer, standaloneGET := streamableMCPServer(server)
 	defer httpServer.Close()
 	r := request.Request{Protocol: "MCP", URL: httpServer.URL, MCP: request.MCPConfig{
 		Transport: request.MCPTransportStreamableHTTP, ProtocolVersion: "2025-11-25", Tool: "work", TimeoutSeconds: 10,
@@ -391,24 +426,38 @@ func TestMCPProgressAppearsInSnapshotAndTimeline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := openMCPSession(plan, r, request.Context{}, nil, nil)
+	updated := make(chan struct{}, 1)
+	notify := func() {
+		select {
+		case updated <- struct{}{}:
+		default:
+		}
+	}
+	s := openMCPSession(plan, r, request.Context{}, nil, notify)
 	defer s.disconnect()
 	waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return snapshot.connected && !snapshot.busy })
+	// Progress notifications use the standalone GET stream.
+	waitMCPStream(t, standaloneGET)
 	if _, err := s.callTool(r.MCP); err != nil {
 		t.Fatal(err)
 	}
-	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return !snapshot.busy && snapshot.result != nil })
-	if !strings.Contains(snapshot.progress, "1 / 2") {
-		t.Fatalf("progress = %q", snapshot.progress)
-	}
-	var event bool
-	for _, e := range snapshot.events {
-		if e.kind == "Progress" && strings.Contains(e.text, "half") {
-			event = true
+	// Notifications can arrive after the result. Wait for a session update
+	// carrying both, rather than polling a snapshot while the network runs.
+	deadline := time.After(10 * time.Second)
+	for {
+		snapshot := s.snapshot()
+		ready := !snapshot.busy && snapshot.result != nil && strings.Contains(snapshot.progress, "1 / 2") &&
+			slices.ContainsFunc(snapshot.events, func(e mcpEvent) bool {
+				return e.kind == "Progress" && strings.Contains(e.text, "half")
+			})
+		if ready {
+			break
 		}
-	}
-	if !event {
-		t.Fatalf("progress missing from timeline: %+v", snapshot.events)
+		select {
+		case <-updated:
+		case <-deadline:
+			t.Fatalf("progress did not settle: %+v", snapshot)
+		}
 	}
 }
 
@@ -439,7 +488,7 @@ func TestMCPServerInitiatedRequestAppearsInTimeline(t *testing.T) {
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "roots"}}}, struct{}{}, nil
 	})
-	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil))
+	httpServer, standaloneGET := streamableMCPServer(server)
 	defer httpServer.Close()
 	r := request.Request{Protocol: "MCP", URL: httpServer.URL, MCP: request.MCPConfig{
 		Transport: request.MCPTransportStreamableHTTP, ProtocolVersion: "2025-11-25", Tool: "roots", TimeoutSeconds: 10,
@@ -451,10 +500,19 @@ func TestMCPServerInitiatedRequestAppearsInTimeline(t *testing.T) {
 	s := openMCPSession(plan, r, request.Context{}, nil, nil)
 	defer s.disconnect()
 	waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return snapshot.connected && !snapshot.busy })
+	// Server-initiated requests ride the standalone GET stream.
+	waitMCPStream(t, standaloneGET)
 	if _, err := s.callTool(r.MCP); err != nil {
 		t.Fatal(err)
 	}
-	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return !snapshot.busy && snapshot.result != nil })
+	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool {
+		if snapshot.busy || snapshot.result == nil {
+			return false
+		}
+		return slices.ContainsFunc(snapshot.events, func(e mcpEvent) bool {
+			return e.kind == "RPC In" && e.name == "roots/list"
+		})
+	})
 	for _, event := range snapshot.events {
 		if event.kind == "RPC In" && event.name == "roots/list" {
 			return
@@ -493,7 +551,14 @@ func TestMCPCachedReadIsMarked(t *testing.T) {
 	if _, err := s.readResource(r.MCP); err != nil {
 		t.Fatal(err)
 	}
-	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return !snapshot.busy })
+	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool {
+		if snapshot.busy {
+			return false
+		}
+		return slices.ContainsFunc(snapshot.events, func(e mcpEvent) bool {
+			return e.kind == "Cache" && strings.Contains(e.name, "resources/read")
+		})
+	})
 	for _, event := range snapshot.events {
 		if event.kind == "Cache" && strings.Contains(event.name, "resources/read") {
 			return

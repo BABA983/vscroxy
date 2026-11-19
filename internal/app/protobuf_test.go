@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -360,7 +361,7 @@ func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 		deadline := time.Now().Add(5 * time.Second)
 		for !tt.HasText(text) && time.Now().Before(deadline) {
 			tt.Frame()
-			time.Sleep(time.Millisecond)
+			runtime.Gosched()
 		}
 		if !tt.HasText(text) {
 			t.Fatalf("missing %q: %v", text, tt.Texts())
