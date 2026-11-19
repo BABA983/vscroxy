@@ -1,10 +1,10 @@
 package app
 
 // The diagnostics bundle is what a person attaches to a bug report: which
-// build, which platform, the shape of this computer's settings, the recent log
-// and the connection diagnostics. It never carries request contents or
-// secrets: settings are an allowlist of values, and the traffic check reports
-// a method and status without the URL path.
+// build, which platform, the shape of this computer's settings, the startup
+// marks, the recent log and the connection diagnostics. It never carries
+// request contents or secrets: settings are an allowlist of values, and the
+// traffic check reports a method and status without the URL path.
 
 import (
 	"archive/zip"
@@ -117,6 +117,9 @@ func (a *app) buildDiagnosticsBundle(t *ui.Theme, target *url.URL) ([]byte, erro
 		return nil, err
 	}
 	if err := add("settings.json", append(settings, '\n')); err != nil {
+		return nil, err
+	}
+	if err := add("startup-marks.txt", startupMarksReport()); err != nil {
 		return nil, err
 	}
 	if err := add("diagnostics.txt", a.diagnosticsReport(t, target)); err != nil {

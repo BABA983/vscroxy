@@ -29,6 +29,9 @@ func (a *app) installShutdown() shutdownCleanup {
 	if a.lifecycle == nil {
 		a.lifecycle = &lifecycle.Lifecycle{}
 	}
+	if a.startupLifetime == nil {
+		a.startupLifetime = lifecycle.NewDisposableStore()
+	}
 	c := shutdownCleanup{
 		flushSettings:    sync.OnceFunc(a.flushSettings),
 		flushCookies:     sync.OnceFunc(a.flushCookies),
@@ -44,6 +47,12 @@ func (a *app) installShutdown() shutdownCleanup {
 		e.Join(func() error {
 			return a.systemProxy.close()
 		}, lifecycle.WillShutdownEventJoiner{ID: "system-proxy", Label: locales.ReleaseSystemProxy()})
+		// Stop sampling before cleanup can hold the main thread: a hang
+		// during shutdown is not a fault in the window the user is leaving.
+		e.Join(func() error {
+			a.startupLifetime.Dispose()
+			return nil
+		}, lifecycle.WillShutdownEventJoiner{ID: "ui-watchdog", Label: locales.StoppingUIWatchdog()})
 
 		joinMain := func(id, label string, fn func()) {
 			e.Join(func() error {

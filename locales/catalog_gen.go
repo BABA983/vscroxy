@@ -7486,6 +7486,16 @@ func (msgs Messages) StoppingStatus() string {
 	return Catalog.Format(msgs.locale, "stoppingStatus", nil)
 }
 
+// StoppingUIWatchdog says "Stopping UI watchdog"
+// in the language the app shows.
+func StoppingUIWatchdog() string { return In(i18n.Locale()).StoppingUIWatchdog() }
+
+// StoppingUIWatchdog says "Stopping UI watchdog"
+// in the language of msgs.
+func (msgs Messages) StoppingUIWatchdog() string {
+	return Catalog.Format(msgs.locale, "stoppingUIWatchdog", nil)
+}
+
 // StoppingWaitingForBody says "Stopping · waiting for body read"
 // in the language the app shows.
 func StoppingWaitingForBody() string { return In(i18n.Locale()).StoppingWaitingForBody() }
