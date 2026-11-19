@@ -269,20 +269,27 @@ func (a *app) writeLibrary(requests []savedRequest, folders []request.Folder) er
 		if err := l.apply(files); err != nil {
 			if conflict := new(libraryConflictError); errors.As(err, &conflict) {
 				conflict.resolve = func(edits map[string][]byte) error {
-					// The outside versions become the new baseline: the next
-					// guarded save compares against what is on disk now.
-					for _, file := range conflict.Files {
-						l.known[file.Name] = bytes.Clone(file.Disk)
+					// The notice can be answered after other saves succeeded.
+					// Write the library as it is now; only the refused files
+					// take their bytes from the compare view.
+					current, err := libraryFiles(a.requests, a.folders)
+					if err != nil {
+						return err
 					}
-					next := maps.Clone(files)
+					if l.known == nil {
+						l.known = map[string][]byte{}
+					}
 					for _, file := range conflict.Files {
+						// The outside versions become the new baseline: the
+						// next guarded save compares against what was on disk.
+						l.known[file.Name] = bytes.Clone(file.Disk)
 						if file.Removed && len(edits[file.Name]) == 0 {
-							delete(next, file.Name)
+							delete(current, file.Name)
 						} else {
-							next[file.Name] = bytes.Clone(edits[file.Name])
+							current[file.Name] = bytes.Clone(edits[file.Name])
 						}
 					}
-					if err := l.apply(next); err != nil {
+					if err := l.apply(current); err != nil {
 						return err
 					}
 					a.loadRequestLibrary()

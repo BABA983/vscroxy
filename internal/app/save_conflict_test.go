@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -235,5 +236,138 @@ func TestCancelConflictChangesNoFileAndNoDraft(t *testing.T) {
 	entries, _ := store.ListBackups(a.backupDir, target)
 	if len(entries) != 0 {
 		t.Fatalf("Cancel made %d backups", len(entries))
+	}
+}
+
+// A late Overwrite must apply only the refused file's draft to the library
+// as it stands now. A stale whole-library snapshot would revert a later save
+// to B and delete the request C the reader created while the notice waited.
+func TestLateOverwriteKeepsLaterSavesAndNewRequestsWhileWritingDraft(t *testing.T) {
+	a := libraryApp(t)
+	a.backupDir = filepath.Join(t.TempDir(), "backups")
+	a.library.backupDir = a.backupDir
+	first := savedRequest{Request: request.Request{ID: "a", Name: "A", Collection: "Shop", Method: "GET", URL: "https://a-saved.example"}}
+	second := savedRequest{Request: request.Request{ID: "b", Name: "B", Collection: "Shop", Method: "GET", URL: "https://b-saved.example"}}
+	if err := a.writeLibrary([]savedRequest{first, second}, nil); err != nil {
+		t.Fatal(err)
+	}
+	target, err := a.savedRequestPath(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outside := savedRequest{Request: first.Request}
+	outside.Collection = ""
+	outside.URL = "https://a-outside.example"
+	data, err := marshalFile(outside)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	draft := slices.Clone(a.requests)
+	draft[0].URL = "https://a-draft.example"
+	saveErr := a.persistRequests(draft)
+	var conflict *libraryConflictError
+	if !errors.As(saveErr, &conflict) {
+		t.Fatalf("the first save did not conflict: %v", saveErr)
+	}
+	a.fail(locales.Save(), saveErr) // the notice stays while other saves happen
+
+	later := slices.Clone(a.requests)
+	for i := range later {
+		if later[i].ID == "b" {
+			later[i].URL = "https://b-later.example"
+		}
+	}
+	if err := a.persistRequests(later); err != nil {
+		t.Fatalf("save B while A's notice waits: %v", err)
+	}
+	withC := append(slices.Clone(a.requests), savedRequest{Request: request.Request{ID: "c", Name: "C", Collection: "Shop", Method: "GET", URL: "https://c.example"}})
+	if err := a.persistRequests(withC); err != nil {
+		t.Fatalf("create C while A's notice waits: %v", err)
+	}
+	if a.notices[len(a.notices)-1].spent {
+		t.Fatal("later saves spent the still-unresolved conflict's choices")
+	}
+
+	a.offerSaveOverwrite(conflict)
+	a.overwriteSaveConflict()
+	loaded, err := loadLibraryRequests(a.library.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, r := range loaded {
+		got[r.ID] = r.URL
+	}
+	if len(got) != 3 || got["a"] != "https://a-draft.example" || got["b"] != "https://b-later.example" || got["c"] != "https://c.example" {
+		t.Fatalf("late overwrite left A=%q B=%q C=%q in %d requests", got["a"], got["b"], got["c"], len(got))
+	}
+}
+
+// A two-file conflict must rebuild the diff for the file selected in the
+// chooser. Reusing the first DiffState would let the reader edit and
+// overwrite a file whose text was never shown.
+func TestSwitchingConflictFilesShowsTheSelectedVersionsInsteadOfKeepingTheFirst(t *testing.T) {
+	a := libraryApp(t)
+	a.backupDir = filepath.Join(t.TempDir(), "backups")
+	a.library.backupDir = a.backupDir
+	if err := a.writeLibrary([]savedRequest{
+		{Request: request.Request{ID: "a", Name: "A", Collection: "Shop", Method: "GET", URL: "https://a-saved.example"}},
+		{Request: request.Request{ID: "b", Name: "B", Collection: "Shop", Method: "GET", URL: "https://b-saved.example"}},
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	for i, r := range a.requests {
+		target, err := a.savedRequestPath(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		outside := savedRequest{Request: r.Request}
+		outside.Collection = ""
+		outside.URL = []string{"https://a-outside.example", "https://b-outside.example"}[i]
+		data, err := marshalFile(outside)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(target, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	draft := slices.Clone(a.requests)
+	draft[0].URL = "https://a-draft.example"
+	draft[1].URL = "https://b-draft.example"
+	saveErr := a.persistRequests(draft)
+	var conflict *libraryConflictError
+	if !errors.As(saveErr, &conflict) || len(conflict.Files) != 2 {
+		t.Fatalf("expected a two-file conflict, got %v", saveErr)
+	}
+	a.reviewSaveConflict(conflict)
+	tt := ui.NewTester(a.view, 1300, 820)
+	tt.SetLocale("en-US")
+	tt.Frame()
+	if shown := copyDiffSide(t, tt, "Old text"); !strings.Contains(shown, "https://a-outside.example") {
+		t.Fatalf("the first file's disk text is not shown: %q", shown)
+	}
+	first := a.conflict.files[0].Name
+	second := a.conflict.files[1].Name
+	if err := tt.Click(first); err != nil {
+		t.Fatalf("open the conflict file chooser: %v; texts %q", err, tt.Texts())
+	}
+	tt.Frame()
+	if err := tt.Click(second); err != nil {
+		t.Fatalf("choose the second conflict file: %v; texts %q", err, tt.Texts())
+	}
+	tt.Frame()
+	if got := copyDiffSide(t, tt, "Old text"); !strings.Contains(got, "https://b-outside.example") || strings.Contains(got, "a-outside") {
+		t.Fatalf("the second file's disk text is not shown: %q", got)
+	}
+	if got := copyDiffSide(t, tt, "New text"); !strings.Contains(got, "https://b-draft.example") || strings.Contains(got, "a-draft") {
+		t.Fatalf("the second file's draft is not shown: %q", got)
+	}
+	if a.conflict.diff == nil || !strings.Contains(a.conflict.diff.Old.String(), "b-outside") {
+		t.Fatal("the DiffState still holds the first file")
 	}
 }

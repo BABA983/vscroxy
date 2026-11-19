@@ -22,6 +22,7 @@ type saveConflict struct {
 	drafts  map[string]*editor.Buffer
 	shown   string
 	diff    *editor.DiffState
+	diffFor string // the file the current diff was built for
 	apply   func(edits map[string][]byte) error
 }
 
@@ -145,14 +146,14 @@ func (a *app) saveConflictDiff(c *ui.Context, t *ui.Theme, s *saveConflict) {
 			break
 		}
 	}
-	if s.diff == nil || s.shown != file.Name {
+	if s.diff == nil || s.diffFor != file.Name {
 		language := editor.LanguageFor(filepath.Base(file.Name))
 		old := editor.NewBuffer(string(file.Disk))
 		old.SetLanguage(language)
 		draft := s.drafts[file.Name]
 		draft.SetLanguage(language)
 		s.diff = &editor.DiffState{Old: old, New: draft, Editable: true, Layout: editor.DiffSplit, SplitPercent: a.diffSplit}
-		s.shown = file.Name
+		s.diffFor = file.Name
 	}
 	ui.Row(c).Gap(t.Space(uikit.SpaceL)).Padding(0, 0, t.Space(uikit.SpaceXS), 0).Children(func() {
 		uikit.Caption(c, locales.DiskVersion()).Grow(1)
