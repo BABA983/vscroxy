@@ -8142,6 +8142,48 @@ func (msgs Messages) UnicodeNonBasicASCII() string {
 	return Catalog.Format(msgs.locale, "unicodeNonBasicASCII", nil)
 }
 
+// UnicodeOpenField says "Open field"
+// in the language the app shows.
+func UnicodeOpenField() string { return In(i18n.Locale()).UnicodeOpenField() }
+
+// UnicodeOpenField says "Open field"
+// in the language of msgs.
+func (msgs Messages) UnicodeOpenField() string {
+	return Catalog.Format(msgs.locale, "unicodeOpenField", nil)
+}
+
+// UnicodeRemoveCharacter says "Remove character"
+// in the language the app shows.
+func UnicodeRemoveCharacter() string { return In(i18n.Locale()).UnicodeRemoveCharacter() }
+
+// UnicodeRemoveCharacter says "Remove character"
+// in the language of msgs.
+func (msgs Messages) UnicodeRemoveCharacter() string {
+	return Catalog.Format(msgs.locale, "unicodeRemoveCharacter", nil)
+}
+
+// UnicodeReplaceWithAscii says "Replace with ASCII"
+// in the language the app shows.
+func UnicodeReplaceWithAscii() string { return In(i18n.Locale()).UnicodeReplaceWithAscii() }
+
+// UnicodeReplaceWithAscii says "Replace with ASCII"
+// in the language of msgs.
+func (msgs Messages) UnicodeReplaceWithAscii() string {
+	return Catalog.Format(msgs.locale, "unicodeReplaceWithAscii", nil)
+}
+
+// UnicodeSendWarning says "Unusual character in {field}: {character}"
+// in the language the app shows.
+func UnicodeSendWarning(field string, character string) string {
+	return In(i18n.Locale()).UnicodeSendWarning(field, character)
+}
+
+// UnicodeSendWarning says "Unusual character in {field}: {character}"
+// in the language of msgs.
+func (msgs Messages) UnicodeSendWarning(field string, character string) string {
+	return Catalog.Format(msgs.locale, "unicodeSendWarning", map[string]any{"field": field, "character": character})
+}
+
 // Unidentified says "unidentified"
 // in the language the app shows.
 func Unidentified() string { return In(i18n.Locale()).Unidentified() }
