@@ -2,30 +2,44 @@ package app
 
 import (
 	"cmp"
+	"context"
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
-	"github.com/baba983/vscroxy/internal/uikit"
 	"io"
+	"mime"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/inspect"
+	"github.com/baba983/vscroxy/internal/jsonc"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/richtext"
 )
 
+// nodeID is a node's place in its tree. Its parent pointer and child index
+// make it unique even for repeated object keys, without allocating a string
+// for every node in a large body.
+type nodeID struct {
+	parent *jsonNode
+	index  int
+}
+
 // jsonNode is one value of a parsed body, with the children of an object or
-// an array.
+// an array. path is an RFC 6901 pointer and is shown to the person reading
+// the tree; id keys expansion state and is independent of that visible path.
 type jsonNode struct {
 	key      string
 	value    string
 	kind     string
 	path     string
+	id       nodeID
 	depth    int
 	children []*jsonNode
 }
@@ -35,28 +49,92 @@ type jsonRow struct {
 	depth int
 }
 
-// parseJSON turns a body into a tree. It reports false for a body that is not
-// JSON, which the Body tab then shows as text.
-func parseJSON(body string) ([]*jsonNode, bool) {
+// jsonTreeResult is what the JSON view keeps for one captured body. stop is
+// empty for a complete document (including NDJSON); otherwise it is the single
+// line saying where the fault-tolerant parser gave up.
+type jsonTreeResult struct {
+	roots  []*jsonNode
+	ndjson bool
+	stop   string
+}
+
+// jsonBodyResult is the answer for one body: the tree for the JSON reader
+// and the Pretty text produced from the same parse. A large broken body is
+// parsed and formatted once, off the UI thread.
+type jsonBodyResult struct {
+	tree     jsonTreeResult
+	pretty   string
+	prettyOK bool
+}
+
+// jsonReader tracks one side's work. A flow or body change cancels the
+// current answer, so a late worker result cannot appear under other bytes.
+type jsonReader struct {
+	key, body, contentType string
+	ready                  bool
+	pending                bool
+	result                 jsonBodyResult
+	answers                chan jsonBodyResult
+	cancel                 context.CancelFunc
+}
+
+// parseJSON keeps strict JSON on the old decoder, so a valid body builds the
+// same tree at the same cost. Everything else goes through VS Code's
+// fault-tolerant parser: a truncated document keeps the values read so far,
+// JSONC comments and trailing commas become part of the tree, and NDJSON is
+// shown as one root per line.
+func parseJSON(body string) jsonTreeResult {
+	if roots, ok := strictJSON(body); ok {
+		return jsonTreeResult{roots: roots}
+	}
+	return faultTolerantJSON(body)
+}
+
+// faultTolerantJSON is the worker half of parseJSON: it assumes the strict
+// attempt has already failed and never runs on the UI thread.
+func faultTolerantJSON(body string) jsonTreeResult {
+	if lines, ok := ndjsonTree(body); ok {
+		return jsonTreeResult{roots: lines, ndjson: true}
+	}
+	root, errs := jsonc.ParseTree(body)
+	if root == nil {
+		return jsonTreeResult{} // no tree: keep the old "not JSON" reader
+	}
+	return jsonTreeResult{
+		roots: []*jsonNode{jsoncNode(body, root, "", "", nodeID{}, 0)},
+		stop:  jsonStopLine(body, errs),
+	}
+}
+
+func strictJSON(body string) ([]*jsonNode, bool) {
+	roots, ok, _ := probeStrictJSON(body)
+	return roots, ok
+}
+
+// probeStrictJSON reports whether a body is complete JSON and, if it is not,
+// whether the first decoder error is EOF in the middle of a token or
+// container. That distinguishes a capture cut off at the end from ordinary
+// text that only happens to begin with a JSON token.
+func probeStrictJSON(body string) ([]*jsonNode, bool, bool) {
 	dec := jsontext.NewDecoder(strings.NewReader(body))
-	root, err := readJSON(dec, "", "$", 0)
+	root, err := readJSON(dec, "", "", nodeID{}, 0)
 	if err != nil {
-		return nil, false
+		return nil, false, errors.Is(err, io.ErrUnexpectedEOF)
 	}
 	if _, err := dec.ReadToken(); !errors.Is(err, io.EOF) {
-		return nil, false
+		return nil, false, errors.Is(err, io.ErrUnexpectedEOF)
 	}
-	return []*jsonNode{root}, true
+	return []*jsonNode{root}, true, false
 }
 
 // Tokens retain object order and the original number spelling, including
 // integers larger than float64 can represent exactly.
-func readJSON(dec *jsontext.Decoder, key, path string, depth int) (*jsonNode, error) {
+func readJSON(dec *jsontext.Decoder, key, path string, id nodeID, depth int) (*jsonNode, error) {
 	token, err := dec.ReadToken()
 	if err != nil {
 		return nil, err
 	}
-	node := &jsonNode{key: key, path: path, depth: depth}
+	node := &jsonNode{key: key, path: path, id: id, depth: depth}
 	switch token.Kind() {
 	case '{', '[':
 		end := jsontext.Kind('}')
@@ -66,16 +144,17 @@ func readJSON(dec *jsontext.Decoder, key, path string, depth int) (*jsonNode, er
 		}
 		for dec.PeekKind() != end {
 			childKey := strconv.Itoa(len(node.children))
-			childPath := path + "[" + childKey + "]"
+			childPath := path + "/" + childKey
 			if node.kind == "object" {
 				name, err := dec.ReadToken()
 				if err != nil {
 					return nil, err
 				}
 				childKey = name.String()
-				childPath = path + "." + childKey
+				childPath = path + "/" + pointerToken(childKey)
 			}
-			child, err := readJSON(dec, childKey, childPath, depth+1)
+			childID := nodeID{parent: node, index: len(node.children)}
+			child, err := readJSON(dec, childKey, childPath, childID, depth+1)
 			if err != nil {
 				return nil, err
 			}
@@ -96,6 +175,277 @@ func readJSON(dec *jsontext.Decoder, key, path string, depth int) (*jsonNode, er
 	return node, nil
 }
 
+func pointerToken(key string) string {
+	if !strings.ContainsAny(key, "~/") {
+		return key
+	}
+	return strings.ReplaceAll(strings.ReplaceAll(key, "~", "~0"), "/", "~1")
+}
+
+func nodePath(n *jsonNode) string {
+	if n.path == "" {
+		return "/" // the root of an RFC 6901 document
+	}
+	return n.path
+}
+
+// jsoncNode maps one fault-tolerant node into the tree the view draws. Number
+// spelling comes from the original bytes: VS Code's node value is a float64
+// and would round an integer too large for one.
+func jsoncNode(source string, node *jsonc.Node, key, path string, id nodeID, depth int) *jsonNode {
+	n := &jsonNode{key: key, path: path, id: id, depth: depth}
+	switch node.Type {
+	case jsonc.NodeTypeObject:
+		n.kind = "object"
+		for i, property := range node.Children {
+			if len(property.Children) == 0 {
+				continue
+			}
+			name, ok := property.Children[0].Value.(string)
+			if !ok {
+				continue
+			}
+			childPath := path + "/" + pointerToken(name)
+			childID := nodeID{parent: n, index: i}
+			if len(property.Children) < 2 {
+				n.children = append(n.children, &jsonNode{
+					key: name, path: childPath, id: childID, depth: depth + 1, kind: "incomplete",
+				})
+				continue
+			}
+			n.children = append(n.children, jsoncNode(source, property.Children[1], name, childPath, childID, depth+1))
+		}
+	case jsonc.NodeTypeArray:
+		n.kind = "array"
+		for i, child := range node.Children {
+			index := strconv.Itoa(i)
+			n.children = append(n.children, jsoncNode(source, child, index,
+				path+"/"+index, nodeID{parent: n, index: i}, depth+1))
+		}
+	case jsonc.NodeTypeString:
+		value, _ := node.Value.(string)
+		n.kind, n.value = "string", strconv.Quote(value)
+	case jsonc.NodeTypeNumber:
+		n.kind, n.value = "number", source[node.Offset:node.Offset+node.Length]
+	case jsonc.NodeTypeBoolean:
+		n.kind, n.value = "bool", source[node.Offset:node.Offset+node.Length]
+	case jsonc.NodeTypeNull:
+		n.kind, n.value = "null", "null"
+	default:
+		n.kind = "incomplete"
+	}
+	return n
+}
+
+// ndjsonTree treats a body of complete one-line JSON values as a stream of
+// records, each a top-level tree node under /0, /1 and so on. A single
+// document spanning several lines is never split this way: every line must
+// parse on its own.
+func ndjsonTree(body string) ([]*jsonNode, bool) {
+	var roots []*jsonNode
+	rest, line := body, 0
+	for len(rest) > 0 {
+		line++
+		part, after, more := strings.Cut(rest, "\n")
+		rest = after
+		text := strings.TrimSuffix(part, "\r")
+		if strings.TrimSpace(text) != "" {
+			root, errs := jsonc.ParseTree(text)
+			if root == nil || len(errs) > 0 {
+				return nil, false
+			}
+			index := strconv.Itoa(len(roots))
+			roots = append(roots, jsoncNode(text, root, strconv.Itoa(line),
+				"/"+index, nodeID{index: len(roots)}, 0))
+		}
+		if !more {
+			break
+		}
+	}
+	return roots, len(roots) > 1
+}
+
+// jsonFamilyType covers ordinary JSON, its +json media types and the common
+// newline-delimited names. Anything else is only offered the fault-tolerant
+// reader when the bytes themselves prove they are a JSON stream or a capture
+// cut off at the end.
+func jsonFamilyType(contentType string) bool {
+	media, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return false
+	}
+	switch media {
+	case "application/json", "text/json", "application/x-ndjson", "application/ndjson",
+		"ndjson", "application/jsonl", "application/x-jsonl", "jsonl",
+		"application/jsonlines", "application/x-jsonlines":
+		return true
+	}
+	return strings.HasSuffix(media, "+json")
+}
+
+func faultTolerantWanted(contentType, body string, truncated bool) bool {
+	return jsonFamilyType(contentType) || truncated || looksLikeNDJSON(body)
+}
+
+// looksLikeNDJSON parses candidate lines only when their first byte is the
+// start of a JSON value, so ordinary text, HTML and JavaScript never pay for
+// a JSON parse here. Every nonblank line must be a complete value.
+func looksLikeNDJSON(body string) bool {
+	lines, rest := 0, body
+	for len(rest) > 0 {
+		part, after, more := strings.Cut(rest, "\n")
+		rest = after
+		text := strings.TrimSuffix(strings.TrimSpace(part), "\r")
+		if text == "" {
+			if !more {
+				break
+			}
+			continue
+		}
+		switch text[0] {
+		case '{', '[', '"', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 't', 'f', 'n':
+		default:
+			return false
+		}
+		root, errs := jsonc.ParseTree(text)
+		if root == nil || len(errs) > 0 {
+			return false
+		}
+		lines++
+		if !more {
+			break
+		}
+	}
+	return lines > 1
+}
+
+// jsonStopLine reports the earlier parse error as a one-based line and column
+// as well as the byte offset VS Code's parser uses.
+func jsonStopLine(body string, errs []jsonc.ParseError) string {
+	if len(errs) == 0 {
+		return ""
+	}
+	offset := errs[0].Offset
+	for _, err := range errs[1:] {
+		offset = min(offset, err.Offset)
+	}
+	offset = min(max(offset, 0), len(body))
+	prefix := body[:offset]
+	lineStart := 0
+	if _, tail, found := strings.CutLast(prefix, "\n"); found {
+		lineStart = len(prefix) - len(tail)
+	}
+	line := strings.Count(prefix, "\n") + 1
+	column := utf8.RuneCountInString(prefix[lineStart:]) + 1
+	return locales.JsonParsingStopped(line, column, offset)
+}
+
+// computeFaultTolerantBody is the unit of work handed to a goroutine: one
+// parse and one format pass over bytes the viewer keeps unchanged.
+func computeFaultTolerantBody(body string) jsonBodyResult {
+	tree := faultTolerantJSON(body)
+	pretty, ok := formatJSONBody(body, tree)
+	return jsonBodyResult{tree: tree, pretty: pretty, prettyOK: ok}
+}
+
+// jsonReaderFor returns the state for one side, starting the fault-tolerant
+// work only after the cheap strict attempt has failed. Strict bodies are
+// ready in this frame; everything else shows the captured text until the
+// worker's answer is applied on the UI thread.
+func (a *app) jsonReaderFor(c *ui.Context, side int, key, body, contentType string) *jsonReader {
+	r := &a.jsonReader[side]
+	if r.key != key || r.body != body || r.contentType != contentType {
+		if r.cancel != nil {
+			r.cancel()
+		}
+		*r = jsonReader{key: key, body: body, contentType: contentType}
+		a.jsonTrees[side] = jsonTreeResult{}
+		a.jsonExpanded[side] = nil
+		a.bodyText[side] = nil
+	}
+	if r.pending {
+		a.takeJSONAnswer(c, side)
+		return r
+	}
+	if r.ready {
+		return r
+	}
+	roots, strict, truncated := probeStrictJSON(body)
+	if strict {
+		r.ready, r.result = true, jsonBodyResult{tree: jsonTreeResult{roots: roots}}
+		a.storeJSONTree(side, r.result.tree)
+		return r
+	}
+	if !faultTolerantWanted(contentType, body, truncated) {
+		// Plain text, HTML and code are never reformatted or parsed as JSON.
+		r.ready, r.result = true, jsonBodyResult{}
+		a.storeJSONTree(side, r.result.tree)
+		return r
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	answers := make(chan jsonBodyResult, 1)
+	r.pending, r.cancel = true, cancel
+	if a.win == nil {
+		r.answers = answers // Tester handoff; a window uses win.Update
+	}
+	go guarded(func() {
+		result := computeFaultTolerantBody(body)
+		if ctx.Err() != nil {
+			return
+		}
+		if a.win != nil {
+			a.win.Update(func() { a.finishJSONRead(side, key, body, contentType, result) })
+			return
+		}
+		// In a Tester there is no window to schedule the handoff. Publish
+		// through the channel and ask the next build pass to take it, as the
+		// protobuf reader does.
+		select {
+		case answers <- result:
+			a.invalidate()
+		case <-ctx.Done():
+		}
+	})
+	return r
+}
+
+// takeJSONAnswer moves a worker result into app state while building a
+// frame. With a window the worker's win.Update callback does this instead.
+func (a *app) takeJSONAnswer(c *ui.Context, side int) {
+	r := &a.jsonReader[side]
+	if r.answers == nil {
+		return
+	}
+	select {
+	case result := <-r.answers:
+		a.finishJSONRead(side, r.key, r.body, r.contentType, result)
+	default:
+		c.After(50 * time.Millisecond)
+	}
+}
+
+func (a *app) finishJSONRead(side int, key, body, contentType string, result jsonBodyResult) {
+	r := &a.jsonReader[side]
+	if r.key != key || r.body != body || r.contentType != contentType {
+		return // the flow or body changed while the worker was reading
+	}
+	r.pending, r.ready, r.result = false, true, result
+	r.answers, r.cancel = nil, nil
+	a.bodyText[side] = nil // replace the plain text with the formatted answer
+	a.storeJSONTree(side, result.tree)
+}
+
+func (a *app) storeJSONTree(side int, tree jsonTreeResult) {
+	a.jsonTrees[side] = tree
+	a.jsonExpanded[side] = make(map[nodeID]bool)
+	for _, n := range tree.roots {
+		a.jsonExpanded[side][n.id] = true
+		for _, child := range n.children {
+			a.jsonExpanded[side][child.id] = true
+		}
+	}
+}
+
 // visibleJSON flattens the tree to the rows the current expansion shows.
 func (a *app) visibleJSON(side int) []jsonRow {
 	var out []jsonRow
@@ -103,12 +453,12 @@ func (a *app) visibleJSON(side int) []jsonRow {
 	walk = func(nodes []*jsonNode, depth int) {
 		for _, n := range nodes {
 			out = append(out, jsonRow{node: n, depth: depth})
-			if len(n.children) > 0 && a.jsonExpanded[side][n.path] {
+			if len(n.children) > 0 && a.jsonExpanded[side][n.id] {
 				walk(n.children, depth+1)
 			}
 		}
 	}
-	walk(a.jsonRoots[side], 0)
+	walk(a.jsonTrees[side].roots, 0)
 	return out
 }
 
@@ -122,7 +472,7 @@ func matchingJSON(nodes []*jsonNode, query string) []jsonRow {
 				walk(n.children, depth+1)
 				continue
 			}
-			if strings.Contains(strings.ToLower(n.path+" "+n.value), strings.ToLower(query)) {
+			if strings.Contains(strings.ToLower(nodePath(n)+" "+n.value), strings.ToLower(query)) {
 				out = append(out, jsonRow{node: n, depth: depth})
 			}
 		}
@@ -449,20 +799,14 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 	}
 	switch mode {
 	case 2:
-		if key != a.jsonFor[side] {
-			a.jsonFor[side] = key
-			a.jsonRoots[side], a.jsonOK[side] = parseJSON(body)
-			a.jsonExpanded[side] = make(map[string]bool)
-			for _, n := range a.jsonRoots[side] {
-				a.jsonExpanded[side][n.path] = true
-				for _, child := range n.children {
-					a.jsonExpanded[side][child.path] = true
-				}
-			}
+		reader := a.jsonReaderFor(c, side, key, body, f.contentType(side == 0))
+		if !reader.ready {
+			a.prettyBody(c, body, side, reader)
+			return
 		}
-		if !a.jsonOK[side] {
+		if len(reader.result.tree.roots) == 0 {
 			uikit.Meta(c, locales.BodyIsNotJsonShowing()).Padding(t.Space(uikit.SpaceL))
-			a.prettyBody(c, body, side)
+			a.prettyBody(c, body, side, reader)
 			return
 		}
 		a.jsonBody(c, side)
@@ -479,7 +823,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		case "Merged stream":
 			a.mergedBody(c, f, body, side)
 		default:
-			a.prettyBody(c, body, side)
+			a.prettyBody(c, body, side, a.jsonReaderFor(c, side, key, body, f.contentType(side == 0)))
 		}
 	}
 }
@@ -562,25 +906,85 @@ func (a *app) htmlPreview(c *ui.Context, key, body string, side int) {
 	})
 }
 
-func (a *app) prettyBody(c *ui.Context, body string, side int) {
-	reader := a.bodyText[side]
-	if reader == nil {
-		value := jsontext.Value(body)
-		isJSON := value.Indent(jsontext.WithIndent("  ")) == nil
-		if isJSON {
-			body = string(value)
+// prettyBodyText keeps the strict formatter's exact output for valid JSON.
+// Invalid bodies use the answer already computed off the UI thread; until it
+// arrives the captured text is shown as received.
+func prettyBodyText(body string, json *jsonReader) (string, bool) {
+	value := jsontext.Value(body)
+	if value.Indent(jsontext.WithIndent("  ")) == nil {
+		return string(value), true
+	}
+	if json != nil && json.ready && json.result.prettyOK {
+		return json.result.pretty, true
+	}
+	return body, false
+}
+
+// formatJSONBody is VS Code's formatter applied to one fault-tolerant tree:
+// comments, trailing commas, truncation, trailing text and NDJSON all keep
+// their original bytes and gain indentation. It runs beside the tree parse,
+// never in a build pass.
+func formatJSONBody(body string, tree jsonTreeResult) (string, bool) {
+	if len(tree.roots) == 0 {
+		return body, false
+	}
+	options := jsonc.FormattingOptions{TabSize: 2, InsertSpaces: true, EOL: jsonc.GetEOL(jsonc.FormattingOptions{}, body)}
+	if tree.ndjson {
+		return formatNDJSON(body, options), true
+	}
+	formatted, err := jsonc.ApplyEdits(body, jsonc.Format(body, nil, options))
+	if err != nil {
+		return body, true
+	}
+	return formatted, true
+}
+
+// formatNDJSON formats each record on its own. A single formatter pass over
+// the stream stops strengthening the indentation after its first top-level
+// value, so separate passes give every line the same treatment while keeping
+// the original line breaks and line endings.
+func formatNDJSON(body string, options jsonc.FormattingOptions) string {
+	var out strings.Builder
+	out.Grow(len(body))
+	for len(body) > 0 {
+		part, after, more := strings.Cut(body, "\n")
+		body = after
+		text, crlf := strings.CutSuffix(part, "\r")
+		if strings.TrimSpace(text) != "" {
+			if formatted, err := jsonc.ApplyEdits(text, jsonc.Format(text, nil, options)); err == nil {
+				text = formatted
+			}
 		}
-		buf := editor.NewBuffer(body)
+		out.WriteString(text)
+		if crlf {
+			out.WriteByte('\r')
+		}
+		if more {
+			out.WriteByte('\n')
+		}
+	}
+	return out.String()
+}
+
+func (a *app) prettyBody(c *ui.Context, body string, side int, json *jsonReader) {
+	if json != nil && json.ready && json.result.tree.stop != "" {
+		t := c.Theme()
+		uikit.Meta(c, json.result.tree.stop).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM))
+	}
+	view := a.bodyText[side]
+	if view == nil {
+		text, isJSON := prettyBodyText(body, json)
+		buf := editor.NewBuffer(text)
 		if isJSON {
 			buf.SetLanguage(editor.LanguageNamed("json"))
 		}
-		reader = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.BodyText(), RenderFindBar: bodyFindBar}
-		a.bodyText[side] = reader
+		view = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.BodyText(), RenderFindBar: bodyFindBar}
+		a.bodyText[side] = view
 	}
-	a.decoderMenu(reader)
-	reader.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
-	reader.Theme = uikit.EditorTheme(c.Theme())
-	editor.View(c, reader).Bind(&a.bodyReader[side]).Grow(1)
+	a.decoderMenu(view)
+	view.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
+	view.Theme = uikit.EditorTheme(c.Theme())
+	editor.View(c, view).Bind(&a.bodyReader[side]).Grow(1)
 }
 
 // Keep the library's search semantics, with controls that fit a side inspector.
@@ -658,9 +1062,12 @@ func (a *app) mergedBody(c *ui.Context, f flow, body string, side int) {
 func (a *app) jsonBody(c *ui.Context, side int) {
 	t := c.Theme()
 	theme := uikit.EditorTheme(t)
+	if stop := a.jsonTrees[side].stop; stop != "" {
+		uikit.Meta(c, stop).Padding(0, t.Space(uikit.SpaceL), t.Space(uikit.SpaceM))
+	}
 	var rows []jsonRow
 	if a.bodyQuery[side] != "" {
-		rows = matchingJSON(a.jsonRoots[side], a.bodyQuery[side])
+		rows = matchingJSON(a.jsonTrees[side].roots, a.bodyQuery[side])
 	} else {
 		rows = a.visibleJSON(side)
 	}
@@ -695,20 +1102,26 @@ func (a *app) jsonTree(c *ui.Context, side int, rows []jsonRow, theme *editor.Th
 		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Padding(0, t.Space(uikit.SpaceL)).MinHeight(uikit.HeightRow).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Width(float32(row.depth) * 16)
 			if len(row.node.children) > 0 && a.bodyQuery[side] == "" {
-				expanded := a.jsonExpanded[side][row.node.path]
+				expanded := a.jsonExpanded[side][row.node.id]
 				arrow, action := "▸", locales.ExpandAction()
 				if expanded {
 					arrow, action = "▾", locales.CollapseAction()
 				}
-				label := locales.ToggleJSON(action, []string{locales.SideResponse(), locales.SideRequest()}[side], row.node.path)
+				label := locales.ToggleJSON(action, []string{locales.SideResponse(), locales.SideRequest()}[side], nodePath(row.node))
 				if uikit.Tip(c, uikit.SecondaryButton(c, arrow).Label(label), label).Expanded(expanded).Size(uikit.HeightRow, uikit.HeightRow).Padding(0).Clicked() {
-					a.jsonExpanded[side][row.node.path] = !expanded
+					a.jsonExpanded[side][row.node.id] = !expanded
 				}
 			} else {
 				ui.Box(c).Width(uikit.HeightRow)
 			}
 			if row.node.key != "" {
-				uikit.Tip(c, uikit.DataBody(c, row.node.key).TextColor(keyColor).SingleLine(), row.node.path)
+				name := row.node.key
+				if a.jsonTrees[side].ndjson && row.depth == 0 {
+					if line, err := strconv.Atoi(name); err == nil {
+						name = locales.JsonLineRecord(line)
+					}
+				}
+				uikit.Tip(c, uikit.DataBody(c, name).TextColor(keyColor).SingleLine(), nodePath(row.node))
 				uikit.Hint(c, ":")
 			}
 			switch row.node.kind {

@@ -1928,7 +1928,7 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	if !tt.HasText("collapsed") {
 		t.Fatal("JSON mode was not selected")
 	}
-	if err := tt.Click("Expand response JSON $.data.nested"); err != nil {
+	if err := tt.Click("Expand response JSON /data/nested"); err != nil {
 		t.Fatal(err)
 	}
 	// Named disclosures are native buttons: keyboard activation must keep
@@ -1938,7 +1938,7 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 		t.Fatal("Space did not collapse the focused JSON node")
 	}
 	tt.Key(0, ui.KeyEnter)
-	if err := tt.Click("Collapse response JSON $.collapsed"); err != nil {
+	if err := tt.Click("Collapse response JSON /collapsed"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) {

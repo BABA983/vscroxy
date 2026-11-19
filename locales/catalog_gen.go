@@ -3862,6 +3862,16 @@ func (msgs Messages) JdkCacertsAreUnavailable() string {
 	return Catalog.Format(msgs.locale, "jdkCacertsAreUnavailable", nil)
 }
 
+// JsonLineRecord says "Line {line}"
+// in the language the app shows.
+func JsonLineRecord(line int) string { return In(i18n.Locale()).JsonLineRecord(line) }
+
+// JsonLineRecord says "Line {line}"
+// in the language of msgs.
+func (msgs Messages) JsonLineRecord(line int) string {
+	return Catalog.Format(msgs.locale, "jsonLineRecord", map[string]any{"line": line})
+}
+
 // JsonPathSegments says "JSON path segments: {path}"
 // in the language the app shows.
 func JsonPathSegments(path string) string { return In(i18n.Locale()).JsonPathSegments(path) }
@@ -3870,6 +3880,18 @@ func JsonPathSegments(path string) string { return In(i18n.Locale()).JsonPathSeg
 // in the language of msgs.
 func (msgs Messages) JsonPathSegments(path string) string {
 	return Catalog.Format(msgs.locale, "jsonPathSegments", map[string]any{"path": path})
+}
+
+// JsonParsingStopped says "Parsing stopped at line {line}, column {column} (byte {offset})"
+// in the language the app shows.
+func JsonParsingStopped(line int, column int, offset int) string {
+	return In(i18n.Locale()).JsonParsingStopped(line, column, offset)
+}
+
+// JsonParsingStopped says "Parsing stopped at line {line}, column {column} (byte {offset})"
+// in the language of msgs.
+func (msgs Messages) JsonParsingStopped(line int, column int, offset int) string {
+	return Catalog.Format(msgs.locale, "jsonParsingStopped", map[string]any{"line": line, "column": column, "offset": offset})
 }
 
 // JsonQueryExpression says "JSON query expression"

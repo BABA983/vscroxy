@@ -50,11 +50,11 @@ func TestBodyReadsSpillFile(t *testing.T) {
 }
 
 func TestParseJSON(t *testing.T) {
-	roots, ok := parseJSON(`{"z":[9007199254740993,1.2300e+09],"a":true}`)
-	if !ok || len(roots) != 1 {
-		t.Fatalf("parse = %v, %v", roots, ok)
+	parsed := parseJSON(`{"z":[9007199254740993,1.2300e+09],"a":true}`)
+	if len(parsed.roots) != 1 {
+		t.Fatalf("parse = %+v", parsed)
 	}
-	root := roots[0]
+	root := parsed.roots[0]
 	if root.kind != "object" || len(root.children) != 2 {
 		t.Fatalf("root = %+v", root)
 	}
@@ -67,9 +67,15 @@ func TestParseJSON(t *testing.T) {
 	if root.children[1].key != "a" || root.children[1].value != "true" {
 		t.Fatalf("second child = %+v", root.children[1])
 	}
-	for _, invalid := range []string{"not json", `{"a":1`, `[1,]`, `{} {}`, `{"a":1,"a":2}`} {
-		if _, ok := parseJSON(invalid); ok {
-			t.Fatalf("invalid body %q parsed as JSON", invalid)
+	for _, text := range []string{"not json", "<html><body>plain page</body></html>", ""} {
+		if got := parseJSON(text); len(got.roots) != 0 || got.stop != "" {
+			t.Fatalf("%q should have neither a tree nor a stop line: %+v", text, got)
+		}
+	}
+	for _, partial := range []string{`{"a":1`, `{} {}`} {
+		got := parseJSON(partial)
+		if len(got.roots) == 0 || got.stop == "" {
+			t.Fatalf("partial body %q has no tree or stop line: %+v", partial, got)
 		}
 	}
 }
@@ -96,13 +102,13 @@ func TestFormatRequestJSONC(t *testing.T) {
 // Pretty gives them: strings in the string color, everything else in the
 // constant color. Body text on both values was invisible as syntax.
 func TestJSONTreeUsesEditorTokenColors(t *testing.T) {
-	roots, ok := parseJSON(`{"name":"Demo project","id":73,"active":true,"nothing":null}`)
-	if !ok || len(roots) == 0 {
-		t.Fatalf("fixture did not parse: %v, %v", roots, ok)
+	parsed := parseJSON(`{"name":"Demo project","id":73,"active":true,"nothing":null}`)
+	if len(parsed.roots) == 0 {
+		t.Fatalf("fixture did not parse: %+v", parsed)
 	}
 	a := &app{}
-	rows := make([]jsonRow, 0, len(roots[0].children))
-	for _, n := range roots[0].children {
+	rows := make([]jsonRow, 0, len(parsed.roots[0].children))
+	for _, n := range parsed.roots[0].children {
 		rows = append(rows, jsonRow{node: n, depth: n.depth})
 	}
 	for _, dark := range []bool{false, true} {
