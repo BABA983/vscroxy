@@ -221,7 +221,7 @@ func (r Request) executeSocketIO(ctx context.Context, srv *capture.Server, in Co
 	run.tests = append(run.tests, r.Checks.Evaluate(flow)...)
 	run.target = func() string { return req.URL }
 	res := &jsResponse{Status: flow.Status, Body: flow.ResponseBody, Header: flow.ResponseHeader, Millis: flow.Millis, Bytes: flow.Bytes}
-	out.Stage = "Post-response script failed"
+	out.Stage = StagePostResponseScript
 	if err := run.scripts(ctx, "post-response", in.Folders, func(f Folder) string { return f.Post }, r.Post, map[string]any{"res": res, "req": req}); err != nil {
 		out.Err = err
 	}

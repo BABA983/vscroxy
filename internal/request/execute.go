@@ -47,6 +47,13 @@ type Execution struct {
 
 type debugRunKey struct{}
 
+// Script stages are exported so UI products can recognize a script failure
+// without duplicating the stage text Execution.Outcome reports.
+const (
+	StagePreRequestScript   = "Pre-request script failed"
+	StagePostResponseScript = "Post-response script failed"
+)
+
 // errRequestTimeout is the cause of a send's own deadline, distinct from the
 // caller's overall budget.
 var errRequestTimeout = errors.New("request timeout")
@@ -133,7 +140,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	template := &Prepared{Method: r.Method, URL: FillPath(r.URL, r.PathVariables), Body: r.Body,
 		Header: ParseHeaderBlock(r.Headers), Auth: &r.Auth, editedHeaders: map[string]bool{}}
 	run.target = func() string { return ExpandVars(template.URL, run.effective()) }
-	out.Stage = "Pre-request script failed"
+	out.Stage = StagePreRequestScript
 	if err := run.scripts(ctx, "pre-request", in.Folders, func(f Folder) string { return f.Pre }, r.Pre, map[string]any{"req": template}); err != nil {
 		out.Err = err
 		out.Tests, out.Vars = run.tests, run.vars
@@ -294,7 +301,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			run.tests = append(run.tests, r.Checks.Evaluate(flow)...)
 			run.target = func() string { return req.URL }
 			res := &jsResponse{Status: flow.Status, Body: flow.ResponseBody, Header: flow.ResponseHeader, Millis: flow.Millis, Bytes: flow.Bytes}
-			out.Stage = "Post-response script failed"
+			out.Stage = StagePostResponseScript
 			if err := run.scripts(ctx, "post-response", in.Folders, func(f Folder) string { return f.Post }, r.Post, map[string]any{"res": res, "req": req}); err != nil {
 				out.Err = err
 			}
@@ -319,7 +326,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			run.tests = append(run.tests, r.Checks.Evaluate(flow)...)
 			run.target = func() string { return req.URL }
 			res := &jsResponse{Status: flow.Status, Body: flow.ResponseBody, Header: flow.ResponseHeader, Millis: flow.Millis, Bytes: flow.Bytes}
-			out.Stage = "Post-response script failed"
+			out.Stage = StagePostResponseScript
 			if err := run.scripts(ctx, "post-response", in.Folders, func(f Folder) string { return f.Post }, r.Post, map[string]any{"res": res, "req": req}); err != nil {
 				out.Err = err
 			}
@@ -405,7 +412,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			run.tests = append(run.tests, r.Checks.Evaluate(got)...)
 			res := &jsResponse{Status: got.Status, Body: got.ResponseBody, Header: got.ResponseHeader, Millis: got.Millis, Bytes: got.Bytes}
 			run.target = func() string { return req.URL }
-			out.Stage = "Post-response script failed"
+			out.Stage = StagePostResponseScript
 			out.Err = run.scripts(ctx, "post-response", in.Folders, func(f Folder) string { return f.Post }, r.Post, map[string]any{"res": res, "req": req})
 		}
 	}

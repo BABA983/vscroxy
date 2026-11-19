@@ -1,6 +1,7 @@
 package markers_test
 
 import (
+	"cmp"
 	"slices"
 	"testing"
 
@@ -27,6 +28,8 @@ func TestChangeOneReplacesOnlyItsOwner(t *testing.T) {
 	})
 
 	got := s.Read(markers.Filter{Resource: resource})
+	// Read returns owners in map order; the panel sorts before showing them.
+	slices.SortFunc(got, func(a, b markers.Marker) int { return cmp.Compare(a.Message, b.Message) })
 	want := []string{"body shape failed:assertions", "unresolved {{token}}:variables"}
 	if len(got) != len(want) {
 		t.Fatalf("read(%s) = %d markers, want %d: %+v", resource, len(got), len(want), got)

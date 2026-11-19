@@ -69,6 +69,9 @@ type requestDocument struct {
 	mcpUI          *mcpDocument
 	composeHeaders string
 	composeBody    string
+	// problemBodyGen changes when code replaces composeBody outside the body
+	// editor, so the Problems panel can skip an unchanged scan of a large body.
+	problemBodyGen uint64
 	// headerRows is the header table. composeHeaders stays the Key: Value
 	// block for scripts, cURL and the bulk editor, written from the enabled
 	// rows; headerFor is the block the rows were last built from.
@@ -295,6 +298,7 @@ func (d *requestDocument) load(a *app, r savedRequest, key string) {
 	d.mqttConfig = r.MQTT
 	d.mcpConfig = r.MCP
 	d.composeHeaders, d.composeBody = r.Headers, r.Body
+	d.problemBodyGen++
 	d.wsMessages, d.wsWait = slices.Clone(r.WebSocket.Messages), float64(r.WebSocket.Wait().Milliseconds())
 	if len(d.wsMessages) == 0 && r.Body != "" && request.IsWebSocket(r.URL) {
 		// A request saved before the message list existed keeps its one message.
@@ -1501,7 +1505,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		}
 		if outcome == "Cancelled" && (d.response != nil || len(d.composeReplies) > 0 || d.responseTab == resViewConsole) {
 			ui.Column(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() { a.cancelledResult(c, t, d) })
-		} else if outcome == "Network error" && d.response != nil || outcome == "Post-response script failed" || outcome == "Timed out" && d.response != nil {
+		} else if outcome == "Network error" && d.response != nil || outcome == request.StagePostResponseScript || outcome == "Timed out" && d.response != nil {
 			uikit.ErrorText(c, outcome+": "+detail).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Selectable()
 		}
 		if d.response == nil && len(d.composeReplies) == 0 && len(d.console) == 0 {

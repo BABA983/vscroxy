@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/markers"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -48,6 +49,53 @@ func TestFailedAssertionMarkerClearsOnPassingSend(t *testing.T) {
 	}, a.drain, func() string { return "a passing send did not clear the assertion marker" })
 	if len(doc.composeTests) != 1 || !doc.composeTests[0].Pass {
 		t.Fatalf("second send tests = %+v", doc.composeTests)
+	}
+}
+
+// TestProblemResolverRunsOnlyOnChangedInputs proves a frame with unchanged
+// authoring fields and scopes does not re-resolve every open request.
+func TestProblemResolverRunsOnlyOnChangedInputs(t *testing.T) {
+	a := workspaceApp()
+	a.envs = []environment{
+		{Name: "one", Vars: map[string]string{"token": "one"}},
+		{Name: "two", Vars: map[string]string{"token": "two"}},
+	}
+	a.activeEnv = "one"
+	a.addDocument(savedRequest{Name: "First", Method: "GET", URL: "https://first.test/{{token}}"}, "saved:first")
+	a.addDocument(savedRequest{Name: "Second", Method: "GET", URL: "https://second.test/{{token}}"}, "saved:second")
+	calls := 0
+	a.problems.resolveVariables = func(r savedRequest, in request.Context, vars map[string]string) []request.ResolvedVariable {
+		calls++
+		return r.Request.ResolveVariables(in, vars, nil)
+	}
+
+	a.syncProblems()
+	if calls != 2 {
+		t.Fatalf("first pass resolved %d requests, want 2", calls)
+	}
+	a.syncProblems()
+	a.syncProblems()
+	if calls != 2 {
+		t.Fatalf("unchanged frames resolved %d more requests", calls-2)
+	}
+	a.documents[0].composeURL = "https://changed.test/{{token}}"
+	a.syncProblems()
+	if calls != 3 {
+		t.Fatalf("editing one request resolved %d times, want 1", calls-2)
+	}
+	a.syncProblems()
+	if calls != 3 {
+		t.Fatalf("frame after an edit resolved again: %d", calls)
+	}
+	a.activeEnv = "two"
+	a.syncProblems()
+	if calls != 5 {
+		t.Fatalf("environment switch resolved %d times, want both requests", calls-3)
+	}
+	a.folders = []request.Folder{{Path: "Shop", Variables: []request.Variable{{Name: "region", Initial: "eu"}}}}
+	a.syncProblems()
+	if calls != 7 {
+		t.Fatalf("inheritance change resolved %d times, want both requests", calls-5)
 	}
 }
 

@@ -960,6 +960,7 @@ func (a *app) requestBodyText(c *ui.Context, d *requestDocument) {
 	if text := d.bodyEditor.Buffer.String(); text != d.composeBody {
 		d.composeBody = text
 		d.bodyFor = text
+		d.problemBodyGen++
 		if looksJSON(text) && d.bodyEditor.Buffer.Language() == nil {
 			d.bodyEditor.Buffer.SetLanguage(editor.LanguageNamed("json"))
 		}

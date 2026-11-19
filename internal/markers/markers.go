@@ -211,7 +211,9 @@ func normalizeRange(r *Range) *Range {
 	if out.EndLineNumber < out.StartLineNumber {
 		out.EndLineNumber = out.StartLineNumber
 	}
-	if out.EndColumn < out.StartColumn {
+	// Columns are only ordered within one line: 2:10 to 3:2 is a valid
+	// multi-line range, so its end column must not be raised to 10.
+	if out.EndColumn <= 0 || out.EndLineNumber == out.StartLineNumber && out.EndColumn < out.StartColumn {
 		out.EndColumn = out.StartColumn
 	}
 	return &out

@@ -11,10 +11,16 @@ import (
 // VS Code's Event<T>. A nil listener registers nothing.
 type Event[T any] func(listener func(T)) lifecycle.Disposable
 
+type subscription[T any] struct {
+	id       uint64
+	listener func(T)
+}
+
 // Emitter owns the listeners of one event. Its zero value is ready to use.
 type Emitter[T any] struct {
 	mu        sync.RWMutex
-	listeners []func(T)
+	listeners []subscription[T]
+	nextID    uint64
 	disposed  bool
 }
 
@@ -33,15 +39,16 @@ func (e *Emitter[T]) Event(listener func(T)) lifecycle.Disposable {
 	if e.disposed {
 		return lifecycle.ToDisposable(nil)
 	}
-	e.listeners = append(e.listeners, listener)
-	at := len(e.listeners) - 1
+	e.nextID++
+	id := e.nextID
+	e.listeners = append(e.listeners, subscription[T]{id: id, listener: listener})
 	return lifecycle.ToDisposable(func() {
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		if e.disposed || e.listeners[at] == nil {
-			return
+		at := slices.IndexFunc(e.listeners, func(s subscription[T]) bool { return s.id == id })
+		if at >= 0 {
+			e.listeners = slices.Delete(e.listeners, at, at+1)
 		}
-		e.listeners[at] = nil
 	})
 }
 
@@ -54,10 +61,8 @@ func (e *Emitter[T]) Fire(value T) {
 	}
 	listeners := slices.Clone(e.listeners)
 	e.mu.RUnlock()
-	for _, listener := range listeners {
-		if listener != nil {
-			listener(value)
-		}
+	for _, sub := range listeners {
+		sub.listener(value)
 	}
 }
 
@@ -65,12 +70,7 @@ func (e *Emitter[T]) Fire(value T) {
 func (e *Emitter[T]) HasListeners() bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	for _, listener := range e.listeners {
-		if listener != nil {
-			return true
-		}
-	}
-	return false
+	return len(e.listeners) > 0
 }
 
 // Dispose releases every subscription and refuses new ones, like VS Code's

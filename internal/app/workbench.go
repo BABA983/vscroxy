@@ -195,11 +195,11 @@ func (a *app) desktopContent(c *ui.Context) {
 				}
 			})
 		}
-	}
-	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
-		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(content)
+		// The panel shares this page's column: wrapping the page in another
+		// Column would perturb committed focus between frames.
 		a.problemsPanel(c)
-	})
+	}
+	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(content)
 }
 
 var captureKinds = []string{"All", "HTTP", "HTTPS", "WebSocket", "SSE", "JSON", "Images", "HTML", "Form", "XML", "JS", "CSS", "Media", "h1", "h2"}

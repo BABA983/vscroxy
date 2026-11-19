@@ -3,6 +3,7 @@ package app
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strconv"
@@ -37,6 +38,24 @@ const (
 
 var problemSeverities = []markers.Severity{markers.Error, markers.Warning, markers.Info, markers.Hint}
 
+// problemInputKey is what a variable marker read depends on in one document.
+// The body is represented by its editor version or the generation bumped
+// where code writes composeBody, so an unchanged frame never copies or scans
+// a large body just to find {{variables}} again.
+type problemInputKey struct {
+	url, headers, pre, post string
+	bodyVersion             uint64
+	bodyLength              int
+	checkStatus             string
+	checkHeaders            string
+	checkJSON               string
+	checkSnapshot           *request.Snapshot
+}
+
+// variablesResolver is the seam the contract test counts. The default calls
+// the same request.Request.ResolveVariables the Variables panel uses.
+type variablesResolver func(savedRequest, request.Context, map[string]string) []request.ResolvedVariable
+
 // problemsState is the panel's view state. Signatures keep a producer from
 // firing an unchanged marker set every frame: MyGo rebuilds several times for
 // one edit, and Debug variables are read on each pass.
@@ -49,6 +68,11 @@ type problemsState struct {
 	selection int
 	// signatures holds the last marker set written for resource|owner.
 	signatures map[string]string
+	// docKeys and envKey are the last inputs read by the variable producer.
+	docKeys map[string]problemInputKey
+	envKey  string
+	// resolveVariables is replaceable by the contract test to count reads.
+	resolveVariables variablesResolver
 	// importSignature is the import review's title and lines while open.
 	importSignature string
 	// pendingFocus waits for an editor the click just brought on screen.
@@ -66,6 +90,10 @@ func (a *app) initProblems() {
 	a.problems.show = [4]bool{true, true, true, true}
 	a.problems.selection = -1 // no marker is current until one is chosen or navigated to
 	a.problems.signatures = make(map[string]string)
+	a.problems.docKeys = make(map[string]problemInputKey)
+	a.problems.resolveVariables = func(r savedRequest, in request.Context, vars map[string]string) []request.ResolvedVariable {
+		return r.Request.ResolveVariables(in, vars, nil)
+	}
 	a.problems.subscription = a.markers.OnMarkerChanged(func([]string) { a.invalidate() })
 }
 
@@ -180,9 +208,9 @@ func (a *app) applySendProblems(result requestResult) {
 			Message: locales.ProblemCheckFailed(test.Name), Code: problemFieldChecks,
 		})
 	}
-	if result.err != nil && (result.outcome == "Pre-request script failed" || result.outcome == "Post-response script failed") {
+	if result.err != nil && (result.outcome == request.StagePreRequestScript || result.outcome == request.StagePostResponseScript) {
 		code := problemFieldPost
-		if result.outcome == "Pre-request script failed" {
+		if result.outcome == request.StagePreRequestScript {
 			code = problemFieldPre
 		}
 		scriptErrors = append(scriptErrors, markers.Marker{
@@ -194,18 +222,101 @@ func (a *app) applySendProblems(result requestResult) {
 	a.writeProblems(problemOwnerScripts, resource, scriptErrors)
 }
 
-// syncProblems recomputes the variable markers from the editor's live text
-// and clears markers whose document or import review is gone.
+// problemInputKey reads only small authoring fields. The body's editor keeps
+// a version, and code that replaces composeBody bumps d.problemBodyGen.
+func (d *requestDocument) problemInputKey() problemInputKey {
+	key := problemInputKey{
+		url: d.composeURL, headers: d.composeHeaders, pre: d.composePre, post: d.composePost,
+		bodyVersion: d.problemBodyGen, bodyLength: len(d.composeBody),
+		checkStatus: d.checks.Status, checkHeaders: d.checks.Headers,
+		checkJSON: d.checks.JSON, checkSnapshot: d.checks.Snapshot,
+	}
+	if d.bodyEditor != nil && d.bodyFor == d.composeBody {
+		key.bodyVersion = d.bodyEditor.Buffer.Version()
+	}
+	return key
+}
+
+// problemVariablesKey is the app-wide half of the cache key: the environment
+// in use, every scope's values and the folder inheritance a request draws
+// from. These maps are small; unlike a request body, they are cheap to read
+// once per frame.
+func (a *app) problemVariablesKey() string {
+	var b strings.Builder
+	b.WriteString(a.activeEnv)
+	b.WriteByte(0)
+	appendMap := func(values map[string]string) {
+		for _, name := range slices.Sorted(maps.Keys(values)) {
+			b.WriteString(name)
+			b.WriteByte('=')
+			b.WriteString(values[name])
+			b.WriteByte(0)
+		}
+		b.WriteByte(';')
+	}
+	for i := range a.envs {
+		b.WriteString(a.envs[i].Name)
+		b.WriteByte(0)
+		appendMap(a.envs[i].Vars)
+		appendMap(a.envs[i].Current)
+	}
+	appendMap(a.globals)
+	appendMap(a.globalsCurrent)
+	for _, path := range slices.Sorted(maps.Keys(a.folderCurrent)) {
+		b.WriteString(path)
+		b.WriteByte(0)
+		appendMap(a.folderCurrent[path])
+	}
+	folders := slices.Clone(a.folders)
+	slices.SortFunc(folders, func(left, right request.Folder) int { return cmp.Compare(left.Path, right.Path) })
+	for _, folder := range folders {
+		b.WriteString(folder.Path)
+		b.WriteByte(0)
+		for _, variable := range folder.Variables {
+			b.WriteString(variable.Name)
+			b.WriteByte('=')
+			b.WriteString(variable.Initial)
+			b.WriteByte('=')
+			if variable.Disabled {
+				b.WriteByte('1')
+			} else {
+				b.WriteByte('0')
+			}
+			b.WriteByte(0)
+		}
+		b.WriteByte(';')
+	}
+	b.WriteString(strconv.Itoa(a.requestGen))
+	return b.String()
+}
+
+// syncProblems recomputes the variable markers only when one of their inputs
+// changed, and clears markers whose document or import review is gone.
 func (a *app) syncProblems() {
 	service := a.problemService()
 	a.syncImportProblems()
-	for _, d := range a.problemDocuments() {
+	documents := a.problemDocuments()
+	variablesKey := a.problemVariablesKey()
+	variablesChanged := variablesKey != a.problems.envKey
+	if a.problems.envKey == "" {
+		variablesChanged = true // the first pass establishes the baseline
+	}
+	live := make(map[string]bool, len(documents))
+	for _, d := range documents {
 		resource := problemResource(d)
+		live[resource] = true
+		key := d.problemInputKey()
+		previous, seen := a.problems.docKeys[resource]
+		if seen && key == previous && !variablesChanged {
+			continue
+		}
+		// An edit to a send's source fields clears its last-send markers;
+		// those fields are all part of key, so unchanged frames skip this too.
 		if d.sentSet && d.sentSourceChanged() {
 			a.clearSendProblemMarkers(d)
 		}
 		r := d.value()
-		rows := r.ResolveVariables(a.inheritance(r.Collection), a.activeVars(), nil)
+		rows := a.problems.resolveVariables(r, a.inheritance(r.Collection), a.activeVars())
 		var list []markers.Marker
 		for _, row := range rows {
 			if !row.Missing {
@@ -218,19 +329,18 @@ func (a *app) syncProblems() {
 			})
 		}
 		a.writeProblems(problemOwnerVariables, resource, list)
+		a.problems.docKeys[resource] = key
 	}
-	live := make(map[string]bool)
-	for _, d := range a.problemDocuments() {
-		live[problemResource(d)] = true
-	}
+	a.problems.envKey = variablesKey
 	for _, resource := range service.Resources() {
 		if strings.HasPrefix(resource, problemResourcePrefix) && !live[resource] {
 			service.Remove(problemOwnerAssertions, []string{resource})
 			service.Remove(problemOwnerScripts, []string{resource})
 			service.Remove(problemOwnerVariables, []string{resource})
-			delete(a.problems.signatures, resource+"|"+problemOwnerAssertions)
-			delete(a.problems.signatures, resource+"|"+problemOwnerScripts)
-			delete(a.problems.signatures, resource+"|"+problemOwnerVariables)
+			for _, owner := range []string{problemOwnerAssertions, problemOwnerScripts, problemOwnerVariables} {
+				delete(a.problems.signatures, resource+"|"+owner)
+			}
+			delete(a.problems.docKeys, resource)
 		}
 	}
 }
