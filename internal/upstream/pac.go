@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/linkedmap"
 	"github.com/dop251/goja"
 )
 
@@ -56,7 +57,7 @@ type PAC struct {
 	myIP    func() netip.Addr
 
 	mu    sync.Mutex
-	cache map[string]pacResult
+	cache linkedmap.LinkedMap[string, pacResult]
 
 	evaluations atomic.Int64
 }
@@ -80,7 +81,6 @@ func newPAC(source, name string, opts PACOptions) (*PAC, error) {
 		now:     opts.Now,
 		lookup:  opts.Lookup,
 		myIP:    opts.MyIP,
-		cache:   make(map[string]pacResult),
 	}
 	if p.timeout <= 0 {
 		p.timeout = defaultPACTimeout
@@ -172,7 +172,7 @@ func (p *PAC) findProxy(ctx context.Context, rawURL, host string, port int) ([]C
 	// not only the host.
 	key := scheme + "://" + net.JoinHostPort(host, strconv.Itoa(port))
 	p.mu.Lock()
-	if cached, ok := p.cache[key]; ok {
+	if cached, ok := p.cache.Get(key); ok {
 		p.mu.Unlock()
 		return cloneCandidates(cached.candidates), cached.display, nil
 	}
@@ -191,10 +191,10 @@ func (p *PAC) findProxy(ctx context.Context, rawURL, host string, port int) ([]C
 	}
 	if cacheable {
 		p.mu.Lock()
-		if len(p.cache) >= maxPACCache {
-			p.cache = make(map[string]pacResult)
+		if p.cache.Size() >= maxPACCache {
+			p.cache.Clear()
 		}
-		p.cache[key] = pacResult{candidates: cloneCandidates(candidates), display: display}
+		p.cache.Set(key, pacResult{candidates: cloneCandidates(candidates), display: display})
 		p.mu.Unlock()
 	}
 	return candidates, display, nil

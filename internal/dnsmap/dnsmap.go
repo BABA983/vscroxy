@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/hosts"
+	"github.com/baba983/vscroxy/internal/linkedmap"
 )
 
 // Hit is a name the server answered from the rules.
@@ -54,7 +55,7 @@ type Server struct {
 	// lookups are the names the server resolved lately, for the connection
 	// panel: the proxy dials through it, so it sees every lookup.
 	lookupMu sync.Mutex
-	lookups  map[string]Resolution
+	lookups  linkedmap.LinkedMap[string, Resolution]
 }
 
 type pending struct {
@@ -72,7 +73,7 @@ func Start(upstream *net.Resolver) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{udp: udp, upstream: upstream, done: make(chan struct{}), pending: make(map[string]pending), lookups: make(map[string]Resolution)}
+	s := &Server{udp: udp, upstream: upstream, done: make(chan struct{}), pending: make(map[string]pending)}
 	s.rules.Store([]hosts.Rule(nil))
 	if tcp, err := net.Listen("tcp", udp.LocalAddr().String()); err == nil {
 		s.tcp = tcp
@@ -139,8 +140,7 @@ func (s *Server) Resolved(name string) (Resolution, bool) {
 	name = strings.ToLower(strings.TrimSuffix(name, "."))
 	s.lookupMu.Lock()
 	defer s.lookupMu.Unlock()
-	l, ok := s.lookups[name]
-	return l, ok
+	return s.lookups.Get(name)
 }
 
 // noteLookup records an answer the server gave: a newer answer replaces the
@@ -151,10 +151,10 @@ func (s *Server) noteLookup(name string, ips []net.IP, took time.Duration) {
 	}
 	s.lookupMu.Lock()
 	defer s.lookupMu.Unlock()
-	if len(s.lookups) >= 1024 {
-		clear(s.lookups)
+	if s.lookups.Size() >= 1024 {
+		s.lookups.Clear()
 	}
-	entry := s.lookups[name]
+	entry, _ := s.lookups.Get(name)
 	kept := entry.IPs[:0]
 	for _, old := range entry.IPs {
 		stale := false
@@ -179,7 +179,7 @@ func (s *Server) noteLookup(name string, ips []net.IP, took time.Duration) {
 		return 0
 	})
 	entry.Name, entry.At, entry.Took = name, time.Now(), took
-	s.lookups[name] = entry
+	s.lookups.Set(name, entry)
 }
 
 // Close stops the server. It may be called more than once.

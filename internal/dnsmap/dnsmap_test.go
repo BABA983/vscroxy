@@ -1,6 +1,7 @@
 package dnsmap
 
 import (
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -130,5 +131,31 @@ func ask(t *testing.T, addr, name string, kind dnsmessage.Type) string {
 				t.Fatalf("skip: %v", err)
 			}
 		}
+	}
+}
+
+// Reaching the lookup cache limit clears the old answers instead of growing;
+// repeating a name only updates its entry.
+func TestNoteLookupCacheCapacity(t *testing.T) {
+	s := &Server{}
+	ip := net.ParseIP("10.1.2.3")
+	s.noteLookup("same.test", []net.IP{ip}, 0)
+	s.noteLookup("same.test", []net.IP{ip}, 0)
+	for i := range 1023 {
+		s.noteLookup(fmt.Sprintf("old-%d.test", i), []net.IP{ip}, 0)
+	}
+	if got := s.lookups.Size(); got != 1024 {
+		t.Fatalf("cache size = %d, want 1024", got)
+	}
+
+	s.noteLookup("new.test", []net.IP{ip}, 0)
+	if got := s.lookups.Size(); got != 1 {
+		t.Fatalf("cache size after the cap = %d, want 1", got)
+	}
+	if _, ok := s.Resolved("same.test"); ok {
+		t.Error("an answer from the full cache survived")
+	}
+	if _, ok := s.Resolved("new.test"); !ok {
+		t.Error("the new answer was not cached")
 	}
 }
