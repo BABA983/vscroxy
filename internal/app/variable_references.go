@@ -119,10 +119,14 @@ type variableMatch struct {
 	LineText             string
 	Scope                variableScope
 	ScopeLabel           string
-	Kind                 string // "reference", "script" or "definition"
+	Kind                 string // "reference", "script", "definition" or "search"
 	Index                int    // row or map definition this came from
 	Checked              bool
 	Disabled             bool
+	// Replacement is the new bytes for one change. For a text field it is a
+	// snippet inserted at Start..End; for a value or definition it is the
+	// whole new value, which keeps regexp captures in one place.
+	Replacement string
 }
 
 // location returns the label and line used by both dialogs.
@@ -200,6 +204,8 @@ func variableDocumentField(d *requestDocument, code string) (variableFieldRef, b
 func variableSavedField(r *savedRequest, code string) (variableFieldRef, bool) {
 	ref := func(text *string) (variableFieldRef, bool) { return variableFieldRef{text: text}, true }
 	switch code {
+	case searchFieldName:
+		return ref(&r.Name)
 	case problemFieldURL:
 		return ref(&r.URL)
 	case problemFieldBody:

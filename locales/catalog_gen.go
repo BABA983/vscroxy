@@ -39041,3 +39041,93 @@ func LogLevelOff() string { return In(i18n.Locale()).LogLevelOff() }
 func (msgs Messages) LogLevelOff() string {
 	return Catalog.Format(msgs.locale, "logLevelOff", nil)
 }
+
+// ReplacedMatches says "Replaced {count} matches"
+// in the language the app shows.
+func ReplacedMatches(count int) string { return In(i18n.Locale()).ReplacedMatches(count) }
+
+// ReplacedMatches says "Replaced {count} matches"
+// in the language of msgs.
+func (msgs Messages) ReplacedMatches(count int) string {
+	return Catalog.Format(msgs.locale, "replacedMatches", map[string]any{"count": count})
+}
+
+// SearchReplaceCount says "{count} editable matches"
+// in the language the app shows.
+func SearchReplaceCount(count int) string { return In(i18n.Locale()).SearchReplaceCount(count) }
+
+// SearchReplaceCount says "{count} editable matches"
+// in the language of msgs.
+func (msgs Messages) SearchReplaceCount(count int) string {
+	return Catalog.Format(msgs.locale, "searchReplaceCount", map[string]any{"count": count})
+}
+
+// ToggleReplace says "Toggle Replace"
+// in the language the app shows.
+func ToggleReplace() string { return In(i18n.Locale()).ToggleReplace() }
+
+// ToggleReplace says "Toggle Replace"
+// in the language of msgs.
+func (msgs Messages) ToggleReplace() string {
+	return Catalog.Format(msgs.locale, "toggleReplace", nil)
+}
+
+// ToggleReplaceTip says "Toggle the Replace field (Cmd/Ctrl+Shift+U)"
+// in the language the app shows.
+func ToggleReplaceTip() string { return In(i18n.Locale()).ToggleReplaceTip() }
+
+// ToggleReplaceTip says "Toggle the Replace field (Cmd/Ctrl+Shift+U)"
+// in the language of msgs.
+func (msgs Messages) ToggleReplaceTip() string {
+	return Catalog.Format(msgs.locale, "toggleReplaceTip", nil)
+}
+
+// ReplaceWith says "Replace with"
+// in the language the app shows.
+func ReplaceWith() string { return In(i18n.Locale()).ReplaceWith() }
+
+// ReplaceWith says "Replace with"
+// in the language of msgs.
+func (msgs Messages) ReplaceWith() string {
+	return Catalog.Format(msgs.locale, "replaceWith", nil)
+}
+
+// ReplaceAll says "Replace All"
+// in the language the app shows.
+func ReplaceAll() string { return In(i18n.Locale()).ReplaceAll() }
+
+// ReplaceAll says "Replace All"
+// in the language of msgs.
+func (msgs Messages) ReplaceAll() string {
+	return Catalog.Format(msgs.locale, "replaceAll", nil)
+}
+
+// NoSearchMatchesToReplace says "No editable matches to replace"
+// in the language the app shows.
+func NoSearchMatchesToReplace() string { return In(i18n.Locale()).NoSearchMatchesToReplace() }
+
+// NoSearchMatchesToReplace says "No editable matches to replace"
+// in the language of msgs.
+func (msgs Messages) NoSearchMatchesToReplace() string {
+	return Catalog.Format(msgs.locale, "noSearchMatchesToReplace", nil)
+}
+
+// NoSearchChangesSelected says "No changes selected"
+// in the language the app shows.
+func NoSearchChangesSelected() string { return In(i18n.Locale()).NoSearchChangesSelected() }
+
+// NoSearchChangesSelected says "No changes selected"
+// in the language of msgs.
+func (msgs Messages) NoSearchChangesSelected() string {
+	return Catalog.Format(msgs.locale, "noSearchChangesSelected", nil)
+}
+
+// ReplaceThisMatch says "Replace this match"
+// in the language the app shows.
+func ReplaceThisMatch() string { return In(i18n.Locale()).ReplaceThisMatch() }
+
+// ReplaceThisMatch says "Replace this match"
+// in the language of msgs.
+func (msgs Messages) ReplaceThisMatch() string {
+	return Catalog.Format(msgs.locale, "replaceThisMatch", nil)
+}

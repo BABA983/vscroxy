@@ -121,6 +121,8 @@ func quickFixByteRange(text string, r *markers.Range) (int, int, bool) {
 // rescan a body written outside its editor.
 func (d *requestDocument) quickFixField(code string) (field string, text *string, state *editor.State, seen *string, generation *uint64, ok bool) {
 	switch code {
+	case searchFieldName:
+		return code, &d.composeName, nil, nil, nil, true
 	case problemFieldURL:
 		return code, &d.composeURL, nil, nil, nil, true
 	case problemFieldBody:

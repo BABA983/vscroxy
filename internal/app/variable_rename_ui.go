@@ -21,7 +21,6 @@ func (a *app) renameModal(c *ui.Context, t *ui.Theme) {
 	if !s.open {
 		return
 	}
-	_, height := c.Size()
 	uikit.Modal(c, &s.open, locales.RenameVariable(), func() {
 		if !s.preview {
 			uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
@@ -44,77 +43,29 @@ func (a *app) renameModal(c *ui.Context, t *ui.Theme) {
 			})
 			return
 		}
-		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(620, height-80)).Children(func() {
-			uikit.DialogTitle(c, locales.RenameVariable())
-			uikit.Meta(c, locales.RenameVariableIn(s.target.Name, s.target.Scope.label()))
-			if s.warning != "" {
-				uikit.ErrorText(c, s.warning)
-			}
-			if s.problem != "" {
-				uikit.ErrorText(c, s.problem)
-			}
-			uikit.Hint(c, locales.VariableScopeExplanation())
-			if s.target.Scope.Kind == "Environment" {
-				uikit.Hint(c, locales.OtherEnvironmentDefinitions())
-			}
-			checked := 0
-			for i := range s.changes {
-				if s.changes[i].Checked {
-					checked++
+		a.bulkPreviewDialog(c, t, &s.bulkPreviewState, locales.RenameVariable(),
+			locales.RenameVariableIn(s.target.Name, s.target.Scope.label()),
+			func() {
+				uikit.Hint(c, locales.VariableScopeExplanation())
+				if s.target.Scope.Kind == "Environment" {
+					uikit.Hint(c, locales.OtherEnvironmentDefinitions())
 				}
-			}
-			uikit.Caption(c, locales.RenameChangeCount(checked, len(s.changes)))
-			ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
-				a.variableChangeList(c, t, s)
+			},
+			func(checked int) {
+				uikit.DialogFooter(c).Children(func() {
+					if uikit.SecondaryButton(c, locales.Back()).Clicked() {
+						s.preview, s.problem, s.warning = false, "", ""
+					}
+					ui.Spacer(c)
+					if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
+						s.open = false
+					}
+					if uikit.PrimaryButton(c, locales.ApplyRename()).Disabled(s.warning != "" || checked == 0).Clicked() {
+						a.applyVariableRename()
+					}
+				})
 			})
-			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, locales.Back()).Clicked() {
-					s.preview, s.problem, s.warning = false, "", ""
-				}
-				ui.Spacer(c)
-				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
-					s.open = false
-				}
-				if uikit.PrimaryButton(c, locales.ApplyRename()).Disabled(s.warning != "" || checked == 0).Clicked() {
-					a.applyVariableRename()
-				}
-			})
-		})
 	})
-}
-
-func (a *app) variableChangeList(c *ui.Context, t *ui.Theme, s *variableRenameState) {
-	resource, field := "", ""
-	for i := range s.changes {
-		m := &s.changes[i]
-		if m.Resource != resource {
-			resource, field = m.Resource, ""
-			ui.Row(c.Key("resource-" + resource)).Height(uikit.HeightRow).FillWidth().AlignItems(ui.Center).Children(func() {
-				uikit.BodyStrong(c, resource).Grow(1).MinWidth(0).SingleLine()
-			})
-		}
-		if m.Field != field {
-			field = m.Field
-			ui.Row(c.Key(fmt.Sprintf("field-%s-%s", resource, field))).Height(uikit.HeightControlSmall).FillWidth().Children(func() {
-				uikit.Meta(c, field).SingleLine()
-			})
-		}
-		row := ui.Row(c.Key(fmt.Sprintf("rename-change-%d", i))).Height(uikit.HeightRow).FillWidth().
-			Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Padding(0, t.Space(uikit.SpaceM))
-		if row.Hovered() {
-			row.Background(t.SurfaceHover)
-		}
-		row.Children(func() {
-			uikit.Checkbox(c, &m.Checked, m.location()).Shrink(0)
-			ui.Row(c).Width(48).Shrink(0).Justify(ui.End).Children(func() {
-				if m.Line > 0 {
-					uikit.Meta(c, strconv.Itoa(m.Line)).FontFeatures("tnum")
-				}
-			})
-			variableMatchLine(c, *m).Grow(1).MinWidth(0)
-			uikit.Meta(c, m.ScopeLabel).Width(160).SingleLine().Ellipsis("…").Shrink(0)
-		})
-	}
 }
 
 // referencesModal is the References view: one group per request or scope,
