@@ -29,8 +29,10 @@ type commandContext struct {
 	// by each menu, button and shortcut subscription in the same frame.
 	searchLabel string
 	search      func()
-	// find is the focused body find bar, when its options can be toggled.
-	find           *bodyFindState
+	// find is the focused find bar: the body's or the Search view's. Both
+	// expose the same three options, so Alt+C/W/R has one owner.
+	find           findTarget
+	focusSearch    func()
 	focusTraffic   func()
 	focusInspector func()
 	focusURL       func()
@@ -55,6 +57,7 @@ func commandSnapshot(a *app, c *ui.Context, target *requestDocument) *commandCon
 	x := &commandContext{
 		a: a, d: d, f: f, current: current, capturing: capturing,
 		editing: editing, tab: editing && !capturing, proxyReady: proxyReady,
+		focusSearch:    func() { a.focusSearch(c) },
 		focusTraffic:   func() { a.focusTraffic(c) },
 		focusInspector: func() { a.workbench.inspector.Focus(c) },
 		focusURL:       func() { d.urlInput.Focus(c) },
@@ -85,6 +88,9 @@ func commandSnapshot(a *app, c *ui.Context, target *requestDocument) *commandCon
 				x.find = state
 			}
 		}
+	}
+	if x.find == nil && c != nil && a.page == pageSearch && a.searchAll.handle.FocusWithin(c) {
+		x.find = &a.searchAll
 	}
 	if d != nil {
 		x.collectionRoot = collectionRoot(d.composeCollection)
@@ -258,14 +264,18 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("view.search", "", func(x *commandContext) { x.search() }).
 		named(func(x *commandContext) string { return x.searchLabel }).
 		when(func(x *commandContext) bool { return x.capturing }, "").keys(ui.Cmd, ui.KeyF)
+	r.add("search.focus", locales.SearchEverywhere(), func(x *commandContext) { x.focusSearch() }).
+		keys(ui.Cmd|ui.Shift, ui.KeyF)
+	r.add("search.next-match", locales.NextSearchMatch(), func(x *commandContext) { x.a.searchAll.step(1) })
+	r.add("search.previous-match", locales.PreviousSearchMatch(), func(x *commandContext) { x.a.searchAll.step(-1) })
 	// The find bar's options take Alt+C/W/R only while that bar has the
 	// focus; the commands own the keys so menus and the palette see one
 	// owner, and the precondition keeps them off everywhere else.
-	r.add("find.match-case", "", func(x *commandContext) { x.find.toggleCase() }).
+	r.add("find.match-case", "", func(x *commandContext) { toggleFindCase(x.find) }).
 		when(func(x *commandContext) bool { return x.find != nil }, "").keys(ui.Alt, ui.KeyC)
-	r.add("find.match-whole-word", "", func(x *commandContext) { x.find.toggleWord() }).
+	r.add("find.match-whole-word", "", func(x *commandContext) { toggleFindWord(x.find) }).
 		when(func(x *commandContext) bool { return x.find != nil }, "").keys(ui.Alt, ui.KeyW)
-	r.add("find.use-regexp", "", func(x *commandContext) { x.find.toggleRegexp() }).
+	r.add("find.use-regexp", "", func(x *commandContext) { toggleFindRegexp(x.find) }).
 		when(func(x *commandContext) bool { return x.find != nil }, "").keys(ui.Alt, ui.KeyR)
 	r.add("view.primary", "", func(x *commandContext) {
 		if x.tab {

@@ -3785,5 +3785,36 @@
   "restoreVersion": "恢复此版本",
   "restoreVersionConfirm": "恢复保存于 {time} 的版本？",
   "restoreVersionDetail": "当前文件会先复制到本地历史，因此此操作可撤销。",
-  "restoredVersion": "已恢复保存于 {time} 的版本"
+  "restoredVersion": "已恢复保存于 {time} 的版本",
+  "searchEverywhere": "全局搜索",
+  "searchAcrossAssets": "搜索请求、变量和抓包流量",
+  "@searchResultCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "searchResultCount": "{count} 个结果",
+  "@searchResultsLimited": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "searchResultsLimited": "结果已限制为 {count} 条",
+  "searchNoResults": "请求、变量和流量中没有结果",
+  "searchRunning": "正在搜索…",
+  "nextSearchMatch": "下一个搜索结果",
+  "previousSearchMatch": "上一个搜索结果",
+  "@openSearchResult": {
+    "placeholders": {
+      "resource": {
+        "type": "String"
+      }
+    }
+  },
+  "openSearchResult": "打开结果：{resource}",
+  "searchHiddenResource": "已隐藏的密钥"
 }

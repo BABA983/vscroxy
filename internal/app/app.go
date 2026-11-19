@@ -60,6 +60,7 @@ const (
 	pageRuns                    // the run records, which take the window
 	pageDiagnostics             // connection diagnostics
 	pageOverview                // session or selection overview
+	pageSearch                  // one query across requests, variables and traffic
 )
 
 // capture reports whether the page reads captured traffic.
@@ -97,6 +98,9 @@ type app struct {
 	filter    string
 	chip      int
 	search    ui.Handle
+	// searchAll is the Search view: one query over saved requests,
+	// environments and captured flows. Its worker never holds a UI element.
+	searchAll globalSearch
 	clearOpen bool
 
 	// Capture filters and the request library have independent selections.
@@ -1908,6 +1912,7 @@ func (a *app) view(c *ui.Context) {
 	c.SetMenuPresentation(ui.PopoverMenus)
 	a.inspectorEditing = a.workbench.inspector.FocusWithin(c)
 	a.drain()
+	a.drainSearch()
 	a.pruneURLPaste()
 	// A row the reader picked by hand is theirs: Auto-select steps aside.
 	// A missing row normalizes to -1; that is the list being empty, not the
@@ -2032,6 +2037,8 @@ func (a *app) view(c *ui.Context) {
 		}
 		a.footer(c.Key("workspace-footer"), t)
 	})
+	// The target editor exists now: selecting a Search result can reveal it.
+	a.revealSearchMatch()
 	a.persistSettings()
 	a.checkpointExperiments(c)
 	a.checkpointSessions()
@@ -2427,6 +2434,10 @@ func (a *app) goTo(choice string) {
 		a.openOverview()
 		return
 	}
+	if choice == "search" {
+		a.page, a.sidebarChoice = pageSearch, "search"
+		return
+	}
 	a.page = pageLive
 	if host, ok := strings.CutPrefix(choice, "host:"); ok {
 		a.filterTriage.Host = host
@@ -2731,6 +2742,7 @@ func (a *app) trafficRows(c *ui.Context) {
 		{"slow", captureIcon, locales.Slow(), a.tally.slow},
 		{"pinned", pinIcon, locales.Pinned(), a.tally.pinned},
 		{"overview", overviewIcon, locales.Overview(), 0},
+		{"search", searchIcon, locales.SearchEverywhere(), 0},
 	}
 	for _, row := range rows {
 		uikit.SidebarItem(c, row.id, row.icon, row.label, a.sidebarChoice == row.id, !a.windowBehind).Children(func() {
