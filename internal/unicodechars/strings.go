@@ -4,6 +4,7 @@
 // microsoft/vscode at the commit named in that file.
 //
 //go:generate go run ./gen
+//go:generate python3 gen/names.py .
 package unicodechars
 
 import (

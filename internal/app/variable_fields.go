@@ -376,6 +376,6 @@ func (a *app) setVariableDiagnostics(state *editor.State, text, collection strin
 			}
 		}
 	}
-	diagnostics = append(diagnostics, a.unicodeDiagnostics(text)...)
+	diagnostics = append(diagnostics, a.cachedUnicodeDiagnostics(state, text)...)
 	state.SetDiagnostics(state.Buffer.Version(), diagnostics)
 }

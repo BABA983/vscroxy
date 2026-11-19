@@ -124,30 +124,33 @@ func TestUnicodeSendWarnsOnceAndStillSends(t *testing.T) {
 
 func TestUnicodeCJKBodyDoesNotWarn(t *testing.T) {
 	a := workspaceApp()
-	alertless := workspaceApp()
-	callers := []struct {
-		name string
-		body string
-		want bool
+	for _, tc := range []struct {
+		name        string
+		body        string
+		diagnostics int
 	}{
-		{"CJK JSON", `{"name":"中文测试","city":"北京"}`, false},
-		{"CJK prose", "今天天气很好。", false},
-		{"invisible beside CJK", `{"name":"中文\u200b测试"}`, true},
-	}
-	for _, tc := range callers {
+		{"CJK JSON", `{"name":"中文测试","city":"北京"}`, 0},
+		{"CJK prose", "今天天气很好。", 0},
+		{"invisible beside CJK", `{"name":"中文\u200b测试"}`, 1},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			body := strings.ReplaceAll(tc.body, `\u200b`, "\u200b")
-			r := savedRequest{Method: "POST", URL: "https://api.example.com", Body: body}
-			got := a.firstUnicodeSendWarning(r, nil)
-			if (got != nil) != tc.want {
-				t.Fatalf("warning = %+v, want warn %v", got, tc.want)
+			if got := len(a.unicodeDiagnostics(body)); got != tc.diagnostics {
+				t.Fatalf("editor diagnostics = %d, want %d", got, tc.diagnostics)
 			}
-			before := len(alertless.notices)
-			alertless.warnUnicodeBeforeSend(r, alertless.requestDocument, nil)
-			if (len(alertless.notices) != before) != tc.want {
-				t.Fatalf("notices = %d, want warn %v", len(alertless.notices)-before, tc.want)
+			r := savedRequest{Method: "POST", URL: "https://api.example.com", Body: body}
+			before := len(a.notices)
+			a.warnUnicodeBeforeSend(r, a.requestDocument, nil)
+			if len(a.notices) != before {
+				t.Fatalf("body text raised a send warning: %q", a.notices[before].text)
 			}
 		})
+	}
+	// A flagged header still warns when the request happens to carry CJK.
+	r := savedRequest{Method: "POST", URL: "https://api.example.com",
+		Headers: "X-Note: ab\u200bcd", Body: `{"name":"中文测试"}`}
+	if warning := a.firstUnicodeSendWarning(r, nil); warning == nil || !strings.Contains(strings.ToLower(warning.field.name), "header") {
+		t.Fatalf("header beside a CJK body was not warned: %+v", warning)
 	}
 }
 

@@ -85,7 +85,7 @@ func (a *app) appendUnicodeDiagnostics(state *editor.State, text string) {
 	diagnostics := slices.DeleteFunc(state.Diagnostics(), func(d editor.Diagnostic) bool {
 		return d.Source == unicodeDiagnosticSource
 	})
-	diagnostics = append(diagnostics, a.unicodeDiagnostics(text)...)
+	diagnostics = append(diagnostics, a.cachedUnicodeDiagnostics(state, text)...)
 	state.SetDiagnostics(state.Buffer.Version(), diagnostics)
 }
 
@@ -207,9 +207,10 @@ type unicodeSendWarning struct {
 	label string
 }
 
-// warnUnicodeBeforeSend checks the expanded values of URL, headers, auth and
-// body. It never blocks the send, never prints a value into the notice, and
-// warns once even when several characters or fields are flagged.
+// warnUnicodeBeforeSend checks the expanded URL, headers and auth. A body is
+// not checked: it already has editor diagnostics, and ordinary language text
+// in a body must not warn on every send. It never blocks the send, never
+// prints a value into the notice, and warns once for several flagged fields.
 func (a *app) warnUnicodeBeforeSend(r savedRequest, d *requestDocument, vars map[string]string) {
 	warning := a.firstUnicodeSendWarning(r, vars)
 	if warning == nil {
@@ -232,10 +233,9 @@ type unicodeSendField struct {
 	value string
 }
 
-// firstUnicodeSendWarning returns the first field with a flagged character,
-// in the order the request is built. Body text is checked with the same rule
-// as the editors: a word in a real non-ASCII language is fine, an invisible
-// code point never is.
+// firstUnicodeSendWarning returns the first URL, header or auth field with a
+// flagged character, in the order the request is built. The body's editor
+// diagnostics are the place for body text.
 func (a *app) firstUnicodeSendWarning(r savedRequest, vars map[string]string) *unicodeSendWarning {
 	for _, candidate := range a.unicodeSendFields(r, vars) {
 		highlights := a.unicodeHighlights(candidate.value)
@@ -270,9 +270,5 @@ func (a *app) unicodeSendFields(r savedRequest, vars map[string]string) []unicod
 			value: expand(auth.value),
 		})
 	}
-	fields = append(fields, unicodeSendField{
-		field: unicodeField{name: locales.Body(), key: "body", tab: composeTabBody},
-		value: r.Body,
-	})
 	return fields
 }
