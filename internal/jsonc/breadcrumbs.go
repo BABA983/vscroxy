@@ -44,10 +44,9 @@ type BreadcrumbPath struct {
 	JSONPath string
 }
 
-// BreadcrumbsAt reports the container path at offset in tolerant JSON text.
-// It never requires a complete document: the parser keeps the nodes it could
-// read, including an unclosed container or a key whose value is missing.
-// Offset is a byte offset, and is clamped to the text.
+// BreadcrumbsAt parses text and reports the container path at offset. It is
+// the convenience form for callers with no tree; callers that already parsed
+// the shown text should use BreadcrumbsIn so a caret move costs no parse.
 func BreadcrumbsAt(text string, offset int) BreadcrumbPath {
 	head := strings.TrimLeft(text, " \t\r\n")
 	if !strings.HasPrefix(head, "{") && !strings.HasPrefix(head, "[") {
@@ -55,6 +54,21 @@ func BreadcrumbsAt(text string, offset int) BreadcrumbPath {
 	}
 	root, _ := ParseTree(text)
 	if root == nil {
+		return BreadcrumbPath{}
+	}
+	return BreadcrumbsIn(root, text, offset)
+}
+
+// BreadcrumbsIn reports the container path at offset using root, which must
+// have been parsed from text. Bytes, not runes, are the unit: editor carets
+// and nodes use the same offsets. A partial document is enough; the tree
+// keeps unclosed containers and keys whose value is missing.
+func BreadcrumbsIn(root *Node, text string, offset int) BreadcrumbPath {
+	if root == nil {
+		return BreadcrumbPath{}
+	}
+	head := strings.TrimLeft(text, " \t\r\n")
+	if !strings.HasPrefix(head, "{") && !strings.HasPrefix(head, "[") {
 		return BreadcrumbPath{}
 	}
 	offset = min(max(offset, 0), len(text))

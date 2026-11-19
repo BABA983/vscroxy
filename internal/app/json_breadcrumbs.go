@@ -15,35 +15,68 @@ import (
 // bytes the app already holds.
 const jsonBreadcrumbScanLimit = 1 << 20
 
-// jsonBreadcrumbs caches one path per editor. Scanning a document is work for
-// a changed caret or buffer version only: frames that redraw the bar at the
-// same position reuse the answer, including the sibling menus.
+// jsonCrumbSource is a tree a JSON reader already parsed for the text it
+// shows. The cache still checks the text before using it: a stale answer must
+// never describe bytes the editor no longer holds.
+type jsonCrumbSource struct {
+	root *jsonc.Node
+	text string
+}
+
+// jsonBreadcrumbs caches one parsed tree and path per editor. Parsing belongs
+// to a changed buffer, not to a caret: moving through a large document walks
+// the same tree and only rebuilds the path and sibling lists.
 type jsonBreadcrumbs struct {
-	key     string
-	buf     *editor.Buffer
-	version uint64
-	cursor  int
-	ready   bool
-	path    jsonc.BreadcrumbPath
-	scan    func(string, int) jsonc.BreadcrumbPath // seam for the recompute test
+	key      string
+	buf      *editor.Buffer
+	version  uint64
+	cursor   int
+	ready    bool
+	treeRead bool
+	text     string
+	root     *jsonc.Node
+	path     jsonc.BreadcrumbPath
+	parse    func(string) (*jsonc.Node, []jsonc.ParseError)      // seam for parse counting
+	scan     func(*jsonc.Node, string, int) jsonc.BreadcrumbPath // seam for path counting
 }
 
 func (b *jsonBreadcrumbs) refresh(key string, view *editor.State, cursor int) jsonc.BreadcrumbPath {
+	return b.refreshWith(key, view, cursor, jsonCrumbSource{})
+}
+
+func (b *jsonBreadcrumbs) refreshWith(key string, view *editor.State, cursor int, provided jsonCrumbSource) jsonc.BreadcrumbPath {
 	version := view.Buffer.Version()
-	if b.ready && b.key == key && b.buf == view.Buffer && b.version == version && b.cursor == cursor {
+	sameBuffer := b.ready && b.key == key && b.buf == view.Buffer && b.version == version
+	if sameBuffer && b.cursor == cursor {
 		return b.path
 	}
 	b.key, b.buf, b.version, b.cursor, b.ready = key, view.Buffer, version, cursor, true
+	if !sameBuffer || !b.treeRead {
+		b.treeRead = true
+		b.root, b.text = nil, ""
+		text := view.Buffer.String()
+		if len(text) > 0 && len(text) <= jsonBreadcrumbScanLimit {
+			if provided.root != nil && provided.text == text {
+				b.root, b.text = provided.root, text
+			} else {
+				parse := b.parse
+				if parse == nil {
+					parse = func(text string) (*jsonc.Node, []jsonc.ParseError) { return jsonc.ParseTree(text) }
+				}
+				b.root, _ = parse(text)
+				b.text = text
+			}
+		}
+	}
 	b.path = jsonc.BreadcrumbPath{}
-	size := view.Buffer.Len()
-	if size == 0 || size > jsonBreadcrumbScanLimit {
+	if b.root == nil {
 		return b.path
 	}
 	scan := b.scan
 	if scan == nil {
-		scan = jsonc.BreadcrumbsAt
+		scan = jsonc.BreadcrumbsIn
 	}
-	b.path = scan(view.Buffer.String(), cursor)
+	b.path = scan(b.root, b.text, cursor)
 	return b.path
 }
 
@@ -65,8 +98,8 @@ func (a *app) copyJSONPath(c *ui.Context, path string) {
 // jsonPathBar draws a VS Code style breadcrumb above a JSON text viewer. Each
 // segment jumps to its node when clicked; its arrow opens the sibling keys or
 // indices at that level.
-func (a *app) jsonPathBar(c *ui.Context, crumbs *jsonBreadcrumbs, key string, view *editor.State, focus func()) {
-	path := crumbs.refresh(key, view, view.Cursor())
+func (a *app) jsonPathBar(c *ui.Context, crumbs *jsonBreadcrumbs, key string, view *editor.State, focus func(), provided jsonCrumbSource) {
+	path := crumbs.refreshWith(key, view, view.Cursor(), provided)
 	// The slot stays even when there is no path: adding it on the frame a
 	// body first parses as JSON must not move the editor among its siblings
 	// and take the keyboard focus away from it.

@@ -129,44 +129,69 @@ func TestCopyPathRunsFromThePalette(t *testing.T) {
 	}
 }
 
+// countedBreadcrumbs wraps both seams so a test can tell parsing from walking
+// an already parsed tree. Nothing in the app itself uses these counters.
+func countedBreadcrumbs() (*jsonBreadcrumbs, *int, *int) {
+	var crumbs jsonBreadcrumbs
+	parses, scans := 0, 0
+	crumbs.parse = func(text string) (*jsonc.Node, []jsonc.ParseError) {
+		parses++
+		return jsonc.ParseTree(text)
+	}
+	crumbs.scan = func(root *jsonc.Node, text string, offset int) jsonc.BreadcrumbPath {
+		scans++
+		return jsonc.BreadcrumbsIn(root, text, offset)
+	}
+	return &crumbs, &parses, &scans
+}
+
 func TestBreadcrumbRecomputesOnlyOnChange(t *testing.T) {
 	view := &editor.State{Buffer: editor.NewBuffer(`{"a":{"b":1}}`)}
-	var crumbs jsonBreadcrumbs
-	calls := 0
-	crumbs.scan = func(text string, offset int) jsonc.BreadcrumbPath {
-		calls++
-		return jsonc.BreadcrumbsAt(text, offset)
-	}
+	crumbs, parses, scans := countedBreadcrumbs()
 	for range 4 {
 		crumbs.refresh("body", view, 8)
 	}
-	if calls != 1 {
-		t.Fatalf("an unchanged caret scanned %d times", calls)
+	if *parses != 1 || *scans != 1 {
+		t.Fatalf("unchanged caret: %d parses, %d scans", *parses, *scans)
 	}
 	crumbs.refresh("body", view, 9)
-	if calls != 2 {
-		t.Fatalf("a moved caret scanned %d times", calls)
+	if *parses != 1 || *scans != 2 {
+		t.Fatalf("moved caret: %d parses, %d scans", *parses, *scans)
 	}
 	view.Select(len(`{"a":`), len(`{"a":`))
 	view.Insert("x")
 	crumbs.refresh("body", view, view.Cursor())
-	if calls != 3 {
-		t.Fatalf("an edited buffer scanned %d times", calls)
+	if *parses != 2 || *scans != 3 {
+		t.Fatalf("edited buffer: %d parses, %d scans", *parses, *scans)
 	}
 	crumbs.refresh("other", view, view.Cursor())
-	if calls != 4 {
-		t.Fatalf("another body scanned %d times", calls)
+	if *parses != 3 || *scans != 4 {
+		t.Fatalf("another body: %d parses, %d scans", *parses, *scans)
+	}
+}
+
+func TestBreadcrumbCaretMovesDoNotReparse(t *testing.T) {
+	view := &editor.State{Buffer: editor.NewBuffer(`{"items":[{"id":1},{"id":2},{"id":3}]}`)}
+	crumbs, parses, scans := countedBreadcrumbs()
+	for offset := 3; offset < 13; offset++ {
+		crumbs.refresh("body", view, offset)
+	}
+	if *parses != 1 {
+		t.Fatalf("10 caret moves parsed %d times", *parses)
+	}
+	if *scans != 10 {
+		t.Fatalf("10 caret moves built %d paths", *scans)
+	}
+	view.Buffer.Set(`{"items":[{"id":4}]}`)
+	crumbs.refresh("body", view, 3)
+	if *parses != 2 {
+		t.Fatalf("a buffer edit parsed %d times", *parses)
 	}
 }
 
 func TestBreadcrumbFollowsInPlaceBufferSet(t *testing.T) {
 	view := &editor.State{Buffer: editor.NewBuffer(`{"data":{"value":1}}`)}
-	var crumbs jsonBreadcrumbs
-	calls := 0
-	crumbs.scan = func(text string, offset int) jsonc.BreadcrumbPath {
-		calls++
-		return jsonc.BreadcrumbsAt(text, offset)
-	}
+	crumbs, parses, _ := countedBreadcrumbs()
 	before := crumbs.refresh("body", view, 13)
 	if before.JSONPath != "$.data.value" {
 		t.Fatalf("before Set: %q", before.JSONPath)
@@ -175,11 +200,40 @@ func TestBreadcrumbFollowsInPlaceBufferSet(t *testing.T) {
 	// version changes, so the bar follows the new text at the same offset.
 	view.Buffer.Set(`{"data":{"other":2}}`)
 	after := crumbs.refresh("body", view, 13)
-	if calls != 2 {
-		t.Fatalf("Buffer.Set scanned %d times", calls)
+	if *parses != 2 {
+		t.Fatalf("Buffer.Set parsed %d times", *parses)
 	}
 	if after.JSONPath != "$.data.other" {
 		t.Fatalf("after Set: %q", after.JSONPath)
+	}
+}
+
+func TestBreadcrumbReusesReaderTreeForShownText(t *testing.T) {
+	const body = "{\"data\":1,}" // fault-tolerant: the formatter rewrites it
+	result := computeFaultTolerantBody(body)
+	if result.crumbRoot == nil || result.crumbText == "" {
+		t.Fatal("the worker did not supply a tree for the shown text")
+	}
+	if !strings.Contains(result.crumbText, `"data"`) {
+		t.Fatalf("crumb text %q is not the shown text", result.crumbText)
+	}
+
+	view := &editor.State{Buffer: editor.NewBuffer(result.crumbText)}
+	crumbs, parses, _ := countedBreadcrumbs()
+	path := crumbs.refreshWith("body", view, strings.Index(result.crumbText, `"data"`)+2,
+		jsonCrumbSource{root: result.crumbRoot, text: result.crumbText})
+	if *parses != 0 {
+		t.Fatalf("the UI parsed the worker's tree %d times", *parses)
+	}
+	if len(path.Segments) < 2 || path.Segments[1].Label != "data" {
+		t.Fatalf("path from the worker tree = %+v", path)
+	}
+
+	// A tree for different bytes must not be used, even when supplied.
+	other := &editor.State{Buffer: editor.NewBuffer(`{"other":1}`)}
+	crumbs.refreshWith("body", other, 3, jsonCrumbSource{root: result.crumbRoot, text: result.crumbText})
+	if *parses != 1 {
+		t.Fatalf("a stale tree avoided a needed parse: %d", *parses)
 	}
 }
 

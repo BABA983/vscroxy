@@ -51,6 +51,29 @@ func TestBreadcrumbsAtPathsAndJSONPath(t *testing.T) {
 	}
 }
 
+func TestBreadcrumbsInReusesTheParsedTree(t *testing.T) {
+	const src = `{"data":{"items":[{"id":3}]},"ok":true}`
+	root, errs := ParseTree(src)
+	if root == nil || len(errs) != 0 {
+		t.Fatalf("fixture did not parse: %v", errs)
+	}
+	for _, offset := range []int{0, 5, 19, offsetOf(src, "3"), len(src)} {
+		want, got := BreadcrumbsAt(src, offset), BreadcrumbsIn(root, src, offset)
+		if want.JSONPath != got.JSONPath || len(want.Segments) != len(got.Segments) {
+			t.Fatalf("at %d: At = %+v, In = %+v", offset, want, got)
+		}
+		for i := range want.Segments {
+			if want.Segments[i].Start != got.Segments[i].Start || want.Segments[i].End != got.Segments[i].End {
+				t.Fatalf("at %d, segment %d: At = %+v, In = %+v", offset, i, want.Segments[i], got.Segments[i])
+			}
+		}
+	}
+	// Offsets outside the text are clamped, with or without a supplied tree.
+	if got := BreadcrumbsIn(root, src, len(src)+40); got.JSONPath != "$" {
+		t.Fatalf("past the end: %q", got.JSONPath)
+	}
+}
+
 func TestBreadcrumbsAtQuotedKeys(t *testing.T) {
 	const src = `{"a.b":{"q\"x":7,"it's":8,"back\\slash":9,"ok_key":10,"2bad":11}}`
 	cases := []struct {

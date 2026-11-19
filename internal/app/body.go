@@ -56,6 +56,9 @@ type jsonTreeResult struct {
 	roots  []*jsonNode
 	ndjson bool
 	stop   string
+	// rawRoot is the fault-tolerant tree the reader's jsonNodes came from.
+	// It is reused for breadcrumbs when the shown text is still the raw body.
+	rawRoot *jsonc.Node
 }
 
 // jsonBodyResult is the answer for one body: the tree for the JSON reader
@@ -65,6 +68,11 @@ type jsonBodyResult struct {
 	tree     jsonTreeResult
 	pretty   string
 	prettyOK bool
+	// crumbRoot and crumbText belong to the text Pretty shows. The worker
+	// makes them together, so the UI never parses a fault-tolerant answer
+	// a second time just to draw the breadcrumb bar.
+	crumbRoot *jsonc.Node
+	crumbText string
 }
 
 // jsonReader tracks one side's work. A flow or body change cancels the
@@ -101,8 +109,9 @@ func faultTolerantJSON(body string) jsonTreeResult {
 		return jsonTreeResult{} // no tree: keep the old "not JSON" reader
 	}
 	return jsonTreeResult{
-		roots: []*jsonNode{jsoncNode(body, root, "", "", nodeID{}, 0)},
-		stop:  jsonStopLine(body, errs),
+		roots:   []*jsonNode{jsoncNode(body, root, "", "", nodeID{}, 0)},
+		stop:    jsonStopLine(body, errs),
+		rawRoot: root,
 	}
 }
 
@@ -340,12 +349,25 @@ func jsonStopLine(body string, errs []jsonc.ParseError) string {
 	return locales.JsonParsingStopped(line, column, offset)
 }
 
-// computeFaultTolerantBody is the unit of work handed to a goroutine: one
-// parse and one format pass over bytes the viewer keeps unchanged.
+// computeFaultTolerantBody is the unit of work handed to a goroutine: a
+// fault-tolerant parse, a format pass, and a tree matched to whatever text
+// Pretty will show. None of it runs on the UI thread.
 func computeFaultTolerantBody(body string) jsonBodyResult {
 	tree := faultTolerantJSON(body)
 	pretty, ok := formatJSONBody(body, tree)
-	return jsonBodyResult{tree: tree, pretty: pretty, prettyOK: ok}
+	result := jsonBodyResult{tree: tree, pretty: pretty, prettyOK: ok}
+	shown := body
+	if ok && pretty != body {
+		shown = pretty
+		result.crumbRoot, _ = jsonc.ParseTree(shown)
+	} else {
+		// The reader's own tree already names the bytes it shows.
+		result.crumbRoot = tree.rawRoot
+	}
+	if result.crumbRoot != nil && len(shown) <= jsonBreadcrumbScanLimit {
+		result.crumbText = shown
+	}
+	return result
 }
 
 // jsonReaderFor returns the state for one side, starting the fault-tolerant
@@ -1004,7 +1026,11 @@ func (a *app) prettyBody(c *ui.Context, key, body string, side int, json *jsonRe
 	a.decoderMenu(view)
 	view.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
 	view.Theme = uikit.EditorTheme(c.Theme())
-	a.jsonPathBar(c, &a.jsonCrumbs[side], key, view, func() { a.bodyReader[side].Focus(c) })
+	var provided jsonCrumbSource
+	if json != nil && json.ready && json.result.crumbRoot != nil {
+		provided = jsonCrumbSource{root: json.result.crumbRoot, text: json.result.crumbText}
+	}
+	a.jsonPathBar(c, &a.jsonCrumbs[side], key, view, func() { a.bodyReader[side].Focus(c) }, provided)
 	editor.View(c, view).Bind(&a.bodyReader[side]).Grow(1)
 }
 
