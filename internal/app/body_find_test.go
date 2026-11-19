@@ -46,7 +46,7 @@ func TestBodyFindCaseSensitiveNeedsFindFocus(t *testing.T) {
 	a, tt, c, find := openBodyFind(t, "error Error error")
 	find.Close()
 	tt.Frame()
-	tt.Key(ui.Alt, ui.KeyC)
+	tt.KeyAt(ui.Alt, ui.KeyC)
 	tt.Frame()
 	if *find.CaseSensitive() {
 		t.Fatal("Alt+C changed find options while the bar was closed")
@@ -56,7 +56,7 @@ func TestBodyFindCaseSensitiveNeedsFindFocus(t *testing.T) {
 	*find.Query() = "error"
 	tt.Frame()
 	loose, _ := find.Matches()
-	tt.Key(ui.Alt, ui.KeyC)
+	tt.KeyAt(ui.Alt, ui.KeyC)
 	tt.Frame()
 	if !*find.CaseSensitive() {
 		t.Fatal("Alt+C did not toggle case sensitivity in the focused find bar")
@@ -72,7 +72,7 @@ func TestBodyFindWholeWordExcludesSubstrings(t *testing.T) {
 	*find.Query() = "error"
 	tt.Frame()
 	before, _ := find.Matches()
-	tt.Key(ui.Alt, ui.KeyW)
+	tt.KeyAt(ui.Alt, ui.KeyW)
 	tt.Frame()
 	if !*find.WholeWord() {
 		t.Fatal("Alt+W did not toggle whole word")
@@ -90,7 +90,7 @@ func TestBodyFindBadRegexShowsTheErrorAndNoMatches(t *testing.T) {
 	if count, _ := find.Matches(); count != 2 {
 		t.Fatalf("%d matches before regexp, want 2", count)
 	}
-	tt.Key(ui.Alt, ui.KeyR)
+	tt.KeyAt(ui.Alt, ui.KeyR)
 	tt.Frame()
 	if !*find.Regexp() {
 		t.Fatal("Alt+R did not toggle regular expressions")

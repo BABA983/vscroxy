@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/locales"
@@ -135,6 +136,62 @@ func TestPastePlainTextIntoURLChangesOnlyTheURL(t *testing.T) {
 	}
 	if len(a.notices) != 0 || a.urlPaste != nil {
 		t.Errorf("plain paste raised a notice or a pending import: %+v / %+v", a.notices, a.urlPaste)
+	}
+}
+
+func TestPasteAsTextActionExpiresWhenTheDraftChanges(t *testing.T) {
+	a, d, tt := pastedURLApp(t)
+	pasteURL(t, tt, `curl -X PUT 'https://new.test/one' -H 'X-First: 1'`)
+	first := a.notices[len(a.notices)-1]
+	if first.valid == nil || !first.valid() {
+		t.Fatal("the fresh action is not offered by the notice")
+	}
+
+	// A later header edit changes the draft the cURL paste produced; the
+	// action must not undo it, even when invoked from the notice history.
+	d.headerRows = append(d.headerRows, request.Field{Name: "X-Later", Value: "yes"})
+	tt.Frame()
+	afterEdit, afterBaseline := d.value(), d.baseline
+	if first.valid() || a.urlPaste != nil {
+		t.Fatalf("a stale action is still valid: valid=%t pending=%v", first.valid(), a.urlPaste != nil)
+	}
+	first.run()
+	tt.Frame()
+	if !reflect.DeepEqual(d.value(), afterEdit) || !reflect.DeepEqual(d.baseline, afterBaseline) {
+		t.Errorf("a stale action rewrote the draft or baseline:\n%+v\nwant\n%+v", d.value(), afterEdit)
+	}
+
+	dismissToasts(t, tt)
+	a.openNotifications()
+	tt.Frame()
+	row, ok := tt.AccessByRole(ui.RoleDisclosure, "")
+	if !ok {
+		t.Fatalf("the notice is not in the center: %v", tt.Texts())
+	}
+	tt.ClickAt(row.Bounds.X+row.Bounds.W-20, row.Bounds.Y+row.Bounds.H/2)
+	tt.Advance(300 * time.Millisecond)
+	tt.Frame()
+	if _, offered := tt.AccessByRole(ui.RoleButton, locales.CurlPasteAsTextAction()); offered {
+		t.Errorf("the notification center still offers an expired action: %v", tt.Texts())
+	}
+}
+
+func TestSecondPasteInvalidatesTheFirstPasteAsTextAction(t *testing.T) {
+	a, d, tt := pastedURLApp(t)
+	pasteURL(t, tt, `curl -X PUT 'https://new.test/one' -H 'X-First: 1'`)
+	firstEdit, first := a.urlPaste, a.notices[len(a.notices)-1]
+	if firstEdit == nil || first.valid == nil || !first.valid() {
+		t.Fatal("the first paste has no valid action")
+	}
+	pasteURL(t, tt, `curl -X POST 'https://new.test/two' -H 'X-Second: 2'`)
+	if a.urlPaste == firstEdit || first.valid() {
+		t.Fatal("a second paste left the first paste's action valid")
+	}
+	after, afterBaseline := d.value(), d.baseline
+	first.run()
+	tt.Frame()
+	if !reflect.DeepEqual(d.value(), after) || !reflect.DeepEqual(d.baseline, afterBaseline) {
+		t.Errorf("the first paste's stale action changed the second paste:\n%+v\nwant\n%+v", d.value(), after)
 	}
 }
 

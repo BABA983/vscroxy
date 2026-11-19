@@ -39,7 +39,7 @@ func TestBodyFindToggleScreenshots(t *testing.T) {
 			find := settleBodyFind(t, a, tt, c)
 			*find.Query() = "error"
 			tt.Frame()
-			tt.Key(ui.Alt, ui.KeyC)
+			tt.KeyAt(ui.Alt, ui.KeyC)
 			tt.Frame()
 			toggle, ok := tt.AccessByRole(ui.RoleToggleButton, locales.FindMatchCase())
 			if !*find.CaseSensitive() || !ok || !toggle.Checked {

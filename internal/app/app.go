@@ -621,8 +621,10 @@ type app struct {
 	requestResults  []requestResult
 	importReport    importReport
 	// urlPaste is a cURL command pasted into the URL field, applied on the
-	// next build; urlPasteSelection is that input's selection at paste time.
+	// next build; urlPasteUndo is the accepted action, restored on the build
+	// after it. urlPasteSelection is the input's selection at paste time.
 	urlPaste          *urlPasteEdit
+	urlPasteUndo      *urlPasteEdit
 	urlPasteSelection [2]int
 	// tokens are the OAuth 2.0 access tokens, kept sealed by oauthTokens.
 	tokens            request.Tokens
@@ -1866,6 +1868,7 @@ func (a *app) view(c *ui.Context) {
 	c.SetMenuPresentation(ui.PopoverMenus)
 	a.inspectorEditing = a.workbench.inspector.FocusWithin(c)
 	a.drain()
+	a.pruneURLPaste()
 	// A row the reader picked by hand is theirs: Auto-select steps aside.
 	// A missing row normalizes to -1; that is the list being empty, not the
 	// reader taking over. Only a move between two real rows is a manual pick.

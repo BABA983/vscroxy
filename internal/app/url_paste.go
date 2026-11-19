@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -21,7 +22,10 @@ type urlPasteEdit struct {
 	parsed   savedRequest
 	warnings []string
 	applied  bool
-	undo     bool
+	// appliedValue and appliedBaseline are what the paste produced. Any later
+	// edit, save or second paste makes the one-shot action stale.
+	appliedValue    savedRequest
+	appliedBaseline savedRequest
 }
 
 // looksLikeCurl is the paste provider's entry condition, before any parser
@@ -76,12 +80,18 @@ func (a *app) applyURLPaste(d *requestDocument, edit *urlPasteEdit) {
 	d.baseline = edit.baseline
 	d.urlInput.Focus()
 	edit.applied = true
+	edit.appliedValue, edit.appliedBaseline = d.value(), d.baseline
 	a.notify(notice{
 		level: noticeInfo, text: locales.CurlPasteFilledRequest(),
 		detail: strings.Join(edit.warnings, "; "),
 		action: locales.CurlPasteAsTextAction(),
+		valid:  func() bool { return a.urlPasteActionValid(edit) },
 		run: func() {
-			edit.undo = true
+			if !a.urlPasteActionValid(edit) {
+				a.pruneURLPaste()
+				return
+			}
+			a.urlPasteUndo, a.urlPaste = edit, nil
 			a.invalidate()
 		},
 	})
@@ -104,17 +114,53 @@ func (a *app) restoreURLPaste(d *requestDocument, edit *urlPasteEdit) {
 	d.urlInput.Focus()
 }
 
+// urlPasteDraftIntact says the work the paste produced is still the work on
+// screen, unmoved by later edits, saves or tab closes.
+func (a *app) urlPasteDraftIntact(edit *urlPasteEdit) bool {
+	if edit == nil || !edit.applied || edit.d == nil {
+		return false
+	}
+	d := edit.d
+	open := slices.Contains(a.documents, d) || d == a.libraryDocument || d == a.live || d == a.requestDocument
+	if !open && a.flowDrafts != nil {
+		for _, draft := range a.flowDrafts {
+			if draft == d {
+				open = true
+				break
+			}
+		}
+	}
+	return open && reflect.DeepEqual(d.value(), edit.appliedValue) &&
+		reflect.DeepEqual(d.baseline, edit.appliedBaseline)
+}
+
+func (a *app) urlPasteActionValid(edit *urlPasteEdit) bool {
+	return a.urlPaste == edit && a.urlPasteDraftIntact(edit)
+}
+
+// pruneURLPaste drops an edit whose target changed out from under its action,
+// so the notice center stops offering it even before the action is clicked.
+func (a *app) pruneURLPaste() {
+	if edit := a.urlPaste; edit != nil && edit.applied && !a.urlPasteDraftIntact(edit) {
+		a.urlPaste = nil
+	}
+	if undo := a.urlPasteUndo; undo != nil && !a.urlPasteDraftIntact(undo) {
+		a.urlPasteUndo = nil
+	}
+}
+
 // takeURLPaste applies the edit once, on the build of the input that received
 // it. Setting the draft from the hook itself would lose to the input's own
 // value; handling both directions here keeps the native field in charge.
 func (a *app) takeURLPaste(d *requestDocument) {
+	if undo := a.urlPasteUndo; undo != nil && undo.d == d {
+		if a.urlPasteDraftIntact(undo) {
+			a.restoreURLPaste(d, undo)
+		}
+		a.urlPasteUndo = nil
+	}
 	edit := a.urlPaste
 	if edit == nil || edit.d != d {
-		return
-	}
-	if edit.undo {
-		a.restoreURLPaste(d, edit)
-		a.urlPaste = nil
 		return
 	}
 	if !edit.applied {
