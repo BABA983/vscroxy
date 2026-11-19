@@ -7708,6 +7708,42 @@ func (msgs Messages) SystemProxyError(error string) string {
 	return Catalog.Format(msgs.locale, "systemProxyError", map[string]any{"error": error})
 }
 
+// SystemProxyKdeGroupLocked says "An administrator locked the KDE proxy settings group \"{group}\" (write of \"{key}\" refused). No KDE settings were changed."
+// in the language the app shows.
+//
+// Notice when an administrator locked the whole KDE proxy settings group.
+// No settings were changed.
+func SystemProxyKdeGroupLocked(group string, key string) string {
+	return In(i18n.Locale()).SystemProxyKdeGroupLocked(group, key)
+}
+
+// SystemProxyKdeGroupLocked says "An administrator locked the KDE proxy settings group \"{group}\" (write of \"{key}\" refused). No KDE settings were changed."
+// in the language of msgs.
+//
+// Notice when an administrator locked the whole KDE proxy settings group.
+// No settings were changed.
+func (msgs Messages) SystemProxyKdeGroupLocked(group string, key string) string {
+	return Catalog.Format(msgs.locale, "systemProxyKdeGroupLocked", map[string]any{"group": group, "key": key})
+}
+
+// SystemProxyKdeKeyLocked says "An administrator locked the KDE proxy setting \"{key}\". No KDE settings were changed."
+// in the language the app shows.
+//
+// Notice when an administrator locked one KDE proxy setting with an
+// immutable marker. No settings were changed.
+func SystemProxyKdeKeyLocked(key string) string {
+	return In(i18n.Locale()).SystemProxyKdeKeyLocked(key)
+}
+
+// SystemProxyKdeKeyLocked says "An administrator locked the KDE proxy setting \"{key}\". No KDE settings were changed."
+// in the language of msgs.
+//
+// Notice when an administrator locked one KDE proxy setting with an
+// immutable marker. No settings were changed.
+func (msgs Messages) SystemProxyKdeKeyLocked(key string) string {
+	return Catalog.Format(msgs.locale, "systemProxyKdeKeyLocked", map[string]any{"key": key})
+}
+
 // SystemProxyKdeToolsMissing says "KDE proxy settings need kwriteconfig6 (kde-cli-tools), kwriteconfig5 (libkf5config-bin) and dbus-send. Install the mi…"
 // in the language the app shows.
 func SystemProxyKdeToolsMissing() string { return In(i18n.Locale()).SystemProxyKdeToolsMissing() }

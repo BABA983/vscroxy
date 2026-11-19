@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/baba983/vscroxy/locales"
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -595,4 +597,49 @@ func TestMissingKDEHelperReachesTheUserInTheirLanguage(t *testing.T) {
 	if a.notices[0].level != noticeError {
 		t.Fatalf("notice level = %v, want an error", a.notices[0].level)
 	}
+}
+
+func TestLockedKDEKeyReachesTheUser(t *testing.T) {
+	a := workspaceApp()
+	a.reportSystemProxyError(&system.KDELockedError{Key: "NoProxyFor"})
+	want := locales.SystemProxyKdeKeyLocked("NoProxyFor")
+	if len(a.notices) != 1 || a.notices[0].text != want || a.notices[0].level != noticeError {
+		t.Fatalf("notices = %+v, want one error saying %q", a.notices, want)
+	}
+	if !strings.Contains(a.notices[0].detail, "NoProxyFor") {
+		t.Fatalf("error detail does not name the key: %q", a.notices[0].detail)
+	}
+}
+
+func TestLockedKDEGroupReachesTheUserInChinese(t *testing.T) {
+	i18n.SetLocaleFunc(func() string { return "zh-Hans" })
+	t.Cleanup(func() { i18n.SetLocaleFunc(nil) })
+	a := workspaceApp()
+	a.reportSystemProxyError(&system.KDELockedError{Key: "httpProxy", Group: "Proxy Settings"})
+	want := locales.In("zh-Hans").SystemProxyKdeGroupLocked("Proxy Settings", "httpProxy")
+	if len(a.notices) != 1 || a.notices[0].text != want || a.notices[0].level != noticeError {
+		t.Fatalf("notices = %+v, want one error saying %q", a.notices, want)
+	}
+	if !strings.Contains(a.notices[0].text, "管理员") {
+		t.Fatalf("Chinese notice does not say an administrator locked it: %q", a.notices[0].text)
+	}
+}
+
+func TestLockedKDEWriteFromGuardIsReported(t *testing.T) {
+	a := workspaceApp()
+	locked := &system.KDELockedError{Key: "NoProxyFor"}
+	a.systemProxy.applying = true
+	a.systemProxy.pending = make(chan proxyResult, 1)
+	a.systemProxy.pending <- proxyResult{wrote: true, applied: locked}
+	a.drainSystemProxy()
+	if a.systemProxy.applying || a.systemProxy.writeErr != locked {
+		t.Fatalf("applying = %v, writeErr = %v; want the locked failure recorded", a.systemProxy.applying, a.systemProxy.writeErr)
+	}
+	want := locales.SystemProxyKdeKeyLocked("NoProxyFor")
+	for _, notice := range a.notices {
+		if notice.text == want && notice.level == noticeError {
+			return
+		}
+	}
+	t.Fatalf("notices = %+v, want an error saying %q", a.notices, want)
 }

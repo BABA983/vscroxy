@@ -44,8 +44,22 @@ type proxyBypass struct {
 }
 
 type proxyReply struct {
-	Error string
-	Owned bool
+	Error       string
+	Owned       bool
+	LockedKey   string `json:",omitempty"`
+	LockedGroup string `json:",omitempty"`
+}
+
+// err restores the guard's error, including the locked setting's identity,
+// after it crosses the reply pipe as data.
+func (r proxyReply) err() error {
+	if r.Error == "" {
+		return nil
+	}
+	if r.LockedKey != "" {
+		return &KDELockedError{Key: r.LockedKey, Group: r.LockedGroup, cause: errors.New(r.Error)}
+	}
+	return errors.New(r.Error)
 }
 
 // BeginProxy starts the same executable in --proxy-guard mode. The main entry
@@ -100,10 +114,10 @@ func BeginProxy(path, target string, bypass []string, set bool) (*ProxySession, 
 	if !result.Owned {
 		input.Close()
 		cmd.Wait()
-		return nil, errors.New(result.Error)
+		return nil, result.err()
 	}
 	if result.Error != "" {
-		return s, errors.New(result.Error)
+		return s, result.err()
 	}
 	return s, nil
 }
@@ -128,7 +142,7 @@ func (s *ProxySession) Restore() error {
 		var result proxyReply
 		result, err = s.reply()
 		if err == nil && result.Error != "" {
-			return errors.New(result.Error)
+			return result.err()
 		}
 	}
 	s.input.Close()
@@ -152,6 +166,9 @@ func GuardProxy(path, target, bypassJSON string, input io.Reader, output io.Writ
 		r := proxyReply{Owned: owned}
 		if err != nil {
 			r.Error = err.Error()
+			if locked, ok := errors.AsType[*KDELockedError](err); ok {
+				r.LockedKey, r.LockedGroup = locked.Key, locked.Group
+			}
 		}
 		return json.MarshalEncode(encoder, r)
 	}

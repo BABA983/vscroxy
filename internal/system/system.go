@@ -21,6 +21,31 @@ var ErrInstallCancelled = errors.New("certificate installation cancelled")
 // installed, so the KDE desktop's proxy cannot be changed.
 var ErrKDEHelpersMissing = errors.New("KDE proxy configuration tools are not installed")
 
+// ErrKDELocked means an immutable KConfig key or group prevents a KDE proxy
+// write. Only an administrator can change such a setting.
+var ErrKDELocked = errors.New("KDE proxy settings are locked by an administrator")
+
+// KDELockedError names the setting KConfig refused to write. Group is set when
+// the whole [Proxy Settings] group is immutable rather than one key.
+type KDELockedError struct {
+	Key   string
+	Group string
+	cause error
+}
+
+func (e *KDELockedError) Error() string {
+	if e.cause != nil {
+		return e.cause.Error()
+	}
+	if e.Group != "" {
+		return fmt.Sprintf("%s: group %q, key %q", ErrKDELocked, e.Group, e.Key)
+	}
+	return fmt.Sprintf("%s: key %q", ErrKDELocked, e.Key)
+}
+
+// Unwrap lets the UI recognise the failure after it crosses the guard pipe.
+func (e *KDELockedError) Unwrap() error { return ErrKDELocked }
+
 // CheckCA reads the public CA and checks the current machine's trust store.
 // A parsed certificate is returned even when trust verification fails, so its
 // identity and validity can still be shown. This says nothing about a remote
