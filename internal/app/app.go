@@ -713,6 +713,9 @@ type app struct {
 	varsRows          []variableRow
 	varsProblem       string
 	varsComplete      variableCompletion
+	// variableHandles gives every authoring field a persistent identity for
+	// the focus-scoped Cmd/Ctrl+. quick fix, keyed by its bound string.
+	variableHandles map[*string]*ui.Handle
 
 	breakOn   bool
 	bp        *capture.Breakpoint
@@ -1937,6 +1940,10 @@ func (a *app) view(c *ui.Context) {
 	a.drain()
 	a.drainSearch()
 	a.syncProblems()
+	if !a.problems.fixMenuOpen {
+		// The focused field records the caret target as the view builds.
+		a.problems.caret, a.problems.caretFixes = nil, nil
+	}
 	a.applyProblemLocation()
 	a.pruneURLPaste()
 	// A row the reader picked by hand is theirs: Auto-select steps aside.

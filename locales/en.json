@@ -8001,5 +8001,26 @@
       }
     }
   },
-  "problemUnresolvedVariable": "Unresolved variable: {name}"
+  "problemUnresolvedVariable": "Unresolved variable: {name}",
+  "quickFix": "Quick Fix…",
+  "noQuickFixesAvailable": "No quick fixes are available here",
+  "@createVariableIn": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "createVariableIn": "Create variable “{name}” in {scope}",
+  "@changeToVariable": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "changeToVariable": "Change to “{name}”"
 }

@@ -33,6 +33,11 @@ const (
 	problemFieldHeaderRaw = "header-bulk"
 	problemFieldImport    = "import"
 
+	// Form rows and auth strings name the exact authored field a marker
+	// came from, so a code action can rewrite that field's range.
+	problemFieldFormPrefix = "form-"
+	problemFieldAuthPrefix = "auth:"
+
 	problemResourcePrefix = "vscroxy:request/"
 	problemResourceImport = "vscroxy:import"
 )
@@ -85,6 +90,11 @@ type problemsState struct {
 	pendingFocus string
 	pendingLine  int
 	pendingCol   int
+	// caret target and its fixes belong to the focused authoring field.
+	// They drive the editor's Cmd/Ctrl+. menu and the palette command.
+	caret        *quickFixTarget
+	caretFixes   []quickFix
+	fixMenuOpen  bool
 	subscription lifecycle.Disposable
 }
 
@@ -421,7 +431,8 @@ func (a *app) syncImportProblems() {
 }
 
 // problemVariableLocation reuses the editor's variable references to place a
-// marker on the first field that holds the unresolved name.
+// marker on the first field that holds the unresolved name. The code names
+// that exact authored field so a code action can edit only its range.
 func problemVariableLocation(d *requestDocument, name string) (string, *markers.Range) {
 	fields := []struct{ code, text string }{
 		{problemFieldURL, d.composeURL},
@@ -436,15 +447,37 @@ func problemVariableLocation(d *requestDocument, name string) (string, *markers.
 			}
 		}
 	}
-	if d.headerBulk {
+	if !d.headerBulk && len(d.headerRows) == 0 && d.composeHeaders != "" {
+		// A draft that has not built its Headers tab yet still needs a
+		// row code the fix can address.
+		d.headerRows, d.headerFor = parseHeaderRows(d.composeHeaders), d.composeHeaders
+	}
+	if d.headerBulk || headerRowsText(d.headerRows) != d.composeHeaders {
+		// The block is the source of truth in bulk mode; the rows have not
+		// caught up to a script or a paste yet.
 		_, codeRange := findInText(d.composeHeaders, name)
 		return problemFieldHeaderRaw, codeRange
 	}
-	for i, row := range parseHeaderRows(d.composeHeaders) {
+	for i, row := range d.headerRows {
 		for _, part := range []struct{ name, text string }{{"key", row.Name}, {"value", row.Value}} {
 			_, codeRange := findInText(part.text, name)
 			if codeRange != nil {
 				return fmt.Sprintf("header-%s-%d", part.name, i+1), codeRange
+			}
+		}
+	}
+	for _, auth := range authAuthPaths(d.auth) {
+		for _, ref := range request.VariableRefs(auth.text) {
+			if ref.Name == name {
+				return auth.code, problemTextRange(auth.text, ref)
+			}
+		}
+	}
+	for i, row := range d.formFields {
+		for _, part := range []struct{ name, text string }{{"key", row.Name}, {"value", row.Value}} {
+			_, codeRange := findInText(part.text, name)
+			if codeRange != nil {
+				return fmt.Sprintf("%s%s-%d", problemFieldFormPrefix, part.name, i+1), codeRange
 			}
 		}
 	}
@@ -704,6 +737,19 @@ func (a *app) problemsPanel(c *ui.Context) {
 					ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline).TextColor(ink).Shrink(0)
 					uikit.Badge(c, severityLabel(m.Severity), ink)
 					uikit.Body(c, m.Message).Grow(1).MinWidth(0).SingleLine()
+					if fixes := a.quickFixesForMarker(m); len(fixes) > 0 {
+						rowIndex := i
+						uikit.IconButton(c, locales.QuickFix(), locales.QuickFix(), hintIcon).
+							PopoverMenuButton(func(menu *ui.Menu) {
+								for j := range fixes {
+									fix := fixes[j]
+									if menu.Item(fix.label).Chosen() {
+										a.problems.selection = rowIndex
+										fix.apply()
+									}
+								}
+							}, uikit.MenuButtonOptions(c)).Shrink(0)
+					}
 					if m.Range != nil {
 						uikit.DataMeta(c, strconv.Itoa(m.Range.StartLineNumber)+":"+strconv.Itoa(m.Range.StartColumn)).Shrink(0)
 					}

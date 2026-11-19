@@ -277,6 +277,15 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("problems.previous", locales.PreviousProblem(), func(x *commandContext) { x.a.navigateProblems(-1) }).
 		when(func(x *commandContext) bool { return len(x.a.visibleProblems()) > 0 }, locales.NoProblems()).
 		keys(ui.Shift, ui.KeyF8)
+	// The editor's own fields bind Cmd/Ctrl+. within their focus scope,
+	// so this key has no global owner to conflict with Start/Stop capture.
+	r.add("problems.quickFix", locales.QuickFix(), func(x *commandContext) {
+		if target := x.a.problems.caret; target != nil {
+			x.a.openQuickFixMenu(*target)
+		}
+	}).when(func(x *commandContext) bool {
+		return x.a.problems.caret != nil && len(x.a.problems.caretFixes) > 0
+	}, locales.NoQuickFixesAvailable())
 	r.add("view.search", "", func(x *commandContext) { x.search() }).
 		named(func(x *commandContext) string { return x.searchLabel }).
 		when(func(x *commandContext) bool { return x.capturing }, "").keys(ui.Cmd, ui.KeyF)

@@ -68,6 +68,9 @@ func (a *app) variableGridInput(c *ui.Context, key string, value *string, placeh
 // ones in danger, then adds the hover preview and completion. It builds the
 // hint set once for the field.
 func (a *app) attachVariables(c *ui.Context, in ui.Element, key string, value *string, label, collection string, mask bool) {
+	handle := a.variableHandle(value)
+	in.Bind(handle)
+	a.bindQuickFixShortcut(c, handle)
 	var set variableSet
 	if strings.Contains(*value, "{{") {
 		set = a.variableHintSet(collection)
@@ -88,6 +91,8 @@ func (a *app) attachVariables(c *ui.Context, in ui.Element, key string, value *s
 	a.unicodeInputMarks(c, in, *value, mask)
 	a.syncVariableCompletion(in, key, value)
 	a.variablePopover(c, in, key, value, set)
+	a.trackInputQuickFix(a.requestDocument, quickFixFieldCode(key), value, in)
+	a.quickFixContextMenu(c, in, value)
 }
 
 // variableTooltip lists the field's references, each with its resolved value
@@ -95,8 +100,8 @@ func (a *app) attachVariables(c *ui.Context, in ui.Element, key string, value *s
 // the field rather than the rune under the pointer; editor hovers are exact.
 // mask hides every value, for a password or private-key field.
 func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variableMark, mask bool) {
-	if len(marks) == 0 {
-		return
+	if len(marks) == 0 || a.problems.fixMenuOpen {
+		return // a code-action menu must not sit behind a value preview
 	}
 	t := c.Theme()
 	ui.TooltipBase(c, anchor, func(tip ui.Element) {
