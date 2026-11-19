@@ -458,11 +458,11 @@ func registerGlobalCommands() *commandRegistry {
 	}).keys(ui.Cmd, ui.Key3)
 	r.add("go.apis", locales.ApiContracts(), func(x *commandContext) { x.a.page = pageAPI }).
 		when(func(x *commandContext) bool { return len(x.a.apis) > 0 }, locales.CreateOrImportAnApi())
-	r.add("navigation.back", navigationCommandLabel("navigation.back"), func(x *commandContext) {
+	r.add("navigation.back", locales.GoBack(), func(x *commandContext) {
 		x.a.workbench.navigation.step(x.a, -1)
 	}).when(func(x *commandContext) bool { return x.a.workbench.navigation.canGo(x.a, -1) }, "").
 		keys(navigationBackKey.mods, navigationBackKey.key)
-	r.add("navigation.forward", navigationCommandLabel("navigation.forward"), func(x *commandContext) {
+	r.add("navigation.forward", locales.GoForward(), func(x *commandContext) {
 		x.a.workbench.navigation.step(x.a, 1)
 	}).when(func(x *commandContext) bool { return x.a.workbench.navigation.canGo(x.a, 1) }, "").
 		keys(navigationForwardKey.mods, navigationForwardKey.key)

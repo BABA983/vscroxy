@@ -3,7 +3,6 @@ package app
 import (
 	"runtime"
 	"slices"
-	"strings"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -87,28 +86,22 @@ func (loc navigationLocation) navigate(a *app) {
 	}
 }
 
-// samePlace compares the coarse part of two stops, as VS Code compares the
-// editor input: the same page, request tab and contract with a different
-// inspected flow is still one place at different positions.
+// samePlace compares the coarse part of two stops. Moving the traffic list's
+// selection stays inside one stop, as it does in VS Code: a page, request tab
+// or API contract is what gets pushed, while a flow id is a position inside
+// the LIVE stop.
 func samePlace(x, y navigationLocation) bool {
 	return x.page == y.page && x.requestKey == y.requestKey &&
 		x.requestID == y.requestID && x.apiChoice == y.apiChoice
 }
 
-// shouldMerge is VS Code's shouldReplaceStackEntry: without a previous
-// position a new stop replaces the old one; an unspecific new stop keeps the
-// specific one already recorded; equal positions merge.
-func shouldMerge(previous, next navigationLocation) bool {
-	if !samePlace(previous, next) {
-		return false
+// preferSpecific keeps a flow choice when merging stops: a stop with no flow
+// selected must not overwrite one that names the capture being inspected.
+func preferSpecific(previous, next navigationLocation) navigationLocation {
+	if next.flowID != 0 {
+		return next
 	}
-	if previous.flowID == 0 {
-		return true
-	}
-	if next.flowID == 0 {
-		return false
-	}
-	return previous.flowID == next.flowID
+	return previous
 }
 
 type navigationStack struct {
@@ -128,7 +121,12 @@ func (s *navigationStack) prune(a *app) {
 		if !loc.exists(a) {
 			continue
 		}
-		if len(kept) > 0 && shouldMerge(kept[len(kept)-1], loc) {
+		last := len(kept) - 1
+		if last >= 0 && samePlace(kept[last], loc) {
+			kept[last] = preferSpecific(kept[last], loc)
+			if i <= old {
+				index = last
+			}
 			continue
 		}
 		if i <= old {
@@ -167,8 +165,8 @@ func (s *navigationStack) observe(a *app) {
 	}
 	s.prune(a)
 	loc := currentNavigationLocation(a)
-	if s.index >= 0 && s.index < len(s.entries) && shouldMerge(s.entries[s.index], loc) {
-		s.entries[s.index] = loc
+	if s.index >= 0 && s.index < len(s.entries) && samePlace(s.entries[s.index], loc) {
+		s.entries[s.index] = preferSpecific(s.entries[s.index], loc)
 		return
 	}
 	if s.index+1 < len(s.entries) {
@@ -216,72 +214,3 @@ func navigationKeys() (shortcut, shortcut) {
 }
 
 var navigationBackKey, navigationForwardKey = navigationKeys()
-
-// navigationCommandLabel keeps the palette and the native menu on the same
-// VS Code wording. The app's message catalog has no navigation entries yet;
-// the catalog is owned outside this change.
-func navigationCommandLabel(id string) string {
-	switch id {
-	case "navigation.back":
-		return "Go Back"
-	case "navigation.forward":
-		return "Go Forward"
-	default:
-		return ""
-	}
-}
-
-// navigationAccelerator spells arrow and minus bindings for the native menu,
-// whose accelerator grammar accepts their names but shortcut.accelerator's
-// keycap-oriented switch does not.
-func navigationAccelerator(s shortcut) string {
-	if accel := s.accelerator(); accel != "" {
-		return accel
-	}
-	name := ""
-	switch s.key {
-	case ui.KeyLeft:
-		name = "Left"
-	case ui.KeyRight:
-		name = "Right"
-	case ui.KeyMinus:
-		name = "-"
-	default:
-		return ""
-	}
-	// ui.Cmd is ui.Ctrl on non-macOS, so the first branch also spells the
-	// platform's primary modifier as the other menu accelerators do.
-	mods := ""
-	switch {
-	case s.mods&ui.Cmd != 0 && runtime.GOOS != "darwin":
-		mods += "CmdOrCtrl+"
-	case s.mods&ui.Cmd != 0:
-		mods += "Cmd+"
-	case s.mods&ui.Ctrl != 0:
-		mods += "Ctrl+"
-	}
-	if s.mods&ui.Alt != 0 {
-		mods += "Alt+"
-	}
-	if s.mods&ui.Shift != 0 {
-		mods += "Shift+"
-	}
-	return mods + name
-}
-
-// navigationKeycap is the same spelling in the palette, using platform glyphs
-// on macOS as the other keycaps do.
-func navigationKeycap(s shortcut) string {
-	if s.key != ui.KeyLeft && s.key != ui.KeyRight && s.key != ui.KeyMinus {
-		return s.keycap()
-	}
-	text := navigationAccelerator(s)
-	if runtime.GOOS != "darwin" {
-		return strings.NewReplacer(
-			"CmdOrCtrl", "Ctrl", "Left", "←", "Right", "→",
-		).Replace(text)
-	}
-	return strings.NewReplacer(
-		"Ctrl+", "⌃", "Alt+", "⌥", "Shift+", "⇧", "Cmd+", "⌘",
-	).Replace(text)
-}

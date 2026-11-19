@@ -22,7 +22,7 @@ func (a *app) menu() *mygo.Menu {
 			a.workbench.menuAction = id
 			a.invalidate()
 		}}
-		item.Accelerator = navigationAccelerator(keybindingOf(id))
+		item.Accelerator = keybindingOf(id).accelerator()
 		a.workbench.menuItems[id] = item
 		return item
 	}
@@ -73,8 +73,8 @@ func (a *app) menu() *mygo.Menu {
 		command("go.collections", locales.Collections()),
 		command("go.sessions", locales.Sessions()),
 		mygo.Separator(),
-		command("navigation.back", navigationCommandLabel("navigation.back")),
-		command("navigation.forward", navigationCommandLabel("navigation.forward")),
+		command("navigation.back", locales.GoBack()),
+		command("navigation.forward", locales.GoForward()),
 		mygo.Separator(),
 		command("view.layout-right", locales.SideBySideLayout()),
 		command("view.layout-bottom", locales.StackedLayout()),

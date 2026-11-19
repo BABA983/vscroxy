@@ -3,7 +3,7 @@ package app
 import (
 	"reflect"
 	"slices"
-	"strings"
+
 	"testing"
 )
 
@@ -89,20 +89,20 @@ func TestQuickAccessPrefixesLimitScope(t *testing.T) {
 func TestQuickAccessHelp(t *testing.T) {
 	a := paletteTestApp()
 	help := a.paletteRankedResults("?", a.actions(nil))
-	if len(help.entries) != len(paletteHelpItems) {
+	if len(help.entries) != len(paletteHelpItems()) {
 		t.Fatalf("help = %v, want all prefixes", paletteLabels(help.entries))
 	}
-	for i, item := range paletteHelpItems {
+	for i, item := range paletteHelpItems() {
 		if help.entries[i].label != item.label {
 			t.Fatalf("help order = %v, want prefixes registered first", paletteLabels(help.entries))
 		}
 	}
-	for _, item := range paletteHelpItems {
+	for _, item := range paletteHelpItems() {
 		if _, ok := paletteFindEntry(help.entries, item.label); !ok {
 			t.Fatalf("help is missing %q: %v", item.label, paletteLabels(help.entries))
 		}
 	}
-	if got := paletteLabels(a.paletteRankedResults("?comm", a.actions(nil)).entries); len(got) != 1 || !strings.Contains(got[0], "Commands") {
+	if got := paletteLabels(a.paletteRankedResults("?comm", a.actions(nil)).entries); len(got) != 1 || !slices.Contains(got, paletteHelpItems()[0].label) {
 		t.Fatalf("filtered help = %v", got)
 	}
 	entry, ok := paletteFindEntry(help.entries, ">  Commands")

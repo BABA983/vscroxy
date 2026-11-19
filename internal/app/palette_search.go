@@ -485,21 +485,12 @@ func paletteCommandCandidates(actions []action, available bool, query fuzzy.IPre
 		}
 		candidates = append(candidates, paletteCandidate{
 			kind: paletteRunAction, key: "command:" + item.id, label: item.label,
-			detail: item.why(), meta: paletteKeycap(item.shortcut), why: item.why(), action: item,
+			detail: item.why(), meta: item.shortcut.keycap(), why: item.why(), action: item,
 			enabled: item.enabled, isAction: true,
 			score: score.Score, matches: score.LabelMatch, itemScore: score,
 		})
 	}
 	return candidates
-}
-
-// paletteKeycap includes the navigation bindings, whose arrow and minus keys
-// shortcut.keycap does not spell. All other commands use the usual keycap.
-func paletteKeycap(s shortcut) string {
-	if s.key == ui.KeyLeft || s.key == ui.KeyRight || s.key == ui.KeyMinus {
-		return navigationKeycap(s)
-	}
-	return s.keycap()
 }
 
 // paletteHistoryRanks maps a recently used key to its recency: 0 is the most
@@ -661,19 +652,25 @@ func (a *app) paletteMergeFinalize(assets paletteAssetResult, commands []palette
 
 // paletteHelpItems are the quick-access prefixes, in the order VS Code lists
 // its providers. Choosing one fills the field with the prefix rather than
-// running a command, leaving the rest of the query to the reader.
-var paletteHelpItems = []struct {
+// running a command, leaving the rest of the query to the reader. They are
+// built on use, so the app's language is read when the palette renders.
+func paletteHelpItems() []struct {
 	prefix, label, detail string
-}{
-	{">", ">  Commands", "Run a command"},
-	{"#", "#  Requests", "Open a saved request"},
-	{"$", "$  Environments and variables", "Edit an environment or variable"},
-	{"?", "?  Quick access", "Show these prefixes"},
+} {
+	return []struct {
+		prefix, label, detail string
+	}{
+		{">", ">  " + locales.QuickAccessCommands(), locales.QuickAccessRunACommand()},
+		{"#", "#  " + locales.QuickAccessRequests(), locales.QuickAccessOpenASavedRequest()},
+		{"$", "$  " + locales.QuickAccessEnvironmentsAndVariables(), locales.QuickAccessEditAnEnvironmentOrVariable()},
+		{"?", "?  " + locales.QuickAccessQuickAccess(), locales.QuickAccessShowThesePrefixes()},
+	}
 }
 
 func (a *app) paletteHelp(q paletteQuery) paletteSearch {
 	prepared := fuzzy.PrepareQuery(q.text)
 	cache := fuzzy.NewFuzzyScorerCache()
+	items := paletteHelpItems()
 	ranks := a.workbench.paletteHistoryRanks()
 	if prepared.Normalized == "" {
 		// Equal standing scores would sort by label length; VS Code lists
@@ -681,14 +678,14 @@ func (a *app) paletteHelp(q paletteQuery) paletteSearch {
 		if ranks == nil {
 			ranks = make(map[string]int)
 		}
-		for i, item := range paletteHelpItems {
+		for i, item := range items {
 			if _, used := ranks["help:"+item.prefix]; !used {
 				ranks["help:"+item.prefix] = i
 			}
 		}
 	}
-	candidates := make([]paletteCandidate, 0, len(paletteHelpItems))
-	for _, item := range paletteHelpItems {
+	candidates := make([]paletteCandidate, 0, len(items))
+	for _, item := range items {
 		c := paletteCandidateFor(item.label, item.detail, "", "help:"+item.prefix, prepared, cache)
 		c.kind, c.resource = paletteRunAction, false
 		candidates = append(candidates, c)
@@ -777,7 +774,7 @@ func paletteEnabledCommands(actions []action, ranks map[string]int, query fuzzy.
 		}
 		enabled = append(enabled, paletteCandidate{
 			kind: paletteRunAction, key: "command:" + item.id, label: item.label,
-			meta: paletteKeycap(item.shortcut), action: item, enabled: true, isAction: true, score: 1,
+			meta: item.shortcut.keycap(), action: item, enabled: true, isAction: true, score: 1,
 			itemScore: &fuzzy.IItemScore{Score: 1},
 		})
 	}

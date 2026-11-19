@@ -17868,6 +17868,26 @@ func (msgs Messages) GlobalsCount(count int) string {
 	return Catalog.Format(msgs.locale, "globalsCount", map[string]any{"count": count})
 }
 
+// GoBack says "Go Back"
+// in the language the app shows.
+func GoBack() string { return In(i18n.Locale()).GoBack() }
+
+// GoBack says "Go Back"
+// in the language of msgs.
+func (msgs Messages) GoBack() string {
+	return Catalog.Format(msgs.locale, "goBack", nil)
+}
+
+// GoForward says "Go Forward"
+// in the language the app shows.
+func GoForward() string { return In(i18n.Locale()).GoForward() }
+
+// GoForward says "Go Forward"
+// in the language of msgs.
+func (msgs Messages) GoForward() string {
+	return Catalog.Format(msgs.locale, "goForward", nil)
+}
+
 // GoToCollections says "Go to Collections"
 // in the language the app shows.
 func GoToCollections() string { return In(i18n.Locale()).GoToCollections() }
@@ -25102,6 +25122,90 @@ func QueryParameter() string { return In(i18n.Locale()).QueryParameter() }
 // in the language of msgs.
 func (msgs Messages) QueryParameter() string {
 	return Catalog.Format(msgs.locale, "queryParameter", nil)
+}
+
+// QuickAccessCommands says "Commands"
+// in the language the app shows.
+func QuickAccessCommands() string { return In(i18n.Locale()).QuickAccessCommands() }
+
+// QuickAccessCommands says "Commands"
+// in the language of msgs.
+func (msgs Messages) QuickAccessCommands() string {
+	return Catalog.Format(msgs.locale, "quickAccessCommands", nil)
+}
+
+// QuickAccessEditAnEnvironmentOrVariable says "Edit an environment or variable"
+// in the language the app shows.
+func QuickAccessEditAnEnvironmentOrVariable() string {
+	return In(i18n.Locale()).QuickAccessEditAnEnvironmentOrVariable()
+}
+
+// QuickAccessEditAnEnvironmentOrVariable says "Edit an environment or variable"
+// in the language of msgs.
+func (msgs Messages) QuickAccessEditAnEnvironmentOrVariable() string {
+	return Catalog.Format(msgs.locale, "quickAccessEditAnEnvironmentOrVariable", nil)
+}
+
+// QuickAccessEnvironmentsAndVariables says "Environments and variables"
+// in the language the app shows.
+func QuickAccessEnvironmentsAndVariables() string {
+	return In(i18n.Locale()).QuickAccessEnvironmentsAndVariables()
+}
+
+// QuickAccessEnvironmentsAndVariables says "Environments and variables"
+// in the language of msgs.
+func (msgs Messages) QuickAccessEnvironmentsAndVariables() string {
+	return Catalog.Format(msgs.locale, "quickAccessEnvironmentsAndVariables", nil)
+}
+
+// QuickAccessOpenASavedRequest says "Open a saved request"
+// in the language the app shows.
+func QuickAccessOpenASavedRequest() string { return In(i18n.Locale()).QuickAccessOpenASavedRequest() }
+
+// QuickAccessOpenASavedRequest says "Open a saved request"
+// in the language of msgs.
+func (msgs Messages) QuickAccessOpenASavedRequest() string {
+	return Catalog.Format(msgs.locale, "quickAccessOpenASavedRequest", nil)
+}
+
+// QuickAccessQuickAccess says "Quick access"
+// in the language the app shows.
+func QuickAccessQuickAccess() string { return In(i18n.Locale()).QuickAccessQuickAccess() }
+
+// QuickAccessQuickAccess says "Quick access"
+// in the language of msgs.
+func (msgs Messages) QuickAccessQuickAccess() string {
+	return Catalog.Format(msgs.locale, "quickAccessQuickAccess", nil)
+}
+
+// QuickAccessRequests says "Requests"
+// in the language the app shows.
+func QuickAccessRequests() string { return In(i18n.Locale()).QuickAccessRequests() }
+
+// QuickAccessRequests says "Requests"
+// in the language of msgs.
+func (msgs Messages) QuickAccessRequests() string {
+	return Catalog.Format(msgs.locale, "quickAccessRequests", nil)
+}
+
+// QuickAccessRunACommand says "Run a command"
+// in the language the app shows.
+func QuickAccessRunACommand() string { return In(i18n.Locale()).QuickAccessRunACommand() }
+
+// QuickAccessRunACommand says "Run a command"
+// in the language of msgs.
+func (msgs Messages) QuickAccessRunACommand() string {
+	return Catalog.Format(msgs.locale, "quickAccessRunACommand", nil)
+}
+
+// QuickAccessShowThesePrefixes says "Show these prefixes"
+// in the language the app shows.
+func QuickAccessShowThesePrefixes() string { return In(i18n.Locale()).QuickAccessShowThesePrefixes() }
+
+// QuickAccessShowThesePrefixes says "Show these prefixes"
+// in the language of msgs.
+func (msgs Messages) QuickAccessShowThesePrefixes() string {
+	return Catalog.Format(msgs.locale, "quickAccessShowThesePrefixes", nil)
 }
 
 // QuickFilterNamed says "Quick filter: {name}"
