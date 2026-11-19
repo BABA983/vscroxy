@@ -20,11 +20,17 @@ func noFuzzyScore() FuzzyScore {
 // the rune-by-rune lowercase form of query. A non-match returns a zero score
 // and no positions.
 func ScoreFuzzy(target, query, queryLower string, allowNonContiguousMatches bool) FuzzyScore {
+	return ScoreFuzzyWithScratch(target, query, queryLower, allowNonContiguousMatches, nil)
+}
+
+// ScoreFuzzyWithScratch is ScoreFuzzy with caller-owned work buffers. The
+// algorithm and result are identical; only allocations are reused.
+func ScoreFuzzyWithScratch(target, query, queryLower string, allowNonContiguousMatches bool, scratch *ScoreScratch) FuzzyScore {
 	if target == "" || query == "" {
 		return noFuzzyScore()
 	}
 
-	targetRunes := []rune(target)
+	targetRunes := scratch.runeSlice(target)
 	queryRunes := []rune(query)
 	targetLength := len(targetRunes)
 	queryLength := len(queryRunes)
@@ -32,14 +38,18 @@ func ScoreFuzzy(target, query, queryLower string, allowNonContiguousMatches bool
 		return noFuzzyScore()
 	}
 
-	targetLower := lowerRunes(targetRunes)
+	targetLower := scratch.loweredRunes(target, targetRunes)
 	queryLowerRunes := []rune(queryLower)
-	return doScoreFuzzy(queryRunes, queryLowerRunes, queryLength, targetRunes, targetLower, targetLength, allowNonContiguousMatches)
+	scores, matches := scratch.matrices(queryLength * targetLength)
+	return doScoreFuzzyInto(queryRunes, queryLowerRunes, queryLength, targetRunes, targetLower, targetLength, allowNonContiguousMatches, scores, matches)
 }
 
 func doScoreFuzzy(query, queryLower []rune, queryLength int, target, targetLower []rune, targetLength int, allowNonContiguousMatches bool) FuzzyScore {
-	scores := make([]int, queryLength*targetLength)
-	matches := make([]int, queryLength*targetLength)
+	return doScoreFuzzyInto(query, queryLower, queryLength, target, targetLower, targetLength, allowNonContiguousMatches,
+		make([]int, queryLength*targetLength), make([]int, queryLength*targetLength))
+}
+
+func doScoreFuzzyInto(query, queryLower []rune, queryLength int, target, targetLower []rune, targetLength int, allowNonContiguousMatches bool, scores, matches []int) FuzzyScore {
 
 	for queryIndex := 0; queryIndex < queryLength; queryIndex++ {
 		queryOffset := queryIndex * targetLength

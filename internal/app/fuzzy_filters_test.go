@@ -1,6 +1,7 @@
 package app
 
 import (
+	"math/rand"
 	"slices"
 	"strings"
 	"testing"
@@ -127,6 +128,37 @@ func TestFuzzyListCacheHasOwnerAndReusesAppend(t *testing.T) {
 	}
 }
 
+func TestFuzzyStreamReindexesAfterFrontEviction(t *testing.T) {
+	a := workspaceApp()
+	doc := &mqttDocument{}
+	events := []mqttEvent{
+		{seq: 1, direction: "In", name: "garage"},
+		{seq: 2, direction: "In", name: "kitchen/a"},
+		{seq: 3, direction: "In", name: "garage"},
+		{seq: 4, direction: "In", name: "kitchen/b"},
+	}
+	before, _ := filterMQTTEvents(a, doc, events, "kitchen")
+	if ids := eventSeqs(before); !slices.Equal(ids, []int{2, 4}) {
+		t.Fatalf("before eviction = %v, want [2 4]", ids)
+	}
+	// A ring window keeps its size: seq 1 leaves and seq 5 arrives.
+	ring := make([]mqttEvent, 0, 4)
+	ring = append(ring, events[1:]...)
+	ring = append(ring, mqttEvent{seq: 5, direction: "In", name: "garage"})
+	after, matches := filterMQTTEvents(a, doc, ring, "kitchen")
+	if ids := eventSeqs(after); !slices.Equal(ids, []int{2, 4}) {
+		t.Fatalf("after eviction = %v, want [2 4]", ids)
+	}
+	for _, event := range after {
+		if !strings.Contains(event.name, "kitchen") {
+			t.Fatalf("cached hit resolved to the wrong row: %+v", event)
+		}
+		if len(matches[event.seq]) == 0 {
+			t.Fatalf("retained hit %d lost its highlight", event.seq)
+		}
+	}
+}
+
 func TestFuzzyTreeFindsRequestSubstringCannot(t *testing.T) {
 	a := workspaceApp()
 	a.requests = []savedRequest{
@@ -165,18 +197,39 @@ func TestHighlightsFitClampedStreamLabels(t *testing.T) {
 	}
 }
 
-func TestInlineScorerMatchesPortedVSCodeScorer(t *testing.T) {
-	for _, target := range []string{
-		"In · sensors/kitchen/temperature", "List items 3", "GET /api/getUserProfile",
-		"中文 mixed 标签", "commands/device-7/reply",
-	} {
-		for _, query := range []string{"ktchn", "lsttm3", "gtusr", "dev7", "中文", "zzzz"} {
-			want := fuzzy.ScoreFuzzy(target, query, query, true)
-			got := fuzzyScoreInline(target, query)
-			if got.score != want.Score || !slices.Equal(got.positions, want.Matches) {
-				t.Errorf("score(%q, %q) = %d/%v, want %d/%v", target, query,
-					got.score, got.positions, want.Score, want.Matches)
-			}
+func TestListScoreTextMatchesPortedVSCodeScorer(t *testing.T) {
+	cases := []struct{ label, query string }{
+		{"Kxzy/édxaKaé eécb/  ", "x"},
+		{"-KbMcLMNdéd.aaLadéxeMddbzyczabL NL xKL", "b  Lc"},
+		{"In · sensors/kitchen/temperature", "ktchn"},
+		{"List items 3", "lsttm3"},
+		{"中文 mixed 标签", "中文"},
+	}
+	rng := rand.New(rand.NewSource(97266))
+	letters := []rune("abcKLMxyzé中/-_ .:012")
+	for range 20000 {
+		label := make([]rune, 2+rng.Intn(40))
+		for i := range label {
+			label[i] = letters[rng.Intn(len(letters))]
+		}
+		query := make([]rune, 1+rng.Intn(7))
+		for i := range query {
+			query[i] = letters[rng.Intn(len(letters))]
+		}
+		if rng.Intn(3) == 0 {
+			query = append(query, ' ', letters[rng.Intn(len(letters))])
+		}
+		cases = append(cases, struct{ label, query string }{string(label), string(query)})
+	}
+	for _, tc := range cases {
+		prepared := fuzzy.PrepareQuery(tc.query)
+		reference := fuzzy.ScoreItemFuzzy(fuzzyListItem{label: tc.label}, prepared, true,
+			fuzzyListAccessor{}, nil)
+		score, matches := fuzzyListScoreText(tc.label, prepared, nil)
+		if (reference.Score != 0) != (score != 0) ||
+			!slices.Equal(reference.LabelMatch, matches) {
+			t.Fatalf("score(%q, %q) = %d/%v, want %d/%v", tc.label, tc.query,
+				score, matches, reference.Score, reference.LabelMatch)
 		}
 	}
 }

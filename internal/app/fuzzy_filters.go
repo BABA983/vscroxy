@@ -262,36 +262,31 @@ func fuzzyListScores(item fuzzyListItem, query fuzzy.IPreparedQuery, state *fuzz
 	return 0, nil
 }
 
-// fuzzyListScoreText applies fuzzyScorer.ts's scoreFuzzy through the inline
-// scorer, so a large list does not allocate a score matrix per row. A prefix
-// hit uses VS Code's contiguous match ranges, as scoreItemFuzzy does.
+// fuzzyScoreState owns the reusable work buffers for one scoring pass.
+type fuzzyScoreState struct {
+	cache   fuzzy.FuzzyScorerCache
+	scratch *fuzzy.ScoreScratch
+}
+
+// fuzzyListScoreText scores the label with the same source scorer as the
+// palette (internal/fuzzy.ScoreItemFuzzy), passing reusable scratch buffers so
+// a large list does not allocate a matrix and a lowercase label per row.
 func fuzzyListScoreText(text string, query fuzzy.IPreparedQuery, state *fuzzyScoreState) (int, []fuzzy.Match) {
 	if state == nil {
 		state = &fuzzyScoreState{}
 	}
+	if state.cache == nil {
+		state.cache = fuzzy.NewFuzzyScorerCache()
+	}
+	if state.scratch == nil {
+		state.scratch = &fuzzy.ScoreScratch{}
+	}
 	head := fuzzyListHead(text, fuzzyListFieldRunes)
-	target := state.target(head)
-	pieces := query.Values
-	if len(pieces) == 0 {
-		pieces = []fuzzy.IPreparedQueryPiece{query.IPreparedQueryPiece}
+	score := fuzzy.ScoreItemFuzzy(fuzzyListItem{label: head}, query, true, fuzzyListAccessor{}, state.cache, state.scratch)
+	if score.Score == 0 {
+		return 0, nil
 	}
-	total := 0
-	var positions []int
-	for _, piece := range pieces {
-		score := state.scoreRunes(target, state.original(piece.Normalized), state.pattern(piece.Normalized))
-		if score.score == 0 {
-			return 0, nil
-		}
-		total += score.score
-		positions = append(positions, score.positions...)
-	}
-	matches := inlineLabelMatches(positions, text)
-	if len(pieces) == 1 {
-		if prefix := inlinePrefix(query.Normalized, head); prefix != nil {
-			matches = prefix
-		}
-	}
-	return total, matches
+	return score.Score, fuzzyListLabelMatches(score.LabelMatch, text)
 }
 
 func fuzzyShiftMatches(matches []fuzzy.Match, by int) []fuzzy.Match {
@@ -372,10 +367,28 @@ func (a *app) fuzzyListStream(query, scope, owner string, window fuzzyListRange,
 		window.first >= old.window.first && window.last > old.window.last &&
 		window.count >= old.window.count-(window.first-old.window.first) {
 		hits := make([]fuzzyListHit, 0, len(old.hits)+window.count-old.window.count+1)
+		evicted := window.first - old.window.first
+		var bySequence map[int]int // only built if the seqs are not contiguous
 		for _, hit := range old.hits {
-			if hit.seq >= window.first {
-				hits = append(hits, hit)
+			index := hit.index - evicted
+			if hit.seq < window.first || index < 0 || index >= window.count {
+				continue
 			}
+			if seq(index) != hit.seq {
+				if bySequence == nil {
+					bySequence = make(map[int]int, window.count)
+					for i := range window.count {
+						bySequence[seq(i)] = i
+					}
+				}
+				mapped, ok := bySequence[hit.seq]
+				if !ok {
+					continue
+				}
+				index = mapped
+			}
+			hit.index = index
+			hits = append(hits, hit)
 		}
 		prepared := fuzzy.PrepareQuery(query)
 		state := &fuzzyScoreState{}
