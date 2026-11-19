@@ -40,6 +40,7 @@ func (a *app) reviewSaveConflict(err *libraryConflictError) {
 		a.conflict = s
 	}
 	a.conflict.open, a.conflict.confirm = true, false
+	a.dialogs.arrive(dialogSaveConflict)
 	a.closeNotifications() // the notice's popover must not cover the dialog
 	a.invalidate()
 }

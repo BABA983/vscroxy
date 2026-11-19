@@ -2019,6 +2019,7 @@
   "listeningAt": "监听于",
   "listeningNoRequests": "正在监听 {addr} · 尚未保留任何请求",
   "listeningOn": "正在监听",
+  "live": "实时",
   "liveTraffic": "实时流量",
   "loadASchemaSelectA": "加载 schema，选择方法并发送 JSON 消息。",
   "loadCollection": "加载集合",

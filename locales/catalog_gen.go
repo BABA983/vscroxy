@@ -21054,6 +21054,16 @@ func (msgs Messages) ListeningOn() string {
 	return Catalog.Format(msgs.locale, "listeningOn", nil)
 }
 
+// Live says "Live"
+// in the language the app shows.
+func Live() string { return In(i18n.Locale()).Live() }
+
+// Live says "Live"
+// in the language of msgs.
+func (msgs Messages) Live() string {
+	return Catalog.Format(msgs.locale, "live", nil)
+}
+
 // LiveTraffic says "Live traffic"
 // in the language the app shows.
 func LiveTraffic() string { return In(i18n.Locale()).LiveTraffic() }
