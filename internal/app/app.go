@@ -609,6 +609,10 @@ type app struct {
 	closingDocument *requestDocument
 	requestResults  []requestResult
 	importReport    importReport
+	// urlPaste is a cURL command pasted into the URL field, applied on the
+	// next build; urlPasteSelection is that input's selection at paste time.
+	urlPaste          *urlPasteEdit
+	urlPasteSelection [2]int
 	// tokens are the OAuth 2.0 access tokens, kept sealed by oauthTokens.
 	tokens            request.Tokens
 	oauthTokens       oauthTokenStore

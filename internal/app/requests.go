@@ -970,9 +970,14 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			if d.protocol == "Socket.IO" {
 				placeholder = "https://host/socket.io"
 			}
+			a.takeURLPaste(d)
 			// Bare: the URL bar is one face with the method and Send beside it, which the kit's field face does not cover.
 			input := uikit.TextInset(ui.TextInputBase(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(uikit.HeightRow).Label(locales.Url()).
-				Placeholder(placeholder).Font(uikit.FontMono), t.Space(uikit.SpaceM))
+				Placeholder(placeholder).Font(uikit.FontMono).OnPaste(func(text string) bool {
+				return a.pasteURLImport(d, text)
+			}), t.Space(uikit.SpaceM))
+			start, end := input.TextSelection()
+			a.urlPasteSelection = [2]int{start, end}
 			var set variableSet
 			var marks []variableMark
 			if strings.Contains(d.composeURL, "{{") {
