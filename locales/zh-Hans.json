@@ -1645,6 +1645,7 @@
   "systemProxyAutoPrecedence": "系统代理：自动配置仍优先生效",
   "systemProxyChangeSent": "系统代理：已发送更改；无法读取系统设置",
   "systemProxyError": "系统代理：{error}",
+  "systemProxyKdeToolsMissing": "KDE 代理设置需要 kwriteconfig6（kde-cli-tools）、kwriteconfig5（libkf5config-bin）和 dbus-send。请安装缺少的工具后重试。",
   "systemProxyOff": "系统代理：在系统设置中已关闭",
   "systemProxyOtherConfigured": "系统代理：仍配置了其他代理",
   "systemProxyPointsAt": "系统代理：HTTP 和 HTTPS 现在指向 {target}",

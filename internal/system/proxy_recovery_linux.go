@@ -11,10 +11,19 @@ import (
 	"strings"
 )
 
-// Store raw GVariants so bypass lists, inactive servers and mode survive a
-// round trip. Only these keys are written by applyProxy; PAC and credentials are
-// not copied to the recovery file or modified during restoration.
-type proxySnapshot map[string]string
+// proxySnapshot holds every desktop store this session changed. Their layouts
+// differ: gsettings keys are raw GVariants, while kioslaverc's parsed values
+// preserve each KDE key, including the PAC script and exceptions, byte for byte.
+type proxySnapshot struct {
+	GNOME gnomeSnapshot `json:",omitempty"`
+	KDE   kdeSnapshot   `json:",omitempty"`
+}
+
+// gnomeSnapshot stores raw GVariants so bypass lists, inactive servers and mode
+// survive a round trip. Only these keys are written by applyProxy; PAC and
+// credentials are not copied to the recovery file or modified during
+// restoration.
+type gnomeSnapshot map[string]string
 
 var proxySnapshotKeys = []string{"http.host", "http.port", "https.host", "https.port", "ignore-hosts", "mode"}
 
@@ -26,8 +35,8 @@ func linuxProxyKey(key string) (schema, name string) {
 	return proxySchema, key
 }
 
-func readProxySnapshot() (proxySnapshot, error) {
-	state := make(proxySnapshot)
+func readProxySnapshot() (gnomeSnapshot, error) {
+	state := make(gnomeSnapshot)
 	for _, key := range proxySnapshotKeys {
 		schema, name := linuxProxyKey(key)
 		raw, err := commandOutput("gsettings", "get", schema, name)
@@ -40,19 +49,31 @@ func readProxySnapshot() (proxySnapshot, error) {
 }
 
 func snapshotProxy(target string) (proxySnapshot, error) {
-	state, err := readProxySnapshot()
-	if err != nil {
-		return nil, err
-	}
-	if gvariant(state["mode"]) == "manual" {
-		for _, protocol := range []string{"http", "https"} {
-			addr := net.JoinHostPort(gvariant(state[protocol+".host"]), state[protocol+".port"])
-			if addr == target {
-				return nil, errors.New("system proxy already points at this address without a recovery record; disable the stale proxy first")
+	var before proxySnapshot
+	desktops := activeDesktops(kdeCmd.env)
+	if desktops.gnome {
+		state, err := readProxySnapshot()
+		if err != nil {
+			return before, err
+		}
+		if gvariant(state["mode"]) == "manual" {
+			for _, protocol := range []string{"http", "https"} {
+				addr := net.JoinHostPort(gvariant(state[protocol+".host"]), state[protocol+".port"])
+				if addr == target {
+					return before, errors.New("system proxy already points at this address without a recovery record; disable the stale proxy first")
+				}
 			}
 		}
+		before.GNOME = state
 	}
-	return state, nil
+	if desktops.kde {
+		state, err := kdeSnapshotProxy(target)
+		if err != nil {
+			return before, err
+		}
+		before.KDE = state
+	}
+	return before, nil
 }
 
 // parseGVariantList reads gsettings' string array output, including the
@@ -128,7 +149,23 @@ func sameBypassList(a, b []string) bool {
 	return slices.Equal(normalize(a), normalize(b))
 }
 
+// restoreProxy puts back each store named by the journal, not by the current
+// desktop: crash recovery can run with a different session identifier.
 func restoreProxy(before proxySnapshot, target string, applied []string, set bool) error {
+	if before.GNOME == nil && before.KDE.Path == "" {
+		return errors.New("proxy recovery journal has no desktop settings")
+	}
+	var failures []error
+	if before.GNOME != nil {
+		failures = append(failures, restoreGnomeProxy(before.GNOME, target, applied, set))
+	}
+	if before.KDE.Path != "" {
+		failures = append(failures, restoreKDEProxy(before.KDE, target, applied, set))
+	}
+	return errors.Join(failures...)
+}
+
+func restoreGnomeProxy(before gnomeSnapshot, target string, applied []string, set bool) error {
 	host, port, err := net.SplitHostPort(target)
 	if err != nil {
 		return err

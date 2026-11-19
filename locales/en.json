@@ -3366,6 +3366,7 @@
     }
   },
   "systemProxyError": "System proxy: {error}",
+  "systemProxyKdeToolsMissing": "KDE proxy settings need kwriteconfig6 (kde-cli-tools), kwriteconfig5 (libkf5config-bin) and dbus-send. Install the missing tools and try again.",
   "systemProxyOff": "System proxy: off in OS settings",
   "systemProxyOtherConfigured": "System proxy: another proxy is still configured",
   "@systemProxyPointsAt": {

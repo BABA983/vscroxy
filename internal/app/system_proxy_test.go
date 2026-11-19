@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"strconv"
 	"testing"
@@ -579,5 +580,19 @@ func TestProxyQuitWithoutOwnershipLeavesSystemSettingsAlone(t *testing.T) {
 	}}
 	if err := s.close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestMissingKDEHelperReachesTheUserInTheirLanguage(t *testing.T) {
+	a := workspaceApp()
+	a.reportSystemProxyError(fmt.Errorf("%w: kwriteconfig6 or kwriteconfig5 not found", system.ErrKDEHelpersMissing))
+	if len(a.notices) != 1 {
+		t.Fatalf("notices = %+v, want one explanation", a.notices)
+	}
+	if got := a.notices[0].text; got != locales.SystemProxyKdeToolsMissing() {
+		t.Fatalf("notice = %q, want %q", got, locales.SystemProxyKdeToolsMissing())
+	}
+	if a.notices[0].level != noticeError {
+		t.Fatalf("notice level = %v, want an error", a.notices[0].level)
 	}
 }

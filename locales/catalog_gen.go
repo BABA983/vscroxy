@@ -7708,6 +7708,16 @@ func (msgs Messages) SystemProxyError(error string) string {
 	return Catalog.Format(msgs.locale, "systemProxyError", map[string]any{"error": error})
 }
 
+// SystemProxyKdeToolsMissing says "KDE proxy settings need kwriteconfig6 (kde-cli-tools), kwriteconfig5 (libkf5config-bin) and dbus-send. Install the mi…"
+// in the language the app shows.
+func SystemProxyKdeToolsMissing() string { return In(i18n.Locale()).SystemProxyKdeToolsMissing() }
+
+// SystemProxyKdeToolsMissing says "KDE proxy settings need kwriteconfig6 (kde-cli-tools), kwriteconfig5 (libkf5config-bin) and dbus-send. Install the mi…"
+// in the language of msgs.
+func (msgs Messages) SystemProxyKdeToolsMissing() string {
+	return Catalog.Format(msgs.locale, "systemProxyKdeToolsMissing", nil)
+}
+
 // SystemProxyOff says "System proxy: off in OS settings"
 // in the language the app shows.
 func SystemProxyOff() string { return In(i18n.Locale()).SystemProxyOff() }
