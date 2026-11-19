@@ -4822,7 +4822,7 @@
   },
   "attentionRunResult": "{completed, number, ::group-off} completed · {failed, number, ::group-off} failed",
   "attentionSignals": "Attention signals",
-  "attentionSignalsHint": "Auto flashes the window, badges the app and notifies only while the window is not in front. On always signals; off sends nothing.",
+  "attentionSignalsHint": "Auto flashes the window, badges the app and notifies only while the window is not in front. On always signals; off silences those three, but screen readers still hear announcements.",
   "attentionSignalsOn": "On",
   "auto": "Auto",
   "autoSelect": "Auto-select",

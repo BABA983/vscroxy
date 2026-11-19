@@ -205,8 +205,9 @@ func TestAttentionBreakpointHandlingClearsBadge(t *testing.T) {
 	}
 }
 
-// TestAttentionOffFiresNothing catches an off switch that still animates
-// the window, or one that keeps announcing after muting the other channels.
+// TestAttentionOffFiresNothing catches an off switch that still flashes,
+// badges or notifies. Screen-reader announcements are a separate channel and
+// must survive, as VS Code keeps them separate from the visual signals.
 func TestAttentionOffFiresNothing(t *testing.T) {
 	a, channels := attentionTestApp(t, attentionOff, false)
 	tt := attentionFrame(t, a)
@@ -221,8 +222,12 @@ func TestAttentionOffFiresNothing(t *testing.T) {
 		t.Fatalf("off fired flash=%v badge=%v notice=%v focus=%v", flashes, badges, notices, focuses)
 	}
 	tt.Frame()
-	if got := len(tt.Announcements()); got != 0 {
-		t.Fatalf("off announced %v", tt.Announcements())
+	want := []string{
+		locales.AttentionBreakpointAnnouncement("GET", "api.example.com"),
+		locales.AttentionMcpConsentTitle(),
+	}
+	if got := tt.Announcements(); !slices.Contains(got, want[0]) || !slices.Contains(got, want[1]) {
+		t.Fatalf("off announced %v, want %v", got, want)
 	}
 }
 
@@ -246,6 +251,42 @@ func TestAttentionNotificationClickOpensExactBreakpoint(t *testing.T) {
 	focuses, badges := channels.snapshotFocusAndBadges()
 	if !slices.Equal(focuses, []FocusMode{FocusModeNotify}) || !slices.Equal(badges, []int{1, 2, 1}) {
 		t.Fatalf("focus=%v badge=%v, want a click focus and one pending item", focuses, badges)
+	}
+}
+
+// TestAttentionNotificationClickKeepsOpenBreakpointEdits catches a click
+// handler that swaps in the queued breakpoint and silently discards the
+// request body, method and headers the user is halfway through editing.
+func TestAttentionNotificationClickKeepsOpenBreakpointEdits(t *testing.T) {
+	a, channels := attentionTestApp(t, attentionAuto, false)
+	a.queueBreakpoint(capture.Breakpoint{ID: 21, Method: "GET", URL: "https://api.example.com/a"})
+	second := capture.Breakpoint{ID: 22, Method: "POST", URL: "https://api.example.com/b"}
+	a.queueBreakpoint(second)
+
+	first := a.bps[0]
+	a.bps = a.bps[1:]
+	a.showBreakpoint(&first)
+	a.bpBody, a.bpMethod, a.bpHeaders = "edited-body", "PATCH", "X-Draft: keep"
+
+	_, _, notices, _ := channels.snapshot()
+	if len(notices) != 2 {
+		t.Fatalf("got %d notices", len(notices))
+	}
+	notices[1].click()
+
+	if a.bp == nil || a.bp.ID != first.ID || !a.bpOpen || a.bpBody != "edited-body" ||
+		a.bpMethod != "PATCH" || a.bpHeaders != "X-Draft: keep" {
+		t.Fatalf("click replaced the open breakpoint's edits: %+v (%q, %q)", a.bp, a.bpBody, a.bpHeaders)
+	}
+	if len(a.bps) != 1 || a.bps[0].ID != second.ID {
+		t.Fatalf("queued breakpoint = %+v, want %d still waiting", a.bps, second.ID)
+	}
+	if got, want := a.message, locales.AttentionBreakpoint("POST", "api.example.com"); got != want {
+		t.Fatalf("notice says %q, want %q", got, want)
+	}
+	focuses, badges := channels.snapshotFocusAndBadges()
+	if !slices.Equal(focuses, []FocusMode{FocusModeNotify}) || !slices.Equal(badges, []int{1, 2, 1}) {
+		t.Fatalf("focus=%v badge=%v", focuses, badges)
 	}
 }
 
