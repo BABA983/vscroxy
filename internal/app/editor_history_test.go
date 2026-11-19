@@ -289,6 +289,28 @@ func TestMRUQuickSwitchFromLiveStepsPastLive(t *testing.T) {
 	}
 }
 
+// Activating LIVE is an MRU visit like activating a request tab. From
+// [A B C], visiting LIVE and then B puts B ahead of LIVE, so Ctrl+Tab must
+// return to LIVE rather than to A.
+func TestMRUQuickSwitchReturnsToActivatedLive(t *testing.T) {
+	a := mruTestApp(t)
+	a.activateDocument(nil)
+	b := a.documents[1]
+	a.activateDocument(b)
+	if a.page != pageRequest || a.requestDocument != b {
+		t.Fatalf("activation left %q on page %v, want B", a.requestDocument.title(), a.page)
+	}
+
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	tt.Key(ui.Ctrl, ui.KeyTab)
+	tt.Frame()
+	// LIVE can hold an inspected capture as a document, but it must not be B.
+	if a.page != pageLive || a.requestDocument == b {
+		t.Fatalf("Ctrl+Tab opened page %v with B selected %v, want LIVE", a.page, a.requestDocument == b)
+	}
+}
+
 // mruTestApp opens A, B, C and activates them in the order C, B, A, leaving
 // the recency order [A B C] and A on screen.
 func mruTestApp(t *testing.T) *app {

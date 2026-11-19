@@ -431,7 +431,12 @@ func (a *app) finishJSONRead(side int, key, body, contentType string, result jso
 	}
 	r.pending, r.ready, r.result = false, true, result
 	r.answers, r.cancel = nil, nil
-	a.bodyText[side] = nil // replace the plain text with the formatted answer
+	// Keep the reader when the answer leaves its text alone: rebuilding it
+	// would close a find bar and drop the query and focus on whichever frame
+	// the answer arrives.
+	if result.prettyOK && result.pretty != body {
+		a.bodyText[side] = nil
+	}
 	a.storeJSONTree(side, result.tree)
 }
 

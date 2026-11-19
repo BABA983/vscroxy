@@ -9,6 +9,7 @@ import (
 	"github.com/baba983/vscroxy/internal/jsonc"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 )
 
 func TestBodyJSONPartialTreeKeepsReadNodesAndStop(t *testing.T) {
@@ -194,6 +195,24 @@ func TestJSONReaderDropsStaleAnswer(t *testing.T) {
 	})
 	if a.jsonReader[0].ready || len(a.jsonTrees[0].roots) != 0 {
 		t.Fatalf("a late answer replaced the current body: %+v", a.jsonReader[0])
+	}
+}
+
+// An answer that leaves the displayed text alone must leave its editor too:
+// replacing it would close the find bar and lose the query and focus.
+func TestJSONReaderKeepsReaderWhenTextIsUnchanged(t *testing.T) {
+	body := "not json"
+	result := computeFaultTolerantBody(body)
+	if result.prettyOK && result.pretty != body {
+		t.Fatalf("the fixture body got formatted to %q", result.pretty)
+	}
+	buffer := editor.NewBuffer(body)
+	a := &app{}
+	a.bodyText[0] = &editor.State{Buffer: buffer}
+	a.jsonReader[0] = jsonReader{key: "1:0", body: body, contentType: "application/json", pending: true}
+	a.finishJSONRead(0, "1:0", body, "application/json", result)
+	if a.bodyText[0] == nil || a.bodyText[0].Buffer != buffer {
+		t.Fatal("a fault-tolerant answer with no text change replaced the reader")
 	}
 }
 
