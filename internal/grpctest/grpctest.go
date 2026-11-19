@@ -120,7 +120,14 @@ func Echo(t *testing.T) (endpoint string, schema []byte) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	go server.Serve(listener)
-	t.Cleanup(server.Stop)
+	served := make(chan struct{})
+	go func() {
+		defer close(served)
+		_ = server.Serve(listener)
+	}()
+	t.Cleanup(func() {
+		server.Stop()
+		<-served // Stop closes listeners; joining Serve leaves no worker behind.
+	})
 	return "http://" + listener.Addr().String(), schema
 }

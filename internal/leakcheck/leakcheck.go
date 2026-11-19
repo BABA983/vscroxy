@@ -51,9 +51,6 @@ func RunWith(m *testing.M, before, after func(), extra ...string) {
 	if after != nil {
 		after()
 	}
-	// Let runnable goroutines reach their own return once: no sleep, no
-	// polling window that could hide a leak by giving it time to exit.
-	runtime.Gosched()
 	if leaks := check.diff(extra); len(leaks) > 0 {
 		report(leaks)
 		if code == 0 {
