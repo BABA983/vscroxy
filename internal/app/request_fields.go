@@ -96,7 +96,8 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	if d.queryError != "" {
 		uikit.ErrorText(c, d.queryError)
 	}
-	if a.requestFieldsEditor(c, &d.queryRows, fieldsOptions{collection: d.composeCollection}, locales.Parameter()) {
+	if a.requestFieldsEditor(c, &d.queryRows, fieldsOptions{collection: d.composeCollection,
+		key: "parameter", focus: d.unicodeHandle}, locales.Parameter()) {
 		u, err := url.Parse(d.composeURL)
 		if err == nil {
 			encode := a.inheritance(d.composeCollection).InheritSettings(d.settings).EncodesURL()
@@ -124,8 +125,18 @@ type fieldsOptions struct {
 	file       bool
 	secret     bool
 	collection string
+	// key is the locale-independent name used for row focus handles.
+	key string
+	// focus hands a row cell its handle, so a send warning can open it.
+	focus func(string) *ui.Handle
 	// filters are the captured values a row's context menu offers, by name.
 	filters map[string][]string
+}
+
+// fieldsKey is stable across languages: a localized noun labels the row, but
+// the handle a warning opens must keep its name when the app's locale changes.
+func fieldsKey(opts fieldsOptions, noun, part string, row int) string {
+	return fmt.Sprintf("%s-%s-%d", cmp.Or(opts.key, noun), part, row)
 }
 
 // Fields are rows rather than a map: duplicate names, disabled entries and file
@@ -171,7 +182,11 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 					})
 					ui.Box(c).Basis(0).Grow(1).MinWidth(uikit.WidthNarrow).FillHeight().Children(func() {
 						ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
-							field := a.variableGridInput(c, fmt.Sprintf("%s-key-%d", noun, i+1), &r.Name, locales.Key(), locales.KeyOfRow(noun, i+1), opts.collection, false).Grow(1).MinWidth(0)
+							keyName := fieldsKey(opts, noun, "key", i+1)
+							field := a.variableGridInput(c, keyName, &r.Name, locales.Key(), locales.KeyOfRow(noun, i+1), opts.collection, false).Grow(1).MinWidth(0)
+							if opts.focus != nil {
+								field.Bind(opts.focus(keyName))
+							}
 							cellBorder(t, field, false, false)
 							if values, ok := opts.filters[r.Name]; ok {
 								// The capture's own values are what a filter can
@@ -191,7 +206,11 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 					masked := secret && !r.Revealed
 					ui.Box(c).Basis(0).Grow(2).MinWidth(uikit.WidthNarrow).FillHeight().Children(func() {
 						ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
-							value := a.variableGridInput(c, fmt.Sprintf("%s-value-%d", noun, i+1), &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), opts.collection, masked).Grow(1).MinWidth(0)
+							valueKey := fieldsKey(opts, noun, "value", i+1)
+							value := a.variableGridInput(c, valueKey, &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), opts.collection, masked).Grow(1).MinWidth(0)
+							if opts.focus != nil {
+								value.Bind(opts.focus(valueKey))
+							}
 							if masked {
 								value.Password()
 							}
@@ -386,13 +405,16 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			d.bulkEditor = &editor.State{Buffer: editor.NewBuffer(d.composeHeaders), NoScrollPastEnd: true, SoftWrap: true, Label: locales.RequestHeaders()}
 			d.bulkFor = d.composeHeaders
 		}
-		requestCodeEditor(c, d.bulkEditor)
+		a.installUnicodeHover(d.bulkEditor)
+		a.appendUnicodeDiagnostics(d.bulkEditor, d.composeHeaders)
+		requestCodeEditor(c, d.bulkEditor, d.unicodeHandle("header-bulk"))
 		if text := d.bulkEditor.Buffer.String(); text != d.composeHeaders {
 			d.composeHeaders, d.bulkFor = text, text
 		}
 		return
 	}
-	if a.requestFieldsEditor(c, &d.headerRows, fieldsOptions{secret: true, collection: d.composeCollection, filters: a.capturedHeaders()}, locales.NounHeader()) {
+	if a.requestFieldsEditor(c, &d.headerRows, fieldsOptions{secret: true, collection: d.composeCollection,
+		key: "header", focus: d.unicodeHandle, filters: a.capturedHeaders()}, locales.NounHeader()) {
 		d.composeHeaders = headerRowsText(d.headerRows)
 		d.headerFor = d.composeHeaders
 	}
@@ -400,7 +422,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 
 func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
-		a.authFields(c, &d.auth, append([]string{request.AuthInherit}, authTypes...), d.composeCollection)
+		a.authFields(c, &d.auth, append([]string{request.AuthInherit}, authTypes...), d.composeCollection, d.unicodeHandle)
 		if d.auth.Type == request.AuthOAuth2 {
 			a.savedOAuthTokens(c)
 		}
@@ -426,22 +448,30 @@ var authTypes = []string{"None", "Bearer", "Basic", "API key", request.AuthOAuth
 
 // authFields edits one Auth, a request's or a folder's; collection is where
 // it is used, for the variables an OAuth 2.0 token request expands.
-func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, collection string) {
+func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, collection string, focus ...func(string) *ui.Handle) {
 	t := c.Theme()
 	if auth.Type != request.AuthInherit {
 		uikit.Meta(c, locales.PreferVariablesOrVaultName())
 	}
+	bind := func(element ui.Element, label string) ui.Element {
+		if len(focus) > 0 && focus[0] != nil {
+			if handle := focus[0]("auth-" + label); handle != nil {
+				element.Bind(handle)
+			}
+		}
+		return element
+	}
 	input := func(value *string, label string) ui.Element {
-		return a.variableInput(c, "auth-"+label, value, label, collection)
+		return bind(a.variableInput(c, "auth-"+label, value, label, collection), label)
 	}
 	area := func(value *string, label string) ui.Element {
-		return a.variableTextArea(c, "auth-"+label, value, label, collection)
+		return bind(a.variableTextArea(c, "auth-"+label, value, label, collection), label)
 	}
 	password := func(value *string, label string) ui.Element {
-		return a.variablePasswordInput(c, "auth-"+label, value, label, collection)
+		return bind(a.variablePasswordInput(c, "auth-"+label, value, label, collection), label)
 	}
 	sensitiveArea := func(value *string, label string) ui.Element {
-		return a.variableSensitiveTextArea(c, "auth-"+label, value, label, collection)
+		return bind(a.variableSensitiveTextArea(c, "auth-"+label, value, label, collection), label)
 	}
 	ui.Form(c, func() {
 		ui.Field(c, locales.TypeText(), func() {
@@ -704,7 +734,9 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 			uikit.Hint(c, locales.QueryOrMutationVariablesSupported())
 			authoredText(c.Key("graphql-query"), &d.graphql.Query, &d.queryEditor, &d.queryFor, locales.GraphqlQuery(), "GraphQL")
 			a.wireGraphQLQueryEditor(d)
+			a.installUnicodeHover(d.queryEditor)
 			a.setGraphQLDiagnostics(d)
+			a.appendUnicodeDiagnostics(d.queryEditor, d.graphql.Query)
 		}
 	} else if d.bodyMode == "Binary" {
 		uikit.Meta(c, locales.BinaryFileUpTo16())
@@ -727,7 +759,8 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		uikit.Hint(c, locales.OnlyThePathIsSaved())
 	} else {
 		uikit.Meta(c, locales.FormDataFileValuesAre())
-		a.requestFieldsEditor(c, &d.formFields, fieldsOptions{file: true, collection: d.composeCollection}, locales.Field(), func() {
+		a.requestFieldsEditor(c, &d.formFields, fieldsOptions{file: true, collection: d.composeCollection,
+			key: "field", focus: d.unicodeHandle}, locales.Field(), func() {
 			if uikit.ToolbarButton(c, locales.AttachFile(), locales.AddAFilePartOnly(), false).Children(func() {
 				ui.Icon(c, fileInputIcon).Size(uikit.IconInline, uikit.IconInline)
 				uikit.Body(c, locales.AttachFile())
@@ -885,8 +918,10 @@ func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
 func (a *app) requestScriptText(c *ui.Context, d *requestDocument) {
 	if d.scriptTab == 1 {
 		authoredText(c, &d.composePost, &d.postEditor, &d.postFor, locales.PostResponseScript(), "JavaScript")
+		a.installUnicodeHover(d.postEditor)
 	} else {
 		authoredText(c, &d.composePre, &d.preEditor, &d.preFor, locales.PreRequestScript(), "JavaScript")
+		a.installUnicodeHover(d.preEditor)
 	}
 }
 
@@ -919,7 +954,7 @@ func (a *app) requestBodyText(c *ui.Context, d *requestDocument) {
 		d.bodyEditor = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: locales.RequestBody()}
 		d.bodyFor = d.composeBody
 	}
-	requestCodeEditor(c, d.bodyEditor)
+	requestCodeEditor(c, d.bodyEditor, d.unicodeHandle("body"))
 	a.wireVariableEditor(d.bodyEditor, d.composeCollection)
 	a.setVariableDiagnostics(d.bodyEditor, d.composeBody, d.composeCollection)
 	if text := d.bodyEditor.Buffer.String(); text != d.composeBody {
@@ -933,14 +968,17 @@ func (a *app) requestBodyText(c *ui.Context, d *requestDocument) {
 
 // Authored body, scripts, bulk headers and saved examples share one editor
 // surface. The editor still owns editing, scrolling, find and accessibility.
-func requestCodeEditor(c *ui.Context, state *editor.State) ui.Element {
+func requestCodeEditor(c *ui.Context, state *editor.State, focus ...*ui.Handle) ui.Element {
 	t := c.Theme()
 	state.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
 	state.Theme = uikit.EditorTheme(t)
 	// The editor sits on the panel itself: an input is a well or a field on
 	// chrome, and this is neither, so it draws no box of its own.
 	return ui.Box(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
-		editor.View(c, state).Grow(1).FillWidth().FocusRing(true)
+		view := editor.View(c, state).Grow(1).FillWidth().FocusRing(true)
+		if len(focus) > 0 && focus[0] != nil {
+			view.Bind(focus[0])
+		}
 	})
 }
 

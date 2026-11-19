@@ -177,6 +177,9 @@ type requestDocument struct {
 	// splitTouched is set once the reader drags the divider.
 	splitTouched bool
 	urlInput     ui.Handle
+	// unicodeFocus holds the handles of fields a pre-send character warning
+	// can open. They are created on demand and bound on each frame.
+	unicodeFocus map[string]*ui.Handle
 }
 
 // requestResult is handed back to the UI thread; workers never mutate tabs,
@@ -1001,6 +1004,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 				})
 			}
 			a.unicodeMarker(c, "request-url", d.composeURL, false)
+			a.unicodeInputMarks(c, input, d.composeURL, false)
 		})
 		sendLabel := locales.Send()
 		if d.composeWaiting {

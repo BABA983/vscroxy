@@ -4427,6 +4427,20 @@
   "unicodeHint": "character hint",
   "unicodeInvisible": "invisible",
   "unicodeNonBasicASCII": "non-basic ASCII",
+  "unicodeOpenField": "Open field",
+  "unicodeRemoveCharacter": "Remove character",
+  "unicodeReplaceWithAscii": "Replace with ASCII",
+  "@unicodeSendWarning": {
+    "placeholders": {
+      "field": {
+        "type": "String"
+      },
+      "character": {
+        "type": "String"
+      }
+    }
+  },
+  "unicodeSendWarning": "Unusual character in {field}: {character}",
   "unidentified": "unidentified",
   "unknownLower": "unknown",
   "unknownStage": "unknown stage",

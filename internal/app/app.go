@@ -4231,6 +4231,9 @@ func (a *app) sendComposed() {
 	d.sendOutcome, d.sendCancelling, d.sendDetails = "", false, false
 	d.composeWaiting, d.composeResult = true, locales.Sending()
 	r, env, vars, srv, jar := d.draft(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
+	// Characters that survive expansion get one non-blocking warning; the
+	// send still goes out unchanged, so nothing about the wire is altered.
+	a.warnUnicodeBeforeSend(r, d, vars)
 	in := a.sendContext(r.Request)
 	d.sent, d.sentAt, d.sentSet = r, time.Now(), true
 	runKey, draftKey, origin := uuid.New().String(), d.debugKey, d.origin

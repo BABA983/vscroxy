@@ -82,6 +82,10 @@ func (a *app) attachVariables(c *ui.Context, in ui.Element, key string, value *s
 		}
 		a.variableTooltip(c, in, marks, mask)
 	}
+	// Invisible and look-alike characters get warning ranges and a tip at
+	// their own offsets, beside the variable styling. Masking still applies:
+	// the tip names code points, never the value that contained them.
+	a.unicodeInputMarks(c, in, *value, mask)
 	a.syncVariableCompletion(in, key, value)
 	a.variablePopover(c, in, key, value, set)
 }
@@ -334,6 +338,7 @@ func runeToByte(text string, runes int) int {
 
 // wireVariableEditor gives a code editor completions and exact-token hovers.
 func (a *app) wireVariableEditor(state *editor.State, collection string) {
+	a.installUnicodeHover(state)
 	state.OnCompletion = func(r editor.CompletionRequest) {
 		text := state.Buffer.String()
 		start, prefix, ok := openVariableToken(text, r.Offset)
@@ -356,21 +361,21 @@ func (a *app) wireVariableEditor(state *editor.State, collection string) {
 	}
 }
 
-// setVariableDiagnostics underlines undefined references in a code editor.
+// setVariableDiagnostics underlines undefined references and flagged
+// characters in a code editor, so both problems show in one diagnostic set.
 func (a *app) setVariableDiagnostics(state *editor.State, text, collection string) {
-	if !strings.Contains(text, "{{") {
-		state.SetDiagnostics(state.Buffer.Version(), nil)
-		return
-	}
-	set := a.variableHintSet(collection)
 	var diagnostics []editor.Diagnostic
-	for _, ref := range request.VariableRefs(text) {
-		if _, ok := set.hint(ref.Name); !ok {
-			diagnostics = append(diagnostics, editor.Diagnostic{
-				Start: ref.Start, End: ref.End, Severity: editor.SeverityError,
-				Message: "Undefined variable: " + ref.Name, Source: "variables",
-			})
+	if strings.Contains(text, "{{") {
+		set := a.variableHintSet(collection)
+		for _, ref := range request.VariableRefs(text) {
+			if _, ok := set.hint(ref.Name); !ok {
+				diagnostics = append(diagnostics, editor.Diagnostic{
+					Start: ref.Start, End: ref.End, Severity: editor.SeverityError,
+					Message: "Undefined variable: " + ref.Name, Source: "variables",
+				})
+			}
 		}
 	}
+	diagnostics = append(diagnostics, a.cachedUnicodeDiagnostics(state, text)...)
 	state.SetDiagnostics(state.Buffer.Version(), diagnostics)
 }
