@@ -663,6 +663,98 @@ func TestMCPStdioCloseReturnsWhenProcessExits(t *testing.T) {
 	}
 }
 
+func TestMCPStdioCloseIgnoresUndrainedStdoutMessage(t *testing.T) {
+	// The helper writes one complete JSON-RPC frame on stdout in the instant
+	// before it exits. The SDK's stdout goroutine can be blocked delivering
+	// that frame while ClientSession.Close holds the jsonrpc state mutex, so
+	// no later Read reaches EOF. The grace timers are blocked here: Close can
+	// return only when it observes the process exit itself.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	released := make(chan net.Conn, 1)
+	acceptErr := make(chan error, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			acceptErr <- err
+			return
+		}
+		released <- conn
+	}()
+
+	// Deadline is only a deadlock guard: there is no elapsed-time assertion.
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	r := Request{Protocol: "MCP", MCP: MCPConfig{Transport: MCPTransportStdio, Command: os.Args[0],
+		Args: "-test.run=TestMCPStdioHelper\n-test.v=false",
+		Env: []Field{{Name: "VSCROXY_MCP_STDIO_HELPER", Value: "1"},
+			{Name: "VSCROXY_MCP_RELEASE_ADDR", Value: listener.Addr().String()},
+			{Name: "VSCROXY_MCP_LAST_LINE", Value: `{"jsonrpc":"2.0","method":"notifications/message","params":{"level":"info","message":"bye"}}`}}}}
+	plan, err := r.PrepareMCP(Context{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := DialMCP(ctx, plan, MCPHandlers{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wait := mcpCloseGraceWait
+	graceStarted := make(chan struct{}, 2)
+	unblock := make(chan time.Time)
+	mcpCloseGraceWait = func(time.Duration) <-chan time.Time {
+		select {
+		case graceStarted <- struct{}{}:
+		default:
+		}
+		return unblock
+	}
+	t.Cleanup(func() {
+		mcpCloseGraceWait = wait
+		close(unblock)
+	})
+	closed := make(chan error, 1)
+	go func() { closed <- client.Close() }()
+	select {
+	case <-graceStarted:
+	case err := <-closed:
+		t.Fatalf("Close returned before the server exited: %v", err)
+	case <-ctx.Done():
+		t.Fatalf("Close never began waiting for the server: %v", ctx.Err())
+	}
+
+	var conn net.Conn
+	select {
+	case conn = <-released:
+	case err := <-acceptErr:
+		t.Fatalf("the server did not ask to be released: %v", err)
+	case <-ctx.Done():
+		t.Fatalf("the server did not ask to be released: %v", ctx.Err())
+	}
+	if _, err := conn.Write([]byte{1}); err != nil {
+		t.Fatalf("release the server: %v", err)
+	}
+	var reply [1]byte
+	if _, err := io.ReadFull(conn, reply[:]); err != nil {
+		t.Fatalf("the server did not confirm its exit: %v", err)
+	}
+	if reply[0] != 2 {
+		t.Fatalf("unexpected exit confirmation %d", reply[0])
+	}
+	_ = conn.Close()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatalf("close: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatalf("Close did not return after the server exited: %v", ctx.Err())
+	}
+}
+
 func TestMCPCancellingDuringStdioDialKillsProcess(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("process-group test uses a POSIX shell")

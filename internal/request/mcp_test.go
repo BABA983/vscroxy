@@ -352,6 +352,11 @@ func TestMCPStdioHelper(t *testing.T) {
 		_ = conn.Close()
 	}
 	_ = session.Wait()
+	// A test can make the server write one last stdout frame as it exits.
+	// The exit signal must not depend on whether the SDK's reader consumes it.
+	if line := os.Getenv("VSCROXY_MCP_LAST_LINE"); line != "" {
+		fmt.Fprintln(os.Stdout, line)
+	}
 	os.Exit(0)
 }
 

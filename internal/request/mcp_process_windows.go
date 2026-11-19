@@ -4,6 +4,7 @@ package request
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -131,7 +132,33 @@ func mcpCloseProcessTree(tree mcpProcessTree) {
 	}
 }
 
-func mcpCloseProcess(cmd *exec.Cmd, tree mcpProcessTree, stdin io.Closer, stdout io.Closer, _ <-chan struct{}, grace bool) error {
+// mcpWatchProcessExit waits on its own process handle rather than stdout, so
+// a final stdout frame cannot hide the exit from the close path. The handle is
+// separate from the one os.Process waits on and does not reap the process.
+func mcpWatchProcessExit(cmd *exec.Cmd, exited *mcpExitSignal) {
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+	go errorsx.Guard(func() {
+		handle, err := windows.OpenProcess(windows.SYNCHRONIZE, false, uint32(cmd.Process.Pid))
+		if err != nil {
+			// ERROR_INVALID_PARAMETER means the pid no longer exists, so the
+			// process is already gone. Other errors are not exit evidence:
+			// stdout EOF and the grace timers decide as before.
+			if errors.Is(err, windows.ERROR_INVALID_PARAMETER) {
+				exited.signal()
+			}
+			return
+		}
+		defer windows.CloseHandle(handle)
+		event, err := windows.WaitForSingleObject(handle, windows.INFINITE)
+		if err == nil && event == windows.WAIT_OBJECT_0 {
+			exited.signal()
+		}
+	})
+}
+
+func mcpCloseProcess(cmd *exec.Cmd, tree mcpProcessTree, stdin io.Closer, stdout io.Closer, exited *mcpExitSignal, grace bool) error {
 	if stdin != nil {
 		_ = stdin.Close()
 	}
@@ -143,8 +170,9 @@ func mcpCloseProcess(cmd *exec.Cmd, tree mcpProcessTree, stdin io.Closer, stdout
 	wait := make(chan error, 1)
 	go errorsx.Guard(func() { wait <- cmd.Wait() })
 	if grace {
-		// Let the server exit after stdin EOF. If it already exited, Wait
-		// returns immediately instead of sleeping a fixed grace period.
+		// Let the server exit after stdin EOF. Wait returns for a process
+		// that is gone; the handle watcher reports the same exit even while
+		// the SDK's reader is still holding stdout frames from it.
 		select {
 		case err := <-wait:
 			mcpCloseProcessTree(tree)
@@ -152,6 +180,7 @@ func mcpCloseProcess(cmd *exec.Cmd, tree mcpProcessTree, stdin io.Closer, stdout
 				_ = stdout.Close()
 			}
 			return err
+		case <-exited.wait():
 		case <-mcpCloseGraceWait(2 * time.Second):
 		}
 	}
