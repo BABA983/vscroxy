@@ -1,6 +1,7 @@
 package dnsmap
 
 import (
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 
 	"github.com/baba983/vscroxy/internal/hosts"
+	"github.com/baba983/vscroxy/internal/linkedmap"
 )
 
 func TestServerAnswersTheRules(t *testing.T) {
@@ -130,5 +132,32 @@ func ask(t *testing.T, addr, name string, kind dnsmessage.Type) string {
 				t.Fatalf("skip: %v", err)
 			}
 		}
+	}
+}
+
+// Reading an answer touches its name; exceeding the cap drops only the least
+// recently used one instead of clearing the whole cache.
+func TestNoteLookupCacheEvictsLeastRecentlyUsed(t *testing.T) {
+	s := &Server{lookups: *linkedmap.NewLRUCache[string, Resolution](lookupCacheLimit)}
+	ip := net.ParseIP("10.1.2.3")
+	for i := range lookupCacheLimit {
+		s.noteLookup(fmt.Sprintf("old-%d.test", i), []net.IP{ip}, 0)
+	}
+	if got := s.lookups.Size(); got != lookupCacheLimit {
+		t.Fatalf("cache size = %d, want %d", got, lookupCacheLimit)
+	}
+
+	if _, ok := s.Resolved("old-0.test"); !ok {
+		t.Fatal("the oldest answer is not in the cache")
+	}
+	s.noteLookup("new.test", []net.IP{ip}, 0)
+	if got := s.lookups.Size(); got != lookupCacheLimit {
+		t.Fatalf("cache size after the cap = %d, want %d", got, lookupCacheLimit)
+	}
+	if _, ok := s.Resolved("old-0.test"); !ok {
+		t.Error("the recently read name was evicted")
+	}
+	if _, ok := s.Resolved("old-1.test"); ok {
+		t.Error("the least recently used name survived")
 	}
 }

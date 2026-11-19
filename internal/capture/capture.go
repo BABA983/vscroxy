@@ -40,6 +40,7 @@ import (
 	"github.com/baba983/vscroxy/internal/errorsx"
 	"github.com/baba983/vscroxy/internal/graphql"
 	"github.com/baba983/vscroxy/internal/hosts"
+	"github.com/baba983/vscroxy/internal/linkedmap"
 	"github.com/baba983/vscroxy/internal/procinfo"
 	"github.com/baba983/vscroxy/internal/rules"
 	"github.com/baba983/vscroxy/internal/store"
@@ -76,6 +77,10 @@ const (
 	// queue bounds the flows waiting for the UI. A burst past it is dropped
 	// and counted instead of growing without limit.
 	queue = 1024
+	// flowIDsLimit bounds the UUID-to-ID cache. A frame or stream end touches
+	// its flow, so a busy long-lived stream keeps its ID while idle ones age
+	// out one at a time.
+	flowIDsLimit = 4096
 )
 
 // hopHeaders are per-connection headers: they belong to the connection a
@@ -431,7 +436,7 @@ type Server struct {
 	hits map[string]int
 
 	frames  chan FrameEvent
-	flowIDs map[uuid.UUID]int
+	flowIDs linkedmap.LRUCache[uuid.UUID, int]
 	// frameSeq numbers the messages of each flow, and frameDrops counts the
 	// ones a full queue took.
 	frameSeq   map[uuid.UUID]int
@@ -531,7 +536,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		bpWait:        make(map[int]chan Decision),
 		breakpoints:   make(chan Breakpoint, 16),
 		frames:        make(chan FrameEvent, queue),
-		flowIDs:       make(map[uuid.UUID]int),
+		flowIDs:       *linkedmap.NewLRUCache[uuid.UUID, int](flowIDsLimit),
 		frameSeq:      make(map[uuid.UUID]int),
 		streams:       make(map[uuid.UUID]*streamBodies),
 		trailers:      make(map[uuid.UUID]*flowTrailers),
@@ -3242,10 +3247,7 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		flow.ReplayOf, flow.DebugRun = origin.source, origin.run
 	}
 	s.mu.Lock()
-	if len(s.flowIDs) > 4096 {
-		clear(s.flowIDs)
-	}
-	s.flowIDs[f.Id] = flow.ID
+	s.flowIDs.Set(f.Id, flow.ID)
 	s.mu.Unlock()
 	s.send(flow)
 	return flow.ID
@@ -3437,7 +3439,9 @@ func (s *Server) emitFrame(f *proxy.Flow, in frameInput) {
 		return
 	}
 	s.mu.Lock()
-	id, ok := s.flowIDs[f.Id]
+	// A frame touches the flow, so a busy stream keeps its ID as other flows
+	// arrive and the cache trims only the least recently used entry.
+	id, ok := s.flowIDs.Get(f.Id)
 	seq := 0
 	if ok {
 		s.frameSeq[f.Id]++
@@ -3484,7 +3488,8 @@ func (s *Server) StreamEnd(id int) StreamEnd {
 // including messages dropped at the very end of a full queue.
 func (s *Server) endFrames(f *proxy.Flow) {
 	s.mu.Lock()
-	if id, ok := s.flowIDs[f.Id]; ok {
+	// The end of a stream is also use: keep its ID for the completion evidence.
+	if id, ok := s.flowIDs.Get(f.Id); ok {
 		slot := &s.streamEnds[id%len(s.streamEnds)]
 		end := StreamEnd{At: time.Now(), Messages: s.frameSeq[f.Id]}
 		// IDs follow the order requests began, so the newest completion is

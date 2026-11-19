@@ -3,6 +3,7 @@ package upstream
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -551,5 +552,42 @@ func TestPACRecursionStopsAtTheCallStackLimit(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed > time.Second {
 		t.Fatalf("recursion took %s", elapsed)
+	}
+}
+
+// A hit touches its destination; exceeding the cap drops only the least
+// recently used result instead of clearing the cache.
+func TestPACResultCacheEvictsLeastRecentlyUsed(t *testing.T) {
+	p, err := newPAC(`function FindProxyForURL() { return "DIRECT"; }`, "cache.pac", PACOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := make([]string, maxPACCache)
+	for i := range old {
+		old[i] = fmt.Sprintf("http://old-%d.example:80", i)
+		p.cache.Set(old[i], pacResult{})
+	}
+	if got := p.cache.Size(); got != maxPACCache {
+		t.Fatalf("cache size = %d, want %d", got, maxPACCache)
+	}
+
+	before := p.evaluations.Load()
+	if _, _, err := p.findProxy(t.Context(), "http://old-0.example/", "old-0.example", 80); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.evaluations.Load(); got != before {
+		t.Fatal("a cached destination was evaluated again")
+	}
+	if _, _, err := p.findProxy(t.Context(), "http://new.example/", "new.example", 80); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.cache.Size(); got != maxPACCache {
+		t.Fatalf("cache size after the cap = %d, want %d", got, maxPACCache)
+	}
+	if _, ok := p.cache.Get(old[0]); !ok {
+		t.Error("the recently used destination was evicted")
+	}
+	if _, ok := p.cache.Get(old[1]); ok {
+		t.Error("the least recently used destination survived")
 	}
 }
