@@ -9960,6 +9960,146 @@ func (msgs Messages) AuthorizationUrl() string {
 	return Catalog.Format(msgs.locale, "authorizationUrl", nil)
 }
 
+// AttentionBreakpoint says "{method} {host} is paused at a breakpoint"
+// in the language the app shows.
+func AttentionBreakpoint(method string, host string) string {
+	return In(i18n.Locale()).AttentionBreakpoint(method, host)
+}
+
+// AttentionBreakpoint says "{method} {host} is paused at a breakpoint"
+// in the language of msgs.
+func (msgs Messages) AttentionBreakpoint(method string, host string) string {
+	return Catalog.Format(msgs.locale, "attentionBreakpoint", map[string]any{"method": method, "host": host})
+}
+
+// AttentionBreakpointAnnouncement says "Breakpoint · {method} {host}"
+// in the language the app shows.
+func AttentionBreakpointAnnouncement(method string, host string) string {
+	return In(i18n.Locale()).AttentionBreakpointAnnouncement(method, host)
+}
+
+// AttentionBreakpointAnnouncement says "Breakpoint · {method} {host}"
+// in the language of msgs.
+func (msgs Messages) AttentionBreakpointAnnouncement(method string, host string) string {
+	return Catalog.Format(msgs.locale, "attentionBreakpointAnnouncement", map[string]any{"method": method, "host": host})
+}
+
+// AttentionBreakpointTitle says "Breakpoint needs attention"
+// in the language the app shows.
+func AttentionBreakpointTitle() string { return In(i18n.Locale()).AttentionBreakpointTitle() }
+
+// AttentionBreakpointTitle says "Breakpoint needs attention"
+// in the language of msgs.
+func (msgs Messages) AttentionBreakpointTitle() string {
+	return Catalog.Format(msgs.locale, "attentionBreakpointTitle", nil)
+}
+
+// AttentionMcpConsentBody says "A local MCP server is waiting for your approval."
+// in the language the app shows.
+func AttentionMcpConsentBody() string { return In(i18n.Locale()).AttentionMcpConsentBody() }
+
+// AttentionMcpConsentBody says "A local MCP server is waiting for your approval."
+// in the language of msgs.
+func (msgs Messages) AttentionMcpConsentBody() string {
+	return Catalog.Format(msgs.locale, "attentionMcpConsentBody", nil)
+}
+
+// AttentionMcpConsentTitle says "MCP approval needed"
+// in the language the app shows.
+func AttentionMcpConsentTitle() string { return In(i18n.Locale()).AttentionMcpConsentTitle() }
+
+// AttentionMcpConsentTitle says "MCP approval needed"
+// in the language of msgs.
+func (msgs Messages) AttentionMcpConsentTitle() string {
+	return Catalog.Format(msgs.locale, "attentionMcpConsentTitle", nil)
+}
+
+// AttentionRunFailedAnnouncement says "Collection run failed · {completed, number, ::group-off} completed · {failed, number, ::group-off} failed"
+// in the language the app shows.
+func AttentionRunFailedAnnouncement(completed int, failed int) string {
+	return In(i18n.Locale()).AttentionRunFailedAnnouncement(completed, failed)
+}
+
+// AttentionRunFailedAnnouncement says "Collection run failed · {completed, number, ::group-off} completed · {failed, number, ::group-off} failed"
+// in the language of msgs.
+func (msgs Messages) AttentionRunFailedAnnouncement(completed int, failed int) string {
+	return Catalog.Format(msgs.locale, "attentionRunFailedAnnouncement", map[string]any{"completed": completed, "failed": failed})
+}
+
+// AttentionRunFailedTitle says "Collection run failed"
+// in the language the app shows.
+func AttentionRunFailedTitle() string { return In(i18n.Locale()).AttentionRunFailedTitle() }
+
+// AttentionRunFailedTitle says "Collection run failed"
+// in the language of msgs.
+func (msgs Messages) AttentionRunFailedTitle() string {
+	return Catalog.Format(msgs.locale, "attentionRunFailedTitle", nil)
+}
+
+// AttentionRunFinishedAnnouncement says "Collection run finished · {completed, number, ::group-off} completed · {failed, number, ::group-off} failed"
+// in the language the app shows.
+func AttentionRunFinishedAnnouncement(completed int, failed int) string {
+	return In(i18n.Locale()).AttentionRunFinishedAnnouncement(completed, failed)
+}
+
+// AttentionRunFinishedAnnouncement says "Collection run finished · {completed, number, ::group-off} completed · {failed, number, ::group-off} failed"
+// in the language of msgs.
+func (msgs Messages) AttentionRunFinishedAnnouncement(completed int, failed int) string {
+	return Catalog.Format(msgs.locale, "attentionRunFinishedAnnouncement", map[string]any{"completed": completed, "failed": failed})
+}
+
+// AttentionRunFinishedTitle says "Collection run finished"
+// in the language the app shows.
+func AttentionRunFinishedTitle() string { return In(i18n.Locale()).AttentionRunFinishedTitle() }
+
+// AttentionRunFinishedTitle says "Collection run finished"
+// in the language of msgs.
+func (msgs Messages) AttentionRunFinishedTitle() string {
+	return Catalog.Format(msgs.locale, "attentionRunFinishedTitle", nil)
+}
+
+// AttentionRunResult says "{completed, number, ::group-off} completed · {failed, number, ::group-off} failed"
+// in the language the app shows.
+func AttentionRunResult(completed int, failed int) string {
+	return In(i18n.Locale()).AttentionRunResult(completed, failed)
+}
+
+// AttentionRunResult says "{completed, number, ::group-off} completed · {failed, number, ::group-off} failed"
+// in the language of msgs.
+func (msgs Messages) AttentionRunResult(completed int, failed int) string {
+	return Catalog.Format(msgs.locale, "attentionRunResult", map[string]any{"completed": completed, "failed": failed})
+}
+
+// AttentionSignals says "Attention signals"
+// in the language the app shows.
+func AttentionSignals() string { return In(i18n.Locale()).AttentionSignals() }
+
+// AttentionSignals says "Attention signals"
+// in the language of msgs.
+func (msgs Messages) AttentionSignals() string {
+	return Catalog.Format(msgs.locale, "attentionSignals", nil)
+}
+
+// AttentionSignalsHint says "Auto flashes the window, badges the app and notifies only while the window is not in front. On always signals; off se…"
+// in the language the app shows.
+func AttentionSignalsHint() string { return In(i18n.Locale()).AttentionSignalsHint() }
+
+// AttentionSignalsHint says "Auto flashes the window, badges the app and notifies only while the window is not in front. On always signals; off se…"
+// in the language of msgs.
+func (msgs Messages) AttentionSignalsHint() string {
+	return Catalog.Format(msgs.locale, "attentionSignalsHint", nil)
+}
+
+// AttentionSignalsOn says "On"
+// in the language the app shows.
+func AttentionSignalsOn() string { return In(i18n.Locale()).AttentionSignalsOn() }
+
+// AttentionSignalsOn says "On"
+// in the language of msgs.
+func (msgs Messages) AttentionSignalsOn() string {
+	return Catalog.Format(msgs.locale, "attentionSignalsOn", nil)
+}
+
 // Auto says "Auto"
 // in the language the app shows.
 func Auto() string { return In(i18n.Locale()).Auto() }

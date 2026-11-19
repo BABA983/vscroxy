@@ -156,6 +156,9 @@ func (a *app) leaveSettings() {
 // settingsView is the Settings window: the categories and their content,
 // on the same state as the main window, which it redraws as it changes.
 func (a *app) settingsView(c *ui.Context) {
+	for _, text := range a.attention.drainAnnouncements() {
+		c.Announce(text)
+	}
 	dark := a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
 	c.SetTheme(uikit.Theme(dark))
 	c.SetMenuPresentation(ui.PopoverMenus)

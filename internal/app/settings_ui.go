@@ -45,6 +45,18 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 		uikit.SettingsCard(c, locales.Language(), func() {
 			a.languageSettings(c)
 		})
+		uikit.SettingsCard(c, locales.Notifications(), func() {
+			settingsCardRow(c, locales.AttentionSignals(), func() ui.Element {
+				modes := []string{attentionAuto, attentionOn, attentionOff}
+				selected := max(slices.Index(modes, a.attentionMode()), 0)
+				return ui.Row(c).Children(func() { // as wide as its segments
+					uikit.Segmented(c, &selected, locales.Auto(), locales.AttentionSignalsOn(), locales.Off()).Label(locales.AttentionSignals())
+					if modes[selected] != a.attentionMode() {
+						a.setAttentionMode(modes[selected])
+					}
+				})
+			}, locales.AttentionSignalsHint())
+		})
 		uikit.SettingsCard(c, locales.Collections(), func() {
 			settingsCardBlock(c, locales.ProjectFolder(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {

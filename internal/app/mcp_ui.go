@@ -136,6 +136,11 @@ func (a *app) connectMCP(d *requestDocument) {
 		}
 		a.mcpConsent = mcpConsentState{open: true, d: d, plan: plan, shape: shape, full: full,
 			valuesChanged: len(changed) > 0, changed: changed}
+		if a.attention != nil {
+			item := consentAttention()
+			item.id = consentAttentionID(shape)
+			a.attention.play(item)
+		}
 		return
 	}
 	a.startMCP(d, plan)

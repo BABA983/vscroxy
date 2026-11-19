@@ -444,6 +444,9 @@ func (a *app) closeDocument(d *requestDocument) {
 		a.stopMCPDocument(d.mcpUI)
 	}
 	if a.mcpConsent.d == d {
+		if a.attention != nil {
+			a.attention.clear(consentAttentionID(a.mcpConsent.shape))
+		}
 		a.mcpConsent = mcpConsentState{}
 	}
 	a.documents = slices.Delete(a.documents, at, at+1)

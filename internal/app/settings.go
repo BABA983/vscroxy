@@ -92,6 +92,9 @@ type settings struct {
 	// the latest release number. It is this computer's choice and is never
 	// exported; the default is to check.
 	DisableUpdateCheck bool `json:"disableUpdateCheck,omitzero"`
+	// AttentionSignals is "auto", "on" or "off"; empty is auto. Auto asks
+	// for attention only when the window is not in front.
+	AttentionSignals string `json:"attentionSignals,omitempty"`
 	// AllowList narrows the table to the hosts and apps in allow.txt and
 	// allow-apps.txt.
 	AllowList bool `json:"allowList,omitzero"`
@@ -234,6 +237,7 @@ func sameSettings(x, y settings) bool {
 		x.Guide == y.Guide &&
 		x.LocalControl == y.LocalControl &&
 		x.DisableUpdateCheck == y.DisableUpdateCheck &&
+		x.AttentionSignals == y.AttentionSignals &&
 		x.AllowList == y.AllowList &&
 		x.FlowLimit == y.FlowLimit && x.MemoryLimit == y.MemoryLimit && x.DiskLimit == y.DiskLimit &&
 		x.HistoryLimit == y.HistoryLimit && x.HistorySizeMB == y.HistorySizeMB &&

@@ -298,7 +298,10 @@ func (a *app) approveMCPConsent() {
 		a.warn(locales.McpApprovalCouldNotBe())
 	}
 	s.open = false
-	d, plan := s.d, s.plan
+	d, plan, shape := s.d, s.plan, s.shape
+	if a.attention != nil {
+		a.attention.clear(consentAttentionID(shape))
+	}
 	*s = mcpConsentState{}
 	a.startMCP(d, plan)
 }
@@ -356,6 +359,9 @@ func (a *app) mcpConsentModal(c *ui.Context, t *ui.Theme) {
 		})
 	})
 	if !s.open {
+		if a.attention != nil {
+			a.attention.clear(consentAttentionID(s.shape))
+		}
 		*s = mcpConsentState{}
 	}
 }

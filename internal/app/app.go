@@ -438,6 +438,9 @@ type app struct {
 	// updateCheck asks GitHub for the latest release once per launch; the
 	// setting turns it off. It never downloads or installs anything.
 	updateCheck bool
+	// attention plays the accessibility signals for pauses, prompts and
+	// finished runs; its mode is the saved "Attention signals" setting.
+	attention *attentionService
 	// mcpConsents are local approvals for stdio commands, keyed by a hash of
 	// the document and its expanded command shape. They never enter a
 	// collection file.
@@ -721,6 +724,7 @@ func newApp() *app {
 		updateCheck: true,
 		workbench:   desktopWorkbench{layout: "right"},
 	}
+	a.attention = newAttentionService(a, liveAttentionChannels{win: func() *mygo.Window { return a.win }})
 	// The engine reads SSLKEYLOGFILE on its first handshake, so a key log the
 	// settings ask for has to be in the environment before it starts.
 	if home, err := os.UserHomeDir(); err == nil {
@@ -764,6 +768,7 @@ func newApp() *app {
 			a.errText = err.Error()
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
+			a.attention.setMode(saved.AttentionSignals)
 			a.updateCheck = !saved.DisableUpdateCheck
 			a.language = saved.Language
 			a.certificates = saved.Certificates.Normalize()
@@ -1186,11 +1191,41 @@ func (a *app) collectFrames() {
 // collectBreakpoints queues the exchanges the proxy paused for the UI.
 func (a *app) collectBreakpoints() {
 	for bp := range a.srv.Breakpoints() {
-		a.mu.Lock()
-		a.bps = append(a.bps, bp)
-		a.mu.Unlock()
-		a.win.Invalidate()
+		a.queueBreakpoint(bp)
 	}
+}
+
+// queueBreakpoint is the arrival path for a paused exchange, also used by
+// tests: queue it for the modal and ask for the user's attention if the
+// window is not in front.
+func (a *app) queueBreakpoint(bp capture.Breakpoint) {
+	a.mu.Lock()
+	a.bps = append(a.bps, bp)
+	a.mu.Unlock()
+	item := breakpointAttention(bp.Method, bp.URL)
+	item.id = breakpointAttentionID(bp.ID)
+	if a.attention != nil {
+		a.attention.play(item)
+	}
+	a.invalidate()
+}
+
+// showBreakpoint puts a paused exchange in the editor. The queue's next
+// breakpoint and a notification's exact target both come through here.
+func (a *app) showBreakpoint(bp *capture.Breakpoint) {
+	a.bp = bp
+	a.bpOpen = true
+	a.bpMethod, a.bpURL = bp.Method, bp.URL
+	a.bpStatus = ""
+	if bp.Status > 0 {
+		a.bpStatus = strconv.Itoa(bp.Status)
+	}
+	a.bpBody = bp.Body
+	a.bpHeaders = request.HeaderBlock(bp.Header)
+	a.bpAbort = "502 Bad Gateway"
+	a.bpTemplate, a.bpSaving, a.bpNote = "", false, ""
+	a.bpRawMode, a.bpRawNote = false, ""
+	a.splitTables()
 }
 
 // resolveBreak answers the paused exchange and lets the proxy go on. drop
@@ -1201,10 +1236,13 @@ func (a *app) resolveBreak(abort, original, drop bool) {
 		return
 	}
 	a.syncRaw()
+	if !abort && !original && !drop && a.breakpointError() != "" {
+		return
+	}
+	if a.attention != nil {
+		a.attention.clear(breakpointAttentionID(bp.ID))
+	}
 	if a.srv != nil {
-		if !abort && !original && !drop && a.breakpointError() != "" {
-			return
-		}
 		status := 0
 		if bp.Phase == capture.PhaseResponse {
 			status, _ = strconv.Atoi(strings.TrimSpace(a.bpStatus))
@@ -1389,6 +1427,9 @@ func (a *app) drain() {
 			a.bps = a.bps[1:]
 			select {
 			case <-bp.Done:
+				if a.attention != nil {
+					a.attention.clear(breakpointAttentionID(bp.ID))
+				}
 				continue
 			default:
 			}
@@ -1397,20 +1438,7 @@ func (a *app) drain() {
 		}
 		a.mu.Unlock()
 		if next != nil {
-			a.bp = next
-			a.bpOpen = true
-			a.bpMethod = next.Method
-			a.bpURL = next.URL
-			a.bpStatus = ""
-			if next.Status > 0 {
-				a.bpStatus = strconv.Itoa(next.Status)
-			}
-			a.bpBody = next.Body
-			a.bpHeaders = request.HeaderBlock(next.Header)
-			a.bpAbort = "502 Bad Gateway"
-			a.bpTemplate, a.bpSaving, a.bpNote = "", false, ""
-			a.bpRawMode, a.bpRawNote = false, ""
-			a.splitTables()
+			a.showBreakpoint(next)
 		}
 	}
 	if a.recordingPaused {
@@ -1802,6 +1830,11 @@ func (a *app) syncDetail() {
 
 func (a *app) view(c *ui.Context) {
 	defer uikit.FrameEnd(c)
+	// Screen readers hear every signal, whether or not the window was in
+	// front. Announcements are drained once so no frame repeats them.
+	for _, text := range a.attention.drainAnnouncements() {
+		c.Announce(text)
+	}
 	if len(a.pendingFlowDelete) > 0 {
 		pending := a.pendingFlowDelete
 		a.pendingFlowDelete = nil
@@ -2156,6 +2189,9 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 	}
 	select {
 	case <-a.bp.Done:
+		if a.attention != nil {
+			a.attention.clear(breakpointAttentionID(a.bp.ID))
+		}
 		a.bp, a.bpOpen = nil, false
 		return
 	default:
@@ -3693,6 +3729,15 @@ func Run() error {
 		}
 	}()
 	mygo.App.SetLocale(a.language)
+	// A notification can be clicked after a restart, so its ID is enough to
+	// find the item again. Other apps' and older notifications are ignored.
+	mygo.App.OnNotificationClick(func(id string) {
+		if !strings.HasPrefix(id, attentionNotificationPrefix) {
+			return
+		}
+		target := strings.TrimPrefix(id, attentionNotificationPrefix)
+		a.onMain(func() { a.openAttentionItem(target) })
+	})
 	a.watchLocale()
 	mygo.App.WhenReady(func() {
 		// A run that is not a bundle has no icon of its own: the Dock (and
@@ -3720,7 +3765,14 @@ func Run() error {
 			Content:  ui.View(a.view),
 		})
 		// A window behind others shows its selections gray.
-		a.win.OnFocus(func() { a.win.Update(func() { a.windowBehind = false }) })
+		a.win.OnFocus(func() {
+			a.win.Update(func() {
+				a.windowBehind = false
+				if a.attention != nil {
+					a.attention.focusGained()
+				}
+			})
+		})
 		a.win.OnBlur(func() { a.win.Update(func() { a.windowBehind = true }) })
 		a.win.OnFileDrop(func(e *mygo.FileDropEvent) { a.importDropped(e.Paths) })
 		if focusOnReady {
