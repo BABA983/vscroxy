@@ -89,8 +89,10 @@ func (a *app) startControlLoad(command control.Command) (any, error) {
 	}
 	c.jobs[job.id], c.order = job, append(c.order, job.id)
 	srv := a.srv
+	release := a.sleep.holdRun()
 	c.wg.Go(func() {
 		defer cancel()
+		defer release()
 		report, err := runner.RunLoad(ctx, srv, steps, opts, func(r runner.LoadReport) {
 			job.mu.Lock()
 			job.load = &r
