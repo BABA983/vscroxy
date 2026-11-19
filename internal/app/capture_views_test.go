@@ -59,8 +59,8 @@ func captureViewsFrame(a *app, v *captureViews) func(*ui.Context) {
 }
 
 // settle renders frames until the body search has answered every flow and
-// every answer has been applied. Progress is read before the drain: an answer
-// that comes in between would otherwise count as done without being applied.
+// every answer has been applied. Progress is read after the drain so every
+// answer counted here has already been applied.
 func settle(t *testing.T, a *app, v *captureViews) {
 	t.Helper()
 	check := func() bool {
@@ -68,12 +68,8 @@ func settle(t *testing.T, a *app, v *captureViews) {
 		if s == nil {
 			return true
 		}
-		done, total := s.progress()
-		if done >= total {
-			return true
-		}
 		v.drain(a)
-		done, total = s.progress()
+		done, total := s.progress()
 		return done >= total
 	}
 	waitAppSignal(t, a, check, nil, func() string {

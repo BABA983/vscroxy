@@ -45,18 +45,20 @@ type testBroker struct {
 	recorder *connectRecorder
 }
 
-// connectRecorder keeps the CONNECT packet of each client, so a test can see
-// properties a broker may not forward (such as will properties).
+// connectRecorder keeps the CONNECT and SUBSCRIBE packets of each client, so
+// tests can see options a broker may not forward (such as will properties or
+// retain handling).
 type connectRecorder struct {
 	mqtt.HookBase
-	mu        sync.Mutex
-	connects  map[string]packets.Packet
-	onConnect chan string
+	mu         sync.Mutex
+	connects   map[string]packets.Packet
+	subscribes map[string][]packets.Subscription
+	onConnect  chan string
 }
 
 func (h *connectRecorder) ID() string { return "test-connect-recorder" }
 func (h *connectRecorder) Provides(b byte) bool {
-	return b == mqtt.OnConnect
+	return b == mqtt.OnConnect || b == mqtt.OnSubscribe
 }
 func (h *connectRecorder) OnConnect(_ *mqtt.Client, pk packets.Packet) error {
 	h.mu.Lock()
@@ -71,11 +73,30 @@ func (h *connectRecorder) OnConnect(_ *mqtt.Client, pk packets.Packet) error {
 	}
 	return nil
 }
+func (h *connectRecorder) OnSubscribe(cl *mqtt.Client, pk packets.Packet) packets.Packet {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.subscribes == nil {
+		h.subscribes = map[string][]packets.Subscription{}
+	}
+	h.subscribes[cl.ID] = append(h.subscribes[cl.ID], pk.Filters...)
+	return pk
+}
 func (h *connectRecorder) connect(clientID string) (packets.Packet, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	pk, ok := h.connects[clientID]
 	return pk, ok
+}
+func (h *connectRecorder) subscription(clientID, topic string) (packets.Subscription, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, sub := range h.subscribes[clientID] {
+		if sub.Filter == topic {
+			return sub, true
+		}
+	}
+	return packets.Subscription{}, false
 }
 
 func startTestBroker(t *testing.T, tlsConfig *tls.Config, websocket bool) *testBroker {
@@ -402,7 +423,13 @@ func TestMQTT5PropertiesAndSubscriptionOptions(t *testing.T) {
 	if _, err := noRetained.Subscribe(ctx, []MQTTSubscription{{Topic: "props/retained", QoS: 1, RetainHandling: 2}}); err != nil {
 		t.Fatal(err)
 	}
-	expectNoMessage(t, noRetained, 500*time.Millisecond)
+	// The option our client controls is the SUBSCRIBE packet's retain-handling
+	// bits. Assert those on the wire: whether a third-party broker sends a
+	// retained replay within a 500 ms window is timing, not our contract.
+	recorded, ok := broker.recorder.subscription("props-noretain", "props/retained")
+	if !ok || recorded.RetainHandling != 2 {
+		t.Fatalf("SUBSCRIBE retain handling = %d, want 2 (found=%t)", recorded.RetainHandling, ok)
+	}
 }
 
 func TestMQTTLastWill(t *testing.T) {
