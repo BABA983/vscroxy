@@ -286,10 +286,12 @@ func (a *app) startRun(plan runPlan) {
 	}
 	vars, srv, env := maps.Clone(plan.inputs.vars), a.srv, plan.inputs.environment
 	jar := a.requestCookies()
+	release := a.sleep.holdRun()
 	go guarded(func() {
 		defer close(events)
 		defer cancel()
 		defer a.invalidate()
+		defer release()
 		opts := runner.Options{Iterations: plan.iterations, Delay: time.Duration(plan.delayMillis) * time.Millisecond,
 			StopOnFailure: plan.stopOnFailure, Data: plan.data, Vars: vars, Cookies: jar}
 		outcome.summary, outcome.err = runner.Run(ctx, srv, plan.steps, opts, func(result runner.Result) error {

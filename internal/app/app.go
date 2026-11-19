@@ -407,6 +407,10 @@ type app struct {
 	// this run: it is a statement of the state, not a dialog to answer.
 	certBannerOff bool
 	systemProxy   proxySetup
+	// sleep holds one idle-sleep assertion for active runs; resumeWatch
+	// rechecks the system proxy when the machine wakes.
+	sleep       sleepGuard
+	resumeWatch resumeWatch
 	// lifecycle owns graceful cleanup. The hooks let tests drive quit without
 	// starting MyGo's native event loop; nil means use the real MyGo calls.
 	lifecycle *lifecycle.Lifecycle
@@ -3835,6 +3839,16 @@ func Run() error {
 		defer a.srv.Close()
 	}
 	cleanup := a.installShutdown()
+	a.sleep.hold = mygoKeepAwake
+	// MyGo reports resume on every desktop platform. Recheck the OS through
+	// the same path the Settings panel uses, including its interrupted-session
+	// recovery, rather than writing a second proxy checker.
+	a.resumeWatch.start(func() {
+		if a.quitting() {
+			return
+		}
+		a.checkSystemProxy(true)
+	})
 	stopWatchdog := func() { a.startupLifetime.Dispose() }
 	defer stopWatchdog()
 	mygo.App.OnQuit(stopWatchdog) // native termination may not return from Run

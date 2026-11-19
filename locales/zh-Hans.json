@@ -1982,6 +1982,8 @@
   "keep": "保留",
   "keepAlive": "保活",
   "keepAliveInSeconds": "保活（秒）",
+  "keepAwakeFailed": "无法阻止计算机进入睡眠",
+  "keepAwakeReason": "vscroxy 正在运行集合或负载测试",
   "keepCustomCa": "保留自定义 CA",
   "keepDraftsVariablesAndResponses": "将草稿、变量和响应保存在同一个请求标签页中。",
   "keepOriginal": "保留原始",

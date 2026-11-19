@@ -20698,6 +20698,26 @@ func (msgs Messages) KeepAliveInSeconds() string {
 	return Catalog.Format(msgs.locale, "keepAliveInSeconds", nil)
 }
 
+// KeepAwakeFailed says "Could not keep the computer awake"
+// in the language the app shows.
+func KeepAwakeFailed() string { return In(i18n.Locale()).KeepAwakeFailed() }
+
+// KeepAwakeFailed says "Could not keep the computer awake"
+// in the language of msgs.
+func (msgs Messages) KeepAwakeFailed() string {
+	return Catalog.Format(msgs.locale, "keepAwakeFailed", nil)
+}
+
+// KeepAwakeReason says "vscroxy is running a collection or load test"
+// in the language the app shows.
+func KeepAwakeReason() string { return In(i18n.Locale()).KeepAwakeReason() }
+
+// KeepAwakeReason says "vscroxy is running a collection or load test"
+// in the language of msgs.
+func (msgs Messages) KeepAwakeReason() string {
+	return Catalog.Format(msgs.locale, "keepAwakeReason", nil)
+}
+
 // KeepCustomCa says "Keep custom CA"
 // in the language the app shows.
 func KeepCustomCa() string { return In(i18n.Locale()).KeepCustomCa() }

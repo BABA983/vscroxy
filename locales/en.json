@@ -6063,6 +6063,8 @@
   "keep": "Keep",
   "keepAlive": "Keep-alive",
   "keepAliveInSeconds": "Keep-alive in seconds",
+  "keepAwakeFailed": "Could not keep the computer awake",
+  "keepAwakeReason": "vscroxy is running a collection or load test",
   "keepCustomCa": "Keep custom CA",
   "keepDraftsVariablesAndResponses": "Keep drafts, variables and responses together in one request tab.",
   "keepOriginal": "Keep original",

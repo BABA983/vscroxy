@@ -140,6 +140,7 @@ func (a *app) startLoadRunner() {
 	// Capture the window, never app/UI state, in the worker. Invalidate is
 	// asynchronous; neither progress nor shutdown depends on UI draining.
 	srv, win := a.srv, a.win
+	release := a.sleep.holdRun()
 	go guarded(func() {
 		defer func() {
 			cancel()
@@ -151,6 +152,7 @@ func (a *app) startLoadRunner() {
 			}
 			close(done)
 		}()
+		defer release()
 		publish := func(report runner.LoadReport) {
 			event := loadRunnerEvent{generation: generation, report: report}
 			select {
