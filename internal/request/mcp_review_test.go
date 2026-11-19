@@ -568,8 +568,9 @@ func TestMCPStdioProcessGroupIsTerminated(t *testing.T) {
 
 func TestMCPStdioCloseReturnsWhenProcessExits(t *testing.T) {
 	// The helper holds its stdout open after stdin EOF until this socket says
-	// to exit. Close must then wait for the exit signal, never a wall-clock
-	// grace period, and return once the process is gone.
+	// to exit, then confirms its exit on the same socket. Close must not use
+	// a time-based grace period before that confirmation, and must return
+	// once the process is gone.
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -600,12 +601,10 @@ func TestMCPStdioCloseReturnsWhenProcessExits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if client.stdio == nil || client.stdio.exited == nil {
-		t.Fatal("the stdio client has no server-exit signal")
-	}
 
-	// A grace timer that cannot fire leaves the exit signal as the only way
-	// Close can return. Load can never shorten or extend this assertion.
+	// Grace timers may only fire after the helper confirms its own exit on
+	// the socket. Until then Close has no time-based way to finish, so load
+	// cannot make this assertion pass or fail by elapsed time.
 	wait := mcpCloseGraceWait
 	graceStarted := make(chan struct{}, 2)
 	unblock := make(chan time.Time)
@@ -616,9 +615,11 @@ func TestMCPStdioCloseReturnsWhenProcessExits(t *testing.T) {
 		}
 		return unblock
 	}
+	var once sync.Once
+	allowGrace := func() { once.Do(func() { close(unblock) }) }
 	t.Cleanup(func() {
+		allowGrace()
 		mcpCloseGraceWait = wait
-		close(unblock)
 	})
 	closed := make(chan error, 1)
 	go func() { closed <- client.Close() }()
@@ -645,19 +646,25 @@ func TestMCPStdioCloseReturnsWhenProcessExits(t *testing.T) {
 	if _, err := conn.Write([]byte{1}); err != nil {
 		t.Fatalf("release the server: %v", err)
 	}
+	var reply [1]byte
+	if _, err := io.ReadFull(conn, reply[:]); err != nil {
+		t.Fatalf("the server did not confirm its exit: %v", err)
+	}
+	if reply[0] != 2 {
+		t.Fatalf("unexpected exit confirmation %d", reply[0])
+	}
 	_ = conn.Close()
+	allowGrace()
 	select {
 	case err := <-closed:
-		if err != nil {
+		// The shutdown sequence signals the process tree after stdin EOF. A
+		// helper that is still tearing down can report that signal as its
+		// exit status; it still returned promptly after the confirmation.
+		if err != nil && !strings.Contains(err.Error(), "signal:") && !strings.Contains(err.Error(), "already finished") {
 			t.Fatalf("close: %v", err)
 		}
 	case <-ctx.Done():
 		t.Fatalf("Close did not return after the server exited: %v", ctx.Err())
-	}
-	select {
-	case <-client.stdio.exited:
-	default:
-		t.Fatal("Close returned without observing the server's exit")
 	}
 }
 

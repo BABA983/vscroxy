@@ -346,6 +346,9 @@ func TestMCPStdioHelper(t *testing.T) {
 		}
 		var b [1]byte
 		_, _ = io.ReadFull(conn, b[:])
+		// Notify the test on the same connection just before exiting, so it
+		// does not have to infer the process state from stdout EOF.
+		_, _ = conn.Write([]byte{2})
 		_ = conn.Close()
 	}
 	_ = session.Wait()
