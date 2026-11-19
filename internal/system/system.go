@@ -17,6 +17,10 @@ import (
 // ErrInstallCancelled means the user dismissed a system authorization prompt.
 var ErrInstallCancelled = errors.New("certificate installation cancelled")
 
+// ErrKDEHelpersMissing means neither kwriteconfig6 nor kwriteconfig5 is
+// installed, so the KDE desktop's proxy cannot be changed.
+var ErrKDEHelpersMissing = errors.New("KDE proxy configuration tools are not installed")
+
 // CheckCA reads the public CA and checks the current machine's trust store.
 // A parsed certificate is returned even when trust verification fails, so its
 // identity and validity can still be shown. This says nothing about a remote

@@ -18,10 +18,63 @@ const (
 	proxySchema = "org.gnome.system.proxy"
 )
 
+// linuxDesktops are the independent proxy stores this session must keep in
+// step. KDE applications can run inside a GNOME session and GNOME applications
+// inside Plasma, so a session reporting both gets both stores: writing only one
+// would leave some applications on the old proxy. Each store is journaled
+// separately and restored from that journal.
+type linuxDesktops struct {
+	gnome bool
+	kde   bool
+}
+
+// activeDesktops reads the desktop identifiers the session exports. KDE's own
+// libproxy module selects kioslaverc from XDG_CURRENT_DESKTOP; KDE_FULL_SESSION
+// also marks a Plasma session that omits the identifier. With no KDE signal the
+// gsettings path stays enabled as it was before KDE support.
+func activeDesktops(getenv func(string) string) linuxDesktops {
+	kde := kdeFullSession(getenv("KDE_FULL_SESSION"))
+	gnome := false
+	for _, name := range strings.Split(getenv("XDG_CURRENT_DESKTOP"), ":") {
+		switch strings.ToLower(strings.TrimSpace(name)) {
+		case "kde", "plasma":
+			kde = true
+		case "gnome":
+			gnome = true
+		}
+	}
+	return linuxDesktops{gnome: gnome || !kde, kde: kde}
+}
+
+func kdeFullSession(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes":
+		return true
+	}
+	return false
+}
+
+// applyProxy points every journaled desktop store at addr. A configured bypass
+// list replaces its exception list; without one the desktop's existing list is
+// kept, matching the "Off keeps the OS list" setting.
+func (s proxySnapshot) applyProxy(addr string, bypass []string, set bool) error {
+	if _, _, ok := splitAddr(addr); !ok {
+		return fmt.Errorf("bad proxy address %q", addr)
+	}
+	var failures []error
+	if s.GNOME != nil {
+		failures = append(failures, s.GNOME.applyProxy(addr, bypass, set))
+	}
+	if s.KDE.Path != "" {
+		failures = append(failures, s.KDE.applyProxy(addr, bypass, set))
+	}
+	return errors.Join(failures...)
+}
+
 // applyProxy points the GNOME desktop proxy settings at addr after journaling.
 // A configured bypass list replaces ignore-hosts; without one the desktop's
 // existing list is kept, matching the "Off keeps the OS list" setting.
-func (proxySnapshot) applyProxy(addr string, bypass []string, set bool) error {
+func (s gnomeSnapshot) applyProxy(addr string, bypass []string, set bool) error {
 	host, port, ok := splitAddr(addr)
 	if !ok {
 		return fmt.Errorf("bad proxy address %q", addr)
@@ -44,15 +97,49 @@ func (proxySnapshot) applyProxy(addr string, bypass []string, set bool) error {
 	return nil
 }
 
-// ClearProxy turns the desktop proxy off.
+// ClearProxy turns the desktop proxy off in every active store.
 func ClearProxy() error {
-	return run("gsettings", "set", proxySchema, "mode", "none")
+	desktops := activeDesktops(kdeCmd.env)
+	var failures []error
+	if desktops.gnome {
+		failures = append(failures, run("gsettings", "set", proxySchema, "mode", "none"))
+	}
+	if desktops.kde {
+		failures = append(failures, kdeClearProxy())
+	}
+	return errors.Join(failures...)
 }
 
-// readProxy reads the desktop proxy settings. It reports what the desktop
-// applies: a manual mode uses the fixed servers, an automatic mode uses the
-// configuration URL, and use-same-proxy makes HTTPS follow HTTP.
+// readProxy reads the active desktop proxy settings. It reports what each
+// desktop applies: a manual mode uses the fixed servers, an automatic mode uses
+// the configuration URL, and use-same-proxy makes HTTPS follow HTTP.
 func readProxy(out outputFunc) ([]ProxyConfig, error) {
+	desktops := activeDesktops(kdeCmd.env)
+	var configs []ProxyConfig
+	if desktops.gnome {
+		cfg, err := readGnomeProxy(out)
+		if err != nil {
+			return nil, err
+		}
+		configs = append(configs, cfg)
+	}
+	if desktops.kde {
+		cfg, err := kdeReadProxy()
+		if err != nil {
+			return nil, err
+		}
+		configs = append(configs, cfg)
+	}
+	if len(configs) == 0 {
+		return nil, errors.New("no desktop reports a proxy setting")
+	}
+	return configs, nil
+}
+
+// readGnomeProxy reads gsettings. It reports what the desktop applies: a manual
+// mode uses the fixed servers, an automatic mode uses the configuration URL,
+// and use-same-proxy makes HTTPS follow HTTP.
+func readGnomeProxy(out outputFunc) (ProxyConfig, error) {
 	get := func(section, key string) (string, error) {
 		raw, err := out("gsettings", "get", section, key)
 		if err != nil {
@@ -62,7 +149,7 @@ func readProxy(out outputFunc) ([]ProxyConfig, error) {
 	}
 	mode, err := get(proxySchema, "mode")
 	if err != nil {
-		return nil, err
+		return ProxyConfig{}, err
 	}
 	cfg := ProxyConfig{Scope: "Desktop"}
 	switch mode {
@@ -71,25 +158,25 @@ func readProxy(out outputFunc) ([]ProxyConfig, error) {
 	case "auto":
 		cfg.Mode = ProxyModeAutomatic
 		if cfg.PAC, err = get(proxySchema, "autoconfig-url"); err != nil {
-			return nil, err
+			return ProxyConfig{}, err
 		}
 	}
 	if cfg.Mode != ProxyModeManual {
-		return []ProxyConfig{cfg}, nil
+		return cfg, nil
 	}
 	if cfg.HTTP, err = readEndpoint(get, proxySchema+".http"); err != nil {
-		return nil, err
+		return ProxyConfig{}, err
 	}
 	same, err := get(proxySchema, "use-same-proxy")
 	if err != nil {
-		return nil, err
+		return ProxyConfig{}, err
 	}
 	if same == "true" {
 		cfg.HTTPS = cfg.HTTP
 	} else if cfg.HTTPS, err = readEndpoint(get, proxySchema+".https"); err != nil {
-		return nil, err
+		return ProxyConfig{}, err
 	}
-	return []ProxyConfig{cfg}, nil
+	return cfg, nil
 }
 
 // gvariant reads a value as gsettings prints it: strings are quoted, numbers

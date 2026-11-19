@@ -255,11 +255,24 @@ func (a *app) drainSystemProxy() {
 		s.checked, s.checking, s.applying = true, false, false
 		if result.wrote {
 			a.inform(proxyOutcome(result))
+			if errors.Is(result.applied, system.ErrKDEHelpersMissing) {
+				a.reportSystemProxyError(result.applied)
+			}
 		} else if result.applied != nil {
-			a.fail(locales.SystemProxyRecovery(), result.applied)
+			a.reportSystemProxyError(result.applied)
 		}
 	default:
 	}
+}
+
+// reportSystemProxyError explains a failed KDE write or recovery with a
+// localized notice instead of leaving only the helper's name on screen.
+func (a *app) reportSystemProxyError(err error) {
+	if errors.Is(err, system.ErrKDEHelpersMissing) {
+		a.notify(notice{level: noticeError, text: locales.SystemProxyKdeToolsMissing(), detail: err.Error()})
+		return
+	}
+	a.fail(locales.SystemProxyRecovery(), err)
 }
 
 // proxyOutcome words a write and its readback for the status bar.
