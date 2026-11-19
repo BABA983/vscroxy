@@ -593,7 +593,12 @@ func registerGlobalCommands() *commandRegistry {
 		x.a.exportHTTPCollection(x.collectionRoot)
 	}).named(func(x *commandContext) string { return locales.ExportCollectionAsHttp(x.collectionRoot) }).
 		when(func(x *commandContext) bool { return x.editing && x.d.composeCollection != "" }, "")
-	r.add("app.settings", locales.OpenSettings(), func(x *commandContext) { x.a.openSettings(-1) }).keys(ui.Cmd, ui.KeyComma)
+	// VS Code's workbench.action.openSettings focuses the settings search.
+	// Cmd+, is this id's keybinding, so no other control takes that shortcut.
+	r.add("app.settings", locales.OpenSettings(), func(x *commandContext) {
+		x.a.openSettings(-1)
+		x.a.settingsFocusSearch++
+	}).keys(ui.Cmd, ui.KeyComma)
 	r.add("go.live", locales.GoToLiveTraffic(), func(x *commandContext) {
 		a := x.a
 		a.page = pageLive

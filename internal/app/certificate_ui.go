@@ -231,7 +231,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 			}, "")
 		})
 		uikit.SettingsCard(c, locales.TrustedRoots(), func() {
-			settingsCardRow(c, locales.TrustSystemRoots(), func() ui.Element {
+			a.settingRow(c, "certificates.trustSystemRoots", locales.TrustSystemRoots(), func() ui.Element {
 				toggle := uikit.SettingsSwitch(c, &e.trustSystem, locales.TrustSystemRoots())
 				if toggle.Changed() {
 					e.dirty = true

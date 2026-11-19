@@ -38483,3 +38483,227 @@ func OtherEnvironmentDefinitions() string { return In(i18n.Locale()).OtherEnviro
 func (msgs Messages) OtherEnvironmentDefinitions() string {
 	return Catalog.Format(msgs.locale, "otherEnvironmentDefinitions", nil)
 }
+
+// SettingsSearchLabel says "Search settings"
+// in the language the app shows.
+func SettingsSearchLabel() string { return In(i18n.Locale()).SettingsSearchLabel() }
+
+// SettingsSearchLabel says "Search settings"
+// in the language of msgs.
+func (msgs Messages) SettingsSearchLabel() string {
+	return Catalog.Format(msgs.locale, "settingsSearchLabel", nil)
+}
+
+// SettingsSearchPlaceholder says "Title, description or setting ID"
+// in the language the app shows.
+func SettingsSearchPlaceholder() string { return In(i18n.Locale()).SettingsSearchPlaceholder() }
+
+// SettingsSearchPlaceholder says "Title, description or setting ID"
+// in the language of msgs.
+func (msgs Messages) SettingsSearchPlaceholder() string {
+	return Catalog.Format(msgs.locale, "settingsSearchPlaceholder", nil)
+}
+
+// SettingsSearchHint says "Search all settings · @modified shows changed ones · Esc clears"
+// in the language the app shows.
+func SettingsSearchHint() string { return In(i18n.Locale()).SettingsSearchHint() }
+
+// SettingsSearchHint says "Search all settings · @modified shows changed ones · Esc clears"
+// in the language of msgs.
+func (msgs Messages) SettingsSearchHint() string {
+	return Catalog.Format(msgs.locale, "settingsSearchHint", nil)
+}
+
+// SettingsModifiedFilter says "Modified settings"
+// in the language the app shows.
+func SettingsModifiedFilter() string { return In(i18n.Locale()).SettingsModifiedFilter() }
+
+// SettingsModifiedFilter says "Modified settings"
+// in the language of msgs.
+func (msgs Messages) SettingsModifiedFilter() string {
+	return Catalog.Format(msgs.locale, "settingsModifiedFilter", nil)
+}
+
+// SettingsModifiedCount says "{count, plural, one {# modified setting} other {# modified settings}}"
+// in the language the app shows.
+func SettingsModifiedCount(count int) string { return In(i18n.Locale()).SettingsModifiedCount(count) }
+
+// SettingsModifiedCount says "{count, plural, one {# modified setting} other {# modified settings}}"
+// in the language of msgs.
+func (msgs Messages) SettingsModifiedCount(count int) string {
+	return Catalog.Format(msgs.locale, "settingsModifiedCount", map[string]any{"count": count})
+}
+
+// SettingsNoModified says "No settings have been changed"
+// in the language the app shows.
+func SettingsNoModified() string { return In(i18n.Locale()).SettingsNoModified() }
+
+// SettingsNoModified says "No settings have been changed"
+// in the language of msgs.
+func (msgs Messages) SettingsNoModified() string {
+	return Catalog.Format(msgs.locale, "settingsNoModified", nil)
+}
+
+// SettingsSearchNoMatches says "No settings match “{query}”"
+// in the language the app shows.
+func SettingsSearchNoMatches(query string) string {
+	return In(i18n.Locale()).SettingsSearchNoMatches(query)
+}
+
+// SettingsSearchNoMatches says "No settings match “{query}”"
+// in the language of msgs.
+func (msgs Messages) SettingsSearchNoMatches(query string) string {
+	return Catalog.Format(msgs.locale, "settingsSearchNoMatches", map[string]any{"query": query})
+}
+
+// SettingsResetToDefault says "Reset to default"
+// in the language the app shows.
+func SettingsResetToDefault() string { return In(i18n.Locale()).SettingsResetToDefault() }
+
+// SettingsResetToDefault says "Reset to default"
+// in the language of msgs.
+func (msgs Messages) SettingsResetToDefault() string {
+	return Catalog.Format(msgs.locale, "settingsResetToDefault", nil)
+}
+
+// SettingsSettingActions says "Setting actions: {name}"
+// in the language the app shows.
+func SettingsSettingActions(name string) string {
+	return In(i18n.Locale()).SettingsSettingActions(name)
+}
+
+// SettingsSettingActions says "Setting actions: {name}"
+// in the language of msgs.
+func (msgs Messages) SettingsSettingActions(name string) string {
+	return Catalog.Format(msgs.locale, "settingsSettingActions", map[string]any{"name": name})
+}
+
+// SettingsSettingID says "ID: {id}"
+// in the language the app shows.
+func SettingsSettingID(id string) string { return In(i18n.Locale()).SettingsSettingID(id) }
+
+// SettingsSettingID says "ID: {id}"
+// in the language of msgs.
+func (msgs Messages) SettingsSettingID(id string) string {
+	return Catalog.Format(msgs.locale, "settingsSettingID", map[string]any{"id": id})
+}
+
+// SettingsResetNotice says "{name} was reset to its default"
+// in the language the app shows.
+func SettingsResetNotice(name string) string { return In(i18n.Locale()).SettingsResetNotice(name) }
+
+// SettingsResetNotice says "{name} was reset to its default"
+// in the language of msgs.
+func (msgs Messages) SettingsResetNotice(name string) string {
+	return Catalog.Format(msgs.locale, "settingsResetNotice", map[string]any{"name": name})
+}
+
+// SettingEveryDomainHint says "Decrypt all proxied TLS, or only the hosts and apps below"
+// in the language the app shows.
+func SettingEveryDomainHint() string { return In(i18n.Locale()).SettingEveryDomainHint() }
+
+// SettingEveryDomainHint says "Decrypt all proxied TLS, or only the hosts and apps below"
+// in the language of msgs.
+func (msgs Messages) SettingEveryDomainHint() string {
+	return Catalog.Format(msgs.locale, "settingEveryDomainHint", nil)
+}
+
+// SettingDomainsHint says "Hosts whose TLS is decrypted, one per line"
+// in the language the app shows.
+func SettingDomainsHint() string { return In(i18n.Locale()).SettingDomainsHint() }
+
+// SettingDomainsHint says "Hosts whose TLS is decrypted, one per line"
+// in the language of msgs.
+func (msgs Messages) SettingDomainsHint() string {
+	return Catalog.Format(msgs.locale, "settingDomainsHint", nil)
+}
+
+// SettingAppsHint says "Apps whose TLS is decrypted"
+// in the language the app shows.
+func SettingAppsHint() string { return In(i18n.Locale()).SettingAppsHint() }
+
+// SettingAppsHint says "Apps whose TLS is decrypted"
+// in the language of msgs.
+func (msgs Messages) SettingAppsHint() string {
+	return Catalog.Format(msgs.locale, "settingAppsHint", nil)
+}
+
+// SettingKeyLogHint says "Write TLS secrets here for Wireshark; applies on the next launch"
+// in the language the app shows.
+func SettingKeyLogHint() string { return In(i18n.Locale()).SettingKeyLogHint() }
+
+// SettingKeyLogHint says "Write TLS secrets here for Wireshark; applies on the next launch"
+// in the language of msgs.
+func (msgs Messages) SettingKeyLogHint() string {
+	return Catalog.Format(msgs.locale, "settingKeyLogHint", nil)
+}
+
+// SettingKeepUpTo says "Keep up to"
+// in the language the app shows.
+func SettingKeepUpTo() string { return In(i18n.Locale()).SettingKeepUpTo() }
+
+// SettingKeepUpTo says "Keep up to"
+// in the language of msgs.
+func (msgs Messages) SettingKeepUpTo() string {
+	return Catalog.Format(msgs.locale, "settingKeepUpTo", nil)
+}
+
+// SettingKeepUpToHint says "The number of captured requests the table keeps"
+// in the language the app shows.
+func SettingKeepUpToHint() string { return In(i18n.Locale()).SettingKeepUpToHint() }
+
+// SettingKeepUpToHint says "The number of captured requests the table keeps"
+// in the language of msgs.
+func (msgs Messages) SettingKeepUpToHint() string {
+	return Catalog.Format(msgs.locale, "settingKeepUpToHint", nil)
+}
+
+// SettingMemoryLimit says "Memory limit"
+// in the language the app shows.
+func SettingMemoryLimit() string { return In(i18n.Locale()).SettingMemoryLimit() }
+
+// SettingMemoryLimit says "Memory limit"
+// in the language of msgs.
+func (msgs Messages) SettingMemoryLimit() string {
+	return Catalog.Format(msgs.locale, "settingMemoryLimit", nil)
+}
+
+// SettingMemoryLimitHint says "How much captured body data stays in memory"
+// in the language the app shows.
+func SettingMemoryLimitHint() string { return In(i18n.Locale()).SettingMemoryLimitHint() }
+
+// SettingMemoryLimitHint says "How much captured body data stays in memory"
+// in the language of msgs.
+func (msgs Messages) SettingMemoryLimitHint() string {
+	return Catalog.Format(msgs.locale, "settingMemoryLimitHint", nil)
+}
+
+// SettingDiskLimit says "Disk limit"
+// in the language the app shows.
+func SettingDiskLimit() string { return In(i18n.Locale()).SettingDiskLimit() }
+
+// SettingDiskLimit says "Disk limit"
+// in the language of msgs.
+func (msgs Messages) SettingDiskLimit() string {
+	return Catalog.Format(msgs.locale, "settingDiskLimit", nil)
+}
+
+// SettingTrustSystemRootsHint says "Also trust the certificate roots this computer already trusts"
+// in the language the app shows.
+func SettingTrustSystemRootsHint() string { return In(i18n.Locale()).SettingTrustSystemRootsHint() }
+
+// SettingTrustSystemRootsHint says "Also trust the certificate roots this computer already trusts"
+// in the language of msgs.
+func (msgs Messages) SettingTrustSystemRootsHint() string {
+	return Catalog.Format(msgs.locale, "settingTrustSystemRootsHint", nil)
+}
+
+// SettingTrustedRootsHint says "Extra certificate roots used to verify upstream servers"
+// in the language the app shows.
+func SettingTrustedRootsHint() string { return In(i18n.Locale()).SettingTrustedRootsHint() }
+
+// SettingTrustedRootsHint says "Extra certificate roots used to verify upstream servers"
+// in the language of msgs.
+func (msgs Messages) SettingTrustedRootsHint() string {
+	return Catalog.Format(msgs.locale, "settingTrustedRootsHint", nil)
+}

@@ -49,32 +49,42 @@ type SOCKSConfig struct {
 	Password string
 }
 
-// SetSOCKS stores the SOCKS5 configuration. It must be called before Start;
-// the listener is bound by Start, so a fixed port that is taken leaves the
-// HTTP proxy running and reports the error instead of falling back.
-func (s *Server) SetSOCKS(c SOCKSConfig) error {
+// validateSOCKSConfig checks a full entry before it reaches the server, so a
+// bad port or credential pair never replaces the working one.
+func validateSOCKSConfig(c SOCKSConfig) (SOCKSConfig, error) {
 	if c.Addr == "" {
 		c.Addr = "127.0.0.1:0"
 	}
 	host, port, err := net.SplitHostPort(c.Addr)
 	if err != nil {
-		return fmt.Errorf("SOCKS5 address %q: %w", c.Addr, err)
+		return SOCKSConfig{}, fmt.Errorf("SOCKS5 address %q: %w", c.Addr, err)
 	}
 	ip, err := netip.ParseAddr(host)
 	if err != nil || !ip.Unmap().IsLoopback() {
-		return fmt.Errorf("SOCKS5 address %q must be a loopback IP", c.Addr)
+		return SOCKSConfig{}, fmt.Errorf("SOCKS5 address %q must be a loopback IP", c.Addr)
 	}
 	if p, err := strconv.Atoi(port); err != nil || p < 0 || p > 65535 {
-		return fmt.Errorf("SOCKS5 port %q must be 0 to 65535", port)
+		return SOCKSConfig{}, fmt.Errorf("SOCKS5 port %q must be 0 to 65535", port)
 	}
 	if len(c.Username) > 255 || len(c.Password) > 255 {
-		return errors.New("SOCKS5 username and password must each be at most 255 bytes")
+		return SOCKSConfig{}, errors.New("SOCKS5 username and password must each be at most 255 bytes")
 	}
 	if c.Username == "" && c.Password != "" {
-		return errors.New("SOCKS5 password needs a username")
+		return SOCKSConfig{}, errors.New("SOCKS5 password needs a username")
 	}
 	if c.Username != "" && c.Password == "" {
-		return errors.New("SOCKS5 authentication needs a password")
+		return SOCKSConfig{}, errors.New("SOCKS5 authentication needs a password")
+	}
+	return c, nil
+}
+
+// SetSOCKS stores the SOCKS5 configuration. It must be called before Start;
+// the listener is bound by Start, so a fixed port that is taken leaves the
+// HTTP proxy running and reports the error instead of falling back.
+func (s *Server) SetSOCKS(c SOCKSConfig) error {
+	c, err := validateSOCKSConfig(c)
+	if err != nil {
+		return err
 	}
 	s.socksMu.Lock()
 	defer s.socksMu.Unlock()
@@ -83,6 +93,31 @@ func (s *Server) SetSOCKS(c SOCKSConfig) error {
 	}
 	s.socksCfg = c
 	return nil
+}
+
+// ApplySOCKS replaces the entry and rebinds its listener when capture is
+// running. Turning it off closes the listener and its client connections, as
+// Reset requires: leaving the old listener up would keep serving clients
+// with credentials the setting no longer holds.
+func (s *Server) ApplySOCKS(c SOCKSConfig) error {
+	c, err := validateSOCKSConfig(c)
+	if err != nil {
+		return err
+	}
+	s.listenMu.Lock()
+	defer s.listenMu.Unlock()
+	if !s.running.Load() {
+		s.socksMu.Lock()
+		s.socksCfg, s.socksErr = c, nil
+		s.socksMu.Unlock()
+		return nil
+	}
+	s.stopSOCKS()
+	s.socksMu.Lock()
+	s.socksCfg, s.socksErr = c, nil
+	s.socksMu.Unlock()
+	s.startSOCKS()
+	return s.SOCKSError()
 }
 
 // SOCKSAddr is the bound SOCKS5 address, or empty when it is off or failed.

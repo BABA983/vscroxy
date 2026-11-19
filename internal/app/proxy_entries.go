@@ -176,7 +176,7 @@ func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
 				uikit.SettingsSwitch(c, &a.socksOnDraft, locales.EnableSocks5Proxy())
 			})
 		if a.socksOnDraft {
-			settingsCardBlock(c, locales.Port(), func() ui.Element {
+			a.settingBlock(c, "proxy.socks.port", locales.Port(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					uikit.Input(c, &a.socksPortInput).Label(locales.Socks5Port()).Placeholder(locales.Automatic()).Width(100).
 						Invalid(a.socksProblem != "")
@@ -185,14 +185,14 @@ func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			}, locales.BlankIsAutomaticAnOs())
-			settingsCardRow(c, locales.Authentication(), func() ui.Element {
+			a.settingRow(c, "proxy.socks.auth", locales.Authentication(), func() ui.Element {
 				return uikit.SettingsSwitch(c, &a.socksAuthDraft, locales.RequireUsernameAndPassword())
 			}, locales.Rfc1929WithoutItThe())
 			if a.socksAuthDraft {
-				settingsCardRow(c, locales.Username(), func() ui.Element {
+				a.settingRow(c, "proxy.socks.username", locales.Username(), func() ui.Element {
 					return uikit.Input(c, &a.socksUserDraft).Label(locales.Socks5Username()).Width(220)
 				}, "")
-				settingsCardRow(c, locales.Password(), func() ui.Element {
+				a.settingRow(c, "proxy.socks.password", locales.Password(), func() ui.Element {
 					return uikit.Input(c, &a.socksPassDraft).Label(locales.Socks5Password()).Password().Width(220)
 				}, "")
 			}

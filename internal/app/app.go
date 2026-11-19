@@ -131,6 +131,15 @@ type app struct {
 	saveAfterRename bool
 	settingsOpen    bool
 	settingsTab     int
+	settingsQuery   string
+	// settingsGen changes when a setting is saved; settingsIndex caches the
+	// localized search rows until the language or this generation changes.
+	settingsGen          int
+	settingsIndex        settingsSearchIndex
+	settingsSearchHandle ui.Handle
+	// settingsFocusSearch is a request token: zero leaves focus alone, each
+	// increment asks the search field for focus again.
+	settingsFocusSearch uint64
 	// settingsChoice is the category list's id for settingsTab, which the list
 	// chooses by.
 	settingsChoice      string
@@ -4588,6 +4597,7 @@ func (a *app) setKeyLog(path string) {
 	a.keyLogPath = path
 	if path == "" {
 		_ = os.Unsetenv("SSLKEYLOGFILE")
+		capture.ClearTLSKeyLogWriter()
 		a.inform(locales.TlsKeyLogOff())
 	} else {
 		_ = os.Setenv("SSLKEYLOGFILE", path)
@@ -5090,6 +5100,7 @@ func (a *app) persistSettings() error {
 		}
 		return nil
 	}
+	a.settingsGen++ // the modified flags depend on what this write saves
 	if elapsed := time.Since(a.lastSave); elapsed < settingsWriteGap {
 		// A write just went out. Schedule the remainder of the gap once, so
 		// the change is written even if nothing else moves the window.

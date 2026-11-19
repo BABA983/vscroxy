@@ -192,7 +192,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 			}, certificateScope())
 		})
 		uikit.SettingsCard(c, locales.Decryption(), func() {
-			settingsCardRow(c, locales.EveryDomain(), func() ui.Element {
+			a.settingRow(c, "https.allDomains", locales.EveryDomain(), func() ui.Element {
 				all := a.sslAll
 				toggle := uikit.SettingsSwitch(c, &all, locales.DecryptEveryDomain())
 				if toggle.Changed() {
@@ -213,7 +213,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 				summary = strings.Join(domains, ", ")
 				hint = locales.TheseDomainsAndTheirSubdomains()
 			}
-			settingsCardBlock(c, locales.DomainsAndApps(), func() ui.Element {
+			a.settingBlock(c, "https.domains", locales.DomainsAndApps(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.ManageDomains()).Clicked() {
 						a.leaveSettings()
@@ -229,7 +229,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 			}
 			// A card block like its neighbours: the label-column SettingsRow
 			// ignored the card's inset, so its label sat on the card's edge.
-			settingsCardBlock(c, locales.NeverDecrypt(), func() ui.Element {
+			a.settingBlock(c, "https.neverDecrypt", locales.NeverDecrypt(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.ManageExclusions()).Clicked() {
 						a.leaveSettings()
@@ -243,7 +243,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 			if len(allowed) > 0 {
 				allowedSummary = strings.Join(allowed, ", ")
 			}
-			settingsCardBlock(c, locales.AllowUntrustedUpstream(), func() ui.Element {
+			a.settingBlock(c, "https.allowUntrusted", locales.AllowUntrustedUpstream(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.ManageExceptions()).Clicked() {
 						a.leaveSettings()
@@ -254,7 +254,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 			}, locales.AllowUntrustedUpstreamHint())
 		})
 		uikit.SettingsCard(c, locales.Wireshark(), func() {
-			settingsCardBlock(c, locales.TlsKeyLog(), func() ui.Element {
+			a.settingBlock(c, "https.keyLog", locales.TlsKeyLog(), func() ui.Element {
 				return ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.TlsKeyLog2()).Clicked() {
 						a.leaveSettings()

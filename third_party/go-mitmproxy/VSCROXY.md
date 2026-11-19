@@ -7,7 +7,20 @@ This is the existing capture engine, not another proxy implementation.
 
 The source patches are in `proxy/websocket.go`, `proxy/addon.go`, `proxy/sse.go`, `proxy/flow.go`,
 `proxy/attacker.go`, `proxy/proxy.go`, `proxy/entry.go`, `proxy/connection.go` and
-`internal/helper/proxy.go`; `proxy/socks.go` is new. Everything else is upstream.
+`internal/helper/proxy.go` and `internal/helper/tls.go`; `proxy/socks.go` is
+new. Everything else is upstream.
+
+## TLS key log reset
+
+`internal/helper/tls.go` keeps the key-log writer behind a mutex instead of a
+one-shot `sync.Once`: it opens the file named by `SSLKEYLOGFILE` on first use,
+and `ClearTlsKeyLogWriter` closes and forgets it. The desktop app calls the
+clear function when the TLS key log setting is turned off, after unsetting the
+variable, so existing and later handshakes stop writing TLS secrets to the old
+file. `proxy.ClearTLSKeyLogWriter` and `proxy.TLSKeyLogWriter` let the app's
+capture boundary clear the writer and assert that a reset closed it; capture's
+`ClearTLSKeyLogWriter` and `TLSKeyLogWriter` keep the engine behind the app's
+boundary.
 
 ## Signing CA
 

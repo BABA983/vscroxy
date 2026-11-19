@@ -444,35 +444,35 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 				return uikit.Callout(c, uikit.CalloutDanger, u.problem, nil)
 			}, "")
 		}
-		settingsCardRow(c, locales.DefaultText2(), func() ui.Element {
+		a.settingRow(c, "proxy.upstream.default", locales.DefaultText2(), func() ui.Element {
 			in := uikit.Input(c, &u.defaultAddr).Label(locales.DefaultUpstream()).Placeholder(locales.DirectConnection()).Grow(1).MinWidth(uikit.WidthField)
 			if in.Changed() {
 				u.dirty = true
 			}
 			return in
 		}, locales.EmptyConnectsDirectlyAHost())
-		settingsCardBlock(c, locales.HostRules(), func() ui.Element {
+		a.settingBlock(c, "proxy.upstream.rules", locales.HostRules(), func() ui.Element {
 			area := uikit.TextArea(c, &u.rules).Label(locales.HostRules()).Placeholder("*.internal.test socks5://127.0.0.1:1080\napi.example.com:443 direct").Height(60).Font(uikit.FontMono).Radius(uikit.RadiusControl)
 			if area.Changed() {
 				u.dirty = true
 			}
 			return area
 		}, locales.OnePerLineHostPattern())
-		settingsCardBlock(c, locales.Bypass(), func() ui.Element {
+		a.settingBlock(c, "proxy.upstream.bypass", locales.Bypass(), func() ui.Element {
 			area := uikit.TextArea(c, &u.bypass).Label(locales.BypassList()).Placeholder("localhost\n*.internal.test\n10.0.0.0/8").Height(50).Font(uikit.FontMono).Radius(uikit.RadiusControl)
 			if area.Changed() {
 				u.dirty = true
 			}
 			return area
 		}, locales.HostsExampleComCidrLocalhost())
-		settingsCardRow(c, locales.Pac(), func() ui.Element {
+		a.settingRow(c, "proxy.upstream.pac", locales.Pac(), func() ui.Element {
 			in := uikit.Input(c, &u.pac).Label(locales.PacFileOrUrl()).Placeholder("https://example.com/proxy.pac").Grow(1).MinWidth(uikit.WidthFieldWide)
 			if in.Changed() {
 				u.dirty = true
 			}
 			return in
 		}, locales.ALocalPacFileOr())
-		settingsCardBlock(c, locales.Credentials(), func() ui.Element {
+		a.settingBlock(c, "proxy.upstream.credentials", locales.Credentials(), func() ui.Element {
 			return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 				remove := -1
 				for i := range u.credentials {

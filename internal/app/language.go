@@ -44,7 +44,7 @@ func languageNames() []string {
 
 // languageSettings is Settings → General → Language.
 func (a *app) languageSettings(c *ui.Context) {
-	settingsCardRow(c, locales.Language(), func() ui.Element {
+	a.settingRow(c, "general.language", locales.Language(), func() ui.Element {
 		names := languageNames()
 		choice := max(slices.Index(languages, a.language), 0)
 		sel := uikit.Select(c, &names[choice], names).Label(locales.Language()).Width(uikit.WidthField)

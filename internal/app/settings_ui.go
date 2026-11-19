@@ -33,6 +33,33 @@ func settingsCardBlock(c *ui.Context, label string, control func() ui.Element, h
 	return uikit.SettingsCardBlock(c, label, hint, func() { control() }, tip...)
 }
 
+// settingRow is a page row with a stable id. A changed row gets the marker
+// and reset menu; the id, not the localized label, chooses both.
+func (a *app) settingRow(c *ui.Context, id, label string, control func() ui.Element, hint string, tip ...string) ui.Element {
+	spec, ok := settingByID(id)
+	if !ok {
+		return settingsCardRow(c, label, control, hint, tip...)
+	}
+	return uikit.SettingsCardRowWithReset(c, label, hint, spec.modified(a), func() { control() }, a.settingMenu(spec), tip...)
+}
+
+// settingBlock is settingRow for an editor that takes the card's full width.
+func (a *app) settingBlock(c *ui.Context, id, label string, control func() ui.Element, hint string, tip ...string) ui.Element {
+	spec, ok := settingByID(id)
+	if !ok {
+		return settingsCardBlock(c, label, control, hint, tip...)
+	}
+	return uikit.SettingsCardBlockWithReset(c, label, hint, spec.modified(a), func() { control() }, a.settingMenu(spec), tip...)
+}
+
+func (a *app) settingMenu(spec settingSpec) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		if m.Item(locales.SettingsResetToDefault()).Chosen() {
+			a.resetSetting(spec.id)
+		}
+	}
+}
+
 // restartPending marks a saved setting the running app does not use yet.
 func restartPending(c *ui.Context, pending bool) {
 	if pending {
@@ -46,7 +73,7 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 			a.languageSettings(c)
 		})
 		uikit.SettingsCard(c, locales.Notifications(), func() {
-			settingsCardRow(c, locales.AttentionSignals(), func() ui.Element {
+			a.settingRow(c, "general.attentionSignals", locales.AttentionSignals(), func() ui.Element {
 				modes := []string{attentionAuto, attentionOn, attentionOff}
 				selected := max(slices.Index(modes, a.attentionMode()), 0)
 				return ui.Row(c).Children(func() { // as wide as its segments
@@ -58,7 +85,7 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 			}, locales.AttentionSignalsHint())
 		})
 		uikit.SettingsCard(c, locales.Collections(), func() {
-			settingsCardBlock(c, locales.ProjectFolder(), func() ui.Element {
+			a.settingBlock(c, "general.projectFolder", locales.ProjectFolder(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 						uikit.Input(c, &a.projectInput).Label(locales.ProjectFolder()).Placeholder(locales.Automatic()).MinWidth(260).Grow(1)
@@ -101,7 +128,7 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 			}, locales.OneFileWithTheSettings())
 		})
 		uikit.SettingsCard(c, locales.ExternalLinksSettings(), func() {
-			settingsCardBlock(c, locales.TrustedLinkHosts(), func() ui.Element {
+			a.settingBlock(c, "general.trustedLinkHosts", locales.TrustedLinkHosts(), func() ui.Element {
 				hosts := slices.Clone(a.trustedLinkHosts)
 				slices.Sort(hosts)
 				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
@@ -120,7 +147,7 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 			}, locales.TrustedLinkHostsHint())
 		})
 		uikit.SettingsCard(c, locales.LocalAutomation(), func() {
-			settingsCardRow(c, locales.EnableLocalAutomation(), func() ui.Element {
+			a.settingRow(c, "general.localControl", locales.EnableLocalAutomation(), func() ui.Element {
 				on := a.controlRunning()
 				toggle := uikit.SettingsSwitch(c, &on, locales.EnableLocalAutomation())
 				if toggle.Changed() {
@@ -135,7 +162,7 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 			}
 		})
 		uikit.SettingsCard(c, locales.Help(), func() {
-			settingsCardRow(c, locales.SetupGuide(), func() ui.Element {
+			a.settingRow(c, "general.setupGuide", locales.SetupGuide(), func() ui.Element {
 				return ui.Row(c).Children(func() {
 					if uikit.SecondaryButton(c, locales.ShowSetupGuide()).Disabled(a.guide).Clicked() {
 						a.leaveSettings()
@@ -145,7 +172,7 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 			}, locales.CapturingTrustingTheCertificateAnd())
 		})
 		uikit.SettingsCard(c, locales.Updates(), func() {
-			settingsCardRow(c, locales.CheckForUpdates(), func() ui.Element {
+			a.settingRow(c, "general.checkForUpdates", locales.CheckForUpdates(), func() ui.Element {
 				on := a.updateCheck
 				toggle := uikit.SettingsSwitch(c, &on, locales.CheckForUpdates())
 				if toggle.Changed() {
@@ -184,7 +211,7 @@ func (a *app) dataFolderRow(c *ui.Context, t *ui.Theme) ui.Element {
 func (a *app) appearanceSettings(c *ui.Context, t *ui.Theme) {
 	uikit.SettingsCardPage(c, locales.Appearance(), locales.HowVscroxyLooks(), func() {
 		uikit.SettingsCard(c, locales.Theme(), func() {
-			settingsCardRow(c, locales.Appearance(), func() ui.Element {
+			a.settingRow(c, "appearance.theme", locales.Appearance(), func() ui.Element {
 				return ui.Row(c).Children(func() { // as wide as its segments
 					modes := []string{"", "light", "dark"}
 					if !a.appearanceChoiceSet {
@@ -211,7 +238,7 @@ func (a *app) proxySettings(c *ui.Context, t *ui.Theme) {
 				}
 				return uikit.Body(c, locales.CaptureIsNotRunning()).TextColor(t.Warning)
 			}, "")
-			settingsCardBlock(c, locales.Port(), func() ui.Element {
+			a.settingBlock(c, "proxy.port", locales.Port(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 						uikit.Input(c, &a.proxyPortInput).Label(locales.ProxyPort()).Placeholder(locales.Automatic()).Width(100).
@@ -254,7 +281,7 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 	}
 	uikit.SettingsCardPage(c, locales.Capture(), locales.WhatCaptureChangesOnThe(), func() {
 		uikit.SettingsCard(c, locales.Responses(), func() {
-			settingsCardRow(c, locales.Caching(), func() ui.Element {
+			a.settingRow(c, "capture.noCaching", locales.Caching(), func() ui.Element {
 				on := a.srv != nil && a.srv.NoCaching()
 				toggle := uikit.SettingsSwitch(c, &on, locales.NoCaching()).Disabled(a.srv == nil)
 				if toggle.Changed() && a.srv != nil {
@@ -290,8 +317,8 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 		})
 		uikit.SettingsCard(c, locales.Memory(), func() {
 			// limit is a field choosing one of options, labelled by label.
-			limit := func(name string, value *int, fallback int, options []int, label func(int) string, hint string) ui.Element {
-				return settingsCardRow(c, name, func() ui.Element {
+			limit := func(id, name string, value *int, fallback int, options []int, label func(int) string, hint string) ui.Element {
+				return a.settingRow(c, id, name, func() ui.Element {
 					labels := make([]string, len(options))
 					for i, n := range options {
 						labels[i] = label(n)
@@ -307,22 +334,22 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 					return sel
 				}, hint)
 			}
-			limit("Keep up to", &a.flowLimit, defaultFlowLimit, flowLimits, func(n int) string {
+			limit("capture.flowLimit", locales.SettingKeepUpTo(), &a.flowLimit, defaultFlowLimit, flowLimits, func(n int) string {
 				return groupThousands(n) + " requests"
 			}, "")
-			limit("Memory limit", &a.memoryLimit, defaultMemoryLimit, memoryLimits, func(mb int) string {
+			limit("capture.memoryLimit", locales.SettingMemoryLimit(), &a.memoryLimit, defaultMemoryLimit, memoryLimits, func(mb int) string {
 				if mb >= 1024 {
 					return fmt.Sprintf("%d GB", mb/1024)
 				}
 				return fmt.Sprintf("%d MB", mb)
 			}, "")
-			limit("Disk limit", &a.diskLimit, defaultDiskLimit, diskLimits, func(gb int) string {
+			limit("capture.diskLimit", locales.SettingDiskLimit(), &a.diskLimit, defaultDiskLimit, diskLimits, func(gb int) string {
 				return fmt.Sprintf("%d GB", gb)
 			}, locales.BodiesPast64KbAre())
-			limit(locales.HistoryEntries(), &a.historyLimit, defaultExperimentRecords, []int{25, 50, 100, 250, 500, 1000}, func(n int) string {
+			limit("capture.historyLimit", locales.HistoryEntries(), &a.historyLimit, defaultExperimentRecords, []int{25, 50, 100, 250, 500, 1000}, func(n int) string {
 				return groupThousands(n) + " " + locales.HistoryRecordsUnit()
 			}, locales.HistoryEntriesHelp())
-			limit(locales.HistorySize(), &a.historySizeMB, defaultExperimentSizeMB, []int{8, 16, 32, 64, 128, 256}, func(mb int) string {
+			limit("capture.historySizeMB", locales.HistorySize(), &a.historySizeMB, defaultExperimentSizeMB, []int{8, 16, 32, 64, 128, 256}, func(mb int) string {
 				if mb >= 1024 {
 					return fmt.Sprintf("%d GB", mb/1024)
 				}
