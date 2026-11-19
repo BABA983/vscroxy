@@ -227,7 +227,7 @@ func TestOneClickTerminalLaunchesTheGeneratedScript(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for a.clientUI.last == "" && time.Now().Before(deadline) {
 		tt.Frame()
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	if a.clientUI.problem != "" {
 		t.Fatalf("launch problem: %s", a.clientUI.problem)
@@ -258,7 +258,7 @@ func TestOneClickTerminalMissingHelperIsReported(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for a.message == "" && time.Now().Before(deadline) {
 		tt.Frame()
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	if !strings.HasPrefix(a.message, "Open proxied terminal:") || !strings.Contains(a.message, "terminal emulator not found") || !strings.Contains(a.message, "xterm") {
 		t.Fatalf("missing terminal was not explained: %q", a.message)
@@ -307,7 +307,7 @@ func TestOneClickFirefoxKeepsTheProfileAfterTheLauncherExits(t *testing.T) {
 			}
 		}
 		tt.Frame()
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	if args == "" {
 		t.Fatal("fake Firefox did not run")
@@ -338,7 +338,7 @@ func TestOneClickFirefoxKeepsTheProfileAfterTheLauncherExits(t *testing.T) {
 			break
 		}
 		tt.Frame()
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	if !reaped {
 		t.Fatal("fake Firefox did not exit")
@@ -439,7 +439,7 @@ func TestOneClickAndroidClearsRecordWhenReverseIsGone(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for len(a.clientUI.androidApplied) > 0 && time.Now().Before(deadline) {
 		tt.Frame()
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	if len(a.clientUI.androidApplied) != 0 {
 		t.Fatalf("stale record survived a missing reverse listener: %+v", a.clientUI.androidApplied)
@@ -490,7 +490,7 @@ func TestOneClickAndroidRejectsItsOwnPreviousProxy(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for a.clientUI.androidPending && time.Now().Before(deadline) {
 		a.drainClientSetup()
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	if len(a.clientUI.androidApplied) != 0 {
 		t.Fatalf("recorded vscroxy itself as the previous proxy: %+v", a.clientUI.androidApplied)
@@ -526,7 +526,7 @@ func TestOneClickAndroidPendingBlocksASecondSet(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for a.clientUI.androidPending && time.Now().Before(deadline) {
 		a.drainClientSetup()
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	data, err := os.ReadFile(log)
 	if err != nil {
@@ -596,7 +596,7 @@ func TestOneClickAndroidPersistsAndClearsUndoState(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for len(a.clientUI.androidApplied) == 0 && time.Now().Before(deadline) {
 		tt.Frame()
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	state, ok := a.clientUI.androidApplied["emulator-5554"]
 	if !ok || state.Previous != "10.0.2.2:8888" || state.Port == 0 {
@@ -608,7 +608,7 @@ func TestOneClickAndroidPersistsAndClearsUndoState(t *testing.T) {
 	deadline = time.Now().Add(5 * time.Second)
 	for len(a.clientUI.androidApplied) > 0 && time.Now().Before(deadline) {
 		tt.Frame()
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	if len(a.clientUI.androidApplied) != 0 {
 		t.Fatalf("undo did not clear state: %+v", a.clientUI.androidApplied)
@@ -645,7 +645,7 @@ func TestOneClickAndroidInstallsTheSystemCA(t *testing.T) {
 	deadline := time.Now().Add(10 * time.Second)
 	for a.clientUI.androidPending && time.Now().Before(deadline) {
 		tt.Frame()
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	if a.clientUI.androidPending {
 		t.Fatal("the install did not finish")

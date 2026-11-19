@@ -429,7 +429,7 @@ func TestSessionsAnnotateCompareAndReopenWithoutChangingLiveTraffic(t *testing.T
 	}
 	t.Cleanup(b.sessions.close)
 	b.selectSession(before.key)
-	for deadline := time.Now().Add(5 * time.Second); !b.sessions.current().loaded; runtime.Gosched() {
+	for deadline := time.Now().Add(5 * time.Second); !b.sessions.current().loaded; time.Sleep(time.Millisecond) {
 		if time.Now().After(deadline) {
 			t.Fatal("session never loaded")
 		}

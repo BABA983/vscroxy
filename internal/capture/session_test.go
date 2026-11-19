@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -84,7 +83,7 @@ func TestReplaySessionSuppressedLinksOutliveClose(t *testing.T) {
 			if got == want {
 				return true
 			}
-			runtime.Gosched()
+			time.Sleep(10 * time.Millisecond)
 		}
 		return false
 	}

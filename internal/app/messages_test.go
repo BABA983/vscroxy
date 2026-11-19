@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -216,7 +215,7 @@ func TestMessagesPaneShowsTheWholeChosenMessage(t *testing.T) {
 	tt.Type("END-ONLY-needle-tail")
 	deadline := time.Now().Add(3 * time.Second)
 	for !tt.HasText("1 of 2 messages") && time.Now().Before(deadline) {
-		runtime.Gosched()
+		time.Sleep(time.Millisecond)
 		tt.Frame()
 	}
 	if !tt.HasText("1 of 2 messages") || !tt.HasText("END-ONLY-needle-tail") {

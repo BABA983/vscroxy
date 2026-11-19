@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -59,7 +58,7 @@ func waitMockOutput(t *testing.T, stdout *syncText, marker string) {
 		if time.Now().After(deadline) {
 			t.Fatalf("mock never printed %q: stdout=%q", marker, stdout.String())
 		}
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
@@ -79,7 +78,7 @@ func startMock(t *testing.T, args ...string) (string, *syncText, *syncText, func
 		if time.Now().After(deadline) {
 			t.Fatalf("mock did not start: stdout=%q stderr=%q", stdout.String(), stderr.String())
 		}
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	line := stdout.String()
 	i := strings.Index(line, "http://")

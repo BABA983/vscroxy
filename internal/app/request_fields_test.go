@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -430,7 +429,7 @@ func waitRunner(t *testing.T, a *app) {
 	deadline := time.Now().Add(5 * time.Second)
 	for a.runner.running && time.Now().Before(deadline) {
 		a.drainRunner()
-		runtime.Gosched()
+		time.Sleep(time.Millisecond)
 	}
 	if a.runner.running {
 		a.runner.cancel()
@@ -620,7 +619,7 @@ func TestInFlightCurrentCredentialsStayOutOfExports(t *testing.T) {
 					for pending() && time.Now().Before(deadline) {
 						a.drain()
 						a.drainRunner()
-						runtime.Gosched()
+						time.Sleep(time.Millisecond)
 					}
 					if pending() {
 						t.Fatal("request did not finish")

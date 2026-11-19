@@ -3,7 +3,6 @@ package app
 import (
 	"net/http"
 	"net/http/httptest"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -196,7 +195,7 @@ func TestWebSocketSessionSendAllUsesTheSavedOrder(t *testing.T) {
 			t.Fatalf("sent %q, want both saved messages", sent)
 		}
 		tt.Frame()
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	a.socket.session.disconnect()
 }

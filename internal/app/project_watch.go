@@ -22,7 +22,7 @@ import (
 
 // startProjectWatch replaces the watch with one for the current project folder.
 // It does nothing without a window, as in tests.
-func (a *app) startProjectWatch(clocks ...async.Clock) {
+func (a *app) startProjectWatch() {
 	if a.projectWatchStop != nil {
 		close(a.projectWatchStop)
 		a.projectWatchStop = nil
@@ -34,13 +34,13 @@ func (a *app) startProjectWatch(clocks ...async.Clock) {
 	stop := make(chan struct{})
 	a.projectWatchStop = stop
 	watchDir, watchStop := a.projectDir, stop
-	go guarded(func() { a.watchProject(watchDir, watchStop, clocks...) })
+	go guarded(func() { a.watchProject(watchDir, watchStop) })
 }
 
 // watchProject looks at the folder's fingerprint every two seconds and asks the
 // UI thread to sync when it changed, or while a change waits on unsaved edits.
-func (a *app) watchProject(dir string, stop <-chan struct{}, clocks ...async.Clock) {
-	clock := timerClock(clocks)
+func (a *app) watchProject(dir string, stop <-chan struct{}) {
+	clock := a.timerClock()
 	ticks := make(chan struct{}, 1)
 	tick := async.NewIntervalTimer(func() error {
 		select {

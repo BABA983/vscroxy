@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net"
 	"reflect"
-	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -95,7 +94,7 @@ func waitMQTT(t *testing.T, what string, check func() bool) {
 		if check() {
 			return
 		}
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("timed out waiting for %s", what)
 }

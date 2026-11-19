@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -107,7 +106,7 @@ func TestGraphQLSchemaFetchUsesSendPath(t *testing.T) {
 	deadline := time.Now().Add(10 * time.Second)
 	for d.graphqlState().loading != nil && time.Now().Before(deadline) {
 		a.drainGraphQL()
-		runtime.Gosched()
+		time.Sleep(5 * time.Millisecond)
 	}
 	g := d.graphqlState()
 	if g.loading != nil {
@@ -144,7 +143,7 @@ func TestGraphQLSchemaFetchReportsDisabledIntrospection(t *testing.T) {
 	deadline := time.Now().Add(10 * time.Second)
 	for d.graphqlState().loading != nil && time.Now().Before(deadline) {
 		a.drainGraphQL()
-		runtime.Gosched()
+		time.Sleep(5 * time.Millisecond)
 	}
 	g := d.graphqlState()
 	if !strings.Contains(g.problem, "introspection is disabled") || !strings.Contains(g.problem, "not allowed") {
@@ -297,7 +296,7 @@ func TestGraphQLSchemaFetchHTTPErrorNamesIntrospection(t *testing.T) {
 	deadline := time.Now().Add(10 * time.Second)
 	for d.graphqlState().loading != nil && time.Now().Before(deadline) {
 		a.drainGraphQL()
-		runtime.Gosched()
+		time.Sleep(5 * time.Millisecond)
 	}
 	g := d.graphqlState()
 	if !strings.Contains(g.problem, "HTTP 400") || !strings.Contains(g.problem, "introspection is disabled") {

@@ -154,8 +154,8 @@ func (a *app) startReplay(seconds int) {
 // interval spaces successive starts. A one-request, one-repeat batch records
 // its result like a single Replay. Cancellation stops new work and cancels
 // in-flight requests; only errors.Is(context.Canceled) is counted as canceled.
-func (a *app) runReplay(ctx context.Context, flows []flow, settings replaySettings, seconds int, updates chan<- replayOutcome, clocks ...async.Clock) {
-	clock := timerClock(clocks)
+func (a *app) runReplay(ctx context.Context, flows []flow, settings replaySettings, seconds int, updates chan<- replayOutcome) {
+	clock := a.timerClock()
 	started := time.Now()
 	record := settings.repeat == 1 && len(flows) == 1
 	jobs := make(chan flow)

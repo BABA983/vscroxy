@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -54,7 +53,7 @@ func awaitRecordingCleanup(t *testing.T, s *Server) {
 		if time.Now().After(deadline) {
 			t.Fatalf("%d metadata entries survived completion/disconnection", left)
 		}
-		runtime.Gosched()
+		time.Sleep(time.Millisecond)
 	}
 }
 

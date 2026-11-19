@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -39,7 +38,7 @@ func waitMCPSession(t *testing.T, s *mcpSession, done func(mcpSnapshot) bool) mc
 		if done(snapshot) {
 			return snapshot
 		}
-		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("MCP session did not settle: %+v", s.snapshot())
 	return mcpSnapshot{}

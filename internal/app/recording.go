@@ -8,11 +8,10 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 )
 
-// timerClock is the clock of an optional-clock timer. Tests inject a
-// FakeClock so a tick happens when the test advances time, not on the wall.
-func timerClock(clocks []async.Clock) async.Clock {
-	if len(clocks) > 0 && clocks[0] != nil {
-		return clocks[0]
+// timerClock is the clock used by the app's timers. A nil clock means real time.
+func (a *app) timerClock() async.Clock {
+	if a.clock != nil {
+		return a.clock
 	}
 	return async.RealClock()
 }
@@ -74,8 +73,8 @@ func (a *app) record(pending []capture.Flow) []capture.Flow {
 
 // tickRate redraws once a second while the pill or five-minute activity
 // overview has something in it to move, until capture stops.
-func (a *app) tickRate(done <-chan struct{}, clocks ...async.Clock) {
-	clock := timerClock(clocks)
+func (a *app) tickRate(done <-chan struct{}) {
+	clock := a.timerClock()
 	tick := async.NewIntervalTimer(func() error {
 		now := clock.Now()
 		if now.Unix()-a.lastFlow.Load() <= int64(activitySpan/time.Second)+1 {

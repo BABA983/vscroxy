@@ -112,7 +112,7 @@ func waitStreamEnd(t *testing.T, s *Server, id, messages int) {
 			}
 			return
 		}
-		runtime.Gosched()
+		time.Sleep(time.Millisecond)
 	}
 	t.Fatal("no stream completion recorded")
 }

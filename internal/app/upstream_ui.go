@@ -35,7 +35,6 @@ type upstreamLoadResult struct {
 // for a file PAC or a validation error.
 type upstreamRetry struct {
 	timer    *async.RunOnceScheduler
-	clock    async.Clock // tests inject a fake clock here
 	attempt  int
 	retrying bool
 	epoch    uint64
@@ -280,7 +279,7 @@ func (a *app) scheduleUpstreamRetry(settings upstream.Settings, secrets map[stri
 	retry := async.NewRunOnceScheduler(func() error {
 		win.Update(func() { a.retryUpstream() })
 		return nil
-	}, upstreamRetryDelay(attempt), async.WithClock(a.upstreamRetry.clock))
+	}, upstreamRetryDelay(attempt), async.WithClock(a.timerClock()))
 	retry.Schedule()
 	a.upstreamRetry.timer = retry
 }

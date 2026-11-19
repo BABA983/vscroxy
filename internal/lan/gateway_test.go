@@ -15,7 +15,6 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -609,7 +608,7 @@ func TestConcurrentAcceptsAndClose(t *testing.T) {
 		// Close while connections are being accepted and forwarded: no
 		// accepted connection may outlive the gateway, and no worker may
 		// hang.
-		runtime.Gosched()
+		time.Sleep(time.Millisecond)
 		if err := g.Close(); err != nil {
 			t.Fatalf("round %d: close: %v", round, err)
 		}
@@ -983,7 +982,7 @@ func TestPendingConnectionsAreCappedPerAddress(t *testing.T) {
 	<-askStarted
 	deadline := time.Now().Add(time.Second)
 	for !unknown[len(unknown)-1].closed.Load() && time.Now().Before(deadline) {
-		runtime.Gosched()
+		time.Sleep(time.Millisecond)
 	}
 	if !unknown[len(unknown)-1].closed.Load() {
 		t.Fatal("the connection over the per-address cap stayed open")
@@ -1005,7 +1004,7 @@ func TestPendingConnectionsAreCappedPerAddress(t *testing.T) {
 	close(release)
 	deadline = time.Now().Add(time.Second)
 	for len(accepted) < maxPendingPerAddress+1 && time.Now().Before(deadline) {
-		runtime.Gosched()
+		time.Sleep(time.Millisecond)
 	}
 	if len(accepted) != maxPendingPerAddress+1 {
 		t.Fatalf("accepted %d connections, want %d", len(accepted), maxPendingPerAddress+1)

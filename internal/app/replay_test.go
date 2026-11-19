@@ -4,7 +4,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -87,7 +86,7 @@ func waitReplay(t *testing.T, a *app, tt *ui.Tester) {
 		if time.Now().After(deadline) {
 			t.Fatal("replay did not finish")
 		}
-		runtime.Gosched()
+		time.Sleep(time.Millisecond)
 		tt.Frame()
 	}
 }
