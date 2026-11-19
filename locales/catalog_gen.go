@@ -8872,6 +8872,16 @@ func (msgs Messages) Action() string {
 	return Catalog.Format(msgs.locale, "action", nil)
 }
 
+// ActualValue says "Actual"
+// in the language the app shows.
+func ActualValue() string { return In(i18n.Locale()).ActualValue() }
+
+// ActualValue says "Actual"
+// in the language of msgs.
+func (msgs Messages) ActualValue() string {
+	return Catalog.Format(msgs.locale, "actualValue", nil)
+}
+
 // Active says "Active"
 // in the language the app shows.
 func Active() string { return In(i18n.Locale()).Active() }
@@ -16696,6 +16706,16 @@ func (msgs Messages) ExpectedStatus() string {
 	return Catalog.Format(msgs.locale, "expectedStatus", nil)
 }
 
+// ExpectedValue says "Expected"
+// in the language the app shows.
+func ExpectedValue() string { return In(i18n.Locale()).ExpectedValue() }
+
+// ExpectedValue says "Expected"
+// in the language of msgs.
+func (msgs Messages) ExpectedValue() string {
+	return Catalog.Format(msgs.locale, "expectedValue", nil)
+}
+
 // ExperimentNote says "Experiment note"
 // in the language the app shows.
 func ExperimentNote() string { return In(i18n.Locale()).ExperimentNote() }
@@ -19992,6 +20012,36 @@ func InspectRetainedRun() string { return In(i18n.Locale()).InspectRetainedRun()
 // in the language of msgs.
 func (msgs Messages) InspectRetainedRun() string {
 	return Catalog.Format(msgs.locale, "inspectRetainedRun", nil)
+}
+
+// RerunFailed says "Rerun failed"
+// in the language the app shows.
+func RerunFailed() string { return In(i18n.Locale()).RerunFailed() }
+
+// RerunFailed says "Rerun failed"
+// in the language of msgs.
+func (msgs Messages) RerunFailed() string {
+	return Catalog.Format(msgs.locale, "rerunFailed", nil)
+}
+
+// RerunFailedChecksTip says "Send this request again and show only the assertions that failed."
+// in the language the app shows.
+func RerunFailedChecksTip() string { return In(i18n.Locale()).RerunFailedChecksTip() }
+
+// RerunFailedChecksTip says "Send this request again and show only the assertions that failed."
+// in the language of msgs.
+func (msgs Messages) RerunFailedChecksTip() string {
+	return Catalog.Format(msgs.locale, "rerunFailedChecksTip", nil)
+}
+
+// RerunFailedRunnerTip says "Run only the requests that failed in the shown run."
+// in the language the app shows.
+func RerunFailedRunnerTip() string { return In(i18n.Locale()).RerunFailedRunnerTip() }
+
+// RerunFailedRunnerTip says "Run only the requests that failed in the shown run."
+// in the language of msgs.
+func (msgs Messages) RerunFailedRunnerTip() string {
+	return Catalog.Format(msgs.locale, "rerunFailedRunnerTip", nil)
 }
 
 // InspectSourceCapture says "Inspect source capture"
@@ -30634,6 +30684,16 @@ func (msgs Messages) ShowDetails() string {
 	return Catalog.Format(msgs.locale, "showDetails", nil)
 }
 
+// ShowDiff says "Show diff"
+// in the language the app shows.
+func ShowDiff() string { return In(i18n.Locale()).ShowDiff() }
+
+// ShowDiff says "Show diff"
+// in the language of msgs.
+func (msgs Messages) ShowDiff() string {
+	return Catalog.Format(msgs.locale, "showDiff", nil)
+}
+
 // ShowFewer says "Show fewer"
 // in the language the app shows.
 func ShowFewer() string { return In(i18n.Locale()).ShowFewer() }
@@ -32382,6 +32442,26 @@ func TestARequest() string { return In(i18n.Locale()).TestARequest() }
 // in the language of msgs.
 func (msgs Messages) TestARequest() string {
 	return Catalog.Format(msgs.locale, "testARequest", nil)
+}
+
+// TestDiff says "Assertion diff"
+// in the language the app shows.
+func TestDiff() string { return In(i18n.Locale()).TestDiff() }
+
+// TestDiff says "Assertion diff"
+// in the language of msgs.
+func (msgs Messages) TestDiff() string {
+	return Catalog.Format(msgs.locale, "testDiff", nil)
+}
+
+// TestDiffNamed says "{name} · assertion diff"
+// in the language the app shows.
+func TestDiffNamed(name string) string { return In(i18n.Locale()).TestDiffNamed(name) }
+
+// TestDiffNamed says "{name} · assertion diff"
+// in the language of msgs.
+func (msgs Messages) TestDiffNamed(name string) string {
+	return Catalog.Format(msgs.locale, "testDiffNamed", map[string]any{"name": name})
 }
 
 // TestGetHttpsApiExample says "Test: GET https://api.example.com @ App; Header: value"

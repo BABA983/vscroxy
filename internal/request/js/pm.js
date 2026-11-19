@@ -57,6 +57,61 @@
 		return text(e);
 	}
 
+	// Chai exposes expected and actual on assertion errors that carry a diff.
+	// Keep a readable copy for the app instead of the one-line error message:
+	// object keys are sorted so a run always shows the same side by side.
+	var diffLimit = 64 * 1024;
+	var diffMarker = "\n... [truncated]";
+
+	function clipped(text) {
+		return text.length <= diffLimit ? text : text.slice(0, diffLimit - diffMarker.length) + diffMarker;
+	}
+
+	function pretty(value, depth, stack) {
+		if (value === null) return "null";
+		if (typeof value !== "object" || typeof value === "function") return String(value);
+		if (stack.indexOf(value) >= 0) return '"[Circular]"';
+		if (Array.isArray(value)) {
+			if (!value.length) return "[]";
+			stack.push(value);
+			var items = value.map(function (item) { return indent(depth + 1) + pretty(item, depth + 1, stack); });
+			stack.pop();
+			return "[\n" + items.join(",\n") + "\n" + indent(depth) + "]";
+		}
+		stack.push(value);
+		var keys = Object.keys(value).sort();
+		stack.pop();
+		if (!keys.length) return "{}";
+		stack.push(value);
+		var lines = keys.map(function (key) {
+			return indent(depth + 1) + JSON.stringify(key) + ": " + pretty(value[key], depth + 1, stack);
+		});
+		stack.pop();
+		return "{\n" + lines.join(",\n") + "\n" + indent(depth) + "}";
+	}
+
+	function indent(depth) {
+		var out = "";
+		for (var i = 0; i < depth; i++) out += "  ";
+		return out;
+	}
+
+	function diffText(value) {
+		if (typeof value === "string") return clipped(value);
+		if (value !== null && typeof value === "object" && typeof value.toJSON === "function") {
+			try { value = value.toJSON(); } catch (e) { return clipped(String(value)); }
+		}
+		if (value !== null && typeof value === "object") {
+			try { return clipped(pretty(value, 0, [])); } catch (e) { return clipped(String(value)); }
+		}
+		return clipped(String(value));
+	}
+
+	function diffOf(err) {
+		if (!err || typeof err !== "object" || err.name !== "AssertionError" || err.showDiff !== true) return null;
+		return { expected: diffText(err.expected), actual: diffText(err.actual), hasDiff: true };
+	}
+
 	// A variable scope. Only writable scopes get set, unset and clear.
 	function scope(name, writable) {
 		var s = {
@@ -432,15 +487,21 @@
 
 	var results = [];
 	function record(name, fn) {
-		var entry = { name: text(name), pass: false, error: "", skipped: false, pending: true };
+		var entry = { name: text(name), pass: false, error: "", skipped: false, pending: true, expected: "", actual: "", hasDiff: false };
 		results.push(entry);
 		function settle(err) {
 			if (!entry.pending) return;
 			entry.pending = false;
 			entry.pass = !err;
 			entry.error = err ? errorText(err) : "";
-		}
-		try {
+			var diff = diffOf(err);
+			if (diff) {
+				entry.expected = diff.expected;
+				entry.actual = diff.actual;
+				entry.hasDiff = true;
+				}
+				}
+				try {
 			if (typeof fn !== "function") settle(new TypeError("pm.test needs a function"));
 			else if (fn.length > 0) fn(function (err) { settle(err); });
 			else {
@@ -526,7 +587,7 @@
 		return failure ? Promise.reject(failure) : Promise.resolve(result);
 	}
 	pm.environment.name = host.info.environment;
-	pm.test.skip = function (name) { results.push({ name: text(name), pass: true, skipped: true, error: "", pending: false }); return pm; };
+	pm.test.skip = function (name) { results.push({ name: text(name), pass: true, skipped: true, error: "", pending: false, expected: "", actual: "", hasDiff: false }); return pm; };
 	pm.test.index = function () { return results.length; };
 	pm.execution.location.current = location[location.length - 1];
 	pm.expect.fail = chai.assert.fail;
@@ -668,10 +729,10 @@
 	// finish reports every test: pm.test and tests[...] alike.
 	return function finish() {
 		Object.keys(global.tests).forEach(function (name) {
-			results.push({ name: name, pass: !!global.tests[name], error: "", skipped: false, pending: false });
+			results.push({ name: name, pass: !!global.tests[name], error: "", skipped: false, pending: false, expected: "", actual: "", hasDiff: false });
 		});
 		return results.map(function (r) {
-			return r.pending ? { name: r.name, pass: false, error: "The test did not finish", skipped: false } : r;
+			return r.pending ? { name: r.name, pass: false, error: "The test did not finish", skipped: false, expected: "", actual: "", hasDiff: false } : r;
 		});
 	};
 });

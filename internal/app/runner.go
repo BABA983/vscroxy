@@ -76,6 +76,8 @@ type runnerRow struct {
 	tests     []request.TestResult
 	console   []request.ConsoleMessage
 	recordID  int
+	// requestKey identifies the saved request a failed-only rerun repeats.
+	requestKey string
 }
 type runnerEvent struct {
 	row          runnerRow
@@ -186,6 +188,50 @@ func (a *app) startRunner() {
 		r.status = locales.ChooseSavedRequest()
 		return
 	}
+	a.startRun(requests, steps, n, delay, r.data)
+}
+
+// rerunFailedRequests repeats only the saved requests that failed in the run
+// being shown. A rerun has one iteration and no data file, so every listed
+// request is tried exactly once.
+func (a *app) rerunFailedRequests() {
+	r := &a.runner
+	if r.running || a.loadRunner.running || a.remoteRunActive() {
+		return
+	}
+	if a.srv == nil || !a.srv.Running() {
+		r.status = locales.StartLocalProxyFirst()
+		return
+	}
+	failed := make(map[string]bool)
+	for _, row := range r.rows {
+		if row.failed && row.requestKey != "" {
+			failed[row.requestKey] = true
+		}
+	}
+	if len(failed) == 0 {
+		return
+	}
+	var requests []savedRequest
+	var steps []runner.Step
+	for _, step := range r.steps {
+		if !failed[step.request.key()] {
+			continue
+		}
+		requests = append(requests, step.request)
+		steps = append(steps, runner.Step{Request: step.request.Request, Context: a.sendContext(step.request.Request)})
+	}
+	if len(requests) == 0 {
+		r.status = locales.ChooseSavedRequest()
+		return
+	}
+	a.startRun(requests, steps, 1, 0, nil)
+}
+
+// startRun owns the shared lifecycle of a full run and a failed-only rerun.
+// requests[index] and steps[index] always describe the same saved request.
+func (a *app) startRun(requests []savedRequest, steps []runner.Step, iterations, delay int, data []map[string]string) {
+	r := &a.runner
 	ctx, cancel := context.WithCancel(context.Background())
 	r.cancel, r.running, r.cancelled = cancel, true, false
 	r.rows, r.completed, r.failures, r.picked = nil, 0, 0, 0
@@ -196,18 +242,18 @@ func (a *app) startRunner() {
 	r.environment, r.status = a.activeEnv, locales.RunningStatus()
 	events := make(chan runnerEvent, 16)
 	r.events = events
-	vars, stop, srv, env, data := a.activeVars(), r.stopOnFailure, a.srv, r.environment, r.data
+	vars, stop, srv, env := a.activeVars(), r.stopOnFailure, a.srv, r.environment
 	jar := a.requestCookies()
 	go guarded(func() {
 		defer close(events)
 		defer cancel()
 		defer a.invalidate()
-		opts := runner.Options{Iterations: n, Delay: time.Duration(delay) * time.Millisecond, StopOnFailure: stop, Data: data, Vars: vars, Cookies: jar}
+		opts := runner.Options{Iterations: iterations, Delay: time.Duration(delay) * time.Millisecond, StopOnFailure: stop, Data: data, Vars: vars, Cookies: jar}
 		outcome.summary, outcome.err = runner.Run(ctx, srv, steps, opts, func(result runner.Result) error {
 			req, got := requests[result.Index], result.Execution
 			record := snapshotExperiment(0, req, env, got)
 			record.RunKey = result.RunKey
-			event := runnerEvent{row: runnerRow{name: req.Name, iteration: result.Iteration, summary: runSummary(got), failed: got.Failed(), tests: got.Tests, console: result.Console}, before: result.Before, vars: maps.Clone(got.Vars), writes: got.Writes, record: record, request: req.Request, attempt: result}
+			event := runnerEvent{row: runnerRow{name: req.Name, iteration: result.Iteration, summary: runSummary(got), failed: got.Failed(), tests: got.Tests, console: result.Console, requestKey: req.key()}, before: result.Before, vars: maps.Clone(got.Vars), writes: got.Writes, record: record, request: req.Request, attempt: result}
 			select {
 			case events <- event:
 			default:
@@ -514,7 +560,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						uikit.Meta(c, row.summary).TextColor(color).Padding(0, t.Space(uikit.SpaceM)).SingleLine()
 						ui.Scroll(c).MaxHeight(150).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 							for _, test := range row.tests {
-								testResultRow(c, test)
+								testResultRow(c, test, a.openTestDiff)
 							}
 							for _, entry := range row.console {
 								uikit.Body(c, entry.Phase+" · "+entry.Kind+" · "+entry.Text).Selectable()
@@ -545,6 +591,12 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 			uikit.Tip(c, uikit.Meta(c, status), locales.RunResultsLimitTip())
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Justify(ui.End).Children(func() {
 				uikit.SecondaryButton(c, locales.LoadTest()).Disabled(r.running || a.remoteRunActive()).OnClick(a.openLoadRunner)
+				if !r.running {
+					hasFailed := slices.ContainsFunc(r.rows, func(row runnerRow) bool { return row.failed })
+					if uikit.Tip(c, uikit.SecondaryButton(c, locales.RerunFailed()).Disabled(!hasFailed || a.loadRunner.running || a.remoteRunActive()), locales.RerunFailedRunnerTip()).Clicked() {
+						a.rerunFailedRequests()
+					}
+				}
 				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					r.open = false
 				}
