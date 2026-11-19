@@ -217,6 +217,92 @@ func TestCloseSavedLeavesDirtyAndUnsavedTabsOpen(t *testing.T) {
 	}
 }
 
+// A Ctrl+Tab pick is provisional, as in VS Code: two presses with no other
+// input walk the MRU order, but the second press must not reorder it.
+func TestMRUQuickSwitchWalksUntilTheChordEnds(t *testing.T) {
+	a := mruTestApp(t)
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.HoldModifiers(ui.Ctrl)
+	tt.Frame()
+	for _, want := range []string{"B", "C"} {
+		tt.Key(ui.Ctrl, ui.KeyTab)
+		tt.Frame()
+		if got := a.requestDocument.title(); got != want {
+			t.Fatalf("Ctrl+Tab switched to %q, want %q", got, want)
+		}
+	}
+	// Releasing Ctrl commits C, so the next separate chord starts there.
+	tt.HoldModifiers(0)
+	tt.Frame()
+	if a.mruPending {
+		t.Fatal("the quick-switch pick was not committed on Ctrl release")
+	}
+	tt.HoldModifiers(ui.Ctrl)
+	tt.Key(ui.Ctrl, ui.KeyTab)
+	tt.Frame()
+	if got := a.requestDocument.title(); got != "A" {
+		t.Fatalf("Ctrl+Tab after Ctrl release switched to %q, want A", got)
+	}
+}
+
+// Typing commits the pick before the next chord. From [A B C], stepping to B
+// and editing there makes B most recent, so the next Ctrl+Tab returns to A.
+func TestMRUQuickSwitchCommitsPickOnEdit(t *testing.T) {
+	a := mruTestApp(t)
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	tt.Key(ui.Ctrl, ui.KeyTab)
+	tt.Frame()
+	b := a.requestDocument
+	if b.title() != "B" {
+		t.Fatalf("Ctrl+Tab switched to %q, want B", b.title())
+	}
+	before := b.composeURL
+	tt.Type("?edited=1")
+	tt.Frame()
+	if b.composeURL == before {
+		t.Fatal("the test did not edit the picked tab")
+	}
+	tt.Key(ui.Ctrl, ui.KeyTab)
+	tt.Frame()
+	if got := a.requestDocument.title(); got != "A" {
+		t.Fatalf("Ctrl+Tab after editing B switched to %q, want A", got)
+	}
+}
+
+// LIVE is one entry in the same order: when it is most recently active, the
+// first forward press lands on the newest request tab rather than nothing.
+func TestMRUQuickSwitchFromLiveStepsPastLive(t *testing.T) {
+	a := mruTestApp(t)
+	a.page, a.requestDocument = pageLive, nil
+	a.touchDocument(nil)
+	want := a.documents[0]
+	if want.title() != "A" {
+		t.Fatalf("the newest request tab is %q", want.title())
+	}
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	tt.Key(ui.Ctrl, ui.KeyTab)
+	tt.Frame()
+	if a.page != pageRequest || a.requestDocument != want {
+		t.Fatalf("Ctrl+Tab from LIVE opened %q on page %v, want %q", a.requestDocument.title(), a.page, want.title())
+	}
+}
+
+// mruTestApp opens A, B, C and activates them in the order C, B, A, leaving
+// the recency order [A B C] and A on screen.
+func mruTestApp(t *testing.T) *app {
+	t.Helper()
+	a := workspaceApp()
+	for _, name := range []string{"A", "B", "C"} {
+		a.addDocument(savedRequest{Name: name, Method: "GET", URL: "https://example.test/" + name}, "")
+	}
+	a.activateDocument(a.documents[2])
+	a.activateDocument(a.documents[1])
+	a.activateDocument(a.documents[0])
+	return a
+}
+
 // TestMRUQuickSwitchVisitsRecentTabs exercises the keys, not just the order:
 // after activating B, C, A, Ctrl+Tab must skip back to C, then B.
 func TestMRUQuickSwitchVisitsRecentTabs(t *testing.T) {

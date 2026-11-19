@@ -238,9 +238,40 @@ func (a *app) showDocument(d *requestDocument) {
 	d.urlInput.Focus()
 }
 
+// commitMRUPick makes the quick switch's current tab the most recently used
+// one. VS Code commits on Ctrl release; the observer settles it on any other
+// input, and every other command settles it before running.
+func (a *app) commitMRUPick() {
+	if !a.mruPending {
+		return
+	}
+	a.mruPending = false
+	if d := a.requestDocument; d != nil && slices.Contains(a.documents, d) {
+		a.touchDocument(d)
+	}
+}
+
+// observeMRUInput sees input anywhere in the main column, before the focused
+// element does. Ctrl+Tab presses and releases are the one chord that must
+// keep walking the order; anything else commits the pick, including Ctrl's
+// own release.
+func (a *app) observeMRUInput(ev ui.InputEvent) {
+	if !a.mruPending {
+		return
+	}
+	if ev.Mods&ui.Ctrl != 0 && (ev.Key == ui.KeyTab || ev.Key == ui.KeyUnknown) {
+		return
+	}
+	if ev.Kind == ui.InputKeyUp && ev.Key == ui.KeyTab {
+		return
+	}
+	a.commitMRUPick()
+}
+
 // activateDocument records an explicit visit to a tab; cycling through the
 // MRU list does not, so repeated Ctrl+Tab keeps walking the same order.
 func (a *app) activateDocument(d *requestDocument) {
+	a.commitMRUPick()
 	a.showDocument(d)
 	if d != nil {
 		a.touchDocument(d)
@@ -288,17 +319,19 @@ func (a *app) cycleDocumentMRU(step int) {
 		return
 	}
 	current := a.requestDocument
-	if current == nil {
-		if step > 0 {
-			a.showDocument(order[0])
-		} else {
-			a.showDocument(order[len(order)-1])
-		}
-		return
+	// LIVE's inspected capture is a document too, but it is not a tab; the
+	// nil entry stands for the whole LIVE view, including its draft.
+	if current != nil && !slices.Contains(a.documents, current) {
+		current = nil
 	}
-	if !slices.Contains(order, current) {
-		order = append([]*requestDocument{current}, order...)
-	}
+	// LIVE is an ordinary entry: when it is most recent, forward stepping
+	// must move past it to the newest request tab rather than stay put.
 	at := slices.Index(order, current)
-	a.showDocument(order[(at+step+len(order))%len(order)])
+	if at < 0 {
+		order = append([]*requestDocument{current}, order...)
+		at = 0
+	}
+	next := order[(at+step+len(order))%len(order)]
+	a.showDocument(next)
+	a.mruPending = next != nil
 }

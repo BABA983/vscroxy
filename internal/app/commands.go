@@ -203,7 +203,14 @@ func (x *commandContext) build(c *ui.Context) []action {
 			label = def.title(x)
 		}
 		x0 := action{id: def.id, label: label, group: def.group, shortcut: def.key,
-			enabled: ok, run: func() { def.run(x) }}
+			enabled: ok, run: func() {
+				// A quick-switch pick is provisional until the reader does
+				// something else; every other command settles it first.
+				if def.id != "request.switch-mru-next" && def.id != "request.switch-mru-previous" {
+					x.a.commitMRUPick()
+				}
+				def.run(x)
+			}}
 		// Like action.when, the reason is only carried by a disabled
 		// command; an enabled one has nothing to explain.
 		if !ok {
