@@ -180,14 +180,49 @@ func canMoveFolderInto(from, parent string) bool {
 	return to != from && !within(to, from)
 }
 
-// moveLibrary applies one drop. It returns false when the move cannot be
-// made, without changing the library.
+// libraryMoveBack is the inverse of a move already made: move the same item
+// back to where it came from, before the sibling that followed it. Undo does
+// not restore a library snapshot, so work saved after the move survives.
+type libraryMoveBack struct {
+	item        libraryDrag
+	to          libraryDrop
+	afterParent string
+}
+
 func (a *app) moveLibrary(m libraryMove) bool {
 	if !m.item.valid() || m.parentInsideItself() {
 		a.warn(locales.MoveIntoItself())
 		return false
 	}
-	before := a.snapshotForMove()
+	back := a.moveBackFor(m)
+	if !a.performMove(m) {
+		return false
+	}
+	name := a.libraryItemName(m.item)
+	if m.item.kind == folderItem {
+		name = parentPathOfName(m.to.parent, nameOfPath(m.item.id))
+	}
+	parent := m.to.parent
+	a.notify(notice{level: noticeSuccess, text: locales.MovedTo(name, cmp.Or(parent, locales.NoCollection())),
+		action: locales.Undo(),
+		valid:  func() bool { return a.moveBackValid(back) },
+		run: func() {
+			if !a.moveBackValid(back) {
+				return
+			}
+			if a.performMove(libraryMove{item: back.item, to: back.to}) {
+				a.done(locales.MoveUndone())
+			}
+		}})
+	return true
+}
+
+// performMove makes the library change without adding a notice, for both a
+// drop and the Undo that moves the same item back.
+func (a *app) performMove(m libraryMove) bool {
+	if !m.item.valid() || m.parentInsideItself() {
+		return false
+	}
 	var err error
 	if m.item.kind == folderItem {
 		_, base, found := strings.CutLast(m.item.id, "/")
@@ -206,80 +241,48 @@ func (a *app) moveLibrary(m libraryMove) bool {
 		a.fail(locales.MoveToEllipsis(), err)
 		return false
 	}
-	name := a.libraryItemName(m.item)
-	if m.item.kind == folderItem {
-		name = parentPathOfName(m.to.parent, nameOfPath(m.item.id))
-	}
-	parent := m.to.parent
-	a.notify(notice{level: noticeSuccess, text: locales.MovedTo(name, cmp.Or(parent, locales.NoCollection())),
-		action: locales.Undo(), run: func() { before.restore(a) }})
 	return true
 }
 
-// libraryMoveSnapshot is everything a move changes in memory, so the Undo
-// on its notice can put the library and the open tabs back together.
-type libraryMoveSnapshot struct {
-	requests         []savedRequest
-	folders          []request.Folder
-	folderOrder      map[string][]string
-	current          map[string]map[string]string
-	credentials      map[string]map[string]bool
-	documents        map[*requestDocument]savedRequest
-	closed           map[int]closedDocument
-	collectionOpen   map[string]*bool
-	runnerCollection string
-}
-
-func (a *app) snapshotForMove() libraryMoveSnapshot {
-	s := libraryMoveSnapshot{
-		requests: slices.Clone(a.requests), folders: slices.Clone(a.folders),
-		folderOrder: maps.Clone(a.library.folderOrder), current: maps.Clone(a.folderCurrent),
-		credentials: maps.Clone(a.folderCredentials), documents: map[*requestDocument]savedRequest{},
-		closed:         map[int]closedDocument{},
-		collectionOpen: maps.Clone(a.collectionOpen), runnerCollection: a.runner.collection,
-	}
-	for _, d := range a.documents {
-		s.documents[d] = d.baseline
-	}
-	for _, id := range slices.Collect(a.closedDocuments().Keys()) {
-		entry, _ := a.closedDocuments().Get(id)
-		entry.doc = entry.doc.detachedCopy()
-		s.closed[id] = entry
-	}
-	return s
-}
-
-func (s libraryMoveSnapshot) restore(a *app) {
-	if err := a.writeLibrary(s.requests, s.folders); err != nil {
-		a.fail(locales.MoveUndone(), err)
-		return
-	}
-	a.library.folderOrder = maps.Clone(s.folderOrder)
-	for d, baseline := range s.documents {
-		if slices.Contains(a.documents, d) {
-			d.baseline = baseline
-			if baseline.ID == d.assetID {
-				d.composeCollection = baseline.Collection
-			}
+// moveBackFor records the sibling after the moving row before the move, so
+// inserting the item before it puts the order back without touching anyone
+// else's work.
+func (a *app) moveBackFor(m libraryMove) libraryMoveBack {
+	origin := m.to.parent
+	back := libraryMoveBack{item: m.item, afterParent: m.to.parent}
+	switch m.item.kind {
+	case folderItem:
+		origin = parentPath(m.item.id)
+		back.item.id = parentPathOfName(m.to.parent, nameOfPath(m.item.id))
+	case requestItem:
+		if r, ok := a.savedRequest(m.item.id); ok {
+			origin = r.Collection
 		}
 	}
-	stack := a.closedDocuments()
-	stack.Clear()
-	for id, entry := range s.closed {
-		entry.doc = entry.doc.detachedCopy()
-		stack.Set(id, entry)
+	back.to.parent = origin
+	paths := libraryPathsOf(a.requests, a.folders)
+	siblings := a.librarySiblings(origin, paths)
+	if at := slices.IndexFunc(siblings, func(x libraryDrag) bool { return x.key() == m.item.key() }); at >= 0 && at+1 < len(siblings) {
+		back.to.before = siblings[at+1]
 	}
-	if len(s.current) > 0 || len(s.credentials) > 0 || len(a.folderCurrent) > 0 || len(a.folderCredentials) > 0 {
-		if err := a.saveFolderCurrent(maps.Clone(s.current), maps.Clone(s.credentials)); err != nil {
-			a.fail(locales.Variables(), err)
+	return back
+}
+
+// moveBackValid only lets an Undo act on the item where this move left it.
+// A later move or delete of that item makes the old notice stale, while an
+// edit to another request leaves the inverse move available.
+func (a *app) moveBackValid(back libraryMoveBack) bool {
+	if !back.item.valid() {
+		return false
+	}
+	if back.item.kind == folderItem {
+		if !canMoveFolderInto(back.item.id, back.to.parent) || parentPath(back.item.id) != back.afterParent {
+			return false
 		}
+		return libraryPathsOf(a.requests, a.folders)[back.item.id]
 	}
-	a.collectionOpen = maps.Clone(s.collectionOpen)
-	if a.runner.collection != s.runnerCollection {
-		a.runner.collection = s.runnerCollection
-		a.runner.load(a.requests)
-	}
-	a.done(locales.MoveUndone())
+	r, ok := a.savedRequest(back.item.id)
+	return ok && r.Collection == back.afterParent
 }
 
 func (m libraryMove) parentInsideItself() bool {

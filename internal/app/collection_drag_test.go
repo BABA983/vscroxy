@@ -12,6 +12,38 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// The target computation itself, which DragOver uses for its indicator,
+// refuses a folder dropped onto its own descendant. A later guard in the
+// move path is not enough: the tree must not promise an impossible drop.
+func TestDropOnRowRefusesFolderDescendant(t *testing.T) {
+	a := &app{}
+	paths := map[string]bool{"Shop": true, "Shop/Orders": true}
+	source := libraryDrag{kind: folderItem, id: "Shop"}
+	target := libraryDrag{kind: folderItem, id: "Shop/Orders"}
+	var visual treeDropVisual
+	var valid bool
+	check := false
+	tt := ui.NewTester(func(c *ui.Context) {
+		row := ui.Row(c).Height(32).Label("descendant target")
+		if check {
+			_, visual, valid = a.libraryDropOnRow(row, source, target, true, "Shop", paths)
+		}
+	}, 240, 120)
+	r, ok := tt.Find("descendant target")
+	if !ok {
+		t.Fatal("no target row")
+	}
+	check = true
+	for _, y := range []float32{r.Y + r.H/2, r.Y + 2} {
+		visual, valid = dropNoVisual, false
+		tt.Move(r.X+r.W/2, y)
+		tt.Frame()
+		if valid || visual != dropNoVisual {
+			t.Fatalf("drop at y=%v offered %v (valid %v), want none", y, visual, valid)
+		}
+	}
+}
+
 // TestTreeDragArtifacts is the opt-in capture of the tree in both themes and
 // of a drag with its drop indicator, for reviewing the feature visually.
 // Set VSCROXY_TREE_ARTIFACTS to an output directory to generate the images.
