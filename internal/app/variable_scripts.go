@@ -48,7 +48,9 @@ func scriptVariableAt(text string, offset int) (scriptVariableRef, bool) {
 		quote := text[after]
 		start := after + 1
 		end, _ := quotedEnd(text, start, quote)
-		if end <= start || offset < start || offset > end {
+		// An empty literal is a valid completion site, even though there is
+		// no name to hover over yet.
+		if offset < start || offset > end {
 			continue
 		}
 		return scriptVariableRef{Name: text[start:end], Start: start, End: end}, true

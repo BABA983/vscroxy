@@ -368,8 +368,11 @@ func (a *app) wireVariableEditor(state *editor.State, collection string) {
 			state.ShowCompletions(start+2, a.variableCompletionItems(collection, prefix, suffix))
 			return
 		}
-		if ref, ok := scriptVariableAt(text, r.Offset); ok && ref.Start < ref.End {
-			state.ShowCompletions(ref.Start, a.variableCompletionItems(collection, ref.Name, ""))
+		if ref, ok := scriptVariableAt(text, r.Offset); ok {
+			// The literal can still be empty, and a caret in the middle of
+			// a name must rank what was typed before it, not the whole name.
+			prefix := text[ref.Start:min(r.Offset, ref.End)]
+			state.ShowCompletions(ref.Start, a.variableCompletionItems(collection, prefix, ""))
 		}
 	}
 	state.OnHover = func(r editor.HoverRequest) {

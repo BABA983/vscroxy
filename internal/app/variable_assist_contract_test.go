@@ -148,7 +148,12 @@ func TestVariableCompletionRequiresDoubleBraces(t *testing.T) {
 	tt.Frame()
 	a.urlInput.Focus()
 	tt.Frame()
-	tt.Type("{te")
+	tt.Type("{")
+	tt.Frame()
+	if a.varsComplete.open {
+		t.Fatal("completion opened on a single brace")
+	}
+	tt.Type("te")
 	tt.Frame()
 	if a.varsComplete.open {
 		t.Fatal("completion opened inside a single brace")
@@ -238,6 +243,64 @@ func TestScriptVariableHoverAndCompletion(t *testing.T) {
 		if strings.Contains(text, "plain-auth-secret") {
 			t.Fatalf("script hover revealed a secret: %q", text)
 		}
+	}
+}
+
+func TestScriptVariableRejectsOtherReceivers(t *testing.T) {
+	for _, script := range []string{
+		`pm.cookies.get("tenant")`,
+		`pm.response.headers.get("tenant")`,
+		`pm.iterationData.get("tenant")`,
+	} {
+		t.Run(script, func(t *testing.T) {
+			at := strings.Index(script, "tenant") + 1
+			if ref, ok := scriptVariableAt(script, at); ok {
+				t.Fatalf("wrong receiver gave a variable ref: %+v", ref)
+			}
+			a := variableAssistApp()
+			openDraft(a, a.flows[0])
+			d := a.requestDocument
+			d.composeTab, d.scriptTab = composeTabScripts, 0
+			d.composePre = script
+			tt := ui.NewTester(a.view, 1280, 800)
+			tt.Frame()
+			d.preEditor.OnHover(editor.HoverRequest{Offset: at})
+			tt.Frame()
+			if tt.HasText("acme-id") {
+				t.Fatalf("wrong receiver showed a variable hover: %v", tt.Texts())
+			}
+		})
+	}
+}
+
+func TestScriptVariableCompletionEdges(t *testing.T) {
+	for _, tc := range []struct {
+		name, script, want string
+		at                 int
+	}{
+		{"empty literal", `pm.environment.get("")`, "tenant", strings.Index(`pm.environment.get("")`, `""`) + 1},
+		{"caret mid name", `pm.environment.get("ten")`, "team", strings.Index(`pm.environment.get("ten")`, `"ten`) + 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := variableAssistApp()
+			openDraft(a, a.flows[0])
+			d := a.requestDocument
+			d.composeTab, d.scriptTab = composeTabScripts, 0
+			d.composePre = tc.script
+			tt := ui.NewTester(a.view, 1280, 800)
+			tt.Frame()
+			literalStart := strings.Index(tc.script, `"`) + 1
+			d.preEditor.OnCompletion(editor.CompletionRequest{Offset: tc.at, Prefix: tc.script[literalStart:tc.at]})
+			tt.Frame()
+			if !tt.HasText(tc.want) {
+				t.Fatalf("completion at %d did not offer %q: %v", tc.at, tc.want, tt.Texts())
+			}
+			d.preEditor.OnHover(editor.HoverRequest{Offset: tc.at})
+			tt.Frame()
+			if tc.name == "empty literal" && tt.HasText("acme-id") {
+				t.Fatalf("an empty literal showed a hover: %v", tt.Texts())
+			}
+		})
 	}
 }
 
