@@ -270,6 +270,15 @@ func fieldPath(path string) string {
 	return strings.TrimPrefix(path, "Auth.")
 }
 
+// variableFixProposal is one action for an unresolved name, without the
+// field it would edit. Hover, the Problems panel and the editor's shortcut
+// all offer the same proposals, in the same order.
+type variableFixProposal struct {
+	label string
+	add   func(string) error // set for "create in scope", nil for a rename
+	to    string             // set for a rename
+}
+
 // quickFixes offers creation in the nearby scopes and renames to names that
 // are close to what the author typed. Creation comes first: VS Code asks to
 // add the unknown symbol before guessing a different one.
@@ -283,39 +292,58 @@ func (a *app) quickFixes(target quickFixTarget) []quickFix {
 	}
 	set := a.variableHintSet(collection)
 	var fixes []quickFix
-	for _, scope := range a.quickFixScopes(collection) {
-		if _, defined := set.hint(target.name); defined {
-			continue
+	for _, proposal := range a.variableFixProposals(set, collection, target.name) {
+		proposal := proposal
+		switch {
+		case proposal.add != nil:
+			name, apply := target.name, proposal.add
+			fixes = append(fixes, quickFix{
+				label: proposal.label,
+				apply: func() {
+					if err := apply(name); err != nil {
+						a.fail(locales.Variables(), err)
+						return
+					}
+					a.invalidate()
+				},
+			})
+		default:
+			to, at, end := proposal.to, target.start, target.end
+			fixes = append(fixes, quickFix{
+				label: proposal.label,
+				apply: func() {
+					if !target.rename(at, end, to) {
+						// The field changed while the action list was open.
+						// Dropping the menu is safer than editing new text at
+						// an offset from the old field.
+						a.problems.fixMenuOpen = false
+					}
+					a.invalidate()
+				},
+			})
 		}
-		name, apply := target.name, scope.add
-		scopeLabel := scope.label
-		fixes = append(fixes, quickFix{
-			label: locales.CreateVariableIn(name, scopeLabel),
-			apply: func() {
-				if err := apply(name); err != nil {
-					a.fail(locales.Variables(), err)
-					return
-				}
-				a.invalidate()
-			},
-		})
-	}
-	for _, hint := range similarVariableNames(target.name, set.list) {
-		to, at, end := hint.Name, target.start, target.end
-		fixes = append(fixes, quickFix{
-			label: locales.ChangeToVariable(to),
-			apply: func() {
-				if !target.rename(at, end, to) {
-					// The field changed while the action list was open.
-					// Dropping the menu is safer than editing new text at
-					// an offset from the old field.
-					a.problems.fixMenuOpen = false
-				}
-				a.invalidate()
-			},
-		})
 	}
 	return fixes
+}
+
+// variableFixProposals lists the fixes for one name against one resolution.
+// The hover shows their labels; the code-action paths apply them to the
+// exact reference they were opened on.
+func (a *app) variableFixProposals(set variableSet, collection, name string) []variableFixProposal {
+	if _, defined := set.hint(name); defined {
+		return nil
+	}
+	var out []variableFixProposal
+	for _, scope := range a.quickFixScopes(collection) {
+		out = append(out, variableFixProposal{
+			label: locales.CreateVariableIn(name, scope.label),
+			add:   scope.add,
+		})
+	}
+	for _, hint := range similarVariableNames(name, set.list) {
+		out = append(out, variableFixProposal{label: locales.ChangeToVariable(hint.Name), to: hint.Name})
+	}
+	return out
 }
 
 func (t quickFixTarget) ok() bool {

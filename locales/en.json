@@ -8023,5 +8023,15 @@
       }
     }
   },
-  "changeToVariable": "Change to “{name}”"
+  "changeToVariable": "Change to “{name}”",
+  "@variableQuickFixes": {
+    "placeholders": {
+      "fixes": {
+        "type": "String"
+      }
+    }
+  },
+  "variableQuickFixes": "Quick fixes: {fixes}",
+  "variableQuickFixesTitle": "Quick fixes",
+  "variableUndefined": "undefined"
 }

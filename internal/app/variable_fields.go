@@ -83,7 +83,7 @@ func (a *app) attachVariables(c *ui.Context, in ui.Element, key string, value *s
 			}
 			in.TextRanges(ui.TextRange{Start: mark.Start, End: mark.End, Color: color, Weight: 500})
 		}
-		a.variableTooltip(c, in, marks, mask)
+		a.variableTooltip(c, in, marks, mask, set, collection)
 	}
 	// Invisible and look-alike characters get warning ranges and a tip at
 	// their own offsets, beside the variable styling. Masking still applies:
@@ -98,8 +98,9 @@ func (a *app) attachVariables(c *ui.Context, in ui.Element, key string, value *s
 // variableTooltip lists the field's references, each with its resolved value
 // and scope. Text inputs have no per-run hover in MyGo, so the preview covers
 // the field rather than the rune under the pointer; editor hovers are exact.
-// mask hides every value, for a password or private-key field.
-func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variableMark, mask bool) {
+// mask hides every value, for a password or private-key field. An unresolved
+// name also carries the quick fixes offered by the Problems panel.
+func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variableMark, mask bool, set variableSet, collection string) {
 	if len(marks) == 0 || a.problems.fixMenuOpen {
 		return // a code-action menu must not sit behind a value preview
 	}
@@ -116,7 +117,7 @@ func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variable
 					if mark.Defined {
 						uikit.Meta(c, mark.Hint.source()).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
 					} else {
-						uikit.ErrorText(c, "undefined").Grow(1)
+						uikit.ErrorText(c, locales.VariableUndefined()).Grow(1)
 					}
 				})
 				value := locales.StaysLiteralWhenSent()
@@ -128,9 +129,24 @@ func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variable
 					}
 				}
 				uikit.DataMeta(c, value).TextColor(t.Text).SingleLine().Ellipsis("…")
+				if !mark.Defined {
+					proposals := a.variableFixProposals(set, collection, mark.Ref.Name)
+					if len(proposals) > 0 {
+						uikit.Meta(c, locales.VariableQuickFixesTitle()).TextColor(t.Text).FontWeight(uikit.WeightMedium)
+						for _, proposal := range proposals {
+							uikit.Meta(c, proposal.label).TextColor(t.TextMuted)
+						}
+					}
+				}
 			}
 		})
 	})
+}
+
+// variableCompletionToken names one unterminated {{token in one field, so an
+// Escape can dismiss it without closing completions in other fields.
+func variableCompletionToken(field string, start int) string {
+	return fmt.Sprintf("%s\x00%d", field, start)
 }
 
 // syncVariableCompletion reads the caret and opens or closes the completion
@@ -143,7 +159,7 @@ func (a *app) syncVariableCompletion(in ui.Element, key string, value *string) {
 	}
 	caretRune, _ := in.TextSelection()
 	caret := runeToByte(*value, caretRune)
-	start, prefix, ok := openVariableToken(*value, caret)
+	start, _, ok := openVariableToken(*value, caret)
 	if !ok {
 		if caret == 0 && strings.HasPrefix(*value, "{{") && a.varsComplete.field == key && a.varsComplete.open {
 			// A measurement pass can report the start of the text before the
@@ -156,7 +172,9 @@ func (a *app) syncVariableCompletion(in ui.Element, key string, value *string) {
 		}
 		return
 	}
-	token := fmt.Sprintf("%s\x00%d\x00%s", key, start, prefix)
+	// Escape dismisses the whole {{token session, not just the prefix typed
+	// when it was pressed: continuing to type must not bring the list back.
+	token := variableCompletionToken(key, start)
 	if a.varsComplete.dismissed == token {
 		return
 	}
@@ -177,16 +195,7 @@ func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, valu
 	if !ok || start != a.varsComplete.start {
 		return
 	}
-	var items []variableHint
-	for _, hint := range set.list {
-		if prefix != "" && !strings.HasPrefix(strings.ToLower(hint.Name), strings.ToLower(prefix)) {
-			continue
-		}
-		items = append(items, hint)
-		if len(items) == 50 {
-			break
-		}
-	}
+	items := rankVariableHints(prefix, set.list, variableCompletionLimit)
 	if len(items) == 0 {
 		anchor.OnTextKey(nil)
 		return
@@ -195,7 +204,7 @@ func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, valu
 		a.varsComplete.selected = len(items) - 1
 	}
 	t := c.Theme()
-	token := fmt.Sprintf("%s\x00%d\x00%s", key, start, prefix)
+	token := variableCompletionToken(key, start)
 	anchor.OnTextKey(func(k ui.TextKey) bool {
 		if !a.varsComplete.open || a.varsComplete.field != key {
 			return false
@@ -222,14 +231,17 @@ func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, valu
 		ui.Scroll(c).MaxHeight(300).Children(func() {
 			for i, hint := range items {
 				item := uikit.RowButton(c, locales.InsertVariable(hint.Name)).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center)
-				if i == a.varsComplete.selected {
+				fg, muted := t.Text, t.TextMuted
+				selected := i == a.varsComplete.selected
+				if selected {
+					fg, muted = uikit.Colors(t).PrimaryForeground, uikit.Colors(t).PrimaryForeground
 					item.Background(uikit.Colors(t).Primary)
 				} else if item.Hovered() {
 					item.Background(t.SurfaceHover)
 				}
 				item.Children(func() {
-					uikit.DataBody(c, hint.Name).TextColor(t.Text)
-					uikit.Meta(c, hint.source()).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
+					uikit.DataBody(c, hint.Name).TextColor(fg)
+					uikit.Meta(c, hint.source()).TextColor(muted).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
 				})
 				if item.Clicked() {
 					a.acceptVariableCompletion(anchor, value, hint.Name)
@@ -342,27 +354,33 @@ func runeToByte(text string, runes int) int {
 }
 
 // wireVariableEditor gives a code editor completions and exact-token hovers.
+// In script editors the name inside pm.environment.get("…") is a variable
+// too, so both reference forms share the one resolver and the same hover.
 func (a *app) wireVariableEditor(state *editor.State, collection string) {
 	a.installUnicodeHover(state)
 	state.OnCompletion = func(r editor.CompletionRequest) {
 		text := state.Buffer.String()
-		start, prefix, ok := openVariableToken(text, r.Offset)
-		if !ok {
+		if start, prefix, ok := openVariableToken(text, r.Offset); ok {
+			suffix := ""
+			if !strings.HasPrefix(text[r.Offset:], "}}") {
+				suffix = "}}"
+			}
+			state.ShowCompletions(start+2, a.variableCompletionItems(collection, prefix, suffix))
 			return
 		}
-		suffix := ""
-		if !strings.HasPrefix(text[r.Offset:], "}}") {
-			suffix = "}}"
+		if ref, ok := scriptVariableAt(text, r.Offset); ok && ref.Start < ref.End {
+			state.ShowCompletions(ref.Start, a.variableCompletionItems(collection, ref.Name, ""))
 		}
-		state.ShowCompletions(start+2, a.variableCompletionItems(collection, prefix, suffix))
 	}
 	state.OnHover = func(r editor.HoverRequest) {
 		text := state.Buffer.String()
-		ref, ok := request.VariableAt(text, r.Offset)
-		if !ok {
+		if ref, ok := request.VariableAt(text, r.Offset); ok {
+			state.ShowHover(ref.Start, ref.End, a.variablePreview(collection, ref.Name), nil)
 			return
 		}
-		state.ShowHover(ref.Start, ref.End, a.variablePreview(collection, ref.Name), nil)
+		if ref, ok := scriptVariableAt(text, r.Offset); ok && ref.Start < ref.End {
+			state.ShowHover(ref.Start, ref.End, a.variablePreview(collection, ref.Name), nil)
+		}
 	}
 }
 
