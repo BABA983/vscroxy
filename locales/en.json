@@ -8355,5 +8355,9 @@
   "replaceAll": "Replace All",
   "noSearchMatchesToReplace": "No editable matches to replace",
   "noSearchChangesSelected": "No changes selected",
-  "replaceThisMatch": "Replace this match"
+  "replaceThisMatch": "Replace this match",
+  "checkForUpdatesNow": "Check for updates now",
+  "checkForUpdatesNowHint": "Always asks GitHub, even on a metered connection or with background checks off. vscroxy never downloads or installs an update.",
+  "upToDate": "You're up to date",
+  "updateCheckFailed": "Could not check for updates"
 }

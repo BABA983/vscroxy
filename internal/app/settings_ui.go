@@ -223,6 +223,13 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 				}
 				return toggle
 			}, locales.CheckForUpdatesHint())
+			settingsCardRow(c, locales.CheckForUpdatesNow(), func() ui.Element {
+				return ui.Row(c).Children(func() {
+					if uikit.SecondaryButton(c, locales.CheckForUpdatesNow()).Clicked() {
+						a.manualUpdateCheck()
+					}
+				})
+			}, locales.CheckForUpdatesNowHint())
 		})
 		uikit.SettingsCard(c, locales.AboutVscroxy(), func() {
 			settingsCardRow(c, locales.Version(), func() ui.Element {
