@@ -5,8 +5,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/jsonc"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -226,6 +228,41 @@ func outlineScene(t *testing.T, body string, setup ...func(*app)) (*app, *ui.Tes
 	return a, tt, a.bodyText[0].Buffer.String()
 }
 
+// outlinePaneScene builds the real body pane at a given width, so layout
+// tests see the editor and the outline sharing the same room.
+func outlinePaneScene(t *testing.T, body string, pane float32) (*app, *ui.Tester, *outlinePanel, *ui.Context) {
+	t.Helper()
+	a := workspaceApp()
+	a.flows[0].resBody, a.flows[0].bytes = body, len(body)
+	a.flows[0].respHeader = http.Header{"Content-Type": {"application/json"}}
+	a.syncDetail()
+	a.bodyModes(a.flows[0], 0)
+	a.bodyMode[0] = 1
+	a.outline.open = true
+	var c *ui.Context
+	tt := ui.NewTester(func(ctx *ui.Context) {
+		c = ctx
+		ctx.SetTheme(uikit.Theme(false))
+		ui.Column(ctx).Fill().Padding(8).Children(func() { a.bodySideView(ctx, a.flows[0], 0) })
+	}, int(pane)+16, 540)
+	tt.SetLocale("en-US")
+	tt.Frame()
+	panel := a.outline.active
+	if panel == nil {
+		t.Fatal("no outline panel for the body")
+	}
+	for _, sym := range panel.all {
+		if sym.branch() {
+			panel.tree.Open.Add(sym.key)
+		}
+	}
+	if at := strings.Index(body, `"sku"`); at >= 0 {
+		a.bodyText[0].Select(at+1, at+1)
+	}
+	tt.Frame()
+	return a, tt, panel, c
+}
+
 func TestOutlineClickRevealAndFollowCursor(t *testing.T) {
 	const body = `{"omegaOnly":{"sku":"A-1"},"other":2}`
 	a, tt, text := outlineScene(t, body)
@@ -367,6 +404,155 @@ func TestOutlineScanCap(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText(locales.OutlineTooLarge()) {
 		t.Fatalf("no size hint in the outline section: %v", tt.Texts())
+	}
+}
+
+func TestOutlineNarrowLayout(t *testing.T) {
+	const body = `{
+  "shippingAddressPostalCode": "94105",
+  "data": { "items": [{ "id": 3, "sku": "A-1" }] },
+  "ok": true
+}`
+	const label = "shippingAddressPostalCode"
+	const hint = `"94105"`
+	// The editor draws the same value in colored spans, so an exact match
+	// beside the filter field can only be the outline's value hint.
+	hintInTree := func(tt *ui.Tester) bool {
+		filter, _ := tt.Find(locales.FilterOutline())
+		hint, found := tt.Find(hint)
+		return found && hint.X >= filter.X
+	}
+
+	t.Run("wide", func(t *testing.T) {
+		_, tt, p, _ := outlinePaneScene(t, body, 1164)
+		if p.compact || p.collapsed || !hintInTree(tt) {
+			t.Fatalf("wide pane: compact=%t collapsed=%t hints=%t", p.compact, p.collapsed, hintInTree(tt))
+		}
+	})
+	t.Run("compact", func(t *testing.T) {
+		_, tt, p, _ := outlinePaneScene(t, body, 740)
+		if !p.compact || p.collapsed {
+			t.Fatalf("compact pane: compact=%t collapsed=%t", p.compact, p.collapsed)
+		}
+		if hintInTree(tt) {
+			t.Fatal("value hints still use the room the compact labels need")
+		}
+		row, found := tt.AccessByRole(ui.RoleTreeItem, label)
+		if !found {
+			t.Fatalf("no tree row for %q", label)
+		}
+		tt.Move(row.Bounds.X+row.Bounds.W/2, row.Bounds.Y+row.Bounds.H/2)
+		tt.Advance(300 * time.Millisecond)
+		if _, found := tt.AccessByRole(ui.RoleTooltip, label); !found {
+			t.Fatal("the truncated label has no tooltip with its full text")
+		}
+	})
+	t.Run("collapsed", func(t *testing.T) {
+		_, tt, p, _ := outlinePaneScene(t, body, 500)
+		if !p.compact || !p.collapsed {
+			t.Fatalf("collapsed pane: compact=%t collapsed=%t", p.compact, p.collapsed)
+		}
+		if _, found := tt.Find(locales.FilterOutline()); found {
+			t.Fatal("the outline section is still in the collapsed pane")
+		}
+		if _, found := tt.AccessByRole(ui.RoleTreeItem, label); found {
+			t.Fatal("outline rows are still in the collapsed pane")
+		}
+		if button, found := tt.AccessByRole(ui.RoleButton, locales.Outline()); !found || !button.Focusable {
+			t.Fatalf("no restore button in the collapsed pane: %+v, found %t", button, found)
+		}
+		if err := tt.Click(locales.Outline()); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if p.collapsed {
+			t.Fatal("restore button did not open the outline")
+		}
+		for range 3 {
+			tt.Frame()
+		}
+		if p.collapsed {
+			t.Fatal("the restored outline collapsed again in the same narrow pane")
+		}
+		if _, found := tt.Find(locales.FilterOutline()); !found {
+			t.Fatal("the restored outline has no filter field")
+		}
+		tt.SetSize(916, 540)
+		for range 3 {
+			tt.Frame()
+		}
+		if p.compact || p.collapsed || p.expandedNarrow {
+			t.Fatalf("wide pane kept the narrow override: compact=%t collapsed=%t expanded=%t",
+				p.compact, p.collapsed, p.expandedNarrow)
+		}
+		tt.SetSize(516, 540)
+		for range 3 {
+			tt.Frame()
+		}
+		if !p.collapsed {
+			t.Fatal("the outline did not collapse again when the pane narrowed")
+		}
+	})
+
+	t.Run("collapsed chrome", func(t *testing.T) {
+		a, tt, p, c := outlinePaneScene(t, longOutlineBody(), 500)
+		if !p.collapsed {
+			t.Fatal("the body with a scrollbar did not collapse the outline")
+		}
+		a.bodyText[0].Run(editor.Find)
+		find := settleBodyFind(t, a, tt, c)
+		*find.Query() = "sku"
+		tt.Frame()
+		button, found := tt.AccessByRole(ui.RoleButton, locales.Outline())
+		if !found {
+			t.Fatal("no restore button with the find bar open")
+		}
+		body, found := tt.Find(locales.BodyText())
+		if !found || button.Bounds.Y+button.Bounds.H > body.Y {
+			t.Fatalf("restore button reached into the editor: button=%+v body=%+v", button.Bounds, body)
+		}
+		bar, found := tt.AccessByRole(ui.RoleToolbar, "Find")
+		if !found {
+			t.Fatal("no find bar in the collapsed pane")
+		}
+		b, f := button.Bounds, bar.Bounds
+		if b.X < f.X+f.W && f.X < b.X+b.W && b.Y < f.Y+f.H && f.Y < b.Y+b.H {
+			t.Fatalf("restore button covers the find bar: button=%+v find=%+v", b, f)
+		}
+	})
+}
+
+func TestOutlineNarrowThreshold(t *testing.T) {
+	p := &outlinePanel{}
+	p.setPaneWidth(0)
+	if p.compact || p.collapsed {
+		t.Fatalf("an unmeasured pane changed mode: %+v", p)
+	}
+	p.setPaneWidth(outlineCompactWidth)
+	if p.compact || p.collapsed {
+		t.Fatalf("at the compact threshold: compact=%t collapsed=%t", p.compact, p.collapsed)
+	}
+	p.setPaneWidth(outlineCompactWidth - 1)
+	if !p.compact || p.collapsed {
+		t.Fatalf("below the compact threshold: compact=%t collapsed=%t", p.compact, p.collapsed)
+	}
+	p.setPaneWidth(outlineCollapseWidth)
+	if !p.compact || p.collapsed {
+		t.Fatalf("at the collapse threshold: compact=%t collapsed=%t", p.compact, p.collapsed)
+	}
+	p.setPaneWidth(outlineCollapseWidth - 1)
+	if !p.compact || !p.collapsed {
+		t.Fatalf("below the collapse threshold: compact=%t collapsed=%t", p.compact, p.collapsed)
+	}
+	// Restoring the outline by hand holds while the pane stays narrow.
+	p.expandedNarrow = true
+	p.setPaneWidth(outlineCollapseWidth - 1)
+	if p.collapsed || !p.compact {
+		t.Fatalf("restored narrow outline collapsed again: compact=%t collapsed=%t", p.compact, p.collapsed)
+	}
+	p.setPaneWidth(outlineCollapseWidth)
+	if p.collapsed || p.expandedNarrow {
+		t.Fatalf("a wide pane did not reset the narrow override: collapsed=%t expanded=%t", p.collapsed, p.expandedNarrow)
 	}
 }
 

@@ -311,6 +311,10 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("outline.toggle", locales.ToggleOutline(), func(x *commandContext) {
 		x.a.outline.open = !x.a.outline.open
 		if x.a.outline.open {
+			// A deliberate open in a narrow pane expands it for this visit.
+			if p := x.a.outline.active; p != nil && p.collapsed {
+				p.expandedNarrow, p.collapsed = true, false
+			}
 			x.focusOutline()
 		}
 	}).when(func(x *commandContext) bool { return x.capturing || x.editing }, locales.OpenABodyFirst()).
@@ -318,6 +322,9 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("outline.focus", locales.FocusOutline(), func(x *commandContext) {
 		if !x.a.outline.open {
 			x.a.outline.open = true
+		}
+		if p := x.a.outline.active; p != nil && p.collapsed {
+			p.expandedNarrow, p.collapsed = true, false
 		}
 		x.focusOutline()
 	}).when(func(x *commandContext) bool { return x.a.outline.active != nil }, locales.OpenABodyFirst()).

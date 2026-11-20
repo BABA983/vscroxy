@@ -34,6 +34,16 @@ type outlineTarget struct {
 	focus  func()
 }
 
+// The body pane reserves a share of itself for the outline. Below the
+// compact width the outline drops value hints so labels keep the room the
+// indent and icon leave them. Below the collapse width even that is too
+// narrow: the outline steps aside and the editor takes the whole pane until
+// it grows again, as a narrow sidebar does.
+const (
+	outlineCompactWidth  = 800
+	outlineCollapseWidth = 560
+)
+
 type outlinePanel struct {
 	key, query string
 	kind       outlineKind
@@ -41,10 +51,15 @@ type outlinePanel struct {
 	crumbs     *jsonBreadcrumbs
 	crumb      jsonCrumbSource
 	split      float32
+	pane       ui.Handle
 	input      ui.Handle
 	tree       ui.OutlineState[string]
 	followRow  int
 	followKey  string
+
+	compact        bool
+	collapsed      bool
+	expandedNarrow bool
 
 	buf      *editor.Buffer
 	version  uint64
@@ -142,6 +157,21 @@ func (p *outlinePanel) setSymbols(symbols []*outlineSymbol) {
 	p.ready = true
 }
 
+// setPaneWidth reads the body pane's width from the frame before this one. A
+// zero width means the pane was just built, so the last mode stays for one
+// frame rather than flickering between layouts. Expanding the outline by hand
+// in a narrow pane lasts until the pane is wide enough again.
+func (p *outlinePanel) setPaneWidth(width float32) {
+	if width <= 0 {
+		return
+	}
+	p.compact = width < outlineCompactWidth
+	if width >= outlineCollapseWidth {
+		p.expandedNarrow = false
+	}
+	p.collapsed = width < outlineCollapseWidth && !p.expandedNarrow
+}
+
 // outlineView places the outline beside the editor rather than in a separate
 // panel: the body already has one pane per side and its own header row, so a
 // split keeps the caret, breadcrumbs and find bar with the text they describe.
@@ -152,10 +182,26 @@ func (a *app) outlineView(c *ui.Context, view *editor.State, target outlineTarge
 	}
 	p := a.outlineLoad(view, target)
 	a.outline.active = p
-	ui.Row(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+	p.setPaneWidth(p.pane.Bounds(c).W)
+	ui.Row(c).Grow(1).FillWidth().MinHeight(0).Bind(&p.pane).Children(func() {
+		if p.collapsed {
+			ui.Column(c).Grow(1).MinWidth(0).FillHeight().Children(draw)
+			// The collapsed outline keeps a way back in without taking a
+			// column from the editor: the same icon and tip as the section.
+			t := c.Theme()
+			// It sits in the breadcrumb row, left of Copy path. The editor's
+			// find bar and scrollbar both start below that row.
+			if uikit.IconButton(c.Key("outline-restore-"+target.key), locales.Outline(), locales.ToggleOutline(), lucide.List()).
+				Absolute().Top(-uikit.Scaled(uikit.HeightControl)).
+				Right(t.Space(uikit.SpaceM) + uikit.Scaled(uikit.WidthNumber)).Clicked() {
+				p.expandedNarrow = true
+				p.collapsed = false
+			}
+			return
+		}
 		ui.SplitPercent(c.Key("outline-"+target.key), &p.split, draw, func() {
 			a.outlineSection(c, p, view)
-		}).FillWidth().StartPercent(73).SplitReset(73)
+		}).FillWidth().SplitReset(73)
 	})
 }
 
@@ -190,6 +236,12 @@ func (a *app) outlineSection(c *ui.Context, p *outlinePanel, view *editor.State)
 		p.followRow = p.rowOf(p.followKey)
 		beforeKey := p.followKey
 		p.tree.List.Selected = &p.followRow
+		// Each level keeps a full theme step, so depth still reads when the
+		// value hints have to go. Zero lets the outline choose its default.
+		p.tree.Indent = 0
+		if p.compact {
+			p.tree.Indent = t.Space(uikit.SpaceL)
+		}
 		p.tree.List.Label = func(row int) string {
 			if sym := p.symbol(p.tree.Item(row)); sym != nil {
 				return sym.label
@@ -208,7 +260,7 @@ func (a *app) outlineSection(c *ui.Context, p *outlinePanel, view *editor.State)
 				fg, muted = palette.PrimaryForeground, palette.PrimaryForeground
 			}
 			row := ui.Row(c).Label(sym.label).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).FillWidth().
-				Padding(0, t.Space(uikit.SpaceS)).MinHeight(uikit.HeightRow)
+				Padding(0, t.Space(uikit.SpaceS)).MinHeight(uikit.HeightRow).Clip()
 			if selected {
 				row.Background(palette.Primary)
 			}
@@ -216,17 +268,22 @@ func (a *app) outlineSection(c *ui.Context, p *outlinePanel, view *editor.State)
 				ui.Icon(c, outlineIconSVG(p.kind, sym)).Size(uikit.IconInline, uikit.IconInline).
 					TextColor(muted).Shrink(0)
 				if sym.key != "" && strings.HasSuffix(sym.key, "/more") {
-					uikit.Hint(c, sym.label).TextColor(fg)
+					uikit.Hint(c, sym.label).TextColor(fg).SingleLine().MinWidth(0).Shrink(1).Tooltip(sym.label)
 				} else if selected {
 					// The completion rows' rule: no muted ink on Primary.
-					uikit.Body(c, sym.label).TextColor(fg).SingleLine().Shrink(1)
+					uikit.Body(c, sym.label).TextColor(fg).SingleLine().MinWidth(0).Shrink(1).Tooltip(sym.label)
 				} else {
-					fuzzyListBody(c, sym.label, p.matches[key]).SingleLine().Shrink(1)
+					fuzzyListBody(c, sym.label, p.matches[key]).SingleLine().MinWidth(0).Shrink(1).Tooltip(sym.label)
 				}
-				if sym.hint != "" {
+				// Hints are useful context at full width, but a label must
+				// not lose what is left of its row to a value preview.
+				if sym.hint != "" && !p.compact {
 					ui.Box(c).Grow(1)
 					uikit.DataMeta(c, sym.hint).TextColor(muted).SingleLine().Shrink(0)
 				}
+				// A label that shrinks to its minimum still ends inside the
+				// row's padding, not against the section's edge.
+				ui.Box(c).Width(t.Space(uikit.SpaceS)).Shrink(0)
 			})
 		}).Grow(1).MinHeight(0)
 		// A click writes the row it chose into List.Selected; follow-cursor
