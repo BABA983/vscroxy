@@ -134,21 +134,11 @@ func (v *captureViews) captureGroupFields(a *app, view *captureView) {
 	}
 	capture := v.wrote
 	picked, chosen, sort := view.picked, view.chosen, view.sort
-	table, side, proto := view.tablePercent, view.sidePercent, view.protoPercent
 	v.capture(a)
 	if v.drawing {
-		// The table and split dividers write into the view's own fields
+		// The table writes choice and order into the view's own fields
 		// after the build pass; keep those writes, not the app's mirror.
 		view.picked, view.chosen, view.sort = picked, chosen, sort
-		if table != 0 {
-			view.tablePercent = table
-		}
-		if side != 0 {
-			view.sidePercent = side
-		}
-		if proto != 0 {
-			view.protoPercent = proto
-		}
 	}
 	view.queryProblem, view.searchProblem = a.queryProblem, a.searchProblem
 	view.queryCaret, view.queryOpen = a.queryCaret, a.queryOpen
