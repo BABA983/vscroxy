@@ -181,6 +181,7 @@ func WriteCollection(name string, requests []request.Request, folders []request.
 	if strings.Trim(name, "/") == "" {
 		return nil, nil, errors.New("the collection name is empty")
 	}
+	requests, unresolvedRefs := convertResponseRefs(requests)
 	root := &node{children: map[string]*node{}}
 	for _, f := range folders {
 		if n := root.at(name, f.Path); n != nil {
@@ -237,6 +238,7 @@ func WriteCollection(name string, requests []request.Request, folders []request.
 	if err != nil {
 		return nil, nil, err
 	}
+	warn.add("response reference export", "", unresolvedRefs)
 	return append(data, '\n'), warn.list(), nil
 }
 

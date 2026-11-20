@@ -32,6 +32,11 @@ type Request struct {
 	ID         string `json:"id,omitempty"`
 	Name       string `json:"name"`
 	Collection string `json:"collection,omitempty"`
+	// ReferenceNames are the former names of this request. A
+	// {{response "Name" "/path"}} is written with a display name, but it
+	// resolves to this request's stable ID; keeping old names lets a rename
+	// leave existing references working.
+	ReferenceNames []string `json:"referenceNames,omitempty"`
 	// Empty Protocol is HTTP (including the existing ws/wss send). Protocol
 	// documents use their interactive clients, not HTTP sends or Runner steps.
 	Protocol  string          `json:"protocol,omitempty"`

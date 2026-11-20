@@ -47,7 +47,8 @@ func (a *app) inheritance(path string) request.Context {
 		folders[i].Variables = a.folderVariables(folders[i].Path, folders[i].Variables)
 	}
 	return request.Context{Folders: folders, Globals: a.globalValues(), GlobalsInitial: maps.Clone(a.globals), Addons: a.addons.sources(),
-		ProjectDir: a.projectDir, ScriptPermission: a.projectScriptPermission}
+		ProjectDir: a.projectDir, ScriptPermission: a.projectScriptPermission,
+		Resolve: a.runResolver(), Responses: a.responseRefs}
 }
 
 // runResolver finds the requests a script calls with pm.execution.runRequest,

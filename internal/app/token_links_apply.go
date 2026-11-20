@@ -127,7 +127,7 @@ func (a *app) planTokenLink(w *tokenLinkPreview, index int, config tokenLinkConf
 		} else {
 			vars := a.inheritance(r.Collection).Values(a.envs[env].values())
 			var err error
-			r, err = linkBearerRequest(r, vars, link.token, config.Variable)
+			r, err = linkBearerRequest(r, vars, link.token, "{{"+config.Variable+"}}")
 			if err != nil {
 				return nil, err
 			}
@@ -232,8 +232,9 @@ func (a *app) applyTokenLink(p *tokenLinkPlan) error {
 	return nil
 }
 
-func linkBearerRequest(r savedRequest, vars map[string]string, captured, name string) (savedRequest, error) {
-	ref := "{{" + name + "}}"
+// linkBearerRequest replaces the captured Bearer value with ref, the full
+// {{...}} expression a send or a reference will expand.
+func linkBearerRequest(r savedRequest, vars map[string]string, captured, ref string) (savedRequest, error) {
 	switch r.Auth.Type {
 	case "Bearer":
 		if request.ExpandVars(r.Auth.Token, vars) != captured {

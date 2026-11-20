@@ -3521,6 +3521,47 @@ changes; a tab with unsaved changes keeps them, and saving it replaces the file.
 identity or capture provenance, never by URL. Status and source filters narrow
 the results; **Run details…** opens notes, baseline and comparison actions.
 
+### Response references and token chains
+
+A request can read another saved request's latest response directly, wherever
+`{{variables}}` expand — URL (including query), headers, body and auth:
+
+```
+GET {{base}}/me
+Authorization: Bearer {{response "Login" "/data/access_token"}}
+```
+
+The first quoted argument is the source request's display name in the same
+collection. It is how the reference is written and read; resolution settles it
+to that request's stable ID before reading a response, so renaming the request
+keeps older references working. A name shared by several requests is refused
+rather than guessed. The second argument is an RFC 6901 JSON pointer (`~1` for
+`/`, `~0` for `~`); `header:X-Session` reads a response header instead. An
+invalid pointer, a missing field, a source in another collection or a cycle
+fails the send with a clear error that never includes the secret value.
+
+Resolution uses the source request's latest response in this session, including
+one captured by an earlier Send, Runner step or `vscroxy-cli run` step. If no
+response exists yet, vscroxy sends the source request first, with its own
+inheritance and scripts, then uses that response. Sources can reference other
+responses; a chain that comes back to a request it is already resolving stops
+with a cycle error. Postman export turns each reference into a pre-request
+`pm.execution.runRequest` script that fills a local collection variable; the
+import/export report says when a reference cannot be converted.
+
+To find a chain from traffic, run **Recognize token links** in the command
+palette (or the capture view's action) over a login response and the later
+requests. Besides the script-based token link proposal, the dialog lists
+**response reference suggestions** for a value from a response's JSON that
+reappears in a later Bearer header, another header, a query parameter or a
+body. It only suggests token-shaped values of at least 16 characters from a
+credential-named JSON field, with one unambiguous reuse. The suggestion shows
+the proposed expression and a masked value with its length; matched values are
+never painted, logged, persisted or put into history and search. Preview shows
+the exact saved requests it would
+change. Nothing is written until you review the proposal and choose **Apply
+response references**; scripts and variables are left alone.
+
 ### Regression cases
 
 Right-click an HTTP capture and choose **Save as regression…**. This opens an

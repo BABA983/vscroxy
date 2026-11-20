@@ -716,6 +716,9 @@ type app struct {
 	requests        []savedRequest
 	library         libraryState
 	requestsProblem string
+	// responseRefs holds the latest response of each request in this session,
+	// for {{response "..."}} expansion. It is never written to disk.
+	responseRefs *request.Responses
 	// folders are the collections' and folders' own settings, by path.
 	folders     []request.Folder
 	folderUI    folderEditor
@@ -854,6 +857,7 @@ type domain struct {
 func newApp() *app {
 	a := &app{
 		macChrome:      runtime.GOOS == "darwin",
+		responseRefs:   &request.Responses{},
 		filter:         "all",
 		sidebarChoice:  "all",
 		icons:          make(map[string]ui.ImageSource),

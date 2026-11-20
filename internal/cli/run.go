@@ -226,7 +226,10 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				if !ok {
 					return
 				}
-				if contract == nil {
+				if contract == nil && f.DebugRun == "" {
+					// Keep a local send's spill file until the run ends:
+					// {{response "..."}} may still need to read that body
+					// from the session store. Foreign traffic is discarded.
 					srv.Discard([]string{f.RequestBodyFile, f.ResponseBodyFile})
 				}
 			case f := <-srv.Frames():
@@ -239,9 +242,12 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	defer func() { stopDrain(); drain.Wait() }()
 	jar := newRecordingJar()
 	tokens := &request.Tokens{}
+	// One session store per run: a login step can hand its latest response to
+	// any later step through {{response "Login" "/token"}}.
+	responses := &request.Responses{}
 	steps := make([]runner.Step, len(requests))
 	for i, r := range requests {
-		steps[i] = runner.Step{Request: r, Context: request.Context{Environment: name, Folders: request.Chain(folders, r.Collection), Globals: globals, Tokens: tokens, Addons: addons, Certificates: certificates, Resolve: resolve}}
+		steps[i] = runner.Step{Request: r, Context: request.Context{Environment: name, Folders: request.Chain(folders, r.Collection), Globals: globals, Tokens: tokens, Addons: addons, Certificates: certificates, Resolve: resolve, Responses: responses}}
 	}
 	runCtx, cancel := context.WithTimeout(ctx, *timeout)
 	defer cancel()

@@ -465,6 +465,9 @@ func (r *reader) scripts(events []pmEvent) (pre, post string) {
 			source = text(e.Script.Exec)
 		}
 		if e.Listen == "prerequest" {
+			if hasImportedResponseRef(source) {
+				r.warn.add("response reference import", "", 1)
+			}
 			pres = append(pres, source)
 		} else {
 			posts = append(posts, source)

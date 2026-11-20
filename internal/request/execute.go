@@ -104,7 +104,11 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 		}
 	}
 	out = Execution{Vars: run.vars, Stage: "Request setup failed"}
+	id := r.ID
 	defer func() {
+		if out.Response != nil {
+			in.Responses.Add(id, out.Response)
+		}
 		out.Locals, out.Writes, out.Next = run.locals, run.writes, run.next
 		out.ScriptsSkipped = run.scriptsDenied
 		out.Console = slices.Clone(run.console)
@@ -164,7 +168,24 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 		r.BodyMode = "Raw" // Explicit script bodies override structured forms.
 	}
 	r.Body = template.Body
+	out.Stage, run.phase = "Request setup failed", "setup"
+	out.Tests, out.Vars = run.tests, run.vars
+	input := maps.Clone(run.vars)
+	maps.Copy(input, run.data)
+	maps.Copy(input, run.locals)
+	out.Variables = r.ResolveVariables(in.Apply(run.writes, r.Collection), input, run.written)
+	// Response references are resolved after pre-request scripts, so a script
+	// can still change the source name or the request being sent. Each one
+	// becomes a pseudo-variable and goes through the same expansion as any
+	// other {{variable}}, for URL, headers, body and auth alike.
+	resolved, refVars, err := resolveResponseRefs(r, ctx, srv, in, run.vars, jar)
+	if err != nil {
+		out.Err = err
+		return out
+	}
+	r = resolved
 	effective := run.effective()
+	maps.Copy(effective, refVars)
 	authHeader, authInHeader := "Authorization", true
 	switch r.Auth.Type {
 	case "API key":
@@ -178,12 +199,6 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	if template.editedHeaders[http.CanonicalHeaderKey(authHeader)] && authInHeader {
 		r.Auth = Auth{}
 	}
-	out.Stage, run.phase = "Request setup failed", "setup"
-	out.Tests, out.Vars = run.tests, run.vars
-	input := maps.Clone(run.vars)
-	maps.Copy(input, run.data)
-	maps.Copy(input, run.locals)
-	out.Variables = r.ResolveVariables(in.Apply(run.writes, r.Collection), input, run.written)
 	r = r.withDynamic(effective)
 	if r.Checks != (Checks{}) {
 		var missing []string

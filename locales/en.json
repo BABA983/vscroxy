@@ -8403,4 +8403,20 @@
   "noServerCertificates": "No server certificates configured",
   "addServerCertificate": "Add server certificate",
   "serverCertificateSanHint": "The certificate's SAN must cover the configured host and its key must match. Files are read on every handshake."
+,
+  "@maskedResponseValue": {"placeholders": {"length": {"type": "int"}}},
+  "maskedResponseValue": "Matched value: •••••••• ({length} characters)",
+  "responseReferenceSuggestions": "Response reference suggestions",
+  "responseReferencePreviewHint": "Suggestions only — nothing changes until you apply. Existing scripts and variables are left alone.",
+  "@responseReferenceSourceLabel": {"placeholders": {"source": {"type": "int"}, "count": {"type": "int"}}},
+  "responseReferenceSourceLabel": "Response #{source} → {count} reused values",
+  "@responseReferenceExpression": {"placeholders": {"expression": {"type": "String"}}},
+  "responseReferenceExpression": "Replace with: {expression}",
+  "noResponseReferencesFound": "No reusable response values found.",
+  "previewResponseReference": "Preview response reference",
+  "reviewResponseReferences": "Review response references",
+  "reviewedResponseReferences": "I reviewed the response reference changes",
+  "backToResponseReferences": "Back to suggestions",
+  "applyResponseReferences": "Apply response references",
+  "responseReferenceApplied": "Response references saved. No requests were sent."
 }

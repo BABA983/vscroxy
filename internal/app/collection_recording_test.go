@@ -91,6 +91,7 @@ func TestDesktopControlCollectionRecordingPersistsNewTrafficAndPreservesAuthored
 	}
 	sharedBefore := len(a.envs[0].Vars)
 	// A reader's edits and examples are not the recorder's to replace.
+	oldName := r.Name
 	r.Name, r.Pre, r.Post, r.Body = "Manually edited", "pm.test('pre',()=>{})", "pm.test('post',()=>{})", "authored body"
 	r.Auth = request.Auth{Type: "Bearer", Token: "{{manual_token}}"}
 	r.Examples = append(r.Examples, request.Example{ID: "manual", Name: "Do not replace", Status: 200, Body: "manual example"})
@@ -108,7 +109,11 @@ func TestDesktopControlCollectionRecordingPersistsNewTrafficAndPreservesAuthored
 	}
 	got, want := a.requests[0], r
 	got.Examples, want.Examples = nil, nil
-	if !reflect.DeepEqual(got, want) || d.composeURL != draftURL || d.examples[0].Body != `{"id":7}` || !d.dirty() || len(a.envs[0].Vars) != sharedBefore {
+	// ReferenceNames is identity metadata kept across renames, not authored
+	// content; assert it separately from the reader's fields.
+	keptOldName := slices.Contains(got.ReferenceNames, oldName)
+	got.ReferenceNames, want.ReferenceNames = nil, nil
+	if !reflect.DeepEqual(got, want) || !keptOldName || d.composeURL != draftURL || d.examples[0].Body != `{"id":7}` || !d.dirty() || len(a.envs[0].Vars) != sharedBefore {
 		t.Fatal("recording rewrote authored content, dirty draft, or initial URL variables")
 	}
 	f.status, f.resBody = 404, `{"error":"missing"}`

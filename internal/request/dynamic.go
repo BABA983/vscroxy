@@ -211,9 +211,9 @@ func expandDynamic(s string, defined map[string]string) string {
 	}
 }
 
-// withDynamic generates the dynamic variables in every authored field.
-func (r Request) withDynamic(defined map[string]string) Request {
-	expand := func(s *string) { *s = expandDynamic(*s, defined) }
+// expandableFields points at every field of r a send reads through
+// ExpandVars. Dynamic variables and response references share this path.
+func (r *Request) expandableFields() []*string {
 	fields := []*string{&r.Method, &r.URL, &r.Headers, &r.Body, &r.BodyFile, &r.Auth.Token, &r.Auth.Username, &r.Auth.Password, &r.Auth.Key, &r.Auth.Value}
 	if len(r.WebSocket.Messages) > 0 {
 		r.WebSocket.Messages = slices.Clone(r.WebSocket.Messages)
@@ -240,13 +240,17 @@ func (r Request) withDynamic(defined map[string]string) Request {
 	fields = append(fields, r.Auth.EdgeGrid.fields()...)
 	fields = append(fields, r.Auth.ASAP.fields()...)
 	fields = append(fields, r.Auth.NTLM.fields()...)
-	for _, s := range fields {
-		expand(s)
-	}
 	r.Form = append([]Field(nil), r.Form...)
 	for i := range r.Form {
-		expand(&r.Form[i].Name)
-		expand(&r.Form[i].Value)
+		fields = append(fields, &r.Form[i].Name, &r.Form[i].Value)
+	}
+	return fields
+}
+
+// withDynamic generates the dynamic variables in every authored field.
+func (r Request) withDynamic(defined map[string]string) Request {
+	for _, field := range r.expandableFields() {
+		*field = expandDynamic(*field, defined)
 	}
 	return r
 }

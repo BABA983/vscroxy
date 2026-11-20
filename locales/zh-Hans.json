@@ -4187,4 +4187,20 @@
   "noServerCertificates": "尚未配置服务器证书",
   "addServerCertificate": "添加服务器证书",
   "serverCertificateSanHint": "证书的 SAN 必须覆盖配置的主机，密钥必须与证书匹配。每次握手都会重新读取文件。"
+,
+  "@maskedResponseValue": {"placeholders": {"length": {"type": "int"}}},
+  "maskedResponseValue": "匹配值：••••••••（{length} 个字符）",
+  "responseReferenceSuggestions": "响应引用建议",
+  "responseReferencePreviewHint": "仅为建议——应用前不会更改任何内容。现有脚本和变量保持不变。",
+  "@responseReferenceSourceLabel": {"placeholders": {"source": {"type": "int"}, "count": {"type": "int"}}},
+  "responseReferenceSourceLabel": "响应 #{source} → {count} 处复用",
+  "@responseReferenceExpression": {"placeholders": {"expression": {"type": "String"}}},
+  "responseReferenceExpression": "替换为：{expression}",
+  "noResponseReferencesFound": "未找到可复用的响应值。",
+  "previewResponseReference": "预览响应引用",
+  "reviewResponseReferences": "检查响应引用",
+  "reviewedResponseReferences": "已核对响应引用更改",
+  "backToResponseReferences": "返回建议",
+  "applyResponseReferences": "应用响应引用",
+  "responseReferenceApplied": "响应引用已保存。没有发送请求。"
 }
