@@ -195,8 +195,8 @@
 | 单个请求的设置：超时、HTTP 版本、URL 编码、Cookie jar、跟随重定向、证书校验 | 已有 | 请求 Settings 页和文件夹/集合的 Request defaults；Send 和 Runner 生效；HTTP 版本 Auto 与服务器协商 HTTP/1.1／HTTP/2，也可强制其一，经抓包代理的两段连接同时生效；HTTP/2 未协商时明确报错；抓包 Replay 仍用 HTTP/1.1（NTLM 固定 HTTP/1.1，WebSocket／SSE／Socket.IO／gRPC 保持各自协议）；「自动编码 URL」控制 Params 行写入 URL 时是否转义；「发送 Cookie jar 中的 Cookie」关闭后不读也不写 jar，显式 Cookie 头照常发送；跟随与最大次数分别继承，`maxRedirects: 0` 视为不跟随；Postman `protocolProfileBehavior` 的 `followRedirects`、`maxRedirects`、`strictSSL`、`disableCookies`、`disableUrlEncoding` 往返，cURL（Bash/CMD/PowerShell）的 `-L`、`--max-redirs`、`-k`、`--max-time` 与 PowerShell 对应参数往返；Postman 没有请求超时字段；关闭校验只对客户端自己完成的 TLS（未解密隧道）生效；解密流量仍由代理默认校验，需在 HTTPS 页按域名允许不受信任的上游证书。自定义 CA 在校验开启时作为额外信任，二者互不影响；Unix socket／Windows 命名管道路径让 HTTP(S) 直连本地 socket，绕过抓包代理，URL 主机作为 Host 头，WebSocket 与协议客户端拒绝该设置 | M6 |
 | 客户端证书（按域名）、自定义 CA | 部分 | Settings → Certificates 按 host（可带端口、`*.` 通配，IDN 转 punycode）配置客户端证书和额外根证书；Send、Runner、CLI/MCP 运行集合、WebSocket、SSE、gRPC、Socket.IO、MCP 生效；PEM cert+key 或 PKCS#12/PFX，口令密封保存，文件每次发送读取；重定向按每一跳的目标 host 重新选证书和根，明文跳不读证书文件；关闭证书校验只影响未解密隧道；解密流量仍由代理默认校验。可导入自己的 MITM 签名 CA（RSA／ECDSA，私钥密封），生成的叶子证书对 IP 字面量主机带 IP SAN；同一页可按 host（带端口、`*.` 通配、IDN punycode）配置服务器证书链+密钥（PEM 或 PKCS#12/PFX，口令密封），解密握手时对匹配 host 出示该链、其他 host 仍用 CA 签发的叶子；保存时校验 SAN 覆盖与密钥匹配，握手时文件不可读则该连接失败并在连接详情说明原因 | M6 |
 | Examples | 已有 | Examples 标签可手写：New example 新建（200、空正文、继承请求的 Content-Type），Duplicate 复制当前示例（如加一个 404 用例），状态码、名称、正文和响应头都可编辑，下一次 Save 保存；每个 Example 可设 mock 延迟（毫秒，≤1 分钟）；请求视图只读 | |
-| Examples 作为 Mock 响应（本地 mock） | 部分 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples；`vscroxy-cli mock` 在回环地址按集合 Examples 提供 mock（见[自动化](automation.md#mock-server)），桌面控制可启停并设限流／错误注入，未提供 MCP 工具；Example 的保存／磁盘修改即时重载，解析失败保留上次可用集合并报告 | M4 |
-| 集合 mock 服务（独立端口） | 已有 | 集合菜单 Start mock server 在 127.0.0.1 随机端口提供集合 Examples，不经过代理；按 `X-Mock-Response-Name`、`X-Mock-Response-Code`、`x-mock-match-request-body` 选择；每个 Example 的 Delay（≤1 分钟）；一元 gRPC Examples 在第二个回环端口按方法提供（example 正文为响应消息，状态映射 gRPC code）；桌面控制 `mock.get`／`mock.start`／`mock.stop` 可设每秒限流、错误注入比例／状态／正文；启动后的 Example 保存／磁盘修改原子重载（在途请求用旧集合），解析失败保留上次可用集合 | M6 |
+| Examples 作为 Mock 响应（本地 mock） | 已有 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples；`vscroxy-cli mock` 在回环地址按集合 Examples 提供 mock（见[自动化](automation.md#mock-server)），桌面控制与 `vscroxy-cli mocks` 可列表／启停并设限流／错误注入，MCP `mock.get`／`mock.start`／`mock.stop` 同样完成闭环（启停属于写操作）；Example 的保存／磁盘修改即时重载，解析失败保留上次可用集合并报告 | M4 |
+| 集合 mock 服务（独立端口） | 已有 | 集合菜单 Start mock server 在 127.0.0.1 随机端口提供集合 Examples，不经过代理；按 `X-Mock-Response-Name`、`X-Mock-Response-Code`、`x-mock-match-request-body` 选择；每个 Example 的 Delay（≤1 分钟）；一元 gRPC Examples 在第二个回环端口按方法提供（example 正文为响应消息，状态映射 gRPC code）；桌面控制 `mock.get`／`mock.start`／`mock.stop` 可设每秒限流、错误注入比例／状态／正文，CLI `mocks` 与 MCP 三工具共用同一动作；启动后的 Example 保存／磁盘修改原子重载（在途请求用旧集合），解析失败保留上次可用集合 | M6 |
 | 代码 Mock（脚本生成本地响应） | 已有 | Code Mock 规则运行 `onMock`，读取 `pm.request`、生成 `pm.response`；复用编辑器／Scenario／配置导出，失败返回本地错误而不穿透原站；`pm.mock.state` 按规则在内存中跨请求保留（get／set／unset／clear／toObject／replaceIn）；不是 Postman Node.js mock 服务兼容层 | M9 |
 | Runner：数据文件、迭代、setNextRequest | 部分 | 请求间隔（毫秒）、保留变量值开关、本次会话最近 10 次运行的历史、导出 JSON／JUnit／自包含 HTML（默认不含断言名和错误文本）；CLI 为 `run --delay-request`，另可 `--export-environment`／`--export-globals`／`--export-cookie-jar` 写回运行结束状态，`-i` 等同 `--folder`。MQTT、MCP 不能进 Runner；CLI 用 `--mock` 为本轮启动独立的 Examples mock（见[自动化](automation.md#run-against-the-collections-examples)），不连桌面的 mock | |
 | Runner：性能测试（虚拟用户、时长、指标） | 已有 | 内置集合负载；复用 Runner、HdrHistogram 执行耗时；原生／CLI／MCP。`--profile ramp|spike`（`--ramp`、`--spike-users`、`--spike-seconds`、`--spike-at`）；`--data` 可按虚拟用户重复，行按用户循环；`--pass-if p95<500ms,errors<1%` 失败退出 1；`--compare-before` 与上一份 JSON 报告比较总览和每请求 P95／失败率／吞吐。无固定 RPS、分布式压测或 setup／teardown | M9 |
@@ -248,8 +248,8 @@
 | 功能 | 状态 | 里程碑 |
 | --- | --- | --- |
 | 本地控制接口（供命令行和 MCP 共用） | 部分：设置里的“本地自动化”开关（默认关闭，重启保留，不随配置导出），或 `VSCROXY_CONTROL_FILE` 指定路径；回环鉴权、主线程动作、异步任务／取消；控制接口要启动时用环境变量或设置开启 | M9 |
-| 命令行：开关工具、开关系统代理、导出流量、导入规则、运行集合 | 部分：查询、录制／规则开关、系统代理异步修改与回读、受控 HAR 导出、追加规则导入、运行集合；没有设置、会话和证书子命令 | M9 |
-| MCP server：让 AI 工具读取流量、解释请求、创建规则、运行请求 | 部分：stdio、查询／请求执行、独立写入／敏感权限、受控 HAR 导出，流量按 host／方法／状态／时间筛选，规则增删改，清空、标记、断点继续／中止、SSL 域名、会话保存／打开；`--disable-tool` 逐个关闭工具；仍没有设置、会话、证书工具，`flows.list` 不能按 host／method／状态筛选 | M9 |
+| 命令行：开关工具、开关系统代理、导出流量、导入规则、运行集合 | 已有：通用 `control` 之外，`vscroxy-cli settings`（白名单设置读写）、`sessions`（列表／保存／打开／关闭）、`certificates status`（CA 信任、路径、指纹、服务器证书 host／文件名、SSL 域名）、`mocks`（Examples mock 列表／启停）都经同一本地控制接口；写入需要 `--confirm`，凭据、口令和本机信任名单不在白名单内 | M9 |
+| MCP server：让 AI 工具读取流量、解释请求、创建规则、运行请求 | 已有：stdio、查询／请求执行、独立写入／敏感权限、受控 HAR 导出，流量按 host／方法／状态／时间筛选，规则增删改，清空、标记、断点继续／中止、SSL 域名、会话保存／打开／关闭；新增 `settings.list`／`settings.get`／`settings.set`、`certificates.get`、`mock.get`／`mock.start`／`mock.stop`，写入属于 `--allow-write`，敏感详情仍属 `--allow-sensitive`，`--disable-tool` 逐个关闭工具；`flows.list` 本身支持 host/method/status/since/until 与游标分页 | M9 |
 | 中文界面 | 已有 | Settings → Appearance → Language；英文和简体中文，全部消息已翻译，默认跟随系统 | |
 | 更多界面语言（日语、葡萄牙语、西班牙语等） | 缺少 | 0.1.0 之后 | 0.1.0 之后 |
 | 第三方主题（Tokyo Night、Dracula 等） | 缺少 | M9 |
@@ -358,7 +358,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 ### M9：自动化和生态
 
-- 本地控制接口、CLI／MCP 共用动作闭环已完成：查询、录制／规则开关、系统代理修改与回读、受控 HAR 导出、追加规则导入创建和请求／集合运行。第 14 项补齐：流量筛选（host／方法／状态／时间）、清空未固定流量、固定／颜色／备注、断点继续／中止、SSL 解密域名、会话保存／打开、规则单条创建／修改／删除（按 index＋指纹校验，编辑器打开时拒绝）；设置里可开关本地自动化（默认关闭）。
+- 本地控制接口、CLI／MCP 共用动作闭环已完成：查询、录制／规则开关、系统代理修改与回读、受控 HAR 导出、追加规则导入创建和请求／集合运行。第 14 项补齐：流量筛选（host／方法／状态／时间）、清空未固定流量、固定／颜色／备注、断点继续／中止、SSL 解密域名、会话保存／打开、规则单条创建／修改／删除（按 index＋指纹校验，编辑器打开时拒绝）；设置里可开关本地自动化（默认关闭）。CLI 与 MCP 另补齐非敏感设置白名单读写（稳定 ID，不含凭据／口令／本机信任名单）、会话关闭、本地 CA 状态（信任／路径／指纹、按 host 的服务器证书 host／文件名，另含 SSL 域名）和 Examples mock 列表／启停；写入统一走 `--allow-write`／`--confirm`。
 - 命令行运行集合及 CI 报告、首版内置集合负载已完成（见 [自动化指南](automation.md)）：固定并发用户／时长、隔离状态、HdrHistogram 聚合执行指标；原生面板／CLI／MCP 共用 Runner。不含固定 RPS、爬坡或分布式压测。
 - 录制到集合及首版 token 链路识别已完成：原生入口、CLI／MCP 共用动作、Host／App 过滤、Current 凭据引用和 Example 归并；JSON token → 同源 Bearer 的脱敏证据、显式审阅应用和失败关闭。Cookie／refresh／多跳链路暂不覆盖。
 - DevTools 式常用复制格式已完成：Bash／CMD cURL、原生 PowerShell、浏览器／Node fetch 和受限 HAR（默认脱敏、明确选择敏感内容）。生成器不增加运行时依赖；cURL 导入选项仍独立待做。

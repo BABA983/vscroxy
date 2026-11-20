@@ -290,8 +290,12 @@ func (a *app) controlValue(command control.Command) (any, error) {
 		return map[string]any{"items": rows, "nextBefore": 0}, nil
 	case "flows.export-har":
 		return a.controlHAR(command)
-	case "flows.clear", "flows.annotate", "breakpoints.list", "breakpoints.resolve", "ssl.get", "ssl.update", "sessions.list", "sessions.save", "sessions.open":
+	case "flows.clear", "flows.annotate", "breakpoints.list", "breakpoints.resolve", "ssl.get", "ssl.update", "sessions.list", "sessions.save", "sessions.open", "sessions.close":
 		return a.controlCapture(command)
+	case "settings.list", "settings.get", "settings.set":
+		return a.controlSettings(command)
+	case "certificates.get":
+		return a.controlCertificates(command)
 	case "rules.create", "rules.update", "rules.delete":
 		return a.controlRules(command)
 	case "system-proxy.get", "system-proxy.set-enabled":

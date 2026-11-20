@@ -54,6 +54,10 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 	register[idParams](c, "runs.get", "Poll an asynchronous run or load by job ID. Normal runs return a redacted report with at most 1000 attempts. Loads return kind=load and bounded aggregate execution metrics only. Run variables are not persisted.", query)
 	register[emptyParams](c, "breakpoints.list", "List paused exchanges: the one on screen first, then queued ones, with ID, phase, method, redacted URL and status. Bodies and headers are never returned.", query)
 	register[emptyParams](c, "ssl.get", "Read HTTPS inspection domains: whether all traffic is decrypted, the listed domains and the count of listed applications.", query)
+	register[emptyParams](c, "certificates.get", "Read the local MITM CA's system trust status (never changes the trust store), its public certificate path, SHA-256 fingerprint, a controlled problem category, configured per-host server certificates as host and file name only, and the current HTTPS inspection domains. No private keys, passphrases, file directories or certificate contents.", query)
+	register[emptyParams](c, "settings.list", "List the closed automation allowlist of non-secret settings: id, value kind and current value. Secrets, passphrases and local-only trust lists are never included.", query)
+	register[settingsGetParams](c, "settings.get", "Read one allowlisted non-secret setting by its id from settings.list. No secrets, passphrases or local trust lists.", query)
+	register[emptyParams](c, "mock.get", "List running collection Example mock servers: collection, HTTP/gRPC URLs and rate/error behavior. Does not start a listener.", query)
 	register[emptyParams](c, "sessions.list", "List saved sessions: key, title, exchange count and creation time. Session contents are read with sessions.open in the desktop, never returned here.", query)
 	stage := &mcp.ToolAnnotations{ReadOnlyHint: true, DestructiveHint: new(false), OpenWorldHint: new(false)}
 	register[tokenLinksAnalyzeParams](c, "token-links.analyze", "Start bounded asynchronous token-link analysis of 1–200 unique positive HTTP capture IDs; imported snapshots are allowed. Returns {id,done}; poll token-links.get. Matches JSON token/access_token/id_token to later same-origin Bearer consumers only; ambiguous matches are refused. Never returns token values, executes scripts, writes files or sends requests. Read-only staging without --allow-sensitive. Replaces the single ephemeral analysis/proposal shared with the desktop; replaced, closed, restarted or expired IDs fail. Do not blindly retry.", stage)
@@ -78,11 +82,15 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 		register[flowAnnotateParams](c, "flows.annotate", "Pin or unpin a captured flow, and set its color (Red, Orange, Yellow, Green, Blue, Purple, or empty to clear) or note (up to 4096 bytes). Only the supplied fields change.", local)
 		register[breakpointResolveParams](c, "breakpoints.resolve", "Continue a paused exchange unchanged, or abort it, by the ID from breakpoints.list. Only the breakpoint on screen can be resolved. Accepted, not verified: the exchange may have expired.", local)
 		register[sslUpdateParams](c, "ssl.update", "Change HTTPS inspection: set all to decrypt every domain, and/or replace the domain list. Application entries are kept. Decrypted traffic may include credentials.", local)
+		register[settingsSetParams](c, "settings.set", "Change one allowlisted non-secret setting to a typed boolean, integer or string[] value, by id from settings.list. Writes through the desktop's Settings save path; secrets, passphrases and local-only trust lists are refused.", local)
 		register[emptyParams](c, "sessions.save", "Save the live table as a new session file in the desktop and return its key. Captured bodies and headers are written to the local session file.", mutate)
 		register[sessionOpenParams](c, "sessions.open", "Show a saved session by key from sessions.list in the desktop's session view. Changes only what the desktop shows.", local)
+		register[sessionCloseParams](c, "sessions.close", "Close one open session tab by key from sessions.list. The saved session file is kept; only the desktop view and released payloads change.", local)
 		register[rulesCreateParams](c, "rules.create", "Create one rule from typed fields. The whole rules list is validated before saving. Trusted rules only: Map Local can serve local files and Map Remote redirects future traffic. Not idempotent: do not blindly retry.", mutate)
 		register[rulesUpdateParams](c, "rules.update", "Replace one rule, addressed by index and the fingerprint key from rules.list. Fails when the rule editor is open. Trusted rules only.", local)
 		register[ruleKeyParams](c, "rules.delete", "Delete one rule, addressed by index and the fingerprint key from rules.list. Fails when the rule editor is open.", mutate)
+		register[mockStartParams](c, "mock.start", "Start a local collection Example mock server on the desktop, serving only loopback addresses and not sending traffic to the real target. Requires a collection path from collections.list; optional rate limit, injected error rate/status/body. Changes shared desktop listeners: do not blindly retry.", local)
+		register[mockStopParams](c, "mock.stop", "Stop a running collection Example mock server by its collection path from mock.get, closing its HTTP and gRPC listeners. Already served responses cannot be undone.", local)
 	}
 	for _, name := range options.Disable {
 		if !slices.Contains(c.names, name) {
@@ -93,6 +101,31 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 }
 
 type emptyParams struct{}
+
+type settingsGetParams struct {
+	ID string `json:"id" jsonschema:"Stable setting id from settings.list; not a localized label"`
+}
+
+type settingsSetParams struct {
+	ID    string `json:"id" jsonschema:"Stable setting id from settings.list; not a localized label"`
+	Value any    `json:"value" jsonschema:"Typed value matching the setting's kind: boolean, integer or array of host strings"`
+}
+
+type mockStartParams struct {
+	Collection  string  `json:"collection" jsonschema:"Nonempty saved collection path from collections.list, not a filesystem path"`
+	RateLimit   int     `json:"rateLimit,omitzero" jsonschema:"Requests per second, 0–100000; defaults to 0 (unlimited)"`
+	ErrorRate   float64 `json:"errorRate,omitzero" jsonschema:"Share of injected errors, 0–1; defaults to 0"`
+	ErrorStatus int     `json:"errorStatus,omitzero" jsonschema:"Injected error status, 400–599; defaults to 503"`
+	ErrorBody   string  `json:"errorBody,omitzero" jsonschema:"Optional injected error body"`
+}
+
+type mockStopParams struct {
+	Collection string `json:"collection" jsonschema:"Running collection path from mock.get, not a filesystem path"`
+}
+
+type sessionCloseParams struct {
+	Key string `json:"key" jsonschema:"Open session key from sessions.list"`
+}
 
 type tokenLinksAnalyzeParams struct {
 	IDs []int `json:"ids" jsonschema:"1–200 positive unique HTTP capture IDs; imported snapshots allowed"`
@@ -291,7 +324,7 @@ func register[In any](c *catalog, action, description string, annotations *mcp.T
 			// Preserve an explicitly empty root filter, but do not accept null
 			// as a second spelling of the omitted optional string.
 			property.Type, property.Types = "string", nil
-			if action == "collection-recording.start" {
+			if action == "collection-recording.start" || action == "mock.start" || action == "mock.stop" {
 				property.MinLength = new(1)
 			}
 		case "environment":
@@ -332,6 +365,12 @@ func register[In any](c *catalog, action, description string, annotations *mcp.T
 			property.Minimum, property.Maximum, property.Default = new(1.0), new(60.0), []byte("30")
 		case "maxAttempts":
 			property.Minimum, property.Maximum, property.Default = new(1.0), new(1000000.0), []byte("100000")
+		case "rateLimit":
+			property.Minimum, property.Maximum = new(0.0), new(100000.0)
+		case "errorRate":
+			property.Minimum, property.Maximum = new(0.0), new(1.0)
+		case "errorStatus":
+			property.Minimum, property.Maximum = new(400.0), new(599.0)
 		}
 	}
 	mcp.AddTool(server, &mcp.Tool{
