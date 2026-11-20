@@ -206,12 +206,13 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		mockVars := maps.Clone(globals)
 		maps.Copy(mockVars, values)
 		source := mockSource{input: *mockPath, vars: mockVars}
+		baseline := collectionFingerprint(source.input)
 		set, _, err := source.load()
 		if err != nil {
 			fmt.Fprintln(stderr, "Could not load the --mock collection; check its input and folder selection.")
 			return 2
 		}
-		runMock, err = startMockRuntime(source, set, mockserver.Options{}, "127.0.0.1:0", "127.0.0.1:0", stdout, stderr, true)
+		runMock, err = startMockRuntime(source, baseline, set, mockserver.Options{}, "127.0.0.1:0", "127.0.0.1:0", stdout, stderr, true)
 		if err != nil {
 			fmt.Fprintln(stderr, "Could not start the --mock server; save an example in that collection first.")
 			return 2

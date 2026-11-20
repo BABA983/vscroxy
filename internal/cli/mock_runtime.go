@@ -84,7 +84,9 @@ type mockRuntime struct {
 // start so examples added later have a port to appear on. A collection with
 // no examples at all is refused; a collection with only gRPC examples still
 // gets an HTTP listener that answers 404 until HTTP examples are added.
-func startMockRuntime(source mockSource, set mockExamples, opts mockserver.Options, listen, grpcAddr string, stdout, stderr io.Writer, watch bool) (*mockRuntime, error) {
+// baseline is the collection's fingerprint taken before source was read; the
+// watch starts from it so a change during the load is never lost.
+func startMockRuntime(source mockSource, baseline string, set mockExamples, opts mockserver.Options, listen, grpcAddr string, stdout, stderr io.Writer, watch bool) (*mockRuntime, error) {
 	if set.count == 0 {
 		return nil, errNoMockExamples
 	}
@@ -120,7 +122,7 @@ func startMockRuntime(source mockSource, set mockExamples, opts mockserver.Optio
 	m.grpcURL = grpcLn.Addr().String()
 
 	if watch {
-		m.watch = startCollectionWatch(source.input, m.reload, stdout, stderr)
+		m.watch = startCollectionWatch(source.input, baseline, m.reload, stdout, stderr)
 	}
 	return m, nil
 }
@@ -168,7 +170,9 @@ func (m *mockRuntime) Close() {
 
 // collectionWatch polls the input's files and calls reload when their names,
 // sizes or modification times change. Polling needs no platform-specific
-// watcher; a successful reload prints a line callers can wait for.
+// watcher; a successful reload prints a line callers can wait for. The
+// baseline is taken by the caller before loading the collection, so a change
+// made while the mock starts is still seen as a change.
 type collectionWatch struct {
 	stop chan struct{}
 	done chan struct{}
@@ -177,13 +181,13 @@ type collectionWatch struct {
 	closed bool
 }
 
-func startCollectionWatch(input string, reload func() (int, error), stdout, stderr io.Writer) *collectionWatch {
+func startCollectionWatch(input, baseline string, reload func() (int, error), stdout, stderr io.Writer) *collectionWatch {
 	w := &collectionWatch{stop: make(chan struct{}), done: make(chan struct{})}
 	go func() {
 		defer close(w.done)
 		ticks := time.NewTicker(50 * time.Millisecond)
 		defer ticks.Stop()
-		seen := collectionFingerprint(input)
+		seen := baseline
 		for {
 			select {
 			case <-w.stop:

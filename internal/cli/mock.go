@@ -80,6 +80,7 @@ func mockCommand(ctx context.Context, args []string, stdout, stderr io.Writer) i
 	maps.Copy(env, values)
 	maps.Copy(env, vars)
 	source := mockSource{input: flags.Arg(0), folder: *folder, vars: env}
+	baseline := collectionFingerprint(source.input)
 	set, warnings, err := source.load()
 	if err != nil {
 		fmt.Fprintln(stderr, "Could not load collection; check the input and folder selection.")
@@ -90,7 +91,7 @@ func mockCommand(ctx context.Context, args []string, stdout, stderr io.Writer) i
 	}
 
 	opts := mockserver.Options{RatePerSecond: *rateLimit, ErrorRate: *errorRate, ErrorStatus: *errorStatus, ErrorBody: *errorBody}
-	runtime, err := startMockRuntime(source, set, opts, listen, *grpcAddr, stdout, stderr, true)
+	runtime, err := startMockRuntime(source, baseline, set, opts, listen, *grpcAddr, stdout, stderr, true)
 	if err != nil {
 		switch {
 		case errors.Is(err, errNoMockExamples):
