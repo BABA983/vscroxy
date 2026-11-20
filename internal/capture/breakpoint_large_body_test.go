@@ -3,6 +3,7 @@ package capture
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -11,7 +12,9 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
+	"time"
 )
 
 // These tests go through the proxy and Resume, the same paths the dialog
@@ -326,5 +329,79 @@ func TestBreakpointUneditedNonUTF8BodyKeepsItsBytes(t *testing.T) {
 	}
 	if err := <-seen; err != nil {
 		t.Fatal(err)
+	}
+}
+
+type trackedReplacementFile struct {
+	*os.File
+	closed chan struct{}
+	once   sync.Once
+}
+
+func (f *trackedReplacementFile) Close() error {
+	var err error
+	f.once.Do(func() {
+		err = f.File.Close()
+		close(f.closed)
+	})
+	return err
+}
+
+// TestBreakpointResponseReplacementFileIsClosed uses a HEAD request: the
+// response cannot carry a body, so the engine aborts its first Write. The
+// replacement file must still be closed, not left open until process exit.
+func TestBreakpointResponseReplacementFileIsClosed(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "response.bin")
+	if err := os.WriteFile(file, []byte(`{"replaced":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("original body"))
+	}))
+	defer upstream.Close()
+	s, _ := startServerWithRules(t, Rule{Type: RuleBreakResponse, Match: upstream.URL})
+	s.SetBreak(true)
+
+	opened, closed := make(chan struct{}, 1), make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodHead, upstream.URL, nil)
+		if err != nil {
+			done <- err
+			return
+		}
+		resp, err := clientFor(t, s, nil).Do(req)
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+		done <- err
+	}()
+
+	bp := waitForTestBreakpoint(t, s)
+	s.Resume(bp.ID, Decision{
+		Header:   bp.Header.Clone(),
+		BodyFile: file,
+		openReplacement: func(path string) (replacementFile, error) {
+			f, err := os.Open(path)
+			if err != nil {
+				return nil, err
+			}
+			close(opened)
+			return &trackedReplacementFile{File: f, closed: closed}, nil
+		},
+	})
+	_ = <-done // A HEAD response may abort; only the file's lifetime is under test.
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	select {
+	case <-opened:
+	case <-ctx.Done():
+		t.Fatal("replacement file was never opened")
+	}
+	select {
+	case <-closed:
+	case <-ctx.Done():
+		t.Fatal("the proxy left the response replacement file open")
 	}
 }

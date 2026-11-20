@@ -373,7 +373,20 @@ type Decision struct {
 	BodyFile string
 	KeepBody bool // header-only edit of a body the text editor cannot represent
 	Drop     bool // close the client's connection without an answer
+	// openReplacement is only set by tests, to observe when the proxy closes
+	// a response replacement's file. os.Open is the production opener.
+	openReplacement func(string) (replacementFile, error)
 }
+
+// replacementFile is what a file body needs: bytes to send, a length for
+// Content-Length, and Close so the proxy can release it on every exit path.
+type replacementFile interface {
+	io.Reader
+	io.Closer
+	Stat() (os.FileInfo, error)
+}
+
+func openReplacementFile(path string) (replacementFile, error) { return os.Open(path) }
 
 // Server is the running MITM proxy. Start it once; Flows drains what it
 // captures.
@@ -2177,6 +2190,8 @@ func (a *addon) Request(f *proxy.Flow) {
 			f.Request.Header = d.Header.Clone()
 		}
 		if d.BodyFile != "" {
+			// A request reader cannot be handed to the engine here (it
+			// rebuilds one from Body), so ReadFile closes it on every path.
 			body, err := os.ReadFile(d.BodyFile)
 			if err != nil {
 				recordAction(f, "Request breakpoint · replacement file could not be read")
@@ -2391,7 +2406,11 @@ func applyResponseDecision(f *proxy.Flow, d *Decision) error {
 		f.Response.Header = d.Header.Clone()
 	}
 	if d.BodyFile != "" {
-		file, err := os.Open(d.BodyFile)
+		opener := d.openReplacement
+		if opener == nil {
+			opener = openReplacementFile
+		}
+		file, err := opener(d.BodyFile)
 		if err != nil {
 			return err
 		}
@@ -2400,7 +2419,10 @@ func applyResponseDecision(f *proxy.Flow, d *Decision) error {
 			_ = file.Close()
 			return err
 		}
-		f.Response.BodyReader = &closingReader{Reader: file, file: file}
+		// The engine closes a response BodyReader that implements io.Closer
+		// on every exit path, including a client disconnect or an aborted
+		// handler. Do not wrap it in a close-on-Read trick here.
+		f.Response.BodyReader = file
 		f.Response.Body = nil
 		setEditedBodyHeaders(f.Response.Header, info.Size())
 	} else if !d.KeepBody {

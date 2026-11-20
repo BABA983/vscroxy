@@ -120,22 +120,6 @@ type bodyReadCloser struct {
 
 func (r *bodyReadCloser) Close() error { r.once.Do(r.close); return nil }
 
-// closingReader is a file body the response writer will read to the end.
-// The engine does not close response readers, so the last read closes it.
-type closingReader struct {
-	io.Reader
-	file *os.File
-	once sync.Once
-}
-
-func (r *closingReader) Read(p []byte) (int, error) {
-	n, err := r.Reader.Read(p)
-	if err != nil {
-		r.once.Do(func() { _ = r.file.Close() })
-	}
-	return n, err
-}
-
 // SaveBreakpointBody writes a paused body to path as decoded bytes. A body
 // that could not be decoded is written exactly as it arrived. The copy is a
 // stream, so a body larger than the editor limit never grows the app heap.

@@ -382,6 +382,19 @@ the transport learned about a message survives into the addon hooks:
 
 ## `proxy/attacker.go`
 
+### Response reader ownership
+
+`reply` closes `response.BodyReader` when it implements `io.Closer`. The
+reader can own an open file, for example the body a response breakpoint
+replaces from a file; copying until EOF is not enough to release it. A client
+that disconnects, a response that cannot carry a body (HEAD, 204, 304) and an
+addon that aborts the exchange all leave the write loop early, and `abort`
+panics with `http.ErrAbortHandler`. A defer inside `reply` runs on the success,
+error and panic paths alike. Capture therefore hands the engine a plain
+`*os.File` rather than a reader that closes itself after its last successful
+read. `TestBreakpointResponseReplacementFileIsClosed` covers the HEAD path
+through the proxy with an opener that records `Close`.
+
 ### Edited Host headers
 
 When building the upstream request, a `Host` header supplied by an addon sets
