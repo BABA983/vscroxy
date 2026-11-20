@@ -4148,5 +4148,10 @@
   "reportIssueHint": "在浏览器中打开 GitHub",
   "@whatsNew": {"version": {"type": "String"}},
   "whatsNew": "vscroxy {version} 的更新内容",
-  "viewReleaseNotes": "查看版本说明"
+  "viewReleaseNotes": "查看版本说明",
+  "redo": "重做",
+  "nothingToRedo": "没有可重做的操作",
+  "undoChangedOnDisk": "无法跨文件撤销“{label}”：磁盘上的文件已更改或使用了其他格式版本",
+  "redoChangedOnDisk": "无法跨文件重做“{label}”：磁盘上的文件已更改或使用了其他格式版本",
+  "deleteCanBeUndone": "{detail} 此操作可以撤销。"
 }

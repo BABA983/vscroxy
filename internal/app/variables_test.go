@@ -286,7 +286,7 @@ func TestFolderCurrentFollowsRenameAndDeletion(t *testing.T) {
 	if a.folderCurrent["Shop"] != nil || a.folderCurrent["Store"]["base"] != "local" {
 		t.Fatalf("rename left Current values at the old path: %+v", a.folderCurrent)
 	}
-	if err := a.deleteAssets(deletion{path: "Store"}); err != nil {
+	if _, err := a.deleteAssets(deletion{path: "Store"}); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.folderCurrent) != 0 {

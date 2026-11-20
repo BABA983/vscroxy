@@ -493,7 +493,7 @@ func (a *app) captureActions(c *ui.Context) []action {
 	return append(actions,
 		do("capture.add-column", locales.AddColumn(), a.openColumn).in("columns"),
 		do("capture.clear", locales.ClearUnpinnedRequests2(), func() { a.clearOpen = true }).in("clear"),
-		pick(global, "flow.undo-delete"),
+		pick(global, "edit.undo"),
 	)
 }
 

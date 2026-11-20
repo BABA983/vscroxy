@@ -180,73 +180,14 @@ func canMoveFolderInto(from, parent string) bool {
 	return to != from && !within(to, from)
 }
 
-// libraryMoveBack is the inverse of a move already made: move the same item
-// back to where it came from, before the sibling that followed it. Undo does
-// not restore a library snapshot, so work saved after the move survives.
+// libraryMoveBack is the inverse position of a move already made. Undo uses
+// it only to tell whether a notice still points at the move's current result.
 type libraryMoveBack struct {
 	item        libraryDrag
 	to          libraryDrop
 	afterParent string
 }
 
-func (a *app) moveLibrary(m libraryMove) bool {
-	if !m.item.valid() || m.parentInsideItself() {
-		a.warn(locales.MoveIntoItself())
-		return false
-	}
-	back := a.moveBackFor(m)
-	if !a.performMove(m) {
-		return false
-	}
-	name := a.libraryItemName(m.item)
-	if m.item.kind == folderItem {
-		name = parentPathOfName(m.to.parent, nameOfPath(m.item.id))
-	}
-	parent := m.to.parent
-	a.notify(notice{level: noticeSuccess, text: locales.MovedTo(name, cmp.Or(parent, locales.NoCollection())),
-		action: locales.Undo(),
-		valid:  func() bool { return a.moveBackValid(back) },
-		run: func() {
-			if !a.moveBackValid(back) {
-				return
-			}
-			if a.performMove(libraryMove{item: back.item, to: back.to}) {
-				a.done(locales.MoveUndone())
-			}
-		}})
-	return true
-}
-
-// performMove makes the library change without adding a notice, for both a
-// drop and the Undo that moves the same item back.
-func (a *app) performMove(m libraryMove) bool {
-	if !m.item.valid() || m.parentInsideItself() {
-		return false
-	}
-	var err error
-	if m.item.kind == folderItem {
-		_, base, found := strings.CutLast(m.item.id, "/")
-		if !found {
-			base = m.item.id
-		}
-		to := base
-		if m.to.parent != "" {
-			to = m.to.parent + "/" + base
-		}
-		err = a.moveFolderTo(m.item.id, to, m.to.before, true)
-	} else {
-		err = a.moveSavedRequest(m.item.id, m.to.parent, m.to.before)
-	}
-	if err != nil {
-		a.fail(locales.MoveToEllipsis(), err)
-		return false
-	}
-	return true
-}
-
-// moveBackFor records the sibling after the moving row before the move, so
-// inserting the item before it puts the order back without touching anyone
-// else's work.
 func (a *app) moveBackFor(m libraryMove) libraryMoveBack {
 	origin := m.to.parent
 	back := libraryMoveBack{item: m.item, afterParent: m.to.parent}
@@ -283,6 +224,66 @@ func (a *app) moveBackValid(back libraryMoveBack) bool {
 	}
 	r, ok := a.savedRequest(back.item.id)
 	return ok && r.Collection == back.afterParent
+}
+
+func (a *app) moveLibrary(m libraryMove) bool {
+	if !m.item.valid() || m.parentInsideItself() {
+		a.warn(locales.MoveIntoItself())
+		return false
+	}
+	back := a.moveBackFor(m)
+	before, err := a.snapshotUndoLibrary()
+	if err != nil {
+		a.fail(locales.MoveToEllipsis(), err)
+		return false
+	}
+	if !a.performMove(m) {
+		return false
+	}
+	after, err := a.snapshotUndoLibrary()
+	if err != nil {
+		a.fail(locales.MoveToEllipsis(), err)
+		return true
+	}
+	name := a.libraryItemName(m.item)
+	if m.item.kind == folderItem {
+		name = parentPathOfName(m.to.parent, nameOfPath(m.item.id))
+	}
+	parent := m.to.parent
+	label := locales.MovedTo(name, cmp.Or(parent, locales.NoCollection()))
+	handle := a.recordUndo(undoRecord{
+		code: "library.move", label: label, before: before, after: after,
+		notice: func(bool) { a.done(locales.MoveUndone()) },
+	})
+	a.undoNotice(label, handle, func() bool { return a.moveBackValid(back) })
+	return true
+}
+
+// performMove makes the library change without adding a notice, for both a
+// drop and the Undo that moves the same item back.
+func (a *app) performMove(m libraryMove) bool {
+	if !m.item.valid() || m.parentInsideItself() {
+		return false
+	}
+	var err error
+	if m.item.kind == folderItem {
+		_, base, found := strings.CutLast(m.item.id, "/")
+		if !found {
+			base = m.item.id
+		}
+		to := base
+		if m.to.parent != "" {
+			to = m.to.parent + "/" + base
+		}
+		err = a.moveFolderTo(m.item.id, to, m.to.before, true)
+	} else {
+		err = a.moveSavedRequest(m.item.id, m.to.parent, m.to.before)
+	}
+	if err != nil {
+		a.fail(locales.MoveToEllipsis(), err)
+		return false
+	}
+	return true
 }
 
 func (m libraryMove) parentInsideItself() bool {

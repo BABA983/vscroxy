@@ -8,19 +8,6 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// flowDeletion is one deletion a person can undo. The flows keep their
-// capture IDs and their positions in a.flows, so undo restores the same rows
-// and the same # numbers.
-type flowDeletion struct {
-	id        uint64
-	flows     []flow
-	positions []int
-	ids       []int // ids of the removed rows, in their original order
-	order     []int // every id in a.flows before the removal
-}
-
-const maxFlowDeletions = 20
-
 // flowDeleteKey is the platform's delete gesture: ⌘⌫ on macOS, Delete on the
 // other platforms.
 func flowDeleteKey() ui.Key {
@@ -30,9 +17,6 @@ func flowDeleteKey() ui.Key {
 	return ui.KeyDelete
 }
 
-// deleteFlows removes the rows chosen for a delete. Publication and filtering
-// are rebuilt immediately; the toast's Undo puts the same flows back at their
-// old positions.
 // queueDeleteFlows defers a row deletion until the next view pass, after the
 // table that offered the action has finished building.
 func (a *app) queueDeleteFlows(flows []flow) {
@@ -43,17 +27,18 @@ func (a *app) queueDeleteFlows(flows []flow) {
 	a.invalidate()
 }
 
+// deleteFlows removes the chosen rows and pushes one in-memory undo element.
+// The snapshot keeps the rows, their order and the selection, so Undo puts
+// back the same rows and the same # numbers.
 func (a *app) deleteFlows(flows []flow) {
 	if len(flows) == 0 {
 		return
 	}
+	before := a.snapshotCaptureUndo()
 	ids := make(map[int]struct{}, len(flows))
 	for _, f := range flows {
 		ids[f.id] = struct{}{}
 	}
-	var deletion flowDeletion
-	deletion.order = make([]int, 0, len(a.flows))
-	kept := make([]flow, 0, len(a.flows))
 	nextID := 0
 	firstRow := -1
 	for row, at := range a.visible {
@@ -80,24 +65,27 @@ func (a *app) deleteFlows(flows []flow) {
 			}
 		}
 	}
+	kept := make([]flow, 0, len(a.flows))
+	var removedFlows []flow
+	var positions, removedIDs, order []int
 	for i, f := range a.flows {
-		deletion.order = append(deletion.order, f.id)
+		order = append(order, f.id)
 		if _, gone := ids[f.id]; gone {
-			deletion.flows = append(deletion.flows, f)
-			deletion.positions = append(deletion.positions, i)
-			deletion.ids = append(deletion.ids, f.id)
+			removedFlows = append(removedFlows, f)
+			positions, removedIDs = append(positions, i), append(removedIDs, f.id)
 			continue
 		}
 		kept = append(kept, f)
 	}
-	if len(deletion.flows) == 0 {
+	removed := len(removedFlows)
+	if removed == 0 {
 		return
 	}
 	a.flows = kept
 	for id := range ids {
 		a.chosen.Remove(id)
 	}
-	for _, f := range deletion.flows {
+	for _, f := range flows {
 		a.clearCompareSelection(flowTarget(f))
 	}
 	a.recount()
@@ -106,55 +94,54 @@ func (a *app) deleteFlows(flows []flow) {
 	if nextID != 0 {
 		a.choosePicked()
 	}
-	a.nextDeletionID++
-	deletion.id = a.nextDeletionID
-	a.deletions = append(a.deletions, deletion)
-	if len(a.deletions) > maxFlowDeletions {
-		a.deletions = slices.Delete(a.deletions, 0, len(a.deletions)-maxFlowDeletions)
+	label := locales.DeletedRequests(removed)
+	// A toggle of these exact rows, rather than a whole-capture snapshot:
+	// undoing an older notice must leave a newer deletion in place.
+	undoRows := func() error {
+		for i, f := range removedFlows {
+			at := flowInsertAt(a.flows, order, removedIDs, positions[i], f.id)
+			a.flows = slices.Insert(a.flows, at, f)
+		}
+		a.recount()
+		a.pickedID = removedFlows[0].id
+		a.applyFilter()
+		a.choosePicked()
+		a.invalidate()
+		return nil
 	}
-	// A toast or a center entry keeps this deletion's id, so an Undo pressed
-	// later restores these rows and not a more recent deletion.
-	id := deletion.id
-	a.notify(notice{level: noticeSuccess, text: locales.DeletedRequests(len(deletion.flows)), action: locales.Undo(),
-		valid: func() bool { return a.hasDeletion(id) },
-		run:   func() { a.undoDeletion(id) }})
+	redoRows := func() error {
+		kept := slices.DeleteFunc(a.flows, func(f flow) bool { _, gone := ids[f.id]; return gone })
+		if len(kept) == len(a.flows) {
+			return nil
+		}
+		a.flows = kept
+		for _, id := range removedIDs {
+			a.chosen.Remove(id)
+		}
+		a.recount()
+		a.applyFilter()
+		if len(a.visible) > 0 {
+			a.pickedID = a.flows[a.visible[0]].id
+			a.choosePicked()
+		}
+		a.invalidate()
+		return nil
+	}
+	handle := a.recordUndo(undoRecord{
+		code: "capture.delete", label: label,
+		before: before, after: a.snapshotCaptureUndo(),
+		undoAction: undoRows, redoAction: redoRows,
+	})
+	a.undoNotice(label, handle)
 }
 
-// undoDelete restores the most recent deletion, as Cmd-Z does.
-func (a *app) undoDelete() {
-	if len(a.deletions) == 0 {
-		return
+// deleteTargets is what Delete acts on: the whole chosen set when the row is
+// part of it, otherwise just that row.
+func (a *app) deleteTargets(f flow) []flow {
+	if a.chosen.Len() > 1 && a.chosen.Has(f.id) {
+		return a.selectedFlows()
 	}
-	a.undoDeletion(a.deletions[len(a.deletions)-1].id)
-}
-
-// undoDeletion restores one deletion by id, and is a no-op if that deletion
-// was already undone or fell off the stack. The rows go back at their old
-// positions, keep their #, and the first one is selected.
-func (a *app) undoDeletion(id uint64) {
-	at := slices.IndexFunc(a.deletions, func(d flowDeletion) bool { return d.id == id })
-	if at < 0 {
-		return
-	}
-	d := a.deletions[at]
-	a.deletions = slices.Delete(a.deletions, at, at+1)
-	for i, f := range d.flows {
-		at := flowInsertAt(a.flows, d.order, d.ids, d.positions[i], f.id)
-		a.flows = slices.Insert(a.flows, at, f)
-	}
-	a.recount()
-	a.pickedID = d.flows[0].id
-	a.applyFilter()
-	a.choosePicked()
-}
-
-// hasDeletion says whether this undo is still possible. A notice keeps its
-// action only while its deletion is on the stack; replacing the session clears
-// that stack, so the action hides instead of inserting old rows into it.
-func (a *app) hasDeletion(id uint64) bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return slices.ContainsFunc(a.deletions, func(d flowDeletion) bool { return d.id == id })
+	return []flow{f}
 }
 
 // flowInsertAt places a restored row among the rows still here, using the
@@ -185,13 +172,4 @@ func flowInsertAt(flows []flow, order, removed []int, fallback, id int) int {
 		}
 	}
 	return min(fallback, len(flows))
-}
-
-// deleteTargets is what Delete acts on: the whole chosen set when the row is
-// part of it, otherwise just that row.
-func (a *app) deleteTargets(f flow) []flow {
-	if a.chosen.Len() > 1 && a.chosen.Has(f.id) {
-		return a.selectedFlows()
-	}
-	return []flow{f}
 }

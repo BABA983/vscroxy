@@ -64,6 +64,14 @@ func commandTestStates() []commandTestState {
 			captureTestState(t, a, startedTestCapture(t))
 			a.inspectorDetached = true
 		}},
+		// Undo and redo share the Z/Y keys with nothing else. After one
+		// undo both commands are enabled, so the conflict check sees their
+		// keys in the same pass.
+		{"undo and redo", func(t *testing.T, a *app) {
+			a.deleteFlows([]flow{a.flows[0]})
+			a.deleteFlows([]flow{a.flows[0]})
+			a.undo()
+		}},
 	}
 }
 
@@ -90,12 +98,24 @@ func TestKeybindingOwnersAreUnique(t *testing.T) {
 	for _, s := range commandTestStates() {
 		t.Run(s.name, func(t *testing.T) {
 			a, c := commandTestApp(t, s)
+			actions := a.actions(c)
+			if s.name == "undo and redo" {
+				for _, id := range []string{"edit.undo", "edit.redo"} {
+					if !pick(actions, id).enabled {
+						t.Errorf("%s is disabled with an undo and a redo available", id)
+					}
+				}
+			}
 			owners := make(map[shortcut][]string)
-			for _, x := range a.actions(c) {
-				if !x.enabled || x.shortcut.key == 0 {
+			for _, x := range actions {
+				if !x.enabled {
 					continue
 				}
-				owners[x.shortcut] = append(owners[x.shortcut], x.id)
+				for _, key := range []shortcut{x.shortcut, x.altShortcut} {
+					if key.key != 0 {
+						owners[key] = append(owners[key], x.id)
+					}
+				}
 			}
 			for key, ids := range owners {
 				if len(ids) > 1 {
@@ -146,7 +166,7 @@ func TestSharedMenusFollowRegistry(t *testing.T) {
 			checkShared(t, s.name, global, flatActions(a.moreActions(c)),
 				"network.client", "network.devices", "capture.export-csv", "capture.filter", "app.settings")
 			checkShared(t, s.name, global, a.captureActions(c),
-				"capture.stop", "capture.start", "tools.rules", "collection.record", "capture.filter", "flow.undo-delete")
+				"capture.stop", "capture.start", "tools.rules", "collection.record", "capture.filter", "edit.undo")
 			if d := a.requestDocument; d != nil {
 				checkShared(t, s.name, global, a.documentActions(c, d),
 					"request.duplicate", "request.export-http", "request.code", "collection.settings")

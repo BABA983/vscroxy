@@ -219,6 +219,13 @@ type bulkCommitOptions struct {
 // and editor buffers. A refused write leaves requests, folders, environments
 // and every draft as they were; the writeLibrary conflict view owns the retry.
 func (a *app) commitBulkEdits(fields []*plannedField, values []variableMatch, state variableStateCopy, o bulkCommitOptions) bool {
+	order := cloneFolderOrder(a.library.folderOrder)
+	beforeData, err := cloneVariableState(state)
+	if err != nil {
+		a.fail(o.label, err)
+		return false
+	}
+	before := undoState{data: beforeData, folderOrder: order, library: true, vars: true}
 	libraryChanged := false
 	for _, plan := range fields {
 		switch plan.owner {
@@ -289,8 +296,18 @@ func (a *app) commitBulkEdits(fields []*plannedField, values []variableMatch, st
 			a.fail(locales.Variables(), err)
 		}
 	}
+	// One group per changed resource: a bulk rename spanning two files is
+	// undone as one operation, after checking both files on disk.
+	afterData, err := cloneVariableState(state)
+	if err != nil {
+		a.fail(o.label, err)
+		return true
+	}
+	after := undoState{data: afterData, folderOrder: order, library: true, vars: true}
+	handle := a.recordUndo(undoRecord{code: "bulk.edit", label: o.label,
+		before: before, after: after})
 	if o.done != "" {
-		a.done(o.done)
+		a.undoNotice(o.done, handle)
 	}
 	a.invalidate()
 	return true

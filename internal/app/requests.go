@@ -726,9 +726,13 @@ func (a *app) duplicateDocument(d *requestDocument) {
 	if d == nil {
 		return
 	}
+	before := a.snapshotDraftsUndo()
 	r := d.value()
 	r.ID, r.Name = "", uniqueRequestName(a.requests, r.Name+" copy")
 	a.addDocument(r, "")
+	after := a.snapshotDraftsUndo()
+	a.recordUndo(undoRecord{code: "draft.duplicate", label: locales.DuplicateAsNewRequest(),
+		before: before, after: after})
 }
 
 // documentActions are an open request's, beside Save. Shared commands come

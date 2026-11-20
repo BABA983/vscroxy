@@ -39211,3 +39211,53 @@ func ViewReleaseNotes() string { return In(i18n.Locale()).ViewReleaseNotes() }
 func (msgs Messages) ViewReleaseNotes() string {
 	return Catalog.Format(msgs.locale, "viewReleaseNotes", nil)
 }
+
+// Redo says "Redo"
+// in the language the app shows.
+func Redo() string { return In(i18n.Locale()).Redo() }
+
+// Redo says "Redo"
+// in the language of msgs.
+func (msgs Messages) Redo() string {
+	return Catalog.Format(msgs.locale, "redo", nil)
+}
+
+// NothingToRedo says "Nothing to redo"
+// in the language the app shows.
+func NothingToRedo() string { return In(i18n.Locale()).NothingToRedo() }
+
+// NothingToRedo says "Nothing to redo"
+// in the language of msgs.
+func (msgs Messages) NothingToRedo() string {
+	return Catalog.Format(msgs.locale, "nothingToRedo", nil)
+}
+
+// UndoChangedOnDisk says "Cannot undo “{label}” across all files: a file changed on disk or uses another format version"
+// in the language the app shows.
+func UndoChangedOnDisk(label string) string { return In(i18n.Locale()).UndoChangedOnDisk(label) }
+
+// UndoChangedOnDisk says "Cannot undo “{label}” across all files: a file changed on disk or uses another format version"
+// in the language of msgs.
+func (msgs Messages) UndoChangedOnDisk(label string) string {
+	return Catalog.Format(msgs.locale, "undoChangedOnDisk", map[string]any{"label": label})
+}
+
+// RedoChangedOnDisk says "Cannot redo “{label}” across all files: a file changed on disk or uses another format version"
+// in the language the app shows.
+func RedoChangedOnDisk(label string) string { return In(i18n.Locale()).RedoChangedOnDisk(label) }
+
+// RedoChangedOnDisk says "Cannot redo “{label}” across all files: a file changed on disk or uses another format version"
+// in the language of msgs.
+func (msgs Messages) RedoChangedOnDisk(label string) string {
+	return Catalog.Format(msgs.locale, "redoChangedOnDisk", map[string]any{"label": label})
+}
+
+// DeleteCanBeUndone says "{detail} You can undo this."
+// in the language the app shows.
+func DeleteCanBeUndone(detail string) string { return In(i18n.Locale()).DeleteCanBeUndone(detail) }
+
+// DeleteCanBeUndone says "{detail} You can undo this."
+// in the language of msgs.
+func (msgs Messages) DeleteCanBeUndone(detail string) string {
+	return Catalog.Format(msgs.locale, "deleteCanBeUndone", map[string]any{"detail": detail})
+}

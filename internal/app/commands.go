@@ -134,7 +134,7 @@ type command struct {
 	title                    func(*commandContext) string
 	enabled                  func(*commandContext) bool
 	checked                  func(*commandContext) check
-	key                      shortcut
+	key, altKey              shortcut
 	run                      func(*commandContext)
 	source                   func(*commandContext, *ui.Context) []action
 }
@@ -183,6 +183,13 @@ func (c *command) in(group string) *command { c.group = group; return c }
 
 func (c *command) keys(mods ui.Modifiers, key ui.Key) *command {
 	c.key = shortcut{mods, key}
+	return c
+}
+
+// alt adds a second key to one command, so the palette still shows one row
+// for keys such as Cmd/Ctrl+Shift+Z and Ctrl+Y on Windows.
+func (c *command) alt(mods ui.Modifiers, key ui.Key) *command {
+	c.altKey = shortcut{mods, key}
 	return c
 }
 
@@ -235,7 +242,7 @@ func (x *commandContext) build(c *ui.Context) []action {
 		if def.title != nil {
 			label = def.title(x)
 		}
-		x0 := action{id: def.id, label: label, group: def.group, shortcut: def.key,
+		x0 := action{id: def.id, label: label, group: def.group, shortcut: def.key, altShortcut: def.altKey,
 			enabled: ok, run: func() {
 				// A quick-switch pick is provisional until the reader does
 				// something else; every other command settles it first.
@@ -544,8 +551,20 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("view.sidebar", locales.ToggleSidebar(), func(x *commandContext) {
 		x.a.workbench.sidebarHidden = !x.a.workbench.sidebarHidden
 	}).keys(ui.Cmd, ui.KeyB)
-	r.add("flow.undo-delete", locales.Undo(), func(x *commandContext) { x.a.undoDelete() }).
-		when(func(x *commandContext) bool { return len(x.a.deletions) > 0 }, locales.NothingToUndo()).keys(ui.Cmd, ui.KeyZ)
+	// Undo and Redo are the two owners of the history keys. The keys stay
+	// with a focused text field or editor (handled where shortcuts are
+	// subscribed), but the commands stay available in menus and the palette.
+	r.add("edit.undo", locales.Undo(), func(x *commandContext) { x.a.undo() }).
+		when(func(x *commandContext) bool { return x.a.undoHistory().CanUndo() }, locales.NothingToUndo()).
+		keys(ui.Cmd, ui.KeyZ)
+	redo := r.add("edit.redo", locales.Redo(), func(x *commandContext) { x.a.redo() }).
+		when(func(x *commandContext) bool { return x.a.undoHistory().CanRedo() }, locales.NothingToRedo()).
+		keys(ui.Cmd|ui.Shift, ui.KeyZ)
+	// Windows also uses Ctrl+Y for Redo, as VS Code does. Both keys are owned
+	// by the one command, so the palette shows one Redo row.
+	if runtime.GOOS != "darwin" {
+		redo.alt(ui.Ctrl, ui.KeyY)
+	}
 	r.add("view.layout-reset", locales.ResetDesktopLayout(), func(x *commandContext) {
 		a, w := x.a, &x.a.workbench
 		w.layout, w.sidebarHidden, w.focused, w.sidePercent = "right", false, false, 64
