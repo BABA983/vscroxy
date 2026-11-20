@@ -109,6 +109,7 @@ func (a *app) currentSettings() settings {
 		CookiePersistence:    a.cookiePersistence,
 		LocalControl:         a.localControl,
 		DisableUpdateCheck:   !a.updateCheck,
+		LastRunVersion:       a.lastRunVersion,
 		TrustedLinkHosts:     slices.Clone(a.trustedLinkHosts),
 		TrustedProjects:      trusted,
 		UntrustedProjects:    untrusted,

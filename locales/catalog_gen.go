@@ -39191,3 +39191,23 @@ func ReportIssueHint() string { return In(i18n.Locale()).ReportIssueHint() }
 func (msgs Messages) ReportIssueHint() string {
 	return Catalog.Format(msgs.locale, "reportIssueHint", nil)
 }
+
+// WhatsNew says "What's new in vscroxy {version}"
+// in the language the app shows.
+func WhatsNew(version string) string { return In(i18n.Locale()).WhatsNew(version) }
+
+// WhatsNew says "What's new in vscroxy {version}"
+// in the language of msgs.
+func (msgs Messages) WhatsNew(version string) string {
+	return Catalog.Format(msgs.locale, "whatsNew", map[string]any{"version": version})
+}
+
+// ViewReleaseNotes says "View release notes"
+// in the language the app shows.
+func ViewReleaseNotes() string { return In(i18n.Locale()).ViewReleaseNotes() }
+
+// ViewReleaseNotes says "View release notes"
+// in the language of msgs.
+func (msgs Messages) ViewReleaseNotes() string {
+	return Catalog.Format(msgs.locale, "viewReleaseNotes", nil)
+}

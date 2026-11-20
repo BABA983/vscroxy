@@ -48,6 +48,10 @@ type notice struct {
 	// acting on that did not just happen, such as an available update.
 	sticky bool
 	run    func() // runs on the UI thread
+	// openURL is the destination of a link action, such as a what's-new
+	// notice's release page. The window's services open it when the action
+	// is chosen, from a toast or from the notification center.
+	openURL string
 	// valid says whether the action still has a target. A notice whose
 	// target went away stays in the history, but its action is hidden.
 	valid func() bool
@@ -158,6 +162,7 @@ func (a *app) showNotices(c *ui.Context) {
 	queued := center.pending
 	center.pending = nil
 	a.mu.Unlock()
+	services := c.Services()
 	for _, n := range queued {
 		if n.valid != nil && !n.valid() {
 			continue
@@ -170,6 +175,9 @@ func (a *app) showNotices(c *ui.Context) {
 				}
 				if n.run != nil {
 					n.run()
+				}
+				if n.openURL != "" {
+					services.OpenURL(n.openURL)
 				}
 			}}
 		if n.action != "" {
