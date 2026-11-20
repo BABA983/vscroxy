@@ -67,7 +67,6 @@ type captureInspectorState struct {
 	liveFor          int
 	liveProblem      string
 	liveLoad         bool
-	messageUI        messagePanel
 	autoSelect       bool
 	autoSelecting    bool
 	lastPicked       int
@@ -95,7 +94,7 @@ func (s *captureInspectorState) take(a *app) {
 		markdownDoc: a.markdownDoc, markdownFor: a.markdownFor,
 		mergedText: a.mergedText, mergedFor: a.mergedFor,
 		live: a.live, liveFor: a.liveFor, liveProblem: a.liveProblem, liveLoad: a.liveLoad,
-		messageUI: a.messageUI, autoSelect: a.autoSelect,
+		autoSelect:    a.autoSelect,
 		autoSelecting: a.autoSelecting, lastPicked: a.lastPicked,
 	}
 }
@@ -122,7 +121,6 @@ func (s captureInspectorState) put(a *app) {
 	a.mergedText, a.mergedFor = s.mergedText, s.mergedFor
 	a.live, a.liveFor = s.live, s.liveFor
 	a.liveProblem, a.liveLoad = s.liveProblem, s.liveLoad
-	a.messageUI = s.messageUI
 	a.autoSelect, a.autoSelecting, a.lastPicked = s.autoSelect, s.autoSelecting, s.lastPicked
 }
 
@@ -471,8 +469,8 @@ func (v *captureViews) persistWorkbench(a *app) {
 }
 
 // restoreWorkbench rebuilds the saved groups on launch. Each saved filter is
-// the conditions of one view; the ids in settings name those views, so a
-// group keeps the same place if saved filters are inserted before it.
+// the conditions of one view, in group order; the second view is new to this
+// session and holds the conditions the second group had.
 func (v *captureViews) restoreWorkbench(a *app, state []savedCaptureFilter, focus int) {
 	if len(state) == 0 {
 		return

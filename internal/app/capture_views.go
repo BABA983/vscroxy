@@ -1053,6 +1053,7 @@ func (v *captureViews) clearFilters(a *app) {
 	view.any = false
 	v.bind(a)
 	v.applyFilter(a)
+	v.persistWorkbench(a)
 	a.done(locales.FiltersCleared(
 
 	// resetFilters clears every condition in this view, not in other views or
@@ -1355,6 +1356,7 @@ func (v *captureViews) commitFilter(a *app) {
 	view.triage.Operation = strings.TrimSpace(view.triage.Operation)
 	v.bind(a)
 	v.applyFilter(a)
+	v.persistWorkbench(a)
 	if strings.TrimSpace(view.body) != "" {
 		a.inform(locales.BodyFilter(strconv.Quote(strings.TrimSpace(view.body))))
 	}
@@ -1480,6 +1482,7 @@ func (v *captureViews) applySaved(a *app, name string) {
 	view.reveal = true
 	v.bind(a)
 	v.applyFilter(a)
+	v.persistWorkbench(a)
 	v.problem = ""
 	v.note = locales.CaptureFilterApplied(strconv.Quote(name))
 	a.inform(locales.FilterApplied(name))
