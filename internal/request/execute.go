@@ -170,10 +170,6 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	r.Body = template.Body
 	out.Stage, run.phase = "Request setup failed", "setup"
 	out.Tests, out.Vars = run.tests, run.vars
-	input := maps.Clone(run.vars)
-	maps.Copy(input, run.data)
-	maps.Copy(input, run.locals)
-	out.Variables = r.ResolveVariables(in.Apply(run.writes, r.Collection), input, run.written)
 	// Response references are resolved after pre-request scripts, so a script
 	// can still change the source name or the request being sent. Each one
 	// becomes a pseudo-variable and goes through the same expansion as any
@@ -199,6 +195,12 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	if template.editedHeaders[http.CanonicalHeaderKey(authHeader)] && authInHeader {
 		r.Auth = Auth{}
 	}
+	// The variables report must describe what the send actually uses: a
+	// hand-edited Authorization header removes the auth template entirely.
+	input := maps.Clone(run.vars)
+	maps.Copy(input, run.data)
+	maps.Copy(input, run.locals)
+	out.Variables = r.ResolveVariables(in.Apply(run.writes, r.Collection), input, run.written)
 	r = r.withDynamic(effective)
 	if r.Checks != (Checks{}) {
 		var missing []string

@@ -39472,13 +39472,13 @@ func (msgs Messages) ResponseReferencePreviewHint() string {
 	return Catalog.Format(msgs.locale, "responseReferencePreviewHint", nil)
 }
 
-// ResponseReferenceSourceLabel says "Response #{source} → {count} reused values"
+// ResponseReferenceSourceLabel says "Response #{source} → {count, plural, one {# reused value} other {# reused values}}"
 // in the language the app shows.
 func ResponseReferenceSourceLabel(source int, count int) string {
 	return In(i18n.Locale()).ResponseReferenceSourceLabel(source, count)
 }
 
-// ResponseReferenceSourceLabel says "Response #{source} → {count} reused values"
+// ResponseReferenceSourceLabel says "Response #{source} → {count, plural, one {# reused value} other {# reused values}}"
 // in the language of msgs.
 func (msgs Messages) ResponseReferenceSourceLabel(source int, count int) string {
 	return Catalog.Format(msgs.locale, "responseReferenceSourceLabel", map[string]any{"source": source, "count": count})

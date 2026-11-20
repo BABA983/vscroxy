@@ -4193,7 +4193,7 @@
   "responseReferenceSuggestions": "响应引用建议",
   "responseReferencePreviewHint": "仅为建议——应用前不会更改任何内容。现有脚本和变量保持不变。",
   "@responseReferenceSourceLabel": {"placeholders": {"source": {"type": "int"}, "count": {"type": "int"}}},
-  "responseReferenceSourceLabel": "响应 #{source} → {count} 处复用",
+  "responseReferenceSourceLabel": "响应 #{source} → {count, plural, other {# 处复用}}",
   "@responseReferenceExpression": {"placeholders": {"expression": {"type": "String"}}},
   "responseReferenceExpression": "替换为：{expression}",
   "noResponseReferencesFound": "未找到可复用的响应值。",

@@ -102,6 +102,35 @@ func TestResponseRefSendsMissingSource(t *testing.T) {
 	}
 }
 
+func TestEditedAuthorizationHeaderDropsItsVariableFromTheReport(t *testing.T) {
+	var mu sync.Mutex
+	var seen string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		seen = r.Header.Get("Authorization")
+		mu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer upstream.Close()
+	r := Request{ID: "edited", Name: "Edited", Method: "GET", URL: upstream.URL + "/",
+		Auth: Auth{Type: "Bearer", Token: "{{auth_token}}"},
+		Pre:  `pm.request.headers.upsert("Authorization", "Bearer script-token")`}
+	out := r.Execute(t.Context(), testProxy(t), Context{}, map[string]string{"auth_token": "private-token"}, nil)
+	if out.Err != nil {
+		t.Fatalf("%s: %v", out.Stage, out.Err)
+	}
+	for _, variable := range out.Variables {
+		if variable.Name == "auth_token" {
+			t.Fatalf("variables = %+v; want no auth_token after the header was hand-edited", out.Variables)
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if seen != "Bearer script-token" {
+		t.Fatalf("Authorization = %q; want the script's header", seen)
+	}
+}
+
 func TestResponseRefCycleFailsClearly(t *testing.T) {
 	loop := Request{ID: "login", Name: "Login", Collection: "Shop", Method: "GET", URL: `http://127.0.0.1:1/{{response "Login" "/token"}}`}
 	consumer := Request{ID: "me", Name: "Me", Collection: "Shop", Method: "GET", URL: `http://127.0.0.1:1/?token={{response "Login" "/token"}}`}
@@ -123,6 +152,34 @@ func TestResponseRefMissingPointerNamesTheField(t *testing.T) {
 	out := r.Execute(t.Context(), nil, Context{Resolve: responseRefResolver(source), Responses: responses}, nil, nil)
 	if out.Err == nil || !strings.Contains(out.Err.Error(), `/data/missing`) || !strings.Contains(out.Err.Error(), "pointer") {
 		t.Fatalf("err = %v; want a missing pointer error naming the field", out.Err)
+	}
+}
+
+func TestResponseRefValueKeepsRawJSONLeaves(t *testing.T) {
+	body := `{"id":1234567890123,"big":9007199254740993,"obj":{"a":1},"flag":true,"text":"x"}`
+	snapshot := ResponseSnapshot{Body: body}
+	for pointer, want := range map[string]string{
+		"/id":   "1234567890123",
+		"/big":  "9007199254740993",
+		"/obj":  `{"a":1}`,
+		"/flag": "true",
+		"/text": "x",
+	} {
+		got, err := Value(snapshot, ResponseRef{Pointer: pointer})
+		if err != nil || got != want {
+			t.Errorf("Value(%s) = %q, %v; want %q", pointer, got, err, want)
+		}
+	}
+}
+
+func TestParseResponseRefRejectsEmbeddedHeaderPrefix(t *testing.T) {
+	for _, expr := range []string{
+		`{{response "Login" "xheader:X-Session"}}`,
+		`{{response "Login" "notheader:X-Session"}}`,
+	} {
+		if _, ok := ParseResponseRef(expr); ok {
+			t.Errorf("%s parsed; only a pointer or a header: prefix is valid", expr)
+		}
 	}
 }
 

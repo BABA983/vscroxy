@@ -32,7 +32,7 @@ func TestResponseReferenceScreenshots(t *testing.T) {
 		t.Run(appearance, func(t *testing.T) {
 			a := responseRefPlanApp(t)
 			a.appearance = appearance
-			tt := ui.NewTester(a.view, 1180, 760)
+			tt := ui.NewTester(a.view, 1500, 950)
 			tt.SetLocale("en-US")
 			tt.SetScale(2)
 			tt.Frame()
@@ -40,13 +40,18 @@ func TestResponseReferenceScreenshots(t *testing.T) {
 			if !ok {
 				t.Fatalf("dialog title %q is not drawn", locales.TokenLinks())
 			}
+			footer, ok := tt.Find("Review token link changes")
+			if !ok {
+				t.Fatalf("dialog footer button is not drawn: %v", tt.Texts())
+			}
 			if !tt.HasText("Response reference suggestions") || tt.HasText("preview-secret-token-123") {
 				t.Fatalf("suggestion view is missing or unmasked: %v", tt.Texts())
 			}
 			const scale = 2
+			right := max(title.X+830, footer.X+footer.W+28)
 			crop := image.Rect(
 				int(title.X-24)*scale, int(title.Y-40)*scale,
-				int(title.X+830)*scale, int(title.Y+580)*scale,
+				int(right)*scale, int(footer.Y+footer.H+28)*scale,
 			).Intersect(tt.Image().Bounds())
 			out := image.NewRGBA(image.Rect(0, 0, crop.Dx(), crop.Dy()))
 			draw.Draw(out, out.Bounds(), tt.Image(), crop.Min, draw.Src)

@@ -8409,7 +8409,7 @@
   "responseReferenceSuggestions": "Response reference suggestions",
   "responseReferencePreviewHint": "Suggestions only — nothing changes until you apply. Existing scripts and variables are left alone.",
   "@responseReferenceSourceLabel": {"placeholders": {"source": {"type": "int"}, "count": {"type": "int"}}},
-  "responseReferenceSourceLabel": "Response #{source} → {count} reused values",
+  "responseReferenceSourceLabel": "Response #{source} → {count, plural, one {# reused value} other {# reused values}}",
   "@responseReferenceExpression": {"placeholders": {"expression": {"type": "String"}}},
   "responseReferenceExpression": "Replace with: {expression}",
   "noResponseReferencesFound": "No reusable response values found.",

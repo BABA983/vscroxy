@@ -3536,9 +3536,11 @@ collection. It is how the reference is written and read; resolution settles it
 to that request's stable ID before reading a response, so renaming the request
 keeps older references working. A name shared by several requests is refused
 rather than guessed. The second argument is an RFC 6901 JSON pointer (`~1` for
-`/`, `~0` for `~`); `header:X-Session` reads a response header instead. An
-invalid pointer, a missing field, a source in another collection or a cycle
-fails the send with a clear error that never includes the secret value.
+`/`, `~0` for `~`); `header:X-Session` reads a response header instead. A
+string leaf is unquoted; a number, boolean, object or array is inserted as its
+exact JSON text, so large integer IDs keep their precision. An invalid pointer,
+a missing field, a source in another collection or a cycle fails the send with
+a clear error that never includes the secret value.
 
 Resolution uses the source request's latest response in this session, including
 one captured by an earlier Send, Runner step or `vscroxy-cli run` step. If no

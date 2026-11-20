@@ -48,6 +48,17 @@ func TestRecognizeResponseRefsFindsReuseAndIgnoresShortValues(t *testing.T) {
 	}
 }
 
+func TestResponseReferenceSourceLabelUsesPlural(t *testing.T) {
+	en := locales.In("en-US")
+	one, many := en.ResponseReferenceSourceLabel(1, 1), en.ResponseReferenceSourceLabel(1, 2)
+	if !strings.Contains(one, "1 reused value") || strings.Contains(one, "reused values") {
+		t.Errorf("singular label = %q", one)
+	}
+	if !strings.Contains(many, "2 reused values") {
+		t.Errorf("plural label = %q", many)
+	}
+}
+
 func TestResponseRefsSuggestionUIIsMasked(t *testing.T) {
 	a := libraryApp(t)
 	a.flows = tokenPreviewFlows()

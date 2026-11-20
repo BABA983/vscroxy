@@ -2,9 +2,11 @@ package request
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"slices"
@@ -75,7 +77,7 @@ func ParseResponseRef(expr string) (ResponseRef, bool) {
 		return ResponseRef{}, false
 	}
 	if !strings.HasPrefix(rawPointer, "/") {
-		if _, header, found := strings.Cut(rawPointer, "header:"); !found || strings.TrimSpace(header) == "" {
+		if header, ok := strings.CutPrefix(rawPointer, "header:"); !ok || strings.TrimSpace(header) == "" {
 			return ResponseRef{}, false
 		}
 	}
@@ -228,8 +230,15 @@ func Value(snapshot ResponseSnapshot, ref ResponseRef) (string, error) {
 	if len(snapshot.Body) == 0 {
 		return "", errors.New("the latest response has no JSON body")
 	}
-	var doc any
-	if err := json.Unmarshal([]byte(snapshot.Body), &doc); err != nil {
+	dec := jsontext.NewDecoder(strings.NewReader(snapshot.Body))
+	doc, err := dec.ReadValue()
+	if err != nil {
+		return "", errors.New("the latest response is not valid JSON")
+	}
+	// ReadValue can lend bytes from the decoder's buffer; clone before asking
+	// the decoder for the trailing token.
+	doc = doc.Clone()
+	if _, err := dec.ReadToken(); !errors.Is(err, io.EOF) {
 		return "", errors.New("the latest response is not valid JSON")
 	}
 	segments, err := pointerSegments(ref.Pointer)
@@ -237,32 +246,55 @@ func Value(snapshot ResponseSnapshot, ref ResponseRef) (string, error) {
 		return "", err
 	}
 	at := doc
-	for i, segment := range segments {
-		_ = i
-		switch node := at.(type) {
-		case map[string]any:
-			value, ok := node[segment]
-			if !ok {
-				return "", errors.New("response pointer is not in the latest response")
-			}
-			at = value
-		case []any:
-			index, err := strconv.Atoi(segment)
-			if err != nil || index < 0 || index >= len(node) || segment != strconv.Itoa(index) {
-				return "", errors.New("response pointer is not in the latest response")
-			}
-			at = node[index]
-		default:
-			return "", errors.New("response pointer is not in the latest response")
+	for _, segment := range segments {
+		at, err = jsonValueAt(at, segment)
+		if err != nil {
+			return "", err
 		}
 	}
-	switch value := at.(type) {
-	case string:
+	switch at.Kind() {
+	case '"':
+		var value string
+		if err := json.Unmarshal(at, &value); err != nil {
+			return "", errors.New("the response pointer is not a string")
+		}
 		return value, nil
-	case nil:
+	case 'n':
 		return "", errors.New("response pointer is null")
 	default:
-		return fmt.Sprint(value), nil
+		// Numbers, booleans, objects and arrays keep the JSON text exactly
+		// as the response wrote it: float64 would lose large integer IDs.
+		return strings.TrimSpace(string(at)), nil
+	}
+}
+
+// jsonValueAt walks one RFC 6901 segment while keeping every child's raw
+// JSON text, so no numeric value passes through a floating-point conversion.
+func jsonValueAt(raw jsontext.Value, segment string) (jsontext.Value, error) {
+	missing := errors.New("response pointer is not in the latest response")
+	switch raw.Kind() {
+	case '{':
+		var object map[string]jsontext.Value
+		if err := json.Unmarshal(raw, &object); err != nil {
+			return nil, missing
+		}
+		value, ok := object[segment]
+		if !ok {
+			return nil, missing
+		}
+		return value, nil
+	case '[':
+		var array []jsontext.Value
+		if err := json.Unmarshal(raw, &array); err != nil {
+			return nil, missing
+		}
+		index, err := strconv.Atoi(segment)
+		if err != nil || index < 0 || index >= len(array) || segment != strconv.Itoa(index) {
+			return nil, missing
+		}
+		return array[index], nil
+	default:
+		return nil, missing
 	}
 }
 
