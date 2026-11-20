@@ -273,6 +273,10 @@ func TestSocketIOSavedMessagesTabAddsTheComposer(t *testing.T) {
 
 func TestSocketIOEmitsTheSavedListInOrder(t *testing.T) {
 	frames := make(chan string, 4)
+	// Keep the socket open until the sent list has been read. Closing it as
+	// soon as both frames arrive made the second emit race its own recording.
+	releaseServer := make(chan struct{})
+	defer close(releaseServer)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ws, err := new(websocket.Upgrader).Upgrade(w, r, nil)
 		if err != nil {
@@ -294,6 +298,7 @@ func TestSocketIOEmitsTheSavedListInOrder(t *testing.T) {
 			}
 			frames <- string(b)
 		}
+		<-releaseServer
 	}))
 	t.Cleanup(server.Close)
 	a := libraryApp(t)
@@ -334,5 +339,116 @@ func TestSocketIOEmitsTheSavedListInOrder(t *testing.T) {
 	sent := d.socketIOState().session.sentMessages()
 	if !slices.Equal(sent, d.socketIOConfig.Messages) {
 		t.Fatalf("sent: %+v", sent)
+	}
+}
+
+func TestSocketIORecordsEmitWhenServerClosesFirst(t *testing.T) {
+	secondWrite := make(chan struct{})
+	resumeWrite := make(chan struct{}, 1)
+	defer func() {
+		select {
+		case resumeWrite <- struct{}{}:
+		default:
+		}
+	}()
+	serverRead := make(chan struct{})
+	serverConn := make(chan *websocket.Conn, 1)
+	releaseServer := make(chan struct{})
+	defer close(releaseServer)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := new(websocket.Upgrader).Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer ws.Close()
+		_ = ws.SetReadDeadline(time.Now().Add(10 * time.Second))
+		serverConn <- ws
+		ws.WriteMessage(1, []byte(`0{"sid":"engine","pingInterval":5000,"pingTimeout":5000}`))
+		if _, b, err := ws.ReadMessage(); err != nil || !strings.HasPrefix(string(b), "40/admin,") {
+			return
+		}
+		ws.WriteMessage(1, []byte(`40/admin,{"sid":"socket"}`))
+		for range 2 {
+			if _, _, err := ws.ReadMessage(); err != nil {
+				return
+			}
+		}
+		close(serverRead)
+		<-releaseServer
+	}))
+	t.Cleanup(server.Close)
+	a := libraryApp(t)
+	a.srv = requestProxy(t)
+	messages := []request.SocketIOMessageDoc{
+		{Event: "one", Args: `[1]`},
+		{Event: "two", Args: `[2]`},
+	}
+	a.addDocument(savedRequest{
+		Protocol: "Socket.IO", Name: "Close race", URL: server.URL,
+		SocketIO: request.SocketIOConfig{Namespace: "/admin", Messages: messages},
+	}, "")
+	d := a.requestDocument
+	t.Cleanup(func() { d.socketIOState().stop() })
+	tt := ui.NewTester(a.view, 1100, 800)
+	if err := tt.Click("Connect"); err != nil {
+		t.Fatal(err)
+	}
+	waitSocketIO(t, tt, func() bool { return d.socketIOState().session.snapshot().ready })
+	s := d.socketIOState().session
+	// Hold the second emit after Emit returns, close the session through its
+	// read loop, then let it record. No scheduling luck is involved.
+	s.afterWrite = func(event string) {
+		if event == "two" {
+			close(secondWrite)
+			<-resumeWrite
+		}
+	}
+	emitted := make(chan error, 1)
+	go func() { emitted <- s.emitAll(messages) }()
+	select {
+	case <-secondWrite:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the second emit never reached the hook")
+	}
+	select {
+	case <-serverRead:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the server never received both frames")
+	}
+	ws := <-serverConn
+	if err := ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-s.done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the server close did not finish the session")
+	}
+	resumeWrite <- struct{}{}
+	if err := <-emitted; err != nil {
+		t.Fatal(err)
+	}
+	v := s.snapshot()
+	if !v.finished || v.busy || v.problem != "" || v.state != "Server disconnected" {
+		t.Fatalf("session after close: %+v", v)
+	}
+	var out []string
+	closed, late := false, false
+	for _, e := range v.events {
+		if e.direction == "System" && e.name == "Server disconnected" {
+			closed = true
+		}
+		if e.direction == "Out" {
+			out = append(out, e.name)
+			if closed {
+				late = true
+			}
+		}
+	}
+	if !slices.Equal(out, []string{"one", "two"}) || !closed || !late {
+		t.Fatalf("timeline after close: out=%q closed=%v late=%v events=%+v", out, closed, late, v.events)
+	}
+	if got := s.sentMessages(); !slices.Equal(got, messages) {
+		t.Fatalf("sent after close: %+v", got)
 	}
 }
