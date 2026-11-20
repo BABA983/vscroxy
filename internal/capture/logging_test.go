@@ -14,6 +14,25 @@ import (
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
 
+// startLoggingServer installs its addon before the accept loop can use it.
+// proxy.Addons is read by wrapListener.Accept, so adding one after Start is a
+// race even when the test only cares about log output.
+func startLoggingServer(t *testing.T, newAddon func(string) proxy.Addon) (*Server, string) {
+	t.Helper()
+	dir := t.TempDir()
+	addr := freeAddr(t)
+	s, err := New(addr, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.proxy.Addons = append(s.proxy.Addons, newAddon(addr))
+	if err := s.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	return s, filepath.Join(dir, "vscroxy-ca-cert.pem")
+}
+
 // A fresh process observes the production stderr policy without replacing a
 // global logger's output while proxy workers are still using it.
 func TestProxyErrorsStayInCaptureNotDiagnosticLogs(t *testing.T) {
@@ -34,8 +53,7 @@ func TestProxyErrorsStayInCaptureNotDiagnosticLogs(t *testing.T) {
 		}
 		return
 	}
-	s, _ := startServer(t)
-	s.proxy.Addons = append(s.proxy.Addons, &proxy.LogAddon{})
+	s, _ := startLoggingServer(t, func(string) proxy.Addon { return &proxy.LogAddon{} })
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _, err := w.(http.Hijacker).Hijack()
 		if err != nil {
@@ -66,9 +84,10 @@ func TestProxyErrorsStayInCaptureNotDiagnosticLogs(t *testing.T) {
 // either. It still records that the exchange happened, without the URL,
 // headers or body.
 func TestEngineInstanceLogNeverContainsRequestContent(t *testing.T) {
-	s, _ := startServer(t)
 	logPath := filepath.Join(t.TempDir(), "engine.log")
-	s.proxy.Addons = append([]proxy.Addon{proxy.NewInstanceLogAddonWithFile(s.Addr(), "privacy", logPath)}, s.proxy.Addons...)
+	s, _ := startLoggingServer(t, func(addr string) proxy.Addon {
+		return proxy.NewInstanceLogAddonWithFile(addr, "privacy", logPath)
+	})
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "ok")
 	}))

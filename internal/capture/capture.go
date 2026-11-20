@@ -3425,7 +3425,7 @@ func (s *Server) connInfo(f *proxy.Flow, start time.Time) ConnInfo {
 		if f.UseSeparateClient {
 			fmt.Fprintln(&log, "Target changed: upstream details are in the separate transport events above, not the original connection's certificate.")
 		}
-		if server := cc.ServerConn; server != nil && !f.UseSeparateClient {
+		if server := cc.ServerConnection(); server != nil && !f.UseSeparateClient {
 			ci.Server = server.Address
 			if server.Conn != nil {
 				if addr, ok := server.Conn.RemoteAddr().(*net.TCPAddr); ok {

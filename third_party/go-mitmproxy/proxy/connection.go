@@ -54,6 +54,9 @@ type ServerConn struct {
 	client   *http.Client
 	tlsConn  *tls.Conn
 	tlsState *tls.ConnectionState
+	// retireOnce keeps the client's close and a target switch from closing
+	// the same upstream socket twice when they meet a late dial.
+	retireOnce sync.Once
 }
 
 func newServerConn() *ServerConn {
@@ -81,15 +84,22 @@ func (c *ServerConn) TlsState() *tls.ConnectionState {
 // retire closes the upstream socket but leaves the client's connection open:
 // a forward proxy connection can outlive the target it was dialed for, and its
 // transport would otherwise hand this socket to the next target's request.
+// A client closing while this connection is still being dialed retires it
+// once it is published; a later retire is a no-op.
 func (c *ServerConn) retire() {
-	if c.Conn == nil {
+	if c == nil {
 		return
 	}
-	if w, ok := c.Conn.(*wrapServerConn); ok {
-		w.retire()
-		return
-	}
-	c.Conn.Close()
+	c.retireOnce.Do(func() {
+		if c.Conn == nil {
+			return
+		}
+		if w, ok := c.Conn.(*wrapServerConn); ok {
+			w.retire()
+			return
+		}
+		_ = c.Conn.Close()
+	})
 }
 
 // connection context ctx key
@@ -97,10 +107,16 @@ var connContextKey = new(struct{})
 
 // connection context
 type ConnContext struct {
-	ClientConn *ClientConn   `json:"clientConn"`
+	ClientConn *ClientConn `json:"clientConn"`
+	// ServerConn is published by setServerConn and read through
+	// ServerConnection: a client can close while a dial is still in flight,
+	// so Close must never race with the writer of this field.
 	ServerConn *ServerConn   `json:"serverConn"`
 	Intercept  bool          `json:"intercept"` // Indicates whether to parse HTTPS
 	FlowCount  atomic.Uint32 `json:"-"`         // Number of HTTP requests made on the same connection
+
+	serverMu     sync.Mutex
+	serverClosed bool
 
 	// VerifyUpstream makes an intercepted TLS handshake verify the server's
 	// certificate, as a CONNECT's HeaderVerifyUpstream asks.
@@ -200,4 +216,38 @@ func newConnContext(c net.Conn, proxy *Proxy) *ConnContext {
 
 func (connCtx *ConnContext) Id() uuid.UUID {
 	return connCtx.ClientConn.Id
+}
+
+// ServerConnection returns the upstream bound to this client connection, if
+// any. A dial publishes its ServerConn before addons see it, so callers can
+// use the returned pointer without holding serverMu.
+func (connCtx *ConnContext) ServerConnection() *ServerConn {
+	connCtx.serverMu.Lock()
+	defer connCtx.serverMu.Unlock()
+	return connCtx.ServerConn
+}
+
+// setServerConn binds a dialled upstream to the client connection. If the
+// client closed while the dial was in flight, the new upstream is retired
+// here instead of being left behind with nobody to close it. Publishing it
+// first keeps the addon and diagnostics view of the connection unchanged.
+func (connCtx *ConnContext) setServerConn(serverConn *ServerConn) {
+	connCtx.serverMu.Lock()
+	connCtx.ServerConn = serverConn
+	closed := connCtx.serverClosed
+	connCtx.serverMu.Unlock()
+	if closed {
+		serverConn.retire()
+	}
+}
+
+// closeServerConn marks the connection closed before closing the upstream it
+// knows about. A dial that lands after this point retires its own upstream in
+// setServerConn, so the socket is closed exactly once either way.
+func (connCtx *ConnContext) closeServerConn() {
+	connCtx.serverMu.Lock()
+	connCtx.serverClosed = true
+	serverConn := connCtx.ServerConn
+	connCtx.serverMu.Unlock()
+	serverConn.retire()
 }
