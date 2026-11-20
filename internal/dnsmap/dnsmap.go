@@ -6,6 +6,7 @@ package dnsmap
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"slices"
@@ -21,6 +22,18 @@ import (
 // lookupCacheLimit bounds the names whose answers stay visible in the
 // connection panel. Reaching it drops only the least recently used name.
 const lookupCacheLimit = 1024
+
+// maxBindAttempts bounds the UDP ports tried when a port's TCP counterpart is
+// already taken. A DNS server without TCP would leave resolvers with no path
+// for large answers.
+const maxBindAttempts = 8
+
+// The listen hooks let tests force a TCP bind failure without occupying a
+// fixed port. Start calls them on every attempt.
+var (
+	listenUDP = net.ListenUDP
+	listenTCP = func(addr string) (net.Listener, error) { return net.Listen("tcp", addr) }
+)
 
 // Hit is a name the server answered from the rules.
 type Hit struct {
@@ -84,21 +97,28 @@ func Start(upstream *net.Resolver) (*Server, error) {
 	if upstream == nil {
 		upstream = net.DefaultResolver
 	}
-	udp, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
-	if err != nil {
-		return nil, err
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	s := &Server{udp: udp, upstream: upstream, done: make(chan struct{}), ctx: ctx, cancel: cancel,
-		pending: make(map[string]pending), conns: make(map[net.Conn]struct{}),
-		lookups: *linkedmap.NewLRUCache[string, Resolution](lookupCacheLimit)}
-	s.rules.Store([]hosts.Rule(nil))
-	if tcp, err := net.Listen("tcp", udp.LocalAddr().String()); err == nil {
-		s.tcp = tcp
+	var bindErr error
+	for range maxBindAttempts {
+		udp, err := listenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+		if err != nil {
+			return nil, err
+		}
+		tcp, err := listenTCP(udp.LocalAddr().String())
+		if err != nil {
+			_ = udp.Close()
+			bindErr = err
+			continue
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		s := &Server{udp: udp, tcp: tcp, upstream: upstream, done: make(chan struct{}), ctx: ctx, cancel: cancel,
+			pending: make(map[string]pending), conns: make(map[net.Conn]struct{}),
+			lookups: *linkedmap.NewLRUCache[string, Resolution](lookupCacheLimit)}
+		s.rules.Store([]hosts.Rule(nil))
 		s.startServe(s.serveTCP)
+		s.startServe(s.serveUDP)
+		return s, nil
 	}
-	s.startServe(s.serveUDP)
-	return s, nil
+	return nil, fmt.Errorf("listen TCP after %d UDP ports: %w", maxBindAttempts, bindErr)
 }
 
 // startServe registers a listen loop before it runs, so Close either sees it
