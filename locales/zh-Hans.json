@@ -1963,6 +1963,7 @@
   "installCaInIosSimulator2": "在 iOS 模拟器中安装 CA",
   "installSystemCa": "安装系统证书",
   "installedCaInTheAndroidSystemStore": "已在 Android 系统存储中安装证书",
+  "installingASystemCaRebootBehavior": "安装系统证书会运行 adb root。Android 14+ 的安装持续到设备重启；Android 13 及以前在模拟器以 -writable-system 启动时，重启后证书仍然保留。请重启正在测试的 App。Chrome 115 及以后在 Android 上使用自己的根证书库，因此仍需把证书装到用户存储。",
   "installingASystemCaRunsAdbRoot": "安装系统证书会运行 adb root，并持续到设备重启；请重启正在测试的 App。Chrome 115 及以后在 Android 上使用自己的根证书库，因此仍需把证书装到用户存储。",
   "installCertificate": "安装证书",
   "installTrust": "安装并信任…",

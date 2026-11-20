@@ -236,7 +236,7 @@ func (a *app) clientAndroidPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy
 	}
 	_, applied := s.androidApplied[s.androidSerial]
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().Children(func() {
-		if clientActionButton(c, locales.SetProxy(), running).Disabled(!running || s.androidSerial == "" || applied || s.androidPending).Clicked() {
+		if clientActionButton(c, locales.SetProxy(), running).Disabled(!running || s.androidSerial == "" || s.androidPending).Clicked() {
 			a.applyAndroidProxy()
 		}
 		if uikit.SecondaryButton(c, locales.UndoProxy()).Disabled(s.androidSerial == "" || (!applied && p.Addr == "")).Clicked() {
@@ -267,7 +267,7 @@ func (a *app) clientAndroidPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy
 		uikit.Code(c, clientsetup.AndroidNetworkSecurityConfig()).Selectable().MaxLines(12)
 	}
 	uikit.Meta(c, locales.TheCaIsCopiedTo())
-	uikit.Meta(c, locales.InstallingASystemCaRunsAdbRoot())
+	uikit.Meta(c, locales.InstallingASystemCaRebootBehavior())
 }
 
 func (a *app) clientIOSPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, running bool) {

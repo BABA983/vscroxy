@@ -224,8 +224,10 @@ type AndroidCAInstall struct {
 
 // InstallAndroidSystemCA installs the public CA at caPath as a system
 // certificate. Apps started afterwards trust it; Chrome 115 and later uses the
-// Chrome Root Store on Android and is not affected. The install lasts until the
-// device reboots, and already-running apps must be restarted.
+// Chrome Root Store on Android and is not affected. Android 14+ mounts a tmpfs
+// that lasts until the device reboots; through Android 13 the file stays in the
+// system store after a reboot when the emulator was started with
+// -writable-system. Already-running apps must be restarted to trust either store.
 func InstallAndroidSystemCA(serial, caPath string) (AndroidCAInstall, error) {
 	install := AndroidCAInstall{}
 	certPEM, err := os.ReadFile(caPath)

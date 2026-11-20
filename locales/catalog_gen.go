@@ -20498,6 +20498,18 @@ func (msgs Messages) InstalledCaInTheAndroidSystemStore() string {
 	return Catalog.Format(msgs.locale, "installedCaInTheAndroidSystemStore", nil)
 }
 
+// InstallingASystemCaRebootBehavior says "Installing a system CA runs adb root. On Android 14+ that install lasts until the device reboots; on Android 13 and e…"
+// in the language the app shows.
+func InstallingASystemCaRebootBehavior() string {
+	return In(i18n.Locale()).InstallingASystemCaRebootBehavior()
+}
+
+// InstallingASystemCaRebootBehavior says "Installing a system CA runs adb root. On Android 14+ that install lasts until the device reboots; on Android 13 and e…"
+// in the language of msgs.
+func (msgs Messages) InstallingASystemCaRebootBehavior() string {
+	return Catalog.Format(msgs.locale, "installingASystemCaRebootBehavior", nil)
+}
+
 // InstallingASystemCaRunsAdbRoot says "Installing a system CA runs adb root and lasts until the device reboots; restart the app you are testing. Chrome 115 …"
 // in the language the app shows.
 func InstallingASystemCaRunsAdbRoot() string {

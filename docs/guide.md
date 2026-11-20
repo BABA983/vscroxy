@@ -123,9 +123,7 @@ profile, an emulator setting or the app's own Java truststore changes.
   restart already removed the reverse listener, the restore still succeeds and
   the app warns instead of keeping a stale record. **Forget saved proxy** clears
   only the local record, for a restarted emulator, a reused serial, or a saved
-  value that no longer validates. After an emulator reboot the reverse listener
-  is gone even though the saved record remains, so press **Forget saved proxy**
-  before **Set proxy** again.
+  value that no longer validates.
   **Copy CA to device** pushes
   only the public CA to `/sdcard/Download/vscroxy-ca.crt` for Android Settings
   to install as a user certificate. Android 7+ apps do not trust user
