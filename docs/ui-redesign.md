@@ -904,7 +904,7 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 
 76. 搜索框是筛选取值的唯一入口，它自己没有模式：普通文字包含、`/…/` 正则、`*`／`?` 通配，都作用于整个 host＋path。原来的「Text／Wildcard／Regex」下拉删掉，因为同一个功能有两个入口（下拉和语法）；漏斗从过滤栏、底栏和侧栏收进搜索框右端，底栏只留 Clear 和 Auto-follow（第十三阶段，2026-11-13）。
 
-77. uikit A/B（2026-11-16）：工具提示换成浮层表面（canvas、hairline、`ShadowPopover`、`RadiusPanel`、6×10、12 号正文、360 宽），快捷键用 `Kbd`，新增 `CardTip` 富卡片（侧栏请求行和抓包行）；延迟设成 500ms。删掉所有装饰性过渡和动效 token（悬停淡出、浮层和 toast 进出、对话框淡入、分区折叠、面板尺寸、数字滚动），只留录制点的脉动和用户自己的拖动／滚动。侧栏改成 PaneView：Traffic 固定，中间 Sources／Sessions／Collections 可折叠、最后一个展开的段占满剩余、分隔条可拖、双击恢复，折叠状态和段高记在 settings（`SidebarPaneHeights`，可选字段；开发阶段不升格式版本）。Client setup 对话框高度跟内容、动作按钮不再整行宽；HTTPS decryption 的「Domains and subdomains」进标题的 Tip。菜单关闭后补一帧重绘，让焦点环在 Escape 的那一帧出现。
+77. uikit A/B（2026-11-16）：工具提示换成浮层表面（canvas、hairline、`ShadowPopover`、`RadiusPanel`、6×10、12 号正文、360 宽），快捷键用 `Kbd`，新增 `CardTip` 富卡片（侧栏请求行和抓包行）；延迟设成 500ms。删掉所有装饰性过渡和动效 token（悬停淡出、浮层和 toast 进出、对话框淡入、分区折叠、面板尺寸、数字滚动），只留录制点的脉动和用户自己的拖动／滚动。侧栏改成 PaneView：Traffic 固定，中间 Sources／Sessions／Collections 可折叠、最后一个展开的段占满剩余、分隔条可拖、双击恢复，折叠状态和段高记在 settings（`SidebarPaneHeights`，可选字段；当时开发阶段不升格式版本，现在按 AGENTS.md 升版本并写迁移）。Client setup 对话框高度跟内容、动作按钮不再整行宽；HTTPS decryption 的「Domains and subdomains」进标题的 Tip。菜单关闭后补一帧重绘，让焦点环在 Escape 的那一帧出现。
 77. MyGo 的表格只按 `ListState.Selection` 画选中行，`Selected` 只是键移动的起点。所以应用自己移动选中行时必须同时把它放进选择集合（`choosePicked`）；「画的时候强行塞进去」会清掉多选，不是解法（第十三阶段，2026-11-13）。
 78. 计数只说一次：侧栏保留计数，活动条只有柱子和结束时间，底栏只在隐藏了行时说「8 of 13」，批量选择时仍报「N of M selected」（第十三阶段，2026-11-13）。
 79. 隧道详情只留一行状态和一个「Decrypt <host>」，其余（域规则、App 规则、信任）进 Connection 标签页；给整个 App 放宽权限的动作进面板头的 `⋯`。表格里隧道行用锁图标表示 Status、Path 留空、CONNECT 用次要色（第十三阶段，2026-11-13）。
@@ -929,7 +929,7 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 97. Protobuf 读取器按视口高度布局（第十七阶段，2026-11-16）：reader 的高度取上一帧的实际视口，split 和 Copy decoded 图标留在 pane 内；请求面板不在 Body 标签时 split 给响应 75%，不再让解码内容跑到窗口边缘。
 98. SSE 会话对话框重排（第十七阶段，2026-11-16）：标题固定为 `SSE session`，状态用 `StatusPill`；连接中显示 `Reconnect`／`Stop SSE`，不显示禁用的 `Connect SSE`；`Copy event ID` 是 meta 行尾的图标，技术脚注收进信息图标的 Tip。
 
-99. uikit AD（2026-11-16）：MCP catalog 去掉自己的 Tools/Resources/Prompts 分段，目录跟随请求面板的 tab，只留一套导航；集合向导 Endpoints 预览显示将生成的请求和捕获响应；Postman 导入报告的主操作改成 Review collection，Done 次要；SSE 连接中 Stop 是主操作、Reconnect 次要，事件列表和 payload 放进填满高度的 Panel；Protobuf 在窄 inspector 改成上下布局，宽时仍左右；Certificates 滚动区底部留出 footer 高度。设置格式回到未版本化，开发阶段直接改格式（见 AGENTS.md）。
+99. uikit AD（2026-11-16）：MCP catalog 去掉自己的 Tools/Resources/Prompts 分段，目录跟随请求面板的 tab，只留一套导航；集合向导 Endpoints 预览显示将生成的请求和捕获响应；Postman 导入报告的主操作改成 Review collection，Done 次要；SSE 连接中 Stop 是主操作、Reconnect 次要，事件列表和 payload 放进填满高度的 Panel；Protobuf 在窄 inspector 改成上下布局，宽时仍左右；Certificates 滚动区底部留出 footer 高度。设置格式回到未版本化，开发阶段直接改格式（当时的规则；兼容性工作开始后按 AGENTS.md 升版本并写迁移）。
 
 100. uikit AE（2026-11-16）：调查板先给慢请求列表，方法学收成一行、全文进 Tip；首次启动引导打开时占据整个内容区，不再露出抓包工具栏和列表外框，第一步的 `Start capture` 是主操作，`Skip guide` 收进卡片底部；Scenarios 的名称改成带可见标签的 `FormRow`，状态文案改成 `On: its rules apply. Rules with no scenario also apply.`，规则顺序说明移到标题下；SSE 和 WebSocket 的事件列表改用 `DataList`，文字左对齐，只有选中行有底色和 `RowMarker`。重放结果通知的测试改为等待提示真正出现，不再假定一帧就够。
 

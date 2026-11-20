@@ -23,11 +23,22 @@ packages' existing responsibility boundaries; `third_party/go-mitmproxy/` is a
 locally patched dependency with its own license and patch notes.
 
 Every file the app owns carries a format version (`internal/store`), and a
-file written by a newer version is refused and left untouched. While the
-project is in development, a persisted format changes directly: no version
-bump, migration step, or migration test data. Resume the migration rule only
-when the user explicitly says compatibility work has started. In-memory APIs
-still change directly: no deprecation shims.
+file written by a newer version is refused and left untouched (`store.ErrNewer`).
+Compatibility work has started (release checklist P0, before 0.1.0): every
+change to a persisted format — anything versioned through `internal/store`,
+including settings, sessions, collections, environments, vault and
+android-proxy records — must bump that format's `Current` in
+`internal/store/formats.go`, or the shared `store.Version` in
+`internal/store/version.go` when the format uses the default. Add one pure
+`store.Step` to that format's `Steps` in `internal/store/formats.go` for each
+version being left behind, with an old-version fixture in
+`internal/store/testdata/` (chained versions under
+`internal/store/testdata/migration/`) and a test in
+`internal/store/version_test.go` that reads the old file and checks the
+migrated result. JSON files carry a top-level `version` (wrapped under `Member`
+when the root is an array or map); line-oriented lists carry
+`# vscroxy format N` on the first line. In-memory APIs still change directly:
+no deprecation shims.
 
 User feedback goes through `notify` (`internal/app/notify.go`): `done`, `inform`,
 `warn`, or `fail(what, err)` for errors, which also go to the log at

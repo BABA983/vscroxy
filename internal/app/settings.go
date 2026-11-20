@@ -108,8 +108,9 @@ type settings struct {
 	// exported; the default is to check.
 	DisableUpdateCheck bool `json:"disableUpdateCheck,omitzero"`
 	// LastRunVersion is the release number the last run started with. The
-	// what's-new notice compares it with this build's number; it changes
-	// directly in the file, with no migration step.
+	// what's-new notice compares it with this build's number. Writing a new
+	// value does not change the settings format; changing that format needs a
+	// version bump and migration step like any other persisted file.
 	LastRunVersion string `json:"lastRunVersion,omitempty"`
 	// DismissedNotices holds the stable ids of notices chosen not to show
 	// again. Ids, never localized text, so changing the language keeps the

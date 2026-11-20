@@ -1,10 +1,10 @@
 package store
 
 // The app's file formats. Every file the app owns is one of these; a format
-// with no Steps yet is version 1. While the project is in development, a
-// persisted format changes directly: no version bump, step, or migration test
-// data. Resume that rule only when the user explicitly starts compatibility
-// work (see AGENTS.md).
+// with no Steps yet is version 1. Compatibility work has started: changing a
+// persisted format bumps Current here (or store.Version for a format using the
+// default) and adds one pure Step per old version, with old-version fixtures
+// in testdata/ and a migration test in version_test.go (see AGENTS.md).
 //
 // Not listed here because they are content, not app state: request scripts and
 // addons under tools/, hosts text under tools/hosts, response bodies under
