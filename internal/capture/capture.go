@@ -1357,7 +1357,13 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 		bp.Body = string(body)
 	}
 	pausedAt := time.Now()
-	d := s.waitBreakpoint(context.Background(), bp)
+	ctx := context.Background()
+	if raw := f.Request.Raw(); raw != nil {
+		// The request context ends with the connection, including when the
+		// engine's own Proxy.Close closes an in-flight decrypt.
+		ctx = raw.Context()
+	}
+	d := s.waitBreakpoint(ctx, bp)
 	// The user's time at the breakpoint is not network time.
 	s.mu.Lock()
 	if start, ok := s.started[f.Id]; ok {

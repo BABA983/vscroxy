@@ -590,10 +590,14 @@ closing the listener cannot outlive the loop it woke.
 closes sockets but does not wait for the connection goroutine that calls
 `wrapClientConn.Close`, so `entry.close` also joins that count. The attacker's
 own HTTP server uses the same count, joined in `attacker.close`, because its
-decrypted client connections also reach `wrapClientConn.Close`. Hijacked
-connections are terminal at `StateHijacked`; the caller still owns their
-lifetime through `DropConnections`. Without the joins, shutdown could return
-with those goroutines still running.
+decrypted client connections also reach `wrapClientConn.Close`. Decrypted
+HTTP/2 connections bypass the HTTP server's `Serve` and `ConnState` entirely:
+`attacker.serveConn` tracks those sockets and `ServeConn` goroutines, cancels
+their request contexts and closes the sockets before joining them. Their
+`ServeConnOpts.Context` carries request values only; it does not stop the
+connection's read loop. Hijacked connections are terminal at `StateHijacked`;
+the caller still owns their lifetime through `DropConnections`. Without the
+joins, shutdown could return with those goroutines still running.
 
 ## Maintaining this patch
 
