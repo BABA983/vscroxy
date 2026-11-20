@@ -537,8 +537,9 @@ type app struct {
 	trustPrompts atomic.Int64
 	// linkPrompt is the pending confirmation for one untrusted destination.
 	linkPrompt linkPrompt
-	// updateCheck asks GitHub for the latest release once per launch; the
-	// setting turns it off. It never downloads or installs anything.
+	// updateCheck allows the silent launch-time background check. An
+	// explicit check still runs when this is off. It never downloads or
+	// installs anything.
 	updateCheck bool
 	// attention plays the accessibility signals for pauses, prompts and
 	// finished runs; its mode is the saved "Attention signals" setting.
@@ -3901,7 +3902,7 @@ func Run() error {
 	// script that sources a slow profile.
 	go guarded(func() { system.ShellEnv(context.Background()) })
 	if a.updateCheck {
-		go guarded(func() { a.checkForUpdate() })
+		go guarded(func() { a.checkForUpdate(false) })
 	}
 	markStartup(markUpdateStarted)
 	if a.srv != nil {

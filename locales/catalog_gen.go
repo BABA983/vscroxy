@@ -39131,3 +39131,43 @@ func ReplaceThisMatch() string { return In(i18n.Locale()).ReplaceThisMatch() }
 func (msgs Messages) ReplaceThisMatch() string {
 	return Catalog.Format(msgs.locale, "replaceThisMatch", nil)
 }
+
+// CheckForUpdatesNow says "Check for updates now"
+// in the language the app shows.
+func CheckForUpdatesNow() string { return In(i18n.Locale()).CheckForUpdatesNow() }
+
+// CheckForUpdatesNow says "Check for updates now"
+// in the language of msgs.
+func (msgs Messages) CheckForUpdatesNow() string {
+	return Catalog.Format(msgs.locale, "checkForUpdatesNow", nil)
+}
+
+// CheckForUpdatesNowHint says "Always asks GitHub, even on a metered connection or with background checks off. vscroxy never downloads or installs a…"
+// in the language the app shows.
+func CheckForUpdatesNowHint() string { return In(i18n.Locale()).CheckForUpdatesNowHint() }
+
+// CheckForUpdatesNowHint says "Always asks GitHub, even on a metered connection or with background checks off. vscroxy never downloads or installs a…"
+// in the language of msgs.
+func (msgs Messages) CheckForUpdatesNowHint() string {
+	return Catalog.Format(msgs.locale, "checkForUpdatesNowHint", nil)
+}
+
+// UpToDate says "You're up to date"
+// in the language the app shows.
+func UpToDate() string { return In(i18n.Locale()).UpToDate() }
+
+// UpToDate says "You're up to date"
+// in the language of msgs.
+func (msgs Messages) UpToDate() string {
+	return Catalog.Format(msgs.locale, "upToDate", nil)
+}
+
+// UpdateCheckFailed says "Could not check for updates"
+// in the language the app shows.
+func UpdateCheckFailed() string { return In(i18n.Locale()).UpdateCheckFailed() }
+
+// UpdateCheckFailed says "Could not check for updates"
+// in the language of msgs.
+func (msgs Messages) UpdateCheckFailed() string {
+	return Catalog.Format(msgs.locale, "updateCheckFailed", nil)
+}

@@ -27,6 +27,7 @@ func (a *app) menu() *mygo.Menu {
 		return item
 	}
 	preferences := command("app.settings", locales.Settings2())
+	checkUpdates := command("app.checkForUpdates", locales.CheckForUpdatesNow())
 	file := &mygo.MenuItem{Label: locales.File(), Submenu: []*mygo.MenuItem{
 		command("request.new", locales.NewRequest()),
 		command("request.import-curl", locales.ImportCurl()),
@@ -48,13 +49,13 @@ func (a *app) menu() *mygo.Menu {
 	var items []*mygo.MenuItem
 	if runtime.GOOS == "darwin" {
 		items = append(items, &mygo.MenuItem{Role: mygo.RoleAppMenu, Submenu: []*mygo.MenuItem{
-			{Role: mygo.RoleAbout}, mygo.Separator(), preferences, mygo.Separator(),
+			{Role: mygo.RoleAbout}, checkUpdates, mygo.Separator(), preferences, mygo.Separator(),
 			{Role: mygo.RoleServices}, mygo.Separator(),
 			{Role: mygo.RoleHide}, {Role: mygo.RoleHideOthers}, {Role: mygo.RoleUnhide},
 			mygo.Separator(), {Role: mygo.RoleQuit},
 		}})
 	} else {
-		file.Submenu = append(file.Submenu, preferences, mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleQuit})
+		file.Submenu = append(file.Submenu, preferences, checkUpdates, mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleQuit})
 	}
 	var copyFormats []*mygo.MenuItem
 	for _, format := range requestCopyFormats[1:] {

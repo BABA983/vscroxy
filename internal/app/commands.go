@@ -634,6 +634,11 @@ func registerGlobalCommands() *commandRegistry {
 		x.a.openSettings(-1)
 		x.a.settingsFocusSearch++
 	}).keys(ui.Cmd, ui.KeyComma)
+	// VS Code's update.checkForUpdate is an explicit check: it runs with
+	// any network and always answers, whatever the background setting says.
+	r.add("app.checkForUpdates", locales.CheckForUpdatesNow(), func(x *commandContext) {
+		x.a.manualUpdateCheck()
+	})
 	r.add("workbench.action.setLogLevel", locales.SetLogLevel(), func(x *commandContext) {
 		x.a.logLevelPicker, x.a.logLevelPickerOpen = applog.EffectiveLevel(), true
 	})

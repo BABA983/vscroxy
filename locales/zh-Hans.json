@@ -4139,5 +4139,9 @@
   "replaceAll": "全部替换",
   "noSearchMatchesToReplace": "没有可替换的匹配",
   "noSearchChangesSelected": "未选择任何更改",
-  "replaceThisMatch": "替换此匹配"
+  "replaceThisMatch": "替换此匹配",
+  "checkForUpdatesNow": "立即检查更新",
+  "checkForUpdatesNowHint": "即使网络按流量计费或已关闭后台检查，也会向 GitHub 查询。vscroxy 不会下载或安装更新。",
+  "upToDate": "已是最新版本",
+  "updateCheckFailed": "无法检查更新"
 }
