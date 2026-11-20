@@ -95,14 +95,16 @@ func (a *app) issueInfo() issueInfo {
 	return issueInfoFrom(a.diagnosticSettings(), version.OSVersion())
 }
 
-// reportIssue runs the OS lookup and the browser call off the UI thread. It
+// reportIssue runs the OS lookup and URL building off the UI thread. It
 // snapshots only settings first, on this thread, so the worker never reads
-// widgets or app state. The caller captures the window's services for this
-// build; a command has no Context of its own.
+// widgets or app state. URL services run on the UI thread, so the link goes
+// back through onMain. The caller captures them for this build; a command has
+// no Context of its own.
 func (a *app) reportIssue(services ui.Services) {
 	settings := a.diagnosticSettings()
 	go guarded(func() {
-		services.OpenURL(issueURL(issueInfoFrom(settings, version.OSVersion())))
+		link := issueURL(issueInfoFrom(settings, version.OSVersion()))
+		a.onMain(func() { services.OpenURL(link) })
 	})
 }
 

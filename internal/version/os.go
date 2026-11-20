@@ -8,6 +8,7 @@ import (
 	"context"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -15,8 +16,9 @@ import (
 // platform commands, so a hung helper cannot hold up the caller.
 const osCommandTimeout = 2 * time.Second
 
-// OSVersion reports the installed OS version, or "" when unavailable.
-func OSVersion() string { return osVersion() }
+// OSVersion reports the installed OS version, or "" when unavailable. The OS
+// cannot change during a run, so the bounded lookup happens at most once.
+var OSVersion = sync.OnceValue(osVersion)
 
 func helper(name string, args ...string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), osCommandTimeout)

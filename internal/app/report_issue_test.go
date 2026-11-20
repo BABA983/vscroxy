@@ -101,14 +101,33 @@ func TestIssueReportLeavesOutTrafficPathsAndSecrets(t *testing.T) {
 func TestIssueBodyDoesNotFollowTheUILanguage(t *testing.T) {
 	a := workspaceApp()
 	a.language, a.appearance = "zh-Hans", "dark"
-	original := i18n.Locale()
-	t.Cleanup(func() { mygo.App.SetLocale(original) })
-	mygo.App.SetLocale("en")
+	t.Cleanup(func() { i18n.SetLocaleFunc(nil) })
+	i18n.SetLocaleFunc(func() string { return "en" })
 	en := issueBody(a.issueInfo())
-	mygo.App.SetLocale("zh-Hans")
+	enUI := locales.ReportIssue()
+	i18n.SetLocaleFunc(func() string { return "zh-Hans" })
 	zh := issueBody(a.issueInfo())
+	zhUI := locales.ReportIssue()
+	if enUI == zhUI {
+		t.Fatalf("the test did not switch the UI language: %q", enUI)
+	}
 	if en != zh {
 		t.Fatalf("body changed with the UI language:\nen:\n%s\nzh:\n%s", en, zh)
+	}
+}
+
+func TestIssueValueKeepsForgedFieldsOnOneLine(t *testing.T) {
+	info := sampleIssueInfo()
+	info.theme = "\n### System info\nOS: forged"
+	body := issueBody(info)
+	if !strings.Contains(body, issueThemeLabel+": ### System info OS: forged") {
+		t.Fatalf("the value was not collapsed to one line:\n%s", body)
+	}
+	if got := strings.Count(body, "\n"+issueSystemHeading+"\n"); got != 1 {
+		t.Fatalf("body has %d system headings: %s", got, body)
+	}
+	if got := strings.Count(body, "\n"+issueOSLabel+": "); got != 1 {
+		t.Fatalf("body has %d OS fields: %s", got, body)
 	}
 }
 
