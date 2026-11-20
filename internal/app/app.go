@@ -2126,6 +2126,9 @@ func (a *app) view(c *ui.Context) {
 		}})
 	}
 	a.actionShortcuts(c)
+	// A row click lands after the last build in the group's own fields.
+	// Resolve its stable id before a focus change can rebuild that group.
+	a.views.reconcileSelection(a)
 	// A click or Tab into the other group's list moves the keyboard there,
 	// just as clicking a VS Code editor group does. Do it before the filter
 	// sync so the edits that follow belong to the group in focus.
@@ -2154,6 +2157,13 @@ func (a *app) view(c *ui.Context) {
 		for id := range a.chosen.All() {
 			if !visibleIDs[id] {
 				a.chosen.Remove(id)
+			}
+		}
+		// In a split the group owns the choice; carry the pruning back to it
+		// so a draw pass cannot restore a row the filters now hide.
+		if a.views.split {
+			if view := a.views.activeView(); view != nil {
+				view.chosen = cloneSelection(a.chosen)
 			}
 		}
 	}
@@ -2316,6 +2326,9 @@ func (a *app) view(c *ui.Context) {
 	// Last of the dialogs: an event-driven prompt, especially a breakpoint
 	// holding traffic, must never draw beneath a modal the reader opened.
 	a.autoDialogs(c)
+	// A click may have chosen a row in a group after its draw pass; carry
+	// that choice back into the app before saving the view's state.
+	a.views.reconcileSelection(a)
 	a.views.capture(a)
 	a.syncTitle()
 	// Last, since every SetTheme above paints the root again: the shell paints

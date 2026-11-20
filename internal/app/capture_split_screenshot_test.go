@@ -4,6 +4,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/baba983/vscroxy/locales"
@@ -45,18 +46,6 @@ func TestCaptureSplitScreenshots(t *testing.T) {
 					a.views.closeGroup(a)
 					a.query = "api"
 				}
-				if scene.split {
-					for group, id := range map[int]int{0: 3, 1: 4} {
-						a.views.focusCaptureGroup(a, group)
-						a.pickedID = id
-						a.restoreSelection()
-						a.views.captureGroupFields(a, a.views.activeView())
-					}
-				} else {
-					a.pickedID = 2
-					a.restoreSelection()
-					a.views.capture(a)
-				}
 				width, height := 1500, 900
 				if scene.narrow {
 					width, height = 980, 760
@@ -66,6 +55,24 @@ func TestCaptureSplitScreenshots(t *testing.T) {
 				tt.SetDark(dark)
 				tt.SetScale(2)
 				tt.Frame()
+				tt.Frame()
+				clickRow := func(prefix string) {
+					t.Helper()
+					for _, info := range tt.AccessAll() {
+						if info.Role == ui.RoleRow && strings.HasPrefix(info.Name, prefix) {
+							tt.ClickAt(info.Bounds.X+5, info.Bounds.Y+info.Bounds.H/2)
+							tt.Frame()
+							return
+						}
+					}
+					t.Fatalf("row %q is not drawn: %v", prefix, tt.Texts())
+				}
+				if scene.split {
+					clickRow("3 500 POST") // group 1
+					clickRow("4 200 GET")  // group 2, leaving group 1's marker visible
+				} else {
+					clickRow("2 401 POST")
+				}
 				tt.Frame()
 				if scene.split {
 					for _, label := range []string{locales.CaptureGroup(1), locales.CaptureGroup(2)} {

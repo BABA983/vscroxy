@@ -148,6 +148,9 @@ func (v *captureViews) captureGroupFields(a *app, view *captureView) {
 	view.editorReq, view.editorResp = a.editorReqPane, a.editorRespPane
 	view.visible = a.visible
 	view.chosen = cloneSelection(a.chosen)
+	if v.drawing {
+		view.chosen = chosen
+	}
 	view.sortApplied = a.sortApplied
 	view.detail.take(a)
 	if view.captureConditions != capture {
@@ -514,6 +517,35 @@ func conditionsFromFilter(f savedCaptureFilter, sort ui.SortOrder) captureCondit
 	}
 }
 
+// reconcileSelection follows a row choice MyGo made after the last build.
+// The table writes into each group's own row index and selection; the stable
+// id is still the group's old one until a frame reads it. Do this before a
+// focus change can trigger a filter pass that maps the old id back to a row.
+func (v *captureViews) reconcileSelection(a *app) {
+	if !v.split {
+		return
+	}
+	for group, id := range v.groups {
+		view := v.viewByID(id)
+		if view == nil || view.picked < 0 || view.picked >= len(view.visible) {
+			continue
+		}
+		at := view.visible[view.picked]
+		if at < 0 || at >= len(a.flows) {
+			continue
+		}
+		selected := a.flows[at].id
+		if selected == view.pickedID && (group != v.focusedGroup() || view.picked == a.picked) {
+			continue
+		}
+		view.pickedID = selected
+		if group == v.focusedGroup() {
+			a.picked, a.pickedID = view.picked, selected
+			a.chosen = cloneSelection(view.chosen)
+		}
+	}
+}
+
 // captureTableRegion is the same bulk-action bar, activity strip and table
 // the single view draws. It reads the app's mirrored fields, which belong to
 // the group being built at that moment.
@@ -563,14 +595,15 @@ func (a *app) captureSplitView(c *ui.Context, available float32) {
 	if a.workbench.captureGroupPercent == 0 {
 		a.workbench.captureGroupPercent = 50
 	}
+	// Both groups are built in one pass. Keep the drawing flag up for that
+	// whole pass: switching groups must not copy a stale app choice into the
+	// group MyGo has just written a click into.
+	v.drawing = true
+	defer func() { v.drawing = false }()
 	wide := splitFits(available)
 	draw := func(group int, view *captureView) {
 		v.useView(a, view)
-		v.drawing = true
-		defer func() {
-			v.drawing = false
-			v.releaseView(a, view)
-		}()
+		defer v.releaseView(a, view)
 		key := "-" + strconv.Itoa(view.id)
 		a.captureSearchKey, a.detailKeySuffix = key, key
 		defer func() { a.captureSearchKey, a.detailKeySuffix = "", "" }()

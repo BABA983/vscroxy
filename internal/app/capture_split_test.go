@@ -388,3 +388,53 @@ func TestUnfocusedGroupBodySearchRebuildsOnlyItsRows(t *testing.T) {
 		t.Fatalf("group 2 selection changed: %v", got)
 	}
 }
+
+// A row click is real input: it selects the row in its group and moves the
+// keyboard focus to that group, as clicking an inactive VS Code editor does.
+func TestCaptureSplitRowClickSelectsAndFocusesItsGroup(t *testing.T) {
+	a := splitTestApp(t)
+	groupFilter(a, 0, "errors", "")
+	groupFilter(a, 1, "host:other.test", "")
+	tt := ui.NewTester(a.view, 1500, 900)
+	tt.Frame()
+	tt.Frame()
+	row := func(prefix string) ui.AccessInfo {
+		for _, info := range tt.AccessAll() {
+			if info.Role == ui.RoleRow && strings.HasPrefix(info.Name, prefix) {
+				return info
+			}
+		}
+		t.Fatalf("row %q is not drawn", prefix)
+		return ui.AccessInfo{}
+	}
+	clickRow := func(prefix string) {
+		t.Helper()
+		r := row(prefix)
+		tt.ClickAt(r.Bounds.X+80, r.Bounds.Y+r.Bounds.H/2)
+		tt.Frame()
+		tt.Frame()
+	}
+	// Give group 2 a real click first, so both groups start with a choice.
+	clickRow("4 200 GET")
+	if a.pickedID != 4 || a.views.focus != 1 || !row("4 200 GET").Selected {
+		t.Fatalf("clicking group 2 gave picked=%d focus=%d, row selected=%v", a.pickedID, a.views.focus, row("4 200 GET").Selected)
+	}
+	clickRow("3 500 POST")
+	if a.pickedID != 3 || a.views.focus != 0 || !row("3 500 POST").Selected {
+		t.Fatalf("clicking group 1 gave picked=%d focus=%d, row selected=%v", a.pickedID, a.views.focus, row("3 500 POST").Selected)
+	}
+	if !row("4 200 GET").Selected {
+		t.Fatal("group 2 lost its row when group 1 took the focus")
+	}
+	clickRow("4 200 GET")
+	if a.pickedID != 4 || a.views.focus != 1 || !row("4 200 GET").Selected {
+		t.Fatalf("clicking group 2 gave picked=%d focus=%d, row selected=%v", a.pickedID, a.views.focus, row("4 200 GET").Selected)
+	}
+	if !row("3 500 POST").Selected {
+		t.Fatal("the inactive group 1 lost its row marker")
+	}
+	clickRow("2 401 POST")
+	if a.pickedID != 2 || a.views.focus != 0 || !row("2 401 POST").Selected {
+		t.Fatalf("clicking group 1 again gave picked=%d focus=%d, row selected=%v", a.pickedID, a.views.focus, row("2 401 POST").Selected)
+	}
+}
