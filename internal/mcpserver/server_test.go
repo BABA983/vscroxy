@@ -48,18 +48,31 @@ func connectWith(t *testing.T, path string, options mcpserver.Options, protocol 
 	if err != nil {
 		t.Fatal(err)
 	}
-	st, ct := mcp.NewInMemoryTransports()
-	ss, err := server.Connect(t.Context(), st, nil)
+	serverCtx, cancelServer := context.WithCancel(t.Context())
+	clientCtx, cancelClient := context.WithCancel(t.Context())
+	t.Cleanup(cancelClient)
+	t.Cleanup(cancelServer)
+
+	st, ct := joinedTransports()
+	ss, err := server.Connect(serverCtx, st, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = ss.Close() })
 	client := mcp.NewClient(&mcp.Implementation{Name: "integration-test", Version: "1"}, nil)
-	cs, err := client.Connect(t.Context(), ct, &mcp.ClientSessionOptions{ProtocolVersion: protocol})
+	cs, err := client.Connect(clientCtx, ct, &mcp.ClientSessionOptions{ProtocolVersion: protocol})
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = cs.Close() })
+	t.Cleanup(func() {
+		_ = cs.Close()
+		_ = cs.Wait()
+		_ = ct.Close()
+		ct.wait()
+		_ = ss.Close()
+		_ = ss.Wait()
+		_ = st.Close()
+		st.wait()
+	})
 	if cs.InitializeResult() == nil || cs.InitializeResult().ServerInfo.Name != "vscroxy" {
 		t.Fatalf("missing MCP initialization: %+v", cs.InitializeResult())
 	}
