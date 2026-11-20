@@ -48,6 +48,11 @@ type Options struct {
 	// upstream host:port, or nil when none is configured. An error aborts the
 	// handshake instead of continuing without the certificate.
 	ClientCertificate func(address string) (*tls.Certificate, error)
+	// ServerCertificate returns the chain to present to an intercepted
+	// client for a canonical host:port, or nil to mint a leaf with the active
+	// CA. An error fails that client handshake; the file is never silently
+	// replaced with a generated certificate.
+	ServerCertificate func(address string) (*tls.Certificate, error)
 	// RootCAs returns the roots to verify an upstream certificate. A nil
 	// function keeps the system pool; an error aborts the handshake.
 	RootCAs func() (*x509.CertPool, error)

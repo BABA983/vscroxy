@@ -4181,5 +4181,10 @@
   "importCollectionTask": "正在导入集合…",
   "importConfigTask": "正在导入配置…",
   "exportConfigTask": "正在导出配置…",
-  "importURLTask": "正在从网址导入…"
+  "importURLTask": "正在从网址导入…",
+  "serverCertificates": "服务器证书",
+  "serverCertificatesHint": "解密后的主机匹配时，用它替代 vscroxy CA 签发的叶子证书出示给客户端。",
+  "noServerCertificates": "尚未配置服务器证书",
+  "addServerCertificate": "添加服务器证书",
+  "serverCertificateSanHint": "证书的 SAN 必须覆盖配置的主机，密钥必须与证书匹配。每次握手都会重新读取文件。"
 }

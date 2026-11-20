@@ -1,15 +1,19 @@
-// Package certs is the client-certificate and extra-root configuration shared
-// by authored requests and the capture engine. Certificate and key files are
-// referenced by local path and read on every use; passphrases are held in
-// memory only and sealed separately by SecretStore.
+// Package certs is the client-certificate, server-certificate and extra-root
+// configuration shared by authored requests and the capture engine.
+// Certificate and key files are referenced by local path and read on every
+// use; passphrases are held in memory only and sealed separately by
+// SecretStore.
 package certs
 
 import (
+	"bytes"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -70,12 +74,25 @@ type Client struct {
 	KeyFile  string `json:"keyFile,omitempty"`
 }
 
-// Settings is the certificate configuration. Secrets maps a Client ID to its
-// passphrase and is never serialized: settings files and configuration
-// exports contain only paths and hosts. SecretsProblem explains why the
-// sealed passphrases could not be opened, without exposing a value.
+// Server is one host's server certificate. It is presented to the client
+// during an intercepted handshake instead of a leaf minted by the MITM CA.
+// Host, format and files follow the same rules as Client; ID keys the sealed
+// passphrase and is not a credential.
+type Server struct {
+	ID       string `json:"id"`
+	Host     string `json:"host"`
+	Format   string `json:"format,omitempty"`
+	CertFile string `json:"certFile"`
+	KeyFile  string `json:"keyFile,omitempty"`
+}
+
+// Settings is the certificate configuration. Secrets maps a Client or Server
+// ID to its passphrase and is never serialized: settings files and
+// configuration exports contain only paths and hosts. SecretsProblem explains
+// why the sealed passphrases could not be opened, without exposing a value.
 type Settings struct {
 	Clients          []Client          `json:"clients,omitempty"`
+	Servers          []Server          `json:"servers,omitempty"`
 	RootCAs          []string          `json:"rootCAs,omitempty"`
 	TrustSystemRoots *bool             `json:"trustSystemRoots,omitempty"`
 	SigningCA        *SigningCA        `json:"signingCA,omitempty"`
@@ -87,6 +104,7 @@ type Settings struct {
 func (s Settings) Clone() Settings {
 	out := s
 	out.Clients = slices.Clone(s.Clients)
+	out.Servers = slices.Clone(s.Servers)
 	out.RootCAs = slices.Clone(s.RootCAs)
 	if s.TrustSystemRoots != nil {
 		value := *s.TrustSystemRoots
@@ -108,7 +126,7 @@ func (s Settings) Clone() Settings {
 // Equal reports whether two configurations would write the same settings.
 // Passphrases are deliberately not part of the comparison.
 func (s Settings) Equal(other Settings) bool {
-	if !slices.Equal(s.Clients, other.Clients) || !slices.Equal(s.RootCAs, other.RootCAs) {
+	if !slices.Equal(s.Clients, other.Clients) || !slices.Equal(s.Servers, other.Servers) || !slices.Equal(s.RootCAs, other.RootCAs) {
 		return false
 	}
 	switch {
@@ -131,7 +149,7 @@ func (s Settings) Equal(other Settings) bool {
 // Configured reports whether the settings change TLS behavior at all. The zero
 // value trusts the system roots and adds no client certificate.
 func (s Settings) Configured() bool {
-	return len(s.Clients) > 0 || len(s.RootCAs) > 0 || s.TrustSystemRoots != nil || s.SigningCA != nil
+	return len(s.Clients) > 0 || len(s.Servers) > 0 || len(s.RootCAs) > 0 || s.TrustSystemRoots != nil || s.SigningCA != nil
 }
 
 // TrustsSystem reports whether system roots are trusted. The default is yes.
@@ -157,11 +175,17 @@ func (s Settings) Normalize() Settings {
 	}
 	for i := range out.Clients {
 		c := &out.Clients[i]
-		if host, err := normalizeHost(c.Host); err == nil {
-			c.Host = host
-		} else {
-			c.Host = strings.TrimSpace(strings.ToLower(c.Host))
+		c.Host = normalizeOrTrim(c.Host)
+		c.CertFile = strings.TrimSpace(c.CertFile)
+		c.KeyFile = strings.TrimSpace(c.KeyFile)
+		c.Format = ResolveFormat(c.Format, c.KeyFile)
+		if c.ID == "" {
+			c.ID = uuid.NewString()
 		}
+	}
+	for i := range out.Servers {
+		c := &out.Servers[i]
+		c.Host = normalizeOrTrim(c.Host)
 		c.CertFile = strings.TrimSpace(c.CertFile)
 		c.KeyFile = strings.TrimSpace(c.KeyFile)
 		c.Format = ResolveFormat(c.Format, c.KeyFile)
@@ -170,6 +194,13 @@ func (s Settings) Normalize() Settings {
 		}
 	}
 	return out
+}
+
+func normalizeOrTrim(host string) string {
+	if normalized, err := normalizeHost(host); err == nil {
+		return normalized
+	}
+	return strings.TrimSpace(strings.ToLower(host))
 }
 
 // Validate checks every configured host and loads every file, including a
@@ -203,6 +234,36 @@ func (s Settings) Validate() error {
 			return fmt.Errorf("client certificate for %s: unknown format %q", c.Host, format)
 		}
 		if _, err := s.loadClient(c); err != nil {
+			return err
+		}
+	}
+	seenServers := make(map[string]bool, len(s.Servers))
+	for i, c := range s.Servers {
+		if err := ValidateHost(c.Host); err != nil {
+			return fmt.Errorf("server certificate %d: %w", i+1, err)
+		}
+		key := NormalizeHost(c.Host)
+		if seenServers[key] {
+			return fmt.Errorf("server certificate %d: %s is configured twice", i+1, c.Host)
+		}
+		seenServers[key] = true
+		format := ResolveFormat(c.Format, c.KeyFile)
+		switch format {
+		case FormatPEM:
+			if c.CertFile == "" || c.KeyFile == "" {
+				return fmt.Errorf("server certificate for %s: PEM needs both a certificate and a key file", c.Host)
+			}
+		case FormatPKCS12:
+			if c.CertFile == "" {
+				return fmt.Errorf("server certificate for %s: choose a PKCS#12 file", c.Host)
+			}
+			if c.KeyFile != "" {
+				return fmt.Errorf("server certificate for %s: PKCS#12 already contains its key; clear the key file", c.Host)
+			}
+		default:
+			return fmt.Errorf("server certificate for %s: unknown format %q", c.Host, format)
+		}
+		if _, err := s.loadServer(c); err != nil {
 			return err
 		}
 	}
@@ -277,6 +338,126 @@ func (s Settings) ClientCertificate(address string) (*tls.Certificate, error) {
 		return nil, err
 	}
 	return &cert, nil
+}
+
+// ServerCertificate returns the certificate to present to a client for
+// address, or nil when no entry applies. The file is read now, so a changed or
+// unreadable certificate fails this connection rather than falling back to a
+// generated leaf.
+func (s Settings) ServerCertificate(address string) (*tls.Certificate, error) {
+	best, bestScore := -1, -1
+	for i, c := range s.Servers {
+		if value, ok := score(c.Host, address); ok && value > bestScore {
+			best, bestScore = i, value
+		}
+	}
+	if best < 0 {
+		return nil, nil
+	}
+	cert, err := s.loadServer(s.Servers[best])
+	if err != nil {
+		if s.SecretsProblem != "" {
+			return nil, fmt.Errorf("%w (%s)", err, s.SecretsProblem)
+		}
+		return nil, err
+	}
+	return &cert, nil
+}
+
+func (s Settings) loadServer(c Server) (tls.Certificate, error) {
+	format := ResolveFormat(c.Format, c.KeyFile)
+	passphrase := s.Secrets[c.ID]
+	var cert tls.Certificate
+	var err error
+	switch format {
+	case FormatPEM:
+		certPEM, readErr := readCertificateFile(c.CertFile, "server certificate")
+		if readErr != nil {
+			return tls.Certificate{}, fmt.Errorf("server certificate for %s: %w", c.Host, readErr)
+		}
+		keyPEM, readErr := readCertificateFile(c.KeyFile, "server key")
+		if readErr != nil {
+			return tls.Certificate{}, fmt.Errorf("server certificate for %s: %w", c.Host, readErr)
+		}
+		cert, err = parsePEMPair(certPEM, keyPEM, passphrase)
+	case FormatPKCS12:
+		data, readErr := readCertificateFile(c.CertFile, "PKCS#12 server certificate")
+		if readErr != nil {
+			return tls.Certificate{}, fmt.Errorf("server certificate for %s: %w", c.Host, readErr)
+		}
+		cert, err = parsePKCS12(data, passphrase)
+	default:
+		return tls.Certificate{}, fmt.Errorf("server certificate for %s: unknown format %q", c.Host, format)
+	}
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("server certificate for %s: %w", c.Host, err)
+	}
+	leaf := cert.Leaf
+	if leaf == nil && len(cert.Certificate) > 0 {
+		leaf, err = x509.ParseCertificate(cert.Certificate[0])
+		if err != nil {
+			return tls.Certificate{}, fmt.Errorf("server certificate for %s: parse the leaf: %w", c.Host, err)
+		}
+	}
+	if leaf == nil {
+		return tls.Certificate{}, fmt.Errorf("server certificate for %s: no certificate", c.Host)
+	}
+	if err := coversServerHost(leaf, c.Host); err != nil {
+		return tls.Certificate{}, fmt.Errorf("server certificate for %s: %w", c.Host, err)
+	}
+	if err := keyMatchesLeaf(cert.PrivateKey, leaf); err != nil {
+		return tls.Certificate{}, fmt.Errorf("server certificate for %s: %w", c.Host, err)
+	}
+	cert.Leaf = leaf
+	return cert, nil
+}
+
+// coversServerHost checks the SAN, never the subject: a certificate for one
+// name cannot be reused for a different host. A wildcard host needs the same
+// wildcard SAN, and a certificate cannot cover every host at once.
+func coversServerHost(leaf *x509.Certificate, pattern string) error {
+	host := NormalizeHost(pattern)
+	if host == "*" {
+		return errors.New("a single certificate cannot cover every host; name a host or a *.parent domain")
+	}
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	if wildcard, ok := strings.CutPrefix(host, "*."); ok {
+		for _, name := range leaf.DNSNames {
+			if strings.EqualFold(strings.TrimSuffix(name, "."), "*."+wildcard) {
+				return nil
+			}
+		}
+		return fmt.Errorf("SANs %v do not cover %s", leaf.DNSNames, pattern)
+	}
+	if err := leaf.VerifyHostname(host); err != nil {
+		return fmt.Errorf("SANs %v do not cover %s: %w", leaf.DNSNames, pattern, err)
+	}
+	return nil
+}
+
+// keyMatchesLeaf checks PKCS#12's key against its leaf: DecodeChain does not
+// do this itself, and presenting an unrelated key would fail the client's
+// handshake much later. PEM pairs are also checked by tls.X509KeyPair.
+func keyMatchesLeaf(key any, leaf *x509.Certificate) error {
+	signer, ok := key.(crypto.Signer)
+	if !ok {
+		return errors.New("the private key cannot sign a TLS handshake")
+	}
+	public, err := x509.MarshalPKIXPublicKey(signer.Public())
+	if err != nil {
+		return fmt.Errorf("encode the private key's public part: %w", err)
+	}
+	want, err := x509.MarshalPKIXPublicKey(leaf.PublicKey)
+	if err != nil {
+		return fmt.Errorf("encode the certificate's public key: %w", err)
+	}
+	if !bytes.Equal(public, want) {
+		return errors.New("the private key does not match the certificate")
+	}
+	return nil
 }
 
 // RootPool returns the roots a verified connection trusts: the system roots

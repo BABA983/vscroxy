@@ -66,7 +66,8 @@ func TestSettingsRoundTrip(t *testing.T) {
 func TestCertificatePassphrasesNeverReachSettingsOrExports(t *testing.T) {
 	settingsValue := settings{Certificates: certs.Settings{
 		Clients: []certs.Client{{ID: "one", Host: "api.example.com", Format: certs.FormatPKCS12, CertFile: "/tmp/client.p12"}},
-		Secrets: map[string]string{"one": "never-export-me"},
+		Servers: []certs.Server{{ID: "two", Host: "api.example.com", Format: certs.FormatPKCS12, CertFile: "/tmp/server.p12"}},
+		Secrets: map[string]string{"one": "never-export-me", "two": "server-never-export-me"},
 	}}
 	path := filepath.Join(t.TempDir(), "settings.json")
 	if err := writeSettings(path, settingsValue, ""); err != nil {
@@ -76,8 +77,10 @@ func TestCertificatePassphrasesNeverReachSettingsOrExports(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(data), "never-export-me") {
-		t.Fatalf("settings.json contains the passphrase: %s", data)
+	for _, secret := range []string{"never-export-me", "server-never-export-me"} {
+		if strings.Contains(string(data), secret) {
+			t.Fatalf("settings.json contains the passphrase %q: %s", secret, data)
+		}
 	}
 	a := &app{certificates: settingsValue.Certificates}
 	bundle, _ := a.exportConfig()
@@ -85,8 +88,10 @@ func TestCertificatePassphrasesNeverReachSettingsOrExports(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(data), "never-export-me") {
-		t.Fatalf("configuration export contains the passphrase: %s", data)
+	for _, secret := range []string{"never-export-me", "server-never-export-me"} {
+		if strings.Contains(string(data), secret) {
+			t.Fatalf("configuration export contains the passphrase %q: %s", secret, data)
+		}
 	}
 }
 

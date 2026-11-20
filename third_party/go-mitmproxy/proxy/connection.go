@@ -109,6 +109,10 @@ type ConnContext struct {
 	// before the client handshake. The client handshake still completes with
 	// our certificate so the request can be answered with the reason.
 	upstreamTLSFailure error `json:"-"`
+	// serverCertificateFailure keeps the reason a configured server
+	// certificate could not be loaded, so the failed client handshake's
+	// connection detail explains more than the TLS layer's generic error.
+	serverCertificateFailure error `json:"-"`
 	// TransparentTarget is the destination agreed outside HTTP, as in a
 	// SOCKS5 CONNECT. An origin-form request on such a connection is sent to
 	// this target; an absolute-form one is still pinned to it. Empty for the

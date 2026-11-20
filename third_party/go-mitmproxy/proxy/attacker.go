@@ -156,6 +156,29 @@ func hostOnly(addr string) string {
 	return strings.Trim(addr, "[]")
 }
 
+// serverCertificate asks the app for a configured chain. A failure is kept on
+// the connection so the published flow explains why the client handshake
+// failed instead of showing only the TLS layer's generic error.
+func (a *attacker) serverCertificate(connCtx *ConnContext, address string, chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	hook := a.proxy.Opts.ServerCertificate
+	if hook == nil {
+		return nil, nil
+	}
+	if address == "" && chi != nil && chi.ServerName != "" {
+		address = net.JoinHostPort(chi.ServerName, "443")
+	}
+	configured, err := hook(address)
+	if err != nil {
+		connCtx.RecordEvent("TLS client", "Configured server certificate failed to load for "+address, err)
+		connCtx.serverCertificateFailure = err
+		return nil, err
+	}
+	if configured != nil {
+		connCtx.RecordEvent("TLS client", "Using configured server certificate for "+address, nil)
+	}
+	return configured, nil
+}
+
 func newCa(opts *Options) (cert.CA, error) {
 	newCaFunc := opts.NewCaFunc
 	if newCaFunc != nil {
@@ -678,17 +701,27 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 				// our certificate. Complete its handshake so the request can
 				// reach ServeHTTP and get a 502 with the reason. HTTP/1.1 is
 				// the safe protocol here: no upstream ALPN was established.
-				name := chi.ServerName
-				if name == "" && connCtx.ServerConn != nil {
-					name = hostOnly(connCtx.ServerConn.Address)
+				address := ""
+				if connCtx.ServerConn != nil {
+					address = connCtx.ServerConn.Address
 				}
-				c, certErr := a.getCA().GetCert(name)
+				configured, certErr := a.serverCertificate(connCtx, address, chi)
 				if certErr != nil {
 					return nil, certErr
 				}
+				if configured == nil {
+					name := chi.ServerName
+					if name == "" && connCtx.ServerConn != nil {
+						name = hostOnly(connCtx.ServerConn.Address)
+					}
+					configured, certErr = a.getCA().GetCert(name)
+					if certErr != nil {
+						return nil, certErr
+					}
+				}
 				return &tls.Config{
 					SessionTicketsDisabled: true,
-					Certificates:           []tls.Certificate{*c},
+					Certificates:           []tls.Certificate{*configured},
 					NextProtos:             []string{"http/1.1"},
 				}, nil
 			case serverTlsState := <-serverTlsStateChan:
@@ -697,14 +730,24 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 				}
 			}
 
-			name := chi.ServerName
-			if name == "" {
-				// IP clients omit SNI; certify the original CONNECT target.
-				name, _, _ = net.SplitHostPort(connCtx.ServerConn.Address)
+			address := ""
+			if connCtx.ServerConn != nil {
+				address = connCtx.ServerConn.Address
 			}
-			c, err := a.getCA().GetCert(name)
+			c, err := a.serverCertificate(connCtx, address, chi)
 			if err != nil {
 				return nil, err
+			}
+			if c == nil {
+				name := chi.ServerName
+				if name == "" {
+					// IP clients omit SNI; certify the original CONNECT target.
+					name, _, _ = net.SplitHostPort(connCtx.ServerConn.Address)
+				}
+				c, err = a.getCA().GetCert(name)
+				if err != nil {
+					return nil, err
+				}
 			}
 			return &tls.Config{
 				SessionTicketsDisabled: true,
@@ -780,13 +823,23 @@ func (a *attacker) httpsLazyAttack(ctx context.Context, cconn net.Conn, req *htt
 		SessionTicketsDisabled: true, // 设置此值为 true ，确保每次都会调用下面的 GetConfigForClient 方法
 		GetConfigForClient: func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
 			connCtx.ClientConn.clientHello = chi
-			name := chi.ServerName
-			if name == "" {
-				name = req.URL.Hostname()
+			address := ""
+			if req.URL != nil && req.URL.Host != "" {
+				address = helper.CanonicalAddr(req.URL)
 			}
-			c, err := a.getCA().GetCert(name)
+			c, err := a.serverCertificate(connCtx, address, chi)
 			if err != nil {
 				return nil, err
+			}
+			if c == nil {
+				name := chi.ServerName
+				if name == "" {
+					name = req.URL.Hostname()
+				}
+				c, err = a.getCA().GetCert(name)
+				if err != nil {
+					return nil, err
+				}
 			}
 			return &tls.Config{
 				SessionTicketsDisabled: true,
@@ -811,6 +864,9 @@ func (a *attacker) httpsLazyAttack(ctx context.Context, cconn net.Conn, req *htt
 
 func (a *attacker) clientTLSError(f *Flow, err error) {
 	f.ConnContext.RecordEvent("TLS client", "Client handshake failed; check CA trust, client certificates or certificate pinning", err)
+	if cause := f.ConnContext.serverCertificateFailure; cause != nil {
+		err = errors.Join(err, cause)
+	}
 	for _, addon := range a.proxy.Addons {
 		addon.HTTPConnectError(f, err)
 	}

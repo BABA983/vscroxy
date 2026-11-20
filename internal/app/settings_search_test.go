@@ -286,8 +286,9 @@ func TestSettingsSearchNeverIndexesSecretValues(t *testing.T) {
 	a.socksPassword = socksSecret
 	a.upstreamSecrets = map[string]string{"http://proxy.example:8080": upstreamSecret}
 	a.upstreamCfg.Credentials = []upstream.Credential{{Proxy: "http://proxy.example:8080", Username: "alice"}}
-	a.certificates.Secrets = map[string]string{"one": "cert-passphrase-do-not-show"}
+	a.certificates.Secrets = map[string]string{"one": "cert-passphrase-do-not-show", "two": "server-passphrase-do-not-show"}
 	a.certificates.Clients = []certs.Client{{ID: "one", Host: "api.example.com"}}
+	a.certificates.Servers = []certs.Server{{ID: "two", Host: "api.example.com"}}
 	a.keyLogPath = "/tmp/token-do-not-show/keys.log"
 	a.settingsQuery = locales.Password()
 	a.settingsOpen = true
@@ -295,7 +296,7 @@ func TestSettingsSearchNeverIndexesSecretValues(t *testing.T) {
 	idx := a.settingsSearch()
 	for _, entry := range idx.entries {
 		for _, text := range []string{entry.title, entry.description, entry.spec.id} {
-			for _, secret := range []string{socksSecret, upstreamSecret, "cert-passphrase-do-not-show", "token-do-not-show"} {
+			for _, secret := range []string{socksSecret, upstreamSecret, "cert-passphrase-do-not-show", "server-passphrase-do-not-show", "token-do-not-show"} {
 				if strings.Contains(text, secret) {
 					t.Errorf("index entry %s leaked %q", entry.spec.id, secret)
 				}
@@ -305,7 +306,7 @@ func TestSettingsSearchNeverIndexesSecretValues(t *testing.T) {
 	tt := ui.NewTester(func(c *ui.Context) { a.settingsView(c) }, 900, 700)
 	tt.Frame()
 	for _, text := range tt.Texts() {
-		for _, secret := range []string{socksSecret, upstreamSecret, "cert-passphrase-do-not-show", "token-do-not-show"} {
+		for _, secret := range []string{socksSecret, upstreamSecret, "cert-passphrase-do-not-show", "server-passphrase-do-not-show", "token-do-not-show"} {
 			if strings.Contains(text, secret) {
 				t.Errorf("rendered settings search leaked %q: %q", secret, text)
 			}
