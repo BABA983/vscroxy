@@ -262,10 +262,10 @@ func (a *app) capturedDocument(c *ui.Context, t *ui.Theme, f flow, d *requestDoc
 		percent, reset = &a.inspect.protobufPercent, 25
 	}
 	if a.sidesStacked(c) {
-		ui.SplitVerticalPercent(c.Key("inspector-sides"), percent, request, response).SplitReset(reset).Grow(1).MinHeight(0)
+		ui.SplitVerticalPercent(c.Key("inspector-sides"+a.detailKeySuffix), percent, request, response).SplitReset(reset).Grow(1).MinHeight(0)
 		return
 	}
-	ui.SplitPercent(c.Key("inspector-sides"), percent, request, response).SplitReset(reset).Grow(1).MinHeight(0)
+	ui.SplitPercent(c.Key("inspector-sides"+a.detailKeySuffix), percent, request, response).SplitReset(reset).Grow(1).MinHeight(0)
 }
 
 // capturedReadOnly says why a captured HTTP request shows only its readers,

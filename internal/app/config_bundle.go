@@ -84,6 +84,9 @@ func (a *app) currentSettings() settings {
 		TablePercent:         a.tablePercent,
 		InspectorLayout:      a.workbench.layout,
 		SideTablePercent:     a.workbench.sidePercent,
+		CaptureSplit:         a.workbench.captureSplit,
+		CaptureGroups:        slices.Clone(a.workbench.captureGroups),
+		CaptureFocus:         a.workbench.captureFocus,
 		DiffSplit:            a.diffSplit,
 		SidebarHidden:        a.workbench.sidebarHidden,
 		SidebarClosed:        a.closedRegions(),
@@ -504,6 +507,8 @@ func (a *app) applySettingsPrepared(s settings, prepared *upstream.Config) error
 		a.tablePercent = s.TablePercent
 	}
 	a.workbench.layout = inspectorLayout(s.InspectorLayout)
+	a.workbench.captureSplit, a.workbench.captureFocus = s.CaptureSplit, s.CaptureFocus
+	a.workbench.captureGroups = slices.Clone(s.CaptureGroups)
 	a.workbench.sidebarHidden = s.SidebarHidden
 	a.regions, a.shutRegions = nil, slices.Clone(s.SidebarClosed)
 	a.paneHeights, a.savedHeights = nil, maps.Clone(s.SidebarPaneHeights)

@@ -39577,3 +39577,83 @@ func MockReloadFailed(collection string, error string) string {
 func (msgs Messages) MockReloadFailed(collection string, error string) string {
 	return Catalog.Format(msgs.locale, "mockReloadFailed", map[string]any{"collection": collection, "error": error})
 }
+
+// CaptureGroup says "Group {number}"
+// in the language the app shows.
+func CaptureGroup(number int) string { return In(i18n.Locale()).CaptureGroup(number) }
+
+// CaptureGroup says "Group {number}"
+// in the language of msgs.
+func (msgs Messages) CaptureGroup(number int) string {
+	return Catalog.Format(msgs.locale, "captureGroup", map[string]any{"number": number})
+}
+
+// FocusCaptureGroup says "Focus Group {number}"
+// in the language the app shows.
+func FocusCaptureGroup(number int) string { return In(i18n.Locale()).FocusCaptureGroup(number) }
+
+// FocusCaptureGroup says "Focus Group {number}"
+// in the language of msgs.
+func (msgs Messages) FocusCaptureGroup(number int) string {
+	return Catalog.Format(msgs.locale, "focusCaptureGroup", map[string]any{"number": number})
+}
+
+// CloseCaptureGroup says "Close Group"
+// in the language the app shows.
+func CloseCaptureGroup() string { return In(i18n.Locale()).CloseCaptureGroup() }
+
+// CloseCaptureGroup says "Close Group"
+// in the language of msgs.
+func (msgs Messages) CloseCaptureGroup() string {
+	return Catalog.Format(msgs.locale, "closeCaptureGroup", nil)
+}
+
+// CloseSecondCaptureView says "Close the second capture view"
+// in the language the app shows.
+func CloseSecondCaptureView() string { return In(i18n.Locale()).CloseSecondCaptureView() }
+
+// CloseSecondCaptureView says "Close the second capture view"
+// in the language of msgs.
+func (msgs Messages) CloseSecondCaptureView() string {
+	return Catalog.Format(msgs.locale, "closeSecondCaptureView", nil)
+}
+
+// SplitCaptureRight says "Split Right"
+// in the language the app shows.
+func SplitCaptureRight() string { return In(i18n.Locale()).SplitCaptureRight() }
+
+// SplitCaptureRight says "Split Right"
+// in the language of msgs.
+func (msgs Messages) SplitCaptureRight() string {
+	return Catalog.Format(msgs.locale, "splitCaptureRight", nil)
+}
+
+// OpenSecondCaptureView says "Open a second capture view beside this one"
+// in the language the app shows.
+func OpenSecondCaptureView() string { return In(i18n.Locale()).OpenSecondCaptureView() }
+
+// OpenSecondCaptureView says "Open a second capture view beside this one"
+// in the language of msgs.
+func (msgs Messages) OpenSecondCaptureView() string {
+	return Catalog.Format(msgs.locale, "openSecondCaptureView", nil)
+}
+
+// FocusNextCaptureGroup says "Focus Next Group"
+// in the language the app shows.
+func FocusNextCaptureGroup() string { return In(i18n.Locale()).FocusNextCaptureGroup() }
+
+// FocusNextCaptureGroup says "Focus Next Group"
+// in the language of msgs.
+func (msgs Messages) FocusNextCaptureGroup() string {
+	return Catalog.Format(msgs.locale, "focusNextCaptureGroup", nil)
+}
+
+// FocusPreviousCaptureGroup says "Focus Previous Group"
+// in the language the app shows.
+func FocusPreviousCaptureGroup() string { return In(i18n.Locale()).FocusPreviousCaptureGroup() }
+
+// FocusPreviousCaptureGroup says "Focus Previous Group"
+// in the language of msgs.
+func (msgs Messages) FocusPreviousCaptureGroup() string {
+	return Catalog.Format(msgs.locale, "focusPreviousCaptureGroup", nil)
+}

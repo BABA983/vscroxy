@@ -21,10 +21,17 @@ type desktopWorkbench struct {
 	sidebarHidden bool
 	focused       bool
 	sideBySide    bool
-	paletteOpen   bool
-	query         string
-	command       int
-	commands      ui.ListState
+	// captureSplit is whether a second capture view sits beside the first;
+	// captureGroups holds each group's saved conditions and captureFocus
+	// which group has the keyboard. They mirror views.groups in settings.
+	captureSplit        bool
+	captureGroups       []savedCaptureFilter
+	captureFocus        int
+	captureGroupPercent float32
+	paletteOpen         bool
+	query               string
+	command             int
+	commands            ui.ListState
 	// paletteHistory is the in-memory quick-open recency list. LRUCache
 	// keeps the oldest entries at the front, so ranking walks its keys in
 	// reverse to put the most recently chosen row first.
@@ -140,40 +147,13 @@ func (a *app) desktopContent(c *ui.Context) {
 					a.setupGuide(c)
 					return
 				}
+				if a.views.split && !w.focused && !a.inspectorDetached {
+					a.captureSplitView(c, available)
+					return
+				}
 				a.captureToolbar(c, c.Theme())
 				a.certificateBanner(c, c.Theme())
-				table := func() {
-					ui.Column(c).Fill().Children(func() {
-						if a.hadFlows {
-							a.activityStrip(c)
-						}
-						if a.chosen.Len() > 1 {
-							ui.Row(c).Height(uikit.HeightControl).Padding(0, c.Theme().Space(uikit.SpaceM)).Gap(c.Theme().Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-								uikit.Caption(c, locales.SelectedCount(a.chosen.Len())).FontWeight(500).Grow(1)
-								if a.chosen.Len() == 2 {
-									compare := pick(a.actions(c), "compare.two")
-									if uikit.SecondaryButton(c, locales.Compare()).Disabled(!compare.enabled).Clicked() {
-										compare.run()
-									}
-								}
-								replay := pick(a.actions(c), "flow.replay")
-								if uikit.PrimaryButton(c, locales.ReplaySelected()).Disabled(!replay.enabled).Clicked() {
-									replay.run()
-								}
-								uikit.MoreMenu(c, locales.Export(), func(m *ui.Menu) {
-									actionMenu(m, []action{
-										pick(a.actions(c), "capture.export-chosen"),
-										pick(a.actions(c), "capture.export-chosen-csv"),
-									})
-								})
-								if uikit.LinkButton(c, locales.ClearSelection()).Clicked() {
-									a.chosen.Clear()
-								}
-							})
-						}
-						a.table(c)
-					})
-				}
+				table := func() { a.captureTableRegion(c) }
 				// Keep the plot and its pointer capture in the same split while
 				// a brush passes through an interval with no matching requests.
 				if len(a.visible) == 0 && !a.activity.active() {
@@ -262,7 +242,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			}
 			placeholder := a.searchPlaceholder(c)
 			// Bare: the query field carries its own tokens and completion popup, which uikit.Combobox does not model.
-			cb := ui.ComboboxBase(c.Key("capture-search"), &a.query)
+			cb := ui.ComboboxBase(c.Key("capture-search"+a.captureSearchKey), &a.query)
 			search := cb.Input.Bind(&a.search).Label(locales.SearchHostOrPath()).Placeholder(placeholder).
 				Tooltip(cmp.Or(a.queryProblem, a.searchProblem, locales.SearchHostAndPathIncluding())).
 				Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceXS)).Grow(1).MinWidth(min(200, width/5)).FocusRing(false).Border(0, ui.Color{}).
@@ -479,6 +459,15 @@ func (a *app) captureActions(c *ui.Context) []action {
 		pick(global, "collection.record"),
 		do("tokens.analyze", locales.RecognizeTokenLinks(), func() { a.openTokenLinks(a.tokenLinkScope()) }),
 		pick(global, "capture.saved-filters").as(locales.SaveFilter()),
+	}
+	if a.views.split {
+		actions = append(actions,
+			pick(global, "capture.close-group"),
+			pick(global, "capture.focus-group-1"),
+			pick(global, "capture.focus-group-2"),
+		)
+	} else {
+		actions = append(actions, pick(global, "capture.split-right").as(locales.OpenSecondCaptureView()))
 	}
 	for index := 6; index < len(captureKinds); index++ {
 		actions = append(actions, do("capture.kind", optionLabel(captureKinds[index]), func() {

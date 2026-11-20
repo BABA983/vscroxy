@@ -8425,5 +8425,27 @@
       "error": {"type": "String"}
     }
   },
-  "mockReloadFailed": "Mock for “{collection}” kept the last working examples: {error}"
+  "mockReloadFailed": "Mock for “{collection}” kept the last working examples: {error}",
+  "@captureGroup": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "captureGroup": "Group {number}",
+  "@focusCaptureGroup": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "focusCaptureGroup": "Focus Group {number}",
+  "closeCaptureGroup": "Close Group",
+  "closeSecondCaptureView": "Close the second capture view",
+  "splitCaptureRight": "Split Right",
+  "openSecondCaptureView": "Open a second capture view beside this one",
+  "focusNextCaptureGroup": "Focus Next Group",
+  "focusPreviousCaptureGroup": "Focus Previous Group"
 }

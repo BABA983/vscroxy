@@ -253,7 +253,12 @@ type app struct {
 	sidebarWidth         float32
 	tablePercent         float32
 	protobufTablePercent float32
-	workbench            desktopWorkbench
+	// captureSearchKey and detailKeySuffix keep the mirrored widgets' ids
+	// apart while each capture group is built in turn.
+	captureSearchKey   string
+	detailKeySuffix    string
+	captureSidePercent float32
+	workbench          desktopWorkbench
 
 	totalBytes int64
 
@@ -1052,6 +1057,8 @@ func newApp() *app {
 			a.tablePercent = saved.TablePercent
 		}
 		a.workbench.layout = inspectorLayout(saved.InspectorLayout)
+		a.workbench.captureSplit, a.workbench.captureFocus = saved.CaptureSplit, saved.CaptureFocus
+		a.workbench.captureGroups = slices.Clone(saved.CaptureGroups)
 		a.workbench.sidebarHidden = saved.SidebarHidden
 		a.regions, a.shutRegions = nil, slices.Clone(saved.SidebarClosed)
 		a.paneHeights, a.savedHeights = nil, maps.Clone(saved.SidebarPaneHeights)
@@ -1071,6 +1078,12 @@ func newApp() *app {
 	a.applyFilter()
 	if a.dataDir != "" {
 		a.views.init(a, filepath.Join(a.dataDir, "views.json"))
+		if a.views.groups[0] == 0 {
+			a.views.groups[0] = a.views.views[0].id
+		}
+		if a.workbench.captureSplit {
+			a.views.restoreWorkbench(a, a.workbench.captureGroups, a.workbench.captureFocus)
+		}
 		a.protobuf.init(filepath.Join(a.dataDir, "protobuf.pb"))
 		a.protoTypesPath = filepath.Join(a.dataDir, "protobuf-types.json")
 		a.loadProtoTypeRules()
@@ -1771,8 +1784,17 @@ func (a *app) drain() {
 }
 
 // applyFilter rebuilds the visible rows from the search text and the sidebar
-// choice, and keeps the choice on a row that still shows.
+// choice, and keeps the choice on a row that still shows. A second capture
+// group reads the same stores, so it gets its own pass with its own conditions.
 func (a *app) applyFilter() {
+	a.applyFilterRows()
+	a.views.refreshGroups(a)
+}
+
+// applyFilterRows is the pass over the rows with the app's current mirrored
+// fields. It never asks other groups to refresh, so a group can borrow the
+// fields for one pass without looping.
+func (a *app) applyFilterRows() {
 	a.columnRead.dirty = true
 	if a.tallyStale() {
 		a.recount()
@@ -1802,6 +1824,11 @@ func (a *app) applyFilter() {
 // showArrivals adds the rows among rows, new flows, that pass the filters,
 // merged into the table in its order, without walking the rows it has.
 func (a *app) showArrivals(rows []int) {
+	a.showArrivalRows(slices.Clone(rows))
+	a.views.mergeArrivals(a, rows)
+}
+
+func (a *app) showArrivalRows(rows []int) {
 	a.columnRead.dirty = true
 	if view := a.views.activeView(); view != nil && strings.TrimSpace(view.body) != "" {
 		// A body condition reads spilled bodies off the UI thread: the
@@ -2099,6 +2126,18 @@ func (a *app) view(c *ui.Context) {
 		}})
 	}
 	a.actionShortcuts(c)
+	// A click or Tab into the other group's list moves the keyboard there,
+	// just as clicking a VS Code editor group does. Do it before the filter
+	// sync so the edits that follow belong to the group in focus.
+	if a.views.split {
+		for group, id := range a.views.groups {
+			if view := a.views.viewByID(id); view != nil &&
+				(view.list.Handle.Focused(c) || view.list.Handle.FocusWithin(c)) {
+				a.views.focusCaptureGroup(a, group)
+				break
+			}
+		}
+	}
 	if a.sort != a.sortApplied {
 		a.sortApplied = a.sort
 		a.applyFilter()
@@ -3288,12 +3327,30 @@ func (a *app) table(c *ui.Context) {
 	}
 	remoteShown := slices.ContainsFunc(cols, func(col ui.TableColumn) bool { return col.ID == "remote" })
 	cols = append(cols, ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true})
-	state := &a.views.activeView().list
+	view := a.views.activeView()
+	state := &view.list
 	state.FollowEnd = true
-	state.Selected = &a.picked
-	state.Selection = &a.chosen
-	state.Key = func(row int) any { return a.flows[a.visible[row]].id }
-	state.Sort = &a.sort
+	selected, chosen, sortOrder := &a.picked, &a.chosen, &a.sort
+	if a.views.split && len(a.views.groupViews()) > 1 {
+		// MyGo resolves selection after the build pass, when the app's
+		// fields are back on the focused group. In a split, the table owns
+		// each group's own choice and order rather than the app's mirror.
+		selected, chosen, sortOrder = &view.picked, &view.chosen, &view.sort
+	}
+	state.Selected, state.Selection, state.Sort = selected, chosen, sortOrder
+	// The second group is built while the app's fields belong to the first,
+	// and MyGo asks for keys after the build pass. Keep that group's rows in
+	// the closure; the single view can use its live slice as before.
+	rows := a.visible
+	if a.views.split && len(a.views.groupViews()) > 1 {
+		rows = slices.Clone(a.visible)
+	}
+	state.Key = func(row int) any {
+		if row < 0 || row >= len(rows) {
+			return row
+		}
+		return a.flows[rows[row]].id
+	}
 	// The table owns the live layout while it is on screen: the app's copy is
 	// only what it was given, or what it changed from its own menus.
 	if a.columnsDirty || len(state.Columns.Order) == 0 && len(state.Columns.Widths) == 0 {

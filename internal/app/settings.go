@@ -34,6 +34,12 @@ type settings struct {
 	// (stacked); each keeps its own divider.
 	InspectorLayout  string  `json:"inspectorLayout,omitempty"`
 	SideTablePercent float32 `json:"sideTablePercent,omitzero"`
+	// CaptureSplit opens a second capture group beside the first;
+	// CaptureGroups holds each group's conditions in group order and
+	// CaptureFocus which group has the keyboard.
+	CaptureSplit  bool                 `json:"captureSplit,omitzero"`
+	CaptureGroups []savedCaptureFilter `json:"captureGroups,omitempty"`
+	CaptureFocus  int                  `json:"captureFocus,omitzero"`
 	// DiffSplit is the share of a split response diff the old side takes;
 	// zero is half.
 	DiffSplit     float32 `json:"diffSplit,omitzero"`
@@ -264,6 +270,9 @@ func sameSettings(x, y settings) bool {
 		x.TablePercent == y.TablePercent &&
 		x.InspectorLayout == y.InspectorLayout &&
 		x.SideTablePercent == y.SideTablePercent &&
+		x.CaptureSplit == y.CaptureSplit &&
+		slices.Equal(x.CaptureGroups, y.CaptureGroups) &&
+		x.CaptureFocus == y.CaptureFocus &&
 		x.DiffSplit == y.DiffSplit &&
 		x.SidebarHidden == y.SidebarHidden &&
 		slices.Equal(x.SidebarClosed, y.SidebarClosed) &&
