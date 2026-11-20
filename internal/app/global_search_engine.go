@@ -37,6 +37,7 @@ type globalSearch struct {
 	problem     string
 	reveal      searchReveal
 	runner      *globalSearchRunner
+	replace     searchReplaceState
 }
 
 type searchRequest struct {
@@ -175,6 +176,7 @@ func (a *app) syncSearchQuery() {
 	s.armed = req
 	runner := a.searchRunner()
 	runner.change()
+	a.scrubSearchReplace()
 	s.results, s.limited, s.current, s.problem = nil, 0, 0, ""
 	s.reveal = searchReveal{}
 	if req.input == "" {

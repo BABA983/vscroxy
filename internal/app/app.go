@@ -2194,6 +2194,7 @@ func (a *app) view(c *ui.Context) {
 	a.folderModal(c, t)
 	a.renameModal(c, t)
 	a.referencesModal(c, t)
+	a.searchPreviewModal(c, t)
 	a.historyModal(c, t)
 	a.docsModal(c, t)
 	// A link in an imported description can be clicked while Documentation

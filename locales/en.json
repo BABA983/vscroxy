@@ -8332,5 +8332,28 @@
   "logLevelInfo": "Info",
   "logLevelWarning": "Warning",
   "logLevelError": "Error",
-  "logLevelOff": "Off"
+  "logLevelOff": "Off",
+  "@replacedMatches": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "replacedMatches": "Replaced {count} matches",
+  "@searchReplaceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "searchReplaceCount": "{count} editable matches",
+  "toggleReplace": "Toggle Replace",
+  "toggleReplaceTip": "Toggle the Replace field (Cmd/Ctrl+Shift+U)",
+  "replaceWith": "Replace with",
+  "replaceAll": "Replace All",
+  "noSearchMatchesToReplace": "No editable matches to replace",
+  "noSearchChangesSelected": "No changes selected",
+  "replaceThisMatch": "Replace this match"
 }

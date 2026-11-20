@@ -16,14 +16,9 @@ import (
 // variableRenameState is the two-step VS Code rename: ask for the name, then
 // review every change before a byte of the library is written.
 type variableRenameState struct {
-	open    bool
-	preview bool
-	target  variableTarget
-	input   string
-	problem string
-	warning string
-	changes []variableMatch
-	current int
+	bulkPreviewState
+	target variableTarget
+	input  string
 }
 
 // variableReferencesState is the References view of one variable name.
@@ -186,23 +181,6 @@ func cloneLibraryValue[T any](value T) (T, error) {
 	return out, err
 }
 
-type plannedUse struct {
-	match       variableMatch
-	replacement string
-}
-
-type plannedField struct {
-	owner, key, code string
-	collection       string
-	oldText, newText string
-	uses             []plannedUse
-	doc              *requestDocument
-}
-
-func planKey(m variableMatch) string {
-	return m.Owner + "\x00" + m.Key + "\x00" + m.Code
-}
-
 // applyVariableRename plans every checked change first, writes the library
 // from copies, and only then updates live definitions, documents and editor
 // buffers. A refused write leaves the whole app as it was and hands the draft
@@ -214,8 +192,23 @@ func (a *app) applyVariableRename() bool {
 		return false
 	}
 	to := strings.TrimSpace(s.input)
-	checked := slices.DeleteFunc(slices.Clone(s.changes), func(m variableMatch) bool { return !m.Checked })
+	checked := s.checkedChanges()
 	if len(checked) == 0 {
+		a.warn(locales.NoVariableChangesSelected())
+		return false
+	}
+	for i := range checked {
+		if checked[i].Kind == "definition" {
+			checked[i].Replacement = to
+		}
+	}
+	fields, definitions, ok := a.planBulkChanges(checked, func(m variableMatch) string {
+		if m.Kind == "reference" {
+			return "{{" + to + "}}"
+		}
+		return to
+	})
+	if !ok {
 		a.warn(locales.NoVariableChangesSelected())
 		return false
 	}
@@ -224,141 +217,35 @@ func (a *app) applyVariableRename() bool {
 		a.fail(locales.RenameVariable(), err)
 		return false
 	}
-
-	fields, byField := []*plannedField{}, map[string]*plannedField{}
-	definitions := []variableMatch{}
-	for _, m := range checked {
-		if m.Kind == "definition" {
-			definitions = append(definitions, m)
-			continue
-		}
-		ref, doc, ok := a.variableResolveField(m)
-		if !ok || ref.state != nil && ref.state.Buffer.String() != *ref.text {
-			continue // the editor owns a newer buffer than the preview saw
-		}
-		text := ref.current()
-		if m.Start < 0 || m.End > len(text) || m.Start > m.End ||
-			m.Text[m.Start:m.End] != text[m.Start:m.End] {
-			continue // the field changed since the preview
-		}
-		replacement := to
-		if m.Kind == "reference" {
-			replacement = "{{" + to + "}}"
-		}
-		key := planKey(m)
-		plan := byField[key]
-		if plan == nil {
-			plan = &plannedField{owner: m.Owner, key: m.Key, code: m.Code, collection: m.Collection,
-				oldText: text, newText: text, doc: doc}
-			byField[key], fields = plan, append(fields, plan)
-		}
-		if text != plan.oldText {
-			continue
-		}
-		plan.uses = append(plan.uses, plannedUse{match: m, replacement: replacement})
-	}
-	for _, plan := range fields {
-		// Later offsets first so earlier ones keep their positions.
-		slices.SortStableFunc(plan.uses, func(x, y plannedUse) int { return y.match.Start - x.match.Start })
-		text := plan.oldText
-		for _, use := range plan.uses {
-			m := use.match
-			if m.End > len(text) || text[m.Start:m.End] != m.Text[m.Start:m.End] {
-				continue // overlapping change: never edit a range that moved
-			}
-			text = text[:m.Start] + use.replacement + text[m.End:]
-		}
-		plan.newText = text
-	}
-
-	libraryChanged := false
-	for _, plan := range fields {
-		switch plan.owner {
-		case "saved":
-			if setCopiedRequestField(&state, plan) {
-				libraryChanged = true
-			}
-		case "folder":
-			if setCopiedFolderField(&state, plan) {
-				libraryChanged = true
-			}
-		}
-	}
-	definitionsChanged := false
-	for _, m := range definitions {
-		if state.renameDefinition(m, to) {
-			definitionsChanged = true
-			if m.Owner == "folder-def" {
-				libraryChanged = true
-			}
-		}
-	}
-	// An open tab may be dirty with edits the reader never saved. Rename the
-	// saved copy for the file, not the draft: the reader's own changes stay
-	// only in the tab, and its baseline becomes the renamed saved request.
-	baselines := map[*requestDocument]savedRequest{}
+	target := s.target
 	sets := map[string]variableSet{}
-	target := a.variableRename.target
-	for _, plan := range fields {
-		d := plan.doc
-		if plan.owner != "document" || d == nil || d.savedKey == "" || d.assetID == "" {
-			continue
-		}
-		saved := savedRequestForDoc(state.requests, d)
-		if saved == nil {
-			continue
-		}
-		code := savedFieldCodeForDocument(plan.code, saved)
-		ref, ok := variableSavedField(saved, code)
-		if !ok || ref.text == nil {
-			continue
-		}
-		renamed, ok := a.renameInSavedText(*ref.text, plan, saved.Collection, target, sets)
-		if !ok || !setSavedField(saved, code, renamed) {
-			continue
-		}
-		baselines[d] = documentBaseline(a, *saved, d.savedKey)
-		libraryChanged = true
-	}
-
-	if libraryChanged {
-		// writeLibrary guards the files and keeps the conflict's draft bytes.
-		if err := a.writeLibrary(state.requests, state.folders); err != nil {
-			a.fail(locales.RenameVariable(), err)
-			return false // no live state moved
-		}
-		a.requests, a.folders = state.requests, state.folders
-	}
-	if definitionsChanged {
-		a.envs, a.globals, a.globalsCurrent = state.envs, state.globals, state.globalsCurrent
-		a.folderCurrent, a.folderCredentials = state.folderCurrent, state.folderCredentials
-	}
-
-	// Only now, after the files are safe, touch the drafts and their buffers.
-	for _, plan := range fields {
-		if plan.owner != "document" || plan.doc == nil {
-			continue
-		}
-		for _, use := range plan.uses {
-			ref, _, ok := a.variableResolveField(use.match)
-			if !ok || !replaceVariableText(ref, use.match, use.replacement) {
-				continue
+	accepted := a.commitBulkEdits(fields, definitions, state, bulkCommitOptions{
+		label: locales.RenameVariable(),
+		done:  locales.RenamedVariable(target.Name, to),
+		value: func(state *variableStateCopy, m variableMatch, text string) (bool, bool) {
+			if !state.renameDefinition(m, text) {
+				return false, false
 			}
-			a.syncVariableField(plan.doc, ref, plan.code)
-		}
-		if baseline, ok := baselines[plan.doc]; ok {
-			plan.doc.baseline = baseline
-		}
+			return m.Owner == folderDefinitionOwner, m.Owner != folderDefinitionOwner
+		},
+		savedDraft: func(state *variableStateCopy, plan *plannedField) bool {
+			saved := savedRequestForDoc(state.requests, plan.doc)
+			if saved == nil {
+				return false
+			}
+			code := savedFieldCodeForDocument(plan.code, saved)
+			ref, found := variableSavedField(saved, code)
+			if !found || ref.text == nil {
+				return false
+			}
+			renamed, found := a.renameInSavedText(*ref.text, plan, saved.Collection, target, sets)
+			return found && setSavedField(saved, code, renamed)
+		},
+	})
+	if accepted {
+		s.open, s.preview = false, false
 	}
-	if definitionsChanged {
-		if err := a.saveLocalEnvs(); err != nil {
-			a.fail(locales.Variables(), err)
-		}
-	}
-	s.open, s.preview = false, false
-	a.done(locales.RenamedVariable(s.target.Name, to))
-	a.invalidate()
-	return true
+	return accepted
 }
 
 // savedFieldCodeForDocument maps an open draft's header-row code onto the

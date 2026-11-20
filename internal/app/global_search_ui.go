@@ -33,6 +33,14 @@ func (a *app) searchView(c *ui.Context, t *ui.Theme) {
 			query.Bind(&s.handle)
 			bindFindOptionKeys(query, s)
 			findOptionToggles(c, s)
+			toggleMark := "▸"
+			if s.replace.open {
+				toggleMark = "▾"
+			}
+			if uikit.Tip(c, uikit.SecondaryButton(c, toggleMark).Label(locales.ToggleReplace()),
+				locales.ToggleReplaceTip()).KeepFocus().Clicked() {
+				s.replace.open = !s.replace.open
+			}
 			if uikit.Tip(c, uikit.SecondaryButton(c, "↑").Label(locales.PreviousSearchMatch()),
 				locales.PreviousMatchShiftEnter()).KeepFocus().Clicked() {
 				s.step(-1)
@@ -42,6 +50,17 @@ func (a *app) searchView(c *ui.Context, t *ui.Theme) {
 				s.step(1)
 			}
 		})
+
+		if s.replace.open {
+			ui.Row(c.Key("global-search-replace-bar")).Gap(t.Space(uikit.SpaceS)).
+				AlignItems(ui.Center).Children(func() {
+				replacement := uikit.Input(c, &s.replace.input).Label(locales.ReplaceWith()).
+					Placeholder(locales.ReplaceWith()).Grow(1).MinWidth(0)
+				replacement.Bind(&s.replace.handle)
+				bindFindOptionKeys(replacement, s)
+				a.actionButton(c, "search.action.replaceAll", locales.ReplaceAll())
+			})
+		}
 
 		if s.problem != "" {
 			uikit.ErrorText(c, searchProblemText(s.problem))
@@ -116,6 +135,7 @@ func (a *app) searchResultRow(c *ui.Context, t *ui.Theme, i int, result searchRe
 	}
 	open := func() { a.openSearchResult(result) }
 	row.OnClick(open)
+	inline := a.searchAll.replace.open && a.searchAll.replace.input != "" && result.replaceable()
 	row.Children(func() {
 		ui.Box(c).Width(128).Shrink(0).Children(func() {
 			uikit.Meta(c, result.field).SingleLine()
@@ -127,15 +147,29 @@ func (a *app) searchResultRow(c *ui.Context, t *ui.Theme, i int, result searchRe
 				uikit.Meta(c, strconv.Itoa(result.line))
 			}
 		})
-		searchMatchedLine(c, result, open)
+		a.searchMatchedLine(c, result, open, inline)
+		if inline {
+			if uikit.Tip(c, uikit.SecondaryButton(c, locales.Replace()).
+				Label(locales.ReplaceThisMatch()), locales.ReplaceThisMatch()).KeepFocus().Clicked() {
+				a.replaceOneSearchMatch(i)
+			}
+		}
 	})
 }
 
-func searchMatchedLine(c *ui.Context, result searchResult, open func()) ui.Element {
+// searchMatchedLine is one matching line. With the Replace field open the
+// matching bytes are struck through and the expansion is added after them.
+func (a *app) searchMatchedLine(c *ui.Context, result searchResult, open func(), inline bool) ui.Element {
+	label := locales.OpenSearchResult(result.resource)
+	if inline {
+		replacement := a.searchAll.query.expand(result.text,
+			result.start, result.end, a.searchAll.replace.input)
+		return bulkEditLine(c, result.text, result.start, result.end, replacement, 0, label).OnClick(open)
+	}
 	start := utf8.RuneCountInString(result.text[:result.start])
 	end := utf8.RuneCountInString(result.text[:result.end])
 	spans := paletteSpans(result.text, []fuzzy.Match{{Start: start, End: end}},
 		paletteHighlightInk(c, true), uikit.Scaled(uikit.TextData))
 	return ui.RichText(c, spans...).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextData)).
-		Label(locales.OpenSearchResult(result.resource)).Grow(1).MinWidth(0).SingleLine().OnClick(open)
+		Label(label).Grow(1).MinWidth(0).SingleLine().OnClick(open)
 }

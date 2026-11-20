@@ -39,6 +39,33 @@ func (source searchSource) label() string {
 	}
 }
 
+// Values whose replacement is a whole new string rather than a snippet at a
+// byte range: a variable's Initial/Current cell, a collection row's name and
+// a folder's local Current value. They live in maps; fieldRefs own text.
+const (
+	searchValueEnvInitial    = "env-initial"
+	searchValueEnvCurrent    = "env-current"
+	searchValueGlobalInitial = "global-initial"
+	searchValueGlobalCurrent = "global-current"
+	searchValueFolderDef     = "folder-def"
+	searchValueFolderCurrent = "folder-current"
+	folderDefinitionOwner    = searchValueFolderDef
+	searchFieldName          = "name"
+)
+
+// searchTarget says where a match may be written. Flows and read-only
+// manifestations carry no target: they can be opened, never replaced.
+type searchTarget struct {
+	owner, key, code, collection string
+	// valueKind is empty for a text field, or one of searchValue* above.
+	valueKind string
+	// base is the display line's byte offset in the authored field text.
+	base int
+	// start/end are byte offsets in the full field or value, not in the line.
+	start, end int
+	index      int // folder variable row
+}
+
 // searchFieldKind routes a result to the editor that reveals it. The label a
 // result shows is localized; the kind is not, so changing the app's language
 // between searching and clicking cannot misdirect a reveal.
@@ -70,9 +97,19 @@ type searchResult struct {
 	variable string
 	flowID   int
 	side     int // 0 request, 1 response
+	// fieldText is the whole authored value the match came from, kept for
+	// stale-range checks when a change is planned.
+	fieldText string
+	target    searchTarget
 }
 
 func (r searchResult) match() string { return r.text[r.start:r.end] }
+
+// replaceable says whether a result can reach an authored, editable source.
+// Captured traffic, run history and other read-only results have no target.
+func (r searchResult) replaceable() bool {
+	return r.target.owner != ""
+}
 
 // searchBatch carries one streamed page of results. Its generation is checked
 // against the current query before anything is shown: a worker from an older
@@ -171,6 +208,21 @@ func (q searchQuery) find(line string) (int, int, bool) {
 	return found[0], found[1], true
 }
 
+// expand follows Go's regexp.Expand semantics for regexp searches: $1 and
+// ${name} name capture groups, $$ is a literal dollar and an unknown name
+// expands to nothing. Literal searches insert the replacement as written.
+func (q searchQuery) expand(line string, from, to int, template string) string {
+	if q.regexp == nil {
+		return template
+	}
+	for _, m := range q.regexp.FindAllStringSubmatchIndex(line, -1) {
+		if m[0] == from && m[1] == to {
+			return string(q.regexp.ExpandString(nil, template, line, m))
+		}
+	}
+	return template
+}
+
 func isWholeSearchWord(line string, from, to int) bool {
 	return !searchWordAt(line, from-1) && !searchWordAt(line, to)
 }
@@ -239,13 +291,30 @@ func (f searchSecrets) key(value string) string {
 type searchSnapshot struct {
 	query          searchQuery
 	secrets        searchSecrets
-	requests       []savedRequest
+	sources        []searchSourceSnapshot
 	envs           []environment
 	globals        map[string]string
 	globalsCurrent map[string]string
+	folderCurrent  map[string]map[string]string
 	flows          []flow
 	limit          int
 	batch          int
+}
+
+// searchSourceSnapshot is an authored resource copied on the UI thread. The
+// same field walkers that back the variable editor supply the targets: an
+// open draft replaces its saved copy, and a save conflict cannot move the
+// ranges the worker is reading.
+type searchSourceSnapshot struct {
+	owner, key, resource, collection string
+	fields                           []searchField
+}
+
+type searchField struct {
+	label string
+	kind  searchFieldKind
+	code  string
+	text  string
 }
 
 func (a *app) searchSnapshot(query searchQuery) searchSnapshot {
@@ -257,42 +326,64 @@ func (a *app) searchSnapshot(query searchQuery) searchSnapshot {
 	for _, secret := range a.vault.secrets {
 		values = append(values, secret.Value)
 	}
+	sources := make([]searchSourceSnapshot, 0, len(a.documents)+len(a.requests)+len(a.folders))
+	for _, source := range a.variableSources() {
+		fields := []searchField{{locales.Name(), searchFieldOther, searchFieldName, source.value.Name}}
+		for _, f := range source.fields() {
+			fields = append(fields, searchField{f.field, searchCodeKind(f.code), f.code, f.text})
+		}
+		sources = append(sources, searchSourceSnapshot{owner: source.owner, key: source.key,
+			resource: source.resource, collection: source.collection, fields: fields})
+	}
+	for _, folder := range a.folders {
+		fields := make([]searchField, 0, len(folder.Variables)+3)
+		for _, f := range variableFolderFields(folder) {
+			fields = append(fields, searchField{f.field, searchCodeKind(f.code), f.code, f.text})
+		}
+		for i, v := range folder.Variables {
+			name := strings.TrimSpace(v.Name)
+			if name != "" {
+				fields = append(fields, searchField{locales.Definition(), searchFieldOther,
+					folderDefinitionOwner + ":" + strconv.Itoa(i), name})
+			}
+		}
+		sources = append(sources, searchSourceSnapshot{owner: "folder", key: folder.Path,
+			resource: folder.Path, collection: folder.Path, fields: fields})
+	}
+	current := map[string]map[string]string{}
+	for path, values := range a.folderCurrent {
+		current[path] = maps.Clone(values)
+	}
 	return searchSnapshot{
 		query:          query,
 		secrets:        newSearchSecrets(values),
-		requests:       slices.Clone(a.requests),
+		sources:        sources,
 		envs:           slices.Clone(a.envs),
 		globals:        maps.Clone(a.globals),
 		globalsCurrent: maps.Clone(a.globalsCurrent),
+		folderCurrent:  current,
 		flows:          flows,
 		limit:          globalSearchLimit,
 		batch:          globalSearchBatchSize,
 	}
 }
 
-type searchField struct {
-	label string
-	kind  searchFieldKind
-	text  string
-}
-
-// searchFieldsOf are the authored text parts of one saved request. A field is
-// labelled with a catalog message and carries a stable kind for revealing;
-// its value is kept as written, including {{variables}}, which is what the
-// collection stores.
-func searchFieldsOf(r savedRequest) []searchField {
-	return []searchField{
-		{locales.Name(), searchFieldOther, r.Name},
-		{locales.Url(), searchFieldOther, r.URL},
-		{locales.Headers(), searchFieldHeaders, r.Headers},
-		{locales.RequestBody(), searchFieldRequestBody, r.Body},
-		{locales.PreRequestScript(), searchFieldPreScript, r.Pre},
-		{locales.PostResponseScript(), searchFieldPostScript, r.Post},
-		{locales.Description(), searchFieldDescription, r.Description},
-		{locales.GraphqlQuery(), searchFieldOther, r.GraphQL.Query},
-		{locales.GraphqlVariables(), searchFieldOther, r.GraphQL.Variables},
-		{locales.GrpcMethod(), searchFieldOther, r.GRPC.Method},
+// searchCodeKind maps a variable field code onto the reveal target the
+// Search view already uses; an unmapped authored field still opens its tab.
+func searchCodeKind(code string) searchFieldKind {
+	switch {
+	case code == problemFieldBody, strings.HasPrefix(code, "body-"):
+		return searchFieldRequestBody
+	case code == problemFieldPre:
+		return searchFieldPreScript
+	case code == problemFieldPost:
+		return searchFieldPostScript
+	case code == problemFieldHeaderRaw, strings.HasPrefix(code, "header-"):
+		return searchFieldHeaders
+	case code == problemFieldDescription:
+		return searchFieldDescription
 	}
+	return searchFieldOther
 }
 
 // scanSearch streams matching lines source by source. It never touches app
@@ -349,7 +440,7 @@ func scanSearch(ctx context.Context, s searchSnapshot, gen uint64, sink chan<- s
 	}
 
 	for _, scan := range []func(context.Context, searchSnapshot, func(searchResult) bool) bool{
-		scanSavedRequests, scanEnvironments, scanFlows,
+		scanAuthoredSources, scanEnvironments, scanFlows,
 	} {
 		if ctx.Err() != nil {
 			return
@@ -368,23 +459,29 @@ func boolInt(on bool) int {
 	return 0
 }
 
-// scanSavedRequests walks the collection fields in saved order, so the UI can
-// group adjacent results under one resource.
-func scanSavedRequests(ctx context.Context, s searchSnapshot, add func(searchResult) bool) bool {
-	for _, r := range s.requests {
+// scanAuthoredSources walks saved requests, open drafts and folders in the
+// order the library shows them, so the UI can group adjacent results under
+// one resource. Every result carries the fieldRef target the bulk edit needs.
+func scanAuthoredSources(ctx context.Context, s searchSnapshot, add func(searchResult) bool) bool {
+	for _, source := range s.sources {
 		if ctx.Err() != nil {
 			return false
 		}
-		resource := r.Name
-		if r.Collection != "" {
-			resource = r.Collection + " / " + resource
-		}
-		key, resource := s.secrets.key(r.key()), s.secrets.resource(resource)
-		for _, field := range searchFieldsOf(r) {
-			label, kind := field.label, field.kind
-			if !scanField(ctx, s, func(line string, number, from, to int) searchResult {
-				return searchResult{source: searchCollections, key: key, resource: resource,
-					field: label, kind: kind, text: line, start: from, end: to, line: number}
+		key, resource := s.secrets.key(source.key), s.secrets.resource(source.resource)
+		for _, field := range source.fields {
+			label, kind, code := field.label, field.kind, field.code
+			if !scanField(ctx, s, func(line string, number, base, from, to int) searchResult {
+				r := searchResult{source: searchCollections, key: key, resource: resource,
+					field: label, kind: kind, text: line, start: from, end: to, line: number,
+					fieldText: field.text}
+				r.target = searchTarget{owner: source.owner, key: source.key, code: code,
+					collection: source.collection, base: base, start: base + from, end: base + to}
+				if at, ok := strings.CutPrefix(code, folderDefinitionOwner+":"); ok {
+					index, _ := strconv.Atoi(at)
+					r.target.owner, r.target.code, r.target.index = folderDefinitionOwner, "row", index
+					r.target.valueKind, r.target.start, r.target.end = folderDefinitionOwner, from, to
+				}
+				return r
 			}, add, field.text) {
 				return false
 			}
@@ -393,10 +490,10 @@ func scanSavedRequests(ctx context.Context, s searchSnapshot, add func(searchRes
 	return true
 }
 
-// scanEnvironments includes the environment names, its variables and the
-// globals. A credential or conventionally sensitive variable keeps its name
-// searchable but never its value, in either the Initial or Current column,
-// as in the variable editor.
+// scanEnvironments includes environment names, variable values and globals.
+// A credential or conventionally sensitive variable keeps its name searchable
+// but its value is excluded, as it was before Search Replace: a match must
+// never become an oracle for guessing a secret.
 func scanEnvironments(ctx context.Context, s searchSnapshot, add func(searchResult) bool) bool {
 	envs := slices.Clone(s.envs)
 	slices.SortFunc(envs, func(a, b environment) int { return strings.Compare(a.Name, b.Name) })
@@ -405,52 +502,81 @@ func scanEnvironments(ctx context.Context, s searchSnapshot, add func(searchResu
 			return false
 		}
 		name, key := s.secrets.resource(env.Name), s.secrets.key(env.Name)
-		if !scanField(ctx, s, func(line string, number, from, to int) searchResult {
+		if !scanField(ctx, s, func(line string, number, base, from, to int) searchResult {
 			return searchResult{source: searchEnvironments, key: key, resource: name,
 				field: locales.Name(), text: line, start: from, end: to, line: number, env: env.Name}
 		}, add, env.Name) {
 			return false
 		}
-		for _, name := range slices.Sorted(maps.Keys(env.Vars)) {
-			sensitive := env.Credentials[name] || sensitiveVariable(name)
-			if !scanVariable(ctx, s, add, env.Name, name, locales.Initial(), env.Vars[name], !sensitive) {
+		for _, variable := range slices.Sorted(maps.Keys(env.Vars)) {
+			sensitive := env.Credentials[variable] || sensitiveVariable(variable)
+			if !scanVariable(ctx, s, add, env.Name, variable, locales.Initial(),
+				env.Vars[variable], searchValueEnvInitial, sensitive) {
 				return false
 			}
 		}
-		for _, name := range slices.Sorted(maps.Keys(env.Current)) {
-			sensitive := env.Credentials[name] || sensitiveVariable(name)
-			if !scanVariable(ctx, s, add, env.Name, name, locales.Current(), env.Current[name], !sensitive) {
+		for _, variable := range slices.Sorted(maps.Keys(env.Current)) {
+			sensitive := env.Credentials[variable] || sensitiveVariable(variable)
+			if !scanVariable(ctx, s, add, env.Name, variable, locales.Current(),
+				env.Current[variable], searchValueEnvCurrent, sensitive) {
 				return false
 			}
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(s.globals)) {
-		if !scanVariable(ctx, s, add, "", name, locales.GlobalVariable(), s.globals[name], !sensitiveVariable(name)) {
+		if !scanVariable(ctx, s, add, "", name, locales.GlobalVariable(),
+			s.globals[name], searchValueGlobalInitial, sensitiveVariable(name)) {
 			return false
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(s.globalsCurrent)) {
-		if !scanVariable(ctx, s, add, "", name, locales.GlobalVariable(), s.globalsCurrent[name], !sensitiveVariable(name)) {
+		if !scanVariable(ctx, s, add, "", name, locales.GlobalVariable(),
+			s.globalsCurrent[name], searchValueGlobalCurrent, sensitiveVariable(name)) {
 			return false
+		}
+	}
+	for _, path := range slices.Sorted(maps.Keys(s.folderCurrent)) {
+		for _, name := range slices.Sorted(maps.Keys(s.folderCurrent[path])) {
+			if !scanVariable(ctx, s, add, path, name, locales.Current(),
+				s.folderCurrent[path][name], searchValueFolderCurrent, sensitiveVariable(name)) {
+				return false
+			}
 		}
 	}
 	return true
 }
 
-func scanVariable(ctx context.Context, s searchSnapshot, add func(searchResult) bool, env, name, field, value string, showValue bool) bool {
+// scanVariable searches "name = value" as one line. A match in the name is a
+// name result; a match in the value targets the map cell or folder row. For a
+// credential or conventionally sensitive variable only the name is searched,
+// so neither the value's bytes nor its length can be inferred from Search.
+func scanVariable(ctx context.Context, s searchSnapshot, add func(searchResult) bool, env, name, field, value, owner string, sensitive bool) bool {
 	text := name
-	if showValue {
+	valueAt := len(name)
+	if !sensitive && value != "" {
 		text += " = " + value
+		valueAt += 3
 	}
 	key, resource := s.secrets.key(env), s.secrets.resource(cmp.Or(env, locales.GlobalVariable()))
-	return scanField(ctx, s, func(line string, number, from, to int) searchResult {
-		return searchResult{source: searchEnvironments, key: key, resource: resource,
+	return scanField(ctx, s, func(line string, number, base, from, to int) searchResult {
+		r := searchResult{source: searchEnvironments, key: key, resource: resource,
 			field: field, text: line, start: from, end: to, line: number, env: env, variable: name}
+		if from >= valueAt {
+			r.target = searchTarget{owner: owner, key: env, code: name, valueKind: owner,
+				start: from - valueAt, end: to - valueAt, index: 0}
+			r.fieldText = value
+		} else {
+			// A name match points at no editable cell; the key is not a
+			// value text field and is left to the variable editor's rename.
+			r.text = name
+			r.end = min(to, len(name))
+		}
+		return r
 	}, add, text)
 }
 
-// scanFlows searches the URL and the header blocks it already holds, plus
-// the head of a spilled body up to the app's existing display limit.
+// scanFlows searches captured requests read-only: no result from here carries
+// an edit target, so neither Replace nor Replace All can offer a change.
 func scanFlows(ctx context.Context, s searchSnapshot, add func(searchResult) bool) bool {
 	for i := range s.flows {
 		f := s.flows[i]
@@ -484,7 +610,7 @@ func scanFlows(ctx context.Context, s searchSnapshot, add func(searchResult) boo
 		}
 		for _, field := range fields {
 			side, label, kind := field.side, field.label, field.kind
-			if !scanField(ctx, s, func(line string, number, from, to int) searchResult {
+			if !scanField(ctx, s, func(line string, number, base, from, to int) searchResult {
 				return searchResult{source: searchFlows, key: key, resource: resource,
 					field: label, kind: kind, text: line, start: from, end: to, line: number,
 					flowID: f.id, side: side}
@@ -496,25 +622,33 @@ func scanFlows(ctx context.Context, s searchSnapshot, add func(searchResult) boo
 	return true
 }
 
-func scanField(ctx context.Context, s searchSnapshot, result func(string, int, int, int) searchResult, add func(searchResult) bool, text string) bool {
+// scanField keeps one match per line, as the Search view always has. A field
+// containing a vault value is skipped whole: a multi-line secret has no line
+// that holds all of it, so checking lines alone would leak every line of a
+// pasted key or JSON credential.
+func scanField(ctx context.Context, s searchSnapshot, result func(string, int, int, int, int) searchResult, add func(searchResult) bool, text string) bool {
 	if text == "" || !s.secrets.safe(text) {
 		return true
 	}
-	number := 0
+	number, base := 0, 0
 	for line := range strings.Lines(text) {
 		number++
 		if ctx.Err() != nil {
 			return false
 		}
+		raw := line
+		line = strings.TrimSuffix(line, "\n")
 		line = strings.TrimSuffix(line, "\r")
-		if !s.secrets.safe(line) {
-			continue
-		}
+		lineBase := base
+		// strings.Lines yields the terminator with the line. Advancing by
+		// the trimmed length plus one would miss CRLF's extra byte and
+		// shift every later match one byte earlier per preceding line.
+		base += len(raw)
 		from, to, ok := s.query.find(line)
 		if !ok {
 			continue
 		}
-		if !add(result(line, number, from, to)) {
+		if !add(result(line, number, lineBase, from, to)) {
 			return false
 		}
 	}

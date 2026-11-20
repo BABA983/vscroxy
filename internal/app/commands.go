@@ -112,7 +112,8 @@ func commandSnapshot(a *app, c *ui.Context, target *requestDocument) *commandCon
 			}
 		}
 	}
-	if x.find == nil && c != nil && a.page == pageSearch && a.searchAll.handle.FocusWithin(c) {
+	if x.find == nil && c != nil && a.page == pageSearch &&
+		(a.searchAll.handle.FocusWithin(c) || a.searchAll.replace.handle.FocusWithin(c)) {
 		x.find = &a.searchAll
 	}
 	if d != nil {
@@ -353,6 +354,24 @@ func registerGlobalCommands() *commandRegistry {
 		keys(ui.Cmd|ui.Shift, ui.KeyF)
 	r.add("search.next-match", locales.NextSearchMatch(), func(x *commandContext) { x.a.searchAll.step(1) })
 	r.add("search.previous-match", locales.PreviousSearchMatch(), func(x *commandContext) { x.a.searchAll.step(-1) })
+	// Replace uses the same registry as every other command, so the palette
+	// shows it beside Next/Previous match and the key has one owner.
+	r.add("search.action.toggleReplace", locales.ToggleReplace(), func(x *commandContext) {
+		s := &x.a.searchAll.replace
+		s.open = !s.open
+		x.a.invalidate()
+	}).keys(ui.Cmd|ui.Shift, ui.KeyU)
+	r.add("search.action.replaceAll", locales.ReplaceAll(), func(x *commandContext) {
+		x.a.openSearchReplace()
+	}).when(func(x *commandContext) bool {
+		return x.a.replaceableSearchCount() > 0
+	}, locales.NoSearchMatchesToReplace())
+	r.add("search.action.replace", locales.Replace(), func(x *commandContext) {
+		x.a.replaceOneSearchMatch(x.a.searchAll.current)
+	}).when(func(x *commandContext) bool {
+		s := x.a.searchAll
+		return s.current >= 0 && s.current < len(s.results) && s.results[s.current].replaceable()
+	}, locales.NoSearchMatchesToReplace())
 	// The find bar's options take Alt+C/W/R only while that bar has the
 	// focus; the commands own the keys so menus and the palette see one
 	// owner, and the precondition keeps them off everywhere else.
