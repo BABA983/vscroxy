@@ -562,6 +562,9 @@ func New(addr, caRootPath string) (*Server, error) {
 		ClientCertificate: func(address string) (*tls.Certificate, error) {
 			return s.certificates().ClientCertificate(address)
 		},
+		ServerCertificate: func(address string) (*tls.Certificate, error) {
+			return s.certificates().ServerCertificate(address)
+		},
 		RootCAs: func() (*x509.CertPool, error) {
 			return s.certificates().RootPool(nil)
 		},

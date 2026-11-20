@@ -397,6 +397,12 @@ var settingsRegistry = []settingSpec{
 			set: func(a *app, _ any) { a.resetCertificates() }},
 	},
 	{
+		id: "certificates.servers", section: settingsCertificates,
+		title: locales.ServerCertificates, description: locales.ServerCertificatesHint, secret: true,
+		value: settingValue{get: func(a *app) any { return a.certificates.Servers }, def: []certs.Server(nil),
+			set: func(a *app, _ any) { a.resetCertificates() }},
+	},
+	{
 		id: "certificates.roots", section: settingsCertificates,
 		title: locales.TrustedRoots, description: locales.SettingTrustedRootsHint,
 		value: settingValue{get: func(a *app) any { return a.certificates.RootCAs }, def: []string(nil),

@@ -575,6 +575,29 @@ custom roots, reverse proxy and WSS) and `internal/request/certificates_test.go`
 (tunneled and intercepted sends, PEM/PKCS#12, wrong passphrase, host mismatch,
 verification off).
 
+## Configured server certificates (`proxy.go`, `attacker.go`, `connection.go`)
+
+`Options.ServerCertificate(address)` returns a chain to present to an
+intercepted client for a canonical host:port. Both eager and lazy client
+handshakes call it from `GetConfigForClient` before falling back to
+`getCA().GetCert(name)`, so an unmatched host keeps its generated leaf. A
+non-nil hook error fails that handshake instead of silently using a generated
+certificate; the reason is recorded on `ConnContext` as a TLS client event and
+joined into the error given to `HTTPConnectError`, where the desktop's
+connection detail shows the path and cause. A configured chain is also used
+when the upstream handshake failed and the client is answered with a 502.
+
+`internal/capture` supplies the hook from `certs.Settings.ServerCertificate`,
+which reads the matching host's PEM or PKCS#12 files on every handshake and
+checks SAN coverage and key identity. `internal/certs` rejects a mismatched
+key and validates SAN at save time; host matching, IDN and sealed passphrases
+are the same as for client certificates. Blind tunnels do not call the hook.
+
+`TestConfiguredServerCertificateReachesTLSClient` and
+`TestUnreadableServerCertificateFailsTheConnection` in `internal/capture`
+cover an exact host, a wildcard host, an unlisted host and a vanished file
+over real sockets.
+
 ## Closing the intercepted-TLS listener
 
 `Proxy.Close` now closes the attacker's in-memory listener. Upstream left its

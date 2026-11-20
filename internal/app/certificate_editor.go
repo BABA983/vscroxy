@@ -20,6 +20,7 @@ import (
 type certificateEditor struct {
 	loaded, dirty bool
 	rows          []certificateRow
+	serverRows    []serverCertificateRow
 	roots         []certificateRoot
 	open          map[string]bool
 	trustSystem   bool
@@ -41,6 +42,14 @@ type certificateRow struct {
 	Clear      bool
 }
 
+// serverCertificateRow is the same draft shape as a client row: the key is
+// sealed by ID, and Saved/Clear control the sealed passphrase on Save.
+type serverCertificateRow struct {
+	ID, Host, Format, CertFile, KeyFile string
+	Passphrase                          string
+	Saved, Clear                        bool
+}
+
 type certificateRoot struct {
 	Path string
 }
@@ -51,7 +60,7 @@ func (e *certificateEditor) load(a *app) {
 	if e.loaded {
 		return
 	}
-	e.rows, e.roots = nil, nil
+	e.rows, e.serverRows, e.roots = nil, nil, nil
 	for _, client := range a.certificates.Clients {
 		id := client.ID
 		if id == "" {
@@ -61,6 +70,17 @@ func (e *certificateEditor) load(a *app) {
 		e.rows = append(e.rows, certificateRow{
 			ID: id, Host: client.Host, Format: format,
 			CertFile: client.CertFile, KeyFile: client.KeyFile,
+			Saved: a.certificates.Secrets[id] != "",
+		})
+	}
+	for _, server := range a.certificates.Servers {
+		id := server.ID
+		if id == "" {
+			id = uuid.NewString()
+		}
+		e.serverRows = append(e.serverRows, serverCertificateRow{
+			ID: id, Host: server.Host, Format: certs.ResolveFormat(server.Format, server.KeyFile),
+			CertFile: server.CertFile, KeyFile: server.KeyFile,
 			Saved: a.certificates.Secrets[id] != "",
 		})
 	}
@@ -109,6 +129,44 @@ func (e *certificateEditor) build(a *app) (certs.Settings, map[string]string, er
 			id = uuid.NewString()
 		}
 		settings.Clients = append(settings.Clients, certs.Client{
+			ID: id, Host: host, Format: format, CertFile: certFile, KeyFile: keyFile,
+		})
+		switch {
+		case row.Clear:
+		case row.Passphrase != "":
+			secrets[id] = row.Passphrase
+		default:
+			if saved, ok := a.certificates.Secrets[id]; ok && saved != "" {
+				secrets[id] = saved
+			}
+		}
+	}
+	for i, row := range e.serverRows {
+		if err := certs.ValidateHost(row.Host); err != nil {
+			return settings, nil, fmt.Errorf("server certificate %d: %w", i+1, err)
+		}
+		host := certs.NormalizeHost(row.Host)
+		format := certs.ResolveFormat(row.Format, row.KeyFile)
+		certFile := strings.TrimSpace(row.CertFile)
+		if certFile == "" {
+			return settings, nil, fmt.Errorf("server certificate for %s: choose a certificate file", host)
+		}
+		keyFile := strings.TrimSpace(row.KeyFile)
+		switch format {
+		case certs.FormatPEM:
+			if keyFile == "" {
+				return settings, nil, fmt.Errorf("server certificate for %s: choose a key file", host)
+			}
+		case certs.FormatPKCS12:
+			keyFile = ""
+		default:
+			return settings, nil, fmt.Errorf("server certificate for %s: choose PEM or PKCS#12", host)
+		}
+		id := strings.TrimSpace(row.ID)
+		if id == "" {
+			id = uuid.NewString()
+		}
+		settings.Servers = append(settings.Servers, certs.Server{
 			ID: id, Host: host, Format: format, CertFile: certFile, KeyFile: keyFile,
 		})
 		switch {

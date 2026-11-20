@@ -963,14 +963,16 @@ func newApp() *app {
 	}
 	if a.settingsPath != "" {
 		var problems []string
-		if err := a.certificates.Validate(); err != nil {
-			problems = append(problems, err.Error())
-		}
+		// Sealed passphrases must be available before validation: a saved
+		// PKCS#12 certificate cannot be checked with an empty password.
 		if secrets, err := certs.SecretStoreFor(a.settingsPath).Load(); err != nil {
 			problems = append(problems, err.Error())
 			a.certificates.SecretsProblem = err.Error()
 		} else {
 			a.certificates.Secrets = secrets
+		}
+		if err := a.certificates.Validate(); err != nil {
+			problems = append(problems, err.Error())
 		}
 		if len(problems) > 0 {
 			a.certProblem = strings.Join(problems, "; ")

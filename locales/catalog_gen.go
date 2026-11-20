@@ -39391,3 +39391,53 @@ func ImportURLTask() string { return In(i18n.Locale()).ImportURLTask() }
 func (msgs Messages) ImportURLTask() string {
 	return Catalog.Format(msgs.locale, "importURLTask", nil)
 }
+
+// ServerCertificates says "Server certificates"
+// in the language the app shows.
+func ServerCertificates() string { return In(i18n.Locale()).ServerCertificates() }
+
+// ServerCertificates says "Server certificates"
+// in the language of msgs.
+func (msgs Messages) ServerCertificates() string {
+	return Catalog.Format(msgs.locale, "serverCertificates", nil)
+}
+
+// ServerCertificatesHint says "Presented to clients instead of a leaf minted by vscroxy's CA when a decrypted host matches."
+// in the language the app shows.
+func ServerCertificatesHint() string { return In(i18n.Locale()).ServerCertificatesHint() }
+
+// ServerCertificatesHint says "Presented to clients instead of a leaf minted by vscroxy's CA when a decrypted host matches."
+// in the language of msgs.
+func (msgs Messages) ServerCertificatesHint() string {
+	return Catalog.Format(msgs.locale, "serverCertificatesHint", nil)
+}
+
+// NoServerCertificates says "No server certificates configured"
+// in the language the app shows.
+func NoServerCertificates() string { return In(i18n.Locale()).NoServerCertificates() }
+
+// NoServerCertificates says "No server certificates configured"
+// in the language of msgs.
+func (msgs Messages) NoServerCertificates() string {
+	return Catalog.Format(msgs.locale, "noServerCertificates", nil)
+}
+
+// AddServerCertificate says "Add server certificate"
+// in the language the app shows.
+func AddServerCertificate() string { return In(i18n.Locale()).AddServerCertificate() }
+
+// AddServerCertificate says "Add server certificate"
+// in the language of msgs.
+func (msgs Messages) AddServerCertificate() string {
+	return Catalog.Format(msgs.locale, "addServerCertificate", nil)
+}
+
+// ServerCertificateSanHint says "The certificate's SAN must cover the configured host and its key must match. Files are read on every handshake."
+// in the language the app shows.
+func ServerCertificateSanHint() string { return In(i18n.Locale()).ServerCertificateSanHint() }
+
+// ServerCertificateSanHint says "The certificate's SAN must cover the configured host and its key must match. Files are read on every handshake."
+// in the language of msgs.
+func (msgs Messages) ServerCertificateSanHint() string {
+	return Catalog.Format(msgs.locale, "serverCertificateSanHint", nil)
+}

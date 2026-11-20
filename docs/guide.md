@@ -2438,7 +2438,7 @@ Client certificates and extra roots are configured once in **Settings →
 Certificates**; a matching client certificate is still presented when
 verification is off, while custom roots are used only when it is on.
 
-### Client certificates, custom roots and the signing CA
+### Client certificates, server certificates, custom roots and the signing CA
 
 **Settings → Certificates** configures one client certificate per host and
 extra roots for both authored sends and captured upstream TLS. A host may
@@ -2447,7 +2447,21 @@ port. The most specific match wins. A certificate is either a PEM certificate
 chain plus a PEM private key, or a PKCS#12/PFX file that contains both. An
 optional passphrase is sealed with `internal/vault` in a private local file
 (`certificates-secrets.json` plus a 0600 `certificates.key`); it never appears
-in `settings.json`, a configuration export, or a log.
+in `settings.json`, a configuration export, a log, search or hover text.
+
+The **Server certificates** card uses the same host patterns, formats and
+sealed passphrases for the other side of a decrypted connection. When a
+client's host matches, the proxy presents that chain during the TLS handshake
+instead of minting a leaf with the MITM signing CA; unmatched hosts keep the
+generated leaf. This is Proxyman-style custom server certificates: the client
+must trust the chain you supply (and still needs the signing CA installed for
+other hosts). The SAN must cover the configured host, including a matching
+wildcard SAN for a `*.parent` pattern, and the key must match the certificate;
+Save rejects a pair that does not. Files are read again on every handshake, so
+a file that has become unreadable fails that connection and explains the path
+and reason in the connection details rather than falling back to a generated
+certificate. Blind tunnels are unchanged: their clients own TLS and the proxy
+cannot inject a chain.
 
 Certificate, key and CA files are referenced by local path and read on every
 send or connection. A missing, unreadable, malformed or wrongly decrypted file

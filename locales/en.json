@@ -8397,5 +8397,10 @@
   "importCollectionTask": "Importing collection…",
   "importConfigTask": "Importing configuration…",
   "exportConfigTask": "Exporting configuration…",
-  "importURLTask": "Importing from URL…"
+  "importURLTask": "Importing from URL…",
+  "serverCertificates": "Server certificates",
+  "serverCertificatesHint": "Presented to clients instead of a leaf minted by vscroxy's CA when a decrypted host matches.",
+  "noServerCertificates": "No server certificates configured",
+  "addServerCertificate": "Add server certificate",
+  "serverCertificateSanHint": "The certificate's SAN must cover the configured host and its key must match. Files are read on every handshake."
 }
