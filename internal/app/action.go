@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+
 	"github.com/baba983/vscroxy/locales"
 	"runtime"
 	"strings"
@@ -20,15 +21,16 @@ type action struct {
 	// id is stable, "area.verb", and is how the menu bar, and later the
 	// command line and MCP, ask for the command. Commands that differ only by
 	// their target, such as one column of many, share an id.
-	id       string
-	label    string
-	group    string // menus draw a line between groups
-	shortcut shortcut
-	enabled  bool
-	reason   string // why it cannot run, when not enabled
-	check    check
-	items    []action // a submenu's actions
-	run      func()
+	id          string
+	label       string
+	group       string // menus draw a line between groups
+	shortcut    shortcut
+	altShortcut shortcut // a second key for the same command, such as Ctrl+Y
+	enabled     bool
+	reason      string // why it cannot run, when not enabled
+	check       check
+	items       []action // a submenu's actions
+	run         func()
 }
 
 // check is how a menu marks an action that shows a setting.
@@ -229,6 +231,13 @@ func (a *app) actionButton(c *ui.Context, id, label string) ui.Element {
 	return b
 }
 
+// textHistoryKey says the focused text control, not the window, owns an
+// undo/redo key in this frame. It is the one rule shared by the shortcut
+// binding and the test that keeps typing undo intact.
+func textHistoryKey(x action, takesText bool) bool {
+	return takesText && (x.id == "edit.undo" || x.id == "edit.redo")
+}
+
 // actionShortcuts binds one command per key. A key can be owned by several
 // mutually exclusive commands, such as Start and Stop capture: only the first
 // enabled command in registry order is subscribed, so a key never runs two
@@ -241,16 +250,20 @@ func (a *app) actionShortcuts(c *ui.Context) {
 	var bindings []binding
 	seen := make(map[shortcut]bool)
 	for _, x := range a.actions(c) {
-		if !x.enabled || x.shortcut.key == 0 || seen[x.shortcut] {
+		if !x.enabled {
 			continue
 		}
-		// Browsing traffic never sends: in LIVE, Send's shortcut works from
-		// inside the inspector only.
-		if x.id == "request.send" && a.page.capture() && !a.workbench.inspector.FocusWithin(c) {
-			continue
+		// A field or editor's own history owns these keys while it has the
+		// focus. The commands remain enabled for the palette and menus; only
+		// the window shortcut is withheld.
+		textHistory := textHistoryKey(x, c.FocusTakesText())
+		for _, key := range []shortcut{x.shortcut, x.altShortcut} {
+			if textHistory || key.key == 0 || seen[key] {
+				continue
+			}
+			seen[key] = true
+			bindings = append(bindings, binding{x.run, key})
 		}
-		seen[x.shortcut] = true
-		bindings = append(bindings, binding{x.run, x.shortcut})
 	}
 	for _, b := range bindings {
 		c.OnShortcut(b.shortcut.mods, b.shortcut.key, b.run)

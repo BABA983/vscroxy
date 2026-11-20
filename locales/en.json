@@ -8364,5 +8364,10 @@
   "reportIssueHint": "Opens GitHub in your browser",
   "@whatsNew": {"version": {"type": "String"}},
   "whatsNew": "What's new in vscroxy {version}",
-  "viewReleaseNotes": "View release notes"
+  "viewReleaseNotes": "View release notes",
+  "redo": "Redo",
+  "nothingToRedo": "Nothing to redo",
+  "undoChangedOnDisk": "Cannot undo “{label}” across all files: a file changed on disk or uses another format version",
+  "redoChangedOnDisk": "Cannot redo “{label}” across all files: a file changed on disk or uses another format version",
+  "deleteCanBeUndone": "{detail} You can undo this."
 }

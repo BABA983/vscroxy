@@ -37,6 +37,7 @@ import (
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/system"
+	"github.com/baba983/vscroxy/internal/undo"
 	"github.com/baba983/vscroxy/internal/upstream"
 	"github.com/baba983/vscroxy/internal/version"
 	"github.com/baba983/vscroxy/internal/watchdog"
@@ -223,12 +224,14 @@ type app struct {
 	// picked bridges the table's row-index API; pickedID survives row rebuilds.
 	picked   int
 	pickedID int
-	// deletions is the in-memory undo stack for removed capture rows; it is
-	// deliberately not persisted and clears when the app exits. Each deletion
-	// gets its own id so a notice's Undo restores that deletion, not whichever
-	// one happens to be on top later.
-	deletions      []flowDeletion
-	nextDeletionID uint64
+	// undo is the in-memory undo/redo service. Every operation pushes an
+	// element there, and a notice keeps the element's handle so its Undo acts
+	// on that operation. Nothing here is persisted; a restart starts empty.
+	undoService    *undo.Service
+	undoSuppressed int
+	// undoApplyCount counts state applications by undo elements. A grouped
+	// operation applies its whole state once, not once per resource.
+	undoApplyCount int
 	// pendingFlowDelete waits for the next view pass: the row menu is built
 	// while the table is building, so removing rows in its action would leave
 	// the table drawing rows that no longer exist.
@@ -4953,6 +4956,11 @@ func (a *app) saveComposed() bool {
 			return false
 		}
 	}
+	beforeUndo, err := a.snapshotUndoLibrary()
+	if err != nil {
+		a.fail(locales.Save(), err)
+		return false
+	}
 	list := upsertRequest(slices.Clone(a.requests), r)
 	for _, saved := range list {
 		if saved.Name == r.Name && saved.Collection == r.Collection {
@@ -4991,7 +4999,21 @@ func (a *app) saveComposed() bool {
 	a.savedKey = r.key()
 	a.requestChoice = a.savedKey
 	*a.collectionShown(r.Collection) = true
-	a.done(locales.SavedName(name))
+	afterUndo, err := a.snapshotUndoLibrary()
+	if err == nil {
+		code := "library.save"
+		for _, old := range beforeUndo.data.requests {
+			if old.key() == r.key() && (old.Name != r.Name || old.Collection != r.Collection) {
+				code = "library.rename"
+				break
+			}
+		}
+		label := locales.SavedName(name)
+		handle := a.recordUndo(undoRecord{code: code, label: label, before: beforeUndo, after: afterUndo})
+		a.undoNotice(label, handle)
+	} else {
+		a.done(locales.SavedName(name))
+	}
 	return true
 }
 

@@ -39,10 +39,10 @@ func TestDeleteSelectedFlowMovesToNextAndUndoRestores(t *testing.T) {
 	if len(a.notices) != 1 || a.notices[0].action != locales.Undo() {
 		t.Fatalf("delete toast = %+v, want an Undo action", a.notices)
 	}
-	if x := pick(a.actions(nil), "flow.undo-delete"); !x.enabled || x.shortcut.key != ui.KeyZ {
+	if x := pick(a.actions(nil), "edit.undo"); !x.enabled || x.shortcut.key != ui.KeyZ {
 		t.Fatalf("undo action = %+v, want an enabled Cmd-Z", x)
 	}
-	a.undoDelete()
+	a.undo()
 	if got := flowIDs(a); !slices.Equal(got, []int{1, 2, 3}) {
 		t.Fatalf("flows after undo = %v, want [1 2 3]", got)
 	}
@@ -65,10 +65,10 @@ func TestDeleteMultipleFlowsRestoresTheirPositions(t *testing.T) {
 	if a.pickedID != 2 || !a.chosen.Has(2) {
 		t.Fatalf("selection after multi-delete = id %d, chosen %v; want 2", a.pickedID, a.chosen.All())
 	}
-	if x := pick(a.actions(nil), "flow.undo-delete"); !x.enabled || x.shortcut.key != ui.KeyZ {
+	if x := pick(a.actions(nil), "edit.undo"); !x.enabled || x.shortcut.key != ui.KeyZ {
 		t.Fatalf("undo action = %+v, want an enabled Cmd-Z", x)
 	}
-	a.undoDelete()
+	a.undo()
 	if got := flowIDs(a); !slices.Equal(got, []int{1, 2, 3}) {
 		t.Fatalf("flows after undo = %v, want [1 2 3]", got)
 	}

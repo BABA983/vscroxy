@@ -486,9 +486,15 @@ func paletteCommandCandidates(actions []action, available bool, query fuzzy.IPre
 		if score.Score == 0 {
 			continue
 		}
+		// A reason explains why a command cannot run. An enabled command has
+		// none to show, so it gets no subtitle instead of the fallback text.
+		detail, why := "", item.why()
+		if !item.enabled {
+			detail = why
+		}
 		candidates = append(candidates, paletteCandidate{
 			kind: paletteRunAction, key: "command:" + item.id, label: item.label,
-			detail: item.why(), meta: item.shortcut.keycap(), why: item.why(), action: item,
+			detail: detail, meta: item.shortcut.keycap(), why: why, action: item,
 			enabled: item.enabled, isAction: true,
 			score: score.Score, matches: score.LabelMatch, itemScore: score,
 		})

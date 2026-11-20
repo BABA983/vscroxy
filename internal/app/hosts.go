@@ -169,15 +169,22 @@ func (a *app) saveHostsIndex() bool {
 // puts them back as they were when it cannot be saved.
 func (a *app) changeHosts(change func(*hosts.Set)) bool {
 	h := &a.profiles
-	before := h.set
-	before.Profiles = slices.Clone(h.set.Profiles)
+	beforeSet := h.set
+	beforeSet.Profiles = slices.Clone(h.set.Profiles)
+	before, beforeErr := a.snapshotHostsUndo()
 	change(&h.set)
 	h.rev++
 	if !a.saveHostsIndex() {
-		h.set = before
+		h.set = beforeSet
 		return false
 	}
 	a.applyHosts()
+	if beforeErr == nil {
+		if after, err := a.snapshotHostsUndo(); err == nil {
+			a.recordUndo(undoRecord{code: "hosts.edit", label: locales.HostProfiles(),
+				before: undoState{hosts: &before}, after: undoState{hosts: &after}})
+		}
+	}
 	return true
 }
 
@@ -512,13 +519,23 @@ func (a *app) renameProfile(i int, name string) {
 	h.name, h.nameFor = name, name
 }
 
-// deleteProfile removes a profile and its file, offering Undo.
+// deleteProfile removes a profile and its file, offering Undo through the
+// same service as every other deletion.
 func (a *app) deleteProfile(i int) {
 	h := &a.profiles
 	p := h.set.Profiles[i]
-	draft := h.editors[p.Name]
 	path := h.path(p.Name)
-	if !a.changeHosts(func(s *hosts.Set) { s.Profiles = slices.Delete(s.Profiles, i, i+1) }) {
+	var before hostsUndoState
+	var beforeErr error
+	removed := false
+	// The index and the file are one operation: only record it after the
+	// file is gone, so the snapshot of the finished state is what undo
+	// checks on disk.
+	a.withoutUndo(func() {
+		before, beforeErr = a.snapshotHostsUndo()
+		removed = a.changeHosts(func(s *hosts.Set) { s.Profiles = slices.Delete(s.Profiles, i, i+1) })
+	})
+	if !removed {
 		return
 	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
@@ -527,25 +544,17 @@ func (a *app) deleteProfile(i int) {
 	delete(a.files, path)
 	delete(h.editors, p.Name)
 	h.choice = min(h.choice, max(len(h.set.Profiles)-1, 0))
-	a.notify(notice{level: noticeSuccess, text: locales.DeletedHostProfile(p.Name), action: locales.Undo(), run: func() {
-		if h.set.Index(p.Name) >= 0 {
-			return
-		}
-		if err := a.file(path).Write([]byte(p.Text)); err != nil {
-			a.fail(locales.CouldNotRestoreHostProfile(p.Name), err)
-			return
-		}
-		a.changeHosts(func(s *hosts.Set) {
-			s.Profiles = slices.Insert(s.Profiles, min(i, len(s.Profiles)), p)
-			if p.On && s.Exclusive {
-				s.Switch(min(i, len(s.Profiles)-1), true)
-			}
-		})
-		if draft != nil {
-			h.editors[p.Name] = draft
-		}
-		h.choose(h.set.Index(p.Name))
-	}})
+	if beforeErr != nil {
+		return
+	}
+	after, err := a.snapshotHostsUndo()
+	if err != nil {
+		return
+	}
+	label := locales.DeletedHostProfile(p.Name)
+	handle := a.recordUndo(undoRecord{code: "hosts.delete", label: label,
+		before: undoState{hosts: &before}, after: undoState{hosts: &after}})
+	a.undoNotice(label, handle)
 }
 
 // duplicateProfile copies a profile's draft as a new local profile, off.

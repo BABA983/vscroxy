@@ -2,10 +2,12 @@ package app
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/locales"
 )
 
 // file is the guarded file at path. Every reader and writer of one path
@@ -78,12 +80,19 @@ func (a *app) writeList(path string, lines []string) error {
 }
 
 // writeRules writes the rules file; callers apply the rules after it succeeds.
+// A successful write pushes one undo element for the whole rules file.
 func (a *app) writeRules(rules []capture.Rule) error {
 	data, err := capture.MarshalRules(rules)
 	if err != nil {
 		return err
 	}
-	return a.file(a.rulesPath).Write(data)
+	if err := a.file(a.rulesPath).Write(data); err != nil {
+		return err
+	}
+	before := undoState{rules: true, ruleList: slices.Clone(a.rules)}
+	after := undoState{rules: true, ruleList: slices.Clone(rules)}
+	a.recordUndo(undoRecord{code: "rules.edit", label: locales.Rules(), before: before, after: after})
+	return nil
 }
 
 // reloadFromDisk reads every guarded file again, after a save found one
