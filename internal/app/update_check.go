@@ -15,6 +15,10 @@ import (
 	"github.com/egoist/mygo"
 )
 
+// updateNoticeID is the stable key of the update notice. It is saved instead
+// of the text when someone chooses not to see the notice again.
+const updateNoticeID = "notices.update.available"
+
 // connectionMeter is the platform's own answer to whether the current
 // network should be spared optional traffic. Tests inject it.
 type connectionMeter interface {
@@ -63,7 +67,9 @@ func (a *app) checkForUpdateWith(manual bool, connection connectionMeter, latest
 	found := update.Newer(version.Number, release.Tag)
 	applog.For("update").Debug("check finished", "found", found)
 	if found {
-		a.offerUpdate(release)
+		// A manual check always reports its outcome. Only the background
+		// announcement can be suppressed with neverShowAgain.
+		a.offerUpdate(release, !manual)
 	} else if manual {
 		a.done(locales.UpToDate())
 	}
@@ -145,15 +151,21 @@ func (a *app) offerWhatsNewWith(post noticePoster) {
 	}
 }
 
-// offerUpdate shows the notice when release is newer than this build.
-func (a *app) offerUpdate(release update.Release) {
+// offerUpdate shows the notice when release is newer than this build. Only a
+// background offer carries the suppressible id; a person who asked for a
+// check must see what it found.
+func (a *app) offerUpdate(release update.Release, background bool) {
 	if !update.Newer(version.Number, release.Tag) {
 		return
 	}
-	a.notify(notice{
+	n := notice{
 		level:  noticeInfo,
 		sticky: true,
 		text:   locales.UpdateAvailable(strings.TrimPrefix(release.Tag, "v")),
 		detail: locales.UpdateAvailableHint(),
-	})
+	}
+	if background {
+		n.neverShowAgain = updateNoticeID
+	}
+	a.notify(n)
 }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -126,16 +127,15 @@ func (a *app) importDropped(paths []string) {
 	if len(paths) == 0 {
 		return
 	}
-	go guarded(func() {
+	a.importProgress(locales.ImportCollectionTask(), func(ctx context.Context, report func(progressReport)) (func(), error) {
 		path := paths[0]
 		info, err := os.Lstat(path)
 		if err != nil {
-			a.fail(locales.ImportText2(), err)
-			return
+			return nil, err
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
 			a.warn(locales.ImportChooseARealFile())
-			return
+			return nil, nil
 		}
 		switch droppedImportKind(path, info.IsDir()) {
 		case droppedHAR:
@@ -143,23 +143,28 @@ func (a *app) importDropped(paths []string) {
 		case droppedData:
 			if info.Size() > 32<<20 {
 				a.warn(locales.ImportUrlTooLarge())
-				return
+				return nil, nil
 			}
 			data, err := os.ReadFile(path)
 			if err != nil {
-				a.fail(locales.ImportText2(), err)
-				return
+				return nil, err
 			}
-			a.win.Update(func() { a.importData(data, path) })
+			report(progressReport{message: locales.ImportCollectionTask(), percentage: 70})
+			return func() { a.importData(data, path) }, nil
 		case droppedCapture:
 			a.importCaptureFile(path)
 		case droppedCaptureDir:
 			a.importCaptureDir(path)
 		case droppedCollectionDir:
-			a.importCollectionDir(path)
+			merge, err := a.loadCollectionDir(ctx, path)
+			if err != nil {
+				return nil, err
+			}
+			return merge, nil
 		default:
 			a.warn(locales.ImportUnsupportedFileTypeDrop())
 		}
+		return nil, ctx.Err()
 	})
 }
 

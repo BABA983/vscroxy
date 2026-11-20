@@ -4153,5 +4153,33 @@
   "nothingToRedo": "没有可重做的操作",
   "undoChangedOnDisk": "无法跨文件撤销“{label}”：磁盘上的文件已更改或使用了其他格式版本",
   "redoChangedOnDisk": "无法跨文件重做“{label}”：磁盘上的文件已更改或使用了其他格式版本",
-  "deleteCanBeUndone": "{detail} 此操作可以撤销。"
+  "deleteCanBeUndone": "{detail} 此操作可以撤销。",
+  "@progressDone": {
+    "placeholders": {
+      "title": {"type": "String"}
+    }
+  },
+  "progressDone": "{title} 已完成",
+  "@progressCancelled": {
+    "placeholders": {
+      "title": {"type": "String"}
+    }
+  },
+  "progressCancelled": "已取消：{title}",
+  "progressCancelling": "正在取消…",
+  "@progressPercent": {
+    "placeholders": {
+      "percent": {"type": "int"}
+    }
+  },
+  "progressPercent": "进度 {percent}%",
+  "dontShowAgain": "不再显示",
+  "dismissedNotices": "已忽略的通知",
+  "dismissedNoticesHint": "选择不再显示的信息通知，按 ID 列出",
+  "noDismissedNotices": "无",
+  "resetDismissedNotices": "重置已忽略的通知",
+  "importCollectionTask": "正在导入集合…",
+  "importConfigTask": "正在导入配置…",
+  "exportConfigTask": "正在导出配置…",
+  "importURLTask": "正在从网址导入…"
 }

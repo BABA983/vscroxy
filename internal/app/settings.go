@@ -100,6 +100,10 @@ type settings struct {
 	// what's-new notice compares it with this build's number; it changes
 	// directly in the file, with no migration step.
 	LastRunVersion string `json:"lastRunVersion,omitempty"`
+	// DismissedNotices holds the stable ids of notices chosen not to show
+	// again. Ids, never localized text, so changing the language keeps the
+	// choice. Also local: a shared bundle does not carry it elsewhere.
+	DismissedNotices []string `json:"dismissedNotices,omitempty"`
 	// TrustedLinkHosts are the exact scheme, host and port combinations a
 	// person approved from a link confirmation. Also local: a shared
 	// configuration never carries another computer's approvals.
@@ -284,6 +288,7 @@ func sameSettings(x, y settings) bool {
 		x.LocalControl == y.LocalControl &&
 		x.DisableUpdateCheck == y.DisableUpdateCheck &&
 		x.LastRunVersion == y.LastRunVersion &&
+		slices.Equal(x.DismissedNotices, y.DismissedNotices) &&
 		slices.Equal(x.TrustedLinkHosts, y.TrustedLinkHosts) &&
 		slices.Equal(x.TrustedProjects, y.TrustedProjects) &&
 		slices.Equal(x.UntrustedProjects, y.UntrustedProjects) &&
