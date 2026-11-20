@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/update"
 	"github.com/baba983/vscroxy/internal/version"
@@ -269,6 +270,26 @@ func TestWhatsNewActionOpensTheReleasePageThroughTheWindow(t *testing.T) {
 	}
 }
 
+func TestLastRunVersionIsNotSharedThroughConfigurationBundles(t *testing.T) {
+	a := workspaceApp()
+	a.lastRunVersion, a.saved.LastRunVersion = "0.0.9", "0.0.9"
+	a.updateCheck = false // the other local choice stripped on export
+	bundle, _ := a.exportConfig()
+	if bundle.Settings == nil || bundle.Settings.LastRunVersion != "" || bundle.Settings.DisableUpdateCheck {
+		t.Fatalf("export carried local settings: %+v", bundle.Settings)
+	}
+
+	// Even a bundle that does carry a version must not change this computer's
+	// last known version when its settings are imported.
+	bundle.Settings.LastRunVersion = "999.0.0"
+	if err := a.applySettings(*bundle.Settings); err != nil {
+		t.Fatal(err)
+	}
+	if a.lastRunVersion != "0.0.9" || a.saved.LastRunVersion != "0.0.9" {
+		t.Fatalf("import changed the last run: live %q, saved %q", a.lastRunVersion, a.saved.LastRunVersion)
+	}
+}
+
 func TestManualCheckIgnoresARequestWhileOneIsInFlight(t *testing.T) {
 	a := workspaceApp()
 	started, release := make(chan struct{}), make(chan struct{})
@@ -283,17 +304,26 @@ func TestManualCheckIgnoresARequestWhileOneIsInFlight(t *testing.T) {
 	}
 	done := func() { finished <- struct{}{} }
 
+	waitSignal := func(ch <-chan struct{}, what string) {
+		t.Helper()
+		select {
+		case <-ch:
+		case <-time.After(5 * time.Second):
+			t.Fatal(what)
+		}
+	}
+
 	a.manualUpdateCheckWith(latest, done)
-	<-started
+	waitSignal(started, "the first lookup never started")
 	a.manualUpdateCheckWith(latest, done)
 	if got := calls.Load(); got != 1 {
 		t.Fatalf("overlapping request called the lookup %d times, want 1", got)
 	}
 	close(release)
-	<-finished // the guard is clear once the check has ended
+	waitSignal(finished, "the first check did not finish and clear the guard")
 
 	a.manualUpdateCheckWith(latest, done)
-	<-finished
+	waitSignal(finished, "the next check did not finish")
 	if got := calls.Load(); got != 2 {
 		t.Fatalf("lookup calls = %d after a completed check, want 2", got)
 	}
