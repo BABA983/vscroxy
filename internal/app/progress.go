@@ -65,14 +65,14 @@ const (
 // progressState lives on a notice. The app's mu guards all of its fields;
 // cancel is cleared when it has run so Cancel is one-shot.
 type progressState struct {
-	id            uint64
-	title         string
-	phase         progressPhase
-	location      progressLocation
-	cancellable   bool
-	percentage    int
-	cancel        func()
-	cancelWanted  bool
+	id           uint64
+	title        string
+	phase        progressPhase
+	location     progressLocation
+	cancellable  bool
+	percentage   int
+	cancel       func()
+	cancelWanted bool
 }
 
 type progressSnapshot struct {
@@ -314,23 +314,26 @@ func (a *app) importProgress(title string, load func(context.Context, func(progr
 // moves that notice's text onto the progress result. The task then ends in a
 // single notice instead of a generic Done beside an Imported one.
 func (a *app) resultNotice(fn func()) (string, error) {
-	before := len(a.notices)
-	fn()
-	if len(a.notices) <= before {
-		return "", nil
-	}
-	n := a.notices[before]
-	if n.progress != nil || n.action != "" {
-		return "", nil
-	}
 	a.mu.Lock()
-	a.notices = slices.Delete(a.notices, before, before+1)
-	a.noticeCenter().pending = slices.DeleteFunc(a.noticeCenter().pending, func(p notice) bool { return p.id == n.id })
+	firstNewID := a.noticeCenter().nextID
 	a.mu.Unlock()
-	if n.level == noticeError {
-		return n.text, errors.New(n.detail)
+	fn()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	// Find by id, not by slice index: a full history replaces an old entry
+	// as the merge appends its notice, so the length need not grow.
+	for i, n := range a.notices {
+		if n.id < firstNewID || n.progress != nil || n.action != "" {
+			continue
+		}
+		a.notices = slices.Delete(a.notices, i, i+1)
+		a.noticeCenter().pending = slices.DeleteFunc(a.noticeCenter().pending, func(p notice) bool { return p.id == n.id })
+		if n.level == noticeError {
+			return n.text, errors.New(n.detail)
+		}
+		return n.text, nil
 	}
-	return n.text, nil
+	return "", nil
 }
 
 // progressSnapshot is the latest running task in one location, read under

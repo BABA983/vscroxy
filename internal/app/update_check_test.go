@@ -34,11 +34,11 @@ func (l *testLatestRelease) get(context.Context) (update.Release, error) {
 
 func TestOfferUpdateOnlyForANewerRelease(t *testing.T) {
 	a := workspaceApp()
-	a.offerUpdate(update.Release{Tag: "v" + version.Number, URL: "https://example.com/old"})
+	a.offerUpdate(update.Release{Tag: "v" + version.Number, URL: "https://example.com/old"}, true)
 	if len(a.notices) != 0 {
 		t.Fatalf("the running version was offered: %+v", a.notices)
 	}
-	a.offerUpdate(update.Release{Tag: "v0.2.0", URL: "https://example.com/new"})
+	a.offerUpdate(update.Release{Tag: "v0.2.0", URL: "https://example.com/new"}, true)
 	if len(a.notices) != 1 {
 		t.Fatalf("notices = %+v", a.notices)
 	}
@@ -141,6 +141,30 @@ func TestManualUpdateCheckRunsWhenMeteredAndReportsTheOutcome(t *testing.T) {
 				t.Fatalf("message = %q, notice = %q", a.message, n.line())
 			}
 		})
+	}
+}
+
+func TestDismissedUpdateNoticeStillAppearsForManualCheck(t *testing.T) {
+	release := update.Release{Tag: "v999.0.0", URL: "https://example.com/new"}
+
+	background := workspaceApp()
+	background.dismissedNotices = []string{updateNoticeID}
+	latest := &testLatestRelease{release: release}
+	background.checkForUpdateWith(false, testConnectionMeter(false), latest.get)
+	if len(background.notices) != 0 {
+		t.Fatalf("a suppressed background notice returned: %+v", background.notices)
+	}
+
+	manual := workspaceApp()
+	manual.dismissedNotices = []string{updateNoticeID}
+	latest = &testLatestRelease{release: release}
+	manual.checkForUpdateWith(true, testConnectionMeter(true), latest.get)
+	if len(manual.notices) != 1 {
+		t.Fatalf("a manual check withheld its result: %+v", manual.notices)
+	}
+	n := manual.notices[0]
+	if n.neverShowAgain != "" || n.text != locales.UpdateAvailable("999.0.0") {
+		t.Fatalf("manual result = %+v, want a plain available notice", n)
 	}
 }
 

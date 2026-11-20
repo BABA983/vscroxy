@@ -96,8 +96,17 @@ func (a *app) notify(n notice) {
 		n.progress.id = n.id
 	}
 	a.notices = append(a.notices, n)
-	if len(a.notices) > noticeHistoryLimit {
-		a.notices = slices.Clone(a.notices[len(a.notices)-noticeHistoryLimit:])
+	// A task still running keeps its notice: dropping it would make its
+	// reports and its final state invisible. Trim the oldest notice that
+	// is not attached to a running task instead.
+	for len(a.notices) > noticeHistoryLimit {
+		oldest := slices.IndexFunc(a.notices, func(old notice) bool {
+			return old.progress == nil || old.progress.phase != progressRunning
+		})
+		if oldest < 0 {
+			oldest = 0 // all tasks are running; the oldest one has to go
+		}
+		a.notices = slices.Delete(a.notices, oldest, oldest+1)
 	}
 	a.message = n.line()
 	center.pending = append(center.pending, n)

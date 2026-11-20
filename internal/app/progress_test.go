@@ -78,6 +78,87 @@ func TestProgressUpdatesOneNoticeInPlace(t *testing.T) {
 	}
 }
 
+func TestProgressNoticeSurvivesHistoryTrim(t *testing.T) {
+	a := progressTestApp()
+	started, release := make(chan struct{}), make(chan struct{})
+	run := a.withProgress(progressOptions{title: "Import", location: progressNotification},
+		func(ctx context.Context, report func(progressReport)) (string, error) {
+			report(progressReport{message: "Reading file", percentage: 20})
+			close(started)
+			select {
+			case <-release:
+			case <-t.Context().Done():
+				return "", t.Context().Err()
+			}
+			return "Imported collection", nil
+		})
+	awaitProgressSignal(t, started)
+	for range noticeHistoryLimit + 1 {
+		a.inform("another notice")
+	}
+	if len(a.notices) != noticeHistoryLimit {
+		t.Fatalf("history = %d, want %d", len(a.notices), noticeHistoryLimit)
+	}
+	kept := slices.IndexFunc(a.notices, func(n notice) bool {
+		return n.id == run.id && n.progress != nil && n.progress.phase == progressRunning
+	})
+	if kept < 0 {
+		t.Fatalf("a running task was trimmed from the history: %+v", a.notices)
+	}
+	close(release)
+	awaitProgressSignal(t, run.done)
+	kept = slices.IndexFunc(a.notices, func(n notice) bool { return n.id == run.id })
+	if kept < 0 || a.notices[kept].progress.phase != progressDone || a.notices[kept].text != "Imported collection" {
+		t.Fatalf("the trimmed task has no final state: %+v", a.notices)
+	}
+	if len(a.notices) != noticeHistoryLimit {
+		t.Errorf("history after finishing = %d, want %d", len(a.notices), noticeHistoryLimit)
+	}
+}
+
+func TestResultNoticeAtHistoryLimitMovesTheMergedNotice(t *testing.T) {
+	a := progressTestApp()
+	for range noticeHistoryLimit {
+		a.inform("older notice")
+	}
+	started, release := make(chan struct{}), make(chan struct{})
+	run := a.withProgress(progressOptions{
+		title:    "Import",
+		location: progressNotification,
+		finish: func() (string, error) {
+			return a.resultNotice(func() { a.done("Imported collection") })
+		},
+	}, func(ctx context.Context, report func(progressReport)) (string, error) {
+		close(started)
+		select {
+		case <-release:
+		case <-t.Context().Done():
+			return "", t.Context().Err()
+		}
+		return "", nil
+	})
+	awaitProgressSignal(t, started)
+	close(release)
+	awaitProgressSignal(t, run.done)
+	merged, generic := 0, 0
+	for _, n := range a.notices {
+		if n.text == "Imported collection" {
+			merged++
+		}
+		if n.text == locales.ProgressDone("Import") {
+			generic++
+		}
+	}
+	if merged != 1 || generic != 0 {
+		t.Fatalf("full history left %d merged and %d generic notices: %+v", merged, generic, a.notices)
+	}
+	// The extra notice from the merge was moved onto the progress note and
+	// deleted, leaving one free slot.
+	if len(a.notices) != noticeHistoryLimit-1 {
+		t.Errorf("history after merging = %d, want %d", len(a.notices), noticeHistoryLimit-1)
+	}
+}
+
 func TestProgressCancelCancelsTaskAndEndsCancelled(t *testing.T) {
 	a := progressTestApp()
 	a.inform("Earlier notice") // the Cancel action must use this task's id, not zero
@@ -115,7 +196,7 @@ func TestProgressCancelCancelsTaskAndEndsCancelled(t *testing.T) {
 func TestNeverShowAgainSurvivesReloadAndReset(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	a := &app{settingsPath: path, quitOnMain: func(fn func()) { fn() }}
-	a.offerUpdate(update.Release{Tag: "v99.0.0", URL: "https://example.com/release"})
+	a.offerUpdate(update.Release{Tag: "v99.0.0", URL: "https://example.com/release"}, true)
 	if len(a.notices) != 1 || a.notices[0].neverShowAgain != updateNoticeID {
 		t.Fatalf("update notice = %+v", a.notices)
 	}
@@ -138,7 +219,7 @@ func TestNeverShowAgainSurvivesReloadAndReset(t *testing.T) {
 	// A new app takes the saved ids at startup, as newApp does.
 	reloaded := &app{settingsPath: path, quitOnMain: func(fn func()) { fn() }}
 	reloaded.dismissedNotices = slices.Clone(saved.DismissedNotices)
-	reloaded.offerUpdate(update.Release{Tag: "v99.0.0", URL: "https://example.com/release"})
+	reloaded.offerUpdate(update.Release{Tag: "v99.0.0", URL: "https://example.com/release"}, true)
 	if len(reloaded.notices) != 0 {
 		t.Fatalf("suppressed notice returned after reload: %+v", reloaded.notices)
 	}
@@ -150,7 +231,7 @@ func TestNeverShowAgainSurvivesReloadAndReset(t *testing.T) {
 		t.Fatalf("dismissals after reset = %v, %v", after.DismissedNotices, err)
 	}
 	reloaded.clearNotifications()
-	reloaded.offerUpdate(update.Release{Tag: "v99.0.0", URL: "https://example.com/release"})
+	reloaded.offerUpdate(update.Release{Tag: "v99.0.0", URL: "https://example.com/release"}, true)
 	if len(reloaded.notices) != 1 || !strings.Contains(reloaded.notices[0].text, "99.0.0") {
 		t.Fatalf("notice did not return after reset: %+v", reloaded.notices)
 	}
