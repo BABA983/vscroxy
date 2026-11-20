@@ -27,18 +27,19 @@ file written by a newer version is refused and left untouched (`store.ErrNewer`)
 Compatibility work has started (release checklist P0, before 0.1.0): every
 change to a persisted format — anything versioned through `internal/store`,
 including settings, sessions, collections, environments, vault and
-android-proxy records — must bump that format's `Current` in
-`internal/store/formats.go`, or the shared `store.Version` in
-`internal/store/version.go` when the format uses the default. Add one pure
+android-proxy records — must give that format its own `Current: N+1` in
+`internal/store/formats.go`, as `MCPConsents` does with `Current: 2`, and leave
+the shared `store.Version` alone. Every format at the default version uses that
+constant, so bumping it would move all of them at once. Add one pure
 `store.Step` to that format's `Steps` in `internal/store/formats.go` for each
-version being left behind, with an old-version fixture in
-`internal/store/testdata/` (chained versions under
-`internal/store/testdata/migration/`) and a test in
-`internal/store/version_test.go` that reads the old file and checks the
-migrated result. JSON files carry a top-level `version` (wrapped under `Member`
-when the root is an array or map); line-oriented lists carry
-`# vscroxy format N` on the first line. In-memory APIs still change directly:
-no deprecation shims.
+version being left behind. The format's existing fixture in
+`internal/store/testdata/` is the old-version file: keep it (or move it to a
+versioned name and update its entry in `testFormats`) and add a new-version
+expectation, then add a test in `internal/store/version_test.go` that reads the
+old file and checks the migrated result. JSON files carry a top-level `version`
+(wrapped under `Member` when the root is an array or map); line-oriented lists
+carry `# vscroxy format N` on the first line. In-memory APIs still change
+directly: no deprecation shims.
 
 User feedback goes through `notify` (`internal/app/notify.go`): `done`, `inform`,
 `warn`, or `fail(what, err)` for errors, which also go to the log at
