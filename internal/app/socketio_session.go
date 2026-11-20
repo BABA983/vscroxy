@@ -39,6 +39,7 @@ type socketIOSession struct {
 	done           chan struct{}
 	lifetime       *lifecycle.DisposableStore
 	notify         func()
+	afterWrite     func(string) // test hook: after a successful write, before it is recorded
 	state, problem string
 	finished, busy bool
 	events         []socketIOEvent
@@ -194,20 +195,27 @@ func (s *socketIOSession) send(event, args string, attachments [][]byte, wantACK
 		var name, text string
 		if err == nil {
 			name, text = socketIOMessageText(m)
+			if s.afterWrite != nil {
+				s.afterWrite(event)
+			}
 		}
 		s.mu.Lock()
+		if err != nil {
+			if !s.finished {
+				s.problem = err.Error()
+			}
+		} else {
+			// A write that succeeded is real traffic even if the reader has
+			// since closed the session; keep it in the sent list and timeline.
+			if ack != nil {
+				delete(s.owed, *ack)
+			} else {
+				s.sent = append(s.sent, doc)
+			}
+			s.append("Out", name, text)
+		}
 		if !s.finished {
 			s.busy = false
-			if err != nil {
-				s.problem = err.Error()
-			} else {
-				if ack != nil {
-					delete(s.owed, *ack)
-				} else {
-					s.sent = append(s.sent, doc)
-				}
-				s.append("Out", name, text)
-			}
 		}
 		s.mu.Unlock()
 		s.changed()
@@ -250,11 +258,14 @@ func (s *socketIOSession) emitAll(messages []request.SocketIOMessageDoc) error {
 		}
 		message.ACKID = ack
 		name, text := socketIOMessageText(message)
-		s.mu.Lock()
-		if !s.finished {
-			s.append("Out", name, text)
-			s.sent = append(s.sent, doc)
+		if s.afterWrite != nil {
+			s.afterWrite(cfg.Event)
 		}
+		s.mu.Lock()
+		// Emit succeeded: record it even when the reader closed meanwhile.
+		// The close entry may precede this Out, but the Out must not vanish.
+		s.append("Out", name, text)
+		s.sent = append(s.sent, doc)
 		s.mu.Unlock()
 		s.changed()
 	}
