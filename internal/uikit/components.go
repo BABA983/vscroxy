@@ -239,15 +239,38 @@ func LinkButton(c *ui.Context, label string, icon ...*ui.SVG) ui.Element {
 	return b
 }
 
-// Kbd draws a shortcut as a keycap: a small canvas face on a 1-point
-// hairline, four-point corners and an 11-point label. It is for a shortcut
-// beside a menu item or a command, never for a key the person should press
-// inside a sentence.
+// Kbd draws an inline shortcut keycap: transparent face, a 10% ring,
+// shadow-sm, an 11-point label and ss06/ss07 symbol features. Menu and command
+// rows use it; it also keeps a small gap and even width for the final key.
 func Kbd(c *ui.Context, key string) ui.Element {
-	t, p := c.Theme(), Colors(c.Theme())
-	return ui.Text(c, key).FontSize(Scaled(TextMeta)).FontWeight(WeightMedium).TextColor(t.TextMuted).
-		Height(HeightKbd).MinWidth(HeightKbd).Padding(0, KbdPaddingX).Radius(RadiusInner).Background(p.Background).
-		InsetShadow(0, 0, 0, HairlineWidth, p.Border).Center().SingleLine()
+	t := c.Theme()
+	prefixLen := 0
+	for _, r := range key {
+		if !strings.ContainsRune("⌘⇧⌥⌃", r) {
+			break
+		}
+		prefixLen += len(string(r))
+	}
+	prefix, last := key[:prefixLen], key[prefixLen:]
+	if last == "" {
+		prefix, last = "", key
+	}
+	// TextAlign centers the glyph inside MinWidth; Center would align the
+	// whole text element inside the keycap and leave the last key too far left.
+	ink := func(text string, minWidth float32) ui.Element {
+		return ui.Text(c, text).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted).
+			FontFeatures("ss06", "ss07").SingleLine().MinWidth(minWidth).TextAlign(ui.Center)
+	}
+	e := ui.Row(c).Gap(t.Space(SpaceHair)).AlignItems(ui.Center).
+		Height(HeightInlineKbd).Padding(t.Space(SpaceXS)).Radius(RadiusInner).
+		Margin(-t.Space(SpaceHair), 0).Center()
+	e.Children(func() {
+		if prefix != "" {
+			ink(prefix, 0)
+		}
+		ink(last, Scaled(TextMeta)*0.75)
+	})
+	return ShadowKbd.Apply(e, t.Dark)
 }
 
 // numberInvalid reports text that is not a number in range, so the field

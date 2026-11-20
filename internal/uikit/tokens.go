@@ -148,7 +148,7 @@ const (
 	CardKeyWidth            = 52  // a card's key column
 	TabRuleHeight           = 2   // the rule under a selected tab
 	DotSize                 = 6   // a status or a legend dot
-	HeightKbd               = 18  // a key cap, and a chip's inner face
+	HeightInlineKbd         = 19  // a shortcut keycap in a menu or command row
 	KbdPaddingX             = 4
 	SettingsControlHeight   = 36
 	CommandPaletteWidth     = 720
@@ -174,6 +174,11 @@ type Shadow struct {
 
 var (
 	ShadowSmall = Shadow{layers: []shadowLayer{
+		{0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
+		{0, 1, 2, -1, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
+	}}
+	ShadowKbd = Shadow{layers: []shadowLayer{
+		{0, 0, 0, HairlineWidth, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(255, 255, 255, 0.1)},
 		{0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
 		{0, 1, 2, -1, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
 	}}

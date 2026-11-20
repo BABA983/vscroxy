@@ -88,7 +88,7 @@ func (g *Gallery) components() *Group {
 		{ID: "menus", Title: "Menus", Note: "A 28-point row, the menu shadow and keycaps", Height: 560, Hover: hoverMenus, Focus: focusMenus, Tip: true, build: k.menuPlate},
 		{ID: "checks", Title: "Checkbox and radio", Note: "Boxes wear a control face: rest, hover, checked, focus and disabled", Height: 420, Hover: hoverChecks, Focus: focusChecks, build: k.checkPlate},
 		{ID: "feedback", Title: "Feedback", Note: "Spinner, progress, callouts, badges and a primary button while it is busy", Height: 600, build: k.feedbackPlate},
-		{ID: "kbd", Title: "Kbd", Note: "Shortcuts as 4-point keycaps on a hairline", Height: 280, build: k.kbdPlate},
+		{ID: "kbd", Title: "Kbd", Note: "Transparent inline keycaps with a 10% ring and shadow-sm", Height: 280, build: k.kbdPlate},
 		{ID: "tooltip", Title: "Tooltip", Note: "The one tip face: small text, a shortcut as Kbd, a long URL", Height: 380, Hover: hoverTooltip, Tip: true, build: k.tooltipPlate},
 		{ID: "hover-card", Title: "Hover card", Note: "A title, one meta line and key/value rows over a capture row", Height: 340, Hover: hoverCard, Tip: true, build: k.hoverCardPlate},
 		{ID: "sidebar-hover-card", Title: "Sidebar hover card", Note: "A sidebar request's card opens beside the sidebar; its ⋯ is the row-action size", Height: 360, Hover: hoverSidebarCard, Tip: true, build: k.sidebarCardPlate},
@@ -418,7 +418,7 @@ func (k *components) kbdPlate(c *ui.Context) {
 			menuRow(c, "Copy as cURL", "⌘C", true, false)
 		})
 	})
-	caption(c, "A Kbd is 18 points high with 4-point corners, a 1-point hairline and an 11-point label. It sits at the trailing edge of a menu or command row, never inside prose.")
+	caption(c, "A Kbd is 19 points high with 4-point corners, a transparent face, a 10% ring and shadow-sm. It carries an 11-point label with ss06/ss07 symbol features and sits beside a menu item or command.")
 }
 
 func (k *components) tooltipPlate(c *ui.Context) {
