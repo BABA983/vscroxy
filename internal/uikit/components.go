@@ -382,9 +382,9 @@ func SwatchButton(c *ui.Context, label string, color ui.Color, chosen bool) ui.E
 	})
 }
 
-// Input is a single-line text field at control height: a well set into the
-// canvas, with a 15% ink edge at rest and one Ring point outside it while
-// focused.
+// Input is a single-line text field at control height: a near-white
+// Background face with a 15% ink edge at rest and one Ring point outside it
+// while focused.
 func Input(c *ui.Context, value *string) ui.Element {
 	return InputState(c, value, false)
 }
@@ -397,7 +397,7 @@ func InputState(c *ui.Context, value *string, invalid bool) ui.Element {
 	if invalid {
 		in.Invalid(true)
 	}
-	return fieldFace(Colors(c.Theme()), in, false, in.Focused(), invalid)
+	return fieldFace(Colors(c.Theme()), in, in.Focused(), invalid)
 }
 
 // InputControl is Input's text input without the field face, for a field that
@@ -427,8 +427,8 @@ func TextInset(e ui.Element, inset float32) ui.Element {
 	return e.Padding(0, 0, 0, inset).BorderWidth(0, inset, 0, 0).BorderColor(ui.Color{})
 }
 
-// Combobox is MyGo's text field with a suggestion popup, in Amp Web's select
-// face: the panel color in an 8-point field, with the same 15% ink edge and
+// Combobox is MyGo's text field with a suggestion popup, in the select face:
+// the panel color in an 8-point field, with the same 15% ink edge and
 // one Ring point on focus. Its focus edge is Ring, and the one edge it draws
 // is the face's, so callers add no face of their own.
 func Combobox(c *ui.Context, value *string, options []string) ui.Element {
@@ -440,7 +440,7 @@ func Combobox(c *ui.Context, value *string, options []string) ui.Element {
 	// stops ControlPaddingX short of the arrow, as an Input's stops at its inset.
 	e := ui.Combobox(c, value, options).Border(0, ui.Color{}).Height(HeightControl).Padding(0, Scaled(ControlPaddingX)).Gap(Scaled(ControlPaddingX)).FontSize(Scaled(TextBody))
 	c.SetTheme(t)
-	return fieldFaceRadius(p, e, true, e.Focused(), false, RadiusPanel)
+	return fieldFaceRadius(p, e, e.Focused(), false, RadiusPanel)
 }
 
 // TextArea is MyGo's multiline text field with the kit's focus edge: its
@@ -465,13 +465,13 @@ func TextArea(c *ui.Context, value *string) ui.Element {
 // 3:1 against both the field and the surface around it. A scroll container
 // around a field leaves Space(1) at each side for that point.
 func FieldFace(c *ui.Context, field ui.Element, focused bool) ui.Element {
-	return fieldFace(Colors(c.Theme()), field, false, focused, false)
+	return fieldFace(Colors(c.Theme()), field, focused, false)
 }
 
 // ChromeFieldFace is FieldFace for a field on chrome: the canvas face with
 // a hairline, so it stays lighter than the bar it sits in.
 func ChromeFieldFace(c *ui.Context, field ui.Element, focused bool) ui.Element {
-	return fieldFace(Colors(c.Theme()), field, true, focused, false)
+	return fieldFace(Colors(c.Theme()), field, focused, false)
 }
 
 // SearchField is a one-line field that finds something in a list, with the
@@ -479,21 +479,23 @@ func ChromeFieldFace(c *ui.Context, field ui.Element, focused bool) ui.Element {
 // with a hairline rather than the well it is on the canvas.
 func SearchField(c *ui.Context, value *string, label, placeholder string, onChrome bool) ui.Element {
 	t := c.Theme()
-	field := ui.Row(c).Height(HeightControl).AlignItems(ui.Center).Gap(t.Space(SpaceXS)).Padding(0, t.Space(SpaceM))
+	field := ui.Row(c).Height(HeightSearchField).AlignItems(ui.Center).Gap(t.Space(SpaceXS)).Padding(0, t.Space(SpaceM))
 	var in ui.Element
 	field.Children(func() {
 		ui.Icon(c, searchIcon).Size(IconInline, IconInline).TextColor(t.TextMuted)
 		// The face is the row's: the input inside carries no border or fill
 		// of its own, so a hairline is drawn once.
-		in = ui.TextInput(c, value).Height(HeightControl).Padding(0).FontSize(Scaled(TextBody)).Grow(1).MinWidth(0).
+		in = ui.TextInput(c, value).Height(HeightSearchField).Padding(0).FontSize(Scaled(TextSmall)).Grow(1).MinWidth(0).
 			FocusRing(false).Background(ui.Color{}).Border(0, ui.Color{}).
 			Label(label).Placeholder(placeholder)
 	})
+	var radius float32 = RadiusPanel
 	if onChrome {
-		ChromeFieldFace(c, field, in.Focused())
-	} else {
-		FieldFace(c, field, in.Focused())
+		radius = RadiusControl
 	}
+	// Search is a near-white surface with a 15% edge, not the Input well used
+	// by ordinary text fields, on either chrome or canvas.
+	fieldFaceRadius(Colors(t), field, in.Focused(), false, radius)
 	return field
 }
 
@@ -501,23 +503,21 @@ func SearchField(c *ui.Context, value *string, label, placeholder string, onChro
 // control height whether or not it has the focus. A faced field's Draw belongs
 // to the kit: MyGo's Draw is a single slot, so the edge replaces any Draw a
 // caller set, and a Draw set after it would drop the edge.
-func fieldFace(p *Palette, field ui.Element, onChrome, focused, invalid bool) ui.Element {
-	return fieldFaceRadius(p, field, onChrome, focused, invalid, RadiusControl)
+func fieldFace(p *Palette, field ui.Element, focused, invalid bool) ui.Element {
+	return fieldFaceRadius(p, field, focused, invalid, RadiusControl)
 }
 
-// fieldFaceRadius is fieldFace at a caller's corner radius: Amp Web's text
-// input is a 6-point field, its selects are 8-point.
-func fieldFaceRadius(p *Palette, field ui.Element, onChrome, focused, invalid bool, radius float32) ui.Element {
-	face := p.Input
-	if onChrome {
-		face = p.Background
-	}
+// fieldFaceRadius is fieldFace at a caller's corner radius: a text input is a
+// 6-point field, its selects and search fields are 8-point. Every face is the
+// near-white background, with the 15% edge carrying the shape.
+func fieldFaceRadius(p *Palette, field ui.Element, focused, invalid bool, radius float32) ui.Element {
+	face := p.Background
 	// The face's radius also clips what sits inside it: a method control's
 	// hover or a chip's fill follows the field's corners instead of squaring
 	// them off.
 	field.Radius(radius).Background(face).Clip()
-	// Amp Web keeps a 15% ink edge at rest; hover does not change it. Focus
-	// adds one ring point outside that edge, without a halo.
+	// A 15% ink edge stays at rest; hover does not change it. Focus adds one
+	// ring point outside that edge, without a halo.
 	edge := p.Foreground.Alpha(0.15)
 	ring := p.Ring
 	if invalid {
@@ -1802,10 +1802,10 @@ func Switch(c *ui.Context, on *bool) ui.Element {
 		target = 1
 	}
 	pos := target
-	// Amp Web's off track is the text color at 20% with a muted thumb; on it
-	// is the ink Primary with a pale thumb. Dark keeps a lighter on track and
-	// a white thumb: the web pair is two near-black colors and disappears.
-	off := p.Foreground.Alpha(0.2)
+	// Off is MutedForeground at 20% with a MutedForeground thumb; on it is
+	// the ink Primary with a pale thumb. Dark keeps a lighter on track and a
+	// white thumb so the knob stays visible.
+	off := p.MutedForeground.Alpha(0.2)
 	knobOff, knobOn := p.MutedForeground, ui.RGB(255, 255, 255)
 	if !t.Dark {
 		knobOn = p.PrimaryForeground
@@ -2042,13 +2042,13 @@ func SelectLabels(c *ui.Context, selected *string, options []string, label func(
 	return trigger
 }
 
-// selectTrigger gives a select's trigger Amp Web's select face: the panel
+// selectTrigger gives a select's trigger the select face: the panel
 // color in an 8-point field, with a 15% ink edge that does not react to the
 // pointer and one Ring point outside it while focused. A select's trigger is
 // a button with no look of its own, so the face is painted here.
 func selectTrigger(c *ui.Context, b ui.Element, _ bool) ui.Element {
 	p := Colors(c.Theme())
-	b = fieldFaceRadius(p, b, true, b.Focused(), false, RadiusPanel)
+	b = fieldFaceRadius(p, b, b.Focused(), false, RadiusPanel)
 	return b.Height(HeightControl).Padding(0, Scaled(ControlPaddingX)).FontSize(Scaled(TextBody)).
 		AlignItems(ui.Center).MinWidth(WidthPicker)
 }

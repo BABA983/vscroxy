@@ -295,7 +295,7 @@ func (k *components) inputPlate(c *ui.Context) {
 			uikit.SearchField(c, &k.searchChrome, "Search collections", "Search…", true)
 		})
 	})
-	caption(c, "A field on the canvas is a well; on chrome it is the same face. Every field has a 15% ink edge; focus adds one Ring point outside it, and an invalid field uses Danger. FormRow binds its description and error to the control. A field has no hover face.")
+	caption(c, "A field is a near-white Background face on both canvas and chrome: 6-point corners for text, 8 for selects and search. Every field has a 15% ink edge; focus adds one Ring point outside it, and an invalid field uses Danger. FormRow binds its description and error to the control. A field has no hover face.")
 }
 
 func (k *components) tabPlate(c *ui.Context) {

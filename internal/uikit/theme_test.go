@@ -83,7 +83,7 @@ func TestThemesKeepTextReadable(t *testing.T) {
 			// A focused field and a keyboard focus ring draw Ring inside their
 			// face; it must read against that face and the surface around it,
 			// without being the ink accent a primary action is.
-			check("field focus edge on its well", p.Ring, p.Input, 3)
+			check("field focus edge", p.Ring, p.Background, 3)
 			check("field focus edge on a chrome field", p.Ring, p.Background, 3)
 			check("field focus edge beside the canvas", p.Ring, p.Background, 3)
 			check("field focus edge beside chrome", p.Ring, p.Window, 3)

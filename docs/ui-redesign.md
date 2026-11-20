@@ -109,7 +109,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 
 v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）。表面负责结构；强调色是墨（Dark 下是白），负责"选中、主操作、已开启"；绿色只表示"通过"和"正在录制"。
 
-- **三种表面：** **chrome** 框住窗口（侧栏、各种栏、表头），**canvas** 放数据（表格、编辑器、面板），**well** 是 canvas 上的输入框（比 canvas 深一档）。chrome 上的输入框反过来，是 canvas 底加 1px 细线。Hairline 只分隔同一表面的两个区域，不靠色块分区。
+- **三种表面：** **chrome** 框住窗口（侧栏、各种栏、表头），**canvas** 放数据（表格、编辑器、面板），**well** 是历史调色板里的深色面。Amp Web 的输入框现在统一是近白的 `Background` 面加 15% 边，不再使用 well 凹陷。Hairline 只分隔同一表面的两个区域，不靠色块分区。
 - **外壳一整块，内容抬起来（第八阶段）：** 标题栏、侧栏、底栏是同一块 chrome，三者之间不画线。流量列表、过滤栏、活动行、检查器（以及请求编辑器页的全部内容）合成一张 canvas 面板：圆角 `RadiusPanel`（8）、1px hairline 加一层很浅的阴影，右边留 8 的 chrome，上下紧贴标题栏和底栏；侧栏收起时左边也留 8。面板内部的区域线（列表｜检查器、请求｜响应）保留，过滤栏在面板里、下沿一条 hairline。
 - **强调色是墨，绿色只表示通过和录制。** 主按钮、焦点、选中标记、开关和复选框的开启态、活动行选区的把手、表头拖动线用 `Primary`（Light `#1a1a18`，Dark `#e9e8e4`）；检查通过、录制点、信任状态、向导里已完成的步骤用 `Success`（Light `#26734a`，Dark `#7cc492`）。标签页、过滤器和命令面板的高亮一律中性底，一屏不再有好几块彩色。
 - **控件不描边。** 按钮、tab、chip 的面是文字色的 6%（静止）／10%（悬停）／14%（按下），叠在什么表面上都对，所以同一个按钮放在窗口、chrome 或选中行里都一样。只有输入框在 chrome 上有 1px 细线，浮层和对话框有细线边框加阴影。
@@ -119,7 +119,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 - **六档字号，两个字重：** 20（展示）／16（标题）／15（Amp 的 md 标尺档）／13（正文和控件）／12（次要文字和等宽数据）／11（元信息），只有 400 和 500，没有 600。界面常用前五档里的 20／16／13／12／11。
 - **三档栏高，两档控件：** 栏 40／32／24，控件 `HeightControl` 28／`HeightControlSmall` 22，行 `HeightRow` 24；工作区圆角 4／6／8，浮层再取 10／12／16；间距 4／8／12／16／24，左右边距统一 12。
 - **线只画在区域之间。** 侧栏与内容、列表与检查器、请求面板与响应面板、状态栏上沿；区域内部靠间距和表面区分，面板头、抓包信息行、URL 行都没有底线。流量表表头没有列分隔线，拖动列宽的命中区还在，指针停在那一列边缘时才画出强调色细线。
-- **输入框只有两种：** 在 chrome 上的是 canvas 底加 1px 细线（`ChromeFieldFace`），在 canvas 上的是 well 填充（`FieldFace`）。标题栏的命令入口不是输入框，是一个 24 高的按钮（放大镜加 `⌘K`／`Ctrl K`）。
+- **输入框只有两种圆角：** 在 chrome 上是 6 圆角（`ChromeFieldFace`），在 canvas 上是 8 圆角（`FieldFace`）；两种都是 `Background` 近白面加 15% 边。标题栏的命令入口不是输入框，是一个 24 高的按钮（放大镜加 `⌘K`／`Ctrl K`）。
 - **侧栏退后。** 未选中行的文字用次要色、图标再低一档（faint），悬停和选中时回到正文色；计数为 0 不显示。侧栏的四个分区标题（Traffic、Sources、Sessions、Collections）都可以点击折叠，折叠状态和中间三段的高度记在 settings 里。
 - **常驻的状态信息：** 列表上方一条 24 高的活动柱状图：摘要（`Last 5 min · 138 requests`）在左、柱在右、最右是结束时间（等宽）；最近 5 分钟，按状态码上色（正常中性面，3xx／4xx／5xx 和慢请求用信号色），可拖选时间范围。筛选是查询语法 chip（`status:>=400`、`host:`、`app:`、`slow`），带自动补全；每行带一根耗时条，慢请求是朱红。
 - **选中分两种形状，都是选中浅底（`Accent`）、正常文字颜色：**
@@ -247,8 +247,9 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `HeightFooter` | 28 | 底栏（窗口动作、计数、已启用的工具） |
 | `HeightControl` | 28 | 按钮、输入框、下拉、搜索框、表单控件 |
 | `HeightControlSmall` | 22 | 小按钮、tab、chip、底栏动作、行内动作 |
-| `HeightRow` | 24 | 表格行、列表行、侧栏条目、分段控件的轨道 |
-| `HeightKbd` | 18 | 快捷键键帽 |
+| `HeightRow` | 24 | 表格行、列表行、工作区侧栏条目、小分段控件的轨道 |
+| `HeightSidebarRow`／`HeightSearchField` | 32 | Amp 的设置导航行和搜索框 |
+| `HeightInlineKbd` | 19 | 菜单和命令行里的快捷键键帽 |
 | `HeightRowAction` | 20 | 行内的图标动作和 `⋯`（`RowIconButton`、`MoreMenu`），以及侧栏标题和面板头里的同款动作；离行的上下左右边各 `RowActionInset`（2），即 `(HeightRow − HeightRowAction)／2` |
 | `HeightChip` | 18 | 查询 chip（`QueryChip`），居中于 `HeightRow`（24）的字段内，上下各留 3；字段两侧留 `SpaceM`（8），与 `SearchField` 相同 |
 | `MenuRowHeight` | 28 | 菜单行（MyGo 当前画 24，见第 12 节） |
@@ -362,6 +363,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | Token | 层 | 用在哪里 |
 | --- | --- | --- |
 | `ShadowSmall` | `0 1 3 0` + `0 1 2 -1`，两层 10% 黑 | 小面 |
+| `ShadowNavSelected` | 1 px 12% 环（Dark 白 12%）+ `ShadowSmall` 的两层 | Amp 设置导航的选中行 |
 | `ShadowMenu` | 1 px 8% 黑环 + `0 4 6 -1` 10% + `0 2 4 -2` 10%；Dark 是白环 + 80%/60% 深影 | 菜单面（`MenuPanel`） |
 | `ShadowPopover` | 与菜单亮色相同；Dark 只有白环变化 | 弹层、时序卡、toast、tooltip、hover card |
 | `ShadowDialog` | `0 10 15 -3` + `0 4 6 -4`，两层 10% 黑 | 对话框（`Modal`、`ModalFlush`） |
@@ -468,15 +470,15 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 | 组件 | 用途 | 变体和尺寸 | 状态 | 不要做的事 |
 | --- | --- | --- | --- | --- |
-| `Input` | 单行文本 | 28 高，左右 12，13 字，圆角 6，canvas 上为 `Input` 面 | 静止：正文色 15% 边；hover 不变；焦点：边外再加 1 pt `Ring`；禁用（整体半透明） | 不在 chrome 上直接用（用 `ChromeFieldFace` 包） |
+| `Input` | 单行文本 | 28 高，左右 12，13 字，圆角 6，`Background` 近白面 | 静止：正文色 15% 边；hover 不变；焦点：边外再加 1 pt `Ring`；禁用（整体半透明） | 不在 chrome 上直接用（用 `ChromeFieldFace` 包） |
 | `InputState` | `Input`，带无效面 | 同 `Input` | 无效：1 pt `Danger` 边（焦点时边外加 1 pt `Danger`） | 无效的说明用 `FormRow` 的 `errText` |
 | `InputControl` | 不带面的输入，给要自己画文字段的字段 | 同 `Input`，无面 | 同 `Input`（面由外层给） | 不单独使用 |
-| `FieldFace` | 给自带控件的行画字段面（搜索框、URL 栏） | 行高由调用方定，圆角 6，裁切子元素 | 15% 墨边；焦点加 1 pt `Ring` | 不给 `Input` 再包一层 |
-| `ChromeFieldFace` | chrome 上的字段面：canvas 底，边与 `FieldFace` 共用 | 同 `FieldFace` | 同 `FieldFace` | 不在 canvas 上用 |
+| `FieldFace` | 给自带控件的行画字段面（搜索框、URL 栏） | 行高由调用方定，圆角 6，`Background` 近白面，裁切子元素 | 15% 墨边；焦点加 1 pt `Ring` | 不给 `Input` 再包一层 |
+| `ChromeFieldFace` | chrome 上的字段面：同近白面与 15% 边 | 同 `FieldFace` | 同 `FieldFace` | 只表示这一面落在 chrome 上 |
 | `NumberField` | 整数，后面跟单位，如 `[60] s` | 宽 `WidthNumber` 88，等宽，单位是 `Meta` | 无效（超范围或非数字）：`Danger` 边；空白时保留旧值 | 需要 ± 步进时用 MyGo 的 `NumberInput`（6.8） |
 | `Combobox` | 可输入也可从建议里选 | 28 高，圆角 8，canvas 色的字段面；弹层的高亮是 `Accent` 7% wash | 静止：15% 墨边；hover 不变；焦点：边外加 1 pt `Ring`；禁用 | 只能选一项时用 `Select` |
 | `TextArea` | 多行文本 | 上下 8、左右 12，圆角 6，canvas 上为 `Input` 面，焦点边 `Ring` | 静止、焦点、禁用 | 不用于单行 |
-| `SearchField` | 在列表里查找 | 28 高，左右 8，放大镜 14，间距 4 | 静止、焦点（`FieldFace`，`onChrome` 时为 `ChromeFieldFace`）、空时显示占位 | 不用于其他文字字段 |
+| `SearchField` | 在列表里查找 | Amp 的 32 高、12 字；canvas 上 8 圆角，chrome 上 6 圆角；放大镜 14、间距 4；面是 `Background` 而非 `Input` well | 静止、焦点（15% 边加 1 pt `Ring`）、空时显示占位 | 不用于其他文字字段 |
 | `FormRow` | 表单字段：标签、控件、说明和错误绑定到控件 | MyGo 的 `Field`：不在 `ui.Form` 里时标签在控件上方；在 `ui.Form` 里时标签在左列并与控件首行对齐 | 错误：控件 `Danger` 边、控件下方的红字；说明：控件下方的次要字 | 不要在控件下面自己写说明（用 `description`） |
 | `FormRowTip` | 说明放在标签的提示里 | 标签上方，控件在下 | 同 `FormRow` | 说明很重要时不用（看不见） |
 | `FormRowTall` | 比一行高的控件（代码编辑器）的表单行 | 标签在控件首行，说明和错误在控件下 | 同 `FormRow`；错误只画一次 | 不用于单行控件 |
@@ -484,7 +486,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `SelectLabels` | `Select`，选项与显示文字分开 | 同 `Select` | 同 `Select` | 同 `Select` |
 | `MenuSelect` | 用菜单做的选择（如 body 格式） | 触发器同 `Select`，弹层是 `MenuPanel` | 同 `Select` | 不用于切换显示模式（用 `Segmented`） |
 | `SettingsRow`／`SettingsRowMultiline` | 设置行：左列标签，右边控件，下面一行说明 | 标签列按组宽（112–180）；多行版的标签与控件首行对齐 | 说明可带 tip；控件自己的状态 | 不用于非设置的表单（用 `FormRow`）；不放进 `SettingsCard`：它不带卡片的内边距，标签会贴着卡边。卡里用 `SettingsCardBlock`／`SettingsCardRow`（HTTPS 的「永不解密」原来是 `SettingsRow`，标签落在卡边上，现在改为块） |
-| `Switch`／`SettingsSwitch` | 开关 | 轨道 36×20，圆角 10；`SettingsSwitch` 带标签 | 关：正文色 20% 轨道 + `MutedForeground` 滑块；开：`SwitchOn` 轨道 + 浅滑块（Dark 保留浅轨白滑块）；hover 不变；焦点、禁用（半透明） | 不要用来做互斥选择 |
+| `Switch`／`SettingsSwitch` | 开关 | 轨道 36×20，圆角 10；`SettingsSwitch` 带标签 | 关：`MutedForeground` 20% 轨道 + `MutedForeground` 滑块；开：`SwitchOn` 轨道 + 浅滑块（Dark 保留浅轨白滑块）；hover 不变；焦点、禁用（半透明） | 不要用来做互斥选择 |
 
 **单行文字的边距。** `Input` 与 `InputControl` 的文字左右各留 `ControlPaddingX`（12）。左边是内边距；右边是一条透明的边框（`uikit.TextInset`），因为 MyGo 把输入的文字裁到边框的外沿，而不是内边距。这条边框在各状态下都画不出来（`InputControl` 建字段时把 Accent、Border、Text、Danger 设为透明，MyGo 按状态给边框上色时取的就是这些颜色）。超出字段的文字裁在这条线上，没有省略号（MyGo 的输入不做省略）；所以字段的占位文字或长值要按宽度留够，或由调用方缩短。字段的焦点边和无效边由 `fieldFaceRadius` 经 `fieldEdge` 用 `Draw` 画在整个边框盒上（1 pt，圆角随字段：文字 6、选择器 8），包括这条透明边框的一侧；原先的 `InsetShadow` 只画到内边距的边缘，右侧 12 点没有边（`TestFieldEdgeReachesItsRightSide` 守住这一点）。带 `fieldFace` 的字段，其 `Draw` 归 kit 所有：MyGo 的 `Draw` 只有一个槽，边会替换调用方设的 `Draw`，之后再设的 `Draw` 会把边去掉。URL 栏是裸的 `ui.TextInputBase`，同样用 `uikit.TextInset`，右边留 `SpaceM`（8），与它的左边相同。`Combobox` 的文字停在箭头前 `ControlPaddingX`（12）：字段的 `Gap` 就是文字与箭头之间的距离（箭头宽 10，字段内边距 12），弹层的高亮仍是 `Ring`。
 
@@ -549,7 +551,8 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `RowMarker` | 数据行的左侧标记线（宽 4 的命中框，画 2 pt） | 2 pt，上下各离 6 pt（不超过行高的四分之一） | 聚焦（强调色）、失焦（`Faint`） | 只给 `DataList` 的行用 |
 | `Selected` | 圆角选中块，用于选位置或选东西的行（挑选列表、规则、Git 文件、场景） | 选中浅底（失焦为中性面）；圆角由调用方的行给，即 6 | 聚焦、失焦 | 不与 `RowMarker` 同时用在同一行 |
 | `SidebarList` | 侧栏的一个列表（有键盘选择和字母跳转） | 行高 24，内缩 6 | 选中（圆角浅底，不描边）、焦点、字母匹配 | 不要用强调色做选中 |
-| `SidebarItem`／`SidebarItemImage`／`SidebarItemLetter` | 侧栏条目：图标或字母方块、名字、可带计数 | 24 高，内缩 6，图标 16 占一个槽，圆角 6；未选中文字次要色、图标 faint | 选中（圆角浅底）、悬停（正文色）、计数为 0 时不显示 | 不要在侧栏里放多于一个选中项 |
+| `SidebarItem`／`SidebarItemImage`／`SidebarItemLetter` | 工作区侧栏条目：图标或字母方块、名字、可带计数 | 24 高，内缩 6，图标 16 占一个槽，圆角 6；未选中文字次要色、图标 faint | 选中（圆角浅底）、悬停（正文色）、计数为 0 时不显示 | 不要在侧栏里放多于一个选中项 |
+| `SettingsSidebarItem` | Amp 设置页的分类行 | 32 高，左右 10、上下 6 的外缩，圆角 8，12 字、图标 16 | 选中：canvas 面 + 12% 环 + `shadow-sm`；悬停：文字正文色 | 只用于设置分类，不拿它替工作区侧栏 |
 | `SidebarButton` | 做动作而不是选中的侧栏行 | 同 `SidebarItem` | `on` 时图标为强调色（开关类） | 不用来表示“现在在哪” |
 | `SidebarHeading` | 侧栏分区标题（可折叠，右端可带开关或加号） | 24 高，11 号次要色 500 | 折叠箭头、悬停 | 不做成按钮 |
 | `SidebarDot`／`LetterSquare` | 没有图标时占槽的圆点；字母方块（集合或环境） | 点 6，方块 `size`，圆角 6 | 无 | 不用于选择 |
@@ -940,6 +943,14 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 103. 选中行不再叠两层底（2026-11-18）：`Theme.Accent` 改成实色主按钮墨以后，MyGo 的列表给选中行刷的实色透出来，`uikit.Selected` 的 7% wash 又画在它上面，正文色落在实色底上，Light／Dark 对比度只有约 1.1:1。Scripts、Rules、Scenarios 和 Git 状态列表共用这条路径。现在 `uikit.Selected` 先把 wash 和表面合成成实地再画，完整盖住列表自己的选中底；加了用 Scripts 画廊量选中行底色的回归测试，旧画法在两套主题下都失败。
 
 104. JSON 树的 value 也用编辑器 token 色（2026-11-18）：Body 的 Auto／Pretty 走 MyGo 的 JSON lexer，已经是完整的 GitHub token 配色；显式 JSON 模式是可折叠、可查询的自定义树，原来只有 key 借了 `TokenProperty` 的颜色，value 一律正文色。现在字符串用 `TokenString`，数字、布尔和 null 用 `TokenConstant`，与 Pretty 对同一段 JSON 的上色一致；回归测试在 Light／Dark 下量文本像素，旧画法全部失败。
+
+105. 关闭态 Switch 的轨道色（2026-11-19）：重新连上 Amp Web 后读到开关的源码类：关闭轨道是 `bg-muted-foreground/20`，滑块是 `bg-muted-foreground`，也就是 `--muted-foreground` 的 20% 和实色；我们原来把轨道取成正文色 20%，比 Amp 深。现在轨道改用 `MutedForeground.Alpha(0.2)`，滑块不变；像素测试同步更新为量的新轨道色。
+
+112. 搜索框、分段控件和设置导航分成两档（2026-11-19）：Amp 的搜索框是 32 高、12 字、canvas 上 8 圆角／chrome 上 6 圆角；设置作用域的分段控件是 38 高轨道、30 高浮起段、12／500 字，`SegmentedLarge` 做这一档，原来的 `Segmented` 保留工作区里 24 高小号。设置导航行用 `SettingsSidebarItem`（32 高、8 圆角、12 字、12% 环加 `shadow-sm`）；工作区侧栏仍是 24 高小号，否则短窗口里 Traffic 和 Collections 会被挤出可见区域。
+
+113. 搜索框不用 Input well 的底色（2026-11-19）：Amp 的搜索框在 canvas 和 chrome 上都是近白的面加 15% 边，不是普通单行输入的深色 well。`SearchField` 现在两种位置都把面画成 `Background`，圆角仍随所在表面 8／6。
+
+114. 普通输入框也改成近白面（2026-11-19）：Amp 设置页里的 Email、URL 等普通输入同样是 `bg-background border-input-border`，所以 `fieldFaceRadius` 不再在 canvas 上用 `Input` well，chrome 和 canvas 都用 `Background` 面；15% 边和焦点环不变。像素测试的输入图版与对比度断言同步更新。`Palette.Input` 留作历史表面 token，字段不再取它。
 
 ## 13. 仍与设计稿不一致的地方
 

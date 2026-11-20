@@ -199,21 +199,43 @@ func LetterSquare(c *ui.Context, label string, size float32, ink ui.Color) ui.El
 // asks for one more frame to catch up: a hover is a color change, not a layout
 // change.
 func sidebarRow(c *ui.Context, id, label string, chosen, active bool, icon func(ink ui.Color)) ui.Element {
+	return sidebarRowSized(c, id, label, chosen, active, icon,
+		HeightRow, RadiusControl, SpaceS, TextBody, false)
+}
+
+// SettingsSidebarItem is the settings navigation row: 32 points tall,
+// 8-point corners, 12-point text and a raised canvas face when selected.
+func SettingsSidebarItem(c *ui.Context, id string, icon *ui.SVG, label string, chosen, active bool) ui.Element {
+	return sidebarRowSized(c, id, label, chosen, active, func(ink ui.Color) {
+		ui.Icon(c, cmp.Or(icon, SidebarDot)).Size(IconLarge, IconLarge).TextColor(ink)
+	}, HeightSidebarRow, RadiusPanel, SpaceCompact, TextSmall, true)
+}
+
+func sidebarRowSized(c *ui.Context, id, label string, chosen, active bool, icon func(ink ui.Color), height, radius, padX, textSize float32, nav bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	hovered := ui.Local(c.Root(), "sidebar-hover:"+id, func() bool { return false })
+	key := id
+	if nav {
+		key = "settings-" + id
+	}
+	hovered := ui.Local(c.Root(), "sidebar-hover:"+key, func() bool { return false })
 	ink, iconInk := t.TextMuted, p.Faint
 	if chosen || *hovered {
 		ink, iconInk = t.Text, t.TextMuted
 	}
-	row := ui.Row(c).Key(id).Height(HeightRow).Shrink(0).AlignItems(ui.Center).Gap(t.Space(SpaceM)).
-		Padding(0, t.Space(SpaceS)).Margin(0, t.Space(SpaceS)).Radius(RadiusControl).
+	row := ui.Row(c).Key(id).Height(height).Shrink(0).AlignItems(ui.Center).Gap(t.Space(SpaceS)).
+		Padding(0, t.Space(padX)).Margin(0, t.Space(SpaceS)).Radius(radius).
 		Role(ui.RoleTreeItem).Level(1).TextColor(ink)
 	if chosen {
-		Selected(c, row, active)
+		if nav {
+			row.Background(p.Background)
+			ShadowNavSelected.Apply(row, t.Dark)
+		} else {
+			Selected(c, row, active)
+		}
 	}
 	row.Children(func() {
 		ui.Row(c).Width(IconLarge).Shrink(0).Justify(ui.Center).AlignItems(ui.Center).Children(func() { icon(iconInk) })
-		Body(c, label).SingleLine().Grow(1)
+		ui.Text(c, label).FontSize(Scaled(textSize)).TextColor(ink).SingleLine().Grow(1)
 	})
 	if row.Hovered() != *hovered {
 		*hovered = row.Hovered()

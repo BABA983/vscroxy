@@ -71,9 +71,11 @@ const (
 	// row, a list row or a sidebar item.
 	HeightControl      = 28
 	HeightControlSmall = 22
-	HeightSecondary    = 26 // Amp Web's secondary button
-	HeightBadge        = 18 // Amp Web's h-4.5 status badge
+	HeightSecondary    = 26 // the outlined secondary button
+	HeightBadge        = 18 // an h-4.5 status badge
 	HeightRow          = 24
+	HeightSidebarRow   = 32 // a settings row before a subtitle adds a line
+	HeightSearchField  = 32 // the search and scope search field
 	// HeightRowAction is an icon action or a ⋯ inside a row, a sidebar
 	// heading or a pane header. It is centered, so it leaves RowActionInset
 	// above and below in a 24-point row; its corner is RadiusInner, which is
@@ -179,6 +181,11 @@ var (
 	}}
 	ShadowKbd = Shadow{layers: []shadowLayer{
 		{0, 0, 0, HairlineWidth, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(255, 255, 255, 0.1)},
+		{0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
+		{0, 1, 2, -1, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
+	}}
+	ShadowNavSelected = Shadow{layers: []shadowLayer{
+		{0, 0, 0, HairlineWidth, ui.RGBA(135, 139, 134, 0.12), ui.RGBA(255, 255, 255, 0.12)},
 		{0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
 		{0, 1, 2, -1, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
 	}}

@@ -356,11 +356,11 @@ func checkTextStopsAtRightInset(t *testing.T, img image.Image, width int) {
 	}
 }
 
-// The field keeps Amp Web's 15% ink edge at rest and adds one Ring point
-// while focused. The switch draws Amp's 20% ink track and muted knob when
-// off, and an ink track with a pale knob when on; Dark keeps its own lighter
-// on track so the knob stays visible.
-func TestFieldsAndSwitchesFollowAmpStates(t *testing.T) {
+// The field keeps its 15% ink edge at rest and adds one Ring point while
+// focused. The switch draws a 20% muted-text track and muted knob when off,
+// and an ink track with a pale knob when on; Dark keeps a lighter on track so
+// the knob stays visible.
+func TestFieldsAndSwitchesStates(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
 			theme := Theme(dark)
@@ -401,7 +401,7 @@ func TestFieldsAndSwitchesFollowAmpStates(t *testing.T) {
 				t.Fatal("the field is missing")
 			}
 			fy := field.Bounds.Y + field.Bounds.H/2
-			check("field rest edge", rest, field.Bounds.X, fy, p.Foreground.Alpha(0.15).Over(p.Input))
+			check("field rest edge", rest, field.Bounds.X, fy, p.Foreground.Alpha(0.15).Over(p.Background))
 			check("field focus ring", focused, field.Bounds.X-1, fy, p.Ring)
 			for _, sw := range []struct {
 				name string
@@ -416,7 +416,7 @@ func TestFieldsAndSwitchesFollowAmpStates(t *testing.T) {
 				r := info.Bounds
 				y := r.Y + r.H/2
 				knob := p.MutedForeground
-				track := p.Foreground.Alpha(0.2).Over(theme.Background)
+				track := p.MutedForeground.Alpha(0.2).Over(theme.Background)
 				if sw.on {
 					knob, track = ui.RGB(255, 255, 255), p.SwitchOn
 					if !dark {
@@ -434,10 +434,10 @@ func TestFieldsAndSwitchesFollowAmpStates(t *testing.T) {
 	}
 }
 
-// Amp Web draws a checkbox off as a clear box with a Primary edge, on as a
-// Primary fill with a pale mark, with no hover face. Its selects use the
-// panel-colored field face and a 15% ink edge instead of a button face.
-func TestCheckboxAndSelectFollowAmpStates(t *testing.T) {
+// The checkbox is a clear box with a Primary edge when off and a Primary fill
+// with a pale mark when on, with no hover face. Selects use the panel-colored
+// field face and a 15% ink edge instead of a button face.
+func TestCheckboxAndSelectStates(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
 			theme := Theme(dark)
