@@ -64,7 +64,9 @@ func answeredFor(kind dnsmessage.Type, ips []net.IP) []net.IP {
 
 // lookup asks the resolver the server started with.
 func (s *Server) lookup(name string) ([]net.IP, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Closing the server cancels a lookup that has not answered yet, so
+	// Close can join the query goroutine without waiting for the resolver.
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
 	return s.upstream.LookupIP(ctx, "ip", name)
 }

@@ -48,7 +48,18 @@ type Server struct {
 	rules    atomic.Value // []hosts.Rule
 	last     atomic.Value // Hit
 	done     chan struct{}
+	ctx      context.Context
+	cancel   context.CancelFunc
 	stopOnce sync.Once
+
+	// mu guards closed and the goroutine registrations: Close sets closed
+	// before it waits, so no goroutine can be added to a group being joined.
+	mu      sync.Mutex
+	closed  bool
+	serveWG sync.WaitGroup // the TCP and UDP listen loops
+	queryWG sync.WaitGroup // one goroutine per UDP query
+	connWG  sync.WaitGroup // one goroutine per accepted TCP connection
+	conns   map[net.Conn]struct{}
 
 	// pending are the addresses an app-scoped rule gives a name: the server
 	// cannot see which app asks, so the flow that matched registers the
@@ -77,15 +88,33 @@ func Start(upstream *net.Resolver) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{udp: udp, upstream: upstream, done: make(chan struct{}), pending: make(map[string]pending),
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &Server{udp: udp, upstream: upstream, done: make(chan struct{}), ctx: ctx, cancel: cancel,
+		pending: make(map[string]pending), conns: make(map[net.Conn]struct{}),
 		lookups: *linkedmap.NewLRUCache[string, Resolution](lookupCacheLimit)}
 	s.rules.Store([]hosts.Rule(nil))
 	if tcp, err := net.Listen("tcp", udp.LocalAddr().String()); err == nil {
 		s.tcp = tcp
-		go s.serveTCP()
+		s.startServe(s.serveTCP)
 	}
-	go s.serveUDP()
+	s.startServe(s.serveUDP)
 	return s, nil
+}
+
+// startServe registers a listen loop before it runs, so Close either sees it
+// in serveWG or has already set closed and this loop is never started.
+func (s *Server) startServe(serve func()) {
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return
+	}
+	s.serveWG.Add(1)
+	s.mu.Unlock()
+	go func() {
+		defer s.serveWG.Done()
+		serve()
+	}()
 }
 
 // Addr is where the server listens.
@@ -186,15 +215,29 @@ func (s *Server) noteLookup(name string, ips []net.IP, took time.Duration) {
 	s.lookups.Set(name, entry)
 }
 
-// Close stops the server. It may be called more than once.
+// Close stops the server and joins every goroutine it started. It may be
+// called more than once, including while a query or a connection is in flight.
 func (s *Server) Close() error {
 	var err error
 	s.stopOnce.Do(func() {
+		s.mu.Lock()
+		s.closed = true
+		s.cancel()
 		close(s.done)
 		if s.tcp != nil {
 			_ = s.tcp.Close()
 		}
 		err = s.udp.Close()
+		// Handlers parked on a read cannot see the listener close, so close
+		// the sockets they own too. A connection accepted but not yet
+		// registered is closed by serveTCP when it sees closed below.
+		for conn := range s.conns {
+			_ = conn.Close()
+		}
+		s.mu.Unlock()
+		s.serveWG.Wait()
+		s.queryWG.Wait()
+		s.connWG.Wait()
 	})
 	return err
 }
@@ -224,7 +267,15 @@ func (s *Server) serveUDP() {
 			}
 			return
 		}
+		s.mu.Lock()
+		if s.closed {
+			s.mu.Unlock()
+			return
+		}
+		s.queryWG.Add(1)
+		s.mu.Unlock()
 		go func(query []byte, to *net.UDPAddr) {
+			defer s.queryWG.Done()
 			if answer := s.answer(query); answer != nil {
 				_, _ = s.udp.WriteToUDP(answer, to)
 			}
@@ -238,25 +289,42 @@ func (s *Server) serveTCP() {
 		if err != nil {
 			return
 		}
-		go func(c net.Conn) {
-			defer c.Close()
-			for {
-				var size [2]byte
-				if _, err := io.ReadFull(c, size[:]); err != nil {
-					return
-				}
-				n := int(size[0])<<8 | int(size[1])
-				query := make([]byte, n)
-				if _, err := io.ReadFull(c, query); err != nil {
-					return
-				}
-				answer := s.answer(query)
-				if answer == nil {
-					return
-				}
-				_, _ = c.Write([]byte{byte(len(answer) >> 8), byte(len(answer))})
-				_, _ = c.Write(answer)
-			}
-		}(conn)
+		s.mu.Lock()
+		if s.closed {
+			s.mu.Unlock()
+			_ = conn.Close()
+			return
+		}
+		s.conns[conn] = struct{}{}
+		s.connWG.Add(1)
+		s.mu.Unlock()
+		go s.serveConn(conn)
+	}
+}
+
+func (s *Server) serveConn(c net.Conn) {
+	defer func() {
+		_ = c.Close()
+		s.mu.Lock()
+		delete(s.conns, c)
+		s.mu.Unlock()
+		s.connWG.Done()
+	}()
+	for {
+		var size [2]byte
+		if _, err := io.ReadFull(c, size[:]); err != nil {
+			return
+		}
+		n := int(size[0])<<8 | int(size[1])
+		query := make([]byte, n)
+		if _, err := io.ReadFull(c, query); err != nil {
+			return
+		}
+		answer := s.answer(query)
+		if answer == nil {
+			return
+		}
+		_, _ = c.Write([]byte{byte(len(answer) >> 8), byte(len(answer))})
+		_, _ = c.Write(answer)
 	}
 }
