@@ -28,7 +28,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 	mitmcert "github.com/lqqyt2423/go-mitmproxy/cert"
@@ -66,8 +65,17 @@ const (
 	maxRuleBody = 8 << 20
 	// maxScriptBody bounds what a script reads; a larger body is not passed.
 	maxScriptBody = 8 << 20
-	// maxBreakpointBody bounds the body a breakpoint shows and edits.
-	maxBreakpointBody = 1 << 20
+	// MaxBreakpointBody bounds the body a breakpoint shows and edits. It is
+	// exported so the editor can say why a larger body is kept as bytes.
+	// Typing in the dialog measured (median of five 500 ms samples, Apple
+	// M4, GOMAXPROCS=1) 1.64, 1.94, 2.02 and 2.66 ms per byte with 1, 4, 8
+	// and 16 MiB bodies. 4 MiB stays smooth and leaves headroom under the
+	// engine's 8 MiB stream threshold, so larger buffered bodies still reach
+	// the dialog and can use the file actions.
+	MaxBreakpointBody = 4 << 20
+	// MaxBreakpointMessage bounds a WebSocket message the dialog edits. Its
+	// payload is kept as base64 text, so it keeps the old, smaller cap.
+	MaxBreakpointMessage = 1 << 20
 	// maxFrames bounds a batch of messages published with one flow; live
 	// messages are published one by one, and the app keeps a longer window.
 	// maxFrameBytes is what one message keeps in memory.
@@ -330,17 +338,22 @@ const (
 
 // Breakpoint is an exchange paused for the UI to edit.
 type Breakpoint struct {
-	ID           int
-	Phase        Phase
-	Method       string
-	URL          string
-	Status       int
-	Body         string
-	Header       http.Header
+	ID     int
+	Phase  Phase
+	Method string
+	URL    string
+	Status int
+	Body   string
+	Header http.Header
+	// BodySize is the decoded body length. Body holds the decoded text only
+	// while it fits MaxBreakpointBody and is valid UTF-8; BodySize is still
+	// reported for a body the editor must not show.
+	BodySize     int64
 	BodyReadOnly bool            // binary, undecodable or too large for the text editor
 	MessageType  string          // message phase: "text" or "binary" (Body is padded base64 for binary)
 	Direction    string          // message phase: "out" or "in"
 	Done         <-chan struct{} `json:"-"` // pause ended, including timeout/disconnect
+	source       breakpointBody  // the original bytes, for SaveBreakpointBody
 }
 
 // Decision is what the UI does with a paused exchange.
@@ -353,8 +366,13 @@ type Decision struct {
 	Status      int
 	Body        string
 	Header      http.Header // nil preserves headers; an empty map removes them
-	KeepBody    bool        // header-only edit of a body the text editor cannot represent
-	Drop        bool        // close the client's connection without an answer
+	// BodyFile replaces Body with the exact bytes of a file the user chose.
+	// The proxy streams the file; a replacement is always sent as identity
+	// bytes, with Content-Length set from the file and Content-Encoding
+	// deliberately removed.
+	BodyFile string
+	KeepBody bool // header-only edit of a body the text editor cannot represent
+	Drop     bool // close the client's connection without an answer
 }
 
 // Server is the running MITM proxy. Start it once; Flows drains what it
@@ -1351,14 +1369,23 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 	} else {
 		bp.Header = f.Request.Header.Clone()
 	}
-	body, err := f.Request.DecodedBody()
+	// The engine's DecodedBody would allocate the whole decoded payload.
+	// The breakpoint reads only the editor's share from these wire bytes.
+	body := f.Request.Body
+	encoding := f.Request.Header.Get("Content-Encoding")
 	if phase == PhaseResponse && f.Response != nil {
-		body, err = f.Response.DecodedBody()
+		body = f.Response.Body
+		encoding = f.Response.Header.Get("Content-Encoding")
 	}
-	bp.BodyReadOnly = err != nil || len(body) > maxBreakpointBody || !utf8.Valid(body) || bytes.ContainsRune(body, 0)
-	if !bp.BodyReadOnly {
-		bp.Body = string(body)
+	source := breakpointBody{wire: body, enc: strings.ToLower(strings.TrimSpace(encoding))}
+	view := source.view()
+	if view.undecodable {
+		source = breakpointBody{wire: body, rawOnly: true}
+		view = source.view()
 	}
+	source.known = true
+	bp.Body, bp.BodySize, bp.BodyReadOnly = view.text, int64(view.size), view.readOnly
+	bp.source = source
 	pausedAt := time.Now()
 	ctx := context.Background()
 	if raw := f.Request.Raw(); raw != nil {
@@ -1367,6 +1394,12 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 		ctx = raw.Context()
 	}
 	d := s.waitBreakpoint(ctx, bp)
+	if d != nil && bp.BodyReadOnly && d.BodyFile == "" {
+		// A binary, undecodable or oversized body never round-trips through
+		// text. A file is the only way to replace it; every other decision
+		// keeps the original bytes, even if a caller sends edited text.
+		d.KeepBody, d.Body = true, ""
+	}
 	// The user's time at the breakpoint is not network time.
 	s.mu.Lock()
 	if start, ok := s.started[f.Id]; ok {
@@ -2143,9 +2176,19 @@ func (a *addon) Request(f *proxy.Flow) {
 		if d.Header != nil {
 			f.Request.Header = d.Header.Clone()
 		}
-		if !d.KeepBody {
+		if d.BodyFile != "" {
+			body, err := os.ReadFile(d.BodyFile)
+			if err != nil {
+				recordAction(f, "Request breakpoint · replacement file could not be read")
+				f.Response = breakpointAbort(http.StatusBadGateway)
+				a.server.publish(f)
+				return
+			}
+			f.Request.Body = body
+			setEditedBodyHeaders(f.Request.Header, int64(len(body)))
+		} else if !d.KeepBody {
 			f.Request.Body = []byte(d.Body)
-			clearBodyEncoding(f.Request.Header)
+			setEditedBodyHeaders(f.Request.Header, int64(len(f.Request.Body)))
 		}
 	}
 	noCacheRequest(f)
@@ -2296,19 +2339,22 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 				return a.server.throttleDown(f, bytes.NewReader(nil))
 			}
 			recordAction(f, "Response breakpoint applied")
-			applyResponseDecision(f, d)
+			if err := applyResponseDecision(f, d); err != nil {
+				recordAction(f, "Response breakpoint · replacement file could not be read")
+				f.Response = breakpointAbort(http.StatusBadGateway)
+			}
 			edited = true
-			bodyEdited = bodyEdited || d.Abort || !d.KeepBody
+			bodyEdited = bodyEdited || d.Abort || !d.KeepBody || d.BodyFile != ""
 		}
 	}
 	if !edited {
 		a.server.publish(f)
 		return a.server.throttleDown(f, in)
 	}
-	if bodyEdited {
+	if bodyEdited && f.Response.BodyReader == nil {
 		clearBodyEncoding(f.Response.Header)
+		f.Response.Header.Set("Content-Length", strconv.Itoa(len(f.Response.Body)))
 	}
-	f.Response.Header.Set("Content-Length", strconv.Itoa(len(f.Response.Body)))
 	a.server.publish(f)
 	// reply writes the returned reader and response.Body both: keep the
 	// reader, which carries the edit, and clear the field.
@@ -2328,13 +2374,15 @@ func (s *Server) dropAtBreakpoint(f *proxy.Flow) {
 }
 
 // applyResponseDecision writes what the user chose at a response breakpoint.
-func applyResponseDecision(f *proxy.Flow, d *Decision) {
+// A replacement file becomes a response reader: its bytes stay on disk until
+// the proxy streams them to the client, and the header length is the file's.
+func applyResponseDecision(f *proxy.Flow, d *Decision) error {
 	if f.Response == nil {
-		return
+		return nil
 	}
 	if d.Abort {
 		f.Response = breakpointAbort(d.AbortStatus)
-		return
+		return nil
 	}
 	if d.Status > 0 {
 		f.Response.StatusCode = d.Status
@@ -2342,10 +2390,25 @@ func applyResponseDecision(f *proxy.Flow, d *Decision) {
 	if d.Header != nil {
 		f.Response.Header = d.Header.Clone()
 	}
-	if !d.KeepBody {
+	if d.BodyFile != "" {
+		file, err := os.Open(d.BodyFile)
+		if err != nil {
+			return err
+		}
+		info, err := file.Stat()
+		if err != nil {
+			_ = file.Close()
+			return err
+		}
+		f.Response.BodyReader = &closingReader{Reader: file, file: file}
+		f.Response.Body = nil
+		setEditedBodyHeaders(f.Response.Header, info.Size())
+	} else if !d.KeepBody {
 		f.Response.Body = []byte(d.Body)
 		f.Response.BodyReader = nil
+		setEditedBodyHeaders(f.Response.Header, int64(len(f.Response.Body)))
 	}
+	return nil
 }
 
 func breakpointAbort(status int) *proxy.Response {
@@ -2365,6 +2428,15 @@ func clearBodyEncoding(h http.Header) {
 	for _, name := range []string{"Content-Length", "Transfer-Encoding", "Content-Encoding", "Content-MD5", "Digest", "Content-Digest", "Repr-Digest"} {
 		h.Del(name)
 	}
+}
+
+// setEditedBodyHeaders frames decoded or file-replaced bytes. The editor
+// deliberately drops Content-Encoding rather than recompressing, so the
+// bytes sent are exactly the bytes shown or chosen; the length is then the
+// new body's own length, not the one it inherited.
+func setEditedBodyHeaders(h http.Header, length int64) {
+	clearBodyEncoding(h)
+	h.Set("Content-Length", strconv.FormatInt(length, 10))
 }
 
 func isSSE(r *proxy.Response) bool {
@@ -2581,8 +2653,11 @@ func (s *Server) breakLocalResponse(f *proxy.Flow, resp *proxy.Response) *proxy.
 		return breakpointAbort(http.StatusBadGateway)
 	}
 	recordAction(f, "Response breakpoint applied")
-	applyResponseDecision(f, d)
-	if d.Abort || !d.KeepBody {
+	if err := applyResponseDecision(f, d); err != nil {
+		recordAction(f, "Response breakpoint · replacement file could not be read")
+		return breakpointAbort(http.StatusBadGateway)
+	}
+	if (d.Abort || !d.KeepBody) && f.Response.BodyReader == nil {
 		clearBodyEncoding(f.Response.Header)
 		f.Response.Header.Set("Content-Length", strconv.Itoa(len(f.Response.Body)))
 	}

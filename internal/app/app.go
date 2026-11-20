@@ -813,6 +813,11 @@ type app struct {
 	bpBody    string
 	bpHeaders string
 	bpAbort   string
+	// bpReplaceFile is a file whose exact bytes replace the body at the next
+	// continue. bpBodySeen notices later text edits so they win instead.
+	bpReplaceFile string
+	bpReplaceSize int64
+	bpBodySeen    string
 	// The templates saved at breakpoints; bpTemplate names the one applied
 	// at this pause, bpSaving shows the name field, bpNote what went wrong.
 	bpTemplatesPath string
@@ -1413,6 +1418,7 @@ func (a *app) showBreakpoint(bp *capture.Breakpoint) {
 	}
 	a.bpBody = bp.Body
 	a.bpHeaders = request.HeaderBlock(bp.Header)
+	a.bpReplaceFile, a.bpReplaceSize, a.bpBodySeen = "", 0, a.bpBody
 	a.bpAbort = "502 Bad Gateway"
 	a.bpTemplate, a.bpSaving, a.bpNote = "", false, ""
 	a.bpRawMode, a.bpRawNote = false, ""
@@ -1428,6 +1434,7 @@ func (a *app) resolveBreak(abort, original, drop bool) {
 		return
 	}
 	a.syncRaw()
+	a.syncBreakpointBodyFile()
 	if !abort && !original && !drop && a.breakpointError() != "" {
 		return
 	}
@@ -1442,6 +1449,8 @@ func (a *app) resolveBreak(abort, original, drop bool) {
 		abortCode, _, _ := strings.Cut(a.bpAbort, " ")
 		abortStatus, _ := strconv.Atoi(abortCode)
 		body := a.composedBody()
+		replacement := a.bpReplaceFile
+		keepBody := replacement == "" && (bp.BodyReadOnly || body == bp.Body)
 		resumed := a.srv.Resume(bp.ID, capture.Decision{
 			Abort:       abort,
 			AbortStatus: abortStatus,
@@ -1452,7 +1461,8 @@ func (a *app) resolveBreak(abort, original, drop bool) {
 			Status:      status,
 			Body:        body,
 			Header:      request.ParseHeaderBlock(a.bpHeaders),
-			KeepBody:    bp.BodyReadOnly || body == bp.Body,
+			BodyFile:    replacement,
+			KeepBody:    keepBody,
 		})
 		if !resumed {
 			a.bp, a.bpOpen = nil, false
@@ -1503,7 +1513,7 @@ func (a *app) breakpointError() string {
 		} else if !utf8.Valid(data) {
 			return locales.TextMessageUTF8()
 		}
-		if len(data) > 1<<20 {
+		if len(data) > capture.MaxBreakpointMessage {
 			return locales.MessageEditLimit()
 		}
 		return ""
@@ -2484,6 +2494,7 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 			a.mu.Lock()
 			waiting := len(a.bps) + 1
 			a.mu.Unlock()
+			a.syncBreakpointBodyFile()
 			validation := a.breakpointError()
 			ui.Row(c).FillWidth().Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				if message {
@@ -2532,6 +2543,7 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 					uikit.TextArea(c, &a.bpRaw).Height(340).Label(locales.RawMessage()).Font(uikit.FontMono).Radius(uikit.RadiusControl)
 					if a.bp.BodyReadOnly {
 						uikit.Hint(c, locales.BinaryUndecodableOrLargeBody())
+						a.breakpointFileActions(c)
 					}
 					return
 				}
@@ -2554,7 +2566,13 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 				uikit.Meta(c, locales.HeadersOneNameValuePer())
 				uikit.TextArea(c, &a.bpHeaders).Height(130).Label(locales.BreakpointHeaders()).Radius(uikit.RadiusControl)
 				if a.bp.BodyReadOnly {
-					uikit.Hint(c, locales.BinaryUndecodableOrLargeBody())
+					if a.bp.BodySize > capture.MaxBreakpointBody {
+						size := fmt.Sprintf("%.1f", float64(a.bp.BodySize)/(1<<20))
+						uikit.Hint(c, locales.BodyOverEditorLimit(size, capture.MaxBreakpointBody/(1<<20)))
+					} else {
+						uikit.Hint(c, locales.BinaryBodyKept())
+					}
+					a.breakpointFileActions(c)
 				} else if a.bpFormRows {
 					uikit.Meta(c, locales.FormFields())
 					a.requestFieldsEditor(c, &a.bpForm, fieldsOptions{}, locales.Parameter())
