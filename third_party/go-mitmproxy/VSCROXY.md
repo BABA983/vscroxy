@@ -596,8 +596,10 @@ HTTP/2 connections bypass the HTTP server's `Serve` and `ConnState` entirely:
 their request contexts and closes the sockets before joining them. Their
 `ServeConnOpts.Context` carries request values only; it does not stop the
 connection's read loop. Hijacked connections are terminal at `StateHijacked`;
-the caller still owns their lifetime through `DropConnections`. Without the
-joins, shutdown could return with those goroutines still running.
+the caller still owns their lifetime through `DropConnections`. Every join
+registration is guarded by a mutex and a closed flag (with a per-connection set
+for `ConnState`), so an Add cannot race a Wait whose counter has reached zero.
+Without the joins, shutdown could return with those goroutines still running.
 
 ## Maintaining this patch
 

@@ -83,6 +83,8 @@ type Proxy struct {
 
 	entry            *entry
 	attacker         *attacker
+	attackerMu       sync.Mutex
+	attackerClosed   bool
 	attackerWG       sync.WaitGroup // joins attacker.start's Serve loop
 	webSocketHandler *webSocketHandler
 	shouldIntercept  func(req *http.Request) bool                                     // req is received by proxy.server
@@ -153,15 +155,24 @@ func (proxy *Proxy) Start() error {
 // Serve serves on an already bound listener and closes it when serving ends.
 // This lets callers reserve an OS-assigned port without a close/rebind race.
 func (proxy *Proxy) Serve(ln net.Listener) error {
+	proxy.attackerMu.Lock()
+	if proxy.attackerClosed {
+		proxy.attackerMu.Unlock()
+		return net.ErrClosed
+	}
 	proxy.attackerWG.Go(func() {
 		if err := proxy.attacker.start(); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, net.ErrClosed) {
 			log.Error(err)
 		}
 	})
+	proxy.attackerMu.Unlock()
 	return proxy.entry.serve(ln)
 }
 
 func (proxy *Proxy) Close() error {
+	proxy.attackerMu.Lock()
+	proxy.attackerClosed = true
+	proxy.attackerMu.Unlock()
 	err := proxy.attacker.close()
 	proxy.attackerWG.Wait()
 	return errors.Join(err, proxy.entry.close())

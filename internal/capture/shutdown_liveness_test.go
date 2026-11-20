@@ -127,9 +127,17 @@ func (a *requestHeadersAddon) Requestheaders(*proxy.Flow) {
 }
 
 func TestCloseReturnsWithStalledClientBody(t *testing.T) {
-	s, _ := startServer(t)
+	s, err := New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Addons are read by the accept loop, so install this before Start.
 	seen := &requestHeadersAddon{seen: make(chan struct{})}
 	s.proxy.Addons = append(s.proxy.Addons, seen)
+	if err := s.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
 
 	conn, err := net.Dial("tcp", s.Addr())
 	if err != nil {
