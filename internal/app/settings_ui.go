@@ -188,6 +188,24 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, locales.TrustedLinkHostsHint())
 		})
+		uikit.SettingsCard(c, locales.Notifications(), func() {
+			a.settingBlock(c, "general.dismissedNotices", locales.DismissedNotices(), func() ui.Element {
+				ids := slices.Clone(a.dismissedNotices)
+				return ui.Row(c).FillWidth().Wrap().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceS)).Children(func() {
+					if len(ids) == 0 {
+						uikit.Hint(c, locales.NoDismissedNotices())
+					} else {
+						for _, id := range ids {
+							uikit.Caption(c, id).SingleLine()
+						}
+					}
+					ui.Spacer(c)
+					if uikit.SecondaryButton(c, locales.ResetDismissedNotices()).Disabled(len(ids) == 0).Clicked() {
+						a.resetSetting("general.dismissedNotices")
+					}
+				})
+			}, locales.DismissedNoticesHint())
+		})
 		uikit.SettingsCard(c, locales.LocalAutomation(), func() {
 			a.settingRow(c, "general.localControl", locales.EnableLocalAutomation(), func() ui.Element {
 				on := a.controlRunning()

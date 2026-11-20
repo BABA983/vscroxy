@@ -372,6 +372,9 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 				uikit.Caption(c, locales.ScriptErrors(int(a.scriptErrs))).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 			}
 		})
+		// A Window progress task takes its place in the status bar; it
+		// stays before the tools so its Cancel remains reachable.
+		a.progressStatus(c, t)
 		ui.Spacer(c)
 		// The tools that are on follow the window, not one screen: a
 		// breakpoint or a throttle is on everywhere.

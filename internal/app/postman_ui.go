@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"maps"
@@ -39,12 +40,18 @@ func (a *app) importRequests() {
 		if err != nil || len(paths) == 0 {
 			return
 		}
-		data, err := os.ReadFile(paths[0])
-		if err != nil {
-			a.fail(locales.ImportText2(), err)
-			return
-		}
-		a.win.Update(func() { a.importData(data, paths[0]) })
+		path := paths[0]
+		a.importProgress(locales.ImportCollectionTask(), func(ctx context.Context, report func(progressReport)) (func(), error) {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return nil, err
+			}
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			report(progressReport{message: locales.ImportCollectionTask(), percentage: 60})
+			return func() { a.importData(data, path) }, nil
+		})
 	})
 }
 
@@ -61,38 +68,47 @@ func (a *app) importCollectionFolder() {
 		if err != nil || len(paths) == 0 {
 			return
 		}
-		a.importCollectionDir(paths[0])
+		a.importProgress(locales.ImportCollectionTask(), func(ctx context.Context, report func(progressReport)) (func(), error) {
+			merge, err := a.loadCollectionDir(ctx, paths[0])
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", locales.ImportCollectionFolder2(), err)
+			}
+			report(progressReport{message: locales.ImportCollectionTask(), percentage: 60})
+			return merge, nil
+		})
 	})
 }
 
-// importCollectionDir reads a Postman v3 or Bruno collection directory off the
-// UI thread, then merges it on the UI thread. Bruno wins when both markers are
-// present: a Bruno folder can contain a .resources directory of its own.
-func (a *app) importCollectionDir(path string) {
+// loadCollectionDir reads a Postman v3 or Bruno collection directory on a
+// worker and returns the merge to run on the UI thread. Bruno wins when both
+// markers are present: a Bruno folder can contain a .resources directory of
+// its own.
+func (a *app) loadCollectionDir(ctx context.Context, path string) (merge func(), err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			// Do not put the panic value in the log: it is not request data we
-			// want to record, and the type is enough to identify the bug.
-			a.fail(locales.ImportCollectionFolder2(), fmt.Errorf("import stopped unexpectedly (%T)", r))
+			// Do not put the panic value in the error: it is not request data
+			// we want to record, and the type identifies the bug.
+			merge, err = nil, fmt.Errorf("import stopped unexpectedly (%T)", r)
 		}
 	}()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	switch collectionDirKindOf(path) {
 	case collectionDirV3:
 		col, err := postman.ReadCollectionDir(path)
 		if err != nil {
-			a.fail(locales.ImportPostmanCollection(), err)
-			return
+			return nil, fmt.Errorf("%s: %w", locales.ImportPostmanCollection(), err)
 		}
-		a.win.Update(func() { a.importPostmanCollection(col) })
+		return func() { a.importPostmanCollection(col) }, nil
 	case collectionDirBruno:
 		result, err := imports.ReadBrunoDir(path)
 		if err != nil {
-			a.fail(locales.ImportBrunoCollection(), err)
-			return
+			return nil, fmt.Errorf("%s: %w", locales.ImportBrunoCollection(), err)
 		}
-		a.win.Update(func() { a.importThirdParty(result, locales.ImportBrunoCollection()) })
+		return func() { a.importThirdParty(result, locales.ImportBrunoCollection()) }, nil
 	default:
-		a.fail(locales.ImportCollectionFolder2(), fmt.Errorf("not a Postman v3 collection or a Bruno collection"))
+		return nil, fmt.Errorf("not a Postman v3 collection or a Bruno collection")
 	}
 }
 

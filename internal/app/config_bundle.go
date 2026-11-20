@@ -6,6 +6,7 @@ package app
 // Secrets (the vault) and variables are not part of it.
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
@@ -110,6 +111,7 @@ func (a *app) currentSettings() settings {
 		LocalControl:         a.localControl,
 		DisableUpdateCheck:   !a.updateCheck,
 		LastRunVersion:       a.lastRunVersion,
+		DismissedNotices:     slices.Clone(a.dismissedNotices),
 		TrustedLinkHosts:     slices.Clone(a.trustedLinkHosts),
 		TrustedProjects:      trusted,
 		UntrustedProjects:    untrusted,
@@ -148,6 +150,7 @@ func (a *app) exportConfig() (b configBundle, notes []string) {
 	s.TrustedProjects, s.UntrustedProjects = nil, nil
 	s.LogLevel = ""
 	s.DisableUpdateCheck, s.LastRunVersion = false, ""
+	s.DismissedNotices = nil
 	s.AttentionSignals = ""
 	s.Language = ""      // the reader's language, not the bundle's
 	s.SOCKSPassword = "" // a credential, never in a shared bundle
@@ -271,23 +274,35 @@ func parseConfig(data []byte) (configBundle, error) {
 	return b, nil
 }
 
-// exportConfigTo writes the configuration to path.
+// exportConfigTo writes the configuration as one cancellable progress task.
+// The bundle is gathered on the UI thread; only marshalling and the write
+// happen on the worker.
 func (a *app) exportConfigTo(path string) {
 	b, notes := a.exportConfig()
-	data, err := json.Marshal(b, jsontext.WithIndent("  "))
-	if err == nil {
-		err = store.WriteFile(path, append(data, '\n'))
-	}
-	if err != nil {
-		a.fail(locales.ExportConfiguration(), err)
-		return
-	}
-	text := locales.ConfigExported(len(b.Rules), len(b.Scripts), len(a.profiles.set.Profiles), filepath.Base(path))
-	if len(notes) > 0 {
-		a.warn(text + " · " + strings.Join(notes, "; "))
-		return
-	}
-	a.done(text)
+	rules, scripts, profiles := len(b.Rules), len(b.Scripts), len(a.profiles.set.Profiles)
+	a.withProgress(progressOptions{
+		title:       locales.ExportConfigTask(),
+		location:    progressNotification,
+		cancellable: true,
+	}, func(ctx context.Context, report func(progressReport)) (string, error) {
+		report(progressReport{message: locales.ExportConfigTask(), percentage: 20})
+		data, err := json.Marshal(b, jsontext.WithIndent("  "))
+		if err != nil {
+			return "", err
+		}
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		report(progressReport{message: locales.ExportConfigTask(), percentage: 70})
+		if err := store.WriteFile(path, append(data, '\n')); err != nil {
+			return "", err
+		}
+		text := locales.ConfigExported(rules, scripts, profiles, filepath.Base(path))
+		if len(notes) > 0 {
+			text += " · " + strings.Join(notes, "; ")
+		}
+		return text, nil
+	})
 }
 
 // importConfig replaces the chosen parts of the configuration with b's. The
@@ -316,12 +331,13 @@ func (a *app) prepareImportedUpstream(b configBundle, parts [3]bool, secrets map
 	return cfg, imported, nil
 }
 
-// startConfigImport preflights the upstream in a goroutine, then applies every
-// chosen part on the UI thread. A rejected upstream changes neither the SSL
-// settings nor the lists.
+// startConfigImport preflights the upstream in a cancellable progress task,
+// then applies every chosen part on the UI thread. A rejected or cancelled
+// upstream changes neither the SSL settings nor the lists.
 func (a *app) startConfigImport(b configBundle, parts [3]bool, label string) {
-	win := a.win
-	if win == nil {
+	if a.win == nil {
+		// Headless callers, including tests, need the apply to be done
+		// before this call returns.
 		a.configImport.open = false
 		if err := a.importConfig(b, parts); err != nil {
 			a.fail(locales.ImportConfiguration(), err)
@@ -331,21 +347,32 @@ func (a *app) startConfigImport(b configBundle, parts [3]bool, label string) {
 		return
 	}
 	secrets := maps.Clone(a.upstreamSecrets)
-	go guarded(func() {
-		prepared, _, err := a.prepareImportedUpstream(b, parts, secrets)
-		win.Update(func() {
-			a.configImport.importing = false
-			a.configImport.open = false
-			if err != nil {
-				a.fail(locales.ImportConfiguration(), err)
-				return
-			}
+	var prepared *upstream.Config
+	a.withProgress(progressOptions{
+		title:       locales.ImportConfigTask(),
+		location:    progressNotification,
+		cancellable: true,
+		settle: func() {
+			a.configImport.importing, a.configImport.open = false, false
+		},
+		finish: func() (string, error) {
 			if err := a.importConfigPrepared(b, parts, prepared); err != nil {
-				a.fail(locales.ImportConfiguration(), err)
-				return
+				return "", err
 			}
-			a.done(locales.ImportedLabel(label))
-		})
+			return locales.ImportedLabel(label), nil
+		},
+	}, func(ctx context.Context, report func(progressReport)) (string, error) {
+		report(progressReport{message: locales.ImportConfigTask(), percentage: 20})
+		loaded, _, err := a.prepareImportedUpstream(b, parts, secrets)
+		if err != nil {
+			return "", err
+		}
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		report(progressReport{message: locales.ImportConfigTask(), percentage: 80})
+		prepared = loaded
+		return "", nil
 	})
 }
 

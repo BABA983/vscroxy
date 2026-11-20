@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,34 +51,55 @@ func (a *app) urlImportModal(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// fetchImportURL reads the document off the UI thread, then merges it through
-// the same path as a dropped file.
+// fetchImportURL reads the document as one cancellable progress task, then
+// merges it through the same path as a dropped file.
 func (a *app) fetchImportURL() {
 	raw := strings.TrimSpace(a.urlImportText)
 	a.urlImportBusy, a.urlImportProblem = true, ""
-	go guarded(func() {
+	var data []byte
+	var name string
+	a.withProgress(progressOptions{
+		title:       locales.ImportURLTask(),
+		location:    progressNotification,
+		cancellable: true,
+		settle:      func() { a.urlImportBusy = false },
+		finish: func() (string, error) {
+			a.urlImportOpen = false
+			return a.resultNotice(func() { a.importData(data, name) })
+		},
+	}, func(ctx context.Context, report func(progressReport)) (string, error) {
+		report(progressReport{message: locales.ImportURLTask(), percentage: 10})
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.Proxy = nil // Never loop back through vscroxy's own proxy.
-		data, name, err := downloadImportURL(&http.Client{Timeout: 30 * time.Second, Transport: transport}, raw)
+		client := &http.Client{Timeout: 30 * time.Second, Transport: transport}
+		fetched, fetchedName, err := downloadImportURLContext(ctx, client, raw)
 		if err != nil {
-			a.win.Update(func() { a.urlImportBusy, a.urlImportProblem = false, err.Error() })
-			return
+			a.publishProgress(func() { a.urlImportProblem = err.Error() })
+			return "", err
 		}
-		a.win.Update(func() {
-			a.urlImportOpen, a.urlImportBusy = false, false
-			a.importData(data, name)
-		})
+		report(progressReport{message: locales.ImportURLTask(), percentage: 80})
+		data, name = fetched, fetchedName
+		return "", nil
 	})
 }
 
-// downloadImportURL fetches one import document. It refuses a non-HTTP URL, a
-// non-2xx answer and anything over maxURLImport instead of truncating it.
+// downloadImportURL fetches one import document without a task context.
 func downloadImportURL(client *http.Client, raw string) ([]byte, string, error) {
+	return downloadImportURLContext(context.Background(), client, raw)
+}
+
+// downloadImportURLContext fetches one import document. It refuses a non-HTTP
+// URL, a non-2xx answer and anything over maxURLImport instead of truncating.
+func downloadImportURLContext(ctx context.Context, client *http.Client, raw string) ([]byte, string, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
 		return nil, "", fmt.Errorf("%s", locales.ImportUrlNeedsHttp())
 	}
-	resp, err := client.Get(u.String())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, "", err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, "", err
 	}
@@ -87,6 +109,9 @@ func downloadImportURL(client *http.Client, raw string) ([]byte, string, error) 
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxURLImport+1))
 	if err != nil {
+		return nil, "", err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, "", err
 	}
 	if len(data) > maxURLImport {

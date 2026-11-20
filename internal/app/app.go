@@ -141,6 +141,9 @@ type app struct {
 	settingsGen          int
 	settingsIndex        settingsSearchIndex
 	settingsSearchHandle ui.Handle
+	// dismissedNotices are the stable ids of notices the person chose not
+	// to see again. They are local and saved by id, never by text.
+	dismissedNotices []string
 	// settingsFocusSearch is a request token: zero leaves focus alone, each
 	// increment asks the search field for focus again.
 	settingsFocusSearch uint64
@@ -187,6 +190,10 @@ type app struct {
 	urlImportText    string
 	urlImportProblem string
 	urlImportBusy    bool
+	// progressDialog is the Dialog location's modal. The id keeps a finishing
+	// task from closing a newer dialog's modal.
+	progressDialogOpen bool
+	progressDialogID   uint64
 	// docsOpen shows a collection's or folder's read-only documentation;
 	// docsPath is what it covers. docsMarkdown keeps the view's parse.
 	docsOpen       bool
@@ -919,6 +926,7 @@ func newApp() *app {
 			a.attention.setMode(saved.AttentionSignals)
 			a.updateCheck = !saved.DisableUpdateCheck
 			a.lastRunVersion = saved.LastRunVersion
+			a.dismissedNotices = slices.Clone(saved.DismissedNotices)
 			a.language = saved.Language
 			a.certificates = saved.Certificates.Normalize()
 			a.saved.Certificates = a.certificates
@@ -2192,6 +2200,7 @@ func (a *app) view(c *ui.Context) {
 	a.sslModal(c, t)
 	a.toolsModal(c, t)
 	a.configImportDialog(c, t)
+	a.progressDialog(c, t)
 	a.dnsRuleModal(c, t)
 	a.hostListModal(c, t, &a.ignoreAppsOpen, locales.IgnoredApps2(),
 		locales.AppsWhoseFlowsStayOut(),

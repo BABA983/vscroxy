@@ -15,6 +15,10 @@ import (
 	"github.com/egoist/mygo"
 )
 
+// updateNoticeID is the stable key of the update notice. It is saved instead
+// of the text when someone chooses not to see the notice again.
+const updateNoticeID = "notices.update.available"
+
 // connectionMeter is the platform's own answer to whether the current
 // network should be spared optional traffic. Tests inject it.
 type connectionMeter interface {
@@ -151,9 +155,10 @@ func (a *app) offerUpdate(release update.Release) {
 		return
 	}
 	a.notify(notice{
-		level:  noticeInfo,
-		sticky: true,
-		text:   locales.UpdateAvailable(strings.TrimPrefix(release.Tag, "v")),
-		detail: locales.UpdateAvailableHint(),
+		level:          noticeInfo,
+		sticky:         true,
+		neverShowAgain: updateNoticeID,
+		text:           locales.UpdateAvailable(strings.TrimPrefix(release.Tag, "v")),
+		detail:         locales.UpdateAvailableHint(),
 	})
 }

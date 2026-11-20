@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -22,6 +23,8 @@ const (
 	noticeSuccess
 	noticeWarning
 	noticeError
+	// noticeCancelled is the end of a cancellable task, not a failure.
+	noticeCancelled
 )
 
 // notice is feedback on what just happened: one sentence, the raw error or
@@ -47,7 +50,13 @@ type notice struct {
 	// sticky keeps an info notice until it is closed, for something worth
 	// acting on that did not just happen, such as an available update.
 	sticky bool
-	run    func() // runs on the UI thread
+	// progress is set on a long task's one notice. Reports edit that notice
+	// in place, using its id as the toast's identity.
+	progress *progressState
+	// neverShowAgain is a stable id: once suppressed under this id, the
+	// notice is not shown again in any language.
+	neverShowAgain string
+	run            func() // runs on the UI thread
 	// openURL is the destination of a link action, such as a what's-new
 	// notice's release page. The window's services open it when the action
 	// is chosen, from a toast or from the notification center.
@@ -72,6 +81,9 @@ func (n notice) line() string {
 // in the in-memory notification history. Errors also go to the log, which
 // never holds request contents: only the text and detail.
 func (a *app) notify(n notice) {
+	if n.neverShowAgain != "" && a.noticeDismissed(n.neverShowAgain) {
+		return
+	}
 	if n.level == noticeError {
 		applog.For("app").Error(n.text, "detail", n.detail)
 	}
@@ -80,6 +92,9 @@ func (a *app) notify(n notice) {
 	n.at = time.Now()
 	n.id = center.nextID
 	center.nextID++
+	if n.progress != nil {
+		n.progress.id = n.id
+	}
 	a.notices = append(a.notices, n)
 	if len(a.notices) > noticeHistoryLimit {
 		a.notices = slices.Clone(a.notices[len(a.notices)-noticeHistoryLimit:])
@@ -164,11 +179,22 @@ func (a *app) showNotices(c *ui.Context) {
 	a.mu.Unlock()
 	services := c.Services()
 	for _, n := range queued {
+		if n.progress != nil && n.progress.location != progressNotification {
+			// Window lives in the status bar and Dialog in its modal; a
+			// toast there would be a second place for the same task.
+			continue
+		}
 		if n.valid != nil && !n.valid() {
 			continue
 		}
 		id := n.id
-		t := ui.Toast{ID: n.line(), Title: n.text, Description: n.detail, Action: n.action,
+		toastID := n.line()
+		if n.progress != nil {
+			// A report changes the text, but it must replace the same
+			// toast, not open a second one beside it.
+			toastID = "progress-" + strconv.FormatUint(id, 10)
+		}
+		t := ui.Toast{ID: toastID, Title: n.text, Description: n.detail, Action: n.action,
 			OnAction: func() {
 				if !n.persistent {
 					a.markNoticeSpent(id)
@@ -193,6 +219,8 @@ func (a *app) showNotices(c *ui.Context) {
 			t.Type, t.Timeout = "warning", -1
 		case noticeError:
 			t.Type, t.Timeout = "error", -1
+		case noticeCancelled:
+			t.Timeout = 6 * time.Second
 		}
 		c.AddToast(t)
 	}

@@ -12,6 +12,7 @@ package app
 import (
 	"maps"
 	"reflect"
+	"slices"
 
 	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/capture"
@@ -152,6 +153,12 @@ var settingsRegistry = []settingSpec{
 		title: locales.CheckForUpdates, description: locales.CheckForUpdatesHint,
 		value: settingValue{get: func(a *app) any { return a.updateCheck }, def: true,
 			set: func(a *app, v any) { a.updateCheck = v.(bool) }},
+	},
+	{
+		id: "general.dismissedNotices", section: settingsGeneral,
+		title: locales.DismissedNotices, description: locales.DismissedNoticesHint,
+		value: settingValue{get: func(a *app) any { return slices.Clone(a.dismissedNotices) }, def: []string(nil),
+			set: func(a *app, _ any) { a.resetDismissedNotices() }},
 	},
 	{
 		id: "general.setupGuide", section: settingsGeneral,

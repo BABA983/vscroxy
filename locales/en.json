@@ -8369,5 +8369,33 @@
   "nothingToRedo": "Nothing to redo",
   "undoChangedOnDisk": "Cannot undo “{label}” across all files: a file changed on disk or uses another format version",
   "redoChangedOnDisk": "Cannot redo “{label}” across all files: a file changed on disk or uses another format version",
-  "deleteCanBeUndone": "{detail} You can undo this."
+  "deleteCanBeUndone": "{detail} You can undo this.",
+  "@progressDone": {
+    "placeholders": {
+      "title": {"type": "String"}
+    }
+  },
+  "progressDone": "{title} finished",
+  "@progressCancelled": {
+    "placeholders": {
+      "title": {"type": "String"}
+    }
+  },
+  "progressCancelled": "Cancelled: {title}",
+  "progressCancelling": "Cancelling…",
+  "@progressPercent": {
+    "placeholders": {
+      "percent": {"type": "int"}
+    }
+  },
+  "progressPercent": "{percent}%",
+  "dontShowAgain": "Don't show again",
+  "dismissedNotices": "Dismissed notices",
+  "dismissedNoticesHint": "Informational notices you chose not to see again, listed by id",
+  "noDismissedNotices": "None",
+  "resetDismissedNotices": "Reset dismissed notices",
+  "importCollectionTask": "Importing collection…",
+  "importConfigTask": "Importing configuration…",
+  "exportConfigTask": "Exporting configuration…",
+  "importURLTask": "Importing from URL…"
 }

@@ -39261,3 +39261,133 @@ func DeleteCanBeUndone(detail string) string { return In(i18n.Locale()).DeleteCa
 func (msgs Messages) DeleteCanBeUndone(detail string) string {
 	return Catalog.Format(msgs.locale, "deleteCanBeUndone", map[string]any{"detail": detail})
 }
+
+// ProgressDone says "{title} finished"
+// in the language the app shows.
+func ProgressDone(title string) string { return In(i18n.Locale()).ProgressDone(title) }
+
+// ProgressDone says "{title} finished"
+// in the language of msgs.
+func (msgs Messages) ProgressDone(title string) string {
+	return Catalog.Format(msgs.locale, "progressDone", map[string]any{"title": title})
+}
+
+// ProgressCancelled says "Cancelled: {title}"
+// in the language the app shows.
+func ProgressCancelled(title string) string { return In(i18n.Locale()).ProgressCancelled(title) }
+
+// ProgressCancelled says "Cancelled: {title}"
+// in the language of msgs.
+func (msgs Messages) ProgressCancelled(title string) string {
+	return Catalog.Format(msgs.locale, "progressCancelled", map[string]any{"title": title})
+}
+
+// ProgressCancelling says "Cancelling…"
+// in the language the app shows.
+func ProgressCancelling() string { return In(i18n.Locale()).ProgressCancelling() }
+
+// ProgressCancelling says "Cancelling…"
+// in the language of msgs.
+func (msgs Messages) ProgressCancelling() string {
+	return Catalog.Format(msgs.locale, "progressCancelling", nil)
+}
+
+// ProgressPercent says "{percent}%"
+// in the language the app shows.
+func ProgressPercent(percent int) string { return In(i18n.Locale()).ProgressPercent(percent) }
+
+// ProgressPercent says "{percent}%"
+// in the language of msgs.
+func (msgs Messages) ProgressPercent(percent int) string {
+	return Catalog.Format(msgs.locale, "progressPercent", map[string]any{"percent": percent})
+}
+
+// DontShowAgain says "Don't show again"
+// in the language the app shows.
+func DontShowAgain() string { return In(i18n.Locale()).DontShowAgain() }
+
+// DontShowAgain says "Don't show again"
+// in the language of msgs.
+func (msgs Messages) DontShowAgain() string {
+	return Catalog.Format(msgs.locale, "dontShowAgain", nil)
+}
+
+// DismissedNotices says "Dismissed notices"
+// in the language the app shows.
+func DismissedNotices() string { return In(i18n.Locale()).DismissedNotices() }
+
+// DismissedNotices says "Dismissed notices"
+// in the language of msgs.
+func (msgs Messages) DismissedNotices() string {
+	return Catalog.Format(msgs.locale, "dismissedNotices", nil)
+}
+
+// DismissedNoticesHint says "Informational notices you chose not to see again, listed by id"
+// in the language the app shows.
+func DismissedNoticesHint() string { return In(i18n.Locale()).DismissedNoticesHint() }
+
+// DismissedNoticesHint says "Informational notices you chose not to see again, listed by id"
+// in the language of msgs.
+func (msgs Messages) DismissedNoticesHint() string {
+	return Catalog.Format(msgs.locale, "dismissedNoticesHint", nil)
+}
+
+// NoDismissedNotices says "None"
+// in the language the app shows.
+func NoDismissedNotices() string { return In(i18n.Locale()).NoDismissedNotices() }
+
+// NoDismissedNotices says "None"
+// in the language of msgs.
+func (msgs Messages) NoDismissedNotices() string {
+	return Catalog.Format(msgs.locale, "noDismissedNotices", nil)
+}
+
+// ResetDismissedNotices says "Reset dismissed notices"
+// in the language the app shows.
+func ResetDismissedNotices() string { return In(i18n.Locale()).ResetDismissedNotices() }
+
+// ResetDismissedNotices says "Reset dismissed notices"
+// in the language of msgs.
+func (msgs Messages) ResetDismissedNotices() string {
+	return Catalog.Format(msgs.locale, "resetDismissedNotices", nil)
+}
+
+// ImportCollectionTask says "Importing collection…"
+// in the language the app shows.
+func ImportCollectionTask() string { return In(i18n.Locale()).ImportCollectionTask() }
+
+// ImportCollectionTask says "Importing collection…"
+// in the language of msgs.
+func (msgs Messages) ImportCollectionTask() string {
+	return Catalog.Format(msgs.locale, "importCollectionTask", nil)
+}
+
+// ImportConfigTask says "Importing configuration…"
+// in the language the app shows.
+func ImportConfigTask() string { return In(i18n.Locale()).ImportConfigTask() }
+
+// ImportConfigTask says "Importing configuration…"
+// in the language of msgs.
+func (msgs Messages) ImportConfigTask() string {
+	return Catalog.Format(msgs.locale, "importConfigTask", nil)
+}
+
+// ExportConfigTask says "Exporting configuration…"
+// in the language the app shows.
+func ExportConfigTask() string { return In(i18n.Locale()).ExportConfigTask() }
+
+// ExportConfigTask says "Exporting configuration…"
+// in the language of msgs.
+func (msgs Messages) ExportConfigTask() string {
+	return Catalog.Format(msgs.locale, "exportConfigTask", nil)
+}
+
+// ImportURLTask says "Importing from URL…"
+// in the language the app shows.
+func ImportURLTask() string { return In(i18n.Locale()).ImportURLTask() }
+
+// ImportURLTask says "Importing from URL…"
+// in the language of msgs.
+func (msgs Messages) ImportURLTask() string {
+	return Catalog.Format(msgs.locale, "importURLTask", nil)
+}

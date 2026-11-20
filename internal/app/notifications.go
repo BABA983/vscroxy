@@ -55,7 +55,7 @@ func (a *app) noticeUnread() (errors, warnings int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for _, n := range a.notices {
-		if n.read || n.level < noticeWarning {
+		if n.read || n.level < noticeWarning || n.level == noticeCancelled {
 			continue
 		}
 		if n.level == noticeError {
@@ -101,6 +101,55 @@ func (a *app) dismissNotice(id uint64) {
 	}
 	a.mu.Unlock()
 	delete(center.expanded, id)
+	a.invalidate()
+}
+
+// noticeDismissed reports whether the stable id of a neverShowAgain notice
+// was suppressed. The saved value is an id, never the localized text.
+func (a *app) noticeDismissed(id string) bool {
+	if id == "" {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Contains(a.dismissedNotices, id)
+}
+
+// suppressNotice removes one notice forever, under its stable id, and saves
+// that id for the next launch. Settings can reset the choice later.
+func (a *app) suppressNotice(id uint64) {
+	a.mu.Lock()
+	i := a.noticeIndex(id)
+	if i < 0 || a.notices[i].neverShowAgain == "" {
+		a.mu.Unlock()
+		return
+	}
+	key := a.notices[i].neverShowAgain
+	a.notices = slices.Delete(a.notices, i, i+1)
+	if !slices.Contains(a.dismissedNotices, key) {
+		a.dismissedNotices = append(slices.Clone(a.dismissedNotices), key)
+		slices.Sort(a.dismissedNotices)
+	}
+	center := a.noticeCenter()
+	center.pending = slices.DeleteFunc(center.pending, func(n notice) bool { return n.id == id })
+	delete(center.expanded, id)
+	a.mu.Unlock()
+	a.bypassSettingsSave()
+	_ = a.persistSettings()
+	a.invalidate()
+}
+
+// resetDismissedNotices makes every neverShowAgain notice available again.
+func (a *app) resetDismissedNotices() {
+	a.mu.Lock()
+	if len(a.dismissedNotices) == 0 {
+		a.mu.Unlock()
+		return
+	}
+	a.dismissedNotices = nil
+	a.mu.Unlock()
+	a.bypassSettingsSave()
+	_ = a.persistSettings()
 	a.invalidate()
 }
 
@@ -252,6 +301,8 @@ func (a *app) noticeRow(c *ui.Context, t *ui.Theme, center *noticeCenter, n noti
 		icon, ink = warningIcon, p.Warning
 	case noticeError:
 		icon, ink = errorIcon, p.Danger
+	case noticeCancelled:
+		icon, ink = infoIcon, p.Faint
 	}
 	expanded := center.expanded[n.id]
 	if expanded == nil {
@@ -277,6 +328,9 @@ func (a *app) noticeRow(c *ui.Context, t *ui.Theme, center *noticeCenter, n noti
 				}
 				if n.alternate != "" && n.alternateRun != nil && !n.spent && (n.valid == nil || n.valid()) {
 					uikit.SecondaryButton(c, n.alternate).OnClick(func() { a.notificationAlternate(n.id) })
+				}
+				if n.neverShowAgain != "" {
+					uikit.SecondaryButton(c, locales.DontShowAgain()).OnClick(func() { a.suppressNotice(n.id) })
 				}
 				ui.Spacer(c)
 				uikit.RowIconButton(c, locales.DismissNotification(), locales.DismissNotification(), closeIcon).
