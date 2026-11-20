@@ -4202,5 +4202,12 @@
   "reviewedResponseReferences": "已核对响应引用更改",
   "backToResponseReferences": "返回建议",
   "applyResponseReferences": "应用响应引用",
-  "responseReferenceApplied": "响应引用已保存。没有发送请求。"
+  "responseReferenceApplied": "响应引用已保存。没有发送请求。",
+  "@mockReloadFailed": {
+    "placeholders": {
+      "collection": {"type": "String"},
+      "error": {"type": "String"}
+    }
+  },
+  "mockReloadFailed": "“{collection}” 的 Mock 保留了上次可用的示例：{error}"
 }

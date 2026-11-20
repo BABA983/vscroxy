@@ -287,6 +287,34 @@ collection with no saved examples is refused. Desktop control exposes
 `errorStatus`, `errorBody`, and `confirm:true`) and `mock.stop`; there is no MCP
 tool for mock servers.
 
+The mock reads the collection again when its files change: a saved addition,
+edit or deletion shows up on the same address without a restart. A request that
+was already answering finishes against the previous examples; the next one uses
+the new set. A file that cannot be parsed is reported on stderr (or as a
+desktop notice), and the last working set keeps answering until the file is
+fixed. Variables come from the environment and `--var` read at startup; change
+them by restarting the mock. The same live reload applies to a mock started
+from the desktop's collection menu.
+
+### Run against the collection's Examples
+
+`run --mock <collection>` starts the same mock on free loopback ports for one
+run and shuts it down when the run ends, including on cancellation and timeout:
+
+```sh copy Copy Run Against Examples
+bin/vscroxy-cli run --mock ./collections --folder Shop --report-json ./reports/run.json ./collections
+```
+
+The argument is any collection input `mock` accepts (native collections root,
+Postman v2 JSON or Postman v3 directory). Requests should use `{{base}}/path`
+(or `{{base_url}}/path`): the run sets both variables to the mock's HTTP
+address, overriding `--env` and `--var` for that run only. A gRPC mock also
+sets `grpc_base` to its address when one starts. Exported environment files get
+back the values these variables had before the run. The mock's examples come
+from its own input, which need not be the collection being run, and that input
+reloads while the run is active. The run still uses its isolated proxy and
+writes no traffic into the collection.
+
 ## OpenAPI lint
 
 `vscroxy-cli openapi lint` loads an OpenAPI 3.0/3.1 file with its local `$ref`

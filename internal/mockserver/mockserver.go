@@ -6,7 +6,9 @@ package mockserver
 
 import (
 	"cmp"
+	"fmt"
 	"io"
+	"maps"
 	"math/rand/v2"
 	"net/http"
 	"regexp"
@@ -14,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/request"
@@ -49,15 +52,22 @@ type Options struct {
 // Server answers from examples. Examples are grouped by method and path, in
 // the order given. Within a route the example is chosen by its name, then by
 // its status code, then the first one; MatchBodyHeader limits the choice to
-// the examples whose request body matches first.
+// the examples whose request body matches first. Reload swaps the whole set
+// at once: a request that already started keeps the set it began with.
 type Server struct {
-	vars   map[string]string
-	routes []route
-	opts   Options
+	state atomic.Pointer[serverState]
+	opts  Options
 
 	mu     sync.Mutex
 	tokens float64
 	last   time.Time
+}
+
+// serverState is immutable once published. Requests hold the pointer they
+// loaded for their whole answer, including any example delay.
+type serverState struct {
+	vars   map[string]string
+	routes []route
 }
 
 type route struct {
@@ -90,21 +100,35 @@ func NewWithOptions(examples []request.Example, vars map[string]string, opts Opt
 	if opts.Burst <= 0 {
 		opts.Burst = max(1, opts.RatePerSecond)
 	}
-	s := &Server{vars: vars, opts: opts}
+	s := &Server{opts: opts}
+	s.state.Store(buildState(examples, vars))
+	return s
+}
+
+// Reload replaces the served examples and variables in one step. A request
+// already answering keeps reading the state it loaded when it started; the
+// next request sees the new one. The caller owns the examples and variables,
+// which are copied into the new state.
+func (s *Server) Reload(examples []request.Example, vars map[string]string) {
+	s.state.Store(buildState(examples, vars))
+}
+
+func buildState(examples []request.Example, vars map[string]string) *serverState {
+	state := &serverState{vars: maps.Clone(vars)}
 	index := map[string]int{}
 	for _, e := range examples {
 		method := strings.ToUpper(cmp.Or(e.Request.Method, "GET"))
-		p := routePath(e.Request.URL, vars)
+		p := routePath(e.Request.URL, state.vars)
 		key := method + " " + p
 		i, ok := index[key]
 		if !ok {
-			i = len(s.routes)
+			i = len(state.routes)
 			index[key] = i
-			s.routes = append(s.routes, route{method: method, path: pathPattern(p)})
+			state.routes = append(state.routes, route{method: method, path: pathPattern(p)})
 		}
-		s.routes[i].examples = append(s.routes[i].examples, e)
+		state.routes[i].examples = append(state.routes[i].examples, e)
 	}
-	return s
+	return state
 }
 
 // ServeHTTP answers with the matching route's example, or 404 when none
@@ -124,9 +148,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, s.opts.ErrorBody)
 		return
 	}
-	for _, rt := range s.routes {
+	state := s.state.Load()
+	for _, rt := range state.routes {
 		if rt.method == r.Method && rt.path.MatchString(r.URL.Path) {
-			s.answer(w, r, rt.examples)
+			s.answer(w, r, rt.examples, state.vars)
 			return
 		}
 	}
@@ -153,12 +178,12 @@ func (s *Server) allow() bool {
 	return true
 }
 
-func (s *Server) answer(w http.ResponseWriter, r *http.Request, examples []request.Example) {
+func (s *Server) answer(w http.ResponseWriter, r *http.Request, examples []request.Example, vars map[string]string) {
 	candidates := examples
 	if strings.EqualFold(r.Header.Get(MatchBodyHeader), "true") {
 		body, _ := io.ReadAll(io.LimitReader(r.Body, maxMatchBody))
 		candidates = slices.DeleteFunc(slices.Clone(examples), func(e request.Example) bool {
-			return strings.TrimSpace(request.ExpandVars(e.Request.Body, s.vars)) != strings.TrimSpace(string(body))
+			return strings.TrimSpace(request.ExpandVars(e.Request.Body, vars)) != strings.TrimSpace(string(body))
 		})
 		if len(candidates) == 0 {
 			http.Error(w, "no example has this request body", http.StatusNotFound)
@@ -177,11 +202,11 @@ func (s *Server) answer(w http.ResponseWriter, r *http.Request, examples []reque
 	}
 	for name, values := range request.ParseHeaderBlock(e.Headers) {
 		for _, v := range values {
-			w.Header().Add(name, request.ExpandVars(v, s.vars))
+			w.Header().Add(name, request.ExpandVars(v, vars))
 		}
 	}
 	w.WriteHeader(cmp.Or(e.Status, http.StatusOK))
-	io.WriteString(w, request.ExpandVars(e.Body, s.vars))
+	io.WriteString(w, request.ExpandVars(e.Body, vars))
 }
 
 // pick is the example a request asks for among candidates, which are not empty.
@@ -197,6 +222,23 @@ func pick(r *http.Request, candidates []request.Example) request.Example {
 		}
 	}
 	return candidates[0]
+}
+
+// ReloadBoth replaces one collection's HTTP and gRPC examples after both sets
+// validate. A broken set leaves the last good one answering on both servers.
+// A gRPC set needs a gRPC mock that was started with the collection.
+func ReloadBoth(http *Server, grpc *GRPCServer, examples []request.Example, grpcExamples []GRPCExample, vars map[string]string) error {
+	if grpc != nil {
+		if err := grpc.Reload(grpcExamples); err != nil {
+			return err
+		}
+	} else if len(grpcExamples) > 0 {
+		return fmt.Errorf("no gRPC mock is running for these examples")
+	}
+	if http != nil {
+		http.Reload(examples, vars)
+	}
+	return nil
 }
 
 // routePath is the path of an example's URL with its variables filled in. The

@@ -19,6 +19,7 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/datadir"
 	"github.com/baba983/vscroxy/internal/library"
+	"github.com/baba983/vscroxy/internal/mockserver"
 	"github.com/baba983/vscroxy/internal/openapi"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
@@ -93,6 +94,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	xmlPath := flags.String("report-junit", "", "Write a private JUnit XML report")
 	htmlPath := flags.String("report-html", "", "Write a self-contained HTML report")
 	contractPath := flags.String("contract", "", "Fail when sent exchanges drift from this OpenAPI contract")
+	mockPath := flags.String("mock", "", "Serve this collection's saved examples on loopback for the run and point {{base}} and {{base_url}} at it")
 	exports := runExports{}
 	flags.StringVar(&exports.environment, "export-environment", "", "Write the environment's final values as a Postman environment file")
 	flags.StringVar(&exports.globals, "export-globals", "", "Write the global variables' final values as a Postman globals file")
@@ -194,6 +196,44 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			}
 		}
 	}
+	// A --mock collection is a short-lived server for this run: its examples
+	// answer on loopback, and the base variables point there instead of at a
+	// real service. Its listener, file watch and goroutines are joined on
+	// every exit path, including cancel and the whole-run deadline.
+	var runMock *mockRuntime
+	var restoreMockVars map[string]*string
+	if *mockPath != "" {
+		mockVars := maps.Clone(globals)
+		maps.Copy(mockVars, values)
+		source := mockSource{input: *mockPath, vars: mockVars}
+		baseline := collectionFingerprint(source.input)
+		set, _, err := source.load()
+		if err != nil {
+			fmt.Fprintln(stderr, "Could not load the --mock collection; check its input and folder selection.")
+			return 2
+		}
+		runMock, err = startMockRuntime(source, baseline, set, mockserver.Options{}, "127.0.0.1:0", "127.0.0.1:0", stdout, stderr, true)
+		if err != nil {
+			fmt.Fprintln(stderr, "Could not start the --mock server; save an example in that collection first.")
+			return 2
+		}
+		defer runMock.Close()
+		restoreMockVars = map[string]*string{}
+		for key, value := range map[string]string{"base": runMock.httpURL, "base_url": runMock.httpURL, "grpc_base": runMock.grpcURL} {
+			if value == "" && key == "grpc_base" {
+				continue
+			}
+			old, present := values[key]
+			if present {
+				restoreMockVars[key] = &old
+			} else {
+				restoreMockVars[key] = nil
+			}
+			values[key] = value
+		}
+		fmt.Fprintf(stdout, "Mock for this run at %s\n", runMock.httpURL)
+	}
+
 	root, err := os.MkdirTemp("", "vscroxy-run-")
 	if err != nil {
 		fmt.Fprintln(stderr, "Could not create temporary runtime.")
@@ -340,6 +380,15 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		if err != nil {
 			fmt.Fprintln(stderr, "Could not write report.")
 			code = 2
+		}
+	}
+	// The mock's address exists only for this run; an exported environment
+	// gets back whatever the caller had in these variables beforehand.
+	for key, old := range restoreMockVars {
+		if old == nil {
+			delete(finalVars, key)
+		} else {
+			finalVars[key] = *old
 		}
 	}
 	if err := exports.write(name, finalVars, finalGlobals, jar); err != nil {
