@@ -541,6 +541,16 @@ type app struct {
 	// explicit check still runs when this is off. It never downloads or
 	// installs anything.
 	updateCheck bool
+	// lastRunVersion is the last version this settings file saw at startup;
+	// empty on a first install. It decides whether to post a what's-new
+	// notice, and is saved with the rest of settings after the post.
+	lastRunVersion string
+	// settingsReadable says settings.json parsed at startup, so recording
+	// the version cannot replace a file we could not read.
+	settingsReadable bool
+	// manualCheckInFlight keeps a second Check for updates click from starting
+	// another release lookup while the first one is still running.
+	manualCheckInFlight atomic.Bool
 	// attention plays the accessibility signals for pauses, prompts and
 	// finished runs; its mode is the saved "Attention signals" setting.
 	attention *attentionService
@@ -897,6 +907,7 @@ func newApp() *app {
 			a.errText = err.Error()
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
+			a.settingsReadable = true
 			a.logLevel = saved.LogLevel
 			a.urlHistory.load(saved.URLHistory)
 			a.filterHistory.load(saved.FilterHistory)
@@ -904,6 +915,7 @@ func newApp() *app {
 			a.trustedProjects, a.untrustedProjects = normalizeTrustPaths(saved.TrustedProjects), normalizeTrustPaths(saved.UntrustedProjects)
 			a.attention.setMode(saved.AttentionSignals)
 			a.updateCheck = !saved.DisableUpdateCheck
+			a.lastRunVersion = saved.LastRunVersion
 			a.language = saved.Language
 			a.certificates = saved.Certificates.Normalize()
 			a.saved.Certificates = a.certificates
@@ -3904,6 +3916,9 @@ func Run() error {
 	if a.updateCheck {
 		go guarded(func() { a.checkForUpdate(false) })
 	}
+	// The release page link needs no lookup: compare the last run's version
+	// with this one and post the notice before recording the new number.
+	a.offerWhatsNew()
 	markStartup(markUpdateStarted)
 	if a.srv != nil {
 		defer a.srv.Close()

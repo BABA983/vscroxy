@@ -116,12 +116,15 @@ func (a *app) markNoticeSpent(id uint64) {
 	a.invalidate()
 }
 
-// notificationAction runs a notice's action from the center, once. The run
-// and the history write happen on the UI thread, as a toast's action does.
-func (a *app) notificationAction(id uint64) {
+// notificationAction runs a notice's action from the center, once. The run,
+// the link and the history write happen on the UI thread, as a toast's action
+// does.
+func (a *app) notificationAction(c *ui.Context, id uint64) {
 	a.mu.Lock()
 	i := a.noticeIndex(id)
-	if i < 0 || a.notices[i].spent || a.notices[i].run == nil || a.notices[i].valid != nil && !a.notices[i].valid() {
+	if i < 0 || a.notices[i].spent || a.notices[i].action == "" ||
+		(a.notices[i].run == nil && a.notices[i].openURL == "") ||
+		a.notices[i].valid != nil && !a.notices[i].valid() {
 		a.mu.Unlock()
 		return
 	}
@@ -130,7 +133,12 @@ func (a *app) notificationAction(id uint64) {
 		a.notices[i].spent = true
 	}
 	a.mu.Unlock()
-	n.run()
+	if n.run != nil {
+		n.run()
+	}
+	if n.openURL != "" {
+		c.Services().OpenURL(n.openURL)
+	}
 	a.invalidate()
 }
 
@@ -264,8 +272,8 @@ func (a *app) noticeRow(c *ui.Context, t *ui.Theme, center *noticeCenter, n noti
 				uikit.Body(c, n.detail).FillWidth().MinWidth(0).Selectable()
 			}
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
-				if n.action != "" && n.run != nil && !n.spent && (n.valid == nil || n.valid()) {
-					uikit.SecondaryButton(c, n.action).OnClick(func() { a.notificationAction(n.id) })
+				if n.action != "" && (n.run != nil || n.openURL != "") && !n.spent && (n.valid == nil || n.valid()) {
+					uikit.SecondaryButton(c, n.action).OnClick(func() { a.notificationAction(c, n.id) })
 				}
 				if n.alternate != "" && n.alternateRun != nil && !n.spent && (n.valid == nil || n.valid()) {
 					uikit.SecondaryButton(c, n.alternate).OnClick(func() { a.notificationAlternate(n.id) })

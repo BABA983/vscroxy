@@ -4145,5 +4145,8 @@
   "upToDate": "已是最新版本",
   "updateCheckFailed": "无法检查更新",
   "reportIssue": "报告问题…",
-  "reportIssueHint": "在浏览器中打开 GitHub"
+  "reportIssueHint": "在浏览器中打开 GitHub",
+  "@whatsNew": {"version": {"type": "String"}},
+  "whatsNew": "vscroxy {version} 的更新内容",
+  "viewReleaseNotes": "查看版本说明"
 }

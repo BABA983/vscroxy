@@ -3,13 +3,18 @@ package app
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/update"
 	"github.com/baba983/vscroxy/internal/version"
 	"github.com/baba983/vscroxy/locales"
+	"github.com/egoist/mygo/ui"
 )
 
 type testConnectionMeter bool
@@ -147,5 +152,179 @@ func TestManualUpdateCheckHasAStableCommand(t *testing.T) {
 	}
 	if a.menu().ItemByID("app.checkForUpdates") == nil {
 		t.Fatal("the native menu has no update check entry")
+	}
+}
+
+func whatsNewApp(t *testing.T, previous string) (*app, string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if previous != "" {
+		if err := writeSettings(path, settings{LastRunVersion: previous}, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	saved, err := loadSettings(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &app{settingsPath: path, saved: saved, lastRunVersion: saved.LastRunVersion, settingsReadable: true}, path
+}
+
+func TestWhatsNewShowsOnceAndRecordsTheRunningVersion(t *testing.T) {
+	a, path := whatsNewApp(t, "0.0.9")
+	a.offerWhatsNew()
+	if len(a.notices) != 1 {
+		t.Fatalf("notices = %+v, want one", a.notices)
+	}
+	n := a.notices[0]
+	wantURL := "https://github.com/BABA983/vscroxy/releases/tag/v" + version.Number
+	if n.level != noticeInfo || !n.sticky || n.text != locales.WhatsNew(version.Number) ||
+		n.action != locales.ViewReleaseNotes() || n.openURL != wantURL {
+		t.Fatalf("notice = %+v", n)
+	}
+	saved, err := loadSettings(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.LastRunVersion != version.Number {
+		t.Fatalf("saved version = %q, want %q", saved.LastRunVersion, version.Number)
+	}
+
+	// The next launch has this version as its last known one: the notice
+	// does not come back, and the file keeps the same value.
+	next := &app{settingsPath: path, saved: saved, lastRunVersion: saved.LastRunVersion, settingsReadable: true}
+	next.offerWhatsNew()
+	if len(next.notices) != 0 {
+		t.Fatalf("the same version showed a notice: %+v", next.notices)
+	}
+	again, err := loadSettings(path)
+	if err != nil || again.LastRunVersion != version.Number {
+		t.Fatalf("saved after the second launch = %+v, %v", again, err)
+	}
+}
+
+func TestWhatsNewStaysSilentForFirstInstallSameVersionAndDowngrade(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		previous string
+	}{
+		{"first install", ""},
+		{"same version", version.Number},
+		{"downgrade", "999.0.0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, path := whatsNewApp(t, tc.previous)
+			a.offerWhatsNew()
+			if len(a.notices) != 0 {
+				t.Fatalf("notice for %s: %+v", tc.name, a.notices)
+			}
+			saved, err := loadSettings(path)
+			if err != nil || saved.LastRunVersion != version.Number {
+				t.Fatalf("saved version = %q, %v; want %q", saved.LastRunVersion, err, version.Number)
+			}
+		})
+	}
+}
+
+func TestWhatsNewDoesNotRecordAVersionBeforeItsNoticeIsPosted(t *testing.T) {
+	a, path := whatsNewApp(t, "0.0.9")
+	a.offerWhatsNewWith(func(notice) bool { return false })
+	if len(a.notices) != 0 || a.lastRunVersion != "0.0.9" {
+		t.Fatalf("notices = %+v, last run = %q", a.notices, a.lastRunVersion)
+	}
+	saved, err := loadSettings(path)
+	if err != nil || saved.LastRunVersion != "0.0.9" {
+		t.Fatalf("saved version = %q, %v; want the old one", saved.LastRunVersion, err)
+	}
+}
+
+func TestWhatsNewLeavesUnreadableSettingsUntouched(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	damaged := "{damaged"
+	if err := os.WriteFile(path, []byte(damaged), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{settingsPath: path}
+	a.offerWhatsNew()
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != damaged {
+		t.Fatalf("settings = %q, %v; want the file left as it was", data, err)
+	}
+	if len(a.notices) != 0 {
+		t.Fatalf("notice from unreadable settings: %+v", a.notices)
+	}
+}
+
+func TestWhatsNewActionOpensTheReleasePageThroughTheWindow(t *testing.T) {
+	a, _ := whatsNewApp(t, "0.0.9")
+	a.offerWhatsNew()
+	label := locales.In("en-US").ViewReleaseNotes()
+	tt := ui.NewTester(func(c *ui.Context) { a.showNotices(c) }, 800, 600)
+	tt.SetLocale("en-US")
+	tt.Frame()
+	if err := tt.Click(label); err != nil {
+		t.Fatalf("click %q: %v (texts %v)", label, err, tt.Texts())
+	}
+	if urls := tt.OpenedURLs(); !slices.Contains(urls, releasePage(version.Number)) {
+		t.Fatalf("opened URLs = %v, want %q", urls, releasePage(version.Number))
+	}
+}
+
+func TestLastRunVersionIsNotSharedThroughConfigurationBundles(t *testing.T) {
+	a := workspaceApp()
+	a.lastRunVersion, a.saved.LastRunVersion = "0.0.9", "0.0.9"
+	a.updateCheck = false // the other local choice stripped on export
+	bundle, _ := a.exportConfig()
+	if bundle.Settings == nil || bundle.Settings.LastRunVersion != "" || bundle.Settings.DisableUpdateCheck {
+		t.Fatalf("export carried local settings: %+v", bundle.Settings)
+	}
+
+	// Even a bundle that does carry a version must not change this computer's
+	// last known version when its settings are imported.
+	bundle.Settings.LastRunVersion = "999.0.0"
+	if err := a.applySettings(*bundle.Settings); err != nil {
+		t.Fatal(err)
+	}
+	if a.lastRunVersion != "0.0.9" || a.saved.LastRunVersion != "0.0.9" {
+		t.Fatalf("import changed the last run: live %q, saved %q", a.lastRunVersion, a.saved.LastRunVersion)
+	}
+}
+
+func TestManualCheckIgnoresARequestWhileOneIsInFlight(t *testing.T) {
+	a := workspaceApp()
+	started, release := make(chan struct{}), make(chan struct{})
+	finished := make(chan struct{}, 2)
+	var calls atomic.Int32
+	latest := func(context.Context) (update.Release, error) {
+		if calls.Add(1) == 1 {
+			close(started)
+			<-release // hold the first lookup in flight
+		}
+		return update.Release{Tag: "v" + version.Number}, nil
+	}
+	done := func() { finished <- struct{}{} }
+
+	waitSignal := func(ch <-chan struct{}, what string) {
+		t.Helper()
+		select {
+		case <-ch:
+		case <-time.After(5 * time.Second):
+			t.Fatal(what)
+		}
+	}
+
+	a.manualUpdateCheckWith(latest, done)
+	waitSignal(started, "the first lookup never started")
+	a.manualUpdateCheckWith(latest, done)
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("overlapping request called the lookup %d times, want 1", got)
+	}
+	close(release)
+	waitSignal(finished, "the first check did not finish and clear the guard")
+
+	a.manualUpdateCheckWith(latest, done)
+	waitSignal(finished, "the next check did not finish")
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("lookup calls = %d after a completed check, want 2", got)
 	}
 }

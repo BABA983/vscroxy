@@ -72,7 +72,77 @@ func (a *app) checkForUpdateWith(manual bool, connection connectionMeter, latest
 // manualUpdateCheck starts the explicit check from a menu, command or button,
 // so the release lookup never holds the UI thread.
 func (a *app) manualUpdateCheck() {
-	go guarded(func() { a.checkForUpdate(true) })
+	a.manualUpdateCheckWith(func(ctx context.Context) (update.Release, error) {
+		return update.Latest(ctx, nil)
+	}, nil)
+}
+
+// manualUpdateCheckWith is the injectable form: latest stands in for GitHub,
+// and finished, when set, runs after the in-flight guard has cleared. Repeat
+// requests while a check is running do nothing.
+func (a *app) manualUpdateCheckWith(latest latestReleaseFunc, finished func()) {
+	if !a.manualCheckInFlight.CompareAndSwap(false, true) {
+		return
+	}
+	go guarded(func() {
+		defer func() {
+			a.manualCheckInFlight.Store(false)
+			if finished != nil {
+				finished()
+			}
+		}()
+		// A manual check ignores the meter; the argument keeps one release
+		// lookup path for both the background and explicit checks.
+		a.checkForUpdateWith(true, systemConnectionMeter{}, latest)
+	})
+}
+
+// releasePage is the release notes for number in this project's GitHub repo;
+// version numbers in the file are plain numbers, without the tag's v.
+func releasePage(number string) string {
+	return "https://github.com/" + update.Repository + "/releases/tag/v" + strings.TrimPrefix(number, "v")
+}
+
+// noticePoster posts a notice and says whether it got out. Tests pass a poster
+// that refuses, as a crash before the post would, to check that the version
+// is not recorded early.
+type noticePoster func(notice) bool
+
+// offerWhatsNew compares the version this run started with against the last
+// one the settings file saw, as VS Code compares its last known version. A
+// first install, the same version and a downgrade show nothing.
+func (a *app) offerWhatsNew() {
+	a.offerWhatsNewWith(func(n notice) bool {
+		a.notify(n)
+		return true
+	})
+}
+
+func (a *app) offerWhatsNewWith(post noticePoster) {
+	if a.settingsPath != "" && !a.settingsReadable {
+		return // never replace a settings file we could not read
+	}
+	newer := a.lastRunVersion != "" && update.Newer(a.lastRunVersion, version.Number)
+	if newer && !post(notice{
+		level:   noticeInfo,
+		sticky:  true,
+		text:    locales.WhatsNew(version.Number),
+		action:  locales.ViewReleaseNotes(),
+		openURL: releasePage(version.Number),
+	}) {
+		return
+	}
+	if !newer && a.lastRunVersion == version.Number {
+		return
+	}
+	previous := a.lastRunVersion
+	a.lastRunVersion = version.Number
+	// An explicit write, not the debounced one: the version must survive an
+	// exit right after the notice, and no older layout write may overwrite it.
+	a.bypassSettingsSave()
+	if err := a.persistSettings(); err != nil {
+		a.lastRunVersion = previous // persistSettings has already reported it
+	}
 }
 
 // offerUpdate shows the notice when release is newer than this build.

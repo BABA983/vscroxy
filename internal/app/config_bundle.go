@@ -109,6 +109,7 @@ func (a *app) currentSettings() settings {
 		CookiePersistence:    a.cookiePersistence,
 		LocalControl:         a.localControl,
 		DisableUpdateCheck:   !a.updateCheck,
+		LastRunVersion:       a.lastRunVersion,
 		TrustedLinkHosts:     slices.Clone(a.trustedLinkHosts),
 		TrustedProjects:      trusted,
 		UntrustedProjects:    untrusted,
@@ -139,13 +140,14 @@ func (a *app) configLists() map[string]*string {
 func (a *app) exportConfig() (b configBundle, notes []string) {
 	s := a.currentSettings()
 	// The key log, project folder, setup guide, cookie retention, attention
-	// signals, link approvals, project trust, input history, log level and
-	// local automation are this computer's: a bundle never carries those elsewhere.
+	// signals, link approvals, project trust, input history, log level,
+	// last-run version and local automation are this computer's: a bundle
+	// never carries those elsewhere.
 	s.KeyLogPath, s.ProjectDir, s.Guide, s.CookiePersistence, s.LocalControl = "", "", false, false, false
 	s.TrustedLinkHosts, s.URLHistory, s.FilterHistory = nil, nil, nil
 	s.TrustedProjects, s.UntrustedProjects = nil, nil
 	s.LogLevel = ""
-	s.DisableUpdateCheck = false
+	s.DisableUpdateCheck, s.LastRunVersion = false, ""
 	s.AttentionSignals = ""
 	s.Language = ""      // the reader's language, not the bundle's
 	s.SOCKSPassword = "" // a credential, never in a shared bundle

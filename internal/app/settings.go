@@ -96,6 +96,10 @@ type settings struct {
 	// the latest release number. It is this computer's choice and is never
 	// exported; the default is to check.
 	DisableUpdateCheck bool `json:"disableUpdateCheck,omitzero"`
+	// LastRunVersion is the release number the last run started with. The
+	// what's-new notice compares it with this build's number; it changes
+	// directly in the file, with no migration step.
+	LastRunVersion string `json:"lastRunVersion,omitempty"`
 	// TrustedLinkHosts are the exact scheme, host and port combinations a
 	// person approved from a link confirmation. Also local: a shared
 	// configuration never carries another computer's approvals.
@@ -279,6 +283,7 @@ func sameSettings(x, y settings) bool {
 		x.Guide == y.Guide &&
 		x.LocalControl == y.LocalControl &&
 		x.DisableUpdateCheck == y.DisableUpdateCheck &&
+		x.LastRunVersion == y.LastRunVersion &&
 		slices.Equal(x.TrustedLinkHosts, y.TrustedLinkHosts) &&
 		slices.Equal(x.TrustedProjects, y.TrustedProjects) &&
 		slices.Equal(x.UntrustedProjects, y.UntrustedProjects) &&
