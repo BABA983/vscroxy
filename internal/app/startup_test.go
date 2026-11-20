@@ -71,3 +71,56 @@ func TestFirstFrameStartsWatchdogUnderStartupLifetime(t *testing.T) {
 	a.startupLifetime.Dispose()
 	a.startupLifetime.Dispose()
 }
+
+// A deferred contribution runs after the frame that schedules it, and the
+// frame is complete without it. The queue stands in for MyGo's main loop, so
+// the test does not wait on a scheduler.
+func TestAfterFirstFramePhaseRunsAfterTheFrame(t *testing.T) {
+	a := workspaceApp()
+	a.lifecycle = &lifecycle.Lifecycle{}
+	a.startupLifetime = lifecycle.NewDisposableStore()
+	a.clock = async.NewFakeClock()
+	a.watchdogArmed = true
+	a.startup = newStartupRunner()
+	runs := 0
+	a.startup.add(startupAfterFirstFrame, "test/after_first_frame", func() { runs++ })
+	var queued []func()
+	a.quitOnMain = func(fn func()) { queued = append(queued, fn) }
+
+	a.firstFrame()
+	if runs != 0 || len(queued) != 1 {
+		t.Fatalf("first frame ran the deferred step or queued no work: runs=%d queued=%d", runs, len(queued))
+	}
+	marks := perf.Marks()
+	frame, deferred := -1, -1
+	for i, event := range marks {
+		switch event.Name {
+		case markFirstFrame:
+			frame = i
+		case "test/after_first_frame":
+			deferred = i
+		}
+	}
+	if frame < 0 || deferred >= 0 {
+		t.Fatalf("first frame did not finish on its own: frame=%d deferred=%d", frame, deferred)
+	}
+
+	queued[0]()
+	a.startup.run(startupAfterFirstFrame)
+	if runs != 1 {
+		t.Fatalf("deferred step ran %d times, want once", runs)
+	}
+	marks = perf.Marks()
+	frame, deferred = -1, -1
+	for i, event := range marks {
+		switch event.Name {
+		case markFirstFrame:
+			frame = i
+		case "test/after_first_frame":
+			deferred = i
+		}
+	}
+	if frame < 0 || deferred < frame {
+		t.Fatalf("deferred step did not follow the frame: frame=%d deferred=%d", frame, deferred)
+	}
+}

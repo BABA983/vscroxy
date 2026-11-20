@@ -442,6 +442,7 @@ type app struct {
 	uiWatchdog      *watchdog.Watchdog
 	firstFrameOnce  sync.Once
 	watchdogArmed   bool
+	startup         *startupRunner
 	// sessionStore owns what belongs to one loaded capture: its body
 	// searches, message search and protobuf inspector. replaceSession
 	// disposes the whole store, then starts the next one.
@@ -848,6 +849,7 @@ func newApp() *app {
 		autoSelect:  true,
 		updateCheck: true,
 		workbench:   desktopWorkbench{layout: "right"},
+		startup:     newStartupRunner(),
 	}
 	a.attention = newAttentionService(a, liveAttentionChannels{win: func() *mygo.Window { return a.win }})
 	// The engine reads SSLKEYLOGFILE on its first handshake, so a key log the
@@ -954,6 +956,7 @@ func newApp() *app {
 		} else {
 			a.upstreamSecrets = secrets
 		}
+		markStartup(markSecretsLoaded)
 	}
 	addr, err := a.saved.proxyAddr()
 	var srv *capture.Server
@@ -1004,8 +1007,11 @@ func newApp() *app {
 		}
 		a.reloadConfig()
 	}
+	markStartup(markCaptureServerReady)
 	a.loadRequestAssets()
+	markStartup(markRequestAssetsLoaded)
 	a.loadCookies()
+	markStartup(markCookiesLoaded)
 	if a.settingsPath != "" {
 		saved := a.saved
 		a.appearance = saved.Appearance
@@ -1041,10 +1047,12 @@ func newApp() *app {
 		a.queriesPath = queryPath(a.dataDir)
 		a.loadQueries()
 		a.loadExperiments(filepath.Join(a.dataDir, "experiments.json"))
+		markStartup(markExperimentsLoaded)
 		if err := a.sessions.load(filepath.Join(a.dataDir, "sessions")); err != nil {
 			a.sessions.problem = err.Error()
 			a.fail(locales.Sessions(), err)
 		}
+		markStartup(markSessionsLoaded)
 	}
 	a.loadAndroidProxyRecords()
 	// Whether this system trusts the CA decides whether HTTPS reads as
@@ -1058,6 +1066,7 @@ func newApp() *app {
 	a.startupLifetime.Add(a.problems.subscription)
 	a.startupLifetime.Add(lifecycle.ToDisposable(a.markers.Dispose))
 	a.sessionStore = newCaptureSessionStore(a)
+	markStartup(markAppConstructed)
 	return a
 }
 
@@ -3852,6 +3861,7 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	markStartup(markDataRootReady)
 	// MyGo keys its single-instance socket by the app name. Key it by the
 	// data root too, so two roots forward launches to their own window,
 	// and a second launch on this root hands off before any file lock.
@@ -3876,6 +3886,7 @@ func Run() error {
 	} else {
 		defer logs.Close()
 	}
+	markStartup(markLogsOpened)
 	if saved, err := loadSettings(filepath.Join(root, "settings.json")); err == nil {
 		if err := applog.SetLevel(saved.LogLevel); err != nil {
 			applog.For("app").Warn("saved log level is unknown; using Info", "saved", saved.LogLevel)
@@ -3892,6 +3903,7 @@ func Run() error {
 	if a.updateCheck {
 		go guarded(func() { a.checkForUpdate() })
 	}
+	markStartup(markUpdateStarted)
 	if a.srv != nil {
 		defer a.srv.Close()
 	}
@@ -3969,12 +3981,18 @@ func Run() error {
 		a.onMain(func() { a.openAttentionItem(target) })
 	})
 	a.watchLocale()
-	mygo.App.WhenReady(func() {
-		// A run that is not a bundle has no icon of its own: the Dock (and
-		// the taskbar) read it from the binary instead.
+	// A run that is not a bundle has no icon of its own: the Dock (and the
+	// taskbar) read it from the binary instead. Setting it costs a native
+	// round trip and the first frame does not need it, so it belongs to the
+	// phase that runs after the window has drawn.
+	a.startup.add(startupAfterFirstFrame, markDockIconDone, func() {
 		if err := mygo.App.Dock.SetIcon(iconPNG); err != nil && runtime.GOOS == "darwin" {
 			applog.For("app").Warn("dock icon", "err", err)
 		}
+	})
+	markStartup(markRunSetupDone)
+	mygo.App.WhenReady(func() {
+		markStartup(markAppReady)
 		// The first frame arms the watchdog only in a real window; Tester
 		// views in tests have no app window to watch.
 		a.watchdogArmed = true
@@ -4025,8 +4043,11 @@ func Run() error {
 			}
 		})
 		mygo.App.SetMenu(a.menu())
+		markStartup(markMenuReady)
 		a.syncNativeAppearance()
+		markStartup(markAppearanceSynced)
 		a.checkSystemProxy(true) // retry only a recorded, interrupted proxy session
+		markStartup(markSystemProxyChecked)
 		// An explicit VSCROXY_CONTROL_FILE wins over the saved Settings choice.
 		path := os.Getenv("VSCROXY_CONTROL_FILE")
 		if path == "" && a.localControl {
