@@ -99,6 +99,8 @@ func (a *app) menu() *mygo.Menu {
 		command("request.switch-mru-next", locales.NextRecentlyUsedRequest()),
 		command("request.switch-mru-previous", locales.PreviousRecentlyUsedRequest()),
 		mygo.Separator(), {Role: mygo.RoleToggleFullScreen},
+	}}, &mygo.MenuItem{Label: locales.Help(), Submenu: []*mygo.MenuItem{
+		command("help.report-issue", locales.ReportIssue()),
 	}}, &mygo.MenuItem{Role: mygo.RoleWindowMenu})
 	return mygo.NewMenu(items)
 }
