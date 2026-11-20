@@ -440,10 +440,7 @@ func (a *app) applyAndroidProxy() {
 		a.warn(locales.ChooseAConnectedAndroidDevice())
 		return
 	}
-	if _, exists := s.androidApplied[s.androidSerial]; exists {
-		a.warn(locales.UndoTheExistingAndroidProxy())
-		return
-	}
+	state, hasState := s.androidApplied[s.androidSerial]
 	if s.androidPending {
 		return
 	}
@@ -457,8 +454,16 @@ func (a *app) applyAndroidProxy() {
 	s.androidPending = true
 	results := a.clientSetupResults()
 	go guarded(func() {
-		previous, err := clientsetup.ApplyAndroidProxy(serial, port)
-		commands, _ := clientsetup.AndroidProxyCommands(serial, port)
+		var previous string
+		var commands []clientsetup.Argv
+		var err error
+		if hasState {
+			previous = state.Previous
+			commands, err = androidRestoreProxy(serial, port, state)
+		} else {
+			previous, err = clientsetup.ApplyAndroidProxy(serial, port)
+			commands, _ = clientsetup.AndroidProxyCommands(serial, port)
+		}
 		results <- clientSetupResult{
 			action:   "android",
 			what:     locales.SetAndroidProxy(),
@@ -471,6 +476,28 @@ func (a *app) applyAndroidProxy() {
 		}
 		a.invalidate()
 	})
+}
+
+// androidRestoreProxy re-adds a missing reverse listener when the saved proxy
+// still points at this app. It keeps the caller's original proxy value so Undo
+// does not lose it. A device that points anywhere else keeps the existing
+// refusal: that proxy is not ours to replace.
+func androidRestoreProxy(serial string, port int, state androidProxyState) ([]clientsetup.Argv, error) {
+	if state.Port != port {
+		return nil, errors.New(locales.UndoTheExistingAndroidProxy())
+	}
+	points, err := clientsetup.AndroidProxyPointsAtLoopback(serial, port)
+	if err != nil {
+		return nil, err
+	}
+	if !points {
+		return nil, errors.New(locales.UndoTheExistingAndroidProxy())
+	}
+	reverse, err := clientsetup.AndroidReverseCommand(serial, port)
+	if err != nil {
+		return nil, err
+	}
+	return []clientsetup.Argv{reverse}, reverse.Run()
 }
 
 func (a *app) clearAndroidProxy() {

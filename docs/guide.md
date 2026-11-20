@@ -135,12 +135,15 @@ profile, an emulator setting or the app's own Java truststore changes.
   Android 14 moved the store into the read-only Conscrypt APEX, so there it
   mounts a tmpfs over `/apex/com.android.conscrypt/cacerts` in the zygote mount
   namespaces, holding the certificates the device shipped with plus the app's
-  CA. The install lasts until the device reboots; apps that were already
-  running keep their old mount namespace and must be restarted. The app leaves
-  adbd running as root until the device reboots or `adb unroot`. Chrome 115 and
-  later uses the Chrome Root Store on Android and ignores system certificates,
-  so Chrome still needs the CA in the user store. Apps that ignore the system
-  proxy or pin certificates still need app-side changes. **Network security
+  CA. That temporary mount lasts until the device reboots; apps that were
+  already running keep their old mount namespace and must be restarted. On
+  Android 13 and earlier the CA is a file in `/system/etc/security/cacerts`, so
+  it stays after a reboot when the emulator was started with `-writable-system`;
+  restart apps that were already running so they reload the trust store. The
+  app leaves adbd running as root until the device reboots or `adb unroot`.
+  Chrome 115 and later uses the Chrome Root Store on Android and ignores system
+  certificates, so Chrome still needs the CA in the user store. Apps that ignore
+  the system proxy or pin certificates still need app-side changes. **Network security
   config** shows a snippet for the user's own debug builds: save it as
   `app/src/debug/res/xml/network_security_config.xml`, put the CA at
   `app/src/debug/res/raw/vscroxy_ca.pem`, and reference
@@ -148,8 +151,12 @@ profile, an emulator setting or the app's own Java truststore changes.
   builds trust it. The APEX store path is verified on an Android 15 (API 35)
   emulator, where a targetSdk 35 app trusted a server signed by the installed
   CA and failed with "Trust anchor for certification path not found" without
-  it; the system-partition path used through Android 13 is covered by tests
-  only.
+  it; the system-partition path through Android 13 was also verified end to end
+  on a Google APIs API 33 emulator started with `-writable-system`: after a
+  reboot the CA appeared under Settings → Security → More security settings →
+  Encryption & credentials → Trusted credentials → System, and an HTTPS client
+  using the app's reverse proxy and the system store got a 200 whose certificate
+  was signed by the app CA, which vscroxy captured as a decrypted GET.
 - **iOS simulator** (macOS only) runs
   `xcrun simctl keychain booted add-root-cert <CA>` on the booted simulator. It
   does not configure a physical iPhone. The simulator may still require enabling

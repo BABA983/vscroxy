@@ -6044,6 +6044,7 @@
   "installCaInIosSimulator2": "Install CA in iOS simulator",
   "installSystemCa": "Install system CA",
   "installedCaInTheAndroidSystemStore": "Installed CA in the Android system store",
+  "installingASystemCaRebootBehavior": "Installing a system CA runs adb root. On Android 14+ that install lasts until the device reboots; on Android 13 and earlier the CA stays after a reboot when the emulator was started with -writable-system. Restart the app you are testing. Chrome 115 and later uses its own root store on Android, so it still needs the CA in the user store.",
   "installingASystemCaRunsAdbRoot": "Installing a system CA runs adb root and lasts until the device reboots; restart the app you are testing. Chrome 115 and later uses its own root store on Android, so it still needs the CA in the user store.",
   "installCertificate": "Install certificate",
   "installTrust": "Install & Trust…",

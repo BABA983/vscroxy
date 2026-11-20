@@ -77,18 +77,44 @@ func AndroidProxyQueryCommand(serial string) Argv {
 	return adb(serial, "shell", "settings", "get", "global", "http_proxy")
 }
 
+// AndroidReverseCommand points a device loopback port at the host. After a
+// reboot the setting can remain while adb's reverse listener is gone, so the
+// listener can be re-added without touching the proxy setting.
+func AndroidReverseCommand(serial string, port int) (Argv, error) {
+	if port < 1 || port > 65535 {
+		return Argv{}, fmt.Errorf("proxy port %d is outside 1–65535", port)
+	}
+	p := strconv.Itoa(port)
+	return adb(serial, "reverse", "tcp:"+p, "tcp:"+p), nil
+}
+
 // AndroidProxyCommands points the device's global HTTP proxy at the host
 // through adb reverse, so 127.0.0.1 inside the device reaches this computer.
 // Both commands are needed: the reverse listener first, then the setting.
 func AndroidProxyCommands(serial string, port int) ([]Argv, error) {
-	if port < 1 || port > 65535 {
-		return nil, fmt.Errorf("proxy port %d is outside 1–65535", port)
+	reverse, err := AndroidReverseCommand(serial, port)
+	if err != nil {
+		return nil, err
 	}
 	p := strconv.Itoa(port)
 	return []Argv{
-		adb(serial, "reverse", "tcp:"+p, "tcp:"+p),
+		reverse,
 		adb(serial, "shell", "settings", "put", "global", "http_proxy", "127.0.0.1:"+p),
 	}, nil
+}
+
+// AndroidProxyPointsAtLoopback checks whether the device still sends HTTP to
+// this port through adb reverse, without changing either side.
+func AndroidProxyPointsAtLoopback(serial string, port int) (bool, error) {
+	out, err := RunOutput(AndroidProxyQueryCommand(serial))
+	if err != nil {
+		return false, err
+	}
+	current := strings.TrimSpace(string(out))
+	if !validAndroidProxy(current) {
+		return false, fmt.Errorf("Android returned an unexpected http_proxy value %q; refusing to change it", current)
+	}
+	return port > 0 && strings.EqualFold(current, "127.0.0.1:"+strconv.Itoa(port)), nil
 }
 
 // AndroidUndoCommands restore the proxy value that was present before the app
