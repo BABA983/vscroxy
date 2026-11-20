@@ -118,9 +118,11 @@ func TestProgressNoticeSurvivesHistoryTrim(t *testing.T) {
 
 func TestResultNoticeAtHistoryLimitMovesTheMergedNotice(t *testing.T) {
 	a := progressTestApp()
-	for range noticeHistoryLimit {
+	for range noticeHistoryLimit - 1 {
 		a.inform("older notice")
 	}
+	const sentinel = "unrelated notice to keep"
+	a.inform(sentinel)
 	started, release := make(chan struct{}), make(chan struct{})
 	run := a.withProgress(progressOptions{
 		title:    "Import",
@@ -140,7 +142,7 @@ func TestResultNoticeAtHistoryLimitMovesTheMergedNotice(t *testing.T) {
 	awaitProgressSignal(t, started)
 	close(release)
 	awaitProgressSignal(t, run.done)
-	merged, generic := 0, 0
+	merged, generic, kept := 0, 0, 0
 	for _, n := range a.notices {
 		if n.text == "Imported collection" {
 			merged++
@@ -148,9 +150,22 @@ func TestResultNoticeAtHistoryLimitMovesTheMergedNotice(t *testing.T) {
 		if n.text == locales.ProgressDone("Import") {
 			generic++
 		}
+		if n.text == sentinel {
+			kept++
+		}
 	}
 	if merged != 1 || generic != 0 {
 		t.Fatalf("full history left %d merged and %d generic notices: %+v", merged, generic, a.notices)
+	}
+	if kept != 1 {
+		t.Fatalf("an older plain notice was removed: %d kept: %+v", kept, a.notices)
+	}
+	i := a.noticeIndex(run.id)
+	if i < 0 {
+		t.Fatalf("the progress notice is gone: %+v", a.notices)
+	}
+	if a.notices[i].text != "Imported collection" {
+		t.Fatalf("progress result = %q, want the merge's own text: %+v", a.notices[i].text, a.notices)
 	}
 	// The extra notice from the merge was moved onto the progress note and
 	// deleted, leaving one free slot.
