@@ -56,28 +56,38 @@ func countedPermission(a *app, allowed *atomic.Int32) request.ProjectScriptPermi
 	}
 }
 
-func awaitTrustPrompt(t *testing.T, tt *ui.Tester) {
+func awaitTrustPrompt(t *testing.T, a *app, tt *ui.Tester) {
 	t.Helper()
-	for range 30 {
-		tt.Frame()
-		if tt.HasText(locales.WorkspaceTrustPrompt()) {
-			return
-		}
+	awaitTrustPromptCount(t, a, tt, 1, locales.WorkspaceTrustPrompt())
+}
+
+// awaitTrustPromptCount waits for the worker's own signal that it asked, then
+// draws the frame that brings the queued prompt into the tester's view.
+func awaitTrustPromptCount(t *testing.T, a *app, tt *ui.Tester, count int64, text string) {
+	t.Helper()
+	tt.Frame()
+	waitAppSignal(t, a, func() bool { return a.trustPrompts.Load() >= count },
+		func() { tt.Frame() },
+		func() string { return fmt.Sprintf("trust prompt never drew: %v", tt.Texts()) })
+	// The ask may have landed between the first frame and the wait's first
+	// check; draw once more so the queued dialog reaches the tester either way.
+	tt.Frame()
+	if !tt.HasText(text) {
+		t.Fatalf("trust prompt never drew: %v", tt.Texts())
 	}
-	t.Fatalf("trust prompt never drew: %v", tt.Texts())
 }
 
 // runWhilePrompting answers the queued prompt while work waits on it. The
 // frames run on this goroutine and the send on another: a wait can never hold
 // the UI thread.
-func runWhilePrompting(t *testing.T, tt *ui.Tester, answer string, work func()) {
+func runWhilePrompting(t *testing.T, a *app, tt *ui.Tester, answer string, work func()) {
 	t.Helper()
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		work()
 	}()
-	awaitTrustPrompt(t, tt)
+	awaitTrustPrompt(t, a, tt)
 	if err := tt.Click(answer); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +105,7 @@ func TestProjectScriptPromptOnceAndRememberedAfterReload(t *testing.T) {
 	in := a.sendContext(r)
 	in.ScriptPermission = countedPermission(a, &scripts)
 	var out request.Execution
-	runWhilePrompting(t, tt, locales.Trust(), func() {
+	runWhilePrompting(t, a, tt, locales.Trust(), func() {
 		out = r.Execute(t.Context(), a.srv, in, map[string]string{}, nil)
 	})
 	if out.Err != nil || out.Response == nil || served.Load() != 1 {
@@ -229,7 +239,7 @@ func TestRevokingTrustPromptsAgain(t *testing.T) {
 	r := trustScriptRequest(upstream.URL)
 	in := a.sendContext(r)
 	var out request.Execution
-	runWhilePrompting(t, tt, locales.DontTrust(), func() {
+	runWhilePrompting(t, a, tt, locales.DontTrust(), func() {
 		out = r.Execute(t.Context(), a.srv, in, map[string]string{}, nil)
 	})
 	if !out.ScriptsSkipped || out.Response == nil || out.Vars["pre"] != "" || served.Load() != 1 {
@@ -263,7 +273,7 @@ func TestCollectionRunAsksOnlyOnce(t *testing.T) {
 		summary, err := runner.Run(t.Context(), a.srv, steps, runner.Options{Iterations: 2, MaxSteps: 100}, func(result runner.Result) error { return nil })
 		done <- runResult{summary, err}
 	}()
-	awaitTrustPrompt(t, tt)
+	awaitTrustPrompt(t, a, tt)
 	if err := tt.Click(locales.Trust()); err != nil {
 		t.Fatal(err)
 	}
@@ -308,7 +318,7 @@ func TestLoadTestAsksBeforeProjectScripts(t *testing.T) {
 		}
 		a.drainLoadRunner()
 	}()
-	awaitTrustPrompt(t, tt)
+	awaitTrustPrompt(t, a, tt)
 	if err := tt.Click(locales.DontTrust()); err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +359,7 @@ func TestLocalControlRunAsksBeforeProjectScripts(t *testing.T) {
 		result.err = client.Call(t.Context(), "collection.run", map[string]any{"collection": "Shop", "confirm": true}, &result.job)
 		calls <- result
 	}()
-	awaitTrustPrompt(t, tt)
+	awaitTrustPrompt(t, a, tt)
 	if err := tt.Click(locales.DontTrust()); err != nil {
 		t.Fatal(err)
 	}
@@ -399,16 +409,9 @@ func TestUntrustedProjectRuleScriptIsSkippedWithConsoleNotice(t *testing.T) {
 	}
 }
 
-func awaitTrustPromptFor(t *testing.T, tt *ui.Tester, dir string) {
+func awaitTrustPromptFor(t *testing.T, a *app, tt *ui.Tester, dir string, count int64) {
 	t.Helper()
-	detail := locales.WorkspaceTrustPromptDetail(trustPath(dir))
-	for range 30 {
-		tt.Frame()
-		if tt.HasText(detail) {
-			return
-		}
-	}
-	t.Fatalf("no prompt for %s: %v", dir, tt.Texts())
+	awaitTrustPromptCount(t, a, tt, count, locales.WorkspaceTrustPromptDetail(trustPath(dir)))
 }
 
 func pendingTrustCount(a *app) int {
@@ -432,16 +435,11 @@ func TestTwoPendingProjectsEachGetTheirOwnPrompt(t *testing.T) {
 	doneFirst, doneSecond := make(chan request.Execution, 1), make(chan request.Execution, 1)
 	go func() { doneFirst <- r.Execute(t.Context(), a.srv, inFirst, map[string]string{}, nil) }()
 	go func() { doneSecond <- r.Execute(t.Context(), a.srv, inSecond, map[string]string{}, nil) }()
-	for range 30 {
-		tt.Frame()
-		if pendingTrustCount(a) == 2 {
-			break
-		}
-	}
-	if pendingTrustCount(a) != 2 {
-		t.Fatalf("only %d folders are waiting", pendingTrustCount(a))
-	}
-	awaitTrustPrompt(t, tt)
+	tt.Frame()
+	waitAppSignal(t, a, func() bool { return pendingTrustCount(a) == 2 },
+		func() { tt.Frame() },
+		func() string { return fmt.Sprintf("only %d folders are waiting", pendingTrustCount(a)) })
+	awaitTrustPrompt(t, a, tt)
 	shownFirst := a.currentTrustAsk()
 	if shownFirst != trustPath(first) && shownFirst != trustPath(second) {
 		t.Fatalf("prompt names %q", shownFirst)
@@ -453,7 +451,7 @@ func TestTwoPendingProjectsEachGetTheirOwnPrompt(t *testing.T) {
 	if shownFirst == trustPath(first) {
 		shownSecond = trustPath(second)
 	}
-	awaitTrustPromptFor(t, tt, shownSecond)
+	awaitTrustPromptFor(t, a, tt, shownSecond, 2)
 	if err := tt.Click(locales.DontTrust()); err != nil {
 		t.Fatal(err)
 	}

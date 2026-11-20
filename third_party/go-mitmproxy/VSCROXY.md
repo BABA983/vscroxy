@@ -581,9 +581,17 @@ verification off).
 `Accept` waiting on a channel that `Close` ignored, so every served proxy left
 one goroutine behind after shutdown. The listener has a done channel and a
 once-guarded close; `accept` closes a connection offered after shutdown, and
-`Accept` returns `net.ErrClosed`, which `Serve` treats as a normal end. The
-`http.Server` itself keeps serving hijacked connections until the entry and
-caller close them.
+`Accept` returns `net.ErrClosed`, which `Serve` treats as a normal end. `Serve`
+tracks the `attacker.start` call in a `WaitGroup` and `Close` joins it, so
+closing the listener cannot outlive the loop it woke.
+
+`entry` tracks `net/http` connection goroutines through `Server.ConnState`:
+`StateNew` counts one and `StateClosed`/`StateHijacked` release it. `Server.Close`
+closes sockets but does not wait for the connection goroutine that calls
+`wrapClientConn.Close`, so `entry.close` also joins that count. Hijacked
+connections are terminal at `StateHijacked`; the caller still owns their
+lifetime through `DropConnections`. Without the join, shutdown could return
+with those goroutines still running.
 
 ## Maintaining this patch
 

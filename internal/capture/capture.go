@@ -386,6 +386,8 @@ type Server struct {
 	lookupMu      sync.Mutex
 	lookupPending []clientLookup
 	lookupRunning bool
+	lookupClosed  bool // no new batch worker after Close
+	lookupWG      sync.WaitGroup
 	closeOnce     sync.Once
 	stateChanged  chan struct{} // test hook: pulsed when replay/stream metadata changes
 	socketMu      sync.Mutex
@@ -1581,6 +1583,9 @@ func (s *Server) Close() error {
 		s.socketMu.Lock()
 		close(s.closed)
 		s.socketMu.Unlock()
+		s.lookupMu.Lock()
+		s.lookupClosed = true
+		s.lookupMu.Unlock()
 		s.running.Store(false)
 		// The extra entries are this server's own listeners and connections.
 		s.stopSOCKS()
@@ -1588,6 +1593,8 @@ func (s *Server) Close() error {
 		// net/http does not own hijacked WebSocket/CONNECT sockets.
 		s.DropConnections()
 		s.socketWG.Wait()
+		// The process lookups also select on closed; join their workers.
+		s.lookupWG.Wait()
 		// Let net/http close its registered listener first. Closing the raw
 		// listener first races Serve's unregister with http.Server.Close,
 		// which can then report a duplicate close as a shutdown failure.
@@ -2781,59 +2788,65 @@ func (s *Server) noteClient(client *proxy.ClientConn, connected bool) {
 // processes that then time out together.
 func (s *Server) queueLookup(req clientLookup) {
 	s.lookupMu.Lock()
+	if s.lookupClosed {
+		s.lookupMu.Unlock()
+		return
+	}
 	s.lookupPending = append(s.lookupPending, req)
 	if s.lookupRunning {
 		s.lookupMu.Unlock()
 		return
 	}
 	s.lookupRunning = true
-	s.lookupMu.Unlock()
-	go errorsx.Guard(func() {
-		for {
-			// Let the burst arrive before asking the OS once for all of it.
-			// Close interrupts the wait instead of leaving this goroutine
-			// asleep after the server is gone.
-			delay := time.NewTimer(30 * time.Millisecond)
-			select {
-			case <-delay.C:
-			case <-s.closed:
-				delay.Stop()
-				s.lookupMu.Lock()
-				s.lookupPending = nil
-				s.lookupRunning = false
-				s.lookupMu.Unlock()
-				return
-			}
-			s.lookupMu.Lock()
-			pending := s.lookupPending
-			s.lookupPending = nil
-			if len(pending) == 0 {
-				s.lookupRunning = false
-				s.lookupMu.Unlock()
-				return
-			}
-			s.lookupMu.Unlock()
-			endpoints := make([]procinfo.Endpoint, len(pending))
-			for i, req := range pending {
-				endpoints[i] = procinfo.Endpoint{Client: req.addr.remote, Server: req.addr.local}
-			}
-			batch := s.lookupBatch
-			if batch == nil {
-				batch = procinfo.LookupBatch
-			}
-			results := batch(endpoints)
-			for i, req := range pending {
-				s.mu.Lock()
-				current := s.clients[req.addr]
-				if current.client == req.client {
-					current.process = results[i]
-					s.clients[req.addr] = current
+	s.lookupWG.Go(func() {
+		errorsx.Guard(func() {
+			for {
+				// Let the burst arrive before asking the OS once for all of it.
+				// Close interrupts the wait instead of leaving this goroutine
+				// asleep after the server is gone.
+				delay := time.NewTimer(30 * time.Millisecond)
+				select {
+				case <-delay.C:
+				case <-s.closed:
+					delay.Stop()
+					s.lookupMu.Lock()
+					s.lookupPending = nil
+					s.lookupRunning = false
+					s.lookupMu.Unlock()
+					return
 				}
-				close(req.ready)
-				s.mu.Unlock()
+				s.lookupMu.Lock()
+				pending := s.lookupPending
+				s.lookupPending = nil
+				if len(pending) == 0 {
+					s.lookupRunning = false
+					s.lookupMu.Unlock()
+					return
+				}
+				s.lookupMu.Unlock()
+				endpoints := make([]procinfo.Endpoint, len(pending))
+				for i, req := range pending {
+					endpoints[i] = procinfo.Endpoint{Client: req.addr.remote, Server: req.addr.local}
+				}
+				batch := s.lookupBatch
+				if batch == nil {
+					batch = procinfo.LookupBatch
+				}
+				results := batch(endpoints)
+				for i, req := range pending {
+					s.mu.Lock()
+					current := s.clients[req.addr]
+					if current.client == req.client {
+						current.process = results[i]
+						s.clients[req.addr] = current
+					}
+					close(req.ready)
+					s.mu.Unlock()
+				}
 			}
-		}
+		})
 	})
+	s.lookupMu.Unlock()
 }
 
 // socketProcess returns the owner of the exact accepted connection. It waits

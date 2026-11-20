@@ -83,6 +83,7 @@ type Proxy struct {
 
 	entry            *entry
 	attacker         *attacker
+	attackerWG       sync.WaitGroup // joins attacker.start's Serve loop
 	webSocketHandler *webSocketHandler
 	shouldIntercept  func(req *http.Request) bool                                     // req is received by proxy.server
 	dialFallback     func(req *http.Request) bool                                     // see SetDialFallbackRule
@@ -152,17 +153,18 @@ func (proxy *Proxy) Start() error {
 // Serve serves on an already bound listener and closes it when serving ends.
 // This lets callers reserve an OS-assigned port without a close/rebind race.
 func (proxy *Proxy) Serve(ln net.Listener) error {
-	go func() {
+	proxy.attackerWG.Go(func() {
 		if err := proxy.attacker.start(); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, net.ErrClosed) {
 			log.Error(err)
 		}
-	}()
+	})
 	return proxy.entry.serve(ln)
 }
 
 func (proxy *Proxy) Close() error {
-	_ = proxy.attacker.close()
-	return proxy.entry.close()
+	err := proxy.attacker.close()
+	proxy.attackerWG.Wait()
+	return errors.Join(err, proxy.entry.close())
 }
 
 func (proxy *Proxy) Shutdown(ctx context.Context) error {
