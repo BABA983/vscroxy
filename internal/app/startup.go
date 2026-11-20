@@ -15,18 +15,35 @@ import (
 // records one time, and the report shows both its offset from process start and
 // the phase that led to it.
 const (
-	markProcessStart   = "process_start"
-	markSettingsLoaded = "settings_loaded"
-	markCaptureReady   = "capture_server_ready"
-	markWindowCreated  = "window_created"
-	markFirstFrame     = "first_frame_drawn"
-	markProjectWatch   = "project_watch_started"
-	markControlStarted = "control_started"
+	markProcessStart        = "process_start"
+	markDataRootReady       = "data_root_ready"
+	markLogsOpened          = "logs_opened"
+	markSettingsLoaded      = "settings_loaded"
+	markSecretsLoaded       = "secrets_loaded"
+	markCaptureServerReady  = "capture_server_created"
+	markRequestAssetsLoaded = "request_assets_loaded"
+	markCookiesLoaded       = "cookies_loaded"
+	markExperimentsLoaded   = "experiments_loaded"
+	markSessionsLoaded      = "sessions_loaded"
+	markAppConstructed      = "app_constructed"
+	markRunSetupDone        = "run_setup_done"
+	markAppReady            = "app_ready"
+	markDockIconDone        = "dock_icon_done"
+	markUpdateStarted       = "update_check_started"
+	markSystemProxyChecked  = "system_proxy_checked"
+	markMenuReady           = "menu_ready"
+	markAppearanceSynced    = "appearance_synced"
+	markCaptureReady        = "capture_server_ready"
+	markWindowCreated       = "window_created"
+	markProjectWatch        = "project_watch_started"
+	markControlStarted      = "control_started"
+	markFirstFrame          = "first_frame_drawn"
 )
 
 var startupPhases = []string{
 	markProcessStart, markSettingsLoaded, markCaptureReady,
 	markWindowCreated, markFirstFrame, markProjectWatch, markControlStarted,
+	markDockIconDone,
 }
 
 var startupSummaryOnce sync.Once
@@ -40,6 +57,11 @@ func (a *app) firstFrame() {
 			return
 		}
 		markStartup(markFirstFrame)
+		// The callback is posted, not run here: the first frame must be
+		// free to draw while the after-restored contributions do their work.
+		if a.startup != nil {
+			a.onMain(func() { a.startup.run(startupAfterFirstFrame) })
+		}
 		if a.startupLifetime == nil {
 			return
 		}
