@@ -8447,5 +8447,16 @@
   "splitCaptureRight": "Split Right",
   "openSecondCaptureView": "Open a second capture view beside this one",
   "focusNextCaptureGroup": "Focus Next Group",
-  "focusPreviousCaptureGroup": "Focus Previous Group"
+  "focusPreviousCaptureGroup": "Focus Previous Group",
+  "replaceBodyFromFile": "Replace body from file…",
+  "saveBodyToFile": "Save body to file…",
+  "replaceBodyDialog": "Choose a replacement body file",
+  "saveBodyDialog": "Save the paused body",
+  "@bodyOverEditorLimit": {"placeholders": {"size": {"type": "String"}, "limit": {"type": "int"}}},
+  "bodyOverEditorLimit": "{size} MiB body — above the {limit} MiB editor limit. Replace it from a file, or save it to edit externally.",
+  "binaryBodyKept": "Binary or non-UTF-8 body: preserved byte for byte. Replace it from a file to change it.",
+  "@bodyFromFile": {"placeholders": {"name": {"type": "String"}, "size": {"type": "String"}}},
+  "bodyFromFile": "Replacement: {name} ({size} bytes). Sent as exact bytes, with Content-Length updated and Content-Encoding removed.",
+  "@bodySaved": {"placeholders": {"size": {"type": "String"}}},
+  "bodySaved": "Body saved to file ({size} bytes)"
 }

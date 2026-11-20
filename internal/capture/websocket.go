@@ -41,7 +41,7 @@ func (s *Server) interceptMessage(ctx context.Context, f *proxy.Flow, m *proxy.W
 	}
 	s.hit(*matched)
 	bp := Breakpoint{Phase: PhaseMessage, Method: f.Request.Method, URL: req.URL,
-		Direction: direction, MessageType: wsFrameKind(m.Type), BodyReadOnly: len(m.Content) > maxBreakpointBody}
+		Direction: direction, MessageType: wsFrameKind(m.Type), BodyReadOnly: len(m.Content) > MaxBreakpointMessage}
 	if !bp.BodyReadOnly {
 		if m.Type == 2 {
 			bp.Body = base64.StdEncoding.EncodeToString(m.Content)
@@ -70,7 +70,7 @@ func (s *Server) interceptMessage(ctx context.Context, f *proxy.Flow, m *proxy.W
 			return
 		}
 	}
-	if len(data) <= maxBreakpointBody && (m.Type == 2 || utf8.Valid(data)) {
+	if len(data) <= MaxBreakpointMessage && (m.Type == 2 || utf8.Valid(data)) {
 		m.Content = data
 	}
 }

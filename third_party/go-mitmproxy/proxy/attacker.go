@@ -884,6 +884,13 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 	})
 
 	reply := func(response *Response, body io.Reader, streamed bool) {
+		// A response reader may own an open file or another resource. Close
+		// it on every exit: a client that hangs up, an aborted handler, and
+		// a write that fails because the response cannot carry a body all
+		// leave the rest of this function unexecuted.
+		if closer, ok := response.BodyReader.(io.Closer); ok {
+			defer func() { _ = closer.Close() }()
+		}
 		if response.Header != nil {
 			for key, value := range response.Header {
 				for _, v := range value {

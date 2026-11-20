@@ -39657,3 +39657,85 @@ func FocusPreviousCaptureGroup() string { return In(i18n.Locale()).FocusPrevious
 func (msgs Messages) FocusPreviousCaptureGroup() string {
 	return Catalog.Format(msgs.locale, "focusPreviousCaptureGroup", nil)
 }
+
+// ReplaceBodyFromFile says "Replace body from file…"
+// in the language the app shows.
+func ReplaceBodyFromFile() string { return In(i18n.Locale()).ReplaceBodyFromFile() }
+
+// ReplaceBodyFromFile says "Replace body from file…"
+// in the language of msgs.
+func (msgs Messages) ReplaceBodyFromFile() string {
+	return Catalog.Format(msgs.locale, "replaceBodyFromFile", nil)
+}
+
+// SaveBodyToFile says "Save body to file…"
+// in the language the app shows.
+func SaveBodyToFile() string { return In(i18n.Locale()).SaveBodyToFile() }
+
+// SaveBodyToFile says "Save body to file…"
+// in the language of msgs.
+func (msgs Messages) SaveBodyToFile() string {
+	return Catalog.Format(msgs.locale, "saveBodyToFile", nil)
+}
+
+// ReplaceBodyDialog says "Choose a replacement body file"
+// in the language the app shows.
+func ReplaceBodyDialog() string { return In(i18n.Locale()).ReplaceBodyDialog() }
+
+// ReplaceBodyDialog says "Choose a replacement body file"
+// in the language of msgs.
+func (msgs Messages) ReplaceBodyDialog() string {
+	return Catalog.Format(msgs.locale, "replaceBodyDialog", nil)
+}
+
+// SaveBodyDialog says "Save the paused body"
+// in the language the app shows.
+func SaveBodyDialog() string { return In(i18n.Locale()).SaveBodyDialog() }
+
+// SaveBodyDialog says "Save the paused body"
+// in the language of msgs.
+func (msgs Messages) SaveBodyDialog() string {
+	return Catalog.Format(msgs.locale, "saveBodyDialog", nil)
+}
+
+// BodyOverEditorLimit says "{size} MiB body — above the {limit} MiB editor limit. Replace it from a file, or save it to edit externally."
+// in the language the app shows.
+func BodyOverEditorLimit(size string, limit int) string {
+	return In(i18n.Locale()).BodyOverEditorLimit(size, limit)
+}
+
+// BodyOverEditorLimit says "{size} MiB body — above the {limit} MiB editor limit. Replace it from a file, or save it to edit externally."
+// in the language of msgs.
+func (msgs Messages) BodyOverEditorLimit(size string, limit int) string {
+	return Catalog.Format(msgs.locale, "bodyOverEditorLimit", map[string]any{"size": size, "limit": limit})
+}
+
+// BinaryBodyKept says "Binary or non-UTF-8 body: preserved byte for byte. Replace it from a file to change it."
+// in the language the app shows.
+func BinaryBodyKept() string { return In(i18n.Locale()).BinaryBodyKept() }
+
+// BinaryBodyKept says "Binary or non-UTF-8 body: preserved byte for byte. Replace it from a file to change it."
+// in the language of msgs.
+func (msgs Messages) BinaryBodyKept() string {
+	return Catalog.Format(msgs.locale, "binaryBodyKept", nil)
+}
+
+// BodyFromFile says "Replacement: {name} ({size} bytes). Sent as exact bytes, with Content-Length updated and Content-Encoding removed."
+// in the language the app shows.
+func BodyFromFile(name string, size string) string { return In(i18n.Locale()).BodyFromFile(name, size) }
+
+// BodyFromFile says "Replacement: {name} ({size} bytes). Sent as exact bytes, with Content-Length updated and Content-Encoding removed."
+// in the language of msgs.
+func (msgs Messages) BodyFromFile(name string, size string) string {
+	return Catalog.Format(msgs.locale, "bodyFromFile", map[string]any{"name": name, "size": size})
+}
+
+// BodySaved says "Body saved to file ({size} bytes)"
+// in the language the app shows.
+func BodySaved(size string) string { return In(i18n.Locale()).BodySaved(size) }
+
+// BodySaved says "Body saved to file ({size} bytes)"
+// in the language of msgs.
+func (msgs Messages) BodySaved(size string) string {
+	return Catalog.Format(msgs.locale, "bodySaved", map[string]any{"size": size})
+}

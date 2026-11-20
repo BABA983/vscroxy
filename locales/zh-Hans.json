@@ -4217,5 +4217,16 @@
   "splitCaptureRight": "向右拆分",
   "openSecondCaptureView": "在此视图旁打开第二个抓包视图",
   "focusNextCaptureGroup": "聚焦下一组",
-  "focusPreviousCaptureGroup": "聚焦上一组"
+  "focusPreviousCaptureGroup": "聚焦上一组",
+  "replaceBodyFromFile": "从文件替换正文…",
+  "saveBodyToFile": "将正文保存到文件…",
+  "replaceBodyDialog": "选择替换正文的文件",
+  "saveBodyDialog": "保存暂停的正文",
+  "@bodyOverEditorLimit": {"placeholders": {"size": {"type": "String"}, "limit": {"type": "int"}}},
+  "bodyOverEditorLimit": "{size} MiB 的正文——超过编辑器 {limit} MiB 的上限。可从文件替换，或保存后在外部编辑。",
+  "binaryBodyKept": "二进制或非 UTF-8 正文：按字节原样保留。要修改请从文件替换。",
+  "@bodyFromFile": {"placeholders": {"name": {"type": "String"}, "size": {"type": "String"}}},
+  "bodyFromFile": "替换文件：{name}（{size} 字节）。按其字节原样发送，并更新 Content-Length、移除 Content-Encoding。",
+  "@bodySaved": {"placeholders": {"size": {"type": "String"}}},
+  "bodySaved": "正文已保存到文件（{size} 字节）"
 }

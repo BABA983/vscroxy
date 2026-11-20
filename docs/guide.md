@@ -939,8 +939,17 @@ one, runs first. Repeat a header name on separate lines to keep multiple values
 inline and cannot be applied.
 
 - **Apply & continue** sends the edits. Body edits use decoded bytes and remove
-  stale content-encoding, digest and framing headers. Unchanged bodies retain
+  stale content-encoding, digest and framing headers: the editor deliberately
+  drops `Content-Encoding` instead of recompressing, so the bytes sent are the
+  bytes shown, with `Content-Length` set from them. Unchanged bodies retain
   their original bytes and encoding, including header-only edits.
+- A body up to **4 MiB** is editable. A larger body, or a binary/non-UTF-8
+  body, is never passed through the text editor: **Replace body from file…**
+  sends the chosen file's bytes unchanged (again as identity bytes, with a
+  fresh `Content-Length`) and **Save body to file…** writes the decoded body,
+  or the raw bytes when it could not be decoded, for editing outside vscroxy.
+  Capture reads only the editor's share of a body kept on disk; saving and
+  replacing stream the rest without holding two full copies in memory.
 - **Continue original** discards edits in the dialog and preserves the message
   as it reached that breakpoint, including any earlier script changes.
 - **Abort** answers with the selected `502`, `429` or `503` status. Escape or an
@@ -961,10 +970,11 @@ URL's query and the form body are written from those rows, in order and with
 repeated names. Unchecked and empty rows are not sent. A query or form that does
 not decode stays as text.
 
-Binary, undecodable and text bodies over 1 MiB are preserved read-only; their
-headers can still be edited. The limit applies to the pause dialog only:
-scripts read bodies up to 8 MiB. Streamed exchanges do not offer body
-breakpoints. The dialog shows the pending count; queued pauses appear in turn.
+Binary, undecodable and text bodies over 4 MiB are preserved byte for byte;
+their headers can still be edited, and the file actions above replace or save
+the body. The limit applies to the pause dialog only: scripts read bodies up to
+8 MiB. Streamed exchanges do not offer body breakpoints. The dialog shows the
+pending count; queued pauses appear in turn.
 
 **Continue after** sets how long an unanswered pause waits before it continues
 unchanged: 30 seconds, 1, 2 (the default), 5 or 10 minutes. The choice is saved
@@ -4443,7 +4453,6 @@ Tools and the menu bar. The choice is kept for the next launch.
 
 What this version leaves for later, in rough order:
 
-- Breakpoints without the 1 MiB read limit.
 - Network conditions with real packet loss.
 - Independent inspector windows for WebSocket messages.
 - Per-host server certificates, GraphQL subscriptions, and gRPC
