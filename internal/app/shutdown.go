@@ -14,12 +14,13 @@ import (
 // termination hooks. Each function runs at most once, so a graceful shutdown
 // followed by OnQuit does not write the same files or stop the same jobs twice.
 type shutdownCleanup struct {
-	flushSettings    func()
-	flushCookies     func()
-	stopRecording    func()
-	cancelRequests   func()
-	closeExperiments func()
-	closeSessions    func()
+	flushSettings         func()
+	flushInspectorWindows func()
+	flushCookies          func()
+	stopRecording         func()
+	cancelRequests        func()
+	closeExperiments      func()
+	closeSessions         func()
 }
 
 // installShutdown registers the graceful cleanup work and returns the same
@@ -33,12 +34,13 @@ func (a *app) installShutdown() shutdownCleanup {
 		a.startupLifetime = lifecycle.NewDisposableStore()
 	}
 	c := shutdownCleanup{
-		flushSettings:    sync.OnceFunc(a.flushSettings),
-		flushCookies:     sync.OnceFunc(a.flushCookies),
-		stopRecording:    sync.OnceFunc(func() { a.stopCollectionRecording("") }),
-		cancelRequests:   sync.OnceFunc(a.cancelQuitRequests),
-		closeExperiments: sync.OnceFunc(a.experiments.close),
-		closeSessions:    sync.OnceFunc(a.sessions.close),
+		flushSettings:         sync.OnceFunc(a.flushSettings),
+		flushInspectorWindows: sync.OnceFunc(a.flushInspectorWindows),
+		flushCookies:          sync.OnceFunc(a.flushCookies),
+		stopRecording:         sync.OnceFunc(func() { a.stopCollectionRecording("") }),
+		cancelRequests:        sync.OnceFunc(a.cancelQuitRequests),
+		closeExperiments:      sync.OnceFunc(a.experiments.close),
+		closeSessions:         sync.OnceFunc(a.sessions.close),
 	}
 	a.lifecycle.OnWillShutdown(func(e *lifecycle.WillShutdownEvent) {
 		// The proxy owns an OS setting, so it releases as the default joiner.
@@ -61,6 +63,7 @@ func (a *app) installShutdown() shutdownCleanup {
 			}, lifecycle.WillShutdownEventJoiner{ID: id, Label: label, Order: lifecycle.WillShutdownJoinerOrderLast})
 		}
 		joinMain("settings", "Saving settings", c.flushSettings)
+		joinMain("inspector-windows", locales.SavingInspectorWindows(), c.flushInspectorWindows)
 		joinMain("recording", "Stopping collection recording", c.stopRecording)
 		joinMain("cookies", "Saving cookies", c.flushCookies)
 		joinMain("requests", "Cancelling requests", c.cancelRequests)

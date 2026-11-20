@@ -12,6 +12,13 @@ import (
 // its tabs and the body readers stay in step. Without a main window (headless
 // tests) the detached state is enough to exercise the layout.
 func (a *app) openInspectorWindow() {
+	a.openInspectorWindowAt(mygo.Rectangle{})
+}
+
+// openInspectorWindowAt restores the given frame as well as the inspector.
+// The frame comes from inspector-windows.json, not MyGo's StateKey: that key
+// would restore the geometry even when the flow the window showed is gone.
+func (a *app) openInspectorWindowAt(bounds mygo.Rectangle) {
 	if a.inspectorWin != nil {
 		a.inspectorWin.Focus()
 		return
@@ -22,16 +29,19 @@ func (a *app) openInspectorWindow() {
 		a.invalidate()
 		return
 	}
-	w := mygo.NewWindow(mygo.WindowOptions{
+	opts := mygo.WindowOptions{
 		Title:           locales.RequestInspector(),
-		Width:           900,
-		Height:          700,
-		MinWidth:        600,
-		MinHeight:       420,
-		StateKey:        "inspector",
+		Width:           inspectorWindowWidth,
+		Height:          inspectorWindowHeight,
+		MinWidth:        inspectorWindowMinWidth,
+		MinHeight:       inspectorWindowMinHeight,
 		AutoHideMenuBar: true,
 		Content:         ui.View(a.inspectorWindowView),
-	})
+	}
+	if bounds.Width > 0 && bounds.Height > 0 {
+		opts.X, opts.Y, opts.Width, opts.Height = bounds.X, bounds.Y, bounds.Width, bounds.Height
+	}
+	w := mygo.NewWindow(opts)
 	a.inspectorWin, a.inspectorFocused = w, true
 	w.OnFocus(func() { w.Update(func() { a.inspectorFocused = true }) })
 	w.OnBlur(func() { w.Update(func() { a.inspectorFocused = false }) })

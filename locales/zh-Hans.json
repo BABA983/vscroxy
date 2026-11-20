@@ -1,5 +1,6 @@
 {
   "@@locale": "zh-Hans",
+  "savingInspectorWindows": "正在保存检查器窗口",
   "abortBreakpoint": "中止",
   "accessTokenExpiredGetA": "访问令牌已过期 · 请获取新令牌",
   "accessTokenExpiredTheNext": "访问令牌已过期 · 下次发送时获取新令牌",

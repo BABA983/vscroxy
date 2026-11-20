@@ -1,5 +1,6 @@
 {
   "@@locale": "en",
+  "savingInspectorWindows": "Saving inspector windows",
   "abortBreakpoint": "Abort",
   "accessTokenExpiredGetA": "Access token expired · get a new one",
   "accessTokenExpiredTheNext": "Access token expired · the next send gets a new one",

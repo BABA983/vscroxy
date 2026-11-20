@@ -513,6 +513,9 @@ type app struct {
 	// bounds, which MyGo saves with the window's StateKey.
 	settingsPath     string
 	androidProxyPath string
+	// inspectorWindowsPath holds the identity and frame of a detached
+	// inspector for the next launch; its content stays in memory only.
+	inspectorWindowsPath string
 	// backupDir keeps the last copies of the files the app replaces, so an
 	// upgrade or a mistaken save never loses what was there.
 	backupDir string
@@ -858,6 +861,7 @@ func newApp() *app {
 	if root, err := datadir.Root(); err == nil {
 		a.dataDir = root
 		a.settingsPath = filepath.Join(root, "settings.json")
+		a.inspectorWindowsPath = inspectorWindowsPath(root)
 		a.androidProxyPath = filepath.Join(root, "android-proxy.json")
 		a.backupDir = filepath.Join(root, "backups")
 		// A first launch. The log opened before this already made the
@@ -3940,12 +3944,15 @@ func Run() error {
 		if e.SessionEnding {
 			// The process may end before a goroutine reports back.
 			cleanup.flushSettings()
+			cleanup.flushInspectorWindows()
 			return
 		}
 		a.requestQuit(e)
 	})
 	mygo.App.OnQuit(cleanup.flushSettings)
 	defer cleanup.flushSettings()
+	mygo.App.OnQuit(cleanup.flushInspectorWindows)
+	defer cleanup.flushInspectorWindows()
 	mygo.App.OnQuit(cleanup.closeExperiments)
 	defer cleanup.closeExperiments()
 	mygo.App.OnQuit(cleanup.closeSessions)
@@ -3991,6 +3998,9 @@ func Run() error {
 			applog.For("app").Warn("dock icon", "err", err)
 		}
 	})
+	// A detached inspector can only come back once the main window has
+	// drawn, and only if the flow it showed is still in the capture table.
+	a.startup.add(startupAfterFirstFrame, "", a.restoreInspectorWindows)
 	markStartup(markRunSetupDone)
 	mygo.App.WhenReady(func() {
 		markStartup(markAppReady)

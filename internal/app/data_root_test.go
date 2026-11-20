@@ -39,7 +39,7 @@ func TestCustomDataRootOwnsEveryAppFileAndLog(t *testing.T) {
 		t.Fatalf("dataDir = %q, want %q", a.dataDir, root)
 	}
 	files := map[string]string{
-		"settings": a.settingsPath, "android proxy": a.androidProxyPath,
+		"settings": a.settingsPath, "inspector windows": a.inspectorWindowsPath, "android proxy": a.androidProxyPath,
 		"backups": a.backupDir, "ca": a.caPath, "rules": a.rulesPath,
 		"network presets": a.network.path, "breakpoint templates": a.bpTemplatesPath,
 		"ssl": a.sslPath, "collections": a.library.root, "ignore": a.ignorePath,

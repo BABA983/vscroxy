@@ -25,6 +25,7 @@ var (
 	Env                = &Format{Name: "environments"}
 	ProjectEnv         = &Format{Name: "project environments"}
 	Views              = &Format{Name: "saved capture filters", Member: "filters"}
+	InspectorWindows   = &Format{Name: "detached inspector windows"}
 	APIs               = &Format{Name: "OpenAPI documents", Member: "apis"}
 	Breakpoints        = &Format{Name: "breakpoint templates", Member: "templates"}
 	NetworkPresets     = &Format{Name: "network presets"}

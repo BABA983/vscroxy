@@ -34,6 +34,16 @@ type Messages struct{ locale string }
 // source language.
 func In(locale string) Messages { return Messages{locale} }
 
+// SavingInspectorWindows says "Saving inspector windows"
+// in the language the app shows.
+func SavingInspectorWindows() string { return In(i18n.Locale()).SavingInspectorWindows() }
+
+// SavingInspectorWindows says "Saving inspector windows"
+// in the language of msgs.
+func (msgs Messages) SavingInspectorWindows() string {
+	return Catalog.Format(msgs.locale, "savingInspectorWindows", nil)
+}
+
 // AbortBreakpoint says "Abort"
 // in the language the app shows.
 func AbortBreakpoint() string { return In(i18n.Locale()).AbortBreakpoint() }
