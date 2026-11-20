@@ -163,6 +163,16 @@ func (a *app) controlCapture(command control.Command) (any, error) {
 		}
 		a.selectSession(p.Key)
 		return map[string]bool{"opened": true}, nil
+	case "sessions.close":
+		p, err := controlParams[struct {
+			Key     string `json:"key"`
+			Confirm bool   `json:"confirm"`
+		}](command)
+		if err != nil || !p.Confirm || p.Key == "" {
+			return nil, errors.New("key and confirm:true are required")
+		}
+		// Closing a tab keeps its session file and releases the payload.
+		return map[string]bool{"closed": a.sessions.closeTab(p.Key)}, nil
 	}
 	return nil, errors.New("unknown action")
 }

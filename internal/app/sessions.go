@@ -200,6 +200,28 @@ func (item *savedSession) closeTab() {
 	}
 }
 
+// closeTab closes one open session tab by key. Only closing the active tab
+// picks another; background tabs leave the active selection alone. Both the
+// session tabs and the control action use this path.
+func (s *sessionWorkspace) closeTab(key string) bool {
+	i := slices.IndexFunc(s.items, func(item *savedSession) bool { return item.key == key && item.open })
+	if i < 0 {
+		return false
+	}
+	s.items[i].closeTab()
+	if s.active != key {
+		return true
+	}
+	s.active = ""
+	for _, next := range s.items {
+		if next.open {
+			s.active = next.key
+			break
+		}
+	}
+	return true
+}
+
 func (a *app) selectSession(key string) {
 	s := &a.sessions
 	s.active, s.comparing = key, false

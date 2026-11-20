@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,8 +20,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var queries = []string{"breakpoints.list", "collection-recording.get", "collections.list", "flows.export-har", "flows.get", "flows.list", "requests.get", "requests.list", "rules.list", "runs.get", "sessions.list", "ssl.get", "status", "system-proxy.get", "token-links.analyze", "token-links.get", "token-links.prepare"}
-var writes = []string{"breakpoints.resolve", "capture.recording", "collection-recording.start", "collection-recording.stop", "collection.load", "collection.run", "flows.annotate", "flows.clear", "request.run", "rules.create", "rules.delete", "rules.import", "rules.set-enabled", "rules.update", "runs.cancel", "sessions.open", "sessions.save", "ssl.update", "system-proxy.set-enabled", "token-links.apply"}
+var queries = []string{"breakpoints.list", "certificates.get", "collection-recording.get", "collections.list", "flows.export-har", "flows.get", "flows.list", "mock.get", "requests.get", "requests.list", "rules.list", "runs.get", "sessions.list", "settings.get", "settings.list", "ssl.get", "status", "system-proxy.get", "token-links.analyze", "token-links.get", "token-links.prepare"}
+var writes = []string{"breakpoints.resolve", "capture.recording", "collection-recording.start", "collection-recording.stop", "collection.load", "collection.run", "flows.annotate", "flows.clear", "mock.start", "mock.stop", "request.run", "rules.create", "rules.delete", "rules.import", "rules.set-enabled", "rules.update", "runs.cancel", "sessions.close", "sessions.open", "sessions.save", "settings.set", "ssl.update", "system-proxy.set-enabled", "token-links.apply"}
 
 func endpoint(t *testing.T, dispatch control.Dispatch) string {
 	t.Helper()
@@ -998,16 +999,106 @@ func TestDisableToolsAndTypedRuleForwarding(t *testing.T) {
 	if _, err := mcpserver.New(path, mcpserver.Options{Disable: []string{"request.run"}}); err == nil {
 		t.Fatal("a write tool was accepted as disabled without --allow-write")
 	}
-	cs := connectWith(t, path, mcpserver.Options{AllowWrite: true, Disable: []string{"request.run", "flows.list"}}, "2025-11-25")
+	cs := connectWith(t, path, mcpserver.Options{AllowWrite: true, Disable: []string{"request.run", "flows.list", "settings.set", "mock.start"}}, "2025-11-25")
 	listed, err := cs.ListTools(t.Context(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, tool := range listed.Tools {
-		if tool.Name == "request.run" || tool.Name == "flows.list" {
+		if slices.Contains([]string{"request.run", "flows.list", "settings.set", "mock.start"}, tool.Name) {
 			t.Fatalf("disabled tool %s is still offered", tool.Name)
 		}
 	}
 	requireJSON(t, call(t, cs, "rules.create", map[string]any{"rule": map[string]any{"type": "block", "match": "example.com"}}),
 		`{"action":"rules.create","params":{"rule":{"type":"block","match":"example.com"},"confirm":true}}`)
+}
+
+func TestBreadthToolsForwardThroughControl(t *testing.T) {
+	path := endpoint(t, func(_ context.Context, command control.Command) (any, error) {
+		return map[string]any{"action": command.Action, "params": command.Params}, nil
+	})
+	cs := connect(t, path, mcpserver.Options{}, "2025-11-25")
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+		want string
+	}{
+		{"settings.list", nil, `{"action":"settings.list","params":{}}`},
+		{"settings.get", map[string]any{"id": "capture.flowLimit"}, `{"action":"settings.get","params":{"id":"capture.flowLimit"}}`},
+		{"certificates.get", nil, `{"action":"certificates.get","params":{}}`},
+		{"mock.get", nil, `{"action":"mock.get","params":{}}`},
+	} {
+		requireJSON(t, call(t, cs, tc.name, tc.args), tc.want)
+	}
+
+	writes := connect(t, path, mcpserver.Options{AllowWrite: true}, "2025-11-25")
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+		want string
+	}{
+		{"settings.set", map[string]any{"id": "general.checkForUpdates", "value": false}, `{"action":"settings.set","params":{"id":"general.checkForUpdates","value":false,"confirm":true}}`},
+		{"sessions.close", map[string]any{"key": "saved.json"}, `{"action":"sessions.close","params":{"key":"saved.json","confirm":true}}`},
+		{"mock.start", map[string]any{"collection": "Shop", "rateLimit": 5, "errorRate": 0.25, "errorStatus": 429, "errorBody": "down"},
+			`{"action":"mock.start","params":{"collection":"Shop","rateLimit":5,"errorRate":0.25,"errorStatus":429,"errorBody":"down","confirm":true}}`},
+		{"mock.stop", map[string]any{"collection": "Shop"}, `{"action":"mock.stop","params":{"collection":"Shop","confirm":true}}`},
+	} {
+		requireJSON(t, call(t, writes, tc.name, tc.args), tc.want)
+	}
+}
+
+func TestBreadthWritesRequireStartupPermission(t *testing.T) {
+	var calls atomic.Int32
+	path := endpoint(t, func(_ context.Context, _ control.Command) (any, error) {
+		calls.Add(1)
+		return map[string]bool{"ok": true}, nil
+	})
+	cs := connect(t, path, mcpserver.Options{}, "2025-11-25")
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+	}{
+		{"settings.set", map[string]any{"id": "general.checkForUpdates", "value": false}},
+		{"sessions.close", map[string]any{"key": "saved.json"}},
+		{"mock.start", map[string]any{"collection": "Shop"}},
+		{"mock.stop", map[string]any{"collection": "Shop"}},
+	} {
+		result, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: tc.name, Arguments: tc.args})
+		if err == nil && !result.IsError {
+			t.Errorf("unregistered mutation %s succeeded", tc.name)
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("desktop saw %d unauthorized mutations", calls.Load())
+	}
+}
+
+func TestBreadthToolsRejectInvalidArgumentsLocally(t *testing.T) {
+	var calls atomic.Int32
+	path := endpoint(t, func(_ context.Context, _ control.Command) (any, error) {
+		calls.Add(1)
+		return map[string]bool{"ok": true}, nil
+	})
+	cs := connect(t, path, mcpserver.Options{AllowWrite: true}, "2025-11-25")
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+	}{
+		{"settings.get", map[string]any{"id": ""}},
+		{"settings.set", map[string]any{"id": "general.checkForUpdates"}}, // no value
+		{"sessions.close", map[string]any{"key": ""}},
+		{"mock.get", map[string]any{"id": 1}},
+		{"mock.start", map[string]any{"collection": ""}},
+		{"mock.start", map[string]any{"collection": "Shop", "errorRate": 2}},
+		{"mock.stop", map[string]any{"collection": ""}},
+		{"certificates.get", map[string]any{"path": "/etc/passwd"}},
+	} {
+		result, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: tc.name, Arguments: tc.args})
+		if err == nil && !result.IsError {
+			t.Errorf("%s accepted invalid arguments", tc.name)
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("desktop saw %d invalid calls", calls.Load())
+	}
 }

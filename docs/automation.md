@@ -284,8 +284,11 @@ the server with exit code 130. An address other than loopback prints a warning,
 because anyone who can reach it gets the examples without authentication. A
 collection with no saved examples is refused. Desktop control exposes
 `mock.get`, `mock.start` (collection, optional `rateLimit`, `errorRate`,
-`errorStatus`, `errorBody`, and `confirm:true`) and `mock.stop`; there is no MCP
-tool for mock servers.
+`errorStatus`, `errorBody`, and `confirm:true`) and `mock.stop`. The same
+actions are available as `vscroxy-cli mocks --file <discovery> list|start|stop`
+(with `--collection` and `--confirm` for start/stop) and as the MCP tools
+`mock.get` (read-only), `mock.start` and `mock.stop` (write). Starting a mock is
+a shared-state write; stopping one does not undo responses it already served.
 
 The mock reads the collection again when its files change: a saved addition,
 edit or deletion shows up on the same address without a restart. A request that
@@ -379,6 +382,52 @@ configuration/transport/output errors, and 130 for cancellation. A successful
 check `report.failed` and `report.incomplete`. Do not automatically retry a
 mutation on transport timeout: its outcome may be unknown.
 
+### Settings, sessions, certificates and mocks
+
+These task-shaped commands call the same authenticated actions as the `control`
+command; there is no second protocol and no direct desktop file access. Reads
+need only the discovery file. Writes additionally require `--confirm`, which
+supplies the desktop's required confirmation, never a value from a model or a
+request body.
+
+```sh copy Copy Desktop Tasks
+bin/vscroxy-cli settings --file "$HOME/.vscroxy/control.json" get
+bin/vscroxy-cli settings --file "$HOME/.vscroxy/control.json" get --id capture.flowLimit
+bin/vscroxy-cli settings --file "$HOME/.vscroxy/control.json" set --id general.checkForUpdates --value false --confirm
+bin/vscroxy-cli sessions --file "$HOME/.vscroxy/control.json" list
+bin/vscroxy-cli sessions --file "$HOME/.vscroxy/control.json" open SESSION-KEY --confirm
+bin/vscroxy-cli sessions --file "$HOME/.vscroxy/control.json" close SESSION-KEY --confirm
+bin/vscroxy-cli certificates --file "$HOME/.vscroxy/control.json" status
+bin/vscroxy-cli mocks --file "$HOME/.vscroxy/control.json" list
+bin/vscroxy-cli mocks --file "$HOME/.vscroxy/control.json" start --collection Shop --confirm
+```
+
+Settings are addressed by stable ids, never by localized labels. The closed
+allowlist is `general.checkForUpdates`, `general.setupGuide`, `https.allDomains`
+(booleans), `https.domains` (JSON array of exact hosts or `*.` wildcards),
+`capture.flowLimit` (0 or 1000/5000/20000/50000), `capture.memoryLimit` (0 or
+128/256/512/1024/2048 MB), `capture.diskLimit` (0 or 1/2/5/10/20 GB),
+`capture.historyLimit` (0 or 25/50/100/250/500/1000) and
+`capture.historySizeMB` (0 or 8/16/32/64/128/256 MB). A zero means the app's
+default. Writes use the Settings save paths; HTTPS domains write `ssl.json`.
+Secrets, certificate passphrases, credentials and local-only trust decisions
+are not in the list, and asking for one by id returns an error without its
+value. `--value` is JSON (`false`, `5000`, `["api.example.com"]`), so a string
+setting cannot be confused with a quoted number.
+
+`sessions close` closes the tab and releases its payload but keeps the session
+file; `sessions save` writes a new session with the live table's captured bodies
+and headers. `certificates status` reports whether this machine trusts the
+local MITM CA (`trusted`), its public `path`, its SHA-256 `fingerprint`, a
+controlled `problem` category when trust or parsing failed, configured
+`serverCertificates` as `host` and certificate `file` name only, and the current
+`ssl` all/hosts/apps snapshot. Directories, key-file paths, certificate
+contents and sealed passphrases are never returned. A trust check never
+installs or changes a certificate; it says nothing about remote devices or
+pinning. `mocks list` maps
+to `mock.get`, and `mocks start`/`stop` to the confirmation-gated actions in
+the [mock server](#mock-server) section.
+
 | Action | Parameters / result |
 | --- | --- |
 | `status` | Proxy, recording, active environment and counts |
@@ -420,9 +469,14 @@ mutation on transport timeout: its outcome may be unknown.
 | `breakpoints.resolve` | Required `id` (must be the breakpoint on screen) and `outcome`: `continue` (unchanged) or `abort` |
 | `ssl.get` | Whether all traffic is decrypted, the listed domains, and the count of listed applications |
 | `ssl.update` | Optional `all` and `domains` (replacement list of host names, no schemes or paths); application entries are kept |
+| `certificates.get` | Local CA `trusted`, public `path`, SHA-256 `fingerprint`, controlled `problem` category, per-host server certificates (host and certificate file name only) and an `ssl` snapshot; read-only trust check |
+| `settings.list` | Allowlisted setting ids, value kinds and current values; no secrets, passphrases or local trust lists |
+| `settings.get` | Required stable `id` from `settings.list`; returns `id`, `kind` and `value` |
+| `settings.set` | Required `id`, typed `value` and `confirm:true`; writes through the Settings save path and returns the applied value |
 | `sessions.list` | Saved sessions: `key`, title, exchange count and creation time |
 | `sessions.save` | Saves the live table as a new session file in the desktop; returns its `key` |
 | `sessions.open` | Required `key` from `sessions.list`; shows that session in the desktop |
+| `sessions.close` | Required `key` from `sessions.list`; closes its tab and releases payloads, keeps the file |
 
 Pin, color and note are the same marks the desktop's Mark dialog sets. Session
 files contain captured bodies and headers, as the desktop's own session files do.
@@ -709,11 +763,16 @@ paths (replace both placeholders; shell `$HOME` expansion is not assumed):
 }
 ```
 
-The default catalog contains seventeen read-only tools, named like desktop actions:
-`status`, `collection-recording.get`, `system-proxy.get`, `collections.list`, `requests.list`, `requests.get`, `flows.list`,
-`flows.get`, `flows.export-har`, `breakpoints.list`, `ssl.get`, `sessions.list`, `rules.list`, `runs.get`, `token-links.analyze`,
+The default catalog contains twenty-one read-only tools, named like desktop actions:
+`status`, `certificates.get`, `collection-recording.get`, `collections.list`,
+`flows.export-har`, `flows.get`, `flows.list`, `mock.get`, `requests.get`, `requests.list`, `rules.list`,
+`runs.get`, `sessions.list`, `settings.get`, `settings.list`, `ssl.get`, `system-proxy.get`, `token-links.analyze`,
 `token-links.get`, and `token-links.prepare`. Analyze/prepare replace ephemeral
-staging despite being read-only; they are not idempotent. Every tool has a typed, closed input
+staging despite being read-only; they are not idempotent. `certificates.get`
+reports the local CA's trust/path/fingerprint, per-host server certificate hosts
+and file names (never passphrases), and HTTPS hosts; `settings.get`
+and `settings.list` expose only the non-secret allowlist above; `mock.get`
+lists running collection Example mocks. Every tool has a typed, closed input
 schema and an explicit read-only/destructive/open-world annotation. Results are
 JSON structured content with a JSON text fallback. Application rejections set
 MCP `isError`; a run job's acceptance still requires polling its final report.
@@ -723,15 +782,18 @@ Two **independent startup capabilities**, never tool parameters, widen access:
 - `--allow-write` registers `request.run`, `collection.run`, `collection.load`, `runs.cancel`,
   `capture.recording`, `rules.set-enabled`, `rules.import`, `rules.create`, `rules.update`, `rules.delete`,
   `system-proxy.set-enabled`, `collection-recording.start`, `collection-recording.stop`, `token-links.apply`,
-  `flows.clear`, `flows.annotate`, `breakpoints.resolve`, `ssl.update`, `sessions.save`, and `sessions.open`
-  (37 tools in total with the read-only set). It explicitly authorizes those tools to supply the desktop's
+  `flows.clear`, `flows.annotate`, `breakpoints.resolve`, `ssl.update`, `sessions.save`, `sessions.open`,
+  `sessions.close`, `settings.set`, `mock.start`, and `mock.stop`
+  (45 tools in total with the read-only set). It explicitly authorizes those tools to supply the desktop's
   confirmation. Clearing, annotating, resolving breakpoints, changing HTTPS inspection domains and rules
   change what the desktop captures or sends; `sessions.save` writes captured bodies to a local file. Request execution can affect real
   external systems; enable it only for a trusted client and trusted collections.
   Collection recording persists captured content locally, potentially including
   sensitive query/body values; `--allow-write` authorizes that persistence without
   requiring `--allow-sensitive`. Recording results contain only configuration,
-  state and counts, not raw captured values.
+  state and counts, not raw captured values. `settings.set` changes saved
+  non-secret settings; `mock.start`/`mock.stop` change the desktop's local mock
+  listeners, and neither requires `--allow-sensitive`.
 - `--allow-sensitive` permits an explicitly requested `details:true` on
   `requests.get` / `flows.get` / `flows.export-har`. It does not register mutations or change the
   default query response. Raw headers, query values, bodies and saved scripts

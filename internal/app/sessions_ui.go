@@ -34,16 +34,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 							a.selectSession(doc.key)
 						}
 						if uikit.IconButton(c, locales.CloseSessionNamed(doc.data.Title), locales.CloseTabKeepTheSaved(), closeIcon).Clicked() {
-							doc.closeTab()
-							if doc == item {
-								s.active = ""
-								for _, next := range s.items {
-									if next.open {
-										s.active = next.key
-										break
-									}
-								}
-							}
+							s.closeTab(doc.key)
 						}
 					})
 				}
