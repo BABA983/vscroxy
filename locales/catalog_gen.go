@@ -39739,3 +39739,63 @@ func BodySaved(size string) string { return In(i18n.Locale()).BodySaved(size) }
 func (msgs Messages) BodySaved(size string) string {
 	return Catalog.Format(msgs.locale, "bodySaved", map[string]any{"size": size})
 }
+
+// RestoreLastSession says "Restore last session"
+// in the language the app shows.
+func RestoreLastSession() string { return In(i18n.Locale()).RestoreLastSession() }
+
+// RestoreLastSession says "Restore last session"
+// in the language of msgs.
+func (msgs Messages) RestoreLastSession() string {
+	return Catalog.Format(msgs.locale, "restoreLastSession", nil)
+}
+
+// RestoreLastSessionHint says "Reopen the capture table, loaded captures and detached inspectors on launch"
+// in the language the app shows.
+func RestoreLastSessionHint() string { return In(i18n.Locale()).RestoreLastSessionHint() }
+
+// RestoreLastSessionHint says "Reopen the capture table, loaded captures and detached inspectors on launch"
+// in the language of msgs.
+func (msgs Messages) RestoreLastSessionHint() string {
+	return Catalog.Format(msgs.locale, "restoreLastSessionHint", nil)
+}
+
+// LastSessionNotRestored says "The last session was not restored"
+// in the language the app shows.
+func LastSessionNotRestored() string { return In(i18n.Locale()).LastSessionNotRestored() }
+
+// LastSessionNotRestored says "The last session was not restored"
+// in the language of msgs.
+func (msgs Messages) LastSessionNotRestored() string {
+	return Catalog.Format(msgs.locale, "lastSessionNotRestored", nil)
+}
+
+// LastSessionNotSaved says "The last session was not saved"
+// in the language the app shows.
+func LastSessionNotSaved() string { return In(i18n.Locale()).LastSessionNotSaved() }
+
+// LastSessionNotSaved says "The last session was not saved"
+// in the language of msgs.
+func (msgs Messages) LastSessionNotSaved() string {
+	return Catalog.Format(msgs.locale, "lastSessionNotSaved", nil)
+}
+
+// InspectorNotRestored says "The detached inspector was not restored: its exchange is no longer open"
+// in the language the app shows.
+func InspectorNotRestored() string { return In(i18n.Locale()).InspectorNotRestored() }
+
+// InspectorNotRestored says "The detached inspector was not restored: its exchange is no longer open"
+// in the language of msgs.
+func (msgs Messages) InspectorNotRestored() string {
+	return Catalog.Format(msgs.locale, "inspectorNotRestored", nil)
+}
+
+// Startup says "Startup"
+// in the language the app shows.
+func Startup() string { return In(i18n.Locale()).Startup() }
+
+// Startup says "Startup"
+// in the language of msgs.
+func (msgs Messages) Startup() string {
+	return Catalog.Format(msgs.locale, "startup", nil)
+}

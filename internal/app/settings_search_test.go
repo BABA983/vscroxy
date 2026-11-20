@@ -29,7 +29,8 @@ func useMessagesLocale(t *testing.T, tag string) {
 
 func settingsTestApp() *app {
 	a := workspaceApp()
-	a.updateCheck, a.guide = true, true // the defaults of a fresh settings file
+	a.updateCheck, a.guide = true, true
+	a.restoreLastSession = true // the defaults of a fresh settings file
 	return a
 }
 

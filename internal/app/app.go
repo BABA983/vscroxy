@@ -687,8 +687,17 @@ type app struct {
 	// the brush change.
 	activityCounts activityCache
 	views          captureViews
-	columnOpen     bool
-	columnDraft    customColumn
+	// restoreLastSession is the live "Restore last session" setting. Its
+	// saved pointer is nil when the setting was never written, which means on.
+	restoreLastSession bool
+	// lastSessionRestore tracks the lazy read of the saved capture. The
+	// worker owns file and err until done closes; the UI applies them once.
+	lastSessionRestore *lastSessionRestore
+	// pendingInspector waits for saved capture loads before deciding whether
+	// the inspector's exchange survived the restart.
+	pendingInspector *lastSessionState
+	columnOpen       bool
+	columnDraft      customColumn
 
 	// mark edits what a flow is marked with: a color and a note.
 	markOpen   bool
@@ -877,14 +886,15 @@ func newApp() *app {
 		// A flow is numbered when it starts and arrives when it ends, so
 		// arrival order puts 6 above 5. The number is the start order: the
 		// table reads by it, and the # column says so with its arrow.
-		sort:        ui.SortOrder{Column: "id"},
-		detailFor:   -1,
-		frames:      make(map[int][]frame),
-		throttle:    capture.Presets[0],
-		autoSelect:  true,
-		updateCheck: true,
-		workbench:   desktopWorkbench{layout: "right"},
-		startup:     newStartupRunner(),
+		sort:               ui.SortOrder{Column: "id"},
+		detailFor:          -1,
+		frames:             make(map[int][]frame),
+		throttle:           capture.Presets[0],
+		autoSelect:         true,
+		updateCheck:        true,
+		restoreLastSession: true,
+		workbench:          desktopWorkbench{layout: "right"},
+		startup:            newStartupRunner(),
 	}
 	a.attention = newAttentionService(a, liveAttentionChannels{win: func() *mygo.Window { return a.win }})
 	// The engine reads SSLKEYLOGFILE on its first handshake, so a key log the
@@ -932,6 +942,7 @@ func newApp() *app {
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
 			a.settingsReadable = true
+			a.restoreLastSession = saved.RestoreLastSession == nil || *saved.RestoreLastSession
 			a.logLevel = saved.LogLevel
 			a.urlHistory.load(saved.URLHistory)
 			a.filterHistory.load(saved.FilterHistory)
@@ -1100,6 +1111,7 @@ func newApp() *app {
 			a.sessions.problem = err.Error()
 			a.fail(locales.Sessions(), err)
 		}
+		a.prepareLastSessionRestore()
 		markStartup(markSessionsLoaded)
 	}
 	a.loadAndroidProxyRecords()
@@ -2048,6 +2060,7 @@ func (a *app) syncDetail() {
 func (a *app) view(c *ui.Context) {
 	defer uikit.FrameEnd(c)
 	a.firstFrame()
+	a.checkpointLastSession()
 	// A modifier release outside the main column still settles the quick
 	// switch; the column's input observer handles it when focus is inside.
 	if a.mruPending && c.Modifiers()&ui.Ctrl == 0 {
@@ -2239,6 +2252,7 @@ func (a *app) view(c *ui.Context) {
 	a.persistSettings()
 	a.checkpointExperiments(c)
 	a.checkpointSessions()
+	a.checkpointInspectorRestore()
 	// Dialogs keep their input and actions above background notifications.
 	uikit.Toasts(c)
 	a.commandPalette(c)
@@ -5388,6 +5402,9 @@ func (a *app) flushSettings() {
 	if a.settingsSaver != nil {
 		a.settingsSaver.Cancel()
 	}
+	// The last session lands before settings point at its snapshot, so a
+	// quit that is interrupted halfway never makes a missing file current.
+	a.saveLastSession()
 	a.lastSave = time.Time{}
 	_ = a.persistSettings()
 }

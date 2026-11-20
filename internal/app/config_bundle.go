@@ -84,6 +84,8 @@ func (a *app) currentSettings() settings {
 		TablePercent:         a.tablePercent,
 		InspectorLayout:      a.workbench.layout,
 		SideTablePercent:     a.workbench.sidePercent,
+		RestoreLastSession:   new(a.restoreLastSession),
+		LastSession:          a.lastSessionState(),
 		CaptureSplit:         a.workbench.captureSplit,
 		CaptureGroups:        slices.Clone(a.workbench.captureGroups),
 		CaptureFocus:         a.workbench.captureFocus,

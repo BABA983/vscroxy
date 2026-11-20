@@ -347,6 +347,16 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 		}, about)
 	}
 	uikit.SettingsCardPage(c, locales.Capture(), locales.WhatCaptureChangesOnThe(), func() {
+		uikit.SettingsCard(c, locales.Startup(), func() {
+			a.settingRow(c, "capture.restoreLastSession", locales.RestoreLastSession(), func() ui.Element {
+				on := a.restoreLastSession
+				toggle := uikit.SettingsSwitch(c, &on, locales.RestoreLastSession())
+				if toggle.Changed() {
+					a.setRestoreLastSession(on)
+				}
+				return toggle
+			}, locales.RestoreLastSessionHint())
+		})
 		uikit.SettingsCard(c, locales.Responses(), func() {
 			a.settingRow(c, "capture.noCaching", locales.Caching(), func() ui.Element {
 				on := a.srv != nil && a.srv.NoCaching()
