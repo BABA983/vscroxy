@@ -8458,5 +8458,11 @@
   "@bodyFromFile": {"placeholders": {"name": {"type": "String"}, "size": {"type": "String"}}},
   "bodyFromFile": "Replacement: {name} ({size} bytes). Sent as exact bytes, with Content-Length updated and Content-Encoding removed.",
   "@bodySaved": {"placeholders": {"size": {"type": "String"}}},
-  "bodySaved": "Body saved to file ({size} bytes)"
+  "bodySaved": "Body saved to file ({size} bytes)",
+  "restoreLastSession": "Restore last session",
+  "restoreLastSessionHint": "Reopen the capture table, loaded captures and detached inspectors on launch",
+  "lastSessionNotRestored": "The last session was not restored",
+  "lastSessionNotSaved": "The last session was not saved",
+  "inspectorNotRestored": "The detached inspector was not restored: its exchange is no longer open",
+  "startup": "Startup"
 }

@@ -531,6 +531,14 @@ func readSession(path string) ([]flow, map[int][]frame, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	flows, frames := s.tables()
+	return flows, frames, nil
+}
+
+// tables turns a checked session file into the flows and frames the table
+// shows. Restoring the last session uses the same conversion as opening a
+// session by hand, so the two paths cannot disagree about what a file means.
+func (s sessionFile) tables() ([]flow, map[int][]frame) {
 	flows := make([]flow, 0, len(s.Flows))
 	for _, f := range s.Flows {
 		flows = append(flows, f.flow())
@@ -554,7 +562,7 @@ func readSession(path string) ([]flow, map[int][]frame, error) {
 			})
 		}
 	}
-	return flows, frames, nil
+	return flows, frames
 }
 
 // snapshot copies the table's state for a goroutine that writes it out.

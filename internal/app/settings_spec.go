@@ -332,6 +332,12 @@ var settingsRegistry = []settingSpec{
 	},
 	// Capture.
 	{
+		id: "capture.restoreLastSession", section: settingsCapture,
+		title: locales.RestoreLastSession, description: locales.RestoreLastSessionHint,
+		value: settingValue{get: func(a *app) any { return a.restoreLastSession }, def: true,
+			set: func(a *app, v any) { a.setRestoreLastSession(v.(bool)) }},
+	},
+	{
 		id: "capture.noCaching", section: settingsCapture,
 		title: locales.Caching, description: locales.StripCachingHeadersBothWays,
 		value: settingValue{get: func(a *app) any { return a.srv != nil && a.srv.NoCaching() }, def: false,

@@ -4228,5 +4228,11 @@
   "@bodyFromFile": {"placeholders": {"name": {"type": "String"}, "size": {"type": "String"}}},
   "bodyFromFile": "替换文件：{name}（{size} 字节）。按其字节原样发送，并更新 Content-Length、移除 Content-Encoding。",
   "@bodySaved": {"placeholders": {"size": {"type": "String"}}},
-  "bodySaved": "正文已保存到文件（{size} 字节）"
+  "bodySaved": "正文已保存到文件（{size} 字节）",
+  "restoreLastSession": "恢复上次会话",
+  "restoreLastSessionHint": "启动时重新打开抓包表格、已加载的会话和分离的检查器窗口",
+  "lastSessionNotRestored": "未能恢复上次会话",
+  "lastSessionNotSaved": "未能保存上次会话",
+  "inspectorNotRestored": "未恢复分离的检查器窗口：它显示的交换记录已不存在",
+  "startup": "启动"
 }

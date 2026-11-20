@@ -76,7 +76,7 @@ func (s *sessionWorkspace) load(dir string) error {
 	}
 	var problem error
 	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" || entry.Name() == lastSessionFile {
 			continue
 		}
 		path := filepath.Join(dir, entry.Name())
@@ -235,13 +235,22 @@ func (a *app) selectSession(key string) {
 	if item.loaded || item.loading {
 		return
 	}
+	a.loadSessionTab(item)
+}
+
+// loadSessionTab reads one session's payload on a worker. The tab opens
+// before the read finishes, so reopening several saved sessions never holds
+// the UI thread; checkpointSessions applies the answers on the next frame.
+func (a *app) loadSessionTab(item *savedSession) {
+	if item == nil || item.path == "" || item.loaded || item.loading || item.closed {
+		return
+	}
 	item.loading, item.loadDone = true, make(chan sessionLoad, 1)
+	path, done := item.path, item.loadDone
 	go guarded(func() {
-		func(path string, done chan sessionLoad) {
-			file, err := readSessionFile(path)
-			done <- sessionLoad{file, err}
-			a.invalidate()
-		}(item.path, item.loadDone)
+		file, err := readSessionFile(path)
+		done <- sessionLoad{file, err}
+		a.invalidate()
 	})
 }
 

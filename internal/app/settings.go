@@ -34,6 +34,11 @@ type settings struct {
 	// (stacked); each keeps its own divider.
 	InspectorLayout  string  `json:"inspectorLayout,omitempty"`
 	SideTablePercent float32 `json:"sideTablePercent,omitzero"`
+	// RestoreLastSession reopens the last capture table and loaded sessions
+	// on launch. A missing setting means on; only an explicit false turns it
+	// off. LastSession holds what to reopen, next to the layout it belongs to.
+	RestoreLastSession *bool            `json:"restoreLastSession,omitzero"`
+	LastSession        lastSessionState `json:"lastSession,omitzero"`
 	// CaptureSplit opens a second capture group beside the first;
 	// CaptureGroups holds each group's conditions in group order and
 	// CaptureFocus which group has the keyboard.
@@ -270,6 +275,8 @@ func sameSettings(x, y settings) bool {
 		x.TablePercent == y.TablePercent &&
 		x.InspectorLayout == y.InspectorLayout &&
 		x.SideTablePercent == y.SideTablePercent &&
+		sameRestoreChoice(x.RestoreLastSession, y.RestoreLastSession) &&
+		sameLastSession(x.LastSession, y.LastSession) &&
 		x.CaptureSplit == y.CaptureSplit &&
 		slices.Equal(x.CaptureGroups, y.CaptureGroups) &&
 		x.CaptureFocus == y.CaptureFocus &&
