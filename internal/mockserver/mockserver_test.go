@@ -171,6 +171,7 @@ func TestGRPCUnaryMockServesExamples(t *testing.T) {
 		_ = srv.Serve(ln)
 	}()
 	defer func() {
+		srv.GracefulStop()
 		srv.Stop()
 		<-served
 	}()
