@@ -128,8 +128,9 @@ func (h *webSocketHandler) handle(serverConn, clientConn net.Conn, f *Flow) erro
 		// Closing the wrapper would end the client's tunnel too: replace
 		// only the socket it wraps.
 		if w, ok := serverConn.(*wrapServerConn); ok {
-			w.Conn.Close()
-			w.Conn = conn
+			if err := w.replaceSocket(conn); err != nil {
+				return err
+			}
 		} else {
 			if serverConn != nil {
 				serverConn.Close()
@@ -390,7 +391,7 @@ func (h *webSocketHandler) handleWSS(res http.ResponseWriter, req *http.Request,
 		proxy:   h.proxy,
 		connCtx: connCtx,
 	}
-	connCtx.ServerConn = serverConn
+	connCtx.setServerConn(serverConn)
 
 	// 步骤 3: 调用 addon 的 ServerConnected 回调
 	for _, addon := range connCtx.proxy.Addons {

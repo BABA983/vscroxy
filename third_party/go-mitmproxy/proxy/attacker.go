@@ -220,11 +220,12 @@ func (a *attacker) close() error {
 func (a *attacker) serveConn(clientTlsConn *tls.Conn, connCtx *ConnContext) {
 	connCtx.ClientConn.NegotiatedProtocol = clientTlsConn.ConnectionState().NegotiatedProtocol
 
-	if connCtx.ClientConn.NegotiatedProtocol == "h2" && connCtx.ServerConn != nil {
-		connCtx.ServerConn.client = &http.Client{
+	serverConn := connCtx.ServerConnection()
+	if connCtx.ClientConn.NegotiatedProtocol == "h2" && serverConn != nil {
+		serverConn.client = &http.Client{
 			Transport: &http2.Transport{
 				DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-					return connCtx.ServerConn.tlsConn, nil
+					return serverConn.tlsConn, nil
 				},
 				DisableCompression: true,
 			},
@@ -353,7 +354,7 @@ func (a *attacker) initHttpDialFn(req *http.Request) {
 			},
 		}
 
-		connCtx.ServerConn = serverConn
+		connCtx.setServerConn(serverConn)
 		for _, addon := range proxy.Addons {
 			addon.ServerConnected(connCtx)
 		}
@@ -551,7 +552,7 @@ func writeGatewayStatus(res http.ResponseWriter, f *Flow, status int, err error)
 func (a *attacker) serverTlsHandshake(ctx context.Context, connCtx *ConnContext) error {
 	proxy := a.proxy
 	clientHello := connCtx.ClientConn.clientHello
-	serverConn := connCtx.ServerConn
+	serverConn := connCtx.ServerConnection()
 
 	// Verification is on by default. A replay may ask for it on its CONNECT;
 	// a per-domain allow rule is the explicit exception for a local server
@@ -665,7 +666,7 @@ func (a *attacker) httpsDial(ctx context.Context, req *http.Request) (net.Conn, 
 		proxy:   proxy,
 		connCtx: connCtx,
 	}
-	connCtx.ServerConn = serverConn
+	connCtx.setServerConn(serverConn)
 	for _, addon := range connCtx.proxy.Addons {
 		addon.ServerConnected(connCtx)
 	}
@@ -675,6 +676,7 @@ func (a *attacker) httpsDial(ctx context.Context, req *http.Request) (net.Conn, 
 
 func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Conn, f *Flow) {
 	connCtx := cconn.(*wrapClientConn).connCtx
+	serverConn := connCtx.ServerConnection()
 	log := log.WithFields(log.Fields{
 		"in":   "Proxy.attacker.httpsTlsDial",
 		"host": connCtx.ClientConn.Conn.RemoteAddr().String(),
@@ -702,8 +704,8 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 				// reach ServeHTTP and get a 502 with the reason. HTTP/1.1 is
 				// the safe protocol here: no upstream ALPN was established.
 				address := ""
-				if connCtx.ServerConn != nil {
-					address = connCtx.ServerConn.Address
+				if serverConn != nil {
+					address = serverConn.Address
 				}
 				configured, certErr := a.serverCertificate(connCtx, address, chi)
 				if certErr != nil {
@@ -711,8 +713,8 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 				}
 				if configured == nil {
 					name := chi.ServerName
-					if name == "" && connCtx.ServerConn != nil {
-						name = hostOnly(connCtx.ServerConn.Address)
+					if name == "" && serverConn != nil {
+						name = hostOnly(serverConn.Address)
 					}
 					configured, certErr = a.getCA().GetCert(name)
 					if certErr != nil {
@@ -731,8 +733,8 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 			}
 
 			address := ""
-			if connCtx.ServerConn != nil {
-				address = connCtx.ServerConn.Address
+			if serverConn != nil {
+				address = serverConn.Address
 			}
 			c, err := a.serverCertificate(connCtx, address, chi)
 			if err != nil {
@@ -742,7 +744,7 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 				name := chi.ServerName
 				if name == "" {
 					// IP clients omit SNI; certify the original CONNECT target.
-					name, _, _ = net.SplitHostPort(connCtx.ServerConn.Address)
+					name, _, _ = net.SplitHostPort(serverConn.Address)
 				}
 				c, err = a.getCA().GetCert(name)
 				if err != nil {
@@ -782,7 +784,7 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 		// certificate, and ServeHTTP answers the request with the reason.
 		// Closing it here is what made a plain CONNECT look like a transport
 		// error instead of a 502.
-		connCtx.upstreamTLSFailure = upstreamTLSFailureError(connCtx.ServerConn.Address, err)
+		connCtx.upstreamTLSFailure = upstreamTLSFailureError(serverConn.Address, err)
 		// Close only the upstream socket. wrapServerConn.Close also ends the
 		// client, which is exactly what must not happen here.
 		if sc, ok := conn.(*wrapServerConn); ok {
@@ -793,7 +795,7 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 		errChan2 <- err
 		log.Error(err)
 	} else {
-		serverTlsStateChan <- connCtx.ServerConn.tlsState
+		serverTlsStateChan <- serverConn.tlsState
 	}
 
 	// wait client handshake finish
@@ -1126,14 +1128,14 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		// belong to the target they were dialed for, and that transport hands
 		// its socket to any address, so a new target must dial its own.
 		// An intercepted tunnel keeps one target for the whole connection.
-		if sc := f.ConnContext.ServerConn; sc != nil && !f.ConnContext.ClientConn.Tls {
+		if sc := f.ConnContext.ServerConnection(); sc != nil && !f.ConnContext.ClientConn.Tls {
 			if addr := helper.CanonicalAddr(f.Request.URL); sc.Address != addr {
 				f.ConnContext.RecordEvent("TCP", "Closing the connection to "+sc.Address+" for "+addr, nil)
 				sc.retire()
-				f.ConnContext.ServerConn = nil
+				f.ConnContext.setServerConn(nil)
 			}
 		}
-		if f.ConnContext.ServerConn == nil && f.ConnContext.dialFn != nil {
+		if f.ConnContext.ServerConnection() == nil && f.ConnContext.dialFn != nil {
 			if err := f.ConnContext.dialFn(req.Context()); err != nil {
 				for _, addon := range proxy.Addons {
 					addon.RequestError(f, err)
@@ -1148,14 +1150,15 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 				return
 			}
 		}
-		if sc := f.ConnContext.ServerConn; sc != nil && !f.ConnContext.ClientConn.Tls && isClosedUpstream(sc.Conn) {
+		sc := f.ConnContext.ServerConnection()
+		if sc != nil && !f.ConnContext.ClientConn.Tls && isClosedUpstream(sc.Conn) {
 			for _, addon := range proxy.Addons {
 				addon.RequestError(f, errPinnedUpstreamClosed)
 			}
 			abortClient(res)
 			return
 		}
-		proxyRes, err = f.ConnContext.ServerConn.client.Do(proxyReq)
+		proxyRes, err = sc.client.Do(proxyReq)
 	}
 	if err != nil {
 		logErr(log, err)
@@ -1167,7 +1170,7 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 			writeGatewayStatus(res, f, http.StatusProxyAuthRequired, err)
 			return
 		}
-		if sc := f.ConnContext.ServerConn; sc != nil && !f.ConnContext.ClientConn.Tls && isClosedUpstream(sc.Conn) {
+		if sc := f.ConnContext.ServerConnection(); sc != nil && !f.ConnContext.ClientConn.Tls && isClosedUpstream(sc.Conn) {
 			abortClient(res)
 			return
 		}

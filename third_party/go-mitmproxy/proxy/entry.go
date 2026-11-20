@@ -94,9 +94,7 @@ func (c *wrapClientConn) Close() error {
 		addon.ClientDisconnected(c.connCtx.ClientConn)
 	}
 
-	if c.connCtx.ServerConn != nil && c.connCtx.ServerConn.Conn != nil {
-		c.connCtx.ServerConn.Conn.Close()
-	}
+	c.connCtx.closeServerConn()
 
 	return c.closeErr
 }
@@ -114,6 +112,26 @@ type wrapServerConn struct {
 	closeMu  sync.Mutex
 	closed   bool
 	closeErr error
+}
+
+// replaceSocket changes the upstream a WebSocket is connected to without
+// closing this wrapper, whose Close would also end the client's tunnel. The
+// old socket is closed only after the new one is installed, so a concurrent
+// Close retires the new socket rather than leaking it.
+func (c *wrapServerConn) replaceSocket(conn net.Conn) error {
+	c.closeMu.Lock()
+	if c.closed {
+		c.closeMu.Unlock()
+		_ = conn.Close()
+		return net.ErrClosed
+	}
+	old := c.Conn
+	c.Conn = conn
+	c.closeMu.Unlock()
+	if old != nil {
+		_ = old.Close()
+	}
+	return nil
 }
 
 // retire closes this upstream but keeps the client's connection open: a

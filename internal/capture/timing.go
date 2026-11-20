@@ -83,7 +83,11 @@ func (r *timingRecorder) end(name, key string, err error) {
 }
 
 func (r *timingRecorder) trace(f *proxy.Flow) *httptrace.ClientTrace {
-	preTLS := f.ConnContext != nil && f.ConnContext.ServerConn != nil && f.ConnContext.ServerConn.TlsState() != nil
+	var serverConn *proxy.ServerConn
+	if f.ConnContext != nil {
+		serverConn = f.ConnContext.ServerConnection()
+	}
+	preTLS := serverConn != nil && serverConn.TlsState() != nil
 	return &httptrace.ClientTrace{
 		GetConn: func(string) {
 			r.mu.Lock()

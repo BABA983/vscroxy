@@ -171,6 +171,28 @@ connection. `wrapServerConn.isClosed` reports the socket's state.
 `TestForwardProxyAbortsWhenPinnedUpstreamDies` in `internal/capture` covers a
 live client connection whose upstream reads one request and then hangs up.
 
+## Server connections handed off after client close (`connection.go`, `entry.go`)
+
+`wrapClientConn.Close` used to read `ConnContext.ServerConn` and its `Conn`
+while an on-demand dial was still writing them: shutting the capture server
+down during a request could close the wrong socket, or none at all. The server
+connection now has one guarded handoff. `ConnContext.setServerConn` publishes
+the dialled connection and `connCtx.closeServerConn` marks the client closed
+before retiring the connection it knows about, both under `serverMu`. If close
+wins, the dial retires the connection it produces; if publication wins, close
+retires it. `ServerConn.retire` closes the socket only once, so neither ordering
+leaks it or closes it twice. All engine reads of the field, including the addon
+and diagnostics paths in the desktop capture, go through `ServerConnection()`.
+
+`wrapServerConn` also guards the socket it wraps: a WebSocket target switch
+installs the new socket under the same lock that `Close` uses, and closes the
+old one afterwards. A switch against a wrapper that already closed returns an
+error and closes the fresh socket instead of leaving it behind.
+
+`TestClientCloseRetiresLateServerConn` in `proxy` blocks the upstream CONNECT,
+closes the client, then releases the dial and asserts the resulting upstream is
+closed both locally and at the remote peer.
+
 ## Upstream proxy candidates, fallback and authentication
 
 `SetUpstreamProxy` receives the proxy request and the canonical destination
