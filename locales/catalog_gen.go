@@ -38931,3 +38931,113 @@ func SettingTrustedRootsHint() string { return In(i18n.Locale()).SettingTrustedR
 func (msgs Messages) SettingTrustedRootsHint() string {
 	return Catalog.Format(msgs.locale, "settingTrustedRootsHint", nil)
 }
+
+// Logging says "Logging"
+// in the language the app shows.
+func Logging() string { return In(i18n.Locale()).Logging() }
+
+// Logging says "Logging"
+// in the language of msgs.
+func (msgs Messages) Logging() string {
+	return Catalog.Format(msgs.locale, "logging", nil)
+}
+
+// LogLevel says "Log level"
+// in the language the app shows.
+func LogLevel() string { return In(i18n.Locale()).LogLevel() }
+
+// LogLevel says "Log level"
+// in the language of msgs.
+func (msgs Messages) LogLevel() string {
+	return Catalog.Format(msgs.locale, "logLevel", nil)
+}
+
+// LogLevelHint says "How much the app writes to its log. Changes apply at once."
+// in the language the app shows.
+func LogLevelHint() string { return In(i18n.Locale()).LogLevelHint() }
+
+// LogLevelHint says "How much the app writes to its log. Changes apply at once."
+// in the language of msgs.
+func (msgs Messages) LogLevelHint() string {
+	return Catalog.Format(msgs.locale, "logLevelHint", nil)
+}
+
+// LogLevelFlagOverride says "A --log-level flag is setting the level for this run."
+// in the language the app shows.
+func LogLevelFlagOverride() string { return In(i18n.Locale()).LogLevelFlagOverride() }
+
+// LogLevelFlagOverride says "A --log-level flag is setting the level for this run."
+// in the language of msgs.
+func (msgs Messages) LogLevelFlagOverride() string {
+	return Catalog.Format(msgs.locale, "logLevelFlagOverride", nil)
+}
+
+// SetLogLevel says "Set Log Level…"
+// in the language the app shows.
+func SetLogLevel() string { return In(i18n.Locale()).SetLogLevel() }
+
+// SetLogLevel says "Set Log Level…"
+// in the language of msgs.
+func (msgs Messages) SetLogLevel() string {
+	return Catalog.Format(msgs.locale, "setLogLevel", nil)
+}
+
+// LogLevelTrace says "Trace"
+// in the language the app shows.
+func LogLevelTrace() string { return In(i18n.Locale()).LogLevelTrace() }
+
+// LogLevelTrace says "Trace"
+// in the language of msgs.
+func (msgs Messages) LogLevelTrace() string {
+	return Catalog.Format(msgs.locale, "logLevelTrace", nil)
+}
+
+// LogLevelDebug says "Debug"
+// in the language the app shows.
+func LogLevelDebug() string { return In(i18n.Locale()).LogLevelDebug() }
+
+// LogLevelDebug says "Debug"
+// in the language of msgs.
+func (msgs Messages) LogLevelDebug() string {
+	return Catalog.Format(msgs.locale, "logLevelDebug", nil)
+}
+
+// LogLevelInfo says "Info"
+// in the language the app shows.
+func LogLevelInfo() string { return In(i18n.Locale()).LogLevelInfo() }
+
+// LogLevelInfo says "Info"
+// in the language of msgs.
+func (msgs Messages) LogLevelInfo() string {
+	return Catalog.Format(msgs.locale, "logLevelInfo", nil)
+}
+
+// LogLevelWarning says "Warning"
+// in the language the app shows.
+func LogLevelWarning() string { return In(i18n.Locale()).LogLevelWarning() }
+
+// LogLevelWarning says "Warning"
+// in the language of msgs.
+func (msgs Messages) LogLevelWarning() string {
+	return Catalog.Format(msgs.locale, "logLevelWarning", nil)
+}
+
+// LogLevelError says "Error"
+// in the language the app shows.
+func LogLevelError() string { return In(i18n.Locale()).LogLevelError() }
+
+// LogLevelError says "Error"
+// in the language of msgs.
+func (msgs Messages) LogLevelError() string {
+	return Catalog.Format(msgs.locale, "logLevelError", nil)
+}
+
+// LogLevelOff says "Off"
+// in the language the app shows.
+func LogLevelOff() string { return In(i18n.Locale()).LogLevelOff() }
+
+// LogLevelOff says "Off"
+// in the language of msgs.
+func (msgs Messages) LogLevelOff() string {
+	return Catalog.Format(msgs.locale, "logLevelOff", nil)
+}

@@ -132,12 +132,14 @@ func TestSocketIODocumentEmitACKScopeAndPersistence(t *testing.T) {
 
 func TestSocketIODocumentCloseCancelsHandshake(t *testing.T) {
 	started := make(chan struct{})
+	upgraded := make(chan *websocket.Conn, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ws, err := new(websocket.Upgrader).Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
 		defer ws.Close()
+		upgraded <- ws
 		close(started)
 		ws.ReadMessage()
 	}))
@@ -151,6 +153,8 @@ func TestSocketIODocumentCloseCancelsHandshake(t *testing.T) {
 		t.Fatal(err)
 	}
 	<-started
+	serverConn := <-upgraded
+	t.Cleanup(func() { _ = serverConn.Close() })
 	s := d.socketIOUI.session
 	a.closeDocument(d)
 	select {

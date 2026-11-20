@@ -25,31 +25,36 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/leakcheck"
 )
 
 // TestMain trusts httptest's localhost certificate, whose IP SANs make it a
 // useful positive control for an IP-addressed TLS send. Tests that need an
 // untrusted certificate generate their own.
 func TestMain(m *testing.M) {
-	trusted := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	cert := trusted.Certificate()
-	file, err := os.CreateTemp("", "vscroxy-request-roots-*.pem")
-	if err != nil {
-		panic(err)
-	}
-	if err := pem.Encode(file, &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw}); err != nil {
-		panic(err)
-	}
-	if err := file.Close(); err != nil {
-		panic(err)
-	}
-	if err := os.Setenv("SSL_CERT_FILE", file.Name()); err != nil {
-		panic(err)
-	}
-	code := m.Run()
-	trusted.Close()
-	os.Remove(file.Name())
-	os.Exit(code)
+	var trusted *httptest.Server
+	var roots *os.File
+	leakcheck.RunWith(m, func() {
+		trusted = httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+		cert := trusted.Certificate()
+		var err error
+		roots, err = os.CreateTemp("", "vscroxy-request-roots-*.pem")
+		if err != nil {
+			panic(err)
+		}
+		if err := pem.Encode(roots, &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw}); err != nil {
+			panic(err)
+		}
+		if err := roots.Close(); err != nil {
+			panic(err)
+		}
+		if err := os.Setenv("SSL_CERT_FILE", roots.Name()); err != nil {
+			panic(err)
+		}
+	}, func() {
+		trusted.Close()
+		os.Remove(roots.Name())
+	})
 }
 
 // untrustedTLSServer answers with a self-signed certificate for 127.0.0.1

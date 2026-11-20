@@ -568,6 +568,16 @@ custom roots, reverse proxy and WSS) and `internal/request/certificates_test.go`
 (tunneled and intercepted sends, PEM/PKCS#12, wrong passphrase, host mismatch,
 verification off).
 
+## Closing the intercepted-TLS listener
+
+`Proxy.Close` now closes the attacker's in-memory listener. Upstream left its
+`Accept` waiting on a channel that `Close` ignored, so every served proxy left
+one goroutine behind after shutdown. The listener has a done channel and a
+once-guarded close; `accept` closes a connection offered after shutdown, and
+`Accept` returns `net.ErrClosed`, which `Serve` treats as a normal end. The
+`http.Server` itself keeps serving hijacked connections until the entry and
+caller close them.
+
 ## Maintaining this patch
 
 ### Deliver a closing response before canceling downstream

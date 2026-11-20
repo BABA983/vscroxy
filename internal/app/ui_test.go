@@ -428,6 +428,9 @@ func workspaceApp() *app {
 	a := &app{
 		changed: make(chan struct{}, 1),
 		filter:  "all", sidebarWidth: 220, tablePercent: 56,
+		// Tester builds have no native main loop for MyGo.RunOnMain to
+		// dispatch to; run the deferred work here instead of stranding it.
+		quitOnMain:     func(fn func()) { fn() },
 		collectionOpen: make(map[string]*bool), icons: make(map[string]ui.ImageSource),
 		detailFor: -1, frames: make(map[int][]frame), workbench: desktopWorkbench{layout: "right"},
 		flows: []flow{

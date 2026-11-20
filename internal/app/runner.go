@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
 	"github.com/baba983/vscroxy/internal/store"
@@ -291,6 +292,7 @@ func (a *app) startRun(plan runPlan) {
 	vars, srv, env := maps.Clone(plan.inputs.vars), a.srv, plan.inputs.environment
 	jar := a.requestCookies()
 	release := a.sleep.holdRun()
+	applog.For("runner").Debug("collection run started", "requests", len(plan.steps), "iterations", plan.iterations)
 	go guarded(func() {
 		defer close(events)
 		defer cancel()
@@ -416,6 +418,7 @@ func (a *app) drainRunner() {
 func (a *app) finishRunner() {
 	r := &a.runner
 	r.report.Finish(r.outcome.summary, r.outcome.err, time.Since(r.report.StartedAt))
+	applog.For("runner").Debug("collection run finished", "completed", r.report.Completed, "failed", r.report.Failed)
 	if a.attention != nil {
 		failed := r.outcome.err != nil || r.report.Failed > 0
 		a.attention.play(runAttention(failed, r.report.Completed, r.report.Failed))

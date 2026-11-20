@@ -11,6 +11,7 @@ func (d *countingDisposable) Dispose() { d.calls++ }
 
 func TestFirstReplaceSessionStopsLiveSearches(t *testing.T) {
 	a := newApp()
+	t.Cleanup(func() { _ = a.srv.Close() })
 
 	// Both searches are live on the traffic the replacement is about to
 	// discard. The message search is the important one: applying the filter
@@ -48,6 +49,7 @@ func TestFirstReplaceSessionStopsLiveSearches(t *testing.T) {
 
 func TestReplaceSessionDisposesOwnedResourcesOnceAndStartsAFreshStore(t *testing.T) {
 	a := newApp()
+	t.Cleanup(func() { _ = a.srv.Close() })
 	owned := make([]*countingDisposable, 3)
 	for i := range owned {
 		owned[i] = new(countingDisposable)

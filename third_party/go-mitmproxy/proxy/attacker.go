@@ -22,19 +22,40 @@ import (
 	"golang.org/x/net/http2"
 )
 
+// attackerListener hands hijacked TLS connections to the attacker HTTP
+// server. Closing it stops the server's Accept loop; without the done channel
+// the loop outlives the proxy and keeps a goroutine per Serve call.
 type attackerListener struct {
-	connChan chan net.Conn
+	connChan  chan net.Conn
+	done      chan struct{}
+	closeOnce sync.Once
+}
+
+func newAttackerListener() *attackerListener {
+	return &attackerListener{connChan: make(chan net.Conn), done: make(chan struct{})}
 }
 
 func (l *attackerListener) accept(conn net.Conn) {
-	l.connChan <- conn
+	select {
+	case l.connChan <- conn:
+	case <-l.done:
+		_ = conn.Close()
+	}
 }
 
 func (l *attackerListener) Accept() (net.Conn, error) {
-	c := <-l.connChan
-	return c, nil
+	select {
+	case c := <-l.connChan:
+		return c, nil
+	case <-l.done:
+		return nil, net.ErrClosed
+	}
 }
-func (l *attackerListener) Close() error   { return nil }
+
+func (l *attackerListener) Close() error {
+	l.closeOnce.Do(func() { close(l.done) })
+	return nil
+}
 func (l *attackerListener) Addr() net.Addr { return nil }
 
 type attackerConn struct {
@@ -62,13 +83,7 @@ func newAttacker(proxy *Proxy) (*attacker, error) {
 		return nil, err
 	}
 
-	a := &attacker{
-		proxy: proxy,
-		ca:    ca,
-		listener: &attackerListener{
-			connChan: make(chan net.Conn),
-		},
-	}
+	a := &attacker{proxy: proxy, ca: ca, listener: newAttackerListener()}
 
 	a.server = &http.Server{
 		Handler: a,
@@ -120,6 +135,10 @@ func newCa(opts *Options) (cert.CA, error) {
 func (a *attacker) start() error {
 	return a.server.Serve(a.listener)
 }
+
+// close releases the Accept loop. Existing hijacked connections are owned by
+// the entry's close and by the caller's DropConnections, not by this listener.
+func (a *attacker) close() error { return a.listener.Close() }
 
 func (a *attacker) serveConn(clientTlsConn *tls.Conn, connCtx *ConnContext) {
 	connCtx.ClientConn.NegotiatedProtocol = clientTlsConn.ConnectionState().NegotiatedProtocol

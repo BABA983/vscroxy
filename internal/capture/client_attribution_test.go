@@ -65,6 +65,7 @@ func TestClientLookupBatchesAConnectionBurst(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = s.Close() })
 	var mu sync.Mutex
 	calls, looked := 0, 0
 	s.lookupBatch = func(endpoints []procinfo.Endpoint) []procinfo.Process {
@@ -137,6 +138,7 @@ func TestClientLookupDrainsArrivalsDuringAPass(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = s.Close() })
 	var mu sync.Mutex
 	calls := 0
 	firstBatch := make(chan struct{})

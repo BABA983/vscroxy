@@ -4119,5 +4119,16 @@
   "settingMemoryLimitHint": "保留在内存中的抓取正文数据量",
   "settingDiskLimit": "磁盘上限",
   "settingTrustSystemRootsHint": "同时信任此计算机已经信任的证书根",
-  "settingTrustedRootsHint": "验证上游服务器时使用的额外证书根"
+  "settingTrustedRootsHint": "验证上游服务器时使用的额外证书根",
+  "logging": "日志记录",
+  "logLevel": "日志级别",
+  "logLevelHint": "应用向日志写入多少内容。更改立即生效。",
+  "logLevelFlagOverride": "本次运行的日志级别由 --log-level 参数决定。",
+  "setLogLevel": "设置日志级别…",
+  "logLevelTrace": "跟踪",
+  "logLevelDebug": "调试",
+  "logLevelInfo": "信息",
+  "logLevelWarning": "警告",
+  "logLevelError": "错误",
+  "logLevelOff": "关闭"
 }

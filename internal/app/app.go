@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"io/fs"
-	"log/slog"
 	"maps"
 	"net"
 	"net/http"
@@ -144,6 +143,13 @@ type app struct {
 	// settingsFocusSearch is a request token: zero leaves focus alone, each
 	// increment asks the search field for focus again.
 	settingsFocusSearch uint64
+	// logLevel is the live setting that currentSettings saves. It stays
+	// separate from saved.LogLevel until the write succeeds.
+	logLevel string
+	// logLevelPickerOpen is the palette's Set Log Level dialog; the level
+	// is a draft until Done, then it changes the open log and settings.json.
+	logLevelPickerOpen bool
+	logLevelPicker     string
 	// settingsChoice is the category list's id for settingsTab, which the list
 	// chooses by.
 	settingsChoice      string
@@ -889,6 +895,7 @@ func newApp() *app {
 			a.errText = err.Error()
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
+			a.logLevel = saved.LogLevel
 			a.urlHistory.load(saved.URLHistory)
 			a.filterHistory.load(saved.FilterHistory)
 			a.trustedLinkHosts = slices.Clone(saved.TrustedLinkHosts)
@@ -1258,6 +1265,7 @@ func (a *app) stopCapture() {
 		a.fail(locales.StopCapture(), err)
 		return
 	}
+	applog.For("capture").Debug("capture stopped")
 	a.recordingPaused = false
 	a.newRows = 0
 	a.invalidate()
@@ -1275,6 +1283,7 @@ func (a *app) startCapture() {
 		return
 	}
 	a.captureReadyOnce.Do(func() { markStartup(markCaptureReady) })
+	applog.For("capture").Debug("capture started")
 	if err := a.srv.SOCKSError(); err != nil {
 		a.warn(locales.SocksNotListening(err.Error()))
 	}
@@ -2155,6 +2164,7 @@ func (a *app) view(c *ui.Context) {
 	})
 	a.settingsModal(c, t)
 	a.workspaceTrustModal(c, t)
+	a.logLevelModal(c)
 	a.sslModal(c, t)
 	a.toolsModal(c, t)
 	a.configImportDialog(c, t)
@@ -3830,7 +3840,7 @@ func Run() error {
 	var active *app
 	var focusOnReady bool
 	mygo.App.OnSecondInstance(func(args []string, _ string) {
-		slog.Info("second instance handed off", "args", len(args))
+		applog.For("app").Info("second instance handed off", "args", len(args))
 		if active != nil && active.win != nil {
 			active.win.Restore()
 			active.win.Focus()
@@ -3862,11 +3872,16 @@ func Run() error {
 	defer lock.Close()
 	mygo.App.OnQuit(func() { _ = lock.Close() })
 	if logs, err := applog.Open(filepath.Join(root, "logs")); err != nil {
-		slog.Warn("log file unavailable; logging to stderr only", "err", err)
+		applog.For("app").Warn("log file unavailable; logging to stderr only", "err", err)
 	} else {
 		defer logs.Close()
 	}
-	slog.Info("vscroxy starting", "dataDir", root, "version", version.String(), "commit", version.CommitString(), "os", runtime.GOOS, "arch", runtime.GOARCH)
+	if saved, err := loadSettings(filepath.Join(root, "settings.json")); err == nil {
+		if err := applog.SetLevel(saved.LogLevel); err != nil {
+			applog.For("app").Warn("saved log level is unknown; using Info", "saved", saved.LogLevel)
+		}
+	}
+	applog.For("app").Info("vscroxy starting", "dataDir", root, "version", version.String(), "commit", version.CommitString(), "os", runtime.GOOS, "arch", runtime.GOARCH)
 	a := newApp()
 	active = a
 	setUnexpectedErrorHandler(a.fail)
@@ -3903,7 +3918,7 @@ func Run() error {
 	defer cleanup.flushCookies()
 	cleanupProxy := func() {
 		if err := a.systemProxy.close(); err != nil {
-			slog.Error(locales.ReleaseSystemProxy(), "err", err)
+			applog.For("system-proxy").Error(locales.ReleaseSystemProxy(), "err", err)
 		}
 	}
 	defer cleanupProxy()          // before the listener closes, even if Run returns an error
@@ -3958,7 +3973,7 @@ func Run() error {
 		// A run that is not a bundle has no icon of its own: the Dock (and
 		// the taskbar) read it from the binary instead.
 		if err := mygo.App.Dock.SetIcon(iconPNG); err != nil && runtime.GOOS == "darwin" {
-			slog.Warn("dock icon", "err", err)
+			applog.For("app").Warn("dock icon", "err", err)
 		}
 		// The first frame arms the watchdog only in a real window; Tester
 		// views in tests have no app window to watch.
@@ -4916,6 +4931,7 @@ func (a *app) saveComposed() bool {
 			a.errText = err.Error()
 		} else {
 			a.saved = saved
+			a.logLevel = saved.LogLevel
 			a.appearance = saved.Appearance
 			if saved.SidebarWidth > 0 {
 				a.sidebarWidth = saved.SidebarWidth
@@ -5170,6 +5186,7 @@ func (a *app) persistSettings() error {
 		a.fail(locales.Settings(), err)
 		return err
 	}
+	applog.For("store").Debug("settings saved", "path", a.settingsPath)
 	a.saved = now
 	return nil
 }

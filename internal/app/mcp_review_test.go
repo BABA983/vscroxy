@@ -383,7 +383,7 @@ func TestMCPRefreshMarksCachedCatalog(t *testing.T) {
 	defer httpServer.Close()
 	plan := request.MCPPlan{Transport: request.MCPTransportStreamableHTTP, URL: httpServer.URL, Timeout: 10 * time.Second}
 	s := openMCPSession(plan, request.Request{Protocol: "MCP"}, request.Context{}, nil, nil)
-	defer s.disconnect()
+	defer s.closeNow(mcpCloseTimeout)
 	waitMCPSession(t, s, func(snapshot mcpSnapshot) bool {
 		return snapshot.connected && !snapshot.busy && len(snapshot.tools) == 1
 	})
@@ -434,7 +434,7 @@ func TestMCPProgressAppearsInSnapshotAndTimeline(t *testing.T) {
 		}
 	}
 	s := openMCPSession(plan, r, request.Context{}, nil, notify)
-	defer s.disconnect()
+	defer s.closeNow(mcpCloseTimeout)
 	waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return snapshot.connected && !snapshot.busy })
 	// Progress notifications use the standalone GET stream.
 	waitMCPStream(t, standaloneGET)
@@ -498,7 +498,7 @@ func TestMCPServerInitiatedRequestAppearsInTimeline(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := openMCPSession(plan, r, request.Context{}, nil, nil)
-	defer s.disconnect()
+	defer s.closeNow(mcpCloseTimeout)
 	waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return snapshot.connected && !snapshot.busy })
 	// Server-initiated requests ride the standalone GET stream.
 	waitMCPStream(t, standaloneGET)
@@ -542,7 +542,7 @@ func TestMCPCachedReadIsMarked(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := openMCPSession(plan, r, request.Context{}, nil, nil)
-	defer s.disconnect()
+	defer s.closeNow(mcpCloseTimeout)
 	waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return snapshot.connected && !snapshot.busy })
 	if _, err := s.readResource(r.MCP); err != nil {
 		t.Fatal(err)
@@ -578,7 +578,7 @@ func TestMCPCatalogTruncationShowsNotice(t *testing.T) {
 	defer httpServer.Close()
 	plan := request.MCPPlan{Transport: request.MCPTransportStreamableHTTP, URL: httpServer.URL, Timeout: 20 * time.Second}
 	s := openMCPSession(plan, request.Request{Protocol: "MCP"}, request.Context{}, nil, nil)
-	defer s.disconnect()
+	defer s.closeNow(mcpCloseTimeout)
 	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool {
 		return snapshot.connected && !snapshot.busy && len(snapshot.tools) > 0
 	})
@@ -647,7 +647,7 @@ func TestMCPReconnectRecoversAndKeepsOneRow(t *testing.T) {
 	defer httpServer.Close()
 	plan := request.MCPPlan{Transport: request.MCPTransportStreamableHTTP, URL: httpServer.URL, Timeout: 15 * time.Second}
 	s := openMCPSession(plan, request.Request{Protocol: "MCP"}, request.Context{}, nil, nil)
-	defer s.disconnect()
+	defer s.closeNow(mcpCloseTimeout)
 	reconnecting := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool {
 		return snapshot.state == "Reconnecting"
 	})
@@ -734,7 +734,7 @@ func TestMCPBodyLimitExplainsSessionClose(t *testing.T) {
 	defer httpServer.Close()
 	plan := request.MCPPlan{Transport: request.MCPTransportStreamableHTTP, URL: httpServer.URL, Timeout: 5 * time.Second}
 	s := openMCPSession(plan, request.Request{Protocol: "MCP"}, request.Context{}, nil, nil)
-	defer s.disconnect()
+	defer s.closeNow(mcpCloseTimeout)
 	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return snapshot.finished })
 	for _, event := range snapshot.events {
 		if event.kind == "System" && event.name == "Response limit" && strings.Contains(event.text, "exceeded") {
@@ -769,7 +769,7 @@ func TestMCPHeaderDropAppearsInTimeline(t *testing.T) {
 	plan := request.MCPPlan{Transport: request.MCPTransportSSE, URL: primary.URL,
 		Header: http.Header{"Authorization": {"Bearer secret"}}, Timeout: 3 * time.Second}
 	s := openMCPSession(plan, request.Request{Protocol: "MCP"}, request.Context{}, nil, nil)
-	defer s.disconnect()
+	defer s.closeNow(mcpCloseTimeout)
 	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return snapshot.finished })
 	for _, event := range snapshot.events {
 		if event.kind == "System" && event.name == "Headers withheld" && strings.Contains(event.text, target.URL) {

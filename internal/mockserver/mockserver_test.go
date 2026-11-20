@@ -165,8 +165,15 @@ func TestGRPCUnaryMockServesExamples(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	go srv.Serve(ln)
-	defer srv.Stop()
+	served := make(chan struct{})
+	go func() {
+		defer close(served)
+		_ = srv.Serve(ln)
+	}()
+	defer func() {
+		srv.Stop()
+		<-served
+	}()
 	endpoint := "http://" + ln.Addr().String()
 
 	got := request.Request{Protocol: "gRPC", URL: endpoint, Body: `"hello"`,

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,6 +30,28 @@ func testProxy(t *testing.T) *capture.Server {
 	}
 	t.Cleanup(func() { srv.Close() })
 	return srv
+}
+
+// trackWS closes the test server's upgraded sockets at the end of a test.
+// httptest.Server.Close does not own hijacked connections, so a handler
+// reading from one would otherwise outlive the test that opened it.
+func trackWS(t *testing.T) func(*websocket.Conn) {
+	t.Helper()
+	var mu sync.Mutex
+	var conns []*websocket.Conn
+	t.Cleanup(func() {
+		mu.Lock()
+		open := slices.Clone(conns)
+		mu.Unlock()
+		for _, conn := range open {
+			_ = conn.Close()
+		}
+	})
+	return func(conn *websocket.Conn) {
+		mu.Lock()
+		conns = append(conns, conn)
+		mu.Unlock()
+	}
 }
 
 func TestIsWebSocket(t *testing.T) {
@@ -141,11 +164,13 @@ func TestWebSocketSubprotocolAndBinaryThroughWSAndWSS(t *testing.T) {
 // comes back.
 func TestWSSendThroughTheProxy(t *testing.T) {
 	upgrader := websocket.Upgrader{}
+	track := trackWS(t)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
+		track(conn)
 		defer conn.Close()
 		for {
 			kind, data, err := conn.ReadMessage()
@@ -189,11 +214,13 @@ func TestWSSendThroughTheProxy(t *testing.T) {
 func TestWebSocketCancellationInterruptsTheReplyWait(t *testing.T) {
 	started := make(chan struct{})
 	upgrader := websocket.Upgrader{}
+	track := trackWS(t)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
+		track(conn)
 		defer conn.Close()
 		close(started)
 		for {
@@ -231,11 +258,13 @@ func TestWebSocketCancellationInterruptsTheReplyWait(t *testing.T) {
 func wsEchoServer(t *testing.T, seen *[][]string) *httptest.Server {
 	t.Helper()
 	upgrader := websocket.Upgrader{}
+	track := trackWS(t)
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
+		track(conn)
 		defer conn.Close()
 		for {
 			kind, data, err := conn.ReadMessage()
@@ -310,15 +339,22 @@ func TestWebSocketMessageEncodingsSendBinaryFrames(t *testing.T) {
 
 func TestWebSocketWithoutMessagesListensForPushes(t *testing.T) {
 	upgrader := websocket.Upgrader{}
+	track := trackWS(t)
+	done := make(chan struct{})
+	t.Cleanup(func() { close(done) })
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
+		track(conn)
 		defer conn.Close()
 		conn.WriteMessage(websocket.TextMessage, []byte("first"))
 		conn.WriteMessage(websocket.TextMessage, []byte("second"))
-		<-r.Context().Done()
+		select {
+		case <-r.Context().Done():
+		case <-done:
+		}
 	}))
 	defer upstream.Close()
 	srv := testProxy(t)

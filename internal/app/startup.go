@@ -2,10 +2,10 @@ package app
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
 	"sync"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/perf"
 	"github.com/baba983/vscroxy/internal/watchdog"
 	"github.com/egoist/mygo"
@@ -73,7 +73,7 @@ func maybeLogStartupSummary() {
 		}
 	}
 	startupSummaryOnce.Do(func() {
-		slog.Info("startup phases", "detail", strings.TrimSpace(string(startupMarksReport())))
+		applog.For("app").Info("startup phases", "detail", strings.TrimSpace(string(startupMarksReport())))
 	})
 }
 

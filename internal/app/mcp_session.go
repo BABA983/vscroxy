@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/async"
 	"github.com/baba983/vscroxy/internal/lifecycle"
 	"github.com/baba983/vscroxy/internal/request"
@@ -324,6 +325,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 		s.server = client.Server()
 		s.appendLocked("System", "Connected", mcpConnectedText(s.server, plan))
 		s.mu.Unlock()
+		applog.For("mcp").Debug("session connected", "transport", plan.Transport)
 		s.changed()
 
 		s.refreshCatalog()
@@ -342,6 +344,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 		}
 		s.appendLocked("System", s.state, s.problem)
 		s.mu.Unlock()
+		applog.For("mcp").Debug("session finished")
 		s.changed()
 	})
 	return s

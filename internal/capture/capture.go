@@ -35,6 +35,7 @@ import (
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 	"github.com/sirupsen/logrus"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/datadir"
 	"github.com/baba983/vscroxy/internal/dnsmap"
@@ -369,6 +370,10 @@ type Server struct {
 	listener net.Listener
 	autoPort bool
 	running  atomic.Bool
+	// serveWG joins the background Serve loop on Close. On Windows the
+	// engine's first log line can be held up by time-zone initialization, so
+	// closing the listener alone does not mean Serve has returned.
+	serveWG sync.WaitGroup
 
 	mu            sync.Mutex
 	ids           map[uuid.UUID]int // request start order, claimed in Requestheaders
@@ -1378,9 +1383,7 @@ func (s *Server) waitBreakpoint(ctx context.Context, bp Breakpoint) *Decision {
 		delete(s.bpWait, id)
 		s.bpMu.Unlock()
 	}()
-	select {
-	case s.breakpoints <- bp:
-	default:
+	if !s.sendBreakpoint(bp) {
 		return nil
 	}
 	select {
@@ -1532,8 +1535,11 @@ func (s *Server) Start() error {
 	}
 	s.listener, s.addr = ln, ln.Addr().String()
 	s.running.Store(true)
+	applog.For("proxy").Debug("proxy listener started", "address", s.addr)
 	serveLn := ln
+	s.serveWG.Add(1)
 	go errorsx.Guard(func() {
+		defer s.serveWG.Done()
 		defer s.running.Store(false)
 		_ = s.proxy.Serve(serveLn)
 	})
@@ -1562,10 +1568,12 @@ func (s *Server) Stop() error {
 	s.DropConnections()
 	err := s.listener.Close()
 	s.listener = nil
+	applog.For("proxy").Debug("proxy listener stopped")
 	return err
 }
 
-// Close stops the proxy and closes Flows.
+// Close stops the proxy and closes the queues the UI reads: Flows, frames
+// and breakpoints. Their collectors are blocking range loops.
 func (s *Server) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
@@ -1591,14 +1599,19 @@ func (s *Server) Close() error {
 				err = errors.Join(err, e)
 			}
 		}
+		s.serveWG.Wait()
 		s.listenMu.Unlock()
 		if s.dns != nil {
 			_ = s.dns.Close()
 		}
-		// Nothing may publish into Flows once it is closed.
+		// Nothing may publish into the queues once they are closed. The
+		// senders guard their non-blocking sends with sendMu and sendClosed
+		// because HTTP handlers are not part of socketWG.
 		s.sendMu.Lock()
 		s.sendClosed = true
 		close(s.out)
+		close(s.frames)
+		close(s.breakpoints)
 		s.sendMu.Unlock()
 		s.mu.Lock()
 		streams := s.streams
@@ -2778,7 +2791,19 @@ func (s *Server) queueLookup(req clientLookup) {
 	go errorsx.Guard(func() {
 		for {
 			// Let the burst arrive before asking the OS once for all of it.
-			time.Sleep(30 * time.Millisecond)
+			// Close interrupts the wait instead of leaving this goroutine
+			// asleep after the server is gone.
+			delay := time.NewTimer(30 * time.Millisecond)
+			select {
+			case <-delay.C:
+			case <-s.closed:
+				delay.Stop()
+				s.lookupMu.Lock()
+				s.lookupPending = nil
+				s.lookupRunning = false
+				s.lookupMu.Unlock()
+				return
+			}
 			s.lookupMu.Lock()
 			pending := s.lookupPending
 			s.lookupPending = nil
@@ -3284,6 +3309,37 @@ func (s *Server) send(flow Flow) {
 	}
 }
 
+// sendBreakpoint and sendFrame use the same closed guard as send: an HTTP
+// handler can still be deciding a breakpoint or reporting a frame while Close
+// is joining the socket relays.
+func (s *Server) sendBreakpoint(bp Breakpoint) bool {
+	s.sendMu.RLock()
+	defer s.sendMu.RUnlock()
+	if s.sendClosed {
+		return false
+	}
+	select {
+	case s.breakpoints <- bp:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Server) sendFrame(ev FrameEvent) bool {
+	s.sendMu.RLock()
+	defer s.sendMu.RUnlock()
+	if s.sendClosed {
+		return false
+	}
+	select {
+	case s.frames <- ev:
+		return true
+	default:
+		return false
+	}
+}
+
 // ConnInfo is the connection an exchange ran over, as the detail pane shows
 // it: who talked to the proxy, where the proxy dialled, and what it negotiated.
 type ConnInfo struct {
@@ -3468,9 +3524,7 @@ func (s *Server) emitFrame(f *proxy.Flow, in frameInput) {
 		return
 	}
 	frame := s.keepFrame(f, in, seq)
-	select {
-	case s.frames <- FrameEvent{FlowID: id, Frame: frame}:
-	default:
+	if !s.sendFrame(FrameEvent{FlowID: id, Frame: frame}) {
 		if frame.File != "" {
 			_ = os.Remove(frame.File)
 		}

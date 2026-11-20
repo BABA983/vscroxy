@@ -382,6 +382,7 @@ func TestAttentionSettingPersists(t *testing.T) {
 		t.Fatalf("saved attention signals = %q, want off", saved.AttentionSignals)
 	}
 	reloaded := newApp()
+	t.Cleanup(func() { _ = reloaded.srv.Close() })
 	reloaded.attention.setMode(saved.AttentionSignals)
 	if got := reloaded.attentionMode(); got != attentionOff {
 		t.Fatalf("reloaded attention signals = %q, want off", got)

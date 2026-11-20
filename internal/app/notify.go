@@ -2,11 +2,11 @@ package app
 
 import (
 	"errors"
-	"log/slog"
 	"slices"
 	"sync"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/locales"
 
@@ -69,7 +69,7 @@ func (n notice) line() string {
 // never holds request contents: only the text and detail.
 func (a *app) notify(n notice) {
 	if n.level == noticeError {
-		slog.Error(n.text, "detail", n.detail)
+		applog.For("app").Error(n.text, "detail", n.detail)
 	}
 	center := a.noticeCenter()
 	a.mu.Lock()

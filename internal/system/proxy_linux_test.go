@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/baba983/vscroxy/internal/leakcheck"
 )
 
 func TestMain(m *testing.M) {
@@ -39,7 +41,7 @@ func TestMain(m *testing.M) {
 		}
 		os.Exit(0)
 	}
-	os.Exit(m.Run())
+	leakcheck.Run(m)
 }
 
 // gsettingsReplies is the desktop's answer for one configuration, keyed the way

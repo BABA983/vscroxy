@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/upstream"
@@ -21,6 +22,9 @@ import (
 type settings struct {
 	// Appearance is "light" or "dark"; empty follows the system.
 	Appearance string `json:"appearance,omitempty"`
+	// LogLevel is one of applog's level names; empty is Info. A --log-level
+	// flag overrides it for one run without changing what is saved here.
+	LogLevel string `json:"logLevel,omitempty"`
 	// Language is "en" or "zh-Hans"; empty follows the computer's languages.
 	Language     string       `json:"language,omitempty"`
 	SidebarWidth float32      `json:"sidebarWidth,omitempty"`
@@ -173,6 +177,23 @@ func (a *app) saveProxyPort() {
 	a.done(locales.ProxyPortSavedRestartThe())
 }
 
+// setLogLevel changes the level of the already-open log and saves the choice.
+// applog keeps a --log-level override in force for this run when one was given.
+func (a *app) setLogLevel(name string) {
+	previousLog, previousSetting := applog.EffectiveLevel(), a.logLevel
+	if err := applog.SetLevel(name); err != nil {
+		a.fail(locales.Settings(), err)
+		return
+	}
+	a.logLevel = name
+	a.bypassSettingsSave()
+	if err := a.persistSettings(); err != nil {
+		// persistSettings has already reported the failed write.
+		a.logLevel = previousSetting
+		_ = applog.SetLevel(previousLog)
+	}
+}
+
 // columnLayout is a table's columns as the user arranged them, saved with
 // names of our own so the file does not follow MyGo's Go names.
 type columnLayout struct {
@@ -229,6 +250,7 @@ func savedLayout(l ui.TableLayout) columnLayout {
 // sameSettings reports whether two settings would write the same file.
 func sameSettings(x, y settings) bool {
 	return x.Appearance == y.Appearance &&
+		x.LogLevel == y.LogLevel &&
 		x.Language == y.Language &&
 		x.SidebarWidth == y.SidebarWidth &&
 		x.TablePercent == y.TablePercent &&

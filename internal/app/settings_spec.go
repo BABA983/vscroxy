@@ -13,6 +13,7 @@ import (
 	"maps"
 	"reflect"
 
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/upstream"
@@ -115,6 +116,18 @@ var settingsRegistry = []settingSpec{
 		// attentionMode always normalizes the saved empty value to "auto".
 		value: settingValue{get: func(a *app) any { return a.attentionMode() }, def: attentionAuto,
 			set: func(a *app, v any) { a.setAttentionMode(v.(string)) }},
+	},
+	{
+		id: "general.logLevel", section: settingsGeneral,
+		title: locales.LogLevel, description: locales.LogLevelHint,
+		// An omitted level means Info in settings.json too.
+		value: settingValue{get: func(a *app) any {
+			if a.logLevel == "" {
+				return applog.LevelInfo
+			}
+			return a.logLevel
+		}, def: applog.LevelInfo,
+			set: func(a *app, v any) { a.setLogLevel(v.(string)) }},
 	},
 	{
 		id: "general.projectFolder", section: settingsGeneral,
