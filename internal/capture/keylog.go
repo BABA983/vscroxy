@@ -8,17 +8,16 @@ import (
 )
 
 // SetTLSKeyLogPath changes the file new TLS handshakes write their secrets to.
-// An empty path turns the log off. The engine caches one writer for
-// SSLKEYLOGFILE, so the old writer must be closed and forgotten before the
-// environment changes: otherwise it is never closed and the file the setting
-// no longer names stays open.
+// An empty path turns the log off. Change SSLKEYLOGFILE before clearing the
+// engine's cached writer: a handshake between the two steps must not read the
+// old path and reopen the file the setting no longer names.
 func SetTLSKeyLogPath(path string) {
-	ClearTLSKeyLogWriter()
 	if path == "" {
 		_ = os.Unsetenv("SSLKEYLOGFILE")
 	} else {
 		_ = os.Setenv("SSLKEYLOGFILE", path)
 	}
+	ClearTLSKeyLogWriter()
 }
 
 // ClearTLSKeyLogWriter closes the TLS key-log writer the engine cached for
