@@ -11,6 +11,17 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
+)
+
+// A stopped goroutine can still show up in the first stack dump (grpc-go's
+// keepalive worker is one: Server.Stop wakes it but gives no handle to join).
+// Recheck the diff for a short, bounded window so only goroutines still alive
+// at the end of it are reported. The window is settleRetries dumps, settleDelay
+// apart; a clean first dump returns without any wait.
+var (
+	settleRetries = 200
+	settleDelay   = 10 * time.Millisecond
 )
 
 type stack struct {
@@ -30,10 +41,14 @@ var ignored = []string{
 }
 
 // Check keeps the baseline a package's tests start from.
-type Check struct{ before snapshot }
+type Check struct {
+	before snapshot
+	// take is a seam for tests that need to coordinate a dump with a channel.
+	take func() snapshot
+}
 
 // Start snapshots the goroutines alive before m.Run.
-func Start() *Check { return &Check{before: takeSnapshot()} }
+func Start() *Check { return &Check{before: takeSnapshot(), take: takeSnapshot} }
 
 // Run starts a check, runs the tests, then fails the process when goroutines
 // the tests started are still alive. A nonzero test exit code is kept.
@@ -122,14 +137,22 @@ type leak struct {
 }
 
 func (c *Check) diff(extra []string) []leak {
-	after := takeSnapshot()
 	var leaks []leak
-	for name, now := range after {
-		delta := now.count - c.before[name].count
-		if delta <= 0 || slices.Contains(extra, name) {
-			continue
+	for attempt := range settleRetries {
+		if attempt > 0 {
+			time.Sleep(settleDelay)
 		}
-		leaks = append(leaks, leak{name: name, delta: delta, stack: now.text})
+		leaks = nil
+		for name, now := range c.take() {
+			delta := now.count - c.before[name].count
+			if delta <= 0 || slices.Contains(extra, name) {
+				continue
+			}
+			leaks = append(leaks, leak{name: name, delta: delta, stack: now.text})
+		}
+		if len(leaks) == 0 {
+			return nil
+		}
 	}
 	slices.SortFunc(leaks, func(a, b leak) int { return strings.Compare(a.name, b.name) })
 	return leaks
