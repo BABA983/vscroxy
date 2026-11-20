@@ -519,6 +519,31 @@ func registerGlobalCommands() *commandRegistry {
 		x.a.views.capture(x.a)
 		x.a.views.newView(x.a)
 	}).when(func(x *commandContext) bool { return x.capturing }, "")
+	// The capture groups follow VS Code's editor-group commands: split right,
+	// close the group, and focus one by number or by going left and right.
+	r.add("capture.split-right", locales.SplitCaptureRight(), func(x *commandContext) {
+		x.a.views.splitRight(x.a)
+	}).when(func(x *commandContext) bool { return x.capturing && !x.a.views.split }, "").
+		keys(ui.Cmd, ui.KeyBackslash)
+	r.add("capture.close-group", locales.CloseCaptureGroup(), func(x *commandContext) {
+		x.a.views.closeGroup(x.a)
+	}).when(func(x *commandContext) bool { return x.a.views.split }, "")
+	r.add("capture.focus-group-1", locales.FocusCaptureGroup(1), func(x *commandContext) {
+		x.a.views.focusCaptureGroup(x.a, 0)
+	}).when(func(x *commandContext) bool { return x.a.views.split }, "").
+		keys(ui.Cmd|ui.Alt, ui.Key1)
+	r.add("capture.focus-group-2", locales.FocusCaptureGroup(2), func(x *commandContext) {
+		x.a.views.focusCaptureGroup(x.a, 1)
+	}).when(func(x *commandContext) bool { return x.a.views.split }, "").
+		keys(ui.Cmd|ui.Alt, ui.Key2)
+	r.add("capture.focus-next-group", locales.FocusNextCaptureGroup(), func(x *commandContext) {
+		x.a.views.focusCaptureGroup(x.a, 1-x.a.views.focus)
+	}).when(func(x *commandContext) bool { return x.a.views.split && x.a.views.focus == 0 }, "").
+		keys(ui.Cmd|ui.Alt, ui.KeyRight)
+	r.add("capture.focus-previous-group", locales.FocusPreviousCaptureGroup(), func(x *commandContext) {
+		x.a.views.focusCaptureGroup(x.a, 1-x.a.views.focus)
+	}).when(func(x *commandContext) bool { return x.a.views.split && x.a.views.focus == 1 }, "").
+		keys(ui.Cmd|ui.Alt, ui.KeyLeft)
 	r.add("capture.reset-filters", locales.ResetAllCaptureConditions(), func(x *commandContext) {
 		x.a.views.resetFilters(x.a)
 	}).when(func(x *commandContext) bool { return x.capturing }, "")

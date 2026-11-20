@@ -64,7 +64,7 @@ func captureViewsFrame(a *app, v *captureViews) func(*ui.Context) {
 func settle(t *testing.T, a *app, v *captureViews) {
 	t.Helper()
 	check := func() bool {
-		s := v.run
+		s := v.activeView().run
 		if s == nil {
 			return true
 		}

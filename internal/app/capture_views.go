@@ -231,6 +231,31 @@ type captureConditions struct {
 	sort     ui.SortOrder
 }
 
+// captureColumns is the part of a group's app state that follows its rows
+// rather than its conditions: the row indices, the choice and the reader's
+// position. It is copied in and out of the app when the group is drawn.
+type captureColumns struct {
+	visible       []int
+	chosen        ui.Selection[int]
+	sortApplied   ui.SortOrder
+	queryProblem  string
+	searchProblem string
+	queryCaret    *int
+	queryOpen     bool
+	searchFocused bool
+	search        ui.Handle
+	inspector     ui.Handle
+	inspectorReq  ui.Handle
+	inspectorResp ui.Handle
+	editorReq     ui.Handle
+	editorResp    ui.Handle
+	tablePercent  float32
+	sidePercent   float32
+	protoPercent  float32
+	dirty         bool
+	detail        captureInspectorState
+}
+
 // captureView is one tab over the capture list: the same traffic, its own
 // conditions.
 type captureView struct {
@@ -250,6 +275,15 @@ type captureView struct {
 	list ui.ListState
 	// reveal scrolls the tab into view once, when the view is new or chosen.
 	reveal bool
+
+	// A group keeps its rows, choice and inspector here while another group
+	// has the app's mirrored fields.
+	captureColumns
+	// The body condition is read off the UI thread with one cache and one
+	// search per view, so two groups can hold different queries at once.
+	cache      bodyCache
+	run        *bodySearch
+	searchStop lifecycle.MutableDisposable
 }
 
 // bodyJob is what a body search needs from a flow, copied on the UI thread so
@@ -365,6 +399,19 @@ type captureViews struct {
 	active int
 	nextID int
 
+	// groups holds the view ids shown in group 1 and group 2. An empty
+	// second id means the window has one group. focus says which group's
+	// conditions the app's fields mirror.
+	groups [2]int
+	split  bool
+	focus  int
+	// refreshing keeps a pass that rebuilds another group from asking for
+	// every group again; a filter pass owns that decision. drawing marks the
+	// build pass, when the table writes choice and scroll into the view's own
+	// fields rather than into the app's mirrored ones.
+	refreshing bool
+	drawing    bool
+
 	filters []savedCaptureFilter
 	// problem is the last failure to read or write the saved filters. It is
 	// shown, never turned into a claim that something was saved.
@@ -397,11 +444,6 @@ type captureViews struct {
 	renamingView int
 	viewName     string
 
-	cache bodyCache
-	run   *bodySearch
-	// searchStop holds the current body search. Setting a new one cancels the
-	// previous search, so no worker outlives the query it was reading for.
-	searchStop lifecycle.MutableDisposable
 	// slotsCh bounds the body readers; it is made on the UI thread, before
 	// any worker starts.
 	slotsCh chan struct{}
@@ -422,6 +464,9 @@ func (v *captureViews) init(a *app, path string) {
 	v.path = path
 	v.load(a)
 	v.newView(a)
+	if v.groups[0] == 0 {
+		v.groups[0] = v.views[0].id
+	}
 	// The first view's row is at the top of the list: there is nothing to
 	// scroll into view, and revealing it would scroll the scopes away in a
 	// short window.
@@ -609,19 +654,41 @@ func (v *captureViews) activate(a *app, i int) {
 
 // newView adds a view with nothing narrowed and makes it the active one.
 func (v *captureViews) newView(a *app) {
+	view := v.addView(a, savedCaptureFilter{Filter: "all"}, "")
+	view.captureConditions.sort = a.sort
+	v.bind(a)
+	v.applyFilter(a)
+}
+
+// addView appends a view carrying the conditions of filter and makes it the
+// active one. Split-right uses it to copy the current view; new view calls it
+// with an unfiltered set.
+func (v *captureViews) addView(a *app, filter savedCaptureFilter, body string) *captureView {
 	v.nextID++
 	view := &captureView{
 		id:     v.nextID,
 		reveal: true,
-		// A new view starts on everything, ordered as the table was: it is
-		// how a capture a filter hides is shown, so it never carries the
-		// conditions that hid it.
-		captureConditions: captureConditions{filter: "all", sort: a.sort},
+		captureConditions: captureConditions{
+			query: filter.Query, filter: filter.Filter, chip: filter.Chip,
+			status: filter.Status, header: filter.Header, triage: filter.Triage,
+			any: filter.Any, sort: a.sort,
+		},
+		body: body,
+	}
+	if view.filter == "" {
+		view.filter = "all"
 	}
 	v.views = append(v.views, view)
 	v.active = len(v.views) - 1
-	v.bind(a)
-	v.applyFilter(a)
+	return view
+}
+
+// savedFilter names a view's conditions by its stable id, the form the
+// workbench keeps them in settings.json.
+func (v *captureView) savedFilter() savedCaptureFilter {
+	f := v.saved(strconv.Itoa(v.id))
+	f.Name = strconv.Itoa(v.id)
+	return f
 }
 
 // closeView drops view i. The last view stays: the table always has one.
@@ -667,16 +734,19 @@ func (v *captureViews) applyFilter(a *app) {
 // the body condition, and a fast condition that changes does not show the
 // rows the body rules out for a frame.
 func (v *captureViews) narrow(a *app) {
-	view := v.activeView()
+	v.narrowView(a, v.activeView())
+}
+
+func (v *captureViews) narrowView(a *app, view *captureView) {
 	if view == nil || strings.TrimSpace(view.body) == "" {
-		v.stopSearch()
+		v.stopViewSearch(view)
 		v.rows = len(a.visible)
 		return
 	}
 	body := view.body
-	if v.cache.query != body {
-		v.stopSearch()
-		v.cache = bodyCache{query: body, matches: make(map[int]bool), errs: make(map[int]string)}
+	if view.cache.query != body {
+		v.stopViewSearch(view)
+		view.cache = bodyCache{query: body, matches: make(map[int]bool), errs: make(map[int]string)}
 	}
 	kept := a.visible[:0]
 	var jobs []bodyJob
@@ -688,55 +758,69 @@ func (v *captureViews) narrow(a *app) {
 				continue
 			}
 		}
-		if matched, known := v.cache.matches[f.id]; known {
+		if matched, known := view.cache.matches[f.id]; known {
 			if matched {
 				kept = append(kept, at)
 			}
 			continue
 		}
-		if _, unreadable := v.cache.errs[f.id]; unreadable {
+		if _, unreadable := view.cache.errs[f.id]; unreadable {
 			continue
 		}
 		jobs = append(jobs, bodyJobOf(f))
 	}
 	a.visible = kept
 	v.rows = len(a.visible)
-	v.startSearch(a, body, jobs)
+	v.startSearch(a, view, body, jobs)
 }
 
 // drain applies the answers the body readers have come back with, on the UI
-// thread. Call it once a frame, before sync.
+// thread. Call it once a frame, before sync. Every group with a search in
+// flight is drained, including the one not in the app's fields this frame.
 func (v *captureViews) drain(a *app) {
-	s := v.run
-	if s == nil {
-		return
-	}
-	fresh, done, total := s.take()
-	if len(fresh) == 0 {
-		return
-	}
-	for _, r := range fresh {
-		if r.err != "" {
-			v.cache.errs[r.id] = r.err
+	var ready []*captureView
+	for _, view := range v.views {
+		s := view.run
+		if s == nil {
 			continue
 		}
-		v.cache.matches[r.id] = r.matched
+		fresh, done, total := s.take()
+		if len(fresh) > 0 {
+			for _, r := range fresh {
+				if r.err != "" {
+					view.cache.errs[r.id] = r.err
+					continue
+				}
+				view.cache.matches[r.id] = r.matched
+			}
+			if view.body == s.query {
+				ready = append(ready, view)
+			}
+		}
+		if done < total {
+			a.invalidate()
+		}
 	}
-	view := v.activeView()
-	if view != nil && view.body == s.query {
-		v.applyFilter(a)
-	}
-	if done < total {
-		a.invalidate()
+	for _, view := range ready {
+		v.rebuildOne(a, view)
 	}
 }
 
-// stopSearch cancels the search in flight, if any. Its answers are dropped.
+// stopSearch cancels the searches in flight. Their answers are dropped.
 func (v *captureViews) stopSearch() {
-	v.searchStop.Clear()
-	if v.run != nil {
-		v.run.cancel()
-		v.run = nil
+	for _, view := range v.views {
+		v.stopViewSearch(view)
+	}
+}
+
+func (v *captureViews) stopViewSearch(view *captureView) {
+	if view == nil {
+		return
+	}
+	view.searchStop.Clear()
+	if view.run != nil {
+		view.run.cancel()
+		view.run = nil
 	}
 }
 
@@ -750,17 +834,17 @@ func (v *captureViews) slots() chan struct{} {
 
 // startSearch reads the bodies the active view still needs an answer for, at
 // most bodyWorkers files at a time, cancellable by the next query.
-func (v *captureViews) startSearch(a *app, query string, jobs []bodyJob) {
-	if len(jobs) == 0 {
+func (v *captureViews) startSearch(a *app, view *captureView, query string, jobs []bodyJob) {
+	if len(jobs) == 0 || view == nil {
 		return
 	}
-	s := v.run
+	s := view.run
 	if s == nil || s.query != query {
-		v.stopSearch()
+		v.stopViewSearch(view)
 		ctx, cancel := context.WithCancel(context.Background())
 		s = &bodySearch{query: query, ctx: ctx, cancel: cancel, notify: a.invalidate, inflight: make(map[int]bool)}
-		v.run = s
-		v.searchStop.Set(lifecycle.ToDisposable(cancel))
+		view.run = s
+		view.searchStop.Set(lifecycle.ToDisposable(cancel))
 	}
 	jobs = s.begin(jobs)
 	if len(jobs) == 0 {
@@ -933,13 +1017,17 @@ func wholeRunes(b []byte) int {
 // reading, or what it could not read, and whether that is a failure. Empty
 // when there is nothing to say.
 func (v *captureViews) status() (text string, failure bool) {
-	if s := v.run; s != nil {
-		if done, total := s.progress(); done < total {
-			return locales.SearchingBodies(done, total), false
+	var errors int
+	for _, view := range v.views {
+		if s := view.run; s != nil {
+			if done, total := s.progress(); done < total {
+				return locales.SearchingBodies(done, total), false
+			}
 		}
+		errors += len(view.cache.errs)
 	}
-	if n := len(v.cache.errs); n > 0 {
-		return locales.BodiesNotReadInFull(n), true
+	if errors > 0 {
+		return locales.BodiesNotReadInFull(errors), true
 	}
 	return "", false
 }
@@ -965,6 +1053,7 @@ func (v *captureViews) clearFilters(a *app) {
 	view.any = false
 	v.bind(a)
 	v.applyFilter(a)
+	v.persistWorkbench(a)
 	a.done(locales.FiltersCleared(
 
 	// resetFilters clears every condition in this view, not in other views or
@@ -1009,10 +1098,13 @@ func (a *app) headerFilterMenu(c *ui.Context, name string, values []string) func
 // statusDetail says why a body could not be read, for a tooltip.
 func (v *captureViews) statusDetail() string {
 	var parts []string
-	for _, err := range v.cache.errs {
-		parts = append(parts, err)
-		if len(parts) == 3 {
-			break
+collect:
+	for _, view := range v.views {
+		for _, err := range view.cache.errs {
+			parts = append(parts, err)
+			if len(parts) == 3 {
+				break collect
+			}
 		}
 	}
 	slices.Sort(parts)
@@ -1264,6 +1356,7 @@ func (v *captureViews) commitFilter(a *app) {
 	view.triage.Operation = strings.TrimSpace(view.triage.Operation)
 	v.bind(a)
 	v.applyFilter(a)
+	v.persistWorkbench(a)
 	if strings.TrimSpace(view.body) != "" {
 		a.inform(locales.BodyFilter(strconv.Quote(strings.TrimSpace(view.body))))
 	}
@@ -1389,6 +1482,7 @@ func (v *captureViews) applySaved(a *app, name string) {
 	view.reveal = true
 	v.bind(a)
 	v.applyFilter(a)
+	v.persistWorkbench(a)
 	v.problem = ""
 	v.note = locales.CaptureFilterApplied(strconv.Quote(name))
 	a.inform(locales.FilterApplied(name))

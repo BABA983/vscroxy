@@ -23,12 +23,14 @@ func TestFirstReplaceSessionStopsLiveSearches(t *testing.T) {
 		t.Fatal("message search did not start")
 	}
 
+	a.views.init(a, "")
+	view := a.views.activeView()
 	a.views.search = func(ctx context.Context, _ bodyJob, _ string) (bool, error) {
 		<-ctx.Done()
 		return false, ctx.Err()
 	}
-	a.views.startSearch(a, "needle", []bodyJob{{id: 1}})
-	body := a.views.run
+	a.views.startSearch(a, view, "needle", []bodyJob{{id: 1}})
+	body := view.run
 	if body == nil {
 		t.Fatal("body search did not start")
 	}
@@ -42,7 +44,7 @@ func TestFirstReplaceSessionStopsLiveSearches(t *testing.T) {
 	if body.ctx.Err() == nil {
 		t.Error("first replacement left the body search running")
 	}
-	if a.views.run != nil {
+	if view.run != nil {
 		t.Error("first replacement left a body search on the new capture")
 	}
 }

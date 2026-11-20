@@ -683,8 +683,8 @@ func (a *app) replaceSession(flows []flow, frames map[int][]frame) {
 		a.sessionStore.Dispose()
 	}
 	a.sessionStore = newCaptureSessionStore(a)
-	a.views.cache = bodyCache{}
 	for _, view := range a.views.views {
+		view.cache = bodyCache{}
 		view.picked, view.pickedID = 0, 0
 		view.activity = activityRange{}
 		view.list = ui.ListState{}

@@ -4209,5 +4209,13 @@
       "error": {"type": "String"}
     }
   },
-  "mockReloadFailed": "“{collection}” 的 Mock 保留了上次可用的示例：{error}"
+  "mockReloadFailed": "“{collection}” 的 Mock 保留了上次可用的示例：{error}",
+  "captureGroup": "组 {number}",
+  "focusCaptureGroup": "聚焦组 {number}",
+  "closeCaptureGroup": "关闭组",
+  "closeSecondCaptureView": "关闭第二个抓包视图",
+  "splitCaptureRight": "向右拆分",
+  "openSecondCaptureView": "在此视图旁打开第二个抓包视图",
+  "focusNextCaptureGroup": "聚焦下一组",
+  "focusPreviousCaptureGroup": "聚焦上一组"
 }
