@@ -8,14 +8,10 @@ import (
 	"io"
 	"maps"
 	"net"
-	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/baba983/vscroxy/internal/mockserver"
-	"github.com/baba983/vscroxy/internal/request"
-	"google.golang.org/grpc"
 )
 
 // mockCommand serves a collection's saved examples at their method and URL,
@@ -73,14 +69,6 @@ func mockCommand(ctx context.Context, args []string, stdout, stderr io.Writer) i
 		fmt.Fprintf(stderr, "Warning: %s is not a loopback address; other computers that can reach the gRPC mock without authentication.\n", *grpcAddr)
 	}
 
-	requests, _, warnings, err := loadCollection(flags.Arg(0), *folder)
-	if err != nil {
-		fmt.Fprintln(stderr, "Could not load collection; check the input and folder selection.")
-		return 2
-	}
-	if len(warnings) > 0 {
-		fmt.Fprintf(stderr, "Import warning: %d unsupported feature categories were omitted or adapted.\n", len(warnings))
-	}
 	_, values, globals, err := readEnvironment(*envPath, *envName)
 	if err != nil {
 		fmt.Fprintln(stderr, "Could not load environment; check --env and --environment.")
@@ -91,86 +79,34 @@ func mockCommand(ctx context.Context, args []string, stdout, stderr io.Writer) i
 	env := maps.Clone(globals)
 	maps.Copy(env, values)
 	maps.Copy(env, vars)
-
-	var examples []request.Example
-	var grpcExamples []mockserver.GRPCExample
-	for _, r := range requests {
-		if r.Protocol == "gRPC" {
-			for _, e := range r.Examples {
-				grpcExamples = append(grpcExamples, mockserver.GRPCExample{
-					Method: r.GRPC.Method, Schema: r.GRPC.Schema, Body: e.Body,
-					Headers: e.Headers, Status: e.Status,
-					Delay: time.Duration(e.DelayMS) * time.Millisecond,
-				})
-			}
-			continue
-		}
-		if r.Protocol == "" {
-			examples = append(examples, r.Examples...)
-		}
-	}
-	if len(examples) == 0 && len(grpcExamples) == 0 {
-		fmt.Fprintln(stderr, "No saved examples in the selected collection; save a response as an example first.")
+	source := mockSource{input: flags.Arg(0), folder: *folder, vars: env}
+	set, warnings, err := source.load()
+	if err != nil {
+		fmt.Fprintln(stderr, "Could not load collection; check the input and folder selection.")
 		return 2
+	}
+	if len(warnings) > 0 {
+		fmt.Fprintf(stderr, "Import warning: %d unsupported feature categories were omitted or adapted.\n", len(warnings))
 	}
 
 	opts := mockserver.Options{RatePerSecond: *rateLimit, ErrorRate: *errorRate, ErrorStatus: *errorStatus, ErrorBody: *errorBody}
-	var httpServer *http.Server
-	var grpcServer *grpc.Server
-	var httpURL, grpcURL string
-	if len(examples) > 0 {
-		ln, err := net.Listen("tcp", listen)
-		if err != nil {
-			fmt.Fprintln(stderr, "Could not listen on that address; choose another with --addr or --port.")
-			return 2
+	runtime, err := startMockRuntime(source, set, opts, listen, *grpcAddr, stdout, stderr, true)
+	if err != nil {
+		switch {
+		case errors.Is(err, errNoMockExamples):
+			fmt.Fprintln(stderr, "No saved examples in the selected collection; save a response as an example first.")
+		default:
+			fmt.Fprintln(stderr, "Could not start the mock; check the collection and listen addresses.")
 		}
-		httpServer = &http.Server{Handler: mockserver.NewWithOptions(examples, env, opts), ReadHeaderTimeout: 10 * time.Second}
-		go httpServer.Serve(ln)
-		httpURL = "http://" + ln.Addr().String()
+		return 2
 	}
-	if len(grpcExamples) > 0 {
-		grpcServer, err = mockserver.NewGRPC(grpcExamples)
-		if err != nil {
-			if httpServer != nil {
-				httpServer.Close()
-			}
-			fmt.Fprintln(stderr, "Could not build the gRPC mock; check the examples' schemas and methods.")
-			return 2
-		}
-		ln, err := net.Listen("tcp", *grpcAddr)
-		if err != nil {
-			if httpServer != nil {
-				httpServer.Close()
-			}
-			fmt.Fprintln(stderr, "Could not listen for gRPC; choose another --grpc-addr.")
-			return 2
-		}
-		go grpcServer.Serve(ln)
-		grpcURL = ln.Addr().String()
+	defer runtime.Close()
+	if len(set.http) > 0 {
+		fmt.Fprintf(stdout, "Serving %d examples at %s until interrupted (Ctrl-C)\n", len(set.http), runtime.httpURL)
 	}
-	done := make(chan struct{})
-	defer close(done)
-	go func() {
-		select {
-		case <-ctx.Done():
-			shutdown, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-			if httpServer != nil {
-				_ = httpServer.Shutdown(shutdown)
-			}
-			if grpcServer != nil {
-				grpcServer.Stop()
-			}
-		case <-done:
-		}
-	}()
-	if httpURL != "" {
-		fmt.Fprintf(stdout, "Serving %d examples at %s until interrupted (Ctrl-C)\n", len(examples), httpURL)
+	if len(set.grpc) > 0 {
+		fmt.Fprintf(stdout, "Serving %d unary gRPC examples at %s until interrupted (Ctrl-C)\n", len(set.grpc), runtime.grpcURL)
 	}
-	if grpcURL != "" {
-		fmt.Fprintf(stdout, "Serving %d unary gRPC examples at %s until interrupted (Ctrl-C)\n", len(grpcExamples), grpcURL)
-	}
-	// Both servers run in their own goroutines until the caller cancels.
 	<-ctx.Done()
 	return 130
 }

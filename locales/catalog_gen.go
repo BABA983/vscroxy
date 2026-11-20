@@ -39565,3 +39565,15 @@ func ResponseReferenceApplied() string { return In(i18n.Locale()).ResponseRefere
 func (msgs Messages) ResponseReferenceApplied() string {
 	return Catalog.Format(msgs.locale, "responseReferenceApplied", nil)
 }
+
+// MockReloadFailed says "Mock for “{collection}” kept the last working examples: {error}"
+// in the language the app shows.
+func MockReloadFailed(collection string, error string) string {
+	return In(i18n.Locale()).MockReloadFailed(collection, error)
+}
+
+// MockReloadFailed says "Mock for “{collection}” kept the last working examples: {error}"
+// in the language of msgs.
+func (msgs Messages) MockReloadFailed(collection string, error string) string {
+	return Catalog.Format(msgs.locale, "mockReloadFailed", map[string]any{"collection": collection, "error": error})
+}

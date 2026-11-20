@@ -3,6 +3,7 @@ package mockserver
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/grpcclient"
@@ -42,10 +43,42 @@ type grpcMock struct {
 	delay   time.Duration
 }
 
-// NewGRPC serves unary calls from examples, keyed by their full method path.
-// Unknown methods answer Unimplemented; a streaming method is refused when
-// the server is built, because a saved example is one response.
-func NewGRPC(examples []GRPCExample) (*grpc.Server, error) {
+// GRPCServer serves unary calls from a collection's examples and can replace
+// them while it is running. The embedded grpc.Server is the one to register
+// and serve; callers that need reloads keep the wrapper.
+type GRPCServer struct {
+	*grpc.Server
+	mocks atomic.Pointer[map[string]grpcMock]
+}
+
+// NewGRPCReloadable serves unary calls from examples, keyed by their full
+// method path, and keeps a handle for replacing them. Unknown methods answer
+// Unimplemented; a streaming method is refused when the server is built,
+// because a saved example is one response.
+func NewGRPCReloadable(examples []GRPCExample) (*GRPCServer, error) {
+	mocks, err := buildGRPCMocks(examples)
+	if err != nil {
+		return nil, err
+	}
+	server := &GRPCServer{}
+	server.mocks.Store(&mocks)
+	server.Server = grpc.NewServer(grpc.UnknownServiceHandler(server.answer))
+	return server, nil
+}
+
+// Reload validates and swaps the whole set of unary examples. A malformed
+// set is refused and the last good one keeps answering, including calls that
+// started before the attempt.
+func (s *GRPCServer) Reload(examples []GRPCExample) error {
+	mocks, err := buildGRPCMocks(examples)
+	if err != nil {
+		return err
+	}
+	s.mocks.Store(&mocks)
+	return nil
+}
+
+func buildGRPCMocks(examples []GRPCExample) (map[string]grpcMock, error) {
 	mocks := make(map[string]grpcMock, len(examples))
 	for i, example := range examples {
 		method, types, err := grpcMockMethod(example.Schema, example.Method)
@@ -75,42 +108,45 @@ func NewGRPC(examples []GRPCExample) (*grpc.Server, error) {
 			code: code, delay: min(example.Delay, time.Minute),
 		}
 	}
-	return grpc.NewServer(grpc.UnknownServiceHandler(func(_ any, stream grpc.ServerStream) error {
-		name, _ := grpc.MethodFromServerStream(stream)
-		mock, ok := mocks[name]
-		if !ok {
-			return status.Errorf(codes.Unimplemented, "no example for %s", name)
+	return mocks, nil
+}
+
+func (s *GRPCServer) answer(_ any, stream grpc.ServerStream) error {
+	name, _ := grpc.MethodFromServerStream(stream)
+	mocks := *s.mocks.Load()
+	mock, ok := mocks[name]
+	if !ok {
+		return status.Errorf(codes.Unimplemented, "no example for %s", name)
+	}
+	if len(mock.headers) > 0 {
+		_ = stream.SetHeader(mock.headers)
+	}
+	// Read the request message so the client's send completes; the
+	// example answers regardless of its contents.
+	if err := stream.RecvMsg(dynamicpb.NewMessage(mock.method.Input())); err != nil {
+		return err
+	}
+	if mock.delay > 0 {
+		timer := time.NewTimer(mock.delay)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+		case <-stream.Context().Done():
+			return stream.Context().Err()
 		}
-		if len(mock.headers) > 0 {
-			_ = stream.SetHeader(mock.headers)
+	}
+	if mock.code != codes.OK {
+		message := string(mock.body)
+		if len(message) > 4<<10 {
+			message = message[:4<<10]
 		}
-		// Read the request message so the client's send completes; the
-		// example answers regardless of its contents.
-		if err := stream.RecvMsg(dynamicpb.NewMessage(mock.method.Input())); err != nil {
-			return err
-		}
-		if mock.delay > 0 {
-			timer := time.NewTimer(mock.delay)
-			defer timer.Stop()
-			select {
-			case <-timer.C:
-			case <-stream.Context().Done():
-				return stream.Context().Err()
-			}
-		}
-		if mock.code != codes.OK {
-			message := string(mock.body)
-			if len(message) > 4<<10 {
-				message = message[:4<<10]
-			}
-			return status.Error(mock.code, message)
-		}
-		out := dynamicpb.NewMessage(mock.method.Output())
-		if err := (protojson.UnmarshalOptions{Resolver: mock.types}).Unmarshal(mock.body, out); err != nil {
-			return status.Error(codes.Internal, "mock response JSON")
-		}
-		return stream.SendMsg(out)
-	})), nil
+		return status.Error(mock.code, message)
+	}
+	out := dynamicpb.NewMessage(mock.method.Output())
+	if err := (protojson.UnmarshalOptions{Resolver: mock.types}).Unmarshal(mock.body, out); err != nil {
+		return status.Error(codes.Internal, "mock response JSON")
+	}
+	return stream.SendMsg(out)
 }
 
 // grpcMockMethod resolves a saved descriptor set and method, as the gRPC

@@ -8418,5 +8418,12 @@
   "reviewedResponseReferences": "I reviewed the response reference changes",
   "backToResponseReferences": "Back to suggestions",
   "applyResponseReferences": "Apply response references",
-  "responseReferenceApplied": "Response references saved. No requests were sent."
+  "responseReferenceApplied": "Response references saved. No requests were sent.",
+  "@mockReloadFailed": {
+    "placeholders": {
+      "collection": {"type": "String"},
+      "error": {"type": "String"}
+    }
+  },
+  "mockReloadFailed": "Mock for “{collection}” kept the last working examples: {error}"
 }

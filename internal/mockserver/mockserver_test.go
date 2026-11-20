@@ -154,7 +154,7 @@ func TestMockRateLimitAndErrorInjection(t *testing.T) {
 
 func TestGRPCUnaryMockServesExamples(t *testing.T) {
 	_, schema := grpctest.Echo(t)
-	srv, err := NewGRPC([]GRPCExample{
+	srv, err := NewGRPCReloadable([]GRPCExample{
 		{Method: "/grpctest.Echo/Unary", Schema: schema, Body: `"mocked"`},
 		{Method: "/grpctest.Echo/Fail", Schema: schema, Status: 404, Body: "no such item"},
 	})

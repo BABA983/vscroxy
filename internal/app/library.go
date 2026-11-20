@@ -386,6 +386,7 @@ func (a *app) writeLibrary(requests []savedRequest, folders []request.Folder) er
 	a.requests, a.folders = requests, folders
 	a.library.folderOrder = order
 	a.requestGen++
+	a.refreshCollectionMocks()
 	return nil
 }
 
@@ -509,11 +510,17 @@ func (a *app) loadRequestLibrary() {
 		a.requests, a.folders, l.known = nil, nil, nil
 		a.requestsProblem = fmt.Sprintf("Requests (%s): %v", l.root, err)
 		a.requestGen++
+		// Running mocks keep the examples they last served; say why they
+		// did not change instead of leaving a silent stale server.
+		for path := range a.mocks {
+			a.warn(locales.MockReloadFailed(path, a.requestsProblem))
+		}
 		return
 	}
 	a.requests, a.folders, l.known = requests, folders, known
 	l.folderOrder = readFolderOrder(known)
 	a.requestGen++
+	a.refreshCollectionMocks()
 }
 
 // refreshDocuments shows what was just read in the tabs of saved requests

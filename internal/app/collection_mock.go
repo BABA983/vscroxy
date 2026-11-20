@@ -7,24 +7,30 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/control"
 	"github.com/baba983/vscroxy/internal/mockserver"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/locales"
-	"google.golang.org/grpc"
 )
 
 // collectionMock is a collection's mock server, listening on loopback ports
-// until it is stopped or the app quits. The gRPC server exists only when the
-// collection has gRPC examples.
+// until it is stopped or the app quits. Both protocols listen from the start,
+// so examples added to either can be reloaded without a restart.
 type collectionMock struct {
 	server     *http.Server
-	grpcServer *grpc.Server
+	handler    *mockserver.Server
+	grpcServer *mockserver.GRPCServer
+	httpDone   chan struct{}
+	grpcDone   chan struct{}
 	url        string
 	grpcURL    string
 	options    mockserver.Options
+
+	mu     sync.Mutex
+	closed bool
 }
 
 // collectionExamples are the HTTP examples of the requests under path, in
@@ -58,8 +64,7 @@ func (a *app) collectionGRPCExamples(path string) []mockserver.GRPCExample {
 }
 
 // startCollectionMock serves path's examples on free loopback ports with the
-// default behaviors. The server answers from the examples and variables it
-// started with, so an edit needs a restart to show.
+// default behaviors. Saved edits are reloaded while it runs.
 func (a *app) startCollectionMock(path string) {
 	if _, err := a.startCollectionMockWithOptions(path, mockserver.Options{}); err != nil {
 		a.fail(locales.MockNamed(path), err)
@@ -78,39 +83,38 @@ func (a *app) startCollectionMockWithOptions(path string, opts mockserver.Option
 	if len(examples) == 0 && len(grpcExamples) == 0 {
 		return nil, errors.New("no saved examples under this collection")
 	}
-	m := &collectionMock{options: opts}
-	// The Serve loops below belong to net/http and the gRPC library. Their
-	// shutdown is handled by Close/Stop on teardown, and they own no app
-	// cleanup, so the app's goroutine guard is not needed here.
-	if len(examples) > 0 {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			return nil, err
-		}
-		handler := mockserver.NewWithOptions(examples, a.inheritance(path).Values(a.activeVars()), opts)
-		m.server = &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
-		go m.server.Serve(ln)
-		m.url = "http://" + ln.Addr().String()
+	m := &collectionMock{options: opts, httpDone: make(chan struct{}), grpcDone: make(chan struct{})}
+	vars := a.inheritance(path).Values(a.activeVars())
+	// Both Serve loops are joined by close, which the stop and Quit paths
+	// call. They own no app cleanup, so the app's goroutine guard is not used.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, err
 	}
-	if len(grpcExamples) > 0 {
-		server, err := mockserver.NewGRPC(grpcExamples)
-		if err != nil {
-			if m.server != nil {
-				m.server.Close()
-			}
-			return nil, err
-		}
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			if m.server != nil {
-				m.server.Close()
-			}
-			return nil, err
-		}
-		m.grpcServer = server
-		go server.Serve(ln)
-		m.grpcURL = "http://" + ln.Addr().String()
+	m.handler = mockserver.NewWithOptions(examples, vars, opts)
+	m.server = &http.Server{Handler: m.handler, ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		defer close(m.httpDone)
+		_ = m.server.Serve(ln)
+	}()
+	m.url = "http://" + ln.Addr().String()
+
+	grpcServer, err := mockserver.NewGRPCReloadable(grpcExamples)
+	if err != nil {
+		m.close()
+		return nil, err
 	}
+	grpcLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		m.close()
+		return nil, err
+	}
+	m.grpcServer = grpcServer
+	go func() {
+		defer close(m.grpcDone)
+		_ = m.grpcServer.Serve(grpcLn)
+	}()
+	m.grpcURL = "http://" + grpcLn.Addr().String()
 	if a.mocks == nil {
 		a.mocks = map[string]*collectionMock{}
 	}
@@ -130,25 +134,56 @@ func (a *app) stopCollectionMock(path string) {
 		return
 	}
 	delete(a.mocks, path)
-	if m.server != nil {
-		m.server.Close()
-	}
-	if m.grpcServer != nil {
-		m.grpcServer.Stop()
-	}
+	m.close()
 	a.inform(locales.MockServerStopped(path))
 }
 
 // stopCollectionMocks is an App Quit hook; it closes quietly.
 func (a *app) stopCollectionMocks() {
 	for path, m := range a.mocks {
-		if m.server != nil {
-			m.server.Close()
-		}
-		if m.grpcServer != nil {
-			m.grpcServer.Stop()
-		}
+		m.close()
 		delete(a.mocks, path)
+	}
+}
+
+// close stops and joins both listeners. Its flag is guarded so a Quit hook
+// and an explicit stop cannot race into a second close of the same channels.
+func (m *collectionMock) close() {
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return
+	}
+	m.closed = true
+	m.mu.Unlock()
+	if m.server != nil {
+		_ = m.server.Close()
+		<-m.httpDone
+	}
+	if m.grpcServer != nil {
+		m.grpcServer.Stop()
+		<-m.grpcDone
+	}
+}
+
+// refresh reloads the examples of one collection from the app's current
+// library and variables. A malformed set leaves the last good one answering.
+func (m *collectionMock) refresh(examples []request.Example, grpcExamples []mockserver.GRPCExample, vars map[string]string) error {
+	return mockserver.ReloadBoth(m.handler, m.grpcServer, examples, grpcExamples, vars)
+}
+
+// refreshCollectionMocks updates every running mock after a library write or
+// a successful read from disk. Called on the UI thread; each mock copies what
+// it needs before the next request is answered.
+func (a *app) refreshCollectionMocks() {
+	if a.requestsProblem != "" || len(a.mocks) == 0 {
+		return
+	}
+	for path, m := range a.mocks {
+		vars := a.inheritance(path).Values(a.activeVars())
+		if err := m.refresh(a.collectionExamples(path), a.collectionGRPCExamples(path), vars); err != nil {
+			a.fail(locales.MockReloadFailed(path, err.Error()), err)
+		}
 	}
 }
 

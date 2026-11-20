@@ -477,12 +477,16 @@ func TestRunHTMLReportAndStateExports(t *testing.T) {
 func TestRunLongLivedProtocols(t *testing.T) {
 	endpoint, schema := grpctest.Echo(t)
 	upgrader := websocket.Upgrader{}
+	wsDone := make(chan struct{})
+	wsConn := make(chan *websocket.Conn, 1)
 	ws := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
+		wsConn <- conn
 		defer conn.Close()
+		defer close(wsDone)
 		for {
 			kind, data, err := conn.ReadMessage()
 			if err != nil {
@@ -493,7 +497,19 @@ func TestRunLongLivedProtocols(t *testing.T) {
 			}
 		}
 	}))
-	defer ws.Close()
+	defer func() {
+		select {
+		case conn := <-wsConn:
+			_ = conn.Close()
+		default:
+		}
+		ws.Close()
+		select {
+		case <-wsDone:
+		case <-time.After(5 * time.Second):
+			t.Error("the WebSocket echo handler did not return")
+		}
+	}()
 	root := t.TempDir()
 	input := filepath.Join(root, "collections")
 	write(t, filepath.Join(input, "Chat.request.json"), request.Request{
