@@ -74,7 +74,7 @@
 | SOCKS5 代理入口 | 已有 | RFC 1928 CONNECT，可选 RFC 1929 用户名／密码；域名、IPv4、IPv6；与 HTTP 代理同一条抓包流水线：解密名单内 MITM 并抓取明文 HTTP，名单外 400 ms 嗅探首字节，HTTP 请求行交给 HTTP 前端并抓取，TLS／其他字节原样透传，服务器先发协议窗口后透传；规则、Host 方案、网络条件、Allow／Block、录制生效；10 s peek 超时；嵌套 CONNECT 返回 400；Settings → Proxy 开关和固定端口（1024–65535，冲突不回退，空为自动）；设备接入的 IP 白名单经 LAN 网关同样生效 | M7 |
 | 反向代理（本地端口直接转发到远端） | 已有 | Settings → Proxy：多条本地端口 → http／https 远端 URL，增删改、启停，Host 头改写或保留；经同一规则和抓包，HTTPS 远端由 app 发起 TLS 并默认校验证书（可按条目允许自签名）；Remote host 时只接受回环 Host；端口冲突逐条提示 | M7 |
 | 设备接入访问控制（IP 白名单） | 已有 | 可选“未知设备连接时询问”，默认关闭；允许／拒绝在本次 LAN 会话内记住，60 秒未回答、关闭提示或拒绝都保持拒绝 | |
-| 自定义证书：上游客户端证书（mTLS）、导入自定义根证书 | 部分 | Settings → Certificates 的同一份配置：按 host（可带端口、`*.` 通配，IDN 转 punycode）出示 PEM cert+key 或 PKCS#12/PFX，可选口令；上游校验和反向代理 https 远端额外信任导入的 PEM 根证书并保留系统根开关。证书文件每次连接读取，读取或解析失败明确报错；口令密封在本机，不进设置文件、配置导出或日志。盲隧道（未解密）仍由客户端自己完成 TLS。可导入自己的 MITM 签名 CA（RSA／ECDSA，证书复制到 CA 目录、私钥密封），生成的叶子证书对 IP 字面量主机带 IP SAN；Settings → Certificates 的「服务器证书」按 host（可带端口、`*.` 通配、IDN punycode）配置服务器证书链+密钥（PEM 或 PKCS#12/PFX，口令密封），解密握手时对匹配 host 出示该链、其他 host 仍用 CA 签发的叶子；保存时校验 SAN 覆盖与密钥匹配，握手时文件不可读则该连接失败并在连接详情说明原因 | M6 |
+| 自定义证书：上游客户端证书（mTLS）、导入自定义根证书 | 已有 | Settings → Certificates 的同一份配置：按 host（可带端口、`*.` 通配，IDN 转 punycode）出示 PEM cert+key 或 PKCS#12/PFX，可选口令；上游校验和反向代理 https 远端额外信任导入的 PEM 根证书并保留系统根开关。证书文件每次连接读取，读取或解析失败明确报错；口令密封在本机，不进设置文件、配置导出或日志。盲隧道（未解密）仍由客户端自己完成 TLS。可导入自己的 MITM 签名 CA（RSA／ECDSA，证书复制到 CA 目录、私钥密封），生成的叶子证书对 IP 字面量主机带 IP SAN；Settings → Certificates 的「服务器证书」按 host（可带端口、`*.` 通配、IDN punycode）配置服务器证书链+密钥（PEM 或 PKCS#12/PFX，口令密封），解密握手时对匹配 host 出示该链、其他 host 仍用 CA 签发的叶子；保存时校验 SAN 覆盖与密钥匹配，握手时文件不可读则该连接失败并在连接详情说明原因 | M6 |
 | TLS key 记录（SSLKEYLOGFILE） | 已有 | | |
 | 连接日志 | 已有 | | |
 | 来源 App 识别和图标 | 已有 | Windows 从可执行文件的图标资源读取并转成 PNG；读取失败时仍显示字母徽标 | |
@@ -104,7 +104,7 @@
 | Copy as：URL、cURL、body | 已有 | | |
 | Copy as：Markdown 表格、CSV、原始报文 | 已有 | 抓包与多选；表格用可见列，CSV 按 RFC 4180 并防公式注入；原始报文为 HTTP/1.1 文本，二进制／超大正文有明确标记 | M5 |
 | 抓包流量直接生成代码 | 已有 | 抓包就是请求文档，Request options／命令面板的 Generate code… 直接可用；生成器限制见使用指南 | M5 |
-| 左右分屏（两个视图并排） | 部分 | 请求/响应和抓包列表/检查器可在标题栏切换左右或上下，请求页的布局按标签页固定；两个各自带筛选和选中项的独立抓包视图仍缺 | UI 线程 |
+| 左右分屏（两个视图并排） | 进行中 | 请求/响应和抓包列表/检查器可在标题栏切换左右或上下，请求页的布局按标签页固定；多个抓包视图现在以 tab 切换，各自保留筛选、搜索和选中行。把两个视图并排作为独立 capture group 显示在 [PR #68](https://github.com/BABA983/vscroxy/pull/68) 评审中，尚未合入 | UI 线程 |
 | 检查器拆成独立窗口 | 已有 | 检查器可拆到自己的窗口（Cmd/Ctrl+Shift+I 或检查器头部按钮），主窗口的列表占满内容区；Dock inspector、Escape 或同一快捷键收回，窗口位置会记住 | UI 线程 |
 | 命令面板 | 已有 | | |
 
@@ -193,7 +193,7 @@
 | Git 面板：项目文件夹的状态、diff、提交 | 已有 | Tools → Git：分支、更改列表（前 500 个）、单文件 diff（1 MiB 截断）、勾选文件并提交（只提交所选路径，其他暂存内容保留）；不是仓库时可 `git init`；使用本机 `git` 命令，不推送／拉取／切分支 | M9 |
 | 请求描述、集合文档视图 | 已有 | 请求、文件夹、集合的 Markdown 描述随资产落盘，在请求 Docs 页和层级设置里编辑；集合菜单的 View documentation… 只读渲染描述并列出请求的 method、URL、描述、请求头、正文、认证摘要、示例和 JavaScript/Python/Go 代码示例，认证令牌、密码、密钥及 `Authorization`、`Cookie` 等凭据头一律隐藏；可导出 Markdown 或自包含 HTML（内联样式，无脚本和外部资源）；Postman 导入导出保留 | M6 |
 | 单个请求的设置：超时、HTTP 版本、URL 编码、Cookie jar、跟随重定向、证书校验 | 已有 | 请求 Settings 页和文件夹/集合的 Request defaults；Send 和 Runner 生效；HTTP 版本 Auto 与服务器协商 HTTP/1.1／HTTP/2，也可强制其一，经抓包代理的两段连接同时生效；HTTP/2 未协商时明确报错；抓包 Replay 仍用 HTTP/1.1（NTLM 固定 HTTP/1.1，WebSocket／SSE／Socket.IO／gRPC 保持各自协议）；「自动编码 URL」控制 Params 行写入 URL 时是否转义；「发送 Cookie jar 中的 Cookie」关闭后不读也不写 jar，显式 Cookie 头照常发送；跟随与最大次数分别继承，`maxRedirects: 0` 视为不跟随；Postman `protocolProfileBehavior` 的 `followRedirects`、`maxRedirects`、`strictSSL`、`disableCookies`、`disableUrlEncoding` 往返，cURL（Bash/CMD/PowerShell）的 `-L`、`--max-redirs`、`-k`、`--max-time` 与 PowerShell 对应参数往返；Postman 没有请求超时字段；关闭校验只对客户端自己完成的 TLS（未解密隧道）生效；解密流量仍由代理默认校验，需在 HTTPS 页按域名允许不受信任的上游证书。自定义 CA 在校验开启时作为额外信任，二者互不影响；Unix socket／Windows 命名管道路径让 HTTP(S) 直连本地 socket，绕过抓包代理，URL 主机作为 Host 头，WebSocket 与协议客户端拒绝该设置 | M6 |
-| 客户端证书（按域名）、自定义 CA | 部分 | Settings → Certificates 按 host（可带端口、`*.` 通配，IDN 转 punycode）配置客户端证书和额外根证书；Send、Runner、CLI/MCP 运行集合、WebSocket、SSE、gRPC、Socket.IO、MCP 生效；PEM cert+key 或 PKCS#12/PFX，口令密封保存，文件每次发送读取；重定向按每一跳的目标 host 重新选证书和根，明文跳不读证书文件；关闭证书校验只影响未解密隧道；解密流量仍由代理默认校验。可导入自己的 MITM 签名 CA（RSA／ECDSA，私钥密封），生成的叶子证书对 IP 字面量主机带 IP SAN；同一页可按 host（带端口、`*.` 通配、IDN punycode）配置服务器证书链+密钥（PEM 或 PKCS#12/PFX，口令密封），解密握手时对匹配 host 出示该链、其他 host 仍用 CA 签发的叶子；保存时校验 SAN 覆盖与密钥匹配，握手时文件不可读则该连接失败并在连接详情说明原因 | M6 |
+| 客户端证书（按域名）、自定义 CA | 已有 | Settings → Certificates 按 host（可带端口、`*.` 通配，IDN 转 punycode）配置客户端证书和额外根证书；Send、Runner、CLI/MCP 运行集合、WebSocket、SSE、gRPC、Socket.IO、MCP 生效；PEM cert+key 或 PKCS#12/PFX，口令密封保存，文件每次发送读取；重定向按每一跳的目标 host 重新选证书和根，明文跳不读证书文件；关闭证书校验只影响未解密隧道；解密流量仍由代理默认校验。可导入自己的 MITM 签名 CA（RSA／ECDSA，私钥密封），生成的叶子证书对 IP 字面量主机带 IP SAN；同一页可按 host（带端口、`*.` 通配、IDN punycode）配置服务器证书链+密钥（PEM 或 PKCS#12/PFX，口令密封），解密握手时对匹配 host 出示该链、其他 host 仍用 CA 签发的叶子；保存时校验 SAN 覆盖与密钥匹配，握手时文件不可读则该连接失败并在连接详情说明原因 | M6 |
 | Examples | 已有 | Examples 标签可手写：New example 新建（200、空正文、继承请求的 Content-Type），Duplicate 复制当前示例（如加一个 404 用例），状态码、名称、正文和响应头都可编辑，下一次 Save 保存；每个 Example 可设 mock 延迟（毫秒，≤1 分钟）；请求视图只读 | |
 | Examples 作为 Mock 响应（本地 mock） | 已有 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples；`vscroxy-cli mock` 在回环地址按集合 Examples 提供 mock（见[自动化](automation.md#mock-server)），桌面控制与 `vscroxy-cli mocks` 可列表／启停并设限流／错误注入，MCP `mock.get`／`mock.start`／`mock.stop` 同样完成闭环（启停属于写操作）；Example 的保存／磁盘修改即时重载，解析失败保留上次可用集合并报告 | M4 |
 | 集合 mock 服务（独立端口） | 已有 | 集合菜单 Start mock server 在 127.0.0.1 随机端口提供集合 Examples，不经过代理；按 `X-Mock-Response-Name`、`X-Mock-Response-Code`、`x-mock-match-request-body` 选择；每个 Example 的 Delay（≤1 分钟）；一元 gRPC Examples 在第二个回环端口按方法提供（example 正文为响应消息，状态映射 gRPC code）；桌面控制 `mock.get`／`mock.start`／`mock.stop` 可设每秒限流、错误注入比例／状态／正文，CLI `mocks` 与 MCP 三工具共用同一动作；启动后的 Example 保存／磁盘修改原子重载（在途请求用旧集合），解析失败保留上次可用集合 | M6 |
@@ -205,6 +205,7 @@
 | Cookies 可选持久化 | 已有 | 默认关闭；持久 Cookie 落盘到 `~/.vscroxy/cookies.json`（0600），约 500 ms 防抖写入并在退出时 flush，Session Cookie 永不落盘；不进集合、导出或配置导入导出；抓包 Cookies 页的 Save cookies to jar 把请求 Cookie 与响应 Set-Cookie 一起写入该交换 URL 的请求 jar，保留响应的 domain／path／expiry | M6 |
 | 响应：Pretty、Raw、Hex、预览、测试结果、耗时 | 已有 | | |
 | 响应保存到文件 | 已有 | Requests 保存按钮／Capture Body 菜单；原样保存已解压正文，流式读取完整落盘内容，拒绝不完整正文 | M6 |
+| 响应引用（跨请求读取已保存响应） | 已有 | 见[使用指南](guide.md#response-references-and-token-chains)：`{{response "Login" "/data/access_token"}}` 在 URL（含 query）、header、body 与 auth 等 `{{变量}}` 位置展开；按请求显示名书写、解析成稳定 ID，改名后仍指向同一请求，重名拒绝猜测；RFC 6901 JSON pointer 或 `header:名称` 取值，数字／布尔／对象按原始 JSON 文本插入。用本会话最近一次响应（Send、Runner、`vscroxy-cli run` 均可），没有则从源请求先发送；跨请求链检测循环，缺字段或不存在的源报错且不泄露值；Postman 导出转成 `pm.execution.runRequest` 前置脚本 | M6 |
 | 全局搜索（集合、请求、环境） | 已有 | 并进命令面板；搜索集合、文件夹、请求名称／method／URL、环境名和变量名，不搜索变量值；请求索引随集合变化更新，宽泛查询最多显示 50 条并提示剩余数量 | M6 |
 | 代码生成：cURL、fetch、axios、Python、Go、HTTPie | 已有 | 补齐 Bash／CMD cURL、PowerShell 7+、浏览器／Node fetch；抓包／草稿共用复制入口，另有脱敏／原样 HAR 复制 | M9 |
 | 代码生成：Swift、Kotlin、Java、C#、PHP、Ruby、Rust、Dart、C、Objective-C、wget、Guzzle、RestSharp | 已有 | Swift URLSession、Kotlin OkHttp、Java 11+ java.net.http、C# HttpClient／RestSharp、PHP cURL／Guzzle、Ruby Net::HTTP、Rust reqwest、Dart http、C libcurl、Objective-C NSURLSession、wget；抓包／草稿共用 Generate code… 与 Copy as… 入口；Binary body 引用源文件，其他文本 body 内联；非 UTF-8 抓包 body 仍用 cURL | M9 |
@@ -240,7 +241,7 @@
 | 抓到的流量识别出对应的已保存请求 | 已有 | M3 |
 | **录制到集合**（6.2） | 已有：原生 UI／CLI／MCP，Host／App 过滤、环境变量、重复接口 Example 更新、安全停止 | M9 |
 | Example → Mock 规则，集合 → Scenario | 已有 | M4 |
-| 登录 token 链路识别，建议生成提取脚本 | 缺少 | M9 |
+| 登录 token 链路识别，建议生成提取脚本 | 首版已有 | 见 6.3 与[使用指南](guide.md#response-references-and-token-chains)：从完整 JSON 响应识别同源 Bearer 使用，给出脚本方案和 `{{response …}}` 响应引用建议；只展示脱敏证据，审阅后才 Apply。Cookie、refresh 和多跳链路仍不覆盖。M9 的实现记录见下节 | M9 |
 | **Host 方案**（第 7 节） | 已有 | M2 |
 
 ### 4.8 自动化和生态
@@ -249,7 +250,7 @@
 | --- | --- | --- |
 | 本地控制接口（供命令行和 MCP 共用） | 部分：设置里的“本地自动化”开关（默认关闭，重启保留，不随配置导出），或 `VSCROXY_CONTROL_FILE` 指定路径；回环鉴权、主线程动作、异步任务／取消；控制接口要启动时用环境变量或设置开启 | M9 |
 | 命令行：开关工具、开关系统代理、导出流量、导入规则、运行集合 | 已有：通用 `control` 之外，`vscroxy-cli settings`（白名单设置读写）、`sessions`（列表／保存／打开／关闭）、`certificates status`（CA 信任、路径、指纹、服务器证书 host／文件名、SSL 域名）、`mocks`（Examples mock 列表／启停）都经同一本地控制接口；写入需要 `--confirm`，凭据、口令和本机信任名单不在白名单内 | M9 |
-| MCP server：让 AI 工具读取流量、解释请求、创建规则、运行请求 | 已有：stdio、查询／请求执行、独立写入／敏感权限、受控 HAR 导出，流量按 host／方法／状态／时间筛选，规则增删改，清空、标记、断点继续／中止、SSL 域名、会话保存／打开／关闭；新增 `settings.list`／`settings.get`／`settings.set`、`certificates.get`、`mock.get`／`mock.start`／`mock.stop`，写入属于 `--allow-write`，敏感详情仍属 `--allow-sensitive`，`--disable-tool` 逐个关闭工具；`flows.list` 本身支持 host/method/status/since/until 与游标分页 | M9 |
+| MCP server：让 AI 工具读取流量、解释请求、创建规则、运行请求 | 已有：stdio、查询／请求执行、独立写入／敏感权限、受控 HAR 导出，流量按 host／方法／状态／时间筛选，规则增删改，清空、标记、断点继续／中止、SSL 域名、会话保存／打开／关闭；新增 `settings.list`／`settings.get`／`settings.set`、`certificates.get`、`mock.get`／`mock.start`／`mock.stop`，写入属于 `--allow-write`，敏感详情仍属 `--allow-sensitive`，`--disable-tool` 逐个关闭工具；`flows.list` 本身支持 host/method/status/since/until 与游标分页；另有 `token-links.analyze`／`get`／`prepare`／`apply` 的脱敏识别与审阅后应用，以及 `system-proxy.get`／`set-enabled`、`runs.cancel`、`rules.import` 等工具，读写边界同上 | M9 |
 | 中文界面 | 已有 | Settings → Appearance → Language；英文和简体中文，全部消息已翻译，默认跟随系统 | |
 | 更多界面语言（日语、葡萄牙语、西班牙语等） | 缺少 | 0.1.0 之后 | 0.1.0 之后 |
 | 第三方主题（Tokyo Night、Dracula 等） | 缺少 | M9 |
@@ -329,6 +330,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 请求描述、集合文档视图和单个请求的设置已完成：Markdown 描述随请求、文件夹和集合落盘，集合菜单的 View documentation… 只读渲染并列出请求；超时、HTTP 版本、URL 自动编码、Cookie jar、重定向（含最大次数）和证书校验在请求 Settings 页与文件夹/集合的 Request defaults 设置，Send 和 Runner 生效，Postman 的 `protocolProfileBehavior`（含 `disableCookies`、`disableUrlEncoding`）与 cURL 参数往返；关闭证书校验只影响未解密隧道；解密流量仍由代理默认校验，需按域名允许不受信任的上游证书。Unix socket（macOS／Linux）和命名管道（Windows）设置让 HTTP(S) 绕过代理直连本地 socket，URL 主机作为 Host 头；WebSocket 和协议客户端拒绝该设置。
 - 证书已完成：Settings → Certificates 一份配置同时服务请求侧和抓包侧。按 host（可带端口、`*.` 通配，IDN 转 punycode）出示 PEM cert+key 或 PKCS#12/PFX（可选口令，用 `internal/vault` 密封在本机，0600 key 文件，不进设置文件、配置导出或日志）；额外信任的 PEM 根证书与“同时信任系统根”开关用于 Send、Runner、CLI/MCP、WebSocket、SSE、gRPC、Socket.IO、MCP、MITM 上游校验和反向代理 https 远端。证书文件只存路径，每次发送/连接读取，读取或解析失败明确报错，绝不静默不带证书发送。重定向按每一跳的目标 host 重新选择证书和根，明文跳不读取证书文件；抓包侧 Map Remote 和 WSS 用 canonical host:port（默认 443/80）选证书。关闭请求的证书校验只影响该请求的服务器校验，不改变客户端证书出示，也不要求自定义 CA；未解密的盲隧道仍由客户端完成 TLS。服务器证书用同一套 host 匹配、文件格式和密封口令，解密握手时对匹配的客户端主机出示配置的证书链，其他主机仍由 CA 签发叶子；保存时校验 SAN 覆盖与密钥匹配，握手时文件不可读则该连接失败并在连接详情说明原因。
 - 变量：初始值/当前值已完成（环境、全局、集合/文件夹；脚本 set 写 Current，unset 清 Current 并回退 Initial；变量表可持久化/重置，凭据位和敏感名不持久化；Current 默认遮罩；Postman 导入导出用 Initial，第三方 current/secret 只进本机 Current）；`{{变量}}` 自动补全、悬停预览和未定义高亮已完成（单行输入整字段悬停，代码编辑器精确 token）。
+- 响应引用与 token 链路建议已完成：`{{response "Login" "/data/access_token"}}` 在 URL／query、header、body、auth 等变量位置读取同一集合另一请求的最近响应，显示名解析到稳定 ID（改名不失效，重名报错），支持 JSON pointer 与 `header:`、循环检测和缺失字段报错，缺失响应时先发送源请求；Send、Runner 和 `vscroxy-cli run` 共用，Postman 导出转为 `pm.execution.runRequest`。**Recognize token links** 另给出脱敏的响应引用建议，显式审阅 Apply 后才写入。详见[使用指南](guide.md#response-references-and-token-chains)。
 - 动态变量已完成：覆盖 Postman 官方文档的 118 个名称（2026-11-08 查阅 https://learning.postman.com/docs/tests-and-scripts/write-scripts/variables-list/），同一请求里的每次出现都重新生成；输出形状按 Postman 的 `postman-collection` 和 `@faker-js/faker` 5.5.3 实现（JavaScript `Date.toString()`、IBAN mod-97、BIC 8/11 位、`$randomLoremParagraphs` 的 `"\n \r"` 分隔等）。`request.dynamic` 是唯一名称表，发送、补全、悬停和 `pm.variables.replaceIn` 共用；测试用 testdata 的 118 个名单逐项校验格式并断言没有额外名称。已知差异：`$randomImageUrl` 和分类图片使用 faker 5.5.3 的 `http://placeimg.com/640/480`（Postman 文档示例仍为 lorempixel）；日期的时区标签用 Go 的缩写而非系统长名称；`$randomImageDataUri` 使用 640×480 而非 faker 5.5.3 的 undefined 尺寸；词库为内置小词库，不复制 faker 全量 locale 数据。
 - 脚本：Postman sandbox 库已完成。Ajv 6.12.6、Chai 4.5.0、Lodash 4.18.1、CryptoJS 4.2.0、Moment 2.31.0、tv4 1.3.0、cheerio 0.22.0、xml2js 0.6.2、csv-parse/lib/sync 1.2.4、uuid 3.4.0、postman-collection 5.3.1、liquid-json/json、Backbone 1.6.0 和 Node 内建 shim；请求脚本 `require`，规则脚本、addon 和 Code Mock `import`，首次使用才加载，按脚本隔离；全局 Buffer、xml2Json 等；脚本内定时器真实等待（单钩子总计最多 10 秒，不计入 10 秒 CPU 预算）。`have.jsonSchema` 已完成（Ajv 6.12.6）。无 UI 快照改动。
 - Postman Collection v3 导入已完成：v3 是 Postman v12 的本地／Native Git 目录格式（schema 3.0.0），不是单文件导出；`Import collection folder…` 和拖放识别 `.resources/definition.yaml`／`*.request.yaml` 目录，按 v2.1 的同一套转换导入集合/文件夹定义、嵌套文件夹、HTTP 各种 body、auth、脚本、变量 Initial/Current、`settings` 和 examples；原生 GraphQL、gRPC、WebSocket、Socket.IO、MQTT、MCP 文档按 app 的对应模型导入（gRPC 的 schema/脚本/examples、WebSocket/Socket.IO 的额外消息和 examples、MQTT 的脚本/examples 会进报告；MCP 的 transport、URL／command、env、headers、auth、settings 和一条 tools/call／resources/read／prompts/get 消息进文档，其余 JSON-RPC 方法、未知 transport、OAuth 2.0 auth、sessionTimeout 进报告），Kafka/LLM/data 请求跳过并报告。目录按不可信输入处理：最多 10000 个文件／目录项、examples/messages/请求单文件 8 MiB、集合/文件夹定义 1 MiB、SDL 1 MiB、总计 64 MiB、32 层，不跟随符号链接，拒绝 YAML 别名（Postman 不写锚点），只读普通文件，引用路径不得越出集合根；Native Git 仓库请选 `postman/collections/<集合>`，不要选仓库根。导出继续 v2.1：Postman 的 Export collection 仍写 v2.1 JSON，v3 只是本地项目格式，需要 v3 时用 `postman collection migrate`。
@@ -366,7 +368,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 更多代码生成语言已完成（见[使用指南](guide.md#curl)）：Swift URLSession、Kotlin OkHttp、Java java.net.http、C# HttpClient／RestSharp、PHP cURL／Guzzle、Ruby Net::HTTP、Rust reqwest、Dart http、C libcurl、Objective-C NSURLSession、wget；method、query、重复／空 header、raw／urlencoded／multipart／GraphQL body 和已展开的 auth header 原样输出，Binary body 引用本地文件。生成器本身不增加运行时依赖；OkHttp／reqwest 由目标项目提供，非 UTF-8 的抓包 body 仍只支持 cURL。
 - 可复用脚本库。
 - 第三方主题导入。
-- 左右分屏、检查器独立窗口由 UI 线程负责。
+- 左右分屏、检查器独立窗口由 UI 线程负责；多个抓包视图的 tab 和独立筛选已可用，两个 view 并排的 capture group 仍在 [PR #68](https://github.com/BABA983/vscroxy/pull/68) 评审，未合入。
 
 ### 0.1.0 之后
 
