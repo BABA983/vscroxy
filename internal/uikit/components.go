@@ -1475,19 +1475,45 @@ func Glyph(c *ui.Context, icon *ui.SVG) ui.Element {
 }
 
 // Segmented chooses one of a few mutually exclusive modes, as AppKit draws
-// one: a recessed groove and a raised thumb, concentric with it. Tabs, not
-// Segmented, switch what a pane shows.
+// one: a recessed groove and a raised thumb, concentric with it. This is
+// the 24-point control; SegmentedLarge is the settings-scope size.
 func Segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
+	return segmented(c, selected, HeightRow, SpaceHair, RadiusControl, RadiusInner, TextMeta, false, labels...)
+}
+
+// SegmentedLarge is the settings scope tabs: a 38-point Muted track, a
+// 30-point raised canvas segment, 12-point medium text and shadow-sm.
+func SegmentedLarge(c *ui.Context, selected *int, labels ...string) ui.Element {
+	return segmented(c, selected, 38, SpaceXS, RadiusPanel, RadiusControl, TextSmall, true, labels...)
+}
+
+func segmented(c *ui.Context, selected *int, height, inset, trackRadius, segmentRadius, textSize float32, raised bool, labels ...string) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	parts := ui.SegmentedBase(c, selected, len(labels))
-	parts.Track.AlignItems(ui.Stretch).Height(HeightRow).Padding(t.Space(SpaceHair)).
-		Radius(RadiusControl).Background(p.Muted).Children(func() {
+	parts.Track.AlignItems(ui.Stretch).Height(height).Padding(t.Space(inset)).
+		Radius(trackRadius).Background(p.Muted).Children(func() {
 		for i, label := range labels {
-			s := parts.Segment(i).Label(label).Padding(0, t.Space(SpaceM)).Radius(RadiusInner).
-				AlignItems(ui.Center).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted)
+			padY := float32(0)
+			if raised {
+				padY = t.Space(SpaceS)
+			}
+			padX := t.Space(SpaceM)
+			if raised {
+				padX = t.Space(SpaceL)
+			}
+			s := parts.Segment(i).Label(label).Padding(padY, padX).Radius(segmentRadius).
+				AlignItems(ui.Center).FontSize(Scaled(textSize)).TextColor(t.TextMuted)
+			if raised {
+				s.FontWeight(WeightMedium)
+			}
 			switch {
 			case i == *selected:
-				s.Background(p.Background).InsetShadow(0, 0, 0, HairlineWidth, p.Border).TextColor(t.Text)
+				s.Background(p.Background).TextColor(t.Text)
+				if raised {
+					ShadowSmall.Apply(s, t.Dark)
+				} else {
+					s.InsetShadow(0, 0, 0, HairlineWidth, p.Border)
+				}
 			case s.Pressed() || s.Hovered():
 				s.TextColor(t.Text)
 			}

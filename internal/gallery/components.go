@@ -84,7 +84,7 @@ func (g *Gallery) components() *Group {
 		{ID: "buttons-quiet", Title: "Quiet buttons", Note: "Toolbar, footer, icon, chip, row and swatch", Height: 560, Hover: hoverQuiet, Focus: focusQuiet, build: k.quietPlate},
 		{ID: "inputs", Title: "Inputs", Note: "Fields, focus, invalid, search and the two selects", Height: 680, Hover: hoverInputs, Focus: focusInputs, build: k.inputPlate},
 		{ID: "tabs", Title: "Tabs", Note: "Tabs, counted tabs, sub-tabs and a scrolling strip", Height: 440, Hover: hoverTabs, Focus: focusTabs, build: k.tabPlate},
-		{ID: "segmented", Title: "Segmented", Note: "A recessed groove and a raised thumb", Height: 280, Hover: hoverSegmented, Focus: focusSegmented, build: k.segmentedPlate},
+		{ID: "segmented", Title: "Segmented", Note: "Small sidebar controls and the large settings-scope size", Height: 340, Hover: hoverSegmented, Focus: focusSegmented, build: k.segmentedPlate},
 		{ID: "menus", Title: "Menus", Note: "A 28-point row, the menu shadow and keycaps", Height: 560, Hover: hoverMenus, Focus: focusMenus, Tip: true, build: k.menuPlate},
 		{ID: "checks", Title: "Checkbox and radio", Note: "Boxes wear a control face: rest, hover, checked, focus and disabled", Height: 420, Hover: hoverChecks, Focus: focusChecks, build: k.checkPlate},
 		{ID: "feedback", Title: "Feedback", Note: "Spinner, progress, callouts, badges and a primary button while it is busy", Height: 600, build: k.feedbackPlate},
@@ -335,7 +335,10 @@ func (k *components) segmentedPlate(c *ui.Context) {
 	stateRow(c, "Hover", func() { labelled(uikit.Segmented(c, &k.segment, "Apps", "Domains"), hoverSegmented) })
 	stateRow(c, "Pressed", func() { uikit.Segmented(c, &k.segment, "Apps", "Domains") })
 	stateRow(c, "Focus", func() { labelled(uikit.Segmented(c, &k.segment, "Apps", "Domains"), focusSegmented) })
-	caption(c, "A segmented control chooses a mode; tabs switch what a pane shows.")
+	stateRow(c, "Large", func() {
+		uikit.SegmentedLarge(c, &k.segment, "Personal Settings", "Workspace Settings")
+	})
+	caption(c, "A segmented control chooses a mode; tabs switch what a pane shows. Small is the 24-point sidebar control, Large is the 38-point settings scope.")
 }
 
 func (k *components) menuPlate(c *ui.Context) {

@@ -496,7 +496,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | --- | --- | --- | --- | --- |
 | `Checkbox` | 布尔值，带标签 | 16 的方框（圆角 4，1 pt `Primary` 边），14 的对勾，标签 13 | 未选：透明面、`Primary` 边；选中：`Primary` 实底、对勾为 `PrimaryForeground`；悬停和按下不变；禁用：不切换（整体半透明） | 不用于互斥选择（用 `Radio` 或 `Segmented`） |
 | `Radio`／`RadioGroup` | 从两到四个互斥选项里选一个 | 16 的圆（1 pt `Primary` 边），选中的 6 点圆点为 `PrimaryForeground`；`RadioGroup` 竖排，间距 `SpaceS` | 同 `Checkbox`；`RadioGroup` 只占一个 Tab 停靠点 | 超过四项不用；当前没有接入界面（6.8） |
-| `Segmented` | 互斥的显示模式（如 Pretty／Raw） | 轨道 24 高（`HeightRow`），内边距 2，段 11 字，圆角 6 和 4 | 选中：canvas 面加 hairline；悬停：文字正文色；按下 | 不用于导航或动作；超过四段不用 |
+| `Segmented`／`SegmentedLarge` | 互斥的显示模式（如 Pretty／Raw） | 小号轨道 24 高、内边距 2、11 字、圆角 6／4；Amp 的设置作用域版轨道 38 高、内边距 4、12／500 字、圆角 8／6，选中段 30 高、canvas 面加 `shadow-sm` | 选中：canvas 面加 hairline（小号）或阴影（大号）；悬停：文字正文色；按下 | 不用于导航或动作；超过四段不用 |
 | `Tabs`／`CountedTabs` | 面板内的标签页（切换视图或过滤） | 32 高，左右 10，12 字，圆角 8；计数是 `Meta` | 静止（次要色）、悬停/按下（正文色 5% wash）、选中（canvas 面加 hairline，正文色）；照 Amp Web 的顶部标签 | 不用强调色；不要两层同名 |
 | `TabStrip` | 放不下时横向滚动的标签行 | 同 `Tabs`；缺的一侧边缘渐隐（`EdgeFade`） | 同 `Tabs` | 不要在宽处使用 |
 | `SubTabs` | 第二层标签（在一个 tab 里面，或列表头） | 22 高，标签间距 8，选中加 2 pt 强调色下划线（只在字宽下） | 静止、悬停（正文色）、选中（下划线） | 不要和 `Tabs` 放在同一层 |
