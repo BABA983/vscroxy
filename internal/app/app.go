@@ -3386,7 +3386,7 @@ func (a *app) table(c *ui.Context) {
 	// Bare: the kit has no table; this is MyGo's table of flows, with its own cell edges.
 	table := ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
-		if col == 0 && a.chosen.Has(f.id) {
+		if col == 0 && chosen.Has(f.id) {
 			// The marker sits on the row's first visible cell, whichever
 			// column the user moved there.
 			uikit.RowMarker(c, focused)

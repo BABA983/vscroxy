@@ -134,15 +134,26 @@ func (v *captureViews) captureGroupFields(a *app, view *captureView) {
 	}
 	capture := v.wrote
 	picked, chosen, sort := view.picked, view.chosen, view.sort
+	table, side, proto := view.tablePercent, view.sidePercent, view.protoPercent
 	v.capture(a)
 	if v.drawing {
+		// The table and split dividers write into the view's own fields
+		// after the build pass; keep those writes, not the app's mirror.
 		view.picked, view.chosen, view.sort = picked, chosen, sort
+		if table != 0 {
+			view.tablePercent = table
+		}
+		if side != 0 {
+			view.sidePercent = side
+		}
+		if proto != 0 {
+			view.protoPercent = proto
+		}
 	}
 	view.queryProblem, view.searchProblem = a.queryProblem, a.searchProblem
 	view.queryCaret, view.queryOpen = a.queryCaret, a.queryOpen
 	view.searchFocused = a.searchFocused
-	view.search, view.tablePercent, view.protoPercent = a.search, a.tablePercent, a.protobufTablePercent
-	view.sidePercent = a.captureSidePercent
+	view.search = a.search
 	view.inspector, view.inspectorReq, view.inspectorResp = a.workbench.inspector, a.inspectorReqPane, a.inspectorRespPane
 	view.editorReq, view.editorResp = a.editorReqPane, a.editorRespPane
 	view.visible = a.visible
@@ -592,19 +603,21 @@ func (a *app) captureSplitView(c *ui.Context, available float32) {
 					a.compactCaptureDetail(c)
 				})
 			case available/2 >= 800:
-				percent := a.captureSidePercent
-				if percent == 0 {
-					percent = 58
+				if view.sidePercent == 0 {
+					view.sidePercent = 58
 				}
-				ui.SplitPercent(c.Key("capture-group-side"+key), &percent, table, func() { a.detail(c) }).
+				ui.SplitPercent(c.Key("capture-group-side"+key), &view.sidePercent, table, func() { a.detail(c) }).
 					SplitReset(58).Grow(1).FillWidth().MinHeight(0)
 			default:
-				percent, reset := &a.tablePercent, float32(44)
+				if view.tablePercent == 0 {
+					view.tablePercent = 44
+				}
+				percent, reset := &view.tablePercent, float32(44)
 				if a.bodyMode[0] == 5 {
-					if a.protobufTablePercent == 0 {
-						a.protobufTablePercent = 34
+					if view.protoPercent == 0 {
+						view.protoPercent = 34
 					}
-					percent, reset = &a.protobufTablePercent, 34
+					percent, reset = &view.protoPercent, 34
 				}
 				ui.SplitVerticalPercent(c.Key("capture-group-stack"+key), percent, table, func() { a.detail(c) }).
 					SplitReset(reset).Grow(1).FillWidth().MinHeight(0)
