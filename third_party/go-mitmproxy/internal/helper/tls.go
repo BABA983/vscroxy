@@ -8,9 +8,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Wireshark 解析 https 设置. The app clears the cached writer when the TLS
-// key log setting is turned off, so a handshake cannot keep writing secrets
-// to a file the setting no longer names.
+// Wireshark 解析 https 设置. The app clears the cached writer whenever the TLS
+// key log setting changes, so a handshake cannot keep writing secrets to a
+// file the setting no longer names.
 var (
 	tlsKeyLogMu     sync.Mutex
 	tlsKeyLogWriter io.Writer
@@ -40,7 +40,8 @@ func GetTlsKeyLogWriter() io.Writer {
 
 // ClearTlsKeyLogWriter closes and forgets the writer cached for
 // SSLKEYLOGFILE. New TLS configurations read the environment again; the app
-// calls this after unsetting the variable when the key log is turned off.
+// calls this before changing or unsetting the variable when the key log
+// setting changes.
 func ClearTlsKeyLogWriter() {
 	tlsKeyLogMu.Lock()
 	defer tlsKeyLogMu.Unlock()

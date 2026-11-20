@@ -176,10 +176,9 @@ type app struct {
 	toolsPage string
 	// toolsMenuAction is a menu command chosen while Tools was in front.
 	toolsMenuAction string
-	// launchPort and launchKeyLog are the saved settings this run started
-	// with: a different saved value waits for a restart.
+	// launchPort is the saved setting this run started with: a different
+	// saved value waits for a restart.
 	launchPort       int
-	launchKeyLog     string
 	curlOpen         bool
 	curlInput        string
 	curlProblem      string
@@ -912,7 +911,7 @@ func newApp() *app {
 			a.systemProxyBypassText = strings.Join(a.systemProxyBypass, "\n")
 			a.cookiePersistence = saved.CookiePersistence
 			a.localControl = saved.LocalControl
-			a.launchPort, a.launchKeyLog = saved.ProxyPort, saved.KeyLogPath
+			a.launchPort = saved.ProxyPort
 			a.socksOn, a.socksPort, a.socksAuth = saved.SOCKSOn, saved.SOCKSPort, saved.SOCKSAuth
 			a.socksUsername, a.socksPassword = saved.SOCKSUsername, saved.SOCKSPassword
 			a.resetSOCKSDrafts()
@@ -4642,8 +4641,8 @@ func (a *app) keyLogModal(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// setKeyLog keeps the file the secrets go to, and sets the variable the engine
-// reads, which is too late for this run.
+// setKeyLog keeps the file the secrets go to and detaches the engine's writer
+// from the previous path, so new handshakes use the new file this run.
 func (a *app) setKeyLog(path string) {
 	if path != "" {
 		if home, err := os.UserHomeDir(); err == nil {
@@ -4653,12 +4652,10 @@ func (a *app) setKeyLog(path string) {
 		}
 	}
 	a.keyLogPath = path
+	capture.SetTLSKeyLogPath(path)
 	if path == "" {
-		_ = os.Unsetenv("SSLKEYLOGFILE")
-		capture.ClearTLSKeyLogWriter()
 		a.inform(locales.TlsKeyLogOff())
 	} else {
-		_ = os.Setenv("SSLKEYLOGFILE", path)
 		a.inform(locales.TlsKeysGoTo(path))
 	}
 	a.persistSettings()

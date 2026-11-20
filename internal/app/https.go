@@ -261,7 +261,6 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 						a.openKeyLog()
 					}
 					uikit.Tip(c, uikit.Mono(c, cmp.Or(a.keyLogPath, "Off")).TextColor(t.TextMuted).SingleLine().MaxWidth(260), a.keyLogPath)
-					restartPending(c, a.keyLogPath != a.launchKeyLog)
 				})
 			}, locales.WriteTlsSecretsToA())
 		})

@@ -15,12 +15,15 @@ new. Everything else is upstream.
 `internal/helper/tls.go` keeps the key-log writer behind a mutex instead of a
 one-shot `sync.Once`: it opens the file named by `SSLKEYLOGFILE` on first use,
 and `ClearTlsKeyLogWriter` closes and forgets it. The desktop app calls the
-clear function when the TLS key log setting is turned off, after unsetting the
-variable, so existing and later handshakes stop writing TLS secrets to the old
-file. `proxy.ClearTLSKeyLogWriter` and `proxy.TLSKeyLogWriter` let the app's
-capture boundary clear the writer and assert that a reset closed it; capture's
-`ClearTLSKeyLogWriter` and `TLSKeyLogWriter` keep the engine behind the app's
-boundary.
+clear function whenever the TLS key log setting changes, both when it is turned
+off and when it names a different file, before changing or unsetting the
+variable. Existing and later handshakes then stop writing TLS secrets to the
+old file, and later handshakes open the new one. `capture.SetTLSKeyLogPath`
+owns this clear-then-set sequence at the app boundary.
+`proxy.ClearTLSKeyLogWriter` and `proxy.TLSKeyLogWriter` let the app's capture
+boundary clear the writer and assert that a change closed it; capture's
+`ClearTLSKeyLogWriter`, `SetTLSKeyLogPath` and `TLSKeyLogWriter` keep the engine
+behind the app's boundary.
 
 ## Signing CA
 

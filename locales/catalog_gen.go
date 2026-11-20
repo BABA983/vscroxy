@@ -33158,11 +33158,11 @@ func (msgs Messages) TheSavedOperationNoLonger() string {
 	return Catalog.Format(msgs.locale, "theSavedOperationNoLonger", nil)
 }
 
-// TheSecretsGoToA says "The secrets go to a file Wireshark reads (SSLKEYLOGFILE), so it can decrypt this capture. The engine reads the variab…"
+// TheSecretsGoToA says "The secrets go to a file Wireshark reads (SSLKEYLOGFILE), so it can decrypt this capture. New handshakes use the path…"
 // in the language the app shows.
 func TheSecretsGoToA() string { return In(i18n.Locale()).TheSecretsGoToA() }
 
-// TheSecretsGoToA says "The secrets go to a file Wireshark reads (SSLKEYLOGFILE), so it can decrypt this capture. The engine reads the variab…"
+// TheSecretsGoToA says "The secrets go to a file Wireshark reads (SSLKEYLOGFILE), so it can decrypt this capture. New handshakes use the path…"
 // in the language of msgs.
 func (msgs Messages) TheSecretsGoToA() string {
 	return Catalog.Format(msgs.locale, "theSecretsGoToA", nil)
@@ -33522,11 +33522,11 @@ func (msgs Messages) TlsKeyLogOff() string {
 	return Catalog.Format(msgs.locale, "tlsKeyLogOff", nil)
 }
 
-// TlsKeysGoTo says "TLS keys go to {path} from the next launch"
+// TlsKeysGoTo says "TLS keys now go to {path}"
 // in the language the app shows.
 func TlsKeysGoTo(path string) string { return In(i18n.Locale()).TlsKeysGoTo(path) }
 
-// TlsKeysGoTo says "TLS keys go to {path} from the next launch"
+// TlsKeysGoTo says "TLS keys now go to {path}"
 // in the language of msgs.
 func (msgs Messages) TlsKeysGoTo(path string) string {
 	return Catalog.Format(msgs.locale, "tlsKeysGoTo", map[string]any{"path": path})
@@ -35570,11 +35570,11 @@ func (msgs Messages) WriteResponseFile(error string) string {
 	return Catalog.Format(msgs.locale, "writeResponseFile", map[string]any{"error": error})
 }
 
-// WriteTlsSecretsToA says "Write TLS secrets to a file Wireshark reads to decrypt this capture. Applies after a restart."
+// WriteTlsSecretsToA says "Write TLS secrets to a file Wireshark reads to decrypt this capture. Changes apply to new handshakes right away."
 // in the language the app shows.
 func WriteTlsSecretsToA() string { return In(i18n.Locale()).WriteTlsSecretsToA() }
 
-// WriteTlsSecretsToA says "Write TLS secrets to a file Wireshark reads to decrypt this capture. Applies after a restart."
+// WriteTlsSecretsToA says "Write TLS secrets to a file Wireshark reads to decrypt this capture. Changes apply to new handshakes right away."
 // in the language of msgs.
 func (msgs Messages) WriteTlsSecretsToA() string {
 	return Catalog.Format(msgs.locale, "writeTlsSecretsToA", nil)
@@ -38852,11 +38852,11 @@ func (msgs Messages) SettingAppsHint() string {
 	return Catalog.Format(msgs.locale, "settingAppsHint", nil)
 }
 
-// SettingKeyLogHint says "Write TLS secrets here for Wireshark; applies on the next launch"
+// SettingKeyLogHint says "Write TLS secrets here for Wireshark; changes apply to new handshakes right away"
 // in the language the app shows.
 func SettingKeyLogHint() string { return In(i18n.Locale()).SettingKeyLogHint() }
 
-// SettingKeyLogHint says "Write TLS secrets here for Wireshark; applies on the next launch"
+// SettingKeyLogHint says "Write TLS secrets here for Wireshark; changes apply to new handshakes right away"
 // in the language of msgs.
 func (msgs Messages) SettingKeyLogHint() string {
 	return Catalog.Format(msgs.locale, "settingKeyLogHint", nil)
