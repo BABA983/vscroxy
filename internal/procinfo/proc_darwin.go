@@ -13,10 +13,7 @@ import (
 	"time"
 )
 
-const (
-	commandTimeout = 2 * time.Second
-	processTTL     = 5 * time.Second
-)
+const processTTL = 5 * time.Second
 
 func output(name string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)

@@ -75,6 +75,20 @@ type attacker struct {
 	// would leave two goroutines reading and writing the same fields.
 	h2Base   *http.Server
 	listener *attackerListener
+	// connWG joins the net/http connection goroutines that close a decrypted
+	// client connection through wrapClientConn.Close.
+	connMu     sync.Mutex
+	connClosed bool
+	connSeen   map[net.Conn]struct{}
+	connWG     sync.WaitGroup
+	// h2 connections bypass attacker.server.Serve and its ConnState, so they
+	// get their own shared cancellation and join.
+	h2Mu     sync.Mutex
+	h2Ctx    context.Context
+	h2Cancel context.CancelFunc
+	h2Conns  map[net.Conn]struct{}
+	h2WG     sync.WaitGroup
+	h2Closed bool
 }
 
 func newAttacker(proxy *Proxy) (*attacker, error) {
@@ -83,10 +97,28 @@ func newAttacker(proxy *Proxy) (*attacker, error) {
 		return nil, err
 	}
 
-	a := &attacker{proxy: proxy, ca: ca, listener: newAttackerListener()}
+	h2Ctx, h2Cancel := context.WithCancel(context.Background())
+	a := &attacker{proxy: proxy, ca: ca, listener: newAttackerListener(), h2Ctx: h2Ctx, h2Cancel: h2Cancel,
+		connSeen: make(map[net.Conn]struct{}), h2Conns: make(map[net.Conn]struct{})}
 
 	a.server = &http.Server{
 		Handler: a,
+		ConnState: func(c net.Conn, state http.ConnState) {
+			a.connMu.Lock()
+			defer a.connMu.Unlock()
+			switch state {
+			case http.StateNew:
+				if !a.connClosed {
+					a.connSeen[c] = struct{}{}
+					a.connWG.Add(1)
+				}
+			case http.StateClosed, http.StateHijacked:
+				if _, ok := a.connSeen[c]; ok {
+					delete(a.connSeen, c)
+					a.connWG.Done()
+				}
+			}
+		},
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			return context.WithValue(ctx, connContextKey, c.(*attackerConn).connCtx)
 		},
@@ -136,9 +168,31 @@ func (a *attacker) start() error {
 	return a.server.Serve(a.listener)
 }
 
-// close releases the Accept loop. Existing hijacked connections are owned by
-// the entry's close and by the caller's DropConnections, not by this listener.
-func (a *attacker) close() error { return a.listener.Close() }
+// close stops accepting, closes active and idle connections through the HTTP
+// server, and joins every connection goroutine. Closing only the listener
+// leaves an idle decrypted keep-alive alive after Proxy.Close returns.
+func (a *attacker) close() error {
+	a.connMu.Lock()
+	a.connClosed = true
+	a.connMu.Unlock()
+	a.h2Mu.Lock()
+	a.h2Closed = true
+	a.h2Cancel()
+	conns := make([]net.Conn, 0, len(a.h2Conns))
+	for c := range a.h2Conns {
+		conns = append(conns, c)
+	}
+	a.h2Mu.Unlock()
+	err := errors.Join(a.listener.Close(), a.server.Close())
+	// ServeConn opts.Context only carries request values; it does not stop
+	// its read loop. Closing the socket is what releases the h2 goroutine.
+	for _, c := range conns {
+		_ = c.Close()
+	}
+	a.connWG.Wait()
+	a.h2WG.Wait()
+	return err
+}
 
 func (a *attacker) serveConn(clientTlsConn *tls.Conn, connCtx *ConnContext) {
 	connCtx.ClientConn.NegotiatedProtocol = clientTlsConn.ConnectionState().NegotiatedProtocol
@@ -157,19 +211,36 @@ func (a *attacker) serveConn(clientTlsConn *tls.Conn, connCtx *ConnContext) {
 			},
 		}
 
-		ctx := context.WithValue(context.Background(), connContextKey, connCtx)
+		a.h2Mu.Lock()
+		if a.h2Closed {
+			a.h2Mu.Unlock()
+			_ = clientTlsConn.Close()
+			return
+		}
+		a.h2Conns[clientTlsConn] = struct{}{}
+		ctx := context.WithValue(a.h2Ctx, connContextKey, connCtx)
 		ctx, cancel := context.WithCancel(ctx)
-		go func() {
-			<-connCtx.ClientConn.Conn.(*wrapClientConn).closeChan
+		a.h2WG.Go(func() {
+			select {
+			case <-connCtx.ClientConn.Conn.(*wrapClientConn).closeChan:
+			case <-a.h2Ctx.Done():
+			}
 			cancel()
-		}()
-		go func() {
+		})
+		a.h2WG.Go(func() {
+			defer func() {
+				cancel()
+				a.h2Mu.Lock()
+				delete(a.h2Conns, clientTlsConn)
+				a.h2Mu.Unlock()
+			}()
 			a.h2Server.ServeConn(clientTlsConn, &http2.ServeConnOpts{
 				Context:    ctx,
 				Handler:    a,
 				BaseConfig: a.h2Base,
 			})
-		}()
+		})
+		a.h2Mu.Unlock()
 		return
 	}
 

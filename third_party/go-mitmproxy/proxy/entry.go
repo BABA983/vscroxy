@@ -170,13 +170,35 @@ func (c *wrapServerConn) Close() error {
 type entry struct {
 	proxy  *Proxy
 	server *http.Server
+	// connWG joins net/http's connection goroutines. Server.Close closes their
+	// sockets but does not wait for the goroutines that call wrapClientConn.Close.
+	connMu     sync.Mutex
+	connClosed bool
+	connSeen   map[net.Conn]struct{}
+	connWG     sync.WaitGroup
 }
 
 func newEntry(proxy *Proxy) *entry {
-	e := &entry{proxy: proxy}
+	e := &entry{proxy: proxy, connSeen: make(map[net.Conn]struct{})}
 	e.server = &http.Server{
 		Addr:    proxy.Opts.Addr,
 		Handler: e,
+		ConnState: func(c net.Conn, state http.ConnState) {
+			e.connMu.Lock()
+			defer e.connMu.Unlock()
+			switch state {
+			case http.StateNew:
+				if !e.connClosed {
+					e.connSeen[c] = struct{}{}
+					e.connWG.Add(1)
+				}
+			case http.StateClosed, http.StateHijacked:
+				if _, ok := e.connSeen[c]; ok {
+					delete(e.connSeen, c)
+					e.connWG.Done()
+				}
+			}
+		},
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			return context.WithValue(ctx, connContextKey, c.(*wrapClientConn).connCtx)
 		},
@@ -194,7 +216,12 @@ func (e *entry) serve(ln net.Listener) error {
 }
 
 func (e *entry) close() error {
-	return e.server.Close()
+	e.connMu.Lock()
+	e.connClosed = true
+	e.connMu.Unlock()
+	err := e.server.Close()
+	e.connWG.Wait()
+	return err
 }
 
 func (e *entry) shutdown(ctx context.Context) error {

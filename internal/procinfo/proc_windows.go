@@ -3,6 +3,7 @@
 package procinfo
 
 import (
+	"context"
 	"net/netip"
 	"os/exec"
 	"path/filepath"
@@ -12,9 +13,15 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+func output(name string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	return exec.CommandContext(ctx, name, args...).Output()
+}
+
 // lookupSocket requires both endpoints and a unique PID, for IPv4 and IPv6.
 func lookupSocket(client, server netip.AddrPort) Process {
-	out, err := exec.Command("netstat", "-ano").Output()
+	out, err := output("netstat", "-ano")
 	if err != nil {
 		return Process{}
 	}
@@ -55,7 +62,7 @@ func taskName(pid string) string {
 	if _, err := strconv.Atoi(pid); err != nil {
 		return ""
 	}
-	out, err := exec.Command("tasklist", "/FI", "PID eq "+pid, "/FO", "CSV", "/NH").Output()
+	out, err := output("tasklist", "/FI", "PID eq "+pid, "/FO", "CSV", "/NH")
 	if err != nil {
 		return ""
 	}
