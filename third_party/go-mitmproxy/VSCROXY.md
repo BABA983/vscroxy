@@ -14,13 +14,20 @@ new. Everything else is upstream.
 
 `internal/helper/tls.go` keeps the key-log writer behind a mutex instead of a
 one-shot `sync.Once`: it opens the file named by `SSLKEYLOGFILE` on first use,
-and `ClearTlsKeyLogWriter` closes and forgets it. The desktop app calls the
-clear function when the TLS key log setting is turned off, after unsetting the
-variable, so existing and later handshakes stop writing TLS secrets to the old
-file. `proxy.ClearTLSKeyLogWriter` and `proxy.TLSKeyLogWriter` let the app's
-capture boundary clear the writer and assert that a reset closed it; capture's
-`ClearTLSKeyLogWriter` and `TLSKeyLogWriter` keep the engine behind the app's
-boundary.
+and `ClearTlsKeyLogWriter` closes and forgets it. `GetTlsKeyLogWriter` also
+closes a cached writer when the variable names another file, so a path change
+cannot leak the old handle even if a caller does not clear first. The desktop
+app calls the clear function whenever the TLS key log setting changes, both
+when it is turned off and when it names a different file, after changing or
+unsetting the variable. A handshake between those steps then reads the new
+path, never reopens the old file, and later handshakes use the new writer.
+`capture.SetTLSKeyLogPath` owns this set-then-clear sequence at the app
+boundary. `proxy.ClearTLSKeyLogWriter` and `proxy.TLSKeyLogWriter` let the app's
+capture boundary clear the writer and assert that a change closed it; capture's
+`ClearTLSKeyLogWriter`, `SetTLSKeyLogPath` and `TLSKeyLogWriter` keep the engine
+behind the app's boundary. `TestGetTlsKeyLogWriterClosesOldPathWithoutClear`
+in `internal/helper` covers the getter's own leak path; it runs with `go test
+./...` inside this module, which the desktop module's CI does not include.
 
 ## Signing CA
 

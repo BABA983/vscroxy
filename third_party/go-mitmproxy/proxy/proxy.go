@@ -254,7 +254,7 @@ func (proxy *Proxy) verifiesUpstream(address string, explicit bool) bool {
 }
 
 // ClearTLSKeyLogWriter closes and forgets the engine's cached TLS key-log
-// writer. The app calls it when the key log setting is turned off; later TLS
+// writer. The app calls it whenever the key log setting changes; later TLS
 // configurations read SSLKEYLOGFILE again, and in-flight ones hold a closed
 // writer rather than continuing to write secrets to the old file.
 func ClearTLSKeyLogWriter() { helper.ClearTlsKeyLogWriter() }
