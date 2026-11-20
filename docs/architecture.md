@@ -85,7 +85,7 @@ type action struct {
 版本与迁移（0.1.0 起，`internal/store/version.go`）：
 
 - **格式版本**：JSON 文件是带顶层 `version` 的对象。根是数组或 map 的文件用 `{"version":1,"<member>":…}` 包一层（rules、views、apis、breakpoint templates、android-proxy）。行式文本（ignore／allow 列表）第一行是 `# vscroxy format 1`。没有版本号的文件按版本 1 读取。
-- **迁移**：`store.Format.Steps` 的每一步是纯函数，把版本 N 变成 N+1，必须有测试数据（`internal/store/testdata`）；读取时依次运行到当前版本。0.1.0 是第一个带版本的版本，所以现在还没有迁移步骤，机制和测试已就位。
+- **迁移**：`store.Format.Steps` 的每一步是纯函数，把版本 N 变成 N+1；读取时依次运行到当前版本。兼容性工作已开始（0.1.0 前的 P0）：改落盘格式必须升版本、为每个旧版加 `Step`，在 `internal/store/testdata/`（链式版本在 `testdata/migration/`）放旧文件样本，并在 `internal/store/version_test.go` 加读取旧文件、断言迁移结果的测试。MCP consent 的 v1→v2 是已有例子。
 - **备份**：迁移前、覆盖重要文件前复制到 `~/.vscroxy/backups/`，每个文件保留最近 10 份。
 - **拒绝更新的版本**：文件版本高于本程序时返回 `store.ErrNewer`，文件原样保留并变为只读，用户需要升级 vscroxy。
 - **原子写**：所有写入都走临时文件加重命名，权限 0600，目录 0700。

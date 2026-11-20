@@ -61,9 +61,9 @@ vscroxy 现在的问题正对着这几条：整个侧栏一个 `Scroll`，`Sourc
 最后一个展开的分区吃掉剩余高度，所以 Collections 会一直长到底；只有相邻两个
 都展开时才有可拖的分隔条；拖动用 `Bounds()` 量当前两段的高度，按像素增量改
 两侧的高度，按最小高度夹住；双击分隔条恢复默认。折叠状态用设置里已有的
-`SidebarClosed`，高度是新增的可选字段；开发阶段直接改格式，不升版本、不写
-迁移（AGENTS.md）。不做：分区拖拽重排（`PaneDraggable`）、横向 PaneView、
-正交分隔条、CSS 动画类。
+`SidebarClosed`，高度是新增的可选字段；按 AGENTS.md 升格式版本、写
+`store.Step` 和读取旧文件的迁移测试。不做：分区拖拽重排（`PaneDraggable`）、
+横向 PaneView、正交分隔条、CSS 动画类。
 
 ## 3. 悬停：延迟、位置、富内容、键盘
 
@@ -123,7 +123,8 @@ vscroxy 这一批按用户的意见走得更彻底：默认没有装饰性过渡
    抓包行接上富卡片。
 2. 删动效：token、helper、所有调用点、测试和文档；录制脉动留下。
 3. 侧栏分区：`uikit` 的纵向分区组件、`app` 接入、`store.Settings` 的可选
-   `SidebarPaneHeights`（不升版本、不写迁移）、公开界面的折叠／占满测试。
+   `SidebarPaneHeights`（升版本、写 `store.Step` 和迁移测试）、公开界面的
+   折叠／占满测试。
 4. Client setup 与 HTTPS decryption 两处对话框修正。
 5. 画廊导出、快照断言、真实窗口截图。
 
