@@ -83,7 +83,11 @@ func VariableRefs(s string) []VariableRef {
 			break
 		}
 		end += start + 2
-		if name := strings.TrimSpace(s[start+2 : end]); name != "" {
+		name := strings.TrimSpace(s[start+2 : end])
+		if _, isResponse := ParseResponseRef(s[start : end+2]); isResponse {
+			name = ""
+		}
+		if name != "" {
 			refs = append(refs, VariableRef{Name: name, Start: start, End: end + 2})
 		}
 		at = end + 2

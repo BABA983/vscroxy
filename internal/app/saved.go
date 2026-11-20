@@ -40,6 +40,27 @@ func (r savedRequest) key() string {
 	return "saved:" + r.Collection + "\x00" + r.Name // Unsaved, in-memory requests.
 }
 
+// keepReferenceNames carries a request's old display names into the saved
+// copy when a write renames it, so {{response "Old name" "/token"}} still
+// resolves by the request's unchanged ID. Aliases only accumulate; a later
+// name can be reused by another request, but IDs always win in FindRequest.
+func keepReferenceNames(old, next []savedRequest) []savedRequest {
+	for i := range next {
+		if next[i].ID == "" {
+			continue
+		}
+		at := slices.IndexFunc(old, func(r savedRequest) bool { return r.ID == next[i].ID })
+		if at < 0 {
+			continue
+		}
+		name := old[at].Name
+		if name != "" && name != next[i].Name && !slices.Contains(next[i].ReferenceNames, name) {
+			next[i].ReferenceNames = append(slices.Clone(next[i].ReferenceNames), name)
+		}
+	}
+	return next
+}
+
 // persistRequests is the app's guarded library write.
 func (a *app) persistRequests(list []savedRequest) error {
 	return a.writeLibrary(list, a.folders)
@@ -56,7 +77,7 @@ func upsertRequest(list []savedRequest, r savedRequest) []savedRequest {
 			if r.ID == "" {
 				r.ID = uuid.New().String()
 			}
-			list[i] = r
+			list[i] = keepReferenceNames(list, []savedRequest{r})[0]
 			return list
 		}
 	}

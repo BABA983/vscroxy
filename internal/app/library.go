@@ -335,6 +335,7 @@ func (a *app) writeLibrary(requests []savedRequest, folders []request.Folder) er
 		return fmt.Errorf("%s; files left untouched; repair or move them aside and reload local assets", a.requestsProblem)
 	}
 	requests, folders = slices.Clone(requests), slices.Clone(folders)
+	requests = keepReferenceNames(a.requests, requests)
 	for i := range requests {
 		requests[i].Collection = cleanPath(requests[i].Collection)
 	}

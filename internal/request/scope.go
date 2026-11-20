@@ -72,9 +72,16 @@ type Context struct {
 	// ScriptPermission asks whether this project's scripts may run. It is
 	// called once per send with scripts, before the first of them executes.
 	ScriptPermission ProjectScriptPermission
-	// Resolve finds the requests scripts call with pm.execution.runRequest.
-	// nil means this run cannot call requests, and such calls fail.
+	// Resolve finds the requests scripts call with pm.execution.runRequest
+	// and the sources of {{response "..."}} references. nil means this run
+	// can do neither.
 	Resolve Resolver
+	// Responses holds the latest response of each request in this session.
+	// nil refuses response references.
+	Responses *Responses
+	// ResponseStack holds the IDs of source sends the current send is under.
+	// Callers leave it empty; a source send inherits it with its own ID.
+	ResponseStack []string
 	// nested counts the runRequest calls this request is under.
 	nested int
 }

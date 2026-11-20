@@ -150,9 +150,10 @@ func UnescapeName(s string) string {
 	return b.String()
 }
 
-// FindRequest returns the one request ref names: the request with that ID, or
-// else the only request with that name. A name several requests share is
-// refused rather than guessed at.
+// FindRequest returns the one request ref names: the request with that ID,
+// or else the only request with that name or former name. Old names survive
+// a rename so {{response "Login" "/token"}} keeps finding the same ID. A
+// name several requests share is refused rather than guessed at.
 func FindRequest(requests []request.Request, ref string) (request.Request, error) {
 	for _, r := range requests {
 		if r.ID == ref {
@@ -161,7 +162,7 @@ func FindRequest(requests []request.Request, ref string) (request.Request, error
 	}
 	var named []request.Request
 	for _, r := range requests {
-		if r.Name == ref {
+		if r.Name == ref || slices.Contains(r.ReferenceNames, ref) {
 			named = append(named, r)
 		}
 	}

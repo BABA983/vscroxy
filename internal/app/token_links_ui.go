@@ -32,6 +32,14 @@ type tokenLinkPreview struct {
 	applyError string
 	reviewed   bool
 	applied    bool
+	// Response reference suggestions are read-only until a reviewed plan is
+	// applied. They never hold a value the UI paints or persists.
+	refAnalysis responseRefAnalysis
+	refIndex    int
+	refPlan     *responseRefPlan
+	refReviewed bool
+	refApplied  bool
+	refError    string
 }
 
 func (a *app) tokenLinkScope() []flow {
@@ -59,8 +67,8 @@ func (a *app) startTokenLinks(flows []flow, visible bool) *tokenLinkPreview {
 	for i := range w.flows {
 		f := &w.flows[i]
 		f.reqHeader, f.respHeader = f.reqHeader.Clone(), f.respHeader.Clone()
-		// The analysis needs no request payloads, examples, or trailers.
-		f.reqBody, f.reqFile = "", ""
+		// The detectors read the body under a byte budget; examples and
+		// trailers are not evidence for a response reference.
 		f.reqTrailer, f.resTrailer = nil, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -69,14 +77,18 @@ func (a *app) startTokenLinks(flows []flow, visible bool) *tokenLinkPreview {
 	snapshots := w.flows
 	work := func() {
 		result, err := recognizeTokenLinks(ctx, snapshots)
+		refs, refErr := recognizeResponseRefs(ctx, snapshots)
 		cancel()
 		finish := func() {
 			if a.tokenLinks != w || !w.valid {
 				return
 			}
-			w.busy, w.analysis = false, result
+			w.busy, w.analysis, w.refAnalysis = false, result, refs
 			if err != nil {
 				w.problem = err.Error()
+			}
+			if refErr != nil {
+				w.refError = refErr.Error()
 			}
 		}
 		if win == nil {
@@ -97,6 +109,7 @@ func (w *tokenLinkPreview) close() {
 	w.open, w.valid = false, false
 	w.cancel()
 	w.flows, w.analysis, w.plan = nil, tokenAnalysis{}, nil
+	w.refAnalysis, w.refPlan = responseRefAnalysis{}, nil
 }
 
 func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
@@ -124,7 +137,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 					uikit.Callout(c, uikit.CalloutDanger, w.problem, nil)
 					return
 				}
-				if w.applied {
+				if w.applied && !w.refApplied {
 					uikit.Body(c, locales.TokenLinkApplied()).FontWeight(500)
 					uikit.Hint(c, locales.SelectTheTargetEnvironmentThen())
 					return
@@ -167,6 +180,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 				if w.analysis.Skipped > 0 {
 					uikit.Hint(c, locales.TokenLinksSkipped(w.analysis.Skipped))
 				}
+				a.responseRefsView(c, t, w)
 				if len(w.analysis.Links) > 0 {
 					uikit.Body(c, locales.ApplyToSavedRequests()).FontWeight(500)
 					uikit.Hint(c, locales.SaveTheSourceAndConsumers())
@@ -182,7 +196,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 			}
 			uikit.DialogFooter(c).Children(func() {
 				state := locales.PreviewOnlyNothingChanged()
-				if w.applied {
+				if w.applied || w.refApplied {
 					state = locales.SavedNoRequestsSent()
 				} else if w.plan != nil && w.plan.reserved {
 					state = locales.PrivateSlotSavedReview()

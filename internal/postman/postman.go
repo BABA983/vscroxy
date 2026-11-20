@@ -179,6 +179,10 @@ func (k warning) text(n int) string {
 		return "Skipped " + count(n, k.detail+" request", k.detail+" requests") + "; Postman Collection v2.1 only supports HTTP requests"
 	case "token source":
 		return "Native pre-setup token invalidation on " + count(n, "request is", "requests is") + " not exported; script fallback remains but cannot cover inherited or compilation failures"
+	case "response reference export":
+		return "Could not convert " + count(n, "response reference", "response references") + " to a Postman pre-request script; the expression was left in the export"
+	case "response reference import":
+		return count(n, "Postman pre-request script still holds a converted response reference", "Postman pre-request scripts still hold converted response references") + "; imported as a script, not a native response reference"
 	case "timeout":
 		return count(n, "request timeout is", "request timeouts are") + " not part of Postman collections"
 	case "curl redirects":

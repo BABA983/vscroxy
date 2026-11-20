@@ -39441,3 +39441,127 @@ func ServerCertificateSanHint() string { return In(i18n.Locale()).ServerCertific
 func (msgs Messages) ServerCertificateSanHint() string {
 	return Catalog.Format(msgs.locale, "serverCertificateSanHint", nil)
 }
+
+// MaskedResponseValue says "Matched value: •••••••• ({length} characters)"
+// in the language the app shows.
+func MaskedResponseValue(length int) string { return In(i18n.Locale()).MaskedResponseValue(length) }
+
+// MaskedResponseValue says "Matched value: •••••••• ({length} characters)"
+// in the language of msgs.
+func (msgs Messages) MaskedResponseValue(length int) string {
+	return Catalog.Format(msgs.locale, "maskedResponseValue", map[string]any{"length": length})
+}
+
+// ResponseReferenceSuggestions says "Response reference suggestions"
+// in the language the app shows.
+func ResponseReferenceSuggestions() string { return In(i18n.Locale()).ResponseReferenceSuggestions() }
+
+// ResponseReferenceSuggestions says "Response reference suggestions"
+// in the language of msgs.
+func (msgs Messages) ResponseReferenceSuggestions() string {
+	return Catalog.Format(msgs.locale, "responseReferenceSuggestions", nil)
+}
+
+// ResponseReferencePreviewHint says "Suggestions only — nothing changes until you apply. Existing scripts and variables are left alone."
+// in the language the app shows.
+func ResponseReferencePreviewHint() string { return In(i18n.Locale()).ResponseReferencePreviewHint() }
+
+// ResponseReferencePreviewHint says "Suggestions only — nothing changes until you apply. Existing scripts and variables are left alone."
+// in the language of msgs.
+func (msgs Messages) ResponseReferencePreviewHint() string {
+	return Catalog.Format(msgs.locale, "responseReferencePreviewHint", nil)
+}
+
+// ResponseReferenceSourceLabel says "Response #{source} → {count, plural, one {# reused value} other {# reused values}}"
+// in the language the app shows.
+func ResponseReferenceSourceLabel(source int, count int) string {
+	return In(i18n.Locale()).ResponseReferenceSourceLabel(source, count)
+}
+
+// ResponseReferenceSourceLabel says "Response #{source} → {count, plural, one {# reused value} other {# reused values}}"
+// in the language of msgs.
+func (msgs Messages) ResponseReferenceSourceLabel(source int, count int) string {
+	return Catalog.Format(msgs.locale, "responseReferenceSourceLabel", map[string]any{"source": source, "count": count})
+}
+
+// ResponseReferenceExpression says "Replace with: {expression}"
+// in the language the app shows.
+func ResponseReferenceExpression(expression string) string {
+	return In(i18n.Locale()).ResponseReferenceExpression(expression)
+}
+
+// ResponseReferenceExpression says "Replace with: {expression}"
+// in the language of msgs.
+func (msgs Messages) ResponseReferenceExpression(expression string) string {
+	return Catalog.Format(msgs.locale, "responseReferenceExpression", map[string]any{"expression": expression})
+}
+
+// NoResponseReferencesFound says "No reusable response values found."
+// in the language the app shows.
+func NoResponseReferencesFound() string { return In(i18n.Locale()).NoResponseReferencesFound() }
+
+// NoResponseReferencesFound says "No reusable response values found."
+// in the language of msgs.
+func (msgs Messages) NoResponseReferencesFound() string {
+	return Catalog.Format(msgs.locale, "noResponseReferencesFound", nil)
+}
+
+// PreviewResponseReference says "Preview response reference"
+// in the language the app shows.
+func PreviewResponseReference() string { return In(i18n.Locale()).PreviewResponseReference() }
+
+// PreviewResponseReference says "Preview response reference"
+// in the language of msgs.
+func (msgs Messages) PreviewResponseReference() string {
+	return Catalog.Format(msgs.locale, "previewResponseReference", nil)
+}
+
+// ReviewResponseReferences says "Review response references"
+// in the language the app shows.
+func ReviewResponseReferences() string { return In(i18n.Locale()).ReviewResponseReferences() }
+
+// ReviewResponseReferences says "Review response references"
+// in the language of msgs.
+func (msgs Messages) ReviewResponseReferences() string {
+	return Catalog.Format(msgs.locale, "reviewResponseReferences", nil)
+}
+
+// ReviewedResponseReferences says "I reviewed the response reference changes"
+// in the language the app shows.
+func ReviewedResponseReferences() string { return In(i18n.Locale()).ReviewedResponseReferences() }
+
+// ReviewedResponseReferences says "I reviewed the response reference changes"
+// in the language of msgs.
+func (msgs Messages) ReviewedResponseReferences() string {
+	return Catalog.Format(msgs.locale, "reviewedResponseReferences", nil)
+}
+
+// BackToResponseReferences says "Back to suggestions"
+// in the language the app shows.
+func BackToResponseReferences() string { return In(i18n.Locale()).BackToResponseReferences() }
+
+// BackToResponseReferences says "Back to suggestions"
+// in the language of msgs.
+func (msgs Messages) BackToResponseReferences() string {
+	return Catalog.Format(msgs.locale, "backToResponseReferences", nil)
+}
+
+// ApplyResponseReferences says "Apply response references"
+// in the language the app shows.
+func ApplyResponseReferences() string { return In(i18n.Locale()).ApplyResponseReferences() }
+
+// ApplyResponseReferences says "Apply response references"
+// in the language of msgs.
+func (msgs Messages) ApplyResponseReferences() string {
+	return Catalog.Format(msgs.locale, "applyResponseReferences", nil)
+}
+
+// ResponseReferenceApplied says "Response references saved. No requests were sent."
+// in the language the app shows.
+func ResponseReferenceApplied() string { return In(i18n.Locale()).ResponseReferenceApplied() }
+
+// ResponseReferenceApplied says "Response references saved. No requests were sent."
+// in the language of msgs.
+func (msgs Messages) ResponseReferenceApplied() string {
+	return Catalog.Format(msgs.locale, "responseReferenceApplied", nil)
+}
