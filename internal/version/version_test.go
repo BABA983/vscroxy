@@ -40,3 +40,24 @@ func TestStringCarriesTheCommitWhenKnown(t *testing.T) {
 		t.Fatalf("Platform() = %q", Platform())
 	}
 }
+
+func TestStringShowsOnlyADifferentBuild(t *testing.T) {
+	old := Commit
+	t.Cleanup(func() { Commit = old })
+	for _, tc := range []struct {
+		name  string
+		build string
+		want  string
+	}{
+		{"build equals version", Number, Number},
+		{"commit", "abc1234", Number + " (abc1234)"},
+		{"build number", "123", Number + " (123)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			Commit = tc.build
+			if got := String(); got != tc.want {
+				t.Fatalf("String() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

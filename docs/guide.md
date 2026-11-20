@@ -1433,6 +1433,146 @@ still evaluated once per scheme/host/port. Changing the PAC file requires saving
 the setting again. `alert` messages are discarded, not logged, because they may
 contain request data.
 
+## Behind a corporate VPN or secure web gateway
+
+Zscaler, Netskope, Cisco AnyConnect/Umbrella, GlobalProtect and similar products
+all steer traffic differently, but vscroxy talks to them the way it talks to any
+upstream: through an HTTP, HTTPS or SOCKS5 proxy, or through the candidates a
+PAC script returns. The names below are placeholders; use the hosts and ports
+your IT team gives you. vscroxy does not sign in to the VPN client, install its
+root CA, import the PAC chosen by the operating system, or change VPN policy.
+
+### Choose the upstream
+
+Open **Settings → Proxy → Upstream**. If your IT team gives you a proxy address,
+put `http://proxy.example:8080`, `https://proxy.example:8443` or
+`socks5://proxy.example:1080` in **Default**. Add an `https://` upstream only
+when the gateway really terminates TLS on the proxy port. For HTTP(S) and
+SOCKS5 upstream credentials, add one **Credentials** row for the exact
+`scheme://host:port` you configured; do not put a user name in the address. A
+gateway that replies 407, or a SOCKS5 authentication failure, is final: the app
+does not try another candidate or go direct after a proxy refuses the request.
+
+If your IT team gives you a PAC instead, copy its file path or `http(s)://` URL
+into **PAC**. vscroxy reads that script once when you save and again on launch,
+not on every request and not from the operating system's current PAC setting.
+The fetch is direct — it does not go through the upstream you are configuring —
+so the URL must be reachable without that proxy. A local copy is more reliable
+when the VPN only publishes its PAC URL after sign-in. Changing the file on
+disk requires **Save** again. The script must define `FindProxyForURL` using the
+standard helpers listed under [PAC scripts](#pac-scripts); vendor-specific
+helpers or IPv6 `…Ex` functions are not installed, and an exception fails the
+request rather than silently going direct. A URL PAC that fails to load is
+retried with backoff; the toolbar shows **Upstream error** until it succeeds.
+
+Selection is fixed: **Bypass** first, then the first matching **Host rules**
+line, then **PAC**, then **Default**. Use host rules for exceptions a corporate
+PAC gets wrong, for example `*.internal.example direct`. A change applies to
+new connections; open connections keep the upstream they were built with.
+
+![Settings → Proxy → Upstream in the Light theme](design/vpn-upstream-light.png)
+
+![Settings → Proxy → Upstream in the Dark theme](design/vpn-upstream-dark.png)
+
+### Bypass SSO and the VPN's own endpoints
+
+Put the IdP/SSO hosts and the VPN or gateway's own update, registration and
+sign-in hosts in the upstream **Bypass** list, one per line, using the actual
+names from your PAC or VPN profile, for example:
+
+```text
+sso.example.com
+login.example.com
+*.idp.example
+vpn.example.com
+gateway.example.com
+localhost
+```
+
+Bypass sends vscroxy's own connection to those hosts directly, before host
+rules, PAC and the default proxy. It does not hide the traffic: those exchanges
+are still captured and can still be decrypted if a domain or app rule enables
+inspection. If your security policy forbids a direct connection to an IdP, do
+not add it here — send it to the corporate proxy through a host rule and use
+**Settings → HTTPS → Never decrypt** if inspection is what breaks the login.
+A bypass with an IP or CIDR matches only a literal IP, not a hostname that
+resolves to it.
+
+Four similarly named lists do different jobs:
+
+| List | Where | Effect |
+| --- | --- | --- |
+| Upstream **Bypass** | Settings → Proxy → Upstream | vscroxy connects directly to that host after the client reaches it; traffic is still captured |
+| System proxy **Bypass list** | Settings → Proxy → System proxy | the OS sends that host directly, so vscroxy never sees it |
+| **Never decrypt** | Settings → HTTPS | the HTTPS tunnel stays encrypted; it still goes to the selected upstream |
+| **Ignored hosts** | Network → Ignored hosts | traffic is still proxied, just not shown in the table |
+
+### Trust the corporate root CA for upstream TLS
+
+An `https://` upstream's own certificate is always verified: vscroxy uses the
+system roots plus the PEM roots listed under **Settings → Certificates** when
+**Trust system roots** is on. Turn that switch off only if your policy wants
+the listed PEM roots to be the only trust source; an empty pool trusts nothing.
+Put the corporate root certificate (public PEM, not a private key) in that list
+if the OS trust store does not already contain it. The handshake is completed
+before Basic credentials are sent, and a broken chain fails the request.
+
+The same roots verify the target of a decrypted HTTPS connection. That check is
+separate from the upstream proxy's certificate: a corporate proxy can be
+trusted while its target is not, and vice versa. **Settings → HTTPS → Allow
+untrusted upstream certificates** is a per-host exception for decrypted
+traffic; it is not a way to trust an `https://` upstream. Undecrypted HTTPS is a
+blind tunnel — the client verifies that certificate, and vscroxy cannot inspect
+or re-verify it. Turning off a request's **Verify TLS certificate** never makes
+a decrypted upstream less verified.
+
+The vscroxy CA shown under **Settings → HTTPS** is different again: clients
+must trust it to allow inspection. A custom MITM signing CA under **Settings →
+Certificates** changes the certificate presented to those clients, not the
+roots used to verify a corporate proxy. Installing those roots is a local OS or
+application trust decision; vscroxy does not install them for you.
+
+![Settings → Certificates in the Light theme](design/vpn-roots-light.png)
+
+![Settings → Certificates in the Dark theme](design/vpn-roots-dark.png)
+
+### When the VPN forces a PAC or blocks local proxies
+
+The app never reads or overrides the OS/VPN PAC. On macOS and Windows it keeps
+automatic configuration (including WPAD) in place when writing a fixed system
+proxy; **Settings → Proxy** reads that back and reports an **automatic
+configuration conflict** when a PAC applies. The fixed proxy vscroxy writes may
+then be ignored by applications. Do not try to out-configure a managed client:
+copy its PAC into vscroxy's own **PAC** setting, or configure the applications
+you are testing to use the displayed listener address explicitly (see
+[One-click client setup](#one-click-client-setup) and the per-app launchers).
+Leaving the system proxy alone and pointing clients at
+`http://127.0.0.1:<displayed port>` works even while the VPN owns the OS PAC.
+
+If the security product refuses local proxy listeners or traffic to loopback,
+there is no transparent-proxy mode in 0.1.0 and no way for vscroxy to make a
+client ignore its own proxy policy. Ask IT for an exception for the loopback
+listener, or use an approved machine/profile where the client can be pointed
+at it. The same applies to HTTPS proxies that require an interactive sign-in,
+NTLM/Kerberos proxy authentication or a client certificate from the proxy
+endpoint: vscroxy's upstream credentials are HTTP Basic and SOCKS5
+username/password only.
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| **Upstream loading** or **Upstream error** chip, requests return 502 naming the PAC | The PAC file/URL could not be read or compiled; a URL fetch is direct and bounded | Make the URL reachable without the configured upstream, save a local copy instead, or correct the script. **Retry** in Settings and check the connection log's **Upstream** line. |
+| Proxy replies 407, or SOCKS5 fails with 502 | Missing or wrong credentials for that endpoint | Put the exact `scheme://host:port` in **Credentials** and re-enter the password. Credentials in the proxy address are rejected when saving. Another candidate is never tried after an auth refusal. |
+| `https://` upstream fails during the TLS handshake | Its certificate does not chain to a trusted root | Keep **Trust system roots** on if the OS already trusts it, or add the corporate public PEM root under Settings → Certificates. A per-host decrypted-traffic exception does not apply here. |
+| Decrypted HTTPS fails with an upstream certificate error that points to **Allow untrusted upstream certificates** | The *target* certificate is not trusted, not the proxy's | Add its root under Certificates, or use the per-host exception for a local development server. Blind tunnels are unaffected. |
+| Only `Tunnel` / CONNECT rows, no plain requests | The host is not in the HTTPS decryption list, or is in **Never decrypt** | Add the domain or app rule under Settings → HTTPS and open a new connection. Trusting the vscroxy CA alone does not decrypt anything. |
+| A client reports an untrusted certificate | That client uses its own trust store, or the vscroxy CA is not trusted | Use **Install & Trust…** or the one-click client launcher; some browsers and Java/Node tools need their own CA configuration. See [System proxy and certificate](#system-proxy-and-certificate). |
+| SSO redirects loop, MFA fails, or a token never reaches the API | The IdP was sent through a proxy that rewrites it, or was decrypted against policy | Add the actual SSO/IdP hosts to upstream **Bypass**; if direct is not allowed, route them to the corporate proxy and add them to **Never decrypt**. Start a new sign-in after changing it. |
+| System proxy shows an automatic configuration conflict; apps still use the VPN's PAC | The VPN owns the OS PAC/discovery | Point the apps at the displayed loopback listener explicitly, or have IT change the managed PAC. vscroxy does not disable that PAC. |
+| A proxy refuses a plain HTTP target through an HTTP(S) upstream | CONNECT to port 80 is not permitted | Use plain HTTPS where possible, or a Map Remote rewrite to the HTTP target, which uses absolute-URI forwarding instead of CONNECT 80. |
+| The LAN device cannot reach the proxy, or a client ignores its proxy setting | The VPN blocks local/LAN proxies or the client hard-codes its own route | Confirm the displayed address and port, use the device setup guide, and ask IT for an exception. 0.1.0 has no transparent proxy. |
+
 ## HTTPS decryption
 
 HTTPS is tunnelled untouched until a domain or app rule enables inspection:

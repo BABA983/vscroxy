@@ -58,9 +58,11 @@ func CommitString() string {
 	return revision
 }
 
-// String is the version and, when known, the commit: "0.1.0 (abc1234)".
+// String is the version and, when the build differs from it, the commit or
+// build number: "0.1.0 (abc1234)". A build stamped with the release number
+// is not shown twice.
 func String() string {
-	if revision := CommitString(); revision != "" {
+	if revision := CommitString(); revision != "" && revision != Number {
 		return Number + " (" + revision + ")"
 	}
 	return Number
