@@ -15,6 +15,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/clientsetup"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -559,6 +560,63 @@ func TestOneClickAndroidRestoresReverseAfterReboot(t *testing.T) {
 		if !strings.Contains(string(data), want) {
 			t.Fatalf("Undo proxy missed %q; adb log:\n%s", want, data)
 		}
+	}
+}
+
+func TestOneClickAndroidRefusesOtherProxyWithSavedRecord(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake adb is a shell script")
+	}
+	a := oneClickApp(t)
+	a.androidProxyPath = filepath.Join(t.TempDir(), "android-proxy.json")
+	a.clientUI.target = clientTargetAndroid
+	a.clientUI.androidLoaded = true
+	a.clientUI.android = []clientsetup.AndroidDevice{{Serial: "emulator-5554", State: "device", Model: "Pixel_7"}}
+	a.clientUI.androidSerial = "emulator-5554"
+	_, portText, ok := strings.Cut(a.srv.Addr(), ":")
+	if !ok {
+		t.Fatalf("proxy address %q has no port", a.srv.Addr())
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const original = "null"
+	const foreign = "10.0.2.2:8888"
+	a.clientUI.androidApplied = map[string]androidProxyState{
+		"emulator-5554": {Previous: original, Port: port},
+	}
+	log := filepath.Join(t.TempDir(), "adb.log")
+	if err := os.WriteFile(log, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	binDir := t.TempDir()
+	fake := filepath.Join(binDir, "adb")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + clientsetup.POSIXQuote(log) + "\n" +
+		"case \"$*\" in *\"settings get global http_proxy\"*) echo '" + foreign + "'; esac\n" +
+		"exit 0\n"
+	if err := os.WriteFile(fake, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Set proxy"); err != nil {
+		t.Fatal(err)
+	}
+	waitAppSignal(t, a, func() bool { return !a.clientUI.androidPending }, a.drainClientSetup,
+		func() string { return "proxy check did not finish" })
+	data, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "reverse tcp:") {
+		t.Fatalf("Set proxy repaired a reverse for a device pointing elsewhere; adb log:\n%s", data)
+	}
+	if !strings.Contains(a.message, locales.UndoTheExistingAndroidProxy()) {
+		t.Fatalf("missing refusal: message=%q adb log:\n%s", a.message, data)
+	}
+	if state := a.clientUI.androidApplied["emulator-5554"]; state.Previous != original || state.Port != port {
+		t.Fatalf("saved record changed: %+v", state)
 	}
 }
 
