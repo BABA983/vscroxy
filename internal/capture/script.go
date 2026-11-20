@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -153,7 +154,7 @@ func (s *Server) runRequestScripts(f *proxy.Flow) {
 		binary := !textBody(f.Request.Body, f.Request.Header.Get("Content-Encoding"))
 		x := &ScriptExchange{Phase: "request", Rule: scriptRuleName(r), App: req.App,
 			Method: f.Request.Method, URL: f.Request.URL.String(), Header: f.Request.Header.Clone(), Body: f.Request.Body, BinaryBody: binary, Locals: d.locals}
-		if err := runner.Run(scriptContext(f), r.Target, x); err != nil {
+		if err := runner.Run(s.scriptContext(f), r.Target, x); err != nil {
 			s.scriptErrors.Add(1)
 			recordAction(f, "Request script "+r.Target+" failed")
 			continue
@@ -203,7 +204,7 @@ func (s *Server) runResponseScripts(f *proxy.Flow, body []byte) (ran, bodyEdited
 		if x.Response == nil {
 			x.Response = http.Header{}
 		}
-		if err := runner.Run(scriptContext(f), r.Target, x); err != nil {
+		if err := runner.Run(s.scriptContext(f), r.Target, x); err != nil {
 			s.scriptErrors.Add(1)
 			recordAction(f, "Response script "+r.Target+" failed")
 			continue
@@ -225,12 +226,35 @@ func (s *Server) runResponseScripts(f *proxy.Flow, body []byte) (ran, bodyEdited
 	return ran, bodyEdited
 }
 
-// scriptContext is the context a hook runs in: the request's values, but not
-// its cancellation, which comes once the request has gone upstream, before
-// the response hook. Scripts have their own time limits.
-func scriptContext(f *proxy.Flow) context.Context {
-	return context.WithoutCancel(f.Request.Raw().Context())
+// scriptContext keeps the request's values after the upstream leg, whose
+// context is already canceled by the response hook, but follows the server's
+// lifetime instead. A script waiting for a permission decision must end when
+// the server closes, or shutdown cannot join the handler that runs it.
+func (s *Server) scriptContext(f *proxy.Flow) context.Context {
+	return serverLifetimeContext{
+		parent: context.WithoutCancel(f.Request.Raw().Context()),
+		closed: s.closed,
+	}
 }
+
+// serverLifetimeContext delegates values to a request context but ends only
+// with the server, without a watcher goroutine that shutdown would have to join.
+type serverLifetimeContext struct {
+	parent context.Context
+	closed <-chan struct{}
+}
+
+func (c serverLifetimeContext) Deadline() (time.Time, bool) { return c.parent.Deadline() }
+func (c serverLifetimeContext) Done() <-chan struct{}       { return c.closed }
+func (c serverLifetimeContext) Err() error {
+	select {
+	case <-c.closed:
+		return context.Canceled
+	default:
+		return c.parent.Err()
+	}
+}
+func (c serverLifetimeContext) Value(key any) any { return c.parent.Value(key) }
 
 func scriptRuleName(r Rule) string {
 	if r.Name != "" {

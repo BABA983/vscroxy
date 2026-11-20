@@ -44,7 +44,7 @@ func (s *Server) codeMock(f *proxy.Flow, r Rule) *proxy.Response {
 	x := &ScriptExchange{Phase: "mock", Rule: scriptRuleName(r), App: s.clientProcess(f).Name,
 		Method: f.Request.Method, URL: f.Request.URL.String(), Header: f.Request.Header.Clone(),
 		Body: f.Request.Body, Locals: d.locals, State: state.values}
-	if err := runner.Run(scriptContext(f), r.Target, x); err != nil {
+	if err := runner.Run(s.scriptContext(f), r.Target, x); err != nil {
 		// Script errors may include request/response secrets. The script
 		// Console owns diagnostics; never echo an exception to the client.
 		return fail(http.StatusBadGateway, "script failed; see Scripts Console")

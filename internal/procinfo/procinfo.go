@@ -2,7 +2,14 @@
 // can show which app a request came from.
 package procinfo
 
-import "net/netip"
+import (
+	"net/netip"
+	"time"
+)
+
+// commandTimeout bounds the platform commands a batch lookup runs. Close
+// joins the batch workers, so a hung lsof/netstat cannot hold up shutdown.
+const commandTimeout = 2 * time.Second
 
 // Process is the app behind a connection.
 type Process struct {

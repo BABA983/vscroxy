@@ -75,6 +75,9 @@ type attacker struct {
 	// would leave two goroutines reading and writing the same fields.
 	h2Base   *http.Server
 	listener *attackerListener
+	// connWG joins the net/http connection goroutines that close a decrypted
+	// client connection through wrapClientConn.Close.
+	connWG sync.WaitGroup
 }
 
 func newAttacker(proxy *Proxy) (*attacker, error) {
@@ -87,6 +90,14 @@ func newAttacker(proxy *Proxy) (*attacker, error) {
 
 	a.server = &http.Server{
 		Handler: a,
+		ConnState: func(_ net.Conn, state http.ConnState) {
+			switch state {
+			case http.StateNew:
+				a.connWG.Add(1)
+			case http.StateClosed, http.StateHijacked:
+				a.connWG.Done()
+			}
+		},
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			return context.WithValue(ctx, connContextKey, c.(*attackerConn).connCtx)
 		},
@@ -136,9 +147,14 @@ func (a *attacker) start() error {
 	return a.server.Serve(a.listener)
 }
 
-// close releases the Accept loop. Existing hijacked connections are owned by
-// the entry's close and by the caller's DropConnections, not by this listener.
-func (a *attacker) close() error { return a.listener.Close() }
+// close releases the Accept loop and joins its connection goroutines. Existing
+// hijacked connections are owned by the caller's DropConnections, which ends
+// their StateHijacked count.
+func (a *attacker) close() error {
+	err := a.listener.Close()
+	a.connWG.Wait()
+	return err
+}
 
 func (a *attacker) serveConn(clientTlsConn *tls.Conn, connCtx *ConnContext) {
 	connCtx.ClientConn.NegotiatedProtocol = clientTlsConn.ConnectionState().NegotiatedProtocol
