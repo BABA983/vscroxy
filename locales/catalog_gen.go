@@ -39171,3 +39171,23 @@ func UpdateCheckFailed() string { return In(i18n.Locale()).UpdateCheckFailed() }
 func (msgs Messages) UpdateCheckFailed() string {
 	return Catalog.Format(msgs.locale, "updateCheckFailed", nil)
 }
+
+// ReportIssue says "Report issue…"
+// in the language the app shows.
+func ReportIssue() string { return In(i18n.Locale()).ReportIssue() }
+
+// ReportIssue says "Report issue…"
+// in the language of msgs.
+func (msgs Messages) ReportIssue() string {
+	return Catalog.Format(msgs.locale, "reportIssue", nil)
+}
+
+// ReportIssueHint says "Opens GitHub in your browser"
+// in the language the app shows.
+func ReportIssueHint() string { return In(i18n.Locale()).ReportIssueHint() }
+
+// ReportIssueHint says "Opens GitHub in your browser"
+// in the language of msgs.
+func (msgs Messages) ReportIssueHint() string {
+	return Catalog.Format(msgs.locale, "reportIssueHint", nil)
+}

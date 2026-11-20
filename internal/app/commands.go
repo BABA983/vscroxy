@@ -639,6 +639,22 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("app.checkForUpdates", locales.CheckForUpdatesNow(), func(x *commandContext) {
 		x.a.manualUpdateCheck()
 	})
+	// Opening the browser needs the window's services, which a command does
+	// not receive. Capture them for this build so the id stays the same in
+	// the palette and the Help menu.
+	r.source("help", func(x *commandContext, c *ui.Context) []action {
+		var services ui.Services
+		if c != nil {
+			services = c.Services()
+		}
+		report := do("help.report-issue", locales.ReportIssue(), func() {
+			x.a.reportIssue(services)
+		})
+		// The palette shows an action's reason as its description; this
+		// command is always available, so it describes what follows.
+		report.reason = locales.ReportIssueHint()
+		return []action{report}
+	})
 	r.add("workbench.action.setLogLevel", locales.SetLogLevel(), func(x *commandContext) {
 		x.a.logLevelPicker, x.a.logLevelPickerOpen = applog.EffectiveLevel(), true
 	})

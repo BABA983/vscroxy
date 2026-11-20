@@ -42,6 +42,13 @@ this app does not use; its fonts and icons are bundled.
   `vscroxy-mcp` connect to it on this computer.
 - Importing a file is local. OpenAPI external references are not fetched, and
   neither are files a request refers to.
+- **Report issue** (Help menu or command palette) opens a GitHub page in your
+  browser with a new-issue form filled in with the app version and commit, OS
+  and version, architecture, MyGo version, locale and theme, and the names of
+  enabled features. It carries no request contents, hosts, URLs, home paths,
+  setting values beyond that short list, or vault data. Nothing is posted until
+  you review the form and submit it yourself; you can close the page without
+  posting.
 
 ## What is stored
 
