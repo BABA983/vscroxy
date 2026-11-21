@@ -6,20 +6,43 @@ import "github.com/egoist/mygo/ui"
 // reading. Each one is quiet: a spinner and a bar are text-colored, and a
 // callout marks its kind with an icon, never a filled card.
 
-// progressHeight is the bar's thickness: a hairline of four points.
-const progressHeight = 4
+// progressHeight is a pill: twelve points tall, fully rounded.
+const progressHeight = 12
 
 // Spinner is work of unknown length, in the muted text color, named by label.
 func Spinner(c *ui.Context, label string) ui.Element {
 	return ui.Spinner(c).Label(label).TextColor(c.Theme().TextMuted)
 }
 
-// ProgressBar shows work as a fraction from 0 to 1 over a track; a negative
-// value shows activity of unknown length. It is named by label.
+// ProgressBar shows work as a fraction from 0 to 1 over the muted track; a
+// negative value shows activity of unknown length. It is named by label.
 func ProgressBar(c *ui.Context, value float64, label string) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	return ui.Progress(c, value).Label(label).Height(progressHeight).Radius(progressHeight / 2).
-		TextColor(t.Text).Background(p.Muted)
+	bar := ui.Progress(c, value).Label(label).Height(progressHeight).Radius(progressHeight / 2)
+	if value < 0 || value > 1 {
+		return bar.TextColor(p.Success.Alpha(0.7)).Background(p.MutedForeground.Alpha(0.2))
+	}
+	// Composite once against the panel before painting: the track and fill
+	// overlap, and translucent layers would darken that seam.
+	track := p.MutedForeground.Alpha(0.2).Over(t.Background)
+	fill := p.Success.Alpha(0.7).Over(track)
+	bar.Draw(func(painter *ui.Painter, r ui.Rect) {
+		painter.Fill(r, track, r.H/2)
+		w := float32(value) * r.W
+		if w <= 0 {
+			return
+		}
+		part := ui.Rect{X: r.X, Y: r.Y, W: w, H: r.H}
+		if w >= r.W {
+			// A finished bar is the track's pill, not a square-ended fill.
+			painter.Fill(part, fill, r.H/2)
+			return
+		}
+		// Until then the fill rounds only its left cap; its right edge is
+		// flat where the rest of the track begins.
+		painter.FillRadii(part, [4]float32{r.H / 2, 0, 0, r.H / 2}, fill)
+	})
+	return bar
 }
 
 // CalloutKind is what a callout says about its subject.

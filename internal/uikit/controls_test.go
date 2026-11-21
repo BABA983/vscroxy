@@ -191,8 +191,14 @@ func TestDisabledRadioKeepsItsValue(t *testing.T) {
 
 // A progress bar reports its fraction, from 0 to 1, as its value.
 func TestProgressBarReportsItsValue(t *testing.T) {
+	theme := Theme(false)
+	track := Colors(theme).MutedForeground.Alpha(0.2).Over(theme.Background)
+	fill := Colors(theme).Success.Alpha(0.7).Over(track)
 	tt := ui.NewTester(func(c *ui.Context) {
-		ProgressBar(c, 0.25, "Uploading")
+		c.SetTheme(theme)
+		ui.Column(c).Fill().Background(theme.Background).Children(func() {
+			ProgressBar(c, 0.25, "Uploading")
+		})
 	}, 240, 40)
 	tt.Frame()
 	info, ok := tt.AccessByRole(ui.RoleProgress, "Uploading")
@@ -201,6 +207,48 @@ func TestProgressBarReportsItsValue(t *testing.T) {
 	}
 	if info.Min != 0 || info.Max != 1 || info.Now != 0.25 {
 		t.Fatalf("progress = min %v, now %v, max %v; want 0, 0.25, 1", info.Min, info.Now, info.Max)
+	}
+	if got := info.Bounds.H; got != progressHeight {
+		t.Fatalf("progress height = %v, want %v", got, progressHeight)
+	}
+	// The fill rounds only its left cap: the right edge stays flat where the
+	// remaining track begins, including the rows just inside the top and
+	// bottom.
+	img := tt.Image()
+	end := int(info.Bounds.X + info.Bounds.W*0.25)
+	for _, x := range []int{end - 2, end - 1} {
+		for _, y := range []int{int(info.Bounds.Y) + 1, int(info.Bounds.Y+info.Bounds.H) - 2} {
+			if px := img.RGBAAt(x, y); !closeTo(px, fill) {
+				t.Fatalf("fill edge at (%v,%v) = %v, want %v", x, y, px, fill)
+			}
+		}
+	}
+	// A finished bar rounds its right cap with the track instead of keeping
+	// the flat edge a partial fill has.
+	full := ui.NewTester(func(c *ui.Context) {
+		c.SetTheme(theme)
+		ui.Column(c).Fill().Background(theme.Background).Children(func() {
+			ProgressBar(c, 1, "Complete")
+		})
+	}, 240, 40)
+	full.Frame()
+	info, ok = full.AccessByRole(ui.RoleProgress, "Complete")
+	if !ok {
+		t.Fatal("no progress bar named Complete")
+	}
+	img = full.Image()
+	right := int(info.Bounds.X+info.Bounds.W) - 1
+	for _, y := range []int{int(info.Bounds.Y) + 1, int(info.Bounds.Y+info.Bounds.H) - 2} {
+		if px := img.RGBAAt(right, y); closeTo(px, fill) {
+			t.Fatalf("full fill kept a square corner at (%v,%v) = %v", right, y, px)
+		}
+		if px := img.RGBAAt(right-4, y); !closeTo(px, fill) {
+			t.Fatalf("full fill corner at (%v,%v) = %v, want %v", right-4, y, px, fill)
+		}
+	}
+	mid := img.RGBAAt(right-4, int(info.Bounds.Y+info.Bounds.H/2))
+	if !closeTo(mid, fill) {
+		t.Fatalf("full fill edge = %v, want %v", mid, fill)
 	}
 }
 
