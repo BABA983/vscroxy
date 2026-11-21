@@ -513,10 +513,13 @@ func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 	d := a.requestDocument
 	// The editor's first row is the panel's, as the capture screen's filter
 	// bar is: chrome only frames the window, never a line inside the panel.
-	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Background(t.Background).Children(func() {
+	// It is a bar's height, so its controls stand clear of the tab strip
+	// above, and every control in it is the Save button's height, so the
+	// crumb, the environment and the actions share one centre line.
+	ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Background(t.Background).Children(func() {
 		if d != nil {
 			crumb := uikit.ToolbarButton(c, locales.RenameRequest(), locales.RenameOrMoveToAnother(), false).
-				Padding(0, t.Space(uikit.SpaceXS)).Gap(t.Space(uikit.SpaceXS)).MinWidth(0)
+				Height(uikit.HeightSecondary).Padding(0, t.Space(uikit.SpaceXS)).Gap(t.Space(uikit.SpaceXS)).MinWidth(0)
 			crumb.Children(func() {
 				if d.composeCollection != "" {
 					uikit.Meta(c, strings.ReplaceAll(d.composeCollection, "/", " / ")+" /").SingleLine().MinWidth(0)
@@ -534,7 +537,7 @@ func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 		if names := a.envNames(); len(names) > 0 {
 			// Bare: the environment is a chip with a status dot, not a 28-point field, so it has no kit trigger.
 			env := ui.SelectBase(c.Key("active-environment"), &a.activeEnv)
-			uikit.Tip(c, env.Trigger.Label(locales.ActiveEnvironment()), locales.ActiveEnvironment()).Width(132).Height(uikit.HeightRow).
+			uikit.Tip(c, env.Trigger.Label(locales.ActiveEnvironment()), locales.ActiveEnvironment()).Width(132).Height(uikit.HeightSecondary).
 				Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(t.Accent)
 				uikit.Body(c, cmp.Or(a.activeEnv, locales.NoEnvironment())).SingleLine().Grow(1)
@@ -1240,13 +1243,21 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 		if request.IsWebSocket(d.composeURL) {
 			return // the message list has no body type, reader or formatter
 		}
-		uikit.SelectLabels(c, &d.bodyMode, bodyTypes, optionLabel).Label(locales.RequestBodyType()).Width(132)
+		// The body type and its reader are choices among the pane's tabs, so
+		// they wear the toolbar's quiet face rather than a field's well.
+		uikit.Tip(c, uikit.ToolbarSelect(c, optionLabel(d.bodyMode), func(m *ui.Menu) {
+			for _, kind := range bodyTypes {
+				if m.Item(optionLabel(kind)).Checked(kind == d.bodyMode).Chosen() {
+					d.bodyMode = kind
+				}
+			}
+		}).Label(locales.RequestBodyType()), locales.RequestBodyType())
 		// Reading the bytes is a view of the same draft: the formats a
 		// capture's readers used to offer, without leaving the Body tab.
 		formats := a.draftBodyFormats(d)
 		shown := formats[min(max(d.bodyRead, 0), len(formats)-1)]
 		ui.Row(c).Disabled(d.bodyMode != "Raw").Children(func() {
-			uikit.Tip(c, uikit.MenuSelect(c, shown, func(m *ui.Menu) {
+			uikit.Tip(c, uikit.ToolbarSelect(c, shown, func(m *ui.Menu) {
 				for i, name := range formats {
 					if m.Item(name).Checked(i == d.bodyRead).Chosen() {
 						d.bodyRead = i

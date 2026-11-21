@@ -683,6 +683,36 @@ func MenuSelect(c *ui.Context, current string, menu func(*ui.Menu)) ui.Element {
 	return selectTrigger(c, b, *open).Justify(ui.SpaceBetween).TextColor(c.Theme().Text)
 }
 
+// ToolbarSelect is MenuSelect without a field's well: the current choice and
+// its chevron at toolbar height, a face only under the pointer. It is for a
+// choice that sits among a pane's tabs and tools, where a filled field would
+// be the one heavy thing on a quiet row.
+func ToolbarSelect(c *ui.Context, current string, menu func(*ui.Menu)) ui.Element {
+	t, p := c.Theme(), Colors(c.Theme())
+	var b ui.Element
+	MenuFace(c, func() {
+		b = ui.ButtonBase(c)
+		b.Label(current).PopoverMenuButton(menu, MenuButtonOptions(c))
+		b.Children(func() {
+			ui.Text(c, current).FontSize(Scaled(TextBody)).SingleLine()
+			chevron(c)
+		})
+	})
+	b.Height(HeightControl).Padding(0, Scaled(ControlPaddingXSmall)).Gap(t.Space(SpaceXS)).
+		Radius(RadiusControl).AlignItems(ui.Center).Shrink(0).TextColor(t.Text)
+	if !b.IsDisabled() {
+		switch {
+		case b.Pressed():
+			b.Background(p.MutedPressed)
+		case b.Hovered():
+			b.Background(p.MutedHover)
+		}
+	} else {
+		b.TextColor(t.TextMuted)
+	}
+	return b
+}
+
 // popoverFace gives a menu's floating panel the kit's chrome: the canvas on
 // the menu shadow, edged by a hairline. A menu's panel comes from MyGo, so
 // the face is applied here instead of in PopoverPanel.
