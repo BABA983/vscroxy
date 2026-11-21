@@ -3,6 +3,7 @@
 package system
 
 import (
+	"bytes"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -201,10 +202,48 @@ func InstallCA(path string) error {
 	return err
 }
 
+// rootStoreName is the system store that trust is read from. A test points it
+// at a temporary store, so the test never changes this machine's roots.
+var rootStoreName = "ROOT"
+
+// verifyCA checks the current user's Root store, where InstallCA puts the CA.
+// It reads the store rather than asking the Windows chain engine: that engine
+// caches its answer per process, and right after an install it kept reporting
+// "unknown authority" for about thirteen seconds, so the page and its toast
+// said the installation had not been verified. The current-user view includes
+// the machine's roots, so a CA trusted for every account verifies here too.
 func verifyCA(_ string, cert *x509.Certificate) error {
-	// With nil Roots, x509 uses the current Windows system verifier.
-	_, err := cert.Verify(x509.VerifyOptions{KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}})
+	roots, err := rootPool(rootStoreName)
+	if err != nil {
+		return err
+	}
+	_, err = cert.Verify(x509.VerifyOptions{Roots: roots, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}})
 	return err
+}
+
+// rootPool exports a system store into a pool Go can verify against. The
+// certificate contexts belong to the store, so each raw certificate is copied
+// before it is parsed.
+func rootPool(storeName string) (*x509.CertPool, error) {
+	store, err := windows.CertOpenSystemStore(0, windows.StringToUTF16Ptr(storeName))
+	if err != nil {
+		return nil, err
+	}
+	defer windows.CertCloseStore(store, 0)
+	pool := x509.NewCertPool()
+	var previous *windows.CertContext
+	for {
+		context, err := windows.CertEnumCertificatesInStore(store, previous)
+		if err != nil || context == nil {
+			break
+		}
+		raw := bytes.Clone(unsafe.Slice(context.EncodedCert, context.Length))
+		if parsed, err := x509.ParseCertificate(raw); err == nil {
+			pool.AddCert(parsed)
+		}
+		previous = context
+	}
+	return pool, nil
 }
 
 // RevealCA selects the CA in Explorer.
