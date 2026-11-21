@@ -23,6 +23,7 @@ var (
 	detachIcon        = lucide.PanelRightOpen()
 	dockIcon          = lucide.PanelRightClose()
 	lockIcon          = lucide.Lock()
+	settingsIcon      = lucide.Settings()
 	appIcon           = lucide.AppWindow()
 	trafficIcon       = lucide.LayoutList()
 	overviewIcon      = lucide.ChartColumn()

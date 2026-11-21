@@ -2841,9 +2841,13 @@ func (a *app) sidebar(c *ui.Context) {
 			a.brandBar(c, t)
 		}
 		a.sidebarModeSwitch(c, t)
-		if a.sidebarMode == sidebarTraffic {
-			a.trafficRegion(c, t)
+		if a.sidebarMode == sidebarCollections {
+			// Collections has the sidebar to itself: no heading repeats the
+			// switch, and the tree takes the whole height.
+			ui.Column(c).Grow(1).MinHeight(0).Children(func() { a.collectionsPane(c, t) })
+			return
 		}
+		a.trafficRegion(c, t)
 		a.sidebarPanes(c, t)
 	})
 	c.SetTheme(t)
@@ -2881,12 +2885,29 @@ func (a *app) followActiveTab() {
 	}
 }
 
-// sidebarModeSwitch is the sidebar's top: Traffic or Collections. It only
-// changes the list; the open tabs stay.
+// sidebarModeSwitch is the sidebar's top: Traffic or Collections, with the
+// half's own actions beside it, so no heading below repeats the switch. It
+// only changes the list; the open tabs stay.
 func (a *app) sidebarModeSwitch(c *ui.Context, t *ui.Theme) {
-	ui.Box(c).Shrink(0).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Children(func() {
-		uikit.Segmented(c, &a.sidebarMode, locales.Traffic(), locales.Collections()).
-			Label(locales.SidebarShows()).FillWidth()
+	// The row is as tall as the tab strip beside it, so the switch and the
+	// tabs share one line across the window.
+	ui.Row(c).Shrink(0).Height(uikit.HeightTabs).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).
+		Padding(0, t.Space(uikit.SpaceM), 0, t.Space(uikit.SpaceL)).Children(func() {
+		uikit.SegmentedFill(c, &a.sidebarMode, locales.Traffic(), locales.Collections()).
+			Label(locales.SidebarShows()).Grow(1).MinWidth(0)
+		if a.sidebarMode == sidebarCollections {
+			a.collectionsHeadingActions(c)
+			return
+		}
+		// Search sits beside the switch, like an activity-bar entry: it
+		// must not take a row from the scopes and views below it.
+		if uikit.RowIconButton(c, locales.SearchEverywhere(), locales.SearchEverywhere(), searchIcon).Clicked() {
+			a.goTo("search")
+		}
+		if uikit.RowIconButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon).Clicked() {
+			a.views.capture(a)
+			a.views.newView(a)
+		}
 	})
 }
 
@@ -2894,45 +2915,25 @@ func (a *app) sidebarModeSwitch(c *ui.Context, t *ui.Theme) {
 // narrows to and the views saved over them. It does not scroll with the
 // regions below, and its heading folds it to one row.
 func (a *app) trafficRegion(c *ui.Context, t *ui.Theme) {
-	traffic := a.regionOpen("traffic")
 	// Traffic is fixed chrome: every scope and view stays in place, and a
 	// short window takes its room from the middle rather than cutting the
-	// scopes or scrolling them away.
+	// scopes or scrolling them away. The switch above names it, so it has
+	// no heading of its own.
 	uikit.SidebarList(c, "traffic-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
-		uikit.SidebarHeading(c, locales.Traffic(), traffic, func() {
-			// Search sits in the heading, like an activity-bar entry: it must
-			// not take a row from the scopes and views below it.
-			if uikit.RowIconButton(c, locales.SearchEverywhere(), locales.SearchEverywhere(), searchIcon).Clicked() {
-				a.goTo("search")
-			}
-			if uikit.RowIconButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon).Clicked() {
-				a.views.capture(a)
-				a.views.newView(a)
-			}
+		// The region ends in space, not a rule: the pane below opens with
+		// its own heading margin, and the shell reads as one surface from
+		// the title bar to the footer.
+		ui.Column(c.Key("traffic-region")).Gap(0).Shrink(0).Padding(0, 0, t.Space(uikit.SpaceM), 0).Children(func() {
+			a.trafficRows(c)
+			a.views.sidebar(c, t, a)
 		})
-
-		if *traffic {
-			// The region ends in space, not a rule: the pane below opens
-			// with its own heading margin, and the shell reads as one
-			// surface from the title bar to the footer.
-			ui.Column(c.Key("traffic-region")).Gap(0).Shrink(0).Padding(0, 0, t.Space(uikit.SpaceM), 0).Children(func() {
-				a.trafficRows(c)
-				a.views.sidebar(c, t, a)
-			})
-		}
 	}).Padding(t.Space(uikit.SpaceXS), 0)
 }
 
-// sidebarCollectionsBody is the room the collections ask for when they are
-// not the growing region: enough for the search and two rows before it
-// scrolls.
-const sidebarCollectionsBody = 144
-
-// sidebarPanes are the middle's foldable regions, in the order they read:
-// where the capture came from, the sessions kept from it, and the saved
-// requests. Each keeps the height its content asks for; the last open one
-// takes the room the others leave, so folding the two above Collections
-// gives the tree the whole middle.
+// sidebarPanes are the Traffic half's foldable regions, in the order they
+// read: where the capture came from and the sessions kept from it. Each
+// keeps the height its content asks for; the last open one takes the room
+// the other leaves.
 func (a *app) sidebarPanes(c *ui.Context, t *ui.Theme) {
 	_, windowHeight := c.Size()
 	sources, sessions := a.sourcesBodyHeight(windowHeight), a.sessionsBodyHeight(windowHeight)
@@ -2949,17 +2950,7 @@ func (a *app) sidebarPanes(c *ui.Context, t *ui.Theme) {
 			Body: func() { a.sessionsPane(c, t) },
 		},
 	}
-	// Collections has the sidebar to itself: its tree is the one pane, and
-	// as the last open one it takes the whole middle.
-	if a.sidebarMode == sidebarCollections {
-		panes = []uikit.SidebarPane{{
-			ID: "collections", Title: locales.Collections(), Open: a.regionOpen("collections"),
-			Height: a.paneHeight("collections", sidebarCollectionsBody), Default: sidebarCollectionsBody, Min: uikit.HeightRow * 5,
-			Trailing: func() { a.collectionsHeadingActions(c) },
-			Body:     func() { a.collectionsPane(c, t) },
-		}}
-	}
-	stack := uikit.SidebarPanes(c, "sidebar-panes-"+strconv.Itoa(a.sidebarMode), a.paneViewport, panes)
+	stack := uikit.SidebarPanes(c, "sidebar-panes", a.paneViewport, panes)
 	// The scroll is the middle's viewport: its height is what the fixed
 	// traffic and footer leave. Read it once the frame has laid it out, and
 	// build the next frame with it, so the last open region fills exactly
@@ -3246,8 +3237,6 @@ func (a *app) collectionsActions() []action {
 		do("api.import-openapi", locales.ImportOpenapi(), a.importOpenAPI).in("api"),
 		do("api.generate", locales.GenerateApiFromCollection(), a.openAPIGeneration).
 			when(len(a.requests) > 0, locales.SaveARequestToA()).in("api"),
-		do("vault.open", locales.Vault(), a.openVault).in("stores"),
-		do("cookies.open", locales.Cookies(), a.openCookies).in("stores"),
 	}
 }
 

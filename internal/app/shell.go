@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/uikit"
@@ -36,9 +37,8 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 		ui.Spacer(c)
 		a.commandButton(c, t)
 		ui.Spacer(c)
-		// Global only: notifications, the tools and everything else. The
-		// layout belongs to the screen and sits in the footer; Settings is in
-		// the app menu and in ⋯, so the bar does not carry a third way to it.
+		// Global only: notifications, the tools, Settings and everything
+		// else. The layout belongs to the screen and sits in the footer.
 		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceHair)).AlignItems(ui.Center).PaddingEnd(max(bar.Right, t.Space(uikit.SpaceL))).Children(func() {
 			a.notificationButton(c, t)
 			uikit.MenuFace(c, func() {
@@ -46,6 +46,9 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 					actionMenu(m, append([]action{do("tools.rules", locales.DebuggingRules2(), a.openRules).in("rules")}, a.networkTools()...))
 				}, uikit.MenuButtonOptions(c))
 			})
+			if uikit.IconButton(c, locales.Settings(), locales.OpenSettings(), settingsIcon, settingsKeys()...).Clicked() {
+				a.openSettings(-1)
+			}
 			uikit.MoreButton(c, locales.More(), locales.MoreCommands(), func(m *ui.Menu) { a.moreMenu(c, m) })
 		})
 	})
@@ -286,6 +289,14 @@ func sidebarKeys() []string {
 	return []string{"Ctrl", "B"}
 }
 
+// settingsKeys spells the Settings shortcut as keycaps for its tip.
+func settingsKeys() []string {
+	if runtime.GOOS == "darwin" {
+		return []string{"⌘", ","}
+	}
+	return []string{"Ctrl", ","}
+}
+
 // saveKeys spells the Save shortcut as keycaps for its tip.
 func saveKeys() []string {
 	if runtime.GOOS == "darwin" {
@@ -385,9 +396,15 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		// The tools that are on follow the window, not one screen: a
 		// breakpoint or a throttle is on everywhere.
 		a.footerTools(c, t)
-		// The window's own controls end the bar: connecting a client and
-		// the split of the screen on show.
+		// The window's own controls end the bar: the stores every request
+		// draws on, connecting a client, and the split of the screen on show.
 		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
+			if uikit.FooterButton(c, strings.TrimSuffix(locales.Cookies(), "…"), locales.Cookies(), false).Clicked() {
+				a.openCookies()
+			}
+			if uikit.FooterButton(c, strings.TrimSuffix(locales.Vault(), "…"), locales.Vault(), false).Clicked() {
+				a.openVault()
+			}
 			a.footerSetup(c)
 			a.layoutToggle(c)
 		})
@@ -658,8 +675,11 @@ func (a *app) footerRoom(c *ui.Context, t *ui.Theme) float32 {
 		}
 	}
 	room -= paneTextWidth(c, a.footerCountsText(), uikit.TextMeta, 400)
-	// Setup and the layout switch at the end.
-	room -= paneTextWidth(c, locales.SetupMenu(), uikit.TextMeta, 400) + 2*t.Space(uikit.SpaceM) + uikit.HeightControl + 2*gap
+	// Cookies, Vault, Setup and the layout switch at the end.
+	for _, label := range []string{locales.Cookies(), locales.Vault(), locales.SetupMenu()} {
+		room -= paneTextWidth(c, label, uikit.TextMeta, 400) + 2*t.Space(uikit.SpaceM) + gap
+	}
+	room -= uikit.HeightControl + gap
 	return max(room, 0)
 }
 
@@ -800,8 +820,8 @@ func (a *app) moreActions(c *ui.Context) []action {
 		submenu(locales.Network(), network...),
 		submenu(locales.Session(), session...),
 		submenu(locales.View(), view...),
-		// The window's settings, beside the app menu's ⌘, and the palette's:
-		// one place in the window rather than a button of its own.
+		// The window's settings, as the gear in the bar, the app menu's ⌘,
+		// and the palette open them: ⋯ is where people look for them too.
 		pick(global, "app.settings").in("settings"),
 	}
 }

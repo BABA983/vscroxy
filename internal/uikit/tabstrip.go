@@ -47,44 +47,53 @@ type DocumentTabsOptions struct {
 // tabs stay at the left while the rest scroll, a preview is italic, and a
 // dirty tab shows a dot that becomes its close mark under the pointer. A
 // middle click closes a tab, as it does in a browser.
+//
+// The strip is chrome: the tabs sit on the shell's surface, and the active
+// one wears the content's surface with no rule under it, so it reads as the
+// top of the page below. The new-tab button follows the last tab, as it does
+// in VS Code and Postman; the list of open tabs keeps the strip's end.
 func DocumentTabs(c *ui.Context, o DocumentTabsOptions) ui.Element {
 	p := Colors(c.Theme())
-	return ui.Column(c).Shrink(0).Children(func() {
-		ui.Row(c).Height(HeightTabs).FillWidth().Background(p.Background).AlignItems(ui.Stretch).Children(func() {
-			for i, item := range o.Tabs {
-				if item.Fixed {
-					documentTab(c, item, i, o)
-				}
+	return ui.Row(c).Shrink(0).Height(HeightTabs).FillWidth().Background(p.Window).AlignItems(ui.Stretch).Children(func() {
+		// The rule under the strip. Tabs paint over it, and the active one
+		// covers it with the content's surface.
+		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(HairlineWidth).Background(p.Border).PassThrough()
+		for i, item := range o.Tabs {
+			if item.Fixed {
+				documentTab(c, item, i, o)
 			}
-			TabStrip(c, func() {
-				ui.Row(c).Height(HeightTabs).AlignItems(ui.Stretch).Children(func() {
-					for i, item := range o.Tabs {
-						if !item.Fixed {
-							documentTab(c, item, i, o)
-						}
+		}
+		tabStripOn(c, p.Window, func() {
+			ui.Row(c).Height(HeightTabs).AlignItems(ui.Stretch).Children(func() {
+				for i, item := range o.Tabs {
+					if !item.Fixed {
+						documentTab(c, item, i, o)
 					}
-				})
-			}).Grow(1).FillHeight()
-			if o.OnNew != nil {
-				newDocumentTab(c, o)
-			}
-			if o.OnOverflow != nil {
-				ui.Box(c).Width(HairlineWidth).Shrink(0).FillHeight().Background(p.Border)
-				overflowTabs(c, o)
-			}
-		})
-		ui.Divider(c)
+				}
+				if o.OnNew != nil {
+					newDocumentTab(c, o)
+				}
+			})
+		}).Grow(1).FillHeight()
+		if o.OnOverflow != nil {
+			overflowTabs(c, o)
+		}
 	})
 }
 
 func documentTab(c *ui.Context, item DocumentTab, index int, o DocumentTabsOptions) {
 	t, p := c.Theme(), Colors(c.Theme())
-	tab := ui.ButtonBase(c).Height(HeightTabs).MinWidth(110).MaxWidth(180).Shrink(0).
+	minWidth := float32(110)
+	if item.Fixed {
+		// Live is one short word with its icon: it takes what it needs.
+		minWidth = 0
+	}
+	tab := ui.ButtonBase(c).Height(HeightTabs).MinWidth(minWidth).MaxWidth(180).Shrink(0).
 		Padding(0, t.Space(SpaceM)).Gap(t.Space(SpaceXS)).AlignItems(ui.Center).Radius(0).
 		Border(0, ui.Color{}).Label(item.Title)
 	switch {
 	case item.Active:
-		tab.Background(p.Window).TextColor(t.Text)
+		tab.Background(p.Background).TextColor(t.Text)
 	case tab.Hovered():
 		tab.Background(p.MutedHover).TextColor(t.Text)
 	default:
@@ -114,8 +123,12 @@ func documentTab(c *ui.Context, item DocumentTab, index int, o DocumentTabsOptio
 			closeSet = true
 		}
 		// The hairline between neighbours belongs to the tab, so an active
-		// tab keeps its edge while the row scrolls.
+		// tab keeps its edge while the row scrolls. An inactive tab also
+		// carries the strip's rule, which a hover face would otherwise hide.
 		ui.Box(c).Absolute().Right(0).Top(0).Bottom(0).Width(HairlineWidth).Background(p.Border)
+		if !item.Active {
+			ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(HairlineWidth).Background(p.Border)
+		}
 	})
 
 	if closeSet && close.Clicked() {

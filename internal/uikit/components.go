@@ -1360,16 +1360,21 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 // hides more tabs fades into the surface behind them, so a cut-off tab reads
 // as more to scroll rather than a clipped label. The caller sizes it.
 func TabStrip(c *ui.Context, tabs func()) ui.Element {
-	t := c.Theme()
+	return tabStripOn(c, c.Theme().Background, tabs)
+}
+
+// tabStripOn is TabStrip on a surface other than the canvas: its edges fade
+// into fill.
+func tabStripOn(c *ui.Context, fill ui.Color, tabs func()) ui.Element {
 	strip := ui.Box(c).MinWidth(0)
 	scroll := ui.Local(strip, "scroll", func() ui.ScrollState { return ui.ScrollState{} })
 	return strip.Children(func() {
 		ui.ScrollHorizontal(c).TrackScroll(scroll).Fill().Children(tabs)
 		if scroll.X > 0.5 {
-			EdgeFade(c, true, t.Background)
+			EdgeFade(c, true, fill)
 		}
 		if scroll.X < scroll.MaxX-0.5 {
-			EdgeFade(c, false, t.Background)
+			EdgeFade(c, false, fill)
 		}
 	})
 }
@@ -1488,16 +1493,23 @@ func Glyph(c *ui.Context, icon *ui.SVG) ui.Element {
 // one: a recessed groove and a raised thumb, concentric with it. This is
 // the 24-point control; SegmentedLarge is the settings-scope size.
 func Segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
-	return segmented(c, selected, HeightRow, SpaceHair, RadiusControl, RadiusInner, TextMeta, false, labels...)
+	return segmented(c, selected, HeightRow, SpaceHair, RadiusControl, RadiusInner, TextMeta, false, false, labels...)
+}
+
+// SegmentedFill is Segmented stretched across its row, each segment an equal
+// share with its label centered: a switch between two halves of a place, as
+// the sidebar's Traffic and Collections are.
+func SegmentedFill(c *ui.Context, selected *int, labels ...string) ui.Element {
+	return segmented(c, selected, HeightControl, SpaceHair, RadiusControl, RadiusInner, TextMeta, false, true, labels...)
 }
 
 // SegmentedLarge is the settings scope tabs: a 38-point Muted track, a
 // 30-point raised canvas segment, 12-point medium text and shadow-sm.
 func SegmentedLarge(c *ui.Context, selected *int, labels ...string) ui.Element {
-	return segmented(c, selected, 38, SpaceXS, RadiusPanel, RadiusControl, TextSmall, true, labels...)
+	return segmented(c, selected, 38, SpaceXS, RadiusPanel, RadiusControl, TextSmall, true, false, labels...)
 }
 
-func segmented(c *ui.Context, selected *int, height, inset, trackRadius, segmentRadius, textSize float32, raised bool, labels ...string) ui.Element {
+func segmented(c *ui.Context, selected *int, height, inset, trackRadius, segmentRadius, textSize float32, raised, fill bool, labels ...string) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	parts := ui.SegmentedBase(c, selected, len(labels))
 	parts.Track.AlignItems(ui.Stretch).Height(height).Padding(t.Space(inset)).
@@ -1513,6 +1525,10 @@ func segmented(c *ui.Context, selected *int, height, inset, trackRadius, segment
 			}
 			s := parts.Segment(i).Label(label).Padding(padY, padX).Radius(segmentRadius).
 				AlignItems(ui.Center).FontSize(Scaled(textSize)).TextColor(t.TextMuted)
+			if fill {
+				// Room left over is shared out; a longer label keeps its width.
+				s.Grow(1).Justify(ui.Center).Padding(padY, t.Space(SpaceS))
+			}
 			if raised {
 				s.FontWeight(WeightMedium)
 			}

@@ -356,16 +356,20 @@ func openSettingsFromBar(t *testing.T, tt *ui.Tester) {
 	tt.Frame()
 }
 
-// The title bar's end carries the palette, the layout, the tools and ⋯, and
-// nothing else: the sidebar's switch sits at the bar's start, beside the
-// window's controls, and Settings is in ⋯ and the app menu rather than a
-// button of its own.
-func TestTitleBarKeepsItsControlsToFourAndSettingsInMore(t *testing.T) {
+// The title bar's end carries only what is global: notifications, the tools,
+// Settings and ⋯. The layout belongs to the screen and sits in the footer;
+// the sidebar's switch sits at the bar's start, beside the window's controls.
+// Settings opens from the gear and from ⋯ alike.
+func TestTitleBarKeepsGlobalControlsAndSettingsInMore(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1280, 800)
 	tt.Frame()
-	if _, ok := tt.Find("Settings"); ok {
-		t.Fatal("the title bar still carries a settings button")
+	gear, ok := tt.Find("Settings")
+	if !ok || gear.Y > float32(uikit.HeightBar) {
+		t.Fatalf("the title bar has no Settings button: %+v", gear)
+	}
+	if layout, ok := tt.Find("Stacked layout"); !ok || layout.Y < 700 {
+		t.Fatalf("the layout switch is not in the footer: %+v", layout)
 	}
 	toggle, ok := tt.Find("Hide sidebar")
 	if !ok {
