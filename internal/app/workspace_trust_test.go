@@ -306,23 +306,15 @@ func TestLoadTestAsksBeforeProjectScripts(t *testing.T) {
 	a.openLoadRunner()
 	a.loadRunner.collection, a.loadRunner.users, a.loadRunner.duration = "Shop", "1", "1s"
 	tt := ui.NewTester(a.view, 1180, 760)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		a.startLoadRunner()
-		select {
-		case <-a.loadRunner.done:
-		case <-t.Context().Done():
-			a.stopLoadRunner()
-			<-a.loadRunner.done
-		}
-		a.drainLoadRunner()
-	}()
+	// The runner's state belongs to the UI thread, which draws this tester's
+	// frames on this goroutine. Start it here, answer the prompt, then let the
+	// worker finish before the final drain.
+	a.startLoadRunner()
 	awaitTrustPrompt(t, a, tt)
 	if err := tt.Click(locales.DontTrust()); err != nil {
 		t.Fatal(err)
 	}
-	<-done
+	awaitLoadRunner(t, a)
 	if a.trustPrompts.Load() != 1 || a.trustChecks.Load() != 0 {
 		t.Fatalf("prompts %d, allowed script decisions %d", a.trustPrompts.Load(), a.trustChecks.Load())
 	}
