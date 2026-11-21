@@ -230,7 +230,7 @@ func (a *app) selectSession(key string) {
 		return
 	}
 	item.open = true
-	a.page = pageSession
+	a.openPageTab(pageSession, tabOpen{})
 	*a.regionOpen("sessions") = true
 	if item.loaded || item.loading {
 		return

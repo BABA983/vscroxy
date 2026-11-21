@@ -155,7 +155,6 @@ func (a *app) problemDocuments() []*requestDocument {
 	for _, d := range a.documents {
 		add(d)
 	}
-	add(a.libraryDocument)
 	add(a.live)
 	for _, d := range a.flowDrafts {
 		add(d)

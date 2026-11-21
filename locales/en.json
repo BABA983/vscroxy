@@ -2485,6 +2485,7 @@
     }
   },
   "openSessionWith": "Open session: {error}",
+  "openTabsMostRecentlyUsed": "Open tabs, most recently used first",
   "openedProxiedChrome": "Opened proxied Chrome",
   "openedProxiedFirefox": "Opened proxied Firefox",
   "openedProxiedTerminal": "Opened proxied terminal",
@@ -4742,6 +4743,7 @@
   "algorithm": "Algorithm",
   "all": "All",
   "allAnd": "All (AND)",
+  "allOpenTabs": "All open tabs",
   "allRequests": "All requests",
   "allSources": "All sources",
   "allStatuses": "All statuses",
@@ -5167,9 +5169,16 @@
     }
   },
   "closeSessionNamed": "Close session: {title}",
+  "@closeTabNamed": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "closeTabNamed": "Close tab: {title}",
   "closeTabKeepTheSaved": "Close tab; keep the saved session",
   "closeTheClientsOpenConnections": "Close the clients' open connections so they connect again",
-  "closeThisRequestCtrlCmd": "Close this request · Ctrl/Cmd+W",
   "closeThisView": "Close this view",
   "closeTokenLinks": "Close token links",
   "closeViewNamed": "Close view: {name}",

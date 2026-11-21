@@ -246,7 +246,8 @@ func (s *globalSearch) armedGen() uint64 {
 
 // focusSearch opens the Search view and hands the keyboard to its query.
 func (a *app) focusSearch(c *ui.Context) {
-	a.page, a.sidebarChoice = pageSearch, "search"
+	a.openPageTab(pageSearch, tabOpen{})
+	a.sidebarChoice = "search"
 	a.workbench.sidebarHidden = false
 	a.invalidate()
 	if c != nil {

@@ -305,7 +305,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 			if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 				s.open = false
 				if inline {
-					a.page = pageRequest
+					a.showRequestWorkspace()
 				}
 			}
 		})
@@ -394,7 +394,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					origin := slices.IndexFunc(a.documents, func(d *requestDocument) bool { return r.DraftKey != "" && d.debugKey == r.DraftKey })
 					if uikit.Tip(c, uikit.SecondaryButton(c, locales.OriginDraft()).Label(locales.OpenOriginatingDraft()).Disabled(origin < 0), locales.ReturnToOriginalTab(r.Draft.Name)).Clicked() {
 						d := a.documents[origin]
-						a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
+						a.activateDocument(d)
 						s.open = false
 						d.urlInput.Focus()
 					}

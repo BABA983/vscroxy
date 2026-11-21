@@ -44,8 +44,8 @@ func TestEditingACaptureOpensExactBytesWithoutSending(t *testing.T) {
 				t.Fatal("choosing a capture read its spilled body")
 			}
 			click("Edit request")
-			if a.requestDocument == nil || len(a.documents) != 0 || len(a.requests) != 1 || a.composeWaiting || a.response != nil || a.activeEnv != "" {
-				t.Fatal("editing a capture must open it in place, unsent, without saving it or changing the environment")
+			if a.requestDocument == nil || len(a.documents) != 1 || a.page != pageLive || len(a.requests) != 1 || a.composeWaiting || a.response != nil || a.activeEnv != "" {
+				t.Fatal("editing a capture must open a draft tab beside LIVE, unsent, without saving it or changing the environment")
 			}
 			if a.composeBody != body || !strings.HasSuffix(a.composeURL, "/projects") {
 				t.Fatal("the draft lost spilled body bytes or its URL")

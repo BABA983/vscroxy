@@ -173,7 +173,6 @@ func (a *app) variableSources() []variableFieldSource {
 	for _, d := range a.documents {
 		addDoc(d)
 	}
-	addDoc(a.libraryDocument)
 	for i, r := range a.requests {
 		key := r.key()
 		if openKeys[key] {

@@ -161,7 +161,8 @@ func (a *app) cachedOverview() overviewStats {
 }
 
 func (a *app) openOverview() {
-	a.page, a.sidebarChoice = pageOverview, "overview"
+	a.openPageTab(pageOverview, tabOpen{})
+	a.sidebarChoice = "overview"
 }
 
 func (a *app) overviewView(c *ui.Context, t *ui.Theme) {

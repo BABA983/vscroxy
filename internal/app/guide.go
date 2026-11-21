@@ -47,7 +47,8 @@ func (a *app) guideSteps() (done [4]bool, decrypted int) {
 
 // openGuide shows the guide again over the traffic list.
 func (a *app) openGuide() {
-	a.guide, a.page = true, pageLive
+	a.guide = true
+	a.openPageTab(pageLive, tabOpen{})
 }
 
 // closeGuide hides it, for good unless the palette opens it again.

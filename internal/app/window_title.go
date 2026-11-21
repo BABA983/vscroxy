@@ -64,7 +64,7 @@ func anyDocumentEdited(a *app) bool {
 			return true
 		}
 	}
-	for _, d := range []*requestDocument{a.requestDocument, a.libraryDocument} {
+	for _, d := range []*requestDocument{a.requestDocument} {
 		if d != nil && d.dirty() {
 			return true
 		}

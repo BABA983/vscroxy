@@ -905,7 +905,7 @@ func paletteDetail(c *ui.Context, item paletteEntry) ui.Element {
 // filtering the tree: its ancestors and itself open, and any sidebar search
 // that would hide it is cleared.
 func (a *app) revealCollection(path string) {
-	a.page = pageRequest
+	a.showRequestWorkspace()
 	*a.regionOpen("collections") = true
 	a.workbench.sidebarHidden = false
 	a.requestQuery = ""

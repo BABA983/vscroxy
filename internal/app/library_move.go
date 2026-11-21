@@ -357,9 +357,9 @@ func (a *app) moveSavedRequest(key, parent string, before libraryDrag) error {
 			d.composeCollection = parent
 		}
 	}
-	for _, id := range slices.Collect(a.closedDocuments().Keys()) {
-		entry, _ := a.closedDocuments().Get(id)
-		if entry.savedKey != key || entry.baseline.Collection != from {
+	for _, id := range a.tabsGroup().closedIDs() {
+		entry, ok := a.closedDocs[id]
+		if !ok || entry.savedKey != key || entry.baseline.Collection != from {
 			continue
 		}
 		if entry.draft.Collection == from {
@@ -372,7 +372,7 @@ func (a *app) moveSavedRequest(key, parent string, before libraryDrag) error {
 		if entry.doc.baseline.Collection == from {
 			entry.doc.baseline.Collection = parent
 		}
-		a.closedDocuments().Set(id, entry)
+		a.closedDocs[id] = entry
 	}
 	return nil
 }
@@ -516,8 +516,11 @@ func (a *app) followFolderPath(from, to string) {
 			d.baseline.Collection = moved(d.baseline.Collection)
 		}
 	}
-	for _, id := range slices.Collect(a.closedDocuments().Keys()) {
-		entry, _ := a.closedDocuments().Get(id)
+	for _, id := range a.tabsGroup().closedIDs() {
+		entry, ok := a.closedDocs[id]
+		if !ok {
+			continue
+		}
 		changed := false
 		if under(entry.draft.Collection) {
 			entry.draft.Collection = moved(entry.draft.Collection)
@@ -539,7 +542,7 @@ func (a *app) followFolderPath(from, to string) {
 			continue
 		}
 		entry.doc = entry.doc.detachedCopy()
-		a.closedDocuments().Set(id, entry)
+		a.closedDocs[id] = entry
 	}
 	for _, p := range slices.Collect(maps.Keys(a.collectionOpen)) {
 		if under(p) {

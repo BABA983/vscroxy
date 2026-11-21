@@ -290,6 +290,10 @@ func (g *Gallery) setup(screen string) bool {
 		galleryMCP(a)
 	case "editor-socketio":
 		gallerySocketIO(a)
+	case "tabs-few":
+		galleryTabs(a, false)
+	case "tabs-overflow":
+		galleryTabs(a, true)
 	default:
 		return false
 	}
@@ -517,7 +521,8 @@ func galleryDiagnostics(a *app) {
 	a.certificate.certificateResult = certificateResult{cert: &x509.Certificate{}}
 	a.diagnostics.target = "https://api.example.com/projects"
 	a.diagnostics.client = diagnoseMac
-	a.page, a.sidebarChoice = pageDiagnostics, "diagnostics"
+	a.openPageTab(pageDiagnostics, tabOpen{})
+	a.sidebarChoice = "diagnostics"
 }
 
 // galleryDiagnosticsPass is the same page with a healthy run: the listener,
@@ -598,9 +603,46 @@ const galleryOpenAPI = `{
 }
 `
 
+// galleryTabs is the main window's document strip: LIVE, a dirty request, a
+// saved session and a preview request, or enough tabs to overflow it. The
+// content area is the active request, as it is after opening one.
+func galleryTabs(a *app, many bool) {
+	create := a.requests[1]
+	a.openSaved(create.key())
+	createDoc := a.requestDocument
+	createDoc.composeBody = `{"name":"Demo project"}`
+
+	file := sessionFrom(a.flows[:1], nil)
+	file.Title = "Session · Nov 20"
+	a.keepSession(file)
+
+	a.previewSaved(a.requests[0].key())
+	if many {
+		extra := []struct{ method, name, path string }{
+			{"GET", "Get project", "/v1/projects/73"},
+			{"GET", "List members", "/v1/projects/73/members"},
+			{"POST", "Invite member", "/v1/projects/73/members"},
+			{"DELETE", "Remove member", "/v1/projects/73/members/12"},
+			{"GET", "Billing summary", "/v1/billing"},
+			{"PATCH", "Rename workspace", "/v1/workspace"},
+			{"GET", "Audit log", "/v1/audit"},
+			{"POST", "Upload avatar", "/v1/avatar"},
+		}
+		for _, e := range extra {
+			r := savedRequest{Request: request.Request{Name: e.name, Collection: "Workspace/API", Method: e.method, URL: "https://api.example.com" + e.path}}
+			a.requests = append(a.requests, r)
+			a.openSaved(r.key())
+		}
+		a.openPageTab(pageRuns, tabOpen{})
+		a.openPageTab(pageDiagnostics, tabOpen{})
+	}
+	a.syncTabs()
+	a.activateTab(requestTabID(createDoc))
+}
+
 // galleryAPI is the contract page on its endpoints tab.
 func galleryAPI(a *app) {
-	a.page, a.sidebarChoice = pageAPI, "api"
+	a.sidebarChoice = "api"
 	a.addAPI(apiSpec{ID: "gallery-api", Source: galleryOpenAPI,
 		Notes: []string{"Review authentication and response schemas before publishing."}}, true)
 	a.activeAPI().endpoint = "PATCH /projects/{id}"
@@ -609,7 +651,7 @@ func galleryAPI(a *app) {
 // galleryRuns is the retained run records page: a baseline and two attempts,
 // the newer one failing its second check.
 func galleryRuns(a *app) {
-	a.page = pageRuns
+	a.openPageTab(pageRuns, tabOpen{})
 	for i, status := range []int{201, 422} {
 		body := `{"id":73,"name":"Demo project","active":true}`
 		tests := []request.TestResult{{Name: "Created", Pass: true}}
@@ -659,7 +701,7 @@ func galleryRunner(a *app, running bool) {
 // gallerySessions is the Sessions page with two saved files: the newer one
 // selected, its exchange pinned and its response body open.
 func gallerySessions(a *app) {
-	a.page, a.sidebarChoice = pageSession, "sessions"
+	a.sidebarChoice = "sessions"
 	for i, name := range []string{"before.json", "after.json"} {
 		file := sessionFrom(a.flows[i:i+1], nil)
 		file.Title, file.Created = name, galleryTime.Add(time.Duration(i)*time.Minute)

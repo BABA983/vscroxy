@@ -19,14 +19,17 @@ type tabKind = page
 const liveTabKey = "live"
 
 // tab is one tab's descriptor: what it shows, which document it names, its
-// label and whether that document has unsaved changes. The key is opaque to
-// the model; the app uses a saved request's key, a flow ID, a session file or
-// an unsaved document's ID, and keeps keys unique within a kind.
+// label, whether that document has unsaved changes, and whether it has ever
+// been saved. The key is opaque to the model; the app uses a document ID, a
+// flow ID, a session file or a contract ID, and keeps keys unique within a
+// kind. A request tab keeps its document ID after a first save, so saving
+// changes saved and dirty without changing the tab's identity.
 type tab struct {
 	kind  tabKind
 	key   string
 	title string
 	dirty bool
+	saved bool
 }
 
 func (t tab) id() tabID { return tabID{kind: t.kind, key: t.key} }
@@ -68,8 +71,9 @@ type tabCloseResult struct {
 const tabReopenLimit = 20
 
 // closedTab is one entry on the reopen stack: where the tab sat and enough
-// state to put it back. A dirty tab stays dirty, so reopening a discarded
-// draft restores its edits.
+// state to put it back. The stack does not remember unsaved changes; reopening
+// restores a clean tab and the app marks it dirty from the document it
+// restores.
 type closedTab struct {
 	tab    tab
 	index  int
@@ -170,6 +174,16 @@ func (g *tabGroup) activate(id tabID) bool {
 	return true
 }
 
+// show selects an open tab without changing the recency order. The quick
+// switch walks that order and commits the pick when the chord ends.
+func (g *tabGroup) show(id tabID) bool {
+	if g.indexOf(id) < 0 {
+		return false
+	}
+	g.activeID = id
+	return true
+}
+
 func (g *tabGroup) touch(id tabID) {
 	g.recent = slices.DeleteFunc(g.recent, func(x tabID) bool { return x == id })
 	g.recent = slices.Insert(g.recent, 0, id)
@@ -200,6 +214,28 @@ func (g *tabGroup) setDirty(id tabID, dirty bool) bool {
 	return true
 }
 
+// setSaved records that the document has been saved at least once. Close Saved
+// keeps a tab that never had a saved version, even when it has no edits.
+func (g *tabGroup) setSaved(id tabID, saved bool) bool {
+	at := g.indexOf(id)
+	if at < 0 {
+		return false
+	}
+	g.entries[at].saved = saved
+	return true
+}
+
+// keep turns a preview into a normal tab in place, without pinning or
+// activating it: a double click on the tab, or a send from it.
+func (g *tabGroup) keep(id tabID) bool {
+	at := g.indexOf(id)
+	if at < 0 {
+		return false
+	}
+	g.entries[at].preview = false
+	return true
+}
+
 // open shows a tab and makes it active. An existing tab with the same kind
 // and key is activated instead of duplicated. A new tab goes right of the
 // active one, except that a pinned tab stays in the pinned range and an
@@ -226,7 +262,7 @@ func (g *tabGroup) open(t tab, opts tabOpen) tabID {
 		if at := g.previewIndex(); at >= 0 {
 			g.removeAt(at)
 			g.entries = slices.Insert(g.entries, at, tabEntry{
-				kind: t.kind, key: t.key, title: t.title, preview: true,
+				kind: t.kind, key: t.key, title: t.title, saved: t.saved, preview: true,
 			})
 			g.activate(id)
 			return id
@@ -235,10 +271,25 @@ func (g *tabGroup) open(t tab, opts tabOpen) tabID {
 
 	at := g.insertIndex(opts.at, opts.pinned)
 	g.entries = slices.Insert(g.entries, at, tabEntry{
-		kind: t.kind, key: t.key, title: t.title, dirty: t.dirty,
+		kind: t.kind, key: t.key, title: t.title, dirty: t.dirty, saved: t.saved,
 		pinned: opts.pinned, preview: preview,
 	})
 	g.activate(id)
+	return id
+}
+
+// add opens a tab without making it active. Restoring the documents a frame
+// finds open uses it, so a background tab does not steal the reader's place.
+func (g *tabGroup) add(t tab) tabID {
+	id := t.id()
+	if g.indexOf(id) >= 0 {
+		return id
+	}
+	at := g.insertIndex(nil, false)
+	g.entries = slices.Insert(g.entries, at, tabEntry{
+		kind: t.kind, key: t.key, title: t.title, dirty: t.dirty, saved: t.saved,
+	})
+	g.recent = append(g.recent, id)
 	return id
 }
 
@@ -261,6 +312,21 @@ func (g *tabGroup) insertIndex(at *int, pinned bool) int {
 		return min(max(idx, fixed), end)
 	}
 	return min(max(idx, end), len(g.entries))
+}
+
+// drop removes a tab without putting it on the reopen stack. It is for a
+// placeholder the app made only to hold a page, not for a tab a reader closed.
+func (g *tabGroup) drop(id tabID) bool {
+	at := g.indexOf(id)
+	if at < 0 || g.entries[at].fixed {
+		return false
+	}
+	active := g.activeID == id
+	g.removeAt(at)
+	if active && len(g.recent) > 0 {
+		g.activate(g.recent[0])
+	}
+	return true
 }
 
 // close removes a clean tab. A dirty tab is reported in needsSave and left
@@ -326,12 +392,12 @@ func (g *tabGroup) closeToRight(of tabID) tabCloseResult {
 	return g.closeCandidates(ids, of)
 }
 
-// closeSaved closes every clean unpinned tab, as VS Code's Close Saved
-// Editors does. Dirty tabs stay for a save confirmation.
+// closeSaved closes every saved, clean, unpinned tab. A draft that has never
+// been saved stays open even with no edits, as Close Saved Requests does.
 func (g *tabGroup) closeSaved() tabCloseResult {
 	var ids []tabID
 	for _, e := range g.entries {
-		if e.fixed || e.pinned || e.dirty {
+		if e.fixed || e.pinned || e.dirty || !e.saved {
 			continue
 		}
 		ids = append(ids, e.id())
@@ -417,11 +483,12 @@ func (g *tabGroup) forget(id tabID) {
 	g.recent = slices.DeleteFunc(g.recent, func(x tabID) bool { return x == id })
 }
 
-// rememberClosed puts a tab on the reopen stack. Closing the same identity
-// again replaces its older entry, and the oldest entry falls off at the
-// bound, as VS Code's history service does.
+// rememberClosed puts a tab on the reopen stack, clean. Closing the same
+// identity again replaces its older entry, and the oldest entry falls off at
+// the bound, as VS Code's history service does.
 func (g *tabGroup) rememberClosed(e tabEntry, at int) {
 	id := e.id()
+	e.dirty = false
 	g.closed = slices.DeleteFunc(g.closed, func(c closedTab) bool { return c.tab.id() == id })
 	g.closed = append(g.closed, closedTab{tab: e.tab, index: at, pinned: e.pinned})
 	if len(g.closed) > tabReopenLimit {
@@ -431,6 +498,24 @@ func (g *tabGroup) rememberClosed(e tabEntry, at int) {
 
 // canReopen reports whether Reopen Closed Editor has a tab to restore.
 func (g *tabGroup) canReopen() bool { return len(g.closed) > 0 }
+
+// closedIDs is the reopen order, oldest first. The app keeps the document
+// copies the descriptors do not carry.
+func (g *tabGroup) closedIDs() []tabID {
+	ids := make([]tabID, len(g.closed))
+	for i, c := range g.closed {
+		ids[i] = c.tab.id()
+	}
+	return ids
+}
+
+// nextClosed is the tab Reopen Closed Editor would restore.
+func (g *tabGroup) nextClosed() (closedTab, bool) {
+	if len(g.closed) == 0 {
+		return closedTab{}, false
+	}
+	return g.closed[len(g.closed)-1], true
+}
 
 // reopen restores the most recently closed tab as a normal tab at its old
 // index, pinned if it was pinned, and makes it active. A tab already open
@@ -454,7 +539,7 @@ func (g *tabGroup) reopen() bool {
 		at = max(at, g.pinnedEnd())
 	}
 	g.entries = slices.Insert(g.entries, at, tabEntry{
-		kind: c.tab.kind, key: c.tab.key, title: c.tab.title, dirty: c.tab.dirty,
+		kind: c.tab.kind, key: c.tab.key, title: c.tab.title, saved: c.tab.saved,
 		pinned: c.pinned,
 	})
 	g.activate(id)

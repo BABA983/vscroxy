@@ -3,6 +3,7 @@ package app
 import (
 	"runtime"
 	"slices"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -13,86 +14,58 @@ import (
 // the same place moves the current entry instead of duplicating it.
 const navigationStackLimit = 50
 
-// navigationLocation is one stop: the page and the finer choice inside it.
-// Flow ids survive row rebuilds, request keys survive edits, and the API
-// choice names a contract. Unsaved request tabs carry a document id instead
-// of a key, since several of them may have the empty key.
+// navigationLocation is one stop: the tab it belongs to and, for LIVE, the
+// capture being inspected. The tab ID already names a request document, an
+// API contract, a session or a singleton page, so it is the whole identity of
+// the stop; the flow id is a position inside LIVE.
 type navigationLocation struct {
-	page       page
-	flowID     int
-	requestKey string
-	requestID  int
-	apiChoice  string
+	tab    tabID
+	flowID int
 }
 
 func currentNavigationLocation(a *app) navigationLocation {
-	loc := navigationLocation{page: a.page}
-	switch {
-	case a.page.capture():
+	loc := navigationLocation{tab: a.tabsGroup().active()}
+	if loc.tab.kind == pageLive {
 		loc.flowID = a.pickedID
-	case a.page == pageRequest:
-		if d := a.requestDocument; d != nil {
-			loc.requestKey = d.savedKey
-			if d.savedKey == "" {
-				loc.requestID = d.id
-			}
-		}
-	case a.page == pageAPI:
-		loc.apiChoice = a.apiChoice
 	}
 	return loc
 }
 
-func (loc navigationLocation) openDocument(a *app) *requestDocument {
-	for _, d := range a.documents {
-		switch {
-		case loc.requestKey != "" && d.savedKey == loc.requestKey,
-			loc.requestKey == "" && d.id == loc.requestID:
-			return d
-		}
-	}
-	return nil
-}
-
-// exists is the skip rule: a flow that was deleted and a request tab that was
-// closed have no location to return to. VS Code drops disposed editors from
-// its stack; here validity is also checked at navigation time, in case the
-// app changed between two frames.
+// exists is the skip rule: a flow that was deleted, a tab that was closed and
+// an API contract that was removed have no location to return to. VS Code
+// drops disposed editors from its stack; here validity is also checked at
+// navigation time, in case the app changed between two frames.
 func (loc navigationLocation) exists(a *app) bool {
-	switch {
-	case loc.page.capture() && loc.flowID != 0:
-		return slices.ContainsFunc(a.flows, func(f flow) bool { return f.id == loc.flowID })
-	case loc.page == pageRequest:
-		return loc.openDocument(a) != nil
-	case loc.page == pageAPI && loc.apiChoice != "":
-		return a.activeAPI() != nil
-	default:
-		return true
+	if a.tabsGroup().indexOf(loc.tab) < 0 {
+		return false
 	}
+	if loc.tab.kind == pageLive && loc.flowID != 0 {
+		return slices.ContainsFunc(a.flows, func(f flow) bool { return f.id == loc.flowID })
+	}
+	if loc.tab.kind == pageAPI {
+		id := strings.TrimPrefix(loc.tab.key, "api:")
+		return slices.ContainsFunc(a.apis, func(d *apiDocument) bool { return d.spec.ID == id })
+	}
+	return true
 }
 
 func (loc navigationLocation) navigate(a *app) {
-	switch {
-	case loc.page.capture() && loc.flowID != 0 && loc.exists(a):
+	if !loc.exists(a) {
+		return
+	}
+	a.activateTab(loc.tab)
+	// Activating LIVE restores the tab, then the row inside it. A request,
+	// API or session tab carries its document in its key.
+	if loc.tab.kind == pageLive && loc.flowID != 0 {
 		a.inspectCapture(loc.flowID)
-	case loc.page == pageRequest:
-		if d := loc.openDocument(a); d != nil {
-			a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
-		}
-	case loc.page == pageAPI && loc.apiChoice != "":
-		a.apiChoice, a.page = loc.apiChoice, pageAPI
-	default:
-		a.page = loc.page
 	}
 }
 
-// samePlace compares the coarse part of two stops. Moving the traffic list's
-// selection stays inside one stop, as it does in VS Code: a page, request tab
-// or API contract is what gets pushed, while a flow id is a position inside
-// the LIVE stop.
+// samePlace compares two stops. Moving the traffic list's selection stays
+// inside one stop, as it does in VS Code: a tab is what gets pushed, while a
+// flow id is a position inside the LIVE tab.
 func samePlace(x, y navigationLocation) bool {
-	return x.page == y.page && x.requestKey == y.requestKey &&
-		x.requestID == y.requestID && x.apiChoice == y.apiChoice
+	return x.tab == y.tab
 }
 
 // preferSpecific keeps a flow choice when merging stops: a stop with no flow

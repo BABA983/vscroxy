@@ -121,7 +121,7 @@ func (a *app) urlPasteDraftIntact(edit *urlPasteEdit) bool {
 		return false
 	}
 	d := edit.d
-	open := slices.Contains(a.documents, d) || d == a.libraryDocument || d == a.live || d == a.requestDocument
+	open := slices.Contains(a.documents, d) || d == a.live || d == a.requestDocument
 	if !open && a.flowDrafts != nil {
 		for _, draft := range a.flowDrafts {
 			if draft == d {

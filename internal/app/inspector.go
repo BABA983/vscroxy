@@ -1320,6 +1320,9 @@ func (a *app) inspectorActions(c *ui.Context, f flow) []action {
 		do("flow.connection-details", locales.ConnectionDetails(), func() { a.connOpen = !a.connOpen }).in("open"),
 		do("flow.history", locales.History(), func() { a.openDebugHistory(newDebugSource(f)) }).in("open"),
 		do("flow.discard-edits", locales.DiscardEdits(), func() {
+			if d := a.flowDrafts[f.id]; d != nil {
+				a.closeDocument(d)
+			}
 			delete(a.flowDrafts, f.id)
 			a.liveFor = 0 // The capture opens unchanged again.
 		}).when(a.flowDrafts[f.id] != nil, locales.RequestHasNoEdits()).in("edit"),

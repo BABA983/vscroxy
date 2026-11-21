@@ -22,9 +22,8 @@ func TestMoveRequestIntoFolderUpdatesDiskAndTabs(t *testing.T) {
 	a.addDocument(a.requests[0], a.requests[0].key())
 	opened := a.requestDocument
 	closed := a.newDocument(a.requests[0], a.requests[0].key())
-	a.documents = append(a.documents, closed)
-	a.rememberClosedDocument(closed)
-	a.documents = a.documents[:1]
+	a.openRequestTab(closed, tabOpen{})
+	a.closeDocument(closed)
 	key := opened.savedKey
 	closedKey := closed.savedKey
 
@@ -42,7 +41,7 @@ func TestMoveRequestIntoFolderUpdatesDiskAndTabs(t *testing.T) {
 	if opened.composeCollection != "Shop" || opened.baseline.Collection != "Shop" || opened.dirty() {
 		t.Errorf("open tab did not follow: compose %q, baseline %q, dirty %v", opened.composeCollection, opened.baseline.Collection, opened.dirty())
 	}
-	entry, ok := a.closedDocuments().Get(closed.id)
+	entry, ok := a.closedDocs[requestTabID(closed)]
 	if !ok || entry.savedKey != closedKey || entry.baseline.Collection != "Shop" || entry.draft.Collection != "Shop" ||
 		entry.doc.composeCollection != "Shop" || !a.savedSourceStillThere(entry) {
 		t.Fatalf("closed tab did not follow: %+v, found %v", entry, ok)
@@ -82,11 +81,11 @@ func TestMoveUndoKeepsLaterWork(t *testing.T) {
 	}
 	first := a.newDocument(a.requests[0], a.requests[0].key())
 	second := a.newDocument(a.requests[1], a.requests[1].key())
-	a.documents = append(a.documents, first, second)
-	a.rememberClosedDocument(first)
-	a.rememberClosedDocument(second)
-	a.documents = nil
-	lastBefore, _ := lastLinkedKey(a.closedDocuments())
+	a.openRequestTab(first, tabOpen{})
+	a.closeDocument(first)
+	a.openRequestTab(second, tabOpen{})
+	a.closeDocument(second)
+	lastBefore := a.closedCount()
 
 	if !a.moveLibrary(libraryMove{item: libraryDrag{kind: requestItem, id: "saved:one"}, to: libraryDrop{parent: "Shop"}}) {
 		t.Fatal("move was refused")
@@ -125,8 +124,8 @@ func TestMoveUndoKeepsLaterWork(t *testing.T) {
 			t.Errorf("disk kept the moved request in %q", r.Collection)
 		}
 	}
-	if got, _ := lastLinkedKey(a.closedDocuments()); got != lastBefore || a.closedDocuments().Size() != 2 {
-		t.Errorf("Undo changed the closed-tab stack: last=%v size=%d", got, a.closedDocuments().Size())
+	if a.closedCount() != lastBefore || a.closedCount() != 2 {
+		t.Errorf("Undo changed the closed-tab stack: size=%d", a.closedCount())
 	}
 }
 
@@ -246,9 +245,8 @@ func TestFolderMoveIntoFolderAndRefuseDescendant(t *testing.T) {
 	opened := a.requestDocument
 	a.collectionShown("Shop/Orders")
 	closed := a.newDocument(a.requests[0], a.requests[0].key())
-	a.documents = append(a.documents, closed)
-	a.rememberClosedDocument(closed)
-	a.documents = a.documents[:1]
+	a.openRequestTab(closed, tabOpen{})
+	a.closeDocument(closed)
 
 	cycle := libraryMove{item: libraryDrag{kind: folderItem, id: "Shop"}, to: libraryDrop{parent: "Shop/Orders"}}
 	if a.moveLibrary(cycle) {
@@ -281,7 +279,7 @@ func TestFolderMoveIntoFolderAndRefuseDescendant(t *testing.T) {
 	if _, ok := a.collectionOpen["Archive/Orders"]; !ok {
 		t.Error("the folder's open state was lost")
 	}
-	entry, _ := a.closedDocuments().Get(closed.id)
+	entry, _ := a.closedDocs[requestTabID(closed)]
 	if entry.baseline.Collection != "Archive/Orders" || entry.draft.Collection != "Archive/Orders" {
 		t.Errorf("closed tab did not follow: %+v", entry)
 	}

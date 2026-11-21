@@ -256,8 +256,7 @@ func (d *requestDocument) title() string {
 
 func (a *app) addDocument(r savedRequest, key string) {
 	d := a.newDocument(r, key)
-	a.documents = append(a.documents, d)
-	a.activateDocument(d)
+	a.openRequestTab(d, tabOpen{})
 }
 
 // newDocument is a document for r that no tab or capture holds yet.
@@ -430,12 +429,29 @@ func (a *app) closingMCPSessions() []*mcpSession {
 }
 
 func (a *app) closeDocument(d *requestDocument) {
+	if d == nil {
+		return
+	}
+	g := a.tabsGroup()
+	id := requestTabID(d)
+	if g.indexOf(id) < 0 {
+		a.tabDocuments[id] = d
+		if !slices.Contains(a.documents, d) {
+			a.documents = append(a.documents, d)
+		}
+		g.add(requestTabDescriptor(d))
+	}
+	a.closeTab(id, true)
+}
+
+// forgetDocument stops a document's sessions and takes it out of the open
+// registry. The tab model has already closed its tab; remembering the copy
+// for Reopen is the caller's job.
+func (a *app) forgetDocument(d *requestDocument) {
 	at := slices.Index(a.documents, d)
 	if at < 0 {
 		return
 	}
-	a.rememberClosedDocument(d)
-	a.documentMRU().Delete(d)
 	d.structured.stop()
 	if d.grpcUI != nil {
 		d.grpcUI.stop()
@@ -457,15 +473,18 @@ func (a *app) closeDocument(d *requestDocument) {
 		a.mcpConsent = mcpConsentState{}
 	}
 	a.documents = slices.Delete(a.documents, at, at+1)
+	id := requestTabID(d)
+	delete(a.tabDocuments, id)
+	if d.sourceFlow != 0 {
+		delete(a.flowDrafts, d.sourceFlow)
+	}
+	if a.live == d {
+		a.live, a.liveFor = nil, 0
+	}
 	a.clearDocumentProblems(d)
 	if a.requestDocument == d {
 		a.requestDocument = nil
 		a.requestChoice = ""
-		if len(a.documents) > 0 {
-			a.activateDocument(a.documents[min(at, len(a.documents)-1)])
-		} else {
-			a.workbench.content.Focus()
-		}
 	}
 }
 
@@ -543,13 +562,8 @@ func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 				Children(func() { uikit.Body(c, locales.NoEnvironment()) }).OnClick(a.openVars)
 		}
 		if d != nil {
+			// The tab's own × closes the request; the header does not repeat it.
 			a.requestDocumentActions(c, t, d)
-			// A send in flight finishes before its request closes.
-			ui.Row(c).Disabled(d.composeWaiting).Children(func() {
-				if uikit.IconButton(c, locales.CloseRequest(), locales.CloseThisRequestCtrlCmd(), closeIcon).Clicked() {
-					a.requestClose(d)
-				}
-			})
 		}
 	})
 }
@@ -713,7 +727,7 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 			if uikit.ToolbarButton(c, locales.SourceApi(), locales.OpenTheApiThisRequest(), false).Children(func() {
 				uikit.Body(c, locales.SourceApi()).TextColor(t.Accent)
 			}).Clicked() {
-				a.apiChoice, a.page = d.sourceAPI, pageAPI
+				a.openAPITab(d.sourceAPI)
 			}
 		}
 		a.actionButton(c, "request.save", locales.Save())

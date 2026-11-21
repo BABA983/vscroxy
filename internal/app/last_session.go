@@ -251,10 +251,10 @@ func (a *app) applyLastSession(state lastSessionState, file sessionFile) {
 	// table, even when the saved capture had no rows.
 	a.guide = false
 	if state.Page == lastPageSession && a.sessions.active != "" && a.sessions.current() != nil {
-		a.page = pageSession
+		a.openPageTab(pageSession, tabOpen{})
 		*a.regionOpen("sessions") = true
 	} else {
-		a.page = pageLive
+		a.openPageTab(pageLive, tabOpen{})
 	}
 	a.restoreInspector(state)
 	a.invalidate()

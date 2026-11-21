@@ -3,6 +3,7 @@ package app
 import (
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -19,10 +20,21 @@ func navigationTestApp(t *testing.T) *app {
 	return a
 }
 
-func navigationOpenRequest(a *app, key string) {
-	d := &requestDocument{savedKey: key}
-	a.documents = []*requestDocument{d}
-	a.requestDocument, a.page = d, pageRequest
+func navigationOpenRequest(a *app, key string) *requestDocument {
+	a.nextDocument++
+	d := &requestDocument{id: a.nextDocument, savedKey: key, composeName: key}
+	a.documents = append(a.documents, d)
+	a.openRequestTab(d, tabOpen{})
+	return d
+}
+
+func navigationOpenPage(a *app, kind page) {
+	a.openPageTab(kind, tabOpen{})
+}
+
+func navigationLive(a *app, flowID int) {
+	a.pickedID = flowID
+	a.openPageTab(pageLive, tabOpen{})
 }
 
 // TestNavigationBackSkipsDeletedFlowAndClosedTab follows VS Code's removal of
@@ -32,11 +44,11 @@ func TestNavigationBackSkipsDeletedFlowAndClosedTab(t *testing.T) {
 	t.Run("deleted flow", func(t *testing.T) {
 		a := navigationTestApp(t)
 		s := &a.workbench.navigation
-		a.pickedID, a.page = 1, pageLive
+		navigationLive(a, 1)
 		s.observe(a)
 		navigationOpenRequest(a, "saved:one")
 		s.observe(a)
-		a.page = pageSession
+		navigationOpenPage(a, pageSession)
 		s.observe(a)
 		a.flows = slices.DeleteFunc(a.flows, func(f flow) bool { return f.id == 1 })
 		a.applyFilter()
@@ -51,13 +63,13 @@ func TestNavigationBackSkipsDeletedFlowAndClosedTab(t *testing.T) {
 	t.Run("closed tab", func(t *testing.T) {
 		a := navigationTestApp(t)
 		s := &a.workbench.navigation
-		a.pickedID, a.page = 1, pageLive
+		navigationLive(a, 1)
 		s.observe(a)
-		navigationOpenRequest(a, "saved:closed")
+		closed := navigationOpenRequest(a, "saved:closed")
 		s.observe(a)
 		navigationOpenRequest(a, "saved:other")
 		s.observe(a)
-		a.documents = []*requestDocument{a.requestDocument}
+		a.closeDocument(closed)
 
 		if !s.step(a, -1) || a.page != pageLive || a.pickedID != 1 {
 			t.Fatalf("back did not skip the closed tab: page=%v flow=%d", a.page, a.pickedID)
@@ -70,11 +82,11 @@ func TestNavigationBackSkipsDeletedFlowAndClosedTab(t *testing.T) {
 func TestNavigationForwardClearedByNewJump(t *testing.T) {
 	a := navigationTestApp(t)
 	s := &a.workbench.navigation
-	a.pickedID, a.page = 1, pageLive
+	navigationLive(a, 1)
 	s.observe(a)
 	navigationOpenRequest(a, "saved:one")
 	s.observe(a)
-	a.page = pageSession
+	navigationOpenPage(a, pageSession)
 	s.observe(a)
 
 	if !s.step(a, -1) || !s.canGo(a, 1) {
@@ -86,7 +98,7 @@ func TestNavigationForwardClearedByNewJump(t *testing.T) {
 	if !s.step(a, 1) || a.page != pageRequest {
 		t.Fatal("forward did not return to the request tab")
 	}
-	a.page = pageRuns
+	navigationOpenPage(a, pageRuns)
 	s.observe(a)
 	if s.canGo(a, 1) || !s.canGo(a, -1) {
 		t.Fatalf("new jump kept a forward stop: %+v", s.entries)
@@ -102,8 +114,9 @@ func TestNavigationForwardClearedByNewJump(t *testing.T) {
 func TestNavigationSelectionMovesReplaceStop(t *testing.T) {
 	a := navigationTestApp(t)
 	s := &a.workbench.navigation
+	navigationLive(a, 1)
 	for id := 1; id <= 10; id++ {
-		a.pickedID, a.page = id, pageLive
+		a.pickedID = id
 		s.observe(a)
 	}
 	if len(s.entries) != 1 || s.entries[0].flowID != 10 {
@@ -136,16 +149,16 @@ func TestNavigationPushesOnlyOnPlaceChange(t *testing.T) {
 	a := navigationTestApp(t)
 	s := &a.workbench.navigation
 	a.apis = []*apiDocument{{spec: apiSpec{ID: "one"}}, {spec: apiSpec{ID: "two"}}}
-	a.apiChoice, a.page = "one", pageAPI
+	a.openAPITab("one")
 	s.observe(a)
 	a.activeAPI().tab = 1 // a move inside the contract
 	s.observe(a)
 	if len(s.entries) != 1 {
 		t.Fatalf("a pane move inside one contract made %d stops", len(s.entries))
 	}
-	a.apiChoice = "two"
+	a.openAPITab("two")
 	s.observe(a)
-	a.page = pageRuns
+	navigationOpenPage(a, pageRuns)
 	s.observe(a)
 	if len(s.entries) != 3 || s.index != 2 {
 		t.Fatalf("page and contract changes made %d stops", len(s.entries))
@@ -155,12 +168,10 @@ func TestNavigationPushesOnlyOnPlaceChange(t *testing.T) {
 func TestNavigationStackIsBounded(t *testing.T) {
 	a := navigationTestApp(t)
 	s := &a.workbench.navigation
-	for range navigationStackLimit + 12 {
-		a.page = pageRuns
-		if a.pickedID%2 == 0 {
-			a.page = pageSession
-		}
-		a.pickedID++
+	for i := range navigationStackLimit + 12 {
+		id := "api-" + strconv.Itoa(i)
+		a.apis = append(a.apis, &apiDocument{spec: apiSpec{ID: id}})
+		a.openAPITab(id)
 		s.observe(a)
 	}
 	if len(s.entries) != navigationStackLimit || s.index != navigationStackLimit-1 {
@@ -216,7 +227,7 @@ func TestNavigationCommandsFollowTheStack(t *testing.T) {
 	if back.enabled || forward.enabled {
 		t.Fatal("navigation was enabled with no history")
 	}
-	a.pickedID, a.page = 1, pageLive
+	navigationLive(a, 1)
 	a.workbench.navigation.observe(a)
 	navigationOpenRequest(a, "saved:one")
 	a.workbench.navigation.observe(a)

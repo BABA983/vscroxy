@@ -136,7 +136,7 @@ func (a *app) debugDrafts(c *ui.Context) {
 		}
 		n++
 		if uikit.Tip(c, uikit.SecondaryButton(c, d.title()).Label(locales.OpenLinkedDraft(n)), d.composeMethod+" "+d.composeURL).Clicked() {
-			a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
+			a.activateDocument(d)
 			s.open = false
 			d.urlInput.Focus()
 		}

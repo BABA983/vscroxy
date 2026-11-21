@@ -97,6 +97,7 @@ func (a *app) desktopContent(c *ui.Context) {
 		w.sidePercent = 64
 	}
 	content := func() {
+		a.tabBar(c, c.Theme())
 		switch a.page {
 		case pageRuns:
 			if !a.experiments.open {

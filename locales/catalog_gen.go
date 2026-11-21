@@ -5394,6 +5394,16 @@ func (msgs Messages) OpenSessionWith(error string) string {
 	return Catalog.Format(msgs.locale, "openSessionWith", map[string]any{"error": error})
 }
 
+// OpenTabsMostRecentlyUsed says "Open tabs, most recently used first"
+// in the language the app shows.
+func OpenTabsMostRecentlyUsed() string { return In(i18n.Locale()).OpenTabsMostRecentlyUsed() }
+
+// OpenTabsMostRecentlyUsed says "Open tabs, most recently used first"
+// in the language of msgs.
+func (msgs Messages) OpenTabsMostRecentlyUsed() string {
+	return Catalog.Format(msgs.locale, "openTabsMostRecentlyUsed", nil)
+}
+
 // OpenedProxiedChrome says "Opened proxied Chrome"
 // in the language the app shows.
 func OpenedProxiedChrome() string { return In(i18n.Locale()).OpenedProxiedChrome() }
@@ -9444,6 +9454,16 @@ func (msgs Messages) AllAnd() string {
 	return Catalog.Format(msgs.locale, "allAnd", nil)
 }
 
+// AllOpenTabs says "All open tabs"
+// in the language the app shows.
+func AllOpenTabs() string { return In(i18n.Locale()).AllOpenTabs() }
+
+// AllOpenTabs says "All open tabs"
+// in the language of msgs.
+func (msgs Messages) AllOpenTabs() string {
+	return Catalog.Format(msgs.locale, "allOpenTabs", nil)
+}
+
 // AllRequests says "All requests"
 // in the language the app shows.
 func AllRequests() string { return In(i18n.Locale()).AllRequests() }
@@ -12648,6 +12668,16 @@ func (msgs Messages) CloseSessionNamed(title string) string {
 	return Catalog.Format(msgs.locale, "closeSessionNamed", map[string]any{"title": title})
 }
 
+// CloseTabNamed says "Close tab: {title}"
+// in the language the app shows.
+func CloseTabNamed(title string) string { return In(i18n.Locale()).CloseTabNamed(title) }
+
+// CloseTabNamed says "Close tab: {title}"
+// in the language of msgs.
+func (msgs Messages) CloseTabNamed(title string) string {
+	return Catalog.Format(msgs.locale, "closeTabNamed", map[string]any{"title": title})
+}
+
 // CloseTabKeepTheSaved says "Close tab; keep the saved session"
 // in the language the app shows.
 func CloseTabKeepTheSaved() string { return In(i18n.Locale()).CloseTabKeepTheSaved() }
@@ -12668,16 +12698,6 @@ func CloseTheClientsOpenConnections() string {
 // in the language of msgs.
 func (msgs Messages) CloseTheClientsOpenConnections() string {
 	return Catalog.Format(msgs.locale, "closeTheClientsOpenConnections", nil)
-}
-
-// CloseThisRequestCtrlCmd says "Close this request · Ctrl/Cmd+W"
-// in the language the app shows.
-func CloseThisRequestCtrlCmd() string { return In(i18n.Locale()).CloseThisRequestCtrlCmd() }
-
-// CloseThisRequestCtrlCmd says "Close this request · Ctrl/Cmd+W"
-// in the language of msgs.
-func (msgs Messages) CloseThisRequestCtrlCmd() string {
-	return Catalog.Format(msgs.locale, "closeThisRequestCtrlCmd", nil)
 }
 
 // CloseThisView says "Close this view"

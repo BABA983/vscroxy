@@ -198,7 +198,12 @@ func (a *app) collectionTree(c *ui.Context) {
 				card.Meta = method + " · " + r.Collection
 			}
 			row := uikit.CardTipBeside(c, base, card).
-				OnClick(func() { a.openSaved(r.key()) }).PopoverMenu(menu)
+				OnClick(func() { a.previewSaved(r.key()) }).PopoverMenu(menu)
+			// A single click browses in the preview tab; a double click pins
+			// it, as opening the request from its menu does.
+			if row.DoubleClicked() {
+				a.openSaved(r.key())
+			}
 			if chosen {
 				uikit.Selected(c, row, !a.windowBehind)
 			}

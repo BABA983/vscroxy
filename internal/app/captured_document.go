@@ -55,7 +55,8 @@ func (a *app) liveDocument(f flow) (*requestDocument, string) {
 }
 
 // keepLiveDraft makes the unchanged capture's document its draft once it is
-// edited or sent: copy on write.
+// edited or sent: copy on write. The draft also gets a tab, in the background,
+// so the strip is the one place that says what is open.
 func (a *app) keepLiveDraft() {
 	d := a.live
 	if d == nil || !d.dirty() && !d.sentSet && !d.composeWaiting && d.response == nil {
@@ -66,6 +67,15 @@ func (a *app) keepLiveDraft() {
 	}
 	a.flowDrafts[a.liveFor] = d
 	a.live = nil
+	if !slices.Contains(a.documents, d) {
+		a.documents = append(a.documents, d)
+	}
+	g := a.tabsGroup()
+	id := requestTabID(d)
+	a.tabDocuments[id] = d
+	if g.indexOf(id) < 0 {
+		g.add(requestTabDescriptor(d))
+	}
 }
 
 // edited reports whether the capture f has a draft that differs from it or
@@ -75,8 +85,10 @@ func (a *app) edited(id int) bool {
 	return d != nil && (d.dirty() || d.sentSet)
 }
 
-// syncDocument points the app's document at what the content area shows:
-// the inspected capture's in LIVE, a tab's in COLLECTIONS, none elsewhere.
+// syncDocument points the app's document at what the content area shows: the
+// inspected capture's document in LIVE, the active request tab's document in
+// a request tab, none elsewhere. The tab model already chose the tab; this
+// only keeps the inspector's document and the flow-draft registry in step.
 func (a *app) syncDocument() {
 	a.keepLiveDraft()
 	for id := range a.flowDrafts {
@@ -84,45 +96,32 @@ func (a *app) syncDocument() {
 			delete(a.flowDrafts, id) // The capture is gone, and its draft with it.
 		}
 	}
-	if d := a.requestDocument; d != nil && slices.Contains(a.documents, d) {
-		a.libraryDocument = d
-	}
-	// One request shows at a time. A saved one left unchanged and unsent
-	// reopens from its collection exactly as it was, so it closes when it
-	// is no longer on screen; the others stay open in the sidebar.
-	a.documents = slices.DeleteFunc(a.documents, func(d *requestDocument) bool {
-		return d != a.requestDocument && d != a.libraryDocument && d.savedKey != "" &&
-			!d.dirty() && !d.sentSet && !d.composeWaiting && d.response == nil
-	})
-	switch {
-	case a.page == pageLive:
+	switch a.page {
+	case pageLive:
 		a.requestDocument = nil
 		if f, ok := a.current(); ok && a.chosen.Len() <= 1 {
 			a.requestDocument, _ = a.liveDocument(f)
 		}
-	case a.page.capture():
-		a.requestDocument = nil
-	case !slices.Contains(a.documents, a.requestDocument):
-		a.requestDocument = nil
-		if slices.Contains(a.documents, a.libraryDocument) {
-			a.requestDocument = a.libraryDocument
-		} else if n := len(a.documents); n > 0 {
-			a.requestDocument = a.documents[n-1]
+	case pageRequest:
+		// syncTabs set this from the active tab. A page restored without one
+		// falls back to the last open document, as it did before tabs.
+		if a.requestDocument == nil && len(a.documents) > 0 {
+			a.requestDocument = a.documents[len(a.documents)-1]
 		}
-		if a.requestDocument != nil {
-			a.touchDocument(a.requestDocument)
-		}
+	default:
+		a.requestDocument = nil
 	}
 }
 
-// editCapture shows the capture f in LIVE as its draft, ready to change.
+// editCapture gives the capture f a draft tab and shows it in the inspector,
+// where editing already happens in place. The tab is the open document; LIVE
+// stays the page, so the traffic list and the captured exchange stay beside
+// the draft.
 func (a *app) editCapture(f flow) *requestDocument {
 	if !slices.ContainsFunc(a.flows, func(g flow) bool { return g.id == f.id }) {
 		a.warn(locales.CaptureIsNoLongerIn())
 		return nil
 	}
-	a.inspectCapture(f.id)
-	a.page, a.workbench.focused = pageLive, false
 	a.liveLoad = true
 	if a.liveFor == f.id && a.live == nil {
 		a.liveFor = 0 // Try again, now reading a spilled body.
@@ -132,6 +131,17 @@ func (a *app) editCapture(f flow) *requestDocument {
 		a.warn(cmp.Or(problem, locales.ThisCaptureIsReadOnly()))
 		return nil
 	}
+	if a.flowDrafts == nil {
+		a.flowDrafts = map[int]*requestDocument{}
+	}
+	a.flowDrafts[f.id] = d
+	if a.live == d {
+		a.live = nil
+	}
+	a.liveFor = f.id
+	a.openRequestTab(d, tabOpen{})
+	a.inspectCapture(f.id)
+	a.workbench.focused = false
 	a.requestDocument = d
 	d.urlInput.Focus()
 	return d

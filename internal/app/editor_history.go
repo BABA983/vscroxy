@@ -2,26 +2,20 @@ package app
 
 import (
 	"slices"
+	"strings"
 
-	"github.com/baba983/vscroxy/internal/linkedmap"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
-// VS Code keeps at most 20 recently closed editors for Reopen Closed Editor
-// (historyService.ts). The same bound applies here, in memory only.
-const recentlyClosedLimit = 20
-
-// closedDocument is one tab the reader closed. draft is the complete editable
-// value, including a discarded draft; doc keeps the rest of that tab, such as
-// its response and pane choices. The key and baseline decide whether the
-// draft still belongs to a saved request when it is reopened.
+// closedDocument is the document copy a closed request tab needs to reopen.
+// The tab model owns the reopen order and position; this is only the payload
+// its descriptor cannot carry.
 type closedDocument struct {
 	draft    savedRequest
 	savedKey string
 	baseline savedRequest
-	position int
 	doc      *requestDocument
 }
 
@@ -38,32 +32,35 @@ func (d *requestDocument) detachedCopy() *requestDocument {
 	return &snapshot
 }
 
-func (a *app) closedDocuments() *linkedmap.LinkedMap[int, closedDocument] {
-	if a.recentlyClosed == nil {
-		a.recentlyClosed = linkedmap.NewLinkedMap[int, closedDocument]()
-	}
-	return a.recentlyClosed
-}
-
-// rememberClosedDocument is called just before a tab leaves the strip. A tab
-// closed again after being reopened replaces its earlier entry, and the
-// oldest entry falls off once the bound is reached.
-func (a *app) rememberClosedDocument(d *requestDocument) {
-	at := slices.Index(a.documents, d)
-	if at < 0 {
+// rememberClosedDocument stores the copy for a tab the model has just put on
+// its reopen stack. Closing the same identity again replaces the older copy.
+func (a *app) rememberClosedDocument(id tabID, d *requestDocument) {
+	if d == nil {
 		return
 	}
-	stack := a.closedDocuments()
-	entry := closedDocument{
+	a.ensureTabs()
+	a.closedDocs[id] = closedDocument{
 		draft: d.value(), savedKey: d.savedKey, baseline: d.baseline,
-		position: at, doc: d.detachedCopy(),
+		doc: d.detachedCopy(),
 	}
-	stack.Delete(d.id)
-	stack.Set(d.id, entry)
-	for stack.Size() > recentlyClosedLimit {
-		stack.Shift()
+	a.pruneClosedDocs()
+}
+
+// pruneClosedDocs drops copies whose model entry has fallen off the reopen
+// bound. The model is the one list; this map only follows it.
+func (a *app) pruneClosedDocs() {
+	keep := make(map[tabID]bool)
+	for _, id := range a.tabsGroup().closedIDs() {
+		keep[id] = true
+	}
+	for id := range a.closedDocs {
+		if !keep[id] {
+			delete(a.closedDocs, id)
+		}
 	}
 }
+
+func (a *app) closedCount() int { return len(a.tabsGroup().closedIDs()) }
 
 // savedSourceStillThere reports whether the saved request a closed draft came
 // from is still under the same name and collection. A deleted or renamed
@@ -75,55 +72,177 @@ func (a *app) savedSourceStillThere(entry closedDocument) bool {
 	})
 }
 
-// reopenClosedDocument pops the most recently closed tab back into its old
-// place. It only changes open tabs: nothing is written to the library.
+// reopenClosedDocument restores the model's last closed tab and, for a request
+// tab, its document copy. The model restores the tab clean; the document says
+// whether it is still dirty, and setDirty records that.
 func (a *app) reopenClosedDocument() bool {
-	stack := a.closedDocuments()
-	key, ok := lastLinkedKey(stack)
+	g := a.tabsGroup()
+	next, ok := g.nextClosed()
 	if !ok {
 		return false
 	}
-	entry, _ := stack.Remove(key)
-	d := entry.doc
-	if entry.savedKey != "" && !a.savedSourceStillThere(entry) {
-		d.savedKey, d.assetID = "", ""
+	id := next.tab.id()
+	entry, has := a.closedDocs[id]
+	alreadyOpen := g.indexOf(id) >= 0
+	if !g.reopen() {
+		return false
 	}
-	at := min(entry.position, len(a.documents))
-	a.documents = slices.Insert(a.documents, at, d)
-	a.activateDocument(d)
+	if id.kind == pageSession {
+		// A closed session tab released its payload. Reopen the saved
+		// session through the normal loader, which marks it open and reads
+		// its file without blocking the frame.
+		a.selectSession(strings.TrimPrefix(id.key, "session:"))
+	}
+	if id.kind == pageRequest && !alreadyOpen {
+		d := entry.doc
+		if !has || d == nil {
+			d = a.newDocument(savedRequest{Name: next.tab.title, Method: "GET", URL: "https://"}, "")
+		}
+		if d != nil {
+			if entry.savedKey != "" && !a.savedSourceStillThere(entry) {
+				d.savedKey, d.assetID = "", ""
+			}
+			if !slices.Contains(a.documents, d) {
+				a.documents = append(a.documents, d)
+			}
+			a.tabDocuments[id] = d
+			if d.sourceFlow != 0 {
+				if a.flowDrafts == nil {
+					a.flowDrafts = map[int]*requestDocument{}
+				}
+				a.flowDrafts[d.sourceFlow] = d
+			}
+			syncRequestTab(g, d)
+		}
+	}
+	delete(a.closedDocs, id)
+	a.pruneClosedDocs()
+	a.syncDocumentOrder()
+	a.applyActiveTab()
 	return true
 }
 
-func lastLinkedKey[K comparable, V any](m *linkedmap.LinkedMap[K, V]) (K, bool) {
-	var last K
-	found := false
-	for key := range m.Keys() {
-		last, found = key, true
+// applyCloseResult takes the documents out of a closed tab, queues the dirty
+// ones the model left open for confirmation, and follows the new active tab.
+func (a *app) applyCloseResult(r tabCloseResult) {
+	for _, t := range r.closed {
+		a.cleanupClosedTab(t)
 	}
-	return last, found
+	for _, t := range r.needsSave {
+		if d := a.documentForTab(t.id()); d != nil {
+			a.enqueueDocumentClose(d)
+		}
+	}
+	a.pruneClosedDocs()
+	a.syncDocumentOrder()
+	a.applyActiveTab()
+}
+
+func (a *app) cleanupClosedTab(t tab) {
+	id := t.id()
+	switch id.kind {
+	case pageRequest:
+		if d := a.documentForTab(id); d != nil {
+			a.rememberClosedDocument(id, d)
+			a.forgetDocument(d)
+		}
+		delete(a.tabDocuments, id)
+	case pageSession:
+		a.sessions.closeTab(strings.TrimPrefix(id.key, "session:"))
+	}
+}
+
+// closeTab closes one tab through the model. A dirty request tab is left open
+// for the Save changes? prompt unless force says the reader already decided.
+func (a *app) closeTab(id tabID, force bool) bool {
+	a.syncTabs()
+	g := a.tabsGroup()
+	if _, ok := g.find(id); !ok {
+		return false
+	}
+	if !force && id.kind == pageRequest {
+		if d := a.documentForTab(id); d != nil && d.composeWaiting {
+			return false
+		}
+	}
+	var r tabCloseResult
+	if force {
+		r = g.forceClose(id)
+	} else {
+		r = g.close(id)
+	}
+	if len(r.closed) == 0 && len(r.needsSave) == 0 && len(r.refused) == 0 {
+		return false
+	}
+	a.applyCloseResult(r)
+	a.nextDocumentClose()
+	return len(r.closed) > 0
+}
+
+// closeActiveTab closes whichever tab is active. LIVE is fixed and refuses;
+// a request tab asks before discarding edits, and a session or page tab
+// closes through the same model path.
+func (a *app) closeActiveTab() {
+	id := a.tabsGroup().active()
+	if id.kind == pageRequest {
+		if d := a.documentForTab(id); d != nil {
+			a.requestClose(d)
+			return
+		}
+	}
+	a.closeTab(id, false)
 }
 
 func (a *app) requestClose(d *requestDocument) {
-	a.queueDocumentCloses(d)
+	if d == nil {
+		return
+	}
+	a.syncTabs()
+	a.closeTab(requestTabID(d), false)
 }
 
 // closeOtherDocuments keeps the tab it was opened for, even when that tab is
-// dirty. Every other dirty tab still gets the Save changes? prompt.
+// dirty. Every other dirty tab still gets the Save changes? prompt; pinned
+// tabs and Live are not candidates.
 func (a *app) closeOtherDocuments(keep *requestDocument) {
-	if !slices.Contains(a.documents, keep) {
+	if keep == nil {
 		return
 	}
-	others := slices.DeleteFunc(slices.Clone(a.documents), func(d *requestDocument) bool { return d == keep })
+	a.syncTabs()
+	g := a.tabsGroup()
+	keepID := requestTabID(keep)
+	if g.indexOf(keepID) < 0 {
+		return
+	}
 	a.closingReturnTo = keep
-	a.queueDocumentCloses(others...)
+	r := g.closeOthers(keepID)
+	a.applyCloseResult(r)
+	a.nextDocumentClose()
 }
 
-// closeSavedDocuments closes only saved tabs with no edits. Unsaved drafts
-// and dirty requests stay open.
+// closeSavedDocuments closes saved tabs with no edits. Unsaved drafts and
+// dirty requests stay open, as Close Saved Requests always has.
 func (a *app) closeSavedDocuments() {
-	a.queueDocumentCloses(slices.DeleteFunc(slices.Clone(a.documents), func(d *requestDocument) bool {
-		return d.savedKey == "" || d.dirty()
-	})...)
+	a.syncTabs()
+	r := a.tabsGroup().closeSaved()
+	a.applyCloseResult(r)
+	a.nextDocumentClose()
+}
+
+func (a *app) closeAllDocuments() {
+	a.syncTabs()
+	r := a.tabsGroup().closeAll()
+	a.applyCloseResult(r)
+	a.nextDocumentClose()
+}
+
+func (a *app) enqueueDocumentClose(d *requestDocument) {
+	if d == nil || d.composeWaiting || !slices.Contains(a.documents, d) {
+		return
+	}
+	if !slices.Contains(a.closingQueue, d) && d != a.closingDocument {
+		a.closingQueue = append(a.closingQueue, d)
+	}
 }
 
 func (a *app) queueDocumentCloses(documents ...*requestDocument) {
@@ -132,9 +251,7 @@ func (a *app) queueDocumentCloses(documents ...*requestDocument) {
 			continue
 		}
 		if d.dirty() {
-			if !slices.Contains(a.closingQueue, d) && d != a.closingDocument {
-				a.closingQueue = append(a.closingQueue, d)
-			}
+			a.enqueueDocumentClose(d)
 			continue
 		}
 		a.closeDocument(d)
@@ -155,7 +272,7 @@ func (a *app) nextDocumentClose() {
 			continue
 		}
 		a.closingDocument = d
-		a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
+		a.activateDocument(d)
 		return
 	}
 	if d := a.closingReturnTo; slices.Contains(a.documents, d) {
@@ -194,7 +311,7 @@ func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
 					a.finishDocumentClose()
 				}
 				if uikit.PrimaryButton(c, locales.SaveClose()).Clicked() {
-					a.requestDocument = d
+					a.activateDocument(d)
 					if a.saveComposed() {
 						a.closeDocument(d)
 						a.finishDocumentClose()
@@ -209,35 +326,6 @@ func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
 	}
 }
 
-// documentMRU is an in-memory recency order; nil is the LIVE traffic view,
-// which the quick switch visits alongside request tabs.
-func (a *app) documentMRU() *linkedmap.LinkedMap[*requestDocument, struct{}] {
-	if a.documentRecency == nil {
-		a.documentRecency = linkedmap.NewLinkedMap[*requestDocument, struct{}]()
-	}
-	return a.documentRecency
-}
-
-// touchDocument makes d the most recently used tab, like VS Code's editor
-// group marking an editor active.
-func (a *app) touchDocument(d *requestDocument) {
-	a.documentMRU().Set(d, struct{}{}, linkedmap.TouchAsNew)
-}
-
-// showDocument selects d as the open tab without changing recency: the quick
-// switch keeps its order while the reader steps through it.
-func (a *app) showDocument(d *requestDocument) {
-	if d == nil {
-		a.page, a.requestDocument, a.requestChoice = pageLive, nil, ""
-		if view := a.views.activeView(); view != nil {
-			view.list.Handle.Focus()
-		}
-		return
-	}
-	a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
-	d.urlInput.Focus()
-}
-
 // commitMRUPick makes the quick switch's current tab the most recently used
 // one. VS Code commits on Ctrl release; the observer settles it on any other
 // input, and every other command settles it before running.
@@ -246,9 +334,8 @@ func (a *app) commitMRUPick() {
 		return
 	}
 	a.mruPending = false
-	if d := a.requestDocument; d != nil && slices.Contains(a.documents, d) {
-		a.touchDocument(d)
-	}
+	g := a.tabsGroup()
+	g.activate(g.active())
 }
 
 // observeMRUInput sees input anywhere in the main column, before the focused
@@ -268,69 +355,31 @@ func (a *app) observeMRUInput(ev ui.InputEvent) {
 	a.commitMRUPick()
 }
 
-// activateDocument records an explicit visit to a tab, or to LIVE when d is
-// nil; cycling through the MRU list does not, so repeated Ctrl+Tab keeps
-// walking the same order.
+// activateDocument records an explicit visit to a request tab, or to LIVE
+// when d is nil; cycling through the MRU list does not, so repeated Ctrl+Tab
+// keeps walking the same order.
 func (a *app) activateDocument(d *requestDocument) {
 	a.commitMRUPick()
-	a.showDocument(d)
-	a.touchDocument(d)
-}
-
-// mruOrder lists the quick switch's targets, most recently used first. Tabs
-// opened before recency was recorded come after the live view in opening
-// order; tabs closed meanwhile are dropped.
-func (a *app) mruOrder() []*requestDocument {
-	m := a.documentMRU()
-	if !m.Has(nil) {
-		m.Set(nil, struct{}{}, linkedmap.TouchAsOld)
+	if d == nil {
+		a.activateTab(tabID{kind: pageLive, key: liveTabKey})
+		return
 	}
-	for _, key := range slices.Collect(m.Keys()) {
-		if key != nil && !slices.Contains(a.documents, key) {
-			m.Delete(key)
-		}
-	}
-	var untracked []*requestDocument
-	for _, d := range a.documents {
-		if !m.Has(d) {
-			untracked = append(untracked, d)
-		}
-	}
-	for i := len(untracked) - 1; i >= 0; i-- {
-		m.Set(untracked[i], struct{}{}, linkedmap.TouchAsOld)
-	}
-	if len(untracked) > 0 {
-		m.Set(nil, struct{}{}, linkedmap.TouchAsOld)
-	}
-	oldestFirst := slices.Collect(m.Keys())
-	order := make([]*requestDocument, len(oldestFirst))
-	for i, d := range oldestFirst {
-		order[len(order)-1-i] = d
-	}
-	return order
+	a.openRequestTab(d, tabOpen{})
 }
 
 // cycleDocumentMRU is Ctrl/Cmd+Tab's quick switch: next and previous walk
 // the recency order rather than the positions of the tabs in the strip.
 func (a *app) cycleDocumentMRU(step int) {
-	order := a.mruOrder()
+	g := a.tabsGroup()
+	order := g.mru()
 	if len(order) == 0 {
 		return
 	}
-	current := a.requestDocument
-	// LIVE's inspected capture is a document too, but it is not a tab; the
-	// nil entry stands for the whole LIVE view, including its draft.
-	if current != nil && !slices.Contains(a.documents, current) {
-		current = nil
-	}
-	// LIVE is an ordinary entry: when it is most recent, forward stepping
-	// must move past it to the newest request tab rather than stay put.
-	at := slices.Index(order, current)
+	at := slices.Index(order, g.active())
 	if at < 0 {
-		order = append([]*requestDocument{current}, order...)
 		at = 0
 	}
 	next := order[(at+step+len(order))%len(order)]
-	a.showDocument(next)
-	a.mruPending = next != nil
+	a.showTab(next)
+	a.mruPending = true
 }

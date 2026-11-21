@@ -229,9 +229,8 @@ func (s undoState) apply(a *app, counterpart *undoState) error {
 	}
 	if s.drafts != nil {
 		a.documents = slices.Clone(s.drafts.documents)
-		a.requestDocument = s.drafts.active
-		if a.requestDocument != nil {
-			a.page = pageRequest
+		if active := s.drafts.active; active != nil {
+			a.openRequestTab(active, tabOpen{})
 		}
 	}
 	a.invalidate()

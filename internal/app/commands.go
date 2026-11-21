@@ -464,16 +464,18 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("compare.clear-selection", locales.ClearCompareSelection(), func(x *commandContext) {
 		x.a.compare.selected = compareTarget{}
 	}).when(func(x *commandContext) bool { return x.a.compare.selected.valid() }, "")
-	r.add("request.close", locales.CloseRequest(), func(x *commandContext) { x.a.requestClose(x.d) }).
+	r.add("request.close", locales.CloseRequest(), func(x *commandContext) { x.a.closeActiveTab() }).
 		when(func(x *commandContext) bool { return x.tab && !x.d.composeWaiting }, locales.OpenARequestDraftWait()).keys(ui.Cmd, ui.KeyW)
 	r.add("request.close-others", locales.CloseOtherRequests(), func(x *commandContext) { x.a.closeOtherDocuments(x.d) }).
 		when(func(x *commandContext) bool { return x.tab && len(x.a.documents) > 1 }, "")
 	r.add("request.close-saved", locales.CloseSavedRequests(), func(x *commandContext) { x.a.closeSavedDocuments() }).
 		when(func(x *commandContext) bool {
-			return slices.ContainsFunc(x.a.documents, func(d *requestDocument) bool { return d.savedKey != "" && !d.dirty() })
+			return slices.ContainsFunc(x.a.tabsGroup().tabs(), func(e tabEntry) bool {
+				return e.saved && !e.dirty && !e.fixed && !e.pinned
+			})
 		}, "")
 	r.add("request.reopen-closed", locales.ReopenClosedRequest(), func(x *commandContext) { x.a.reopenClosedDocument() }).
-		when(func(x *commandContext) bool { return x.a.closedDocuments().Size() > 0 }, "").
+		when(func(x *commandContext) bool { return x.a.tabsGroup().canReopen() }, "").
 		keys(ui.Cmd|ui.Shift, ui.KeyT)
 	// The positional commands keep their order in menus and the palette;
 	// Ctrl/Cmd+Tab belongs to VS Code's MRU quick switch instead.
@@ -704,24 +706,31 @@ func registerGlobalCommands() *commandRegistry {
 	})
 	r.add("go.live", locales.GoToLiveTraffic(), func(x *commandContext) {
 		a := x.a
-		a.page = pageLive
+		a.openPageTab(pageLive, tabOpen{})
 		*a.regionOpen("traffic") = true
 		x.focusTraffic()
 	}).keys(ui.Cmd, ui.Key1)
 	r.add("go.collections", locales.GoToCollections(), func(x *commandContext) {
 		a := x.a
-		a.page = pageRequest
 		*a.regionOpen("collections") = true
-		if a.requestDocument != nil {
+		a.showRequestWorkspace()
+		if x.d != nil {
 			x.focusURL()
 		}
 	}).keys(ui.Cmd, ui.Key2)
 	r.add("go.sessions", locales.GoToSessions(), func(x *commandContext) {
 		a := x.a
-		a.page = pageSession
+		a.openPageTab(pageSession, tabOpen{})
 		*a.regionOpen("sessions") = true
 	}).keys(ui.Cmd, ui.Key3)
-	r.add("go.apis", locales.ApiContracts(), func(x *commandContext) { x.a.page = pageAPI }).
+	r.add("go.apis", locales.ApiContracts(), func(x *commandContext) {
+		a := x.a
+		if len(a.apis) > 0 {
+			a.openAPITab(a.apis[0].spec.ID)
+			return
+		}
+		a.openPageTab(pageAPI, tabOpen{})
+	}).
 		when(func(x *commandContext) bool { return len(x.a.apis) > 0 }, locales.CreateOrImportAnApi())
 	r.add("navigation.back", locales.GoBack(), func(x *commandContext) {
 		x.a.workbench.navigation.step(x.a, -1)
@@ -733,7 +742,6 @@ func registerGlobalCommands() *commandRegistry {
 		keys(navigationForwardKey.mods, navigationForwardKey.key)
 	r.add("api.new", locales.NewApiContract(), func(x *commandContext) {
 		x.a.newAPI()
-		x.a.page = pageAPI
 	})
 	r.add("api.import-openapi", locales.ImportOpenapi(), func(x *commandContext) { x.a.importOpenAPI() })
 	r.add("history.show", locales.ShowRuns(), func(x *commandContext) { x.a.showRunRecords() })

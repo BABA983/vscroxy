@@ -9,6 +9,10 @@ import (
 func testTabGroup() *tabGroup { return newTabGroup("Live") }
 
 func requestTab(key, title string) tab {
+	return tab{kind: pageRequest, key: key, title: title, saved: true}
+}
+
+func draftTab(key, title string) tab {
 	return tab{kind: pageRequest, key: key, title: title}
 }
 
@@ -133,6 +137,19 @@ func TestTabPreviewBecomesNormalWhenDirtyOrPinned(t *testing.T) {
 		}
 		if r := g.close(p); len(r.closed) != 1 {
 			t.Fatalf("clean close = %+v", r)
+		}
+	})
+
+	t.Run("kept", func(t *testing.T) {
+		g := testTabGroup()
+		p := g.open(requestTab("flow:1", "P"), tabOpen{preview: true})
+		a := g.open(requestTab("saved:a", "A"), tabOpen{})
+		if !g.keep(p) || g.isPreview(p) || g.isPinned(p) || g.active() != a {
+			t.Fatalf("kept preview: preview=%v pinned=%v active=%v", g.isPreview(p), g.isPinned(p), g.active())
+		}
+		g.open(requestTab("flow:2", "Q"), tabOpen{preview: true})
+		if g.indexOf(p) < 0 {
+			t.Fatal("the next preview replaced a kept tab")
 		}
 	})
 
@@ -325,27 +342,33 @@ func TestTabCloseToRightSkipsPinnedAndFallsBack(t *testing.T) {
 func TestTabCloseSavedAndAllSkipFixedAndPinned(t *testing.T) {
 	t.Run("saved", func(t *testing.T) {
 		g := testTabGroup()
-		a := g.open(requestTab("a", "A"), tabOpen{})
-		g.open(requestTab("b", "B"), tabOpen{})
+		g.open(requestTab("a", "A"), tabOpen{})
+		b := g.open(draftTab("b", "B"), tabOpen{})
 		c := g.open(requestTab("c", "C"), tabOpen{})
 		if !g.pin(c) {
 			t.Fatal("could not pin C")
 		}
-		if !g.setDirty(a, true) {
-			t.Fatal("could not mark A dirty")
-		}
-		// [Live, C, A, B], with A dirty.
+		// [Live, C, A, B]: A is saved, B never was.
 		r := g.closeSaved()
-		if got, want := tabKeys(r.closed), []string{"b"}; !slices.Equal(got, want) {
+		if got, want := tabKeys(r.closed), []string{"a"}; !slices.Equal(got, want) {
 			t.Fatalf("closed = %v, want %v", got, want)
 		}
 		if len(r.needsSave) != 0 {
 			t.Fatalf("close saved asked for a confirmation: %v", tabKeys(r.needsSave))
 		}
-		wantTitles(t, g, "Live", "C", "A")
+		wantTitles(t, g, "Live", "C", "B")
 		if g.active() != c {
 			t.Fatalf("active = %v, want C", g.active())
 		}
+
+		// Once the draft has a saved version, Close Saved takes it too.
+		if !g.setSaved(b, true) {
+			t.Fatal("could not mark B saved")
+		}
+		if r := g.closeSaved(); len(r.closed) != 1 || r.closed[0].key != "b" {
+			t.Fatalf("close saved after saving B = %+v", r)
+		}
+		wantTitles(t, g, "Live", "C")
 	})
 
 	t.Run("all", func(t *testing.T) {
@@ -520,8 +543,11 @@ func TestTabDirtyCloseNeedsConfirmation(t *testing.T) {
 		t.Fatal("nothing to reopen")
 	}
 	wantTitles(t, g, "Live", "A")
-	if !g.tabs()[1].dirty {
-		t.Fatal("the reopened tab lost its dirty flag")
+	if g.tabs()[1].dirty {
+		t.Fatal("the reopen stack remembered the dirty flag")
+	}
+	if !g.setDirty(a, true) {
+		t.Fatal("the app could not restore the dirty flag from the document")
 	}
 	if g.active() != a {
 		t.Fatalf("active = %v, want A", g.active())

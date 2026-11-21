@@ -84,6 +84,58 @@ func TestReopenDiscardedDraftRestoresExactDraftAtItsPosition(t *testing.T) {
 	}
 }
 
+// TestTabCloseAsksBeforeDiscarding checks the strip's own close button: it
+// goes through the same dirty confirmation as the document header's.
+func TestTabCloseAsksBeforeDiscarding(t *testing.T) {
+	a := workspaceApp()
+	draft := openCleanTab(a, "Draft", "https://example.test/draft")
+	draft.composeURL = "https://example.test/edited"
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if err := tt.Click(locales.CloseTabNamed("Draft")); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.closingDocument != draft || !tt.HasText(locales.SaveChanges()) {
+		t.Fatalf("tab close did not ask: %v", tt.Texts())
+	}
+	if err := tt.Click(locales.Discard()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if slices.Contains(a.documents, draft) || a.closingDocument != nil {
+		t.Fatal("discarding from the tab prompt left the draft open")
+	}
+}
+
+// TestPreviewReplacementForgetsTheOldDocument checks that the single preview
+// slot is truly one document: the next frame must not adopt the replaced
+// preview as a background tab.
+func TestPreviewReplacementForgetsTheOldDocument(t *testing.T) {
+	a := workspaceApp()
+	a.requests = append(a.requests, savedRequest{Name: "Other", Collection: "Workspace/API", Method: "POST", URL: "https://example.test/other"})
+	a.previewSaved(a.requests[0].key())
+	first := a.requestDocument
+	a.previewSaved(a.requests[1].key())
+	second := a.requestDocument
+	if first == nil || second == nil || first == second {
+		t.Fatal("preview did not open two different documents")
+	}
+	if slices.Contains(a.documents, first) {
+		t.Fatal("the replaced preview document stayed open")
+	}
+	if _, ok := a.tabDocuments[requestTabID(first)]; ok {
+		t.Fatal("the replaced preview document kept its tab mapping")
+	}
+	g := a.tabsGroup()
+	if g.preview() != requestTabID(second) {
+		t.Fatalf("preview = %v, want the second document", g.preview())
+	}
+	if got := len(g.tabs()); got != 2 {
+		t.Fatalf("strip has %d tabs, want Live and one preview", got)
+	}
+}
+
 func TestReopenClosedTabsIsLIFO(t *testing.T) {
 	a := workspaceApp()
 	for _, name := range []string{"one", "two", "three"} {
@@ -92,8 +144,8 @@ func TestReopenClosedTabsIsLIFO(t *testing.T) {
 	for _, d := range slices.Clone(a.documents) {
 		a.closeDocument(d)
 	}
-	if len(a.documents) != 0 || a.closedDocuments().Size() != 3 {
-		t.Fatalf("closed %d tabs, stack has %d", len(a.documents), a.closedDocuments().Size())
+	if len(a.documents) != 0 || a.closedCount() != 3 {
+		t.Fatalf("closed %d tabs, stack has %d", len(a.documents), a.closedCount())
 	}
 	for _, want := range []string{"three", "two", "one"} {
 		if !a.reopenClosedDocument() {
@@ -103,15 +155,15 @@ func TestReopenClosedTabsIsLIFO(t *testing.T) {
 			t.Fatalf("reopened %q, want %q", got, want)
 		}
 	}
-	if a.reopenClosedDocument() || a.closedDocuments().Size() != 0 {
+	if a.reopenClosedDocument() || a.closedCount() != 0 {
 		t.Fatal("the stack still holds entries after three reopens")
 	}
 }
 
 func TestReopenStackKeepsOnlyTheLastTwentyCloses(t *testing.T) {
 	a := workspaceApp()
-	names := make([]string, 0, recentlyClosedLimit+2)
-	for i := range recentlyClosedLimit + 2 {
+	names := make([]string, 0, tabReopenLimit+2)
+	for i := range tabReopenLimit + 2 {
 		name := "draft-" + string(rune('a'+i))
 		names = append(names, name)
 		openCleanTab(a, name, "https://example.test/"+name)
@@ -119,8 +171,8 @@ func TestReopenStackKeepsOnlyTheLastTwentyCloses(t *testing.T) {
 	for _, d := range slices.Clone(a.documents) {
 		a.closeDocument(d)
 	}
-	if got := a.closedDocuments().Size(); got != recentlyClosedLimit {
-		t.Fatalf("stack has %d entries, want %d", got, recentlyClosedLimit)
+	if got := a.closedCount(); got != tabReopenLimit {
+		t.Fatalf("stack has %d entries, want %d", got, tabReopenLimit)
 	}
 	kept := names[2:]
 	for i := len(kept) - 1; i >= 0; i-- {
@@ -172,17 +224,18 @@ func TestCloseOthersPromptsEachDirtyTabAndKeepsTheActiveOne(t *testing.T) {
 	if a.requestDocument != keep || a.closingDocument != nil || a.closingReturnTo != nil {
 		t.Fatal("the tab close-others kept did not get the focus back")
 	}
-	if a.closedDocuments().Size() != 3 {
-		t.Fatalf("the three closed tabs were not put on the reopen stack: %d", a.closedDocuments().Size())
+	if a.closedCount() != 3 {
+		t.Fatalf("the three closed tabs were not put on the reopen stack: %d", a.closedCount())
 	}
 	foundClean := false
-	for _, e := range a.closedDocuments().All() {
-		if e.doc.title() == clean.title() && e.position == 2 {
+	for _, id := range a.tabsGroup().closedIDs() {
+		e, ok := a.closedDocs[id]
+		if ok && e.doc.title() == clean.title() {
 			foundClean = true
 		}
 	}
 	if !foundClean {
-		t.Fatal("the clean closed tab lost its position")
+		t.Fatal("the clean closed tab lost its document")
 	}
 }
 
@@ -208,8 +261,8 @@ func TestCloseSavedLeavesDirtyAndUnsavedTabsOpen(t *testing.T) {
 			t.Fatalf("%q should have stayed open", d.title())
 		}
 	}
-	if a.closedDocuments().Size() != 1 {
-		t.Fatalf("close-saved put %d tabs on the stack, want 1", a.closedDocuments().Size())
+	if a.closedCount() != 1 {
+		t.Fatalf("close-saved put %d tabs on the stack, want 1", a.closedCount())
 	}
 	if !a.reopenClosedDocument() || a.documents[0].title() != cleanSaved.title() ||
 		a.documents[0].savedKey != cleanSaved.savedKey {
@@ -275,7 +328,7 @@ func TestMRUQuickSwitchCommitsPickOnEdit(t *testing.T) {
 func TestMRUQuickSwitchFromLiveStepsPastLive(t *testing.T) {
 	a := mruTestApp(t)
 	a.page, a.requestDocument = pageLive, nil
-	a.touchDocument(nil)
+	a.activateDocument(nil)
 	want := a.documents[0]
 	if want.title() != "A" {
 		t.Fatalf("the newest request tab is %q", want.title())

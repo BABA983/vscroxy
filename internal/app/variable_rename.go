@@ -478,10 +478,6 @@ func (a *app) variableResolveField(m variableMatch) (variableFieldRef, *requestD
 				return ref, d, ok
 			}
 		}
-		if a.libraryDocument != nil && a.libraryDocument.debugKey == m.Key {
-			ref, ok := variableDocumentField(a.libraryDocument, m.Code)
-			return ref, a.libraryDocument, ok
-		}
 	case "saved":
 		for i := range a.requests {
 			if a.requests[i].key() == m.Key {

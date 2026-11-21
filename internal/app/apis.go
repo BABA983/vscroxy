@@ -124,6 +124,7 @@ func (a *app) addAPI(spec apiSpec, saved bool) {
 
 func (a *app) newAPI() {
 	a.addAPI(apiSpec{Source: "{\n  \"openapi\": \"3.0.3\",\n  \"info\": {\"title\": \"Untitled API\", \"version\": \"1.0.0\"},\n  \"paths\": {}\n}\n"}, false)
+	a.openAPITab(a.apiChoice)
 	a.activeAPI().tab = 1
 }
 
@@ -645,7 +646,7 @@ func (a *app) generateAPI(collection string) {
 		return
 	}
 	a.addAPI(spec, false)
-	a.page = pageAPI
+	a.openAPITab(a.apiChoice)
 	a.done(locales.GeneratedIndependentOpenapiDraftReview())
 }
 
@@ -670,7 +671,7 @@ func (a *app) importOpenAPI() {
 		}
 		a.win.Update(func() {
 			a.addAPI(apiSpec{Source: string(data), Path: paths[0]}, false)
-			a.page = pageAPI
+			a.openAPITab(a.apiChoice)
 		})
 	})
 }

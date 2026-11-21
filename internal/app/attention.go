@@ -439,9 +439,9 @@ func (a *app) openPendingConsent(shape string) {
 	if !s.open || s.shape != shape || s.d == nil {
 		return
 	}
-	a.requestDocument, a.page = s.d, pageRequest
+	a.activateDocument(s.d)
 	if slices.Contains(a.documents, s.d) {
-		a.touchDocument(s.d)
+		a.activateDocument(s.d)
 	}
 	s.open = true
 }

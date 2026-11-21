@@ -329,8 +329,8 @@ func openDraft(a *app, f flow) {
 	if err != nil {
 		panic(err)
 	}
+	r.Source = newDebugSource(f)
 	a.addDocument(r, "")
-	a.requestDocument.setDebugSource(newDebugSource(f))
 }
 
 // appearanceOf is the explicit appearance a test draws in, whatever the
@@ -851,6 +851,7 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	row := "api.example.com/capture/0001"
 	// Side by side by default: the newest row is inside the table, not laid
 	// out past the footer.
+	tt.Frame()
 	newest, ok := tt.Find("api.example.com/capture/5000")
 	table, _ := tt.Find("Captured requests")
 	if !ok || newest.H == 0 || newest.Y+newest.H > table.Y+table.H {
@@ -1028,7 +1029,7 @@ func TestRequestResourcesPreserveDraftAndTreeExpansion(t *testing.T) {
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("https://api.example.com/unsent")
 	tt.Key(ui.Cmd, ui.KeyB)
-	if tt.HasText("GET  List projects") || tt.HasText("Live") {
+	if tt.HasText("GET  List projects") || tt.HasText("Search collections") {
 		t.Fatal("sidebar remained visible")
 	}
 	tt.Key(ui.Cmd, ui.KeyB)
@@ -3489,12 +3490,12 @@ func TestOpenRequestsKeepDraftsAndConfirmClose(t *testing.T) {
 	if tt.Clipboard() != `{"side":"A"}` {
 		t.Fatal("switching requests lost Draft A's body or editor selection")
 	}
-	click("Close request")
+	click("Close tab: Draft A")
 	if !tt.HasText("Save changes?") {
 		t.Fatal("dirty request closed without confirmation")
 	}
 	click("Cancel")
-	click("Close request")
+	click("Close tab: Draft A")
 	// A failed save must not silently close or mark the draft as saved.
 	blocked := filepath.Join(t.TempDir(), "not-a-directory")
 	if err := os.WriteFile(blocked, nil, 0o600); err != nil {
@@ -3521,10 +3522,10 @@ func TestOpenRequestsKeepDraftsAndConfirmClose(t *testing.T) {
 		t.Fatal("save-and-close failed to persist Draft A or move it into its collection")
 	}
 	click("Unsaved: Draft B")
-	click("Close request")
+	click("Close tab: Draft B")
 	click("Discard")
-	if !tt.HasText("Open a saved request") || tt.HasText("Unsaved requests") {
-		t.Fatal("closing the last request did not show the empty workspace")
+	if !tt.HasText("Captured requests") || tt.HasText("Unsaved requests") {
+		t.Fatal("closing the last request did not return to LIVE")
 	}
 	click("Draft A")
 	if tt.HasText("Unsaved changes") {
@@ -5700,7 +5701,7 @@ func TestNativeCommandsRespectModalScopeAndDraftCloseProtection(t *testing.T) {
 	item := menu.ItemByID("request.new")
 	item.Click(item, nil)
 	tt.Frame()
-	if len(a.documents) != 1 || !tt.HasText("Save changes?") {
+	if len(a.documents) != 2 || !tt.HasText("Save changes?") {
 		t.Fatal("native command escaped the modal scope")
 	}
 	tt.Key(0, ui.KeyEscape)

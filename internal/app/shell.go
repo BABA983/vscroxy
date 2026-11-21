@@ -817,7 +817,7 @@ func (a *app) syncSections() {
 				a.sidebarChoice = "contract:" + a.apiChoice
 				return
 			}
-			a.page = pageRequest
+			a.showRequestWorkspace()
 		}
 		// A request is a tree item with its own selection; no other item is
 		// chosen meanwhile.

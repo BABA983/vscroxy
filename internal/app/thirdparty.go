@@ -94,7 +94,7 @@ func (a *app) importThirdParty(result imports.Result, what string) {
 			return
 		}
 		a.applyImportedFolderCurrent(replaced, incomingLocal)
-		a.page = pageRequest
+		a.showRequestWorkspace()
 	}
 	if len(result.Environments) > 0 {
 		envTitle, envWarnings, err := a.mergeImportedEnvironments(result.Environments)

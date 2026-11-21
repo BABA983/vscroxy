@@ -89,7 +89,8 @@ func (a *app) openDiagnostics(f *flow, client int) {
 			d.target = cur.url
 		}
 	}
-	a.page, a.sidebarChoice = pageDiagnostics, "diagnostics"
+	a.openPageTab(pageDiagnostics, tabOpen{})
+	a.sidebarChoice = "diagnostics"
 	a.refreshDiagnostics()
 }
 

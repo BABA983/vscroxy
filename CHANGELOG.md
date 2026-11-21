@@ -22,6 +22,8 @@ The first public release. Everything below is in this version; the items under
 
 - A request editor with params, headers, every body kind, auth, cookies,
   variables, scripts, checks, examples and code generation.
+- Requests, sessions, contracts and runs open in tabs beside a fixed Live tab,
+  with preview tabs, unsaved marks and Reopen Closed Tab.
 - Collections as a directory of files, in `~/.vscroxy/collections` or in a
   project folder's `.vscroxy/collections`, with a Git panel.
 - Environments with shared Initial values and local Current values; a sealed

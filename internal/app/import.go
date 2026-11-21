@@ -197,7 +197,7 @@ func (a *app) importHARCollection(data []byte, path string) {
 		a.fail(locales.ImportHar2(), err)
 		return
 	}
-	a.page = pageRequest
+	a.showRequestWorkspace()
 	a.reportImport(locales.ImportedCollection(name, len(incoming)), warnings)
 }
 
@@ -244,7 +244,7 @@ func (a *app) importOpenAPICollection(doc *openapi3.T, fallback string, warnings
 		return
 	}
 	a.applyImportedFolderCurrent(replaced, nil)
-	a.page = pageRequest
+	a.showRequestWorkspace()
 	a.reportImport(title, warnings)
 }
 

@@ -283,7 +283,7 @@ func (a *app) importPostmanCollection(col postman.Collection) {
 	if settingsSaved {
 		a.applyImportedFolderCurrent(replaced, importedFolderLocals(col.Folders))
 	}
-	a.page = pageRequest
+	a.showRequestWorkspace()
 	review := ""
 	for _, r := range merged {
 		if strings.HasPrefix(r.Collection, col.Name) {

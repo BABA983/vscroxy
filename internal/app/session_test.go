@@ -396,7 +396,7 @@ func TestSessionsAnnotateCompareAndReopenWithoutChangingLiveTraffic(t *testing.T
 		t.Fatal("historical payload was editable")
 	}
 	tt.Key(ui.Cmd, ui.KeyEnter)
-	if a.composeWaiting {
+	if a.requestDocument != nil && a.composeWaiting {
 		t.Fatal("browsing sessions sent an unrelated hidden draft")
 	}
 	stillLive, _ := json.Marshal(sessionFrom(a.flows, a.frames))

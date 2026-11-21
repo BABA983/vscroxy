@@ -117,7 +117,6 @@ func (a *app) graphqlDocuments() []*requestDocument {
 		}
 	}
 	add(a.live)
-	add(a.libraryDocument)
 	for _, d := range a.flowDrafts {
 		add(d)
 	}

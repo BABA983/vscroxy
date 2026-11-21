@@ -297,12 +297,11 @@ type app struct {
 	// edited or sent captures by flow ID, the inspected capture's unchanged
 	// document (or why there is none), and the tab's document to come back
 	// to from LIVE.
-	flowDrafts      map[int]*requestDocument
-	live            *requestDocument
-	liveFor         int
-	liveProblem     string
-	liveLoad        bool
-	libraryDocument *requestDocument
+	flowDrafts  map[int]*requestDocument
+	live        *requestDocument
+	liveFor     int
+	liveProblem string
+	liveLoad    bool
 	// collectionOpen keeps each saved collection's section open or shut,
 	// by name, the empty name for the requests outside one.
 	collectionOpen map[string]*bool
@@ -756,14 +755,19 @@ type app struct {
 	*requestDocument
 	documents    []*requestDocument
 	nextDocument int
+	// tabs is the strip's model: the open tabs, their order, the active one,
+	// preview and pinned state, MRU and the reopen order. The fields around
+	// it follow the active tab rather than holding a second copy of it.
+	tabs *tabState
+	// tabDocuments maps an open request tab to its document. closedDocs keeps
+	// the document copies the model's descriptor-only reopen stack does not.
+	tabDocuments map[tabID]*requestDocument
+	closedDocs   map[tabID]closedDocument
+	// tabShown is the tab the strip scrolled into view last frame.
+	tabShown tabID
 	// markers is the VS Code-style MarkerService behind the Problems panel.
 	markers  *markers.Service
 	problems problemsState
-	// recentlyClosed is the in-memory Reopen Closed Editor stack, keyed by
-	// document id and ordered from oldest to newest. documentRecency is the
-	// MRU order for Ctrl/Cmd+Tab; nil is the LIVE traffic view.
-	recentlyClosed  *linkedmap.LinkedMap[int, closedDocument]
-	documentRecency *linkedmap.LinkedMap[*requestDocument, struct{}]
 	// mruPending is the quick switch's current pick, held until Ctrl is
 	// released or something else happens; repeated Ctrl+Tabs then walk the
 	// same order instead of reordering it on every Tab.
@@ -2225,6 +2229,7 @@ func (a *app) view(c *ui.Context) {
 	}
 	a.nativeMenuActions(c)
 	t := c.Theme()
+	a.syncTabs()
 	a.syncSections()
 	a.syncDocument()
 	// On macOS the sidebar runs the window's full height, the traffic
@@ -2678,7 +2683,7 @@ func (a *app) goTo(choice string) {
 		return
 	}
 	if id, ok := strings.CutPrefix(choice, "contract:"); ok {
-		a.page, a.apiChoice = pageAPI, id
+		a.openAPITab(id)
 		return
 	}
 	if choice == "diagnostics" {
@@ -2690,10 +2695,11 @@ func (a *app) goTo(choice string) {
 		return
 	}
 	if choice == "search" {
-		a.page, a.sidebarChoice = pageSearch, "search"
+		a.openPageTab(pageSearch, tabOpen{})
+		a.sidebarChoice = "search"
 		return
 	}
-	a.page = pageLive
+	a.openPageTab(pageLive, tabOpen{})
 	if host, ok := strings.CutPrefix(choice, "host:"); ok {
 		a.filterTriage.Host = host
 	} else if client, ok := strings.CutPrefix(choice, "client:"); ok {
@@ -3185,7 +3191,6 @@ func (a *app) collectionsActions() []action {
 		do("runner.open", locales.Runner(), a.openRunner).in("run"),
 		do("api.new", locales.NewApiContract(), func() {
 			a.newAPI()
-			a.page = pageAPI
 		}).in("api"),
 		do("api.import-openapi", locales.ImportOpenapi(), a.importOpenAPI).in("api"),
 		do("api.generate", locales.GenerateApiFromCollection(), a.openAPIGeneration).
@@ -3199,7 +3204,7 @@ func (a *app) collectionsActions() []action {
 func (a *app) showRunRecords() {
 	a.experiments.scope, a.experiments.draftKey = nil, ""
 	a.experiments.assetID, a.experiments.status, a.experiments.sourceFilter = "", "", ""
-	a.page = pageRuns
+	a.openPageTab(pageRuns, tabOpen{})
 }
 
 // captureCard is the rich tip of a captured row: the request line as its
@@ -3624,7 +3629,10 @@ func (a *app) table(c *ui.Context) {
 				cell.PopoverMenu(a.headerFilterMenu(c, cc.Name, []string{value}))
 			}
 		}
-	}).Label(locales.CapturedRequests()).Grow(1)
+		// MyGo's table measures its list without the header, so a clipped table
+		// leaves the last row just below its edge. The bottom room keeps
+		// ScrollToEnd and FollowEnd above the footer.
+	}).Label(locales.CapturedRequests()).Padding(0, 0, t.Space(4.5), 0).Grow(1).MinHeight(0)
 	c.SetTheme(t)
 	if table.Submitted() {
 		a.workbench.inspector.Focus(c)
@@ -5151,11 +5159,23 @@ func (a *app) saveComposed() bool {
 	return true
 }
 
-// openSaved fills the request editor from a saved request.
+// openSaved opens a saved request as a normal tab.
 func (a *app) openSaved(key string) {
+	a.openSavedTab(key, tabOpen{})
+}
+
+// previewSaved opens a saved request as the preview tab, which the next
+// single click replaces.
+func (a *app) previewSaved(key string) {
+	a.openSavedTab(key, tabOpen{preview: true})
+}
+
+// openSavedTab fills the request editor from a saved request, or activates
+// the document already open for it.
+func (a *app) openSavedTab(key string, opts tabOpen) {
 	for _, d := range a.documents {
 		if d.savedKey == key {
-			a.activateDocument(d)
+			a.openRequestTab(d, opts)
 			return
 		}
 	}
@@ -5168,7 +5188,7 @@ func (a *app) openSaved(key string) {
 			a.requests[i] = r
 			a.requestGen++
 		}
-		a.addDocument(r, r.key())
+		a.openRequestTab(a.newDocument(r, r.key()), opts)
 		return
 	}
 }
