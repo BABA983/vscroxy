@@ -416,6 +416,8 @@ func TestPACIPv6Extensions(t *testing.T) {
 		{"isInNetEx rejects a malformed prefix", `isInNetEx("10.1.2.3", "10.1.2.0/33")`, "false"},
 		{"isInNetEx resolves an IPv4 host name", `isInNetEx("dual.example", "10.1.2.0/24")`, "true"},
 		{"isInNetEx resolves an IPv6 host name", `isInNetEx("v6.example", "2001:db8:1::/48")`, "true"},
+		{"isInNetEx checks every address in a dnsResolveEx list", `isInNetEx(dnsResolveEx("dual.example"), "10.1.2.0/24")`, "true"},
+		{"isInNetEx checks every literal in a list", `isInNetEx("192.0.2.1;10.1.2.3", "10.1.2.0/24")`, "true"},
 		{"myIpAddressEx orders IPv6 before IPv4", `myIpAddressEx()`, "2001:db8::99;10.9.8.7"},
 		{"sortIpAddressList sorts IPv6 then IPv4", `sortIpAddressList("10.0.0.2;2001:db8::2;10.0.0.1;2001:db8::1")`, "2001:db8::1;2001:db8::2;10.0.0.1;10.0.0.2"},
 		{"sortIpAddressList ignores surrounding spaces", `sortIpAddressList("10.0.0.2; 10.0.0.1")`, "10.0.0.1;10.0.0.2"},

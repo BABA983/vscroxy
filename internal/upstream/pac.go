@@ -390,7 +390,7 @@ func (p *PAC) install(vm *goja.Runtime, ctx context.Context, state *pacEvalState
 		return vm.ToValue(len(p.resolveAny(ctx, arg(call, 0))) > 0)
 	})
 	vm.Set("isInNetEx", func(call goja.FunctionCall) goja.Value {
-		return vm.ToValue(isInNetEx(p.resolveAny(ctx, arg(call, 0)), arg(call, 1)))
+		return vm.ToValue(isInNetEx(p.isInNetExAddrs(ctx, arg(call, 0)), arg(call, 1)))
 	})
 	vm.Set("myIpAddressEx", func(goja.FunctionCall) goja.Value {
 		return vm.ToValue(formatIPList(ipv6First(p.myIPs())))
@@ -485,6 +485,33 @@ func formatIPList(addrs []netip.Addr) string {
 	return strings.Join(out, ";")
 }
 
+// isInNetExAddrs returns the addresses isInNetEx tests. A semicolon-separated
+// list of literals, such as dnsResolveEx's result, is used as written; a
+// single literal or host name is resolved the usual way. A list with a
+// non-literal entry is malformed and matches nothing.
+func (p *PAC) isInNetExAddrs(ctx context.Context, raw string) []netip.Addr {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	if !strings.Contains(raw, ";") {
+		return p.resolveAny(ctx, raw)
+	}
+	var addrs []netip.Addr
+	for part := range strings.SplitSeq(raw, ";") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		ip, err := netip.ParseAddr(part)
+		if err != nil {
+			return nil
+		}
+		addrs = append(addrs, ip.Unmap())
+	}
+	return addrs
+}
+
 // isInNetEx follows Microsoft's isInNetEx: a malformed prefix, or a prefix of
 // the other address family, is false rather than an exception.
 func isInNetEx(addrs []netip.Addr, rawPrefix string) bool {
@@ -493,7 +520,7 @@ func isInNetEx(addrs []netip.Addr, rawPrefix string) bool {
 		return false
 	}
 	for _, ip := range addrs {
-		if ip.Is4() == prefix.Addr().Is4() && prefix.Contains(ip) {
+		if prefix.Contains(ip) {
 			return true
 		}
 	}

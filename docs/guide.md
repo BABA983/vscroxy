@@ -1436,9 +1436,11 @@ Microsoft's IPv6-aware helpers are installed in the same runtime, following the
   followed by IPv4 addresses, or an empty string when the host does not resolve.
 - `isResolvableEx(host)` is true when the host resolves to an IPv6 or IPv4
   address.
-- `isInNetEx(address, prefix)` matches a literal address or a host name against
-  a CIDR prefix such as `10.1.2.0/24` or `2001:db8::/32`. A malformed prefix, or
-  a prefix of the other address family, is false.
+- `isInNetEx(address, prefix)` matches a literal address, a host name, or a
+  semicolon-separated list of literals such as `dnsResolveEx(host)` against a
+  CIDR prefix such as `10.1.2.0/24` or `2001:db8::/32`; any matching entry is
+  true. A malformed prefix, a malformed list, or a prefix of the other address
+  family is false.
 - `myIpAddressEx()` returns this computer's non-loopback addresses as a
   semicolon-separated list, IPv6 first, or an empty string when it has none.
 - `sortIpAddressList(list)` sorts a semicolon-separated list into ascending IPv6

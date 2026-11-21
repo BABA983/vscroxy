@@ -8880,14 +8880,26 @@ func (msgs Messages) AHigherProfileMapsThe() string {
 	return Catalog.Format(msgs.locale, "aHigherProfileMapsThe", nil)
 }
 
-// ALocalPacFileOr says "A local .pac file or http(s) URL. FindProxyForURL or FindProxyForURLEx runs with a timeout; native allocation calls c…"
+// ALocalPacFileOr says "A local .pac file or http(s) URL. FindProxyForURL runs with a timeout; native allocation calls cannot be interrupted."
 // in the language the app shows.
 func ALocalPacFileOr() string { return In(i18n.Locale()).ALocalPacFileOr() }
 
-// ALocalPacFileOr says "A local .pac file or http(s) URL. FindProxyForURL or FindProxyForURLEx runs with a timeout; native allocation calls c…"
+// ALocalPacFileOr says "A local .pac file or http(s) URL. FindProxyForURL runs with a timeout; native allocation calls cannot be interrupted."
 // in the language of msgs.
 func (msgs Messages) ALocalPacFileOr() string {
 	return Catalog.Format(msgs.locale, "aLocalPacFileOr", nil)
+}
+
+// ALocalPacFileOrFindProxyForUrlEx says "A local .pac file or http(s) URL. FindProxyForURL or FindProxyForURLEx runs with a timeout; native allocation calls c…"
+// in the language the app shows.
+func ALocalPacFileOrFindProxyForUrlEx() string {
+	return In(i18n.Locale()).ALocalPacFileOrFindProxyForUrlEx()
+}
+
+// ALocalPacFileOrFindProxyForUrlEx says "A local .pac file or http(s) URL. FindProxyForURL or FindProxyForURLEx runs with a timeout; native allocation calls c…"
+// in the language of msgs.
+func (msgs Messages) ALocalPacFileOrFindProxyForUrlEx() string {
+	return Catalog.Format(msgs.locale, "aLocalPacFileOrFindProxyForUrlEx", nil)
 }
 
 // ANewViewWithIts says "A new view with its own filters, selection and scroll position"
