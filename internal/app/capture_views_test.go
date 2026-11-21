@@ -835,3 +835,43 @@ func TestViewsAreNamedByWhatTheyShowAndCanBeRenamed(t *testing.T) {
 		t.Fatalf("clearing the name left the view called %q", v.label(0))
 	}
 }
+
+// A view's close action belongs to the row it closes: inside it and at its
+// trailing edge. Created outside the row it takes a line of its own, so the
+// views drift apart and a stray close sits in the sidebar's margin.
+func TestViewCloseStaysInsideItsRow(t *testing.T) {
+	a, v := captureViewsApp(t)
+	v.newView(a)
+	tt := ui.NewTester(captureViewsFrame(a, v), 1100, 620)
+	tt.Frame()
+	row, ok := tt.Find(locales.CaptureViewNamed("View 1"))
+	if !ok {
+		t.Fatalf("no row for View 1: %v", tt.Texts())
+	}
+	close, ok := tt.Find(locales.CloseViewNamed("View 1"))
+	if !ok {
+		t.Fatal("no close action for View 1")
+	}
+	if close.X < row.X || close.Y < row.Y || close.X+close.W > row.X+row.W || close.Y+close.H > row.Y+row.H {
+		t.Fatalf("the close action %+v is outside its row %+v", close, row)
+	}
+}
+
+// The close action inside a row closes its own view and does not also pick it:
+// clicking the way out of a view must not make that view the active one first.
+func TestViewCloseDoesNotPickItsView(t *testing.T) {
+	a, v := captureViewsApp(t)
+	v.newView(a)
+	tt := ui.NewTester(captureViewsFrame(a, v), 1100, 620)
+	tt.Frame()
+	if err := tt.Click(locales.CloseViewNamed("View 2")); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if len(v.views) != 1 || v.active != 0 {
+		t.Fatalf("closing View 2 left %d views with %d active", len(v.views), v.active)
+	}
+	if got := v.label(0); got != "View 1" {
+		t.Fatalf("closing View 2 left the other view called %q", got)
+	}
+}

@@ -1152,6 +1152,15 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 		active := i == v.active
 		b := uikit.SidebarButton(c, name, locales.IndependentFiltersSelectionAndScroll(), layersIcon, active).
 			Label(locales.CaptureViewNamed(name))
+		// The way out of a view is the row's own: it shows under the
+		// pointer or the keyboard's focus, and keeps its room so the
+		// name never moves when it comes and goes.
+		var close ui.Element
+		if len(v.views) > 1 {
+			b.Children(func() {
+				close = uikit.RowIconButton(c, locales.CloseViewNamed(name), locales.CloseThisView(), closeIcon)
+			})
+		}
 		if b.Clicked() {
 			v.capture(a)
 			v.activate(a, i)
@@ -1166,10 +1175,6 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 			view.reveal = false
 		}
 		if len(v.views) > 1 {
-			// The way out of a view is the row's own: it shows under the
-			// pointer or the keyboard's focus, and keeps its room so the
-			// name never moves when it comes and goes.
-			close := uikit.RowIconButton(c, locales.CloseViewNamed(name), locales.CloseThisView(), closeIcon)
 			// The chosen view keeps its close action in sight: the row is the
 			// one being worked in, and a control that waits for the pointer
 			// would hide from the keyboard until the button itself was found.
