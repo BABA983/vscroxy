@@ -249,13 +249,13 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 		if p.splitV == 0 {
 			p.splitV = 96
 		}
-		ui.SplitVertical(c, &p.splitV, list, detail).SplitReset(96).Grow(1).MinHeight(0)
+		uikit.SplitVertical(c, &p.splitV, list, detail).SplitReset(96).Grow(1).MinHeight(0)
 		return
 	}
 	if p.split == 0 {
 		p.split = 180
 	}
-	ui.Split(c, &p.split, list, detail).SplitReset(180).Grow(1).MinHeight(0)
+	uikit.Split(c, &p.split, list, detail).SplitReset(180).Grow(1).MinHeight(0)
 }
 
 // Schema loading is explicit and transactional: errors keep the previous

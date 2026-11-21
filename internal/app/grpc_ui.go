@@ -415,7 +415,7 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			uikit.ErrorText(c, s.problem).MaxHeight(55).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))
 		}
 		uikit.Meta(c, locales.RetainedPreviewMethods(len(s.events), s.evicted)).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))
-		ui.Split(c, &g.split, func() {
+		uikit.Split(c, &g.split, func() {
 			g.list.Selected = &g.selected
 			g.list.Key = func(i int) any { return s.events[i].seq }
 			g.list.Label = func(i int) string { return fmt.Sprintf("gRPC message %d", s.events[i].seq) }

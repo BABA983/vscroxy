@@ -199,7 +199,7 @@ func (a *app) outlineView(c *ui.Context, view *editor.State, target outlineTarge
 			}
 			return
 		}
-		ui.SplitPercent(c.Key("outline-"+target.key), &p.split, draw, func() {
+		uikit.SplitPercent(c.Key("outline-"+target.key), &p.split, draw, func() {
 			a.outlineSection(c, p, view)
 		}).FillWidth().SplitReset(73)
 	})

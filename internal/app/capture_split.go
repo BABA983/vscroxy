@@ -629,7 +629,7 @@ func (a *app) captureSplitView(c *ui.Context, available float32) {
 				if view.sidePercent == 0 {
 					view.sidePercent = 58
 				}
-				ui.SplitPercent(c.Key("capture-group-side"+key), &view.sidePercent, table, func() { a.detail(c) }).
+				uikit.SplitPercent(c.Key("capture-group-side"+key), &view.sidePercent, table, func() { a.detail(c) }).
 					SplitReset(58).Grow(1).FillWidth().MinHeight(0)
 			default:
 				if view.tablePercent == 0 {
@@ -642,12 +642,12 @@ func (a *app) captureSplitView(c *ui.Context, available float32) {
 					}
 					percent, reset = &view.protoPercent, 34
 				}
-				ui.SplitVerticalPercent(c.Key("capture-group-stack"+key), percent, table, func() { a.detail(c) }).
+				uikit.SplitVerticalPercent(c.Key("capture-group-stack"+key), percent, table, func() { a.detail(c) }).
 					SplitReset(reset).Grow(1).FillWidth().MinHeight(0)
 			}
 		})
 	}
-	ui.SplitPercent(c.Key("capture-groups"), &a.workbench.captureGroupPercent,
+	uikit.SplitPercent(c.Key("capture-groups"), &a.workbench.captureGroupPercent,
 		func() { draw(0, views[0]) }, func() { draw(1, views[1]) }).
 		SplitReset(50).Grow(1).FillWidth().MinHeight(0)
 	v.restoreFocusedGroup(a)

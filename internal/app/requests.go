@@ -597,10 +597,10 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 		// The same rule as the inspector's panes: side by side while there is
 		// room for both, stacked in a narrow column.
 		if a.requestSidesStacked(c) {
-			ui.SplitVerticalPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1)
+			uikit.SplitVerticalPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1)
 			return
 		}
-		ui.SplitPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1)
+		uikit.SplitPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1)
 	})
 }
 

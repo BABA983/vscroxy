@@ -168,7 +168,7 @@ func (a *app) desktopContent(c *ui.Context) {
 				} else if w.sideBySide {
 					// The room under the toolbar, not the column's whole
 					// height (Fill), which ran past the footer.
-					ui.SplitPercent(c.Key("right-inspector"), &w.sidePercent, table, func() { a.detail(c) }).SplitReset(64).Grow(1).FillWidth().MinHeight(0)
+					uikit.SplitPercent(c.Key("right-inspector"), &w.sidePercent, table, func() { a.detail(c) }).SplitReset(64).Grow(1).FillWidth().MinHeight(0)
 				} else {
 					percent, reset := &a.tablePercent, float32(44)
 					if a.bodyMode[0] == 5 {
@@ -177,7 +177,7 @@ func (a *app) desktopContent(c *ui.Context) {
 						}
 						percent, reset = &a.protobufTablePercent, 34
 					}
-					ui.SplitVerticalPercent(c.Key("bottom-inspector"), percent, table, func() { a.detail(c) }).SplitReset(reset).Grow(1).FillWidth().MinHeight(0)
+					uikit.SplitVerticalPercent(c.Key("bottom-inspector"), percent, table, func() { a.detail(c) }).SplitReset(reset).Grow(1).FillWidth().MinHeight(0)
 				}
 			})
 		}

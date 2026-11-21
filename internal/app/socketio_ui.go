@@ -222,7 +222,7 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 			return
 		}
-		ui.Split(c, &u.split, func() {
+		uikit.Split(c, &u.split, func() {
 			u.list.Selected = &u.selected
 			u.list.Key = func(i int) any { return events[i].seq }
 			u.list.Label = func(i int) string { return fmt.Sprintf("Socket.IO message %d %s", events[i].seq, events[i].name) }

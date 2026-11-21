@@ -634,9 +634,9 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		p.selected = len(visible) - 1
 	}
 	p.selected = min(max(p.selected, 0), max(len(visible)-1, 0))
-	panes, position := ui.Split, &p.split
+	panes, position := uikit.Split, &p.split
 	if width := p.panes.Bounds(c).W; width > 0 && width < 640 {
-		panes, position = ui.SplitVertical, &p.rowHeight
+		panes, position = uikit.SplitVertical, &p.rowHeight
 		if p.rowHeight == 0 {
 			p.rowHeight = 120
 		}

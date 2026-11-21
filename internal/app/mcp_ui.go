@@ -578,7 +578,7 @@ func (a *app) mcpTimeline(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnaps
 		uikit.EmptyState(c, locales.NoMatchingMcpEvents(), locales.ChangeTheSearchOrWait(), nil)
 		return
 	}
-	ui.Split(c, &u.split, func() {
+	uikit.Split(c, &u.split, func() {
 		u.list.Selected = &u.selected
 		u.list.Key = func(i int) any { return events[i].seq }
 		u.list.Label = func(i int) string {
