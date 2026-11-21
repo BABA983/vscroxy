@@ -6714,8 +6714,8 @@ func TestSettingsChangeInsideTheWriteGapIsWrittenLater(t *testing.T) {
 	dir := t.TempDir()
 	a.settingsPath = filepath.Join(dir, "settings.json")
 	a.saved = a.currentSettings()
-	// A write just went out.
-	a.lastSave = time.Now()
+	// A write just went out, on the clock the gap and the scheduler share.
+	a.lastSave = clock.Now()
 	a.sidebarWidth = 300
 	tt := ui.NewTester(a.view, 1280, 800)
 	tt.Frame()
@@ -6725,7 +6725,7 @@ func TestSettingsChangeInsideTheWriteGapIsWrittenLater(t *testing.T) {
 	}
 	// The remaining gap passes: the scheduler asks the app for the frame that
 	// writes the change, as the window's own Update does in the app.
-	a.lastSave = time.Now().Add(-time.Second)
+	a.lastSave = clock.Now().Add(-time.Second)
 	watchApp(a)
 	clock.Advance(settingsWriteGap + time.Second)
 	waitAppSignal(t, a, func() bool {
@@ -6737,11 +6737,12 @@ func TestSettingsChangeInsideTheWriteGapIsWrittenLater(t *testing.T) {
 func TestFlushSettingsWritesWhatTheGapHeldBack(t *testing.T) {
 	a := workspaceApp()
 	a.quitOnMain = func(fn func()) { fn() }
-	a.settingsClock = async.NewFakeClock()
+	clock := async.NewFakeClock()
+	a.settingsClock = clock
 	dir := t.TempDir()
 	a.settingsPath = filepath.Join(dir, "settings.json")
 	a.saved = a.currentSettings()
-	a.lastSave = time.Now()
+	a.lastSave = clock.Now()
 	a.sidebarWidth = 310
 	a.persistSettings()
 	if _, err := os.Stat(a.settingsPath); !errors.Is(err, os.ErrNotExist) {
@@ -6824,7 +6825,7 @@ func TestColumnDragIsSavedWithoutAnotherEvent(t *testing.T) {
 	}
 	// The scheduled write runs once the write gap passes; the scheduler wakes
 	// the app for the frame that does it, with no further event.
-	a.lastSave = time.Now().Add(-time.Second)
+	a.lastSave = clock.Now().Add(-time.Second)
 	watchApp(a)
 	clock.Advance(settingsWriteGap + time.Second)
 	waitAppSignal(t, a, func() bool {

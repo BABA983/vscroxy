@@ -5322,6 +5322,15 @@ func (a *app) decryptHost(host string) {
 	}
 }
 
+// settingsNow is the clock the write gap is measured on. Tests inject the same
+// fake clock the scheduler uses, so a slow frame cannot age the gap behind it.
+func (a *app) settingsNow() time.Time {
+	if a.settingsClock != nil {
+		return a.settingsClock.Now()
+	}
+	return time.Now()
+}
+
 // persistSettings writes what changed since the last write, at most every
 // 400ms, so dragging a divider does not write a file a frame.
 func (a *app) persistSettings() error {
@@ -5333,7 +5342,7 @@ func (a *app) persistSettings() error {
 		return nil
 	}
 	a.settingsGen++ // the modified flags depend on what this write saves
-	if elapsed := time.Since(a.lastSave); elapsed < settingsWriteGap {
+	if elapsed := a.settingsNow().Sub(a.lastSave); elapsed < settingsWriteGap {
 		// A write just went out. Schedule the remainder of the gap once, so
 		// the change is written even if nothing else moves the window.
 		saver := a.settingsSaveScheduler()
@@ -5345,7 +5354,7 @@ func (a *app) persistSettings() error {
 	if a.settingsSaver != nil {
 		a.settingsSaver.Cancel()
 	}
-	a.lastSave = time.Now()
+	a.lastSave = a.settingsNow()
 	if a.settingsPath == "" {
 		a.saved = now
 		return nil
