@@ -4236,5 +4236,8 @@
   "lastSessionNotRestored": "未能恢复上次会话",
   "lastSessionNotSaved": "未能保存上次会话",
   "inspectorNotRestored": "未恢复分离的检查器窗口：它显示的交换记录已不存在",
-  "startup": "启动"
+  "startup": "启动",
+  "authBasic": "Basic",
+  "authNtlm": "NTLM",
+  "ntlmProxyHint": "NTLM 使用 NTLMv2。不支持 Kerberos/SSO 登录，也不支持代理客户端证书。"
 }

@@ -39823,3 +39823,33 @@ func Startup() string { return In(i18n.Locale()).Startup() }
 func (msgs Messages) Startup() string {
 	return Catalog.Format(msgs.locale, "startup", nil)
 }
+
+// AuthBasic says "Basic"
+// in the language the app shows.
+func AuthBasic() string { return In(i18n.Locale()).AuthBasic() }
+
+// AuthBasic says "Basic"
+// in the language of msgs.
+func (msgs Messages) AuthBasic() string {
+	return Catalog.Format(msgs.locale, "authBasic", nil)
+}
+
+// AuthNtlm says "NTLM"
+// in the language the app shows.
+func AuthNtlm() string { return In(i18n.Locale()).AuthNtlm() }
+
+// AuthNtlm says "NTLM"
+// in the language of msgs.
+func (msgs Messages) AuthNtlm() string {
+	return Catalog.Format(msgs.locale, "authNtlm", nil)
+}
+
+// NtlmProxyHint says "NTLM uses NTLMv2. Kerberos/SSO sign-in and proxy client certificates are not supported."
+// in the language the app shows.
+func NtlmProxyHint() string { return In(i18n.Locale()).NtlmProxyHint() }
+
+// NtlmProxyHint says "NTLM uses NTLMv2. Kerberos/SSO sign-in and proxy client certificates are not supported."
+// in the language of msgs.
+func (msgs Messages) NtlmProxyHint() string {
+	return Catalog.Format(msgs.locale, "ntlmProxyHint", nil)
+}

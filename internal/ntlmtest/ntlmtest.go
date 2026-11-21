@@ -5,6 +5,7 @@
 package ntlmtest
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/hmac"
@@ -48,6 +49,10 @@ type Server struct {
 	Domain   string
 	// Workstation, when set, must match the Type 3 message's workstation.
 	Workstation string
+	// Scheme is the challenge scheme an upstream proxy offers: NTLM when
+	// empty, or Negotiate. A Negotiate proxy accepts the same NTLM messages
+	// wrapped in Negotiate.
+	Scheme string
 	// Delay waits before answering, for timeout tests.
 	Delay time.Duration
 	// CloseChallenge closes the connection after the Type 2 response:
@@ -94,6 +99,162 @@ func (s *Server) ConnContext(ctx context.Context, _ net.Conn) context.Context {
 	id := s.connections
 	s.mu.Unlock()
 	return context.WithValue(ctx, stateKey{}, &connState{id: id})
+}
+
+func (s *Server) scheme() string {
+	if s.Scheme == "" {
+		return "NTLM"
+	}
+	return s.Scheme
+}
+
+// ProxyConn serves one upstream-proxy connection. It reads requests itself
+// instead of using http.Server, because Go closes a connection after any
+// CONNECT response, even a rejected one; a real proxy keeps it for the Type 3
+// answer. An authenticated CONNECT becomes a tunnel to its target, and an
+// authenticated absolute-form request is answered with "authenticated".
+func (s *Server) ProxyConn(conn net.Conn) {
+	defer conn.Close()
+	s.mu.Lock()
+	s.connections++
+	id := s.connections
+	s.mu.Unlock()
+	st := &connState{id: id}
+	br := bufio.NewReader(conn)
+	for {
+		req, err := http.ReadRequest(br)
+		if err != nil {
+			return
+		}
+		auth := req.Header.Get("Proxy-Authorization")
+		scheme := s.scheme()
+		if auth == "" || !strings.HasPrefix(auth, scheme+" ") {
+			// Offer the configured scheme; a client that probed with another
+			// one retries on this connection.
+			st.stage = "challenge"
+			s.record(req, st, "challenge", nil)
+			if !s.writeChallenge(conn, st, nil) {
+				return
+			}
+			continue
+		}
+		message, err := base64.StdEncoding.DecodeString(strings.TrimSpace(strings.TrimPrefix(auth, scheme+" ")))
+		if err != nil || len(message) < 12 || string(message[:8]) != "NTLMSSP\x00" {
+			s.problem("malformed NTLM message")
+			s.writeProxyStatus(conn, http.StatusBadRequest, true)
+			return
+		}
+		switch binary.LittleEndian.Uint32(message[8:12]) {
+		case 1:
+			if st.stage != "challenge" && st.stage != "" {
+				s.problem("type 1 without a preceding challenge on connection %d", st.id)
+			}
+			if !s.proxyType1(conn, req, st, message) {
+				return
+			}
+		case 3:
+			parsed, err := parseType3(message)
+			if err != nil {
+				s.problem("type 3: %v", err)
+				s.writeProxyStatus(conn, http.StatusBadRequest, true)
+				return
+			}
+			if st.stage != "type2" {
+				s.problem("type 3 without a challenge on connection %d", st.id)
+				s.record(req, st, "denied", parsed)
+				s.writeProxyStatus(conn, http.StatusProxyAuthRequired, true)
+				return
+			}
+			if !s.valid(st, parsed) {
+				s.record(req, st, "denied", parsed)
+				s.writeProxyStatus(conn, http.StatusProxyAuthRequired, true)
+				return
+			}
+			s.record(req, st, "authenticated", parsed)
+			if req.Method == http.MethodConnect {
+				s.tunnelProxyConn(conn, br, req)
+			} else {
+				_, _ = io.WriteString(conn, "HTTP/1.1 200 OK\r\nContent-Length: 13\r\nX-NTLM-User: "+parsed.Domain+`\`+parsed.User+"\r\n\r\nauthenticated")
+			}
+			return
+		default:
+			s.problem("unexpected NTLM message type %d", binary.LittleEndian.Uint32(message[8:12]))
+			s.writeProxyStatus(conn, http.StatusBadRequest, true)
+			return
+		}
+	}
+}
+
+// proxyType1 answers Type 1 with a Type 2 challenge and reports whether the
+// connection can continue.
+func (s *Server) proxyType1(conn net.Conn, req *http.Request, st *connState, message []byte) bool {
+	domain, workstation, err := parseType1(message)
+	if err != nil {
+		s.problem("type 1: %v", err)
+		s.writeProxyStatus(conn, http.StatusBadRequest, true)
+		return false
+	}
+	if s.Workstation != "" && !strings.EqualFold(workstation, s.Workstation) {
+		s.problem("type 1 workstation %q, want %q", workstation, s.Workstation)
+	}
+	if domain != "" && !strings.EqualFold(domain, s.Domain) {
+		s.problem("type 1 domain %q, want %q", domain, s.Domain)
+	}
+	if _, err := rand.Read(st.challenge[:]); err != nil {
+		s.problem("random challenge: %v", err)
+		s.writeProxyStatus(conn, http.StatusInternalServerError, true)
+		return false
+	}
+	st.targetInfo = s.targetInfo()
+	st.stage = "type2"
+	s.record(req, st, "type1", nil)
+	return s.writeChallenge(conn, st, s.challengeMessage(st.challenge, st.targetInfo))
+}
+
+// writeChallenge writes a 407 with the configured scheme and, when present,
+// its Type 2 token.
+func (s *Server) writeChallenge(conn net.Conn, st *connState, challenge []byte) bool {
+	value := s.scheme()
+	if challenge != nil {
+		value += " " + base64.StdEncoding.EncodeToString(challenge)
+	}
+	_, err := fmt.Fprintf(conn, "HTTP/1.1 %d %s\r\nContent-Length: 0\r\nProxy-Authenticate: %s\r\n\r\n",
+		http.StatusProxyAuthRequired, http.StatusText(http.StatusProxyAuthRequired), value)
+	return err == nil
+}
+
+// writeProxyStatus answers with a status and, when close is set, ends the
+// connection after it.
+func (s *Server) writeProxyStatus(conn net.Conn, status int, closeConn bool) {
+	connection := ""
+	if closeConn {
+		connection = "Connection: close\r\n"
+	}
+	_, _ = fmt.Fprintf(conn, "HTTP/1.1 %d %s\r\nContent-Length: 0\r\n%s\r\n",
+		status, http.StatusText(status), connection)
+}
+
+// tunnelProxyConn turns an authenticated CONNECT into a tunnel. Bytes the
+// client already sent stay in the buffered reader.
+func (s *Server) tunnelProxyConn(conn net.Conn, br *bufio.Reader, req *http.Request) {
+	target := req.Host
+	if target == "" {
+		target = req.URL.Host
+	}
+	out, err := net.DialTimeout("tcp", target, 5*time.Second)
+	if err != nil {
+		s.writeProxyStatus(conn, http.StatusBadGateway, true)
+		return
+	}
+	defer out.Close()
+	_, _ = io.WriteString(conn, "HTTP/1.1 200 Connection Established\r\n\r\n")
+	go func() {
+		_, _ = io.Copy(out, br)
+		if cw, ok := out.(interface{ CloseWrite() error }); ok {
+			_ = cw.CloseWrite()
+		}
+	}()
+	_, _ = io.Copy(conn, out)
 }
 
 // Connections is how many connections the server accepted.

@@ -7,8 +7,8 @@ This is the existing capture engine, not another proxy implementation.
 
 The source patches are in `proxy/websocket.go`, `proxy/addon.go`, `proxy/sse.go`, `proxy/flow.go`,
 `proxy/attacker.go`, `proxy/proxy.go`, `proxy/entry.go`, `proxy/connection.go` and
-`internal/helper/proxy.go` and `internal/helper/tls.go`; `proxy/socks.go` is
-new. Everything else is upstream.
+`internal/helper/proxy.go` and `internal/helper/tls.go`; `proxy/socks.go` and
+`proxy/upstream_auth.go` are new. Everything else is upstream.
 
 ## TLS key log reset
 
@@ -222,6 +222,20 @@ target certificate is verified; Basic credentials are sent only after that
 handshake. `helper.GetProxyConn` builds Basic credentials from the raw username
 and password, not `url.User.String()`, which would percent-encode reserved
 password characters.
+
+`UpstreamProxy.Auth` (`*proxy.ProxyAuth`) replaces Basic when an endpoint needs
+an authentication exchange. It carries the initial `Proxy-Authorization` value
+and an `Answer` callback for each 407; the helper keeps one connection for every
+attempt, drains each intermediate response, and treats a 407 after the answer as
+final. `internal/upstream` builds the callback from its NTLM session, which uses
+`internal/ntlm` (the same NTLMv2 messages as authored requests) and accepts NTLM
+inside a Negotiate challenge. The absolute-URI transport in
+`proxy/upstream_auth.go` runs the same loop for a rewritten plain HTTP target,
+buffering the body so the Type 3 attempt can resend it. Kerberos/SSPI/GSSAPI
+single sign-on and proxy client certificates remain out of scope.
+`TestHTTPUpstreamNTLM*` in `internal/capture` covers NTLM, NTLM inside
+Negotiate, a wrong password with no DIRECT fallback, and absolute-URI
+forwarding.
 
 The connection log shows the selection reason before the dial. Credentials are
 never part of `Reason`, and the helper's errors do not include them.

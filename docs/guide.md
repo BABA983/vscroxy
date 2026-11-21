@@ -1376,13 +1376,20 @@ default upstream. A rule or the default may say `direct`.
   without a dot), or `*`. An optional `:port` limits an entry. CIDR and IP
   entries match IP literals; the app does not resolve a hostname to decide a
   bypass. Bypass wins over rules, PAC and the default.
-- **Credentials** are a username and password per proxy endpoint. HTTP and HTTPS
-  upstreams receive Basic `Proxy-Authorization`; SOCKS5 uses RFC 1929
-  username/password. Passwords are sealed in
-  `~/.vscroxy/upstream-secrets.json` with `upstream.key` (0600); settings,
-  configuration export and logs contain only the endpoint and username. A wrong
-  password fails the request with 407 for HTTP or 502 for SOCKS5 and does not
-  fall back to another proxy or DIRECT.
+- **Credentials** are a username and password per proxy endpoint, with
+  **Authentication** set to **Basic** or **NTLM**. HTTP and HTTPS upstreams
+  receive Basic `Proxy-Authorization`, or for NTLM an NTLMv2 Type 1 → 407 Type 2
+  → Type 3 exchange on the same connection before the tunnel or forwarded
+  request proceeds. A proxy that offers `Negotiate` receives the same NTLM
+  messages inside it. **Domain** and **Workstation** are optional NTLM settings;
+  a username's `DOMAIN\user` or `user@domain` form supplies the domain when the
+  field is empty. SOCKS5 uses RFC 1929 username/password and does not support
+  NTLM. Kerberos/SSPI/GSSAPI single sign-on and proxy client certificates are
+  not supported. Passwords are sealed in `~/.vscroxy/upstream-secrets.json` with
+  `upstream.key` (0600); settings, configuration export and logs contain only
+  the endpoint, username and NTLM settings. A wrong password fails the request
+  with 407 for HTTP or 502 for SOCKS5 and does not fall back to another proxy or
+  DIRECT.
 - The **connection log** shows an **Upstream** line for the rule, bypass entry
   or PAC result, and each failed candidate before a fallback. Credentials are
   never shown.
@@ -1396,9 +1403,10 @@ default upstream. A rule or the default may say `direct`.
   configuration is running leaves that configuration running: the form shows
   the error, with no fail-closed state and no retry.
 - `Map Remote` to a plain HTTP target through an HTTP(S) upstream uses
-  absolute-URI forwarding. It tries the PAC candidates in order, using the
-  first proxy that accepts a TCP connection, and falls back to a DIRECT
-  candidate. A proxy's 407 or other HTTP response is final.
+  absolute-URI forwarding, including the same Basic or NTLM exchange on its own
+  connection. It tries the PAC candidates in order, using the first proxy that
+  accepts a TCP connection, and falls back to a DIRECT candidate. A proxy's 407
+  or other HTTP response is final.
 
 The rules apply to captured traffic and to the app's own requests: Send, Runner,
 CLI, WebSocket, SSE, Socket.IO, MCP over HTTP, gRPC over HTTPS and reverse proxies all reach
@@ -1410,7 +1418,7 @@ upstream, so a plain HTTP target depends on that upstream accepting CONNECT to
 port 80. A Map Remote rewrite to a plain HTTP target through an HTTP(S) upstream
 uses absolute-URI forwarding instead, so it does not need CONNECT 80. An
 `https://` upstream's own certificate is always verified against the system
-roots plus the custom roots in Settings → Certificates; Basic credentials are
+roots plus the custom roots in Settings → Certificates; proxy credentials are
 sent only after that handshake. Target certificate verification is separate.
 HTTP/2 to the upstream is not used: the tunnel carries the target's protocol.
 
@@ -1493,9 +1501,15 @@ put `http://proxy.example:8080`, `https://proxy.example:8443` or
 `socks5://proxy.example:1080` in **Default**. Add an `https://` upstream only
 when the gateway really terminates TLS on the proxy port. For HTTP(S) and
 SOCKS5 upstream credentials, add one **Credentials** row for the exact
-`scheme://host:port` you configured; do not put a user name in the address. A
-gateway that replies 407, or a SOCKS5 authentication failure, is final: the app
-does not try another candidate or go direct after a proxy refuses the request.
+`scheme://host:port` you configured; do not put a user name in the address.
+Choose **Basic** for a gateway that asks for it, or **NTLM** for one that
+replies 407 with `Proxy-Authenticate: NTLM` or `Negotiate`. NTLM uses NTLMv2,
+takes an optional **Domain** and **Workstation**, and answers a Negotiate-only
+gateway with the same NTLM messages inside Negotiate. Kerberos/SSPI/GSSAPI
+single sign-on and proxy client certificates are not supported; use NTLM with
+an explicit account instead. A gateway that replies 407, or a SOCKS5
+authentication failure, is final: the app does not try another candidate or go
+direct after a proxy refuses the request.
 
 If your IT team gives you a PAC instead, copy its file path or `http(s)://` URL
 into **PAC**. vscroxy reads that script once when you save and again on launch,
@@ -1598,17 +1612,18 @@ If the security product refuses local proxy listeners or traffic to loopback,
 there is no transparent-proxy mode in 0.1.0 and no way for vscroxy to make a
 client ignore its own proxy policy. Ask IT for an exception for the loopback
 listener, or use an approved machine/profile where the client can be pointed
-at it. The same applies to HTTPS proxies that require an interactive sign-in,
-NTLM/Kerberos proxy authentication or a client certificate from the proxy
-endpoint: vscroxy's upstream credentials are HTTP Basic and SOCKS5
-username/password only.
+at it. The same applies to HTTPS proxies that require an interactive sign-in or
+a client certificate from the proxy endpoint: vscroxy's upstream credentials are
+HTTP Basic, NTLMv2 (including NTLM inside Negotiate) and SOCKS5
+username/password. Kerberos/SSPI/GSSAPI single sign-on and proxy client
+certificates are not supported.
 
 ### Troubleshooting
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | **Upstream loading** or **Upstream error** chip, requests return 502 naming the PAC | The PAC file/URL could not be read or compiled; a URL fetch is direct and bounded | Make the URL reachable without the configured upstream, save a local copy instead, or correct the script. **Retry** in Settings and check the connection log's **Upstream** line. |
-| Proxy replies 407, or SOCKS5 fails with 502 | Missing or wrong credentials for that endpoint | Put the exact `scheme://host:port` in **Credentials** and re-enter the password. Credentials in the proxy address are rejected when saving. Another candidate is never tried after an auth refusal. |
+| Proxy replies 407, or SOCKS5 fails with 502 | Missing or wrong credentials, or the wrong **Authentication** for that endpoint | Put the exact `scheme://host:port` in **Credentials**, choose **Basic** or **NTLM**, and re-enter the password. NTLM needs a username; Domain and Workstation are optional. Credentials in the proxy address are rejected when saving. Another candidate is never tried after an auth refusal. |
 | `https://` upstream fails during the TLS handshake | Its certificate does not chain to a trusted root | Keep **Trust system roots** on if the OS already trusts it, or add the corporate public PEM root under Settings → Certificates. A per-host decrypted-traffic exception does not apply here. |
 | Decrypted HTTPS fails with an upstream certificate error that points to **Allow untrusted upstream certificates** | The *target* certificate is not trusted, not the proxy's | Add its root under Certificates, or use the per-host exception for a local development server. Blind tunnels are unaffected. |
 | Only `Tunnel` / CONNECT rows, no plain requests | The host is not in the HTTPS decryption list, or is in **Never decrypt** | Add the domain or app rule under Settings → HTTPS and open a new connection. Trusting the vscroxy CA alone does not decrypt anything. |
