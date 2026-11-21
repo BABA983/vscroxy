@@ -5372,9 +5372,16 @@ const settingsWriteGap = 400 * time.Millisecond
 func (a *app) settingsSaveScheduler() *async.RunOnceScheduler {
 	a.settingsOnce.Do(func() {
 		runner := func() error {
-			// persistSettings reads app state and can show feedback; the
-			// scheduler calls this from a timer goroutine.
-			a.onMain(func() { _ = a.persistSettings() })
+			// persistSettings reads and writes app state the UI thread owns;
+			// this runs on the scheduler's timer goroutine. Hand the write
+			// to the window, which runs it on the UI thread. A Tester has no
+			// window or main loop: its change signal wakes the frame that
+			// does the write there.
+			if a.win != nil {
+				a.win.Update(func() { _ = a.persistSettings() })
+			} else {
+				a.invalidate()
+			}
 			return nil
 		}
 		if a.settingsClock != nil {
