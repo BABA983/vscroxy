@@ -426,8 +426,7 @@ func TestCaptureSaysHttpsStaysEncryptedUntilTheCertificateIsTrusted(t *testing.T
 
 func workspaceApp() *app {
 	a := &app{
-		changed: make(chan struct{}, 1),
-		filter:  "all", sidebarWidth: 220, tablePercent: 56,
+		filter: "all", sidebarWidth: 220, tablePercent: 56,
 		// Tester builds have no native main loop for MyGo.RunOnMain to
 		// dispatch to; run the deferred work here instead of stranding it.
 		quitOnMain:     func(fn func()) { fn() },
@@ -439,6 +438,7 @@ func workspaceApp() *app {
 		},
 		requests: []savedRequest{{Name: "List projects", Collection: "Workspace/API", Method: "GET", URL: "https://api.example.com/projects", Pre: `pm.request.headers.upsert("Accept", "application/json")`}},
 	}
+	watchApp(a)
 	a.initProblems()
 	a.recount()
 	a.applyFilter()
