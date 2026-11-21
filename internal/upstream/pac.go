@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,6 +33,9 @@ const (
 	maxPACCache = 4096
 	// defaultPACTimeout bounds one evaluation, including its DNS lookups.
 	defaultPACTimeout = 2 * time.Second
+	// pacClientVersion is what Microsoft's getClientVersion reports; its IPv6
+	// helpers were defined against WPAD engine version 1.0.
+	pacClientVersion = "1.0"
 )
 
 var errPACTimeout = errors.New("PAC evaluation timed out")
@@ -43,6 +47,7 @@ type PACOptions struct {
 	Now     func() time.Time
 	Lookup  func(context.Context, string) ([]netip.Addr, error)
 	MyIP    func() netip.Addr
+	MyIPs   func() []netip.Addr
 }
 
 // PAC is a compiled proxy auto-configuration script and its per-host result
@@ -55,6 +60,7 @@ type PAC struct {
 	now     func() time.Time
 	lookup  func(context.Context, string) ([]netip.Addr, error)
 	myIP    func() netip.Addr
+	myIPs   func() []netip.Addr
 
 	mu    sync.Mutex
 	cache linkedmap.LRUCache[string, pacResult]
@@ -96,6 +102,14 @@ func newPAC(source, name string, opts PACOptions) (*PAC, error) {
 	}
 	if p.myIP == nil {
 		p.myIP = localIPv4
+	}
+	switch {
+	case opts.MyIPs != nil:
+		p.myIPs = opts.MyIPs
+	case opts.MyIP != nil:
+		p.myIPs = func() []netip.Addr { return []netip.Addr{opts.MyIP()} }
+	default:
+		p.myIPs = localIPs
 	}
 	return p, nil
 }
@@ -186,7 +200,7 @@ func (p *PAC) findProxy(ctx context.Context, rawURL, host string, port int) ([]C
 		return nil, "", err
 	}
 	if len(result) > maxPACResult {
-		return nil, "", fmt.Errorf("FindProxyForURL returned more than %d bytes", maxPACResult)
+		return nil, "", fmt.Errorf("the PAC script returned more than %d bytes", maxPACResult)
 	}
 	candidates, display, err := parsePACResult(result)
 	if err != nil {
@@ -223,22 +237,29 @@ func (p *PAC) evaluate(ctx context.Context, rawURL, host string) (string, bool, 
 	defer stopContext()
 
 	if _, err := vm.RunProgram(p.program); err != nil {
-		return "", false, p.evalError(err, interrupted.Load())
+		return "", false, p.evalError("", err, interrupted.Load())
 	}
-	value := vm.Get("FindProxyForURL")
-	fn, ok := goja.AssertFunction(value)
+	// Microsoft's FindProxyForURLEx replaces the legacy entry point when a
+	// script defines it. See
+	// https://learn.microsoft.com/en-us/windows/win32/winhttp/ipv6-aware-proxy-helper-api-definitions
+	entry := "FindProxyForURLEx"
+	fn, ok := goja.AssertFunction(vm.Get(entry))
 	if !ok {
-		return "", false, errors.New("the script does not define FindProxyForURL")
+		entry = "FindProxyForURL"
+		fn, ok = goja.AssertFunction(vm.Get(entry))
+	}
+	if !ok {
+		return "", false, errors.New("the script does not define FindProxyForURL or FindProxyForURLEx")
 	}
 	out, err := fn(goja.Undefined(), vm.ToValue(rawURL), vm.ToValue(host))
 	if err != nil {
-		return "", false, p.evalError(err, interrupted.Load())
+		return "", false, p.evalError(entry, err, interrupted.Load())
 	}
 	if goja.IsUndefined(out) || goja.IsNull(out) {
 		return "DIRECT", !state.timeDependent, nil
 	}
 	if out.ExportType().Kind() != reflect.String {
-		return "", false, fmt.Errorf("FindProxyForURL returned %s, not a string", out.ExportType())
+		return "", false, fmt.Errorf("%s returned %s, not a string", entry, out.ExportType())
 	}
 	return out.String(), !state.timeDependent, nil
 }
@@ -250,21 +271,24 @@ type pacEvalState struct {
 	timeDependent bool
 }
 
-func (p *PAC) evalError(err error, interrupted bool) error {
+func (p *PAC) evalError(entry string, err error, interrupted bool) error {
+	if entry == "" {
+		entry = "the PAC script"
+	}
 	var stopped *goja.InterruptedError
 	if errors.As(err, &stopped) {
 		switch stopped.Value() {
 		case errPACTimeout:
-			return fmt.Errorf("FindProxyForURL did not finish within %s", p.timeout)
+			return fmt.Errorf("%s did not finish within %s", entry, p.timeout)
 		}
 		if stopped.Value() != nil {
-			return fmt.Errorf("FindProxyForURL was interrupted: %v", stopped.Value())
+			return fmt.Errorf("%s was interrupted: %v", entry, stopped.Value())
 		}
 	}
 	if interrupted {
-		return fmt.Errorf("FindProxyForURL was interrupted: %w", err)
+		return fmt.Errorf("%s was interrupted: %w", entry, err)
 	}
-	return fmt.Errorf("FindProxyForURL: %w", err)
+	return fmt.Errorf("%s: %w", entry, err)
 }
 
 // PACDisplay is a PAC source safe for an error, Settings or the connection
@@ -355,6 +379,28 @@ func (p *PAC) install(vm *goja.Runtime, ctx context.Context, state *pacEvalState
 	vm.Set("myIpAddress", func(goja.FunctionCall) goja.Value {
 		return vm.ToValue(p.myIP().String())
 	})
+	// Microsoft's IPv6 extensions to the PAC format. They follow the WinHTTP
+	// documentation at https://learn.microsoft.com/en-us/windows/win32/winhttp/ipv6-aware-proxy-helper-api-definitions
+	// and the per-function pages: results list IPv6 addresses before IPv4
+	// ones, and a failed Ex lookup is an empty string, not null.
+	vm.Set("dnsResolveEx", func(call goja.FunctionCall) goja.Value {
+		return vm.ToValue(formatIPList(p.resolveAny(ctx, arg(call, 0))))
+	})
+	vm.Set("isResolvableEx", func(call goja.FunctionCall) goja.Value {
+		return vm.ToValue(len(p.resolveAny(ctx, arg(call, 0))) > 0)
+	})
+	vm.Set("isInNetEx", func(call goja.FunctionCall) goja.Value {
+		return vm.ToValue(isInNetEx(p.resolveAny(ctx, arg(call, 0)), arg(call, 1)))
+	})
+	vm.Set("myIpAddressEx", func(goja.FunctionCall) goja.Value {
+		return vm.ToValue(formatIPList(ipv6First(p.myIPs())))
+	})
+	vm.Set("sortIpAddressList", func(call goja.FunctionCall) goja.Value {
+		return vm.ToValue(sortIPAddressList(arg(call, 0)))
+	})
+	vm.Set("getClientVersion", func(goja.FunctionCall) goja.Value {
+		return vm.ToValue(pacClientVersion)
+	})
 	vm.Set("weekdayRange", func(call goja.FunctionCall) goja.Value {
 		state.timeDependent = true
 		return vm.ToValue(weekdayRange(p.now(), call.Arguments))
@@ -377,13 +423,7 @@ func (p *PAC) resolveIPv4(ctx context.Context, host string) (netip.Addr, bool) {
 	if host == "" {
 		return netip.Addr{}, false
 	}
-	lookupCtx, cancel := context.WithTimeout(ctx, time.Second)
-	defer cancel()
-	addrs, err := p.lookup(lookupCtx, host)
-	if err != nil {
-		return netip.Addr{}, false
-	}
-	for _, ip := range addrs {
+	for _, ip := range p.lookupAddrs(ctx, host) {
 		ip = ip.Unmap()
 		if ip.Is4() {
 			return ip, true
@@ -392,34 +432,153 @@ func (p *PAC) resolveIPv4(ctx context.Context, host string) (netip.Addr, bool) {
 	return netip.Addr{}, false
 }
 
+// lookupAddrs resolves host through the configured resolver under the same
+// one-second bound dnsResolve has always used, so the Ex helpers cannot turn
+// one evaluation into an unbounded DNS wait.
+func (p *PAC) lookupAddrs(ctx context.Context, host string) []netip.Addr {
+	lookupCtx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	addrs, err := p.lookup(lookupCtx, host)
+	if err != nil {
+		return nil
+	}
+	return addrs
+}
+
+// resolveAny returns host's addresses in the order Microsoft's Ex helpers
+// document: IPv6 addresses first, then IPv4 ones, without duplicates. A
+// literal address resolves to itself and an unknown host to nothing.
+func (p *PAC) resolveAny(ctx context.Context, host string) []netip.Addr {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return nil
+	}
+	if ip, err := netip.ParseAddr(host); err == nil {
+		return []netip.Addr{ip.Unmap()}
+	}
+	return ipv6First(p.lookupAddrs(ctx, host))
+}
+
+func ipv6First(in []netip.Addr) []netip.Addr {
+	var v6, v4 []netip.Addr
+	seen := make(map[netip.Addr]bool, len(in))
+	for _, ip := range in {
+		ip = ip.Unmap()
+		if !ip.IsValid() || seen[ip] {
+			continue
+		}
+		seen[ip] = true
+		if ip.Is4() {
+			v4 = append(v4, ip)
+		} else {
+			v6 = append(v6, ip)
+		}
+	}
+	return append(v6, v4...)
+}
+
+func formatIPList(addrs []netip.Addr) string {
+	out := make([]string, len(addrs))
+	for i, ip := range addrs {
+		out[i] = ip.String()
+	}
+	return strings.Join(out, ";")
+}
+
+// isInNetEx follows Microsoft's isInNetEx: a malformed prefix, or a prefix of
+// the other address family, is false rather than an exception.
+func isInNetEx(addrs []netip.Addr, rawPrefix string) bool {
+	prefix, err := netip.ParsePrefix(strings.TrimSpace(rawPrefix))
+	if err != nil {
+		return false
+	}
+	for _, ip := range addrs {
+		if ip.Is4() == prefix.Addr().Is4() && prefix.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// sortIPAddressList sorts a semicolon-separated list the way Microsoft's
+// sortIpAddressList documents: ascending IPv6 addresses, then ascending IPv4
+// addresses. Each literal is kept as written; a malformed entry makes the
+// whole list unsortable, which is the empty string.
+func sortIPAddressList(raw string) string {
+	type entry struct {
+		text string
+		addr netip.Addr
+	}
+	var v6, v4 []entry
+	for part := range strings.SplitSeq(raw, ";") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		addr, err := netip.ParseAddr(part)
+		if err != nil {
+			return ""
+		}
+		if addr.Is4() {
+			v4 = append(v4, entry{text: part, addr: addr})
+		} else {
+			v6 = append(v6, entry{text: part, addr: addr})
+		}
+	}
+	if len(v6)+len(v4) == 0 {
+		return ""
+	}
+	sortEntries := func(list []entry) {
+		slices.SortStableFunc(list, func(a, b entry) int { return a.addr.Compare(b.addr) })
+	}
+	sortEntries(v6)
+	sortEntries(v4)
+	text := make([]string, 0, len(v6)+len(v4))
+	for _, e := range append(v6, v4...) {
+		text = append(text, e.text)
+	}
+	return strings.Join(text, ";")
+}
+
 func localIPv4() netip.Addr {
-	ifaces, err := net.Interfaces()
-	if err == nil {
-		for _, iface := range ifaces {
-			if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
-				continue
-			}
-			addrs, err := iface.Addrs()
-			if err != nil {
-				continue
-			}
-			for _, addr := range addrs {
-				var ip net.IP
-				switch a := addr.(type) {
-				case *net.IPNet:
-					ip = a.IP
-				case *net.IPAddr:
-					ip = a.IP
-				}
-				if v4 := ip.To4(); v4 != nil && !v4.IsLoopback() {
-					if out, ok := netip.AddrFromSlice(v4); ok {
-						return out
-					}
-				}
-			}
+	for _, ip := range localIPs() {
+		if ip.Is4() {
+			return ip
 		}
 	}
 	return netip.MustParseAddr("127.0.0.1")
+}
+
+// localIPs lists this computer's non-loopback unicast addresses for
+// myIpAddressEx, IPv6 first as Microsoft documents.
+func localIPs() []netip.Addr {
+	var addrs []netip.Addr
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		ifaceAddrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range ifaceAddrs {
+			var ip net.IP
+			switch a := addr.(type) {
+			case *net.IPNet:
+				ip = a.IP
+			case *net.IPAddr:
+				ip = a.IP
+			}
+			if out, ok := netip.AddrFromSlice(ip); ok && !out.Unmap().IsLoopback() {
+				addrs = append(addrs, out)
+			}
+		}
+	}
+	return ipv6First(addrs)
 }
 
 func parseIPv4(raw string) (netip.Addr, bool) {
@@ -508,7 +667,7 @@ func parsePACResult(raw string) ([]Candidate, string, error) {
 		}
 	}
 	if len(candidates) == 0 {
-		return nil, "", errors.New("FindProxyForURL returned no proxy or DIRECT")
+		return nil, "", errors.New("the PAC script returned no proxy or DIRECT")
 	}
 	return candidates, strings.Join(display, "; "), nil
 }
