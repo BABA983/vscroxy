@@ -1274,7 +1274,7 @@ possession, or use, and re-export of encryption software, to see if this is
 permitted.
 ````
 
-### github.com/egoist/mygo v0.9.0
+### github.com/egoist/mygo v0.10.0
 
 `LICENSE`:
 
