@@ -5322,6 +5322,15 @@ func (a *app) decryptHost(host string) {
 	}
 }
 
+// settingsNow is the clock the write gap is measured on. Tests inject the same
+// fake clock the scheduler uses, so a slow frame cannot age the gap behind it.
+func (a *app) settingsNow() time.Time {
+	if a.settingsClock != nil {
+		return a.settingsClock.Now()
+	}
+	return time.Now()
+}
+
 // persistSettings writes what changed since the last write, at most every
 // 400ms, so dragging a divider does not write a file a frame.
 func (a *app) persistSettings() error {
@@ -5333,7 +5342,7 @@ func (a *app) persistSettings() error {
 		return nil
 	}
 	a.settingsGen++ // the modified flags depend on what this write saves
-	if elapsed := time.Since(a.lastSave); elapsed < settingsWriteGap {
+	if elapsed := a.settingsNow().Sub(a.lastSave); elapsed < settingsWriteGap {
 		// A write just went out. Schedule the remainder of the gap once, so
 		// the change is written even if nothing else moves the window.
 		saver := a.settingsSaveScheduler()
@@ -5345,7 +5354,7 @@ func (a *app) persistSettings() error {
 	if a.settingsSaver != nil {
 		a.settingsSaver.Cancel()
 	}
-	a.lastSave = time.Now()
+	a.lastSave = a.settingsNow()
 	if a.settingsPath == "" {
 		a.saved = now
 		return nil
@@ -5372,9 +5381,16 @@ const settingsWriteGap = 400 * time.Millisecond
 func (a *app) settingsSaveScheduler() *async.RunOnceScheduler {
 	a.settingsOnce.Do(func() {
 		runner := func() error {
-			// persistSettings reads app state and can show feedback; the
-			// scheduler calls this from a timer goroutine.
-			a.onMain(func() { _ = a.persistSettings() })
+			// persistSettings reads and writes app state the UI thread owns;
+			// this runs on the scheduler's timer goroutine. Hand the write
+			// to the window, which runs it on the UI thread. A Tester has no
+			// window or main loop: its change signal wakes the frame that
+			// does the write there.
+			if a.win != nil {
+				a.win.Update(func() { _ = a.persistSettings() })
+			} else {
+				a.invalidate()
+			}
 			return nil
 		}
 		if a.settingsClock != nil {
