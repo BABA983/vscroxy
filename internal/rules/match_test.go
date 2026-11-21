@@ -44,6 +44,27 @@ func TestApp(t *testing.T) {
 	}
 }
 
+func TestAppMatchesWindowsExeEitherWay(t *testing.T) {
+	cases := []struct {
+		app, pattern string
+		want         bool
+	}{
+		{"chrome", "chrome.exe", true},   // a pattern written for Windows
+		{"chrome.exe", "chrome", true},   // a name reported with .exe
+		{"chrome", "chrome*.exe", true},  // a glob written with .exe
+		{"chrome.exe", "chrome*", true},  // a glob written without it
+		{"chrome", "*.exe", true},        // every Windows executable
+		{"CHROME.EXE", "Chrome", true},   // case does not matter either way
+		{"chrome", "firefox.exe", false}, // the name still has to match
+		{"chrome.exe", "chrome-helper", false},
+	}
+	for _, tc := range cases {
+		if got := App(tc.app, []string{tc.pattern}); got != tc.want {
+			t.Errorf("App(%q, [%q]) = %v, want %v", tc.app, tc.pattern, got, tc.want)
+		}
+	}
+}
+
 func TestMatcherNeedsEveryCondition(t *testing.T) {
 	m := Matcher{URL: "/api/", Method: "POST", Hosts: []string{"example.com"}, Apps: []string{"curl"}, Operation: "Search"}
 	r := Request{URL: "https://api.example.com/api/users", Method: "POST", Host: "api.example.com", App: "curl", Operations: []string{"Other", "Search"}}

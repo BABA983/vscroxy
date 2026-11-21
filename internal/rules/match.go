@@ -229,23 +229,32 @@ func Host(host string, patterns []string) bool {
 
 // App reports whether an app matches one of the patterns, ignoring case: a
 // path.Match glob such as Google Chrome*, against the name or, for a path, the
-// executable's name. Blank patterns and patterns starting with # match nothing.
+// executable's name. A Windows executable's .exe suffix is optional on either
+// side, so chrome and chrome.exe match each other on every platform. Blank
+// patterns and patterns starting with # match nothing.
 func App(app string, patterns []string) bool {
 	app = strings.ToLower(strings.TrimSpace(app))
 	if app == "" {
 		return false
 	}
 	name := app[strings.LastIndexAny(app, `/\`)+1:]
+	names := []string{app, name}
+	for _, n := range []string{app, name} {
+		if base, ok := strings.CutSuffix(n, ".exe"); ok {
+			names = append(names, base)
+		}
+	}
 	for _, pattern := range patterns {
 		pattern = strings.ToLower(strings.TrimSpace(pattern))
 		if pattern == "" || strings.HasPrefix(pattern, "#") {
 			continue
 		}
-		if ok, _ := path.Match(pattern, app); ok {
-			return true
-		}
-		if ok, _ := path.Match(pattern, name); ok {
-			return true
+		for _, p := range []string{pattern, strings.TrimSuffix(pattern, ".exe")} {
+			for _, n := range names {
+				if ok, _ := path.Match(p, n); ok {
+					return true
+				}
+			}
 		}
 	}
 	return false

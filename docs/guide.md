@@ -718,7 +718,8 @@ applies when every condition it sets holds:
   anchor it with `^` and `$`.
 - **Method** (`method`): the exact method.
 - **Apps** (`apps`): the client's executable name, as in the ignore lists:
-  `Google Chrome*` matches every Chrome helper.
+  `Google Chrome*` matches every Chrome helper. A Windows `.exe` suffix is
+  optional and names ignore case, so `chrome` and `chrome.exe` match each other.
 - **Headers** (`when`): request headers the rule needs, each `present`, or with
   a value that `equals`, `contains` or `matches` (a regular expression). With
   several values, one is enough; names ignore case.
@@ -1699,7 +1700,9 @@ kept in `~/.vscroxy/ignore.txt` and matched like the SSL list.
 
 **Ignored apps…** does the same by app, with the names the **Apps** section
 shows, in `~/.vscroxy/ignore-apps.txt`: a browser's background traffic stays
-out of the table while another app's does not.
+out of the table while another app's does not. Entries are patterns as in Rules,
+and a Windows `.exe` suffix is optional, so `chrome` and `chrome.exe` match the
+same app.
 
 ## Allow list
 
@@ -1748,7 +1751,8 @@ palette lists every profile too.
 profiles to reorder them, add one with **+**, and edit the selected one's
 hosts. Each line is the standard `address host…` (several hosts, `#` comments,
 IPv6) or `host = address`, optionally followed by `@ App, other app` to map
-the hosts for those apps only. A host matches its subdomains, `.example.com`
+the hosts for those apps only (app patterns as in the ignore lists, with `.exe`
+optional). A host matches its subdomains, `.example.com`
 only the subdomains, and `*.example.com` one level. A line that is not a
 mapping is underlined and maps nothing; a line another profile that is on
 overrides, or that overrides one, is marked with the other's address. **Test a
