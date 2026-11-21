@@ -104,8 +104,9 @@
 | Copy as：URL、cURL、body | 已有 | | |
 | Copy as：Markdown 表格、CSV、原始报文 | 已有 | 抓包与多选；表格用可见列，CSV 按 RFC 4180 并防公式注入；原始报文为 HTTP/1.1 文本，二进制／超大正文有明确标记 | M5 |
 | 抓包流量直接生成代码 | 已有 | 抓包就是请求文档，Request options／命令面板的 Generate code… 直接可用；生成器限制见使用指南 | M5 |
-| 左右分屏（两个视图并排） | 进行中 | 请求/响应和抓包列表/检查器可在标题栏切换左右或上下，请求页的布局按标签页固定；多个抓包视图现在以 tab 切换，各自保留筛选、搜索和选中行。把两个视图并排作为独立 capture group 显示在 [PR #68](https://github.com/BABA983/vscroxy/pull/68) 评审中，尚未合入 | UI 线程 |
+| 左右分屏（两个视图并排） | 已有 | 请求/响应和抓包列表/检查器可在标题栏切换左右或上下，请求页的布局按标签页固定；抓包区始终并排两个独立 capture group，各自保留筛选、搜索、选中行和检查器，组内分隔条独立；点击或用 Tab 把焦点移进另一组即切换焦点。组内布局随宽度变化：窗口窄时表格下只留一行紧凑详情，中等宽度表格与检查器上下分栏，每组 ≥800 px 时左右分栏 | UI 线程 |
 | 检查器拆成独立窗口 | 已有 | 检查器可拆到自己的窗口（Cmd/Ctrl+Shift+I 或检查器头部按钮），主窗口的列表占满内容区；Dock inspector、Escape 或同一快捷键收回，窗口位置会记住 | UI 线程 |
+| 启动时恢复上次会话 | 已有 | Settings → Capture → 恢复上次会话（`capture.restoreLastSession`，默认开启）：退出时把当前抓包写成 `~/.vscroxy/sessions/last-session.json`（不保留备份），下次启动恢复抓包表格、打开的 session tab、分屏组和独立检查器窗口；关闭开关立即删除快照 | UI 线程 |
 | 命令面板 | 已有 | | |
 
 ### 4.3 调试工具（Tools）
@@ -198,9 +199,9 @@
 | Examples 作为 Mock 响应（本地 mock） | 已有 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples；`vscroxy-cli mock` 在回环地址按集合 Examples 提供 mock（见[自动化](automation.md#mock-server)），桌面控制与 `vscroxy-cli mocks` 可列表／启停并设限流／错误注入，MCP `mock.get`／`mock.start`／`mock.stop` 同样完成闭环（启停属于写操作）；Example 的保存／磁盘修改即时重载，解析失败保留上次可用集合并报告 | M4 |
 | 集合 mock 服务（独立端口） | 已有 | 集合菜单 Start mock server 在 127.0.0.1 随机端口提供集合 Examples，不经过代理；按 `X-Mock-Response-Name`、`X-Mock-Response-Code`、`x-mock-match-request-body` 选择；每个 Example 的 Delay（≤1 分钟）；一元 gRPC Examples 在第二个回环端口按方法提供（example 正文为响应消息，状态映射 gRPC code）；桌面控制 `mock.get`／`mock.start`／`mock.stop` 可设每秒限流、错误注入比例／状态／正文，CLI `mocks` 与 MCP 三工具共用同一动作；启动后的 Example 保存／磁盘修改原子重载（在途请求用旧集合），解析失败保留上次可用集合 | M6 |
 | 代码 Mock（脚本生成本地响应） | 已有 | Code Mock 规则运行 `onMock`，读取 `pm.request`、生成 `pm.response`；复用编辑器／Scenario／配置导出，失败返回本地错误而不穿透原站；`pm.mock.state` 按规则在内存中跨请求保留（get／set／unset／clear／toObject／replaceIn）；不是 Postman Node.js mock 服务兼容层 | M9 |
-| Runner：数据文件、迭代、setNextRequest | 部分 | 请求间隔（毫秒）、保留变量值开关、本次会话最近 10 次运行的历史、导出 JSON／JUnit／自包含 HTML（默认不含断言名和错误文本）；CLI 为 `run --delay-request`，另可 `--export-environment`／`--export-globals`／`--export-cookie-jar` 写回运行结束状态，`-i` 等同 `--folder`。MQTT、MCP 不能进 Runner；CLI 用 `--mock` 为本轮启动独立的 Examples mock（见[自动化](automation.md#run-against-the-collections-examples)），不连桌面的 mock | |
+| Runner：数据文件、迭代、setNextRequest | 部分 | 请求间隔（毫秒）、保留变量值开关、本次会话最近 10 次运行的历史、导出 JSON／JUnit／自包含 HTML（默认不含断言名和错误文本）；CLI 为 `run --delay-request`，另可 `--export-environment`／`--export-globals`／`--export-cookie-jar` 写回运行结束状态，`-i` 等同 `--folder`。MQTT、MCP、SSE 不能进 Runner，留到 0.1.0 之后；CLI 用 `--mock` 为本轮启动独立的 Examples mock（见[自动化](automation.md#run-against-the-collections-examples)），不连桌面的 mock | |
 | Runner：性能测试（虚拟用户、时长、指标） | 已有 | 内置集合负载；复用 Runner、HdrHistogram 执行耗时；原生／CLI／MCP。`--profile ramp|spike`（`--ramp`、`--spike-users`、`--spike-seconds`、`--spike-at`）；`--data` 可按虚拟用户重复，行按用户循环；`--pass-if p95<500ms,errors<1%` 失败退出 1；`--compare-before` 与上一份 JSON 报告比较总览和每请求 P95／失败率／吞吐。无固定 RPS、分布式压测或 setup／teardown | M9 |
-| 命令行运行集合（CI，JUnit/JSON/HTML 报告） | 部分 | 独立无 UI CLI；本地集合、Postman v2.1 文件或 Postman v3 YAML 目录、环境/数据文件、超时/取消/执行预算、私有 JSON／JUnit／HTML 报告，运行后可导出环境、全局变量和 cookie jar。协议客户端只支持 gRPC 一元方法；`--mock` 为本轮启动独立 Examples mock，不连桌面的 mock | M9 |
+| 命令行运行集合（CI，JUnit/JSON/HTML 报告） | 部分 | 独立无 UI CLI；本地集合、Postman v2.1 文件或 Postman v3 YAML 目录、环境/数据文件、超时/取消/执行预算、私有 JSON／JUnit／HTML 报告，运行后可导出环境、全局变量和 cookie jar。协议客户端支持 HTTP（GraphQL 含 graphql-ws／graphql-transport-ws 订阅）、gRPC 四种调用、WebSocket 和 Socket.IO；SSE、MQTT、MCP 只在交互客户端，留到 0.1.0 之后；`--mock` 为本轮启动独立 Examples mock，不连桌面的 mock | M9 |
 | Cookies 管理 | 已有 | 按域名分组，值默认遮罩；可按域名或全部清除 | |
 | Cookies 可选持久化 | 已有 | 默认关闭；持久 Cookie 落盘到 `~/.vscroxy/cookies.json`（0600），约 500 ms 防抖写入并在退出时 flush，Session Cookie 永不落盘；不进集合、导出或配置导入导出；抓包 Cookies 页的 Save cookies to jar 把请求 Cookie 与响应 Set-Cookie 一起写入该交换 URL 的请求 jar，保留响应的 domain／path／expiry | M6 |
 | 响应：Pretty、Raw、Hex、预览、测试结果、耗时 | 已有 | | |
@@ -253,7 +254,7 @@
 | MCP server：让 AI 工具读取流量、解释请求、创建规则、运行请求 | 已有：stdio、查询／请求执行、独立写入／敏感权限、受控 HAR 导出，流量按 host／方法／状态／时间筛选，规则增删改，清空、标记、断点继续／中止、SSL 域名、会话保存／打开／关闭；新增 `settings.list`／`settings.get`／`settings.set`、`certificates.get`、`mock.get`／`mock.start`／`mock.stop`，写入属于 `--allow-write`，敏感详情仍属 `--allow-sensitive`，`--disable-tool` 逐个关闭工具；`flows.list` 本身支持 host/method/status/since/until 与游标分页；另有 `token-links.analyze`／`get`／`prepare`／`apply` 的脱敏识别与审阅后应用，以及 `system-proxy.get`／`set-enabled`、`runs.cancel`、`rules.import` 等工具，读写边界同上 | M9 |
 | 中文界面 | 已有 | Settings → Appearance → Language；英文和简体中文，全部消息已翻译，默认跟随系统 | |
 | 更多界面语言（日语、葡萄牙语、西班牙语等） | 缺少 | 0.1.0 之后 | 0.1.0 之后 |
-| 第三方主题（Tokyo Night、Dracula 等） | 缺少 | M9 |
+| 第三方主题（Tokyo Night、Dracula 等） | 缺少 | 0.1.0 之后 |
 
 ## 5. 里程碑
 
@@ -351,10 +352,10 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 ### M8：协议扩展
 
-- gRPC 客户端已完成（[使用指南](guide.md#interactive-grpc-requests)）：独立引擎与请求文档两个提交阶段；proto／descriptor set 导入、v1／v1alpha 反射、四种调用方式、双向实时收发、metadata／trailers／结构化错误状态、deadline／取消，schema 随请求保存。一元方法经 `request.Execute`：脚本、Checks、Examples、Runner 和 CLI 都走同一条路径，响应体是消息 JSON，`grpc-status`／`grpc-message` 与 trailer 以响应头形式提供给 Checks；流式方法保持交互客户端并拒绝脚本／Checks。TLS 校验；HTTPS 通过运行中的抓包代理，h2c 明确直连不抓包。无自动重连或重发；Postman v2.1 导出仍跳过 gRPC，CLI 从原生集合目录读取。
+- gRPC 客户端已完成（[使用指南](guide.md#interactive-grpc-requests)）：独立引擎与请求文档两个提交阶段；proto／descriptor set 导入、v1／v1alpha 反射、四种调用方式、双向实时收发、metadata／trailers／结构化错误状态、deadline／取消，schema 随请求保存。一元与流式方法都经 `request.Execute`：脚本、Checks、Examples、Runner 和 CLI 走同一条路径，流式方法按保存的消息列表依次发送后半关闭；响应体是消息 JSON（多个响应为 JSON 数组），`grpc-status`／`grpc-message` 与 trailer 以响应头形式提供给 Checks。TLS 校验；HTTPS 通过运行中的抓包代理，h2c 明确直连不抓包。无自动重连或重发；Postman v2.1 导出仍跳过 gRPC，CLI 从原生集合目录读取。
 - WebSocket 三阶段已完成：① 二进制与子协议（Hex／Base64 发送、WS／WSS 双侧协商）；② 实时会话与抓包消息的显式 Protobuf 解码（复用 schema，拒绝截断消息）；③ 双向消息断点（文本／Base64 编辑、原样放行、单条丢弃）与 `onMessage(message)` 脚本钩子。WS／解密 WSS，脚本先于消息断点；不拦截握手和控制帧。脚本／编辑上限 1 MiB；断开、代理关闭、断点关闭或超时释放暂停，详见[使用指南](guide.md#websocket-message-interception)。
 - SSE 客户端首版已完成（[使用指南](guide.md#interactive-sse-sessions)）：独立接收引擎与原生会话面板两个提交阶段；HTTP(S) 经运行中的抓包代理、TLS 校验、UTF-8／多行／空事件／ID 重置、响应头与事件搜索复制、有界时间线。自动重连默认关闭；显式启用后支持 Last-Event-ID／retry，HTTP 204 停止；停止／关闭取消连接及重连等待。GET-only，暂不接请求脚本／Checks／Runner／History，不保存或恢复会话。
-- Socket.IO 客户端首版已完成（[使用指南](guide.md#interactive-socketio-requests)）：协议引擎与请求文档两个提交阶段；EIO4／Socket.IO protocol 5、WebSocket-only、namespace／auth、JSON 与二进制附件、双向 ACK、搜索复制、有界时间线和取消。WS／解密 WSS 经抓包代理、TLS 校验、原作用域变量／Vault；官方 Socket.IO 4.8.4 服务端互通。无 polling／自动重连／重试／离线重放，不接 HTTP 脚本／Checks／Runner；配置保存，会话不恢复，结束时写一条 History 摘要。
+- Socket.IO 客户端首版已完成（[使用指南](guide.md#interactive-socketio-requests)）：协议引擎与请求文档两个提交阶段；EIO4／Socket.IO protocol 5、WebSocket-only、namespace／auth、JSON 与二进制附件、双向 ACK、搜索复制、有界时间线和取消。WS／解密 WSS 经抓包代理、TLS 校验、原作用域变量／Vault；官方 Socket.IO 4.8.4 服务端互通。无 polling／自动重连／重试／离线重放，Runner／CLI 重放保存的事件列表并运行脚本／Checks（合成 101 响应、`X-Vscroxy-Sent`／`X-Vscroxy-Received`，`WaitMS` 回复窗口）；配置保存，会话不恢复，结束时写一条 History 摘要。
 - MQTT 客户端首版已完成（[使用指南](guide.md#interactive-mqtt-requests)）：请求文档与独立会话两个提交阶段；MQTT 3.1.1／5.0 over mqtt://、mqtts://、ws://、wss://，client ID／用户名口令／clean start／keep-alive／session expiry／connect timeout／last will／MQTT 5 连接与 will 属性；通配符订阅、逐 topic QoS、no-local／retain-as-published／retain handling／subscription identifier、退订、QoS 0／1／2 发布、retain、MQTT 5 发布属性（content type／response topic／correlation data／message expiry／topic alias／user properties）；有界时间线（200 条、64 KiB 预览、128 条客户端队列）与重连。TLS 复用 Settings → Certificates 的客户端证书和自定义根；mqtt／mqtts 直连，ws／wss 在抓包运行时经抓包代理（上游规则、证书和 Capture 生效，wss 的 broker 校验跟随 Verify 开关），否则直连；MQTT 5 空 client ID 重连复用 broker 分配的 ID；不接 HTTP 脚本／Checks／Runner，不持久化会话和未确认消息；结束时写一条 History 摘要。Postman v3 `mqtt-request` 已导入（disabled 的连接 user property 跳过，越界 QoS 报告）；收到的消息 subscription identifier 无出站对应，报告不伪造。
 - MCP 客户端首版已完成（[使用指南](guide.md#interactive-mcp-requests)）：官方 go-sdk 客户端；Streamable HTTP、旧版 HTTP+SSE 与 stdio（命令、逐行参数、环境、工作目录，只在显式 Connect 时启动进程）。stdio 首次运行以及展开后的 command／args／工作目录／env 名字或值变化时弹一次本地确认（env 只显示名字）；shape 哈希也用同一个 HMAC 密钥，连同包含展开值的 HMAC-SHA256 full 哈希存 `~/.vscroxy/mcp-consents.json`，HMAC 密钥是单独的 0600 `~/.vscroxy/mcp-consents.key`，草稿不持久化，4096 条按最近使用淘汰。进程组随 Disconnect、关闭标签或退出终止；关闭标签异步停止，退出同步等待所有打开或已在后台停止的会话（有上限）；Unix 在 stdout EOF 时跳过固定等待，否则先关 stdin 等最多 2 秒再 TERM/KILL；Windows 用 CREATE_SUSPENDED + Job Object，加入后再恢复主线程，失败的初始化也会清理。HTTP 走 headers／auth／变量／Vault／Settings → Certificates 与请求的证书校验，运行中的抓包代理会捕获 HTTPS，停止时直连；文档 headers/auth 只发给请求 URL 的规范化 scheme＋host（默认端口和末尾点归一），跨源重定向和旧版 SSE 的跨源 endpoint 会被拒绝，扣下 headers 时时间线说明原因。initialize 后显示服务器信息、协商版本、能力和说明，并按能力列出工具、资源、模板和提示词；固定协议版本若被服务器换成别的版本会报错而不是静默回退，auto 协商到 2026-07-28 时每个请求带日志级别 `_meta`，call／read／get 带 progress token，旧版仍用 `logging/setLevel`；客户端不声明 roots／sampling／elicitation 能力，server 仍发来的请求照样进时间线。工具 JSON 参数可按输入 schema 生成骨架，资源可读，提示词可按字符串参数获取。Result 显示 text／image／audio／embedded resource／resource link、structuredContent 和 isError；图片先 `image.DecodeConfig` 检查尺寸（单张 16 Mpx、总计 32 Mpx），再在后台解码并缓存。Timeline 用 JSON-RPC 中间件记录真实请求、响应和服务器发起的 roots／sampling／elicitation，通知、进度、服务器日志和 stdio stderr 一并显示；SDK 的 TTL 缓存命中标为 Cache，独立 GET 流按指数退避长期重连并记录，POST 永不重放；JSON 响应超过 8 MiB 时统一结束会话并在时间线说明原因。取消单次请求或断开；HTTP/SSE 帧 8 MiB、stdio 行 8 MiB、时间线 300 条／64 KiB 预览、目录 1000 条／1 KiB 字符串／4 MiB 预算、结果 4 MiB／1 MiB 媒体。Session 和 Connected 只显示 endpoint 的 scheme／host／path，隐藏 query 密钥和 userinfo。不接 HTTP 脚本／Checks／Runner／History／代码生成；Postman v2.1 导出跳过。Postman Collection v3 导入映射 transport、URL／command、env、headers、auth、settings 和一条 tools/call／resources/read／prompts/get 消息；`transport: sse` 按 Postman 当前语义映射为 Streamable HTTP，stdio 的整条 `command` 用 shell 词法拆成程序和参数，Windows 路径中的反斜杠保留（拆不清时原样导入并报告），其余 JSON-RPC 方法、未知 transport、OAuth 2.0 auth 和 sessionTimeout 进导入报告。
 
@@ -367,12 +368,13 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 首版代码 Mock 已完成（见[使用指南](guide.md#code-mocks)）：Code Mock 规则、`onMock` 动态本地响应、脚本编辑器与 Scenario；HTTP／已解密 HTTPS 不连接原站，失败关闭。Postman Node.js Mock／`pm.state` 等不在首版范围。
 - 更多代码生成语言已完成（见[使用指南](guide.md#curl)）：Swift URLSession、Kotlin OkHttp、Java java.net.http、C# HttpClient／RestSharp、PHP cURL／Guzzle、Ruby Net::HTTP、Rust reqwest、Dart http、C libcurl、Objective-C NSURLSession、wget；method、query、重复／空 header、raw／urlencoded／multipart／GraphQL body 和已展开的 auth header 原样输出，Binary body 引用本地文件。生成器本身不增加运行时依赖；OkHttp／reqwest 由目标项目提供，非 UTF-8 的抓包 body 仍只支持 cURL。
 - 可复用脚本库。
-- 第三方主题导入。
-- 左右分屏、检查器独立窗口由 UI 线程负责；多个抓包视图的 tab 和独立筛选已可用，两个 view 并排的 capture group 仍在 [PR #68](https://github.com/BABA983/vscroxy/pull/68) 评审，未合入。
+- 左右分屏、检查器独立窗口已完成：检查器可拆到自己的窗口（Cmd/Ctrl+Shift+I 或检查器头部按钮），Dock inspector、Escape 或同一快捷键收回；抓包区始终并排两个独立 capture group，各自保留筛选、搜索、选中行和检查器，组内分隔条独立，点击或用 Tab 把焦点移进另一组即切换焦点；组内布局随宽度变化，窗口窄时表格下只留一行紧凑详情，中等宽度表格与检查器上下分栏，每组 ≥800 px 时左右分栏。
 
 ### 0.1.0 之后
 
 - 更多界面语言：日语、葡萄牙语、西班牙语等。
+- 第三方主题（Tokyo Night、Dracula 等）。
+- MQTT、MCP、SSE 进 Runner／CLI。
 - 分享到 GitHub Gist。
 - 外部密钥库：1Password、AWS Secrets Manager、Azure Key Vault、HashiCorp Vault。
 - LLM 请求、Kafka 请求。
