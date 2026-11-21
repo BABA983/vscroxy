@@ -104,7 +104,7 @@
 | Copy as：URL、cURL、body | 已有 | | |
 | Copy as：Markdown 表格、CSV、原始报文 | 已有 | 抓包与多选；表格用可见列，CSV 按 RFC 4180 并防公式注入；原始报文为 HTTP/1.1 文本，二进制／超大正文有明确标记 | M5 |
 | 抓包流量直接生成代码 | 已有 | 抓包就是请求文档，Request options／命令面板的 Generate code… 直接可用；生成器限制见使用指南 | M5 |
-| 左右分屏（两个视图并排） | 已有 | 请求/响应和抓包列表/检查器可在标题栏切换左右或上下，请求页的布局按标签页固定；抓包区可并排两个独立 capture group，各自保留筛选、搜索、选中行和检查器，组内分隔条独立；点击或 Tab 进入另一组即切换焦点，窄窗口改为上下堆叠 | UI 线程 |
+| 左右分屏（两个视图并排） | 已有 | 请求/响应和抓包列表/检查器可在标题栏切换左右或上下，请求页的布局按标签页固定；抓包区始终并排两个独立 capture group，各自保留筛选、搜索、选中行和检查器，组内分隔条独立；点击或用 Tab 把焦点移进另一组即切换焦点。组内布局随宽度变化：窗口窄时表格下只留一行紧凑详情，中等宽度表格与检查器上下分栏，每组 ≥800 px 时左右分栏 | UI 线程 |
 | 检查器拆成独立窗口 | 已有 | 检查器可拆到自己的窗口（Cmd/Ctrl+Shift+I 或检查器头部按钮），主窗口的列表占满内容区；Dock inspector、Escape 或同一快捷键收回，窗口位置会记住 | UI 线程 |
 | 启动时恢复上次会话 | 已有 | Settings → Capture → 恢复上次会话（`capture.restoreLastSession`，默认开启）：退出时把当前抓包写成 `~/.vscroxy/sessions/last-session.json`（不保留备份），下次启动恢复抓包表格、打开的 session tab、分屏组和独立检查器窗口；关闭开关立即删除快照 | UI 线程 |
 | 命令面板 | 已有 | | |
@@ -368,7 +368,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 首版代码 Mock 已完成（见[使用指南](guide.md#code-mocks)）：Code Mock 规则、`onMock` 动态本地响应、脚本编辑器与 Scenario；HTTP／已解密 HTTPS 不连接原站，失败关闭。Postman Node.js Mock／`pm.state` 等不在首版范围。
 - 更多代码生成语言已完成（见[使用指南](guide.md#curl)）：Swift URLSession、Kotlin OkHttp、Java java.net.http、C# HttpClient／RestSharp、PHP cURL／Guzzle、Ruby Net::HTTP、Rust reqwest、Dart http、C libcurl、Objective-C NSURLSession、wget；method、query、重复／空 header、raw／urlencoded／multipart／GraphQL body 和已展开的 auth header 原样输出，Binary body 引用本地文件。生成器本身不增加运行时依赖；OkHttp／reqwest 由目标项目提供，非 UTF-8 的抓包 body 仍只支持 cURL。
 - 可复用脚本库。
-- 左右分屏、检查器独立窗口已完成：检查器可拆到自己的窗口（Cmd/Ctrl+Shift+I 或检查器头部按钮），Dock inspector、Escape 或同一快捷键收回；抓包区可并排两个独立 capture group，各自保留筛选、搜索、选中行和检查器，组内分隔条独立，点击或 Tab 进入另一组即切换焦点，窄窗口上下堆叠。
+- 左右分屏、检查器独立窗口已完成：检查器可拆到自己的窗口（Cmd/Ctrl+Shift+I 或检查器头部按钮），Dock inspector、Escape 或同一快捷键收回；抓包区始终并排两个独立 capture group，各自保留筛选、搜索、选中行和检查器，组内分隔条独立，点击或用 Tab 把焦点移进另一组即切换焦点；组内布局随宽度变化，窗口窄时表格下只留一行紧凑详情，中等宽度表格与检查器上下分栏，每组 ≥800 px 时左右分栏。
 
 ### 0.1.0 之后
 
