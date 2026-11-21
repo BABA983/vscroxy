@@ -14,7 +14,7 @@ require (
 	github.com/ebitengine/purego v0.11.2
 	github.com/eclipse/paho.golang v0.23.0
 	github.com/eclipse/paho.mqtt.golang v1.5.1
-	github.com/egoist/mygo v0.9.0
+	github.com/egoist/mygo v0.10.0
 	github.com/evanw/esbuild v0.28.2
 	github.com/getkin/kin-openapi v0.151.0
 	github.com/google/jsonschema-go v0.4.3
