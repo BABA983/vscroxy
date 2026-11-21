@@ -36,7 +36,8 @@ func TestVPNSettingsScreenshots(t *testing.T) {
 				Bypass:  []string{"sso.example.com", "vpn.example.com", "localhost"},
 				PAC:     "https://proxy.example/proxy.pac",
 				Credentials: []upstream.Credential{{
-					Proxy: "http://proxy.example:8080", Username: "corp\\alice",
+					Proxy: "http://proxy.example:8080", Username: "alice",
+					Auth: upstream.AuthNTLM, Domain: "CORP", Workstation: "WS01",
 				}},
 			}
 			a.upstreamUI.loaded = false
@@ -45,11 +46,13 @@ func TestVPNSettingsScreenshots(t *testing.T) {
 			tt.SetDark(dark)
 			tt.SetScale(2)
 			tt.Frame()
-			tt.Scroll(550, 500, 0, 620)
+			tt.Scroll(550, 500, 0, 900)
 			tt.Frame()
 			for _, label := range []string{
 				locales.Upstream2(), locales.DefaultUpstream(), locales.HostRules(),
 				locales.BypassList(), locales.PacFileOrUrl(), locales.SaveUpstream(),
+				locales.Authentication(), locales.AuthNtlm(), locales.Domain(),
+				locales.Workstation(), locales.NtlmProxyHint(),
 			} {
 				if !tt.HasText(label) {
 					t.Fatalf("upstream settings do not show %q", label)

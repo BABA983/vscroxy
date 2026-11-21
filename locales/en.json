@@ -8466,5 +8466,8 @@
   "lastSessionNotRestored": "The last session was not restored",
   "lastSessionNotSaved": "The last session was not saved",
   "inspectorNotRestored": "The detached inspector was not restored: its exchange is no longer open",
-  "startup": "Startup"
+  "startup": "Startup",
+  "authBasic": "Basic",
+  "authNtlm": "NTLM",
+  "ntlmProxyHint": "NTLM uses NTLMv2. Kerberos/SSO sign-in and proxy client certificates are not supported."
 }

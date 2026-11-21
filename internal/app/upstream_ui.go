@@ -76,9 +76,13 @@ type upstreamEditor struct {
 }
 
 type upstreamCredentialRow struct {
-	Proxy    string
-	Username string
-	Password string
+	Proxy string
+	// Auth is upstream.AuthBasic or upstream.AuthNTLM.
+	Auth        string
+	Username    string
+	Domain      string
+	Workstation string
+	Password    string
 	// Saved says a sealed password exists for this endpoint; Saved with an
 	// empty Password shows "Saved password in use".
 	Saved bool
@@ -102,7 +106,14 @@ func (u *upstreamEditor) load(a *app) {
 			key = c.Proxy
 		}
 		saved := a.upstreamSecrets[key]
-		u.credentials = append(u.credentials, upstreamCredentialRow{Proxy: key, Username: c.Username, Saved: saved != ""})
+		auth := c.Auth
+		if auth == "" {
+			auth = upstream.AuthBasic
+		}
+		u.credentials = append(u.credentials, upstreamCredentialRow{
+			Proxy: key, Auth: auth, Username: c.Username,
+			Domain: c.Domain, Workstation: c.Workstation, Saved: saved != "",
+		})
 	}
 	u.dirty = false
 }
@@ -167,7 +178,13 @@ func (u *upstreamEditor) settings(a *app) (upstream.Settings, map[string]string,
 		default:
 			continue // an empty row is not a credential
 		}
-		out.Credentials = append(out.Credentials, upstream.Credential{Proxy: key, Username: strings.TrimSpace(row.Username)})
+		cred := upstream.Credential{Proxy: key, Username: strings.TrimSpace(row.Username)}
+		if row.Auth == upstream.AuthNTLM {
+			cred.Auth = upstream.AuthNTLM
+			cred.Domain = strings.TrimSpace(row.Domain)
+			cred.Workstation = strings.TrimSpace(row.Workstation)
+		}
+		out.Credentials = append(out.Credentials, cred)
 	}
 	if err := out.Validate(); err != nil {
 		return out, nil, err
@@ -481,11 +498,27 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 						if uikit.Input(c, &row.Proxy).Label(locales.ProxyAddress()).Placeholder("http://proxy.example:8080").Width(uikit.WidthFieldWide).MinWidth(uikit.WidthField).Changed() {
 							u.dirty = true
 						}
+						if uikit.SelectLabels(c, &row.Auth, []string{upstream.AuthBasic, upstream.AuthNTLM}, func(option string) string {
+							if option == upstream.AuthNTLM {
+								return locales.AuthNtlm()
+							}
+							return locales.AuthBasic()
+						}).Label(locales.Authentication()).Width(130).Changed() {
+							u.dirty = true
+						}
 						if uikit.Input(c, &row.Username).Label(locales.Username()).Placeholder(locales.Username()).Width(110).Changed() {
 							u.dirty = true
 						}
 						if uikit.Input(c, &row.Password).Password().Label(locales.Password()).Placeholder(locales.Password()).Width(110).Changed() {
 							row.Clear, u.dirty = false, true
+						}
+						if row.Auth == upstream.AuthNTLM {
+							if uikit.Input(c, &row.Domain).Label(locales.Domain()).Placeholder(locales.Domain()).Width(110).Changed() {
+								u.dirty = true
+							}
+							if uikit.Input(c, &row.Workstation).Label(locales.Workstation()).Placeholder(locales.Workstation()).Width(110).Changed() {
+								u.dirty = true
+							}
 						}
 						if uikit.SecondaryButton(c, locales.Remove()).Clicked() {
 							remove = i
@@ -513,8 +546,9 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 					u.credentials = append(u.credentials[:remove], u.credentials[remove+1:]...)
 					u.dirty = true
 				}
+				uikit.Hint(c, locales.NtlmProxyHint())
 				if uikit.SecondaryButton(c, locales.AddCredentials()).Clicked() {
-					u.credentials = append(u.credentials, upstreamCredentialRow{})
+					u.credentials = append(u.credentials, upstreamCredentialRow{Auth: upstream.AuthBasic})
 					u.dirty = true
 				}
 			})

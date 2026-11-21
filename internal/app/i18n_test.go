@@ -43,7 +43,7 @@ func TestCatalogsMatch(t *testing.T) {
 	// symbols around values. Each entry must stay identical; a translated
 	// message must come off this list.
 	sameInChinese := map[string]bool{
-		"addedUpdated": true, "android": true, "bearer": true, "contentTypeApplicationJson": true,
+		"addedUpdated": true, "android": true, "authBasic": true, "authNtlm": true, "bearer": true, "contentTypeApplicationJson": true,
 		"cookieUrl": true, "eventLineKind": true, "eventLineSize": true, "grpcEventLine": true,
 		// Find's compact option marks are VS Code's glyphs in every language.
 		"findCaseMark": true, "findRegexpMark": true, "findWordMark": true,

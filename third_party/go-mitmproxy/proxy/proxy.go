@@ -79,7 +79,17 @@ const HeaderProxyError = "X-Vscroxy-Proxy-Error"
 type UpstreamProxy struct {
 	URL    *url.URL
 	Reason string
+	// Auth, when set, negotiates a challenge exchange with an HTTP(S) proxy
+	// instead of sending Basic credentials from URL. A SOCKS5 proxy ignores
+	// it.
+	Auth *ProxyAuth
 }
+
+// ProxyAuth negotiates authentication on an upstream HTTP proxy connection.
+// The proxy package performs the HTTP exchange; the callbacks supply the
+// Proxy-Authorization value for each attempt. A nil *ProxyAuth uses Basic
+// credentials from the proxy URL.
+type ProxyAuth = helper.ProxyAuth
 
 type Proxy struct {
 	Opts    *Options
@@ -384,7 +394,7 @@ func (proxy *Proxy) dialUpstream(ctx context.Context, req *http.Request, address
 					return nil, err
 				}
 			}
-			conn, err = helper.GetProxyConn(candidateCtx, candidate.URL, address, proxyTLS)
+			conn, err = helper.GetProxyConn(candidateCtx, candidate.URL, address, proxyTLS, candidate.Auth)
 		} else {
 			conn, err = (&net.Dialer{}).DialContext(candidateCtx, "tcp", address)
 		}

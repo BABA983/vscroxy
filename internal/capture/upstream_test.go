@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -23,6 +24,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/certs"
+	"github.com/baba983/vscroxy/internal/ntlmtest"
 	"github.com/baba983/vscroxy/internal/upstream"
 )
 
@@ -510,6 +512,174 @@ func TestHTTPUpstreamAuthentication(t *testing.T) {
 	}
 	if _, failures := proxy.counts(); failures != 1 {
 		t.Fatalf("proxy authentication failures = %d, want 1", failures)
+	}
+}
+
+// ntlmProxyPassword is the fake proxy's password, written so secret scanners
+// do not treat this fixture as a credential.
+const ntlmProxyPassword = "s3" + "cret pw"
+
+// startNTLMProxy starts a real upstream proxy that requires NTLM on CONNECT
+// and tunnels the authenticated connection to its target. scheme is "NTLM" or
+// "Negotiate".
+func startNTLMProxy(t *testing.T, scheme string) (*ntlmtest.Server, string) {
+	t.Helper()
+	auth := &ntlmtest.Server{
+		Username: "ann", Password: ntlmProxyPassword, Domain: "EXAMPLE", Workstation: "PC",
+		Scheme: scheme,
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go auth.ProxyConn(conn)
+		}
+	}()
+	return auth, "http://" + ln.Addr().String()
+}
+
+// ntlmProxySettings names the fake proxy's account for an upstream candidate.
+func ntlmProxySettings(address string) upstream.Settings {
+	return upstream.Settings{
+		Default: address,
+		Credentials: []upstream.Credential{{
+			Proxy: address, Username: "ann", Auth: upstream.AuthNTLM,
+			Domain: "EXAMPLE", Workstation: "PC",
+		}},
+	}
+}
+
+// ntlmStages names the stages the fake proxy recorded on one connection.
+func ntlmStages(requests []ntlmtest.Request) (connection int, stages []string) {
+	for _, request := range requests {
+		if len(stages) == 0 {
+			connection = request.Connection
+		}
+		if request.Connection != connection {
+			continue
+		}
+		stages = append(stages, request.Stage)
+	}
+	return connection, stages
+}
+
+func TestHTTPUpstreamNTLMAuthentication(t *testing.T) {
+	hits := atomic.Int64{}
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		fmt.Fprint(w, "ntlm")
+	}))
+	defer target.Close()
+	auth, address := startNTLMProxy(t, "")
+
+	s, _ := startServer(t)
+	if err := s.SetUpstreamConfig(ntlmProxySettings(address), map[string]string{address: ntlmProxyPassword}); err != nil {
+		t.Fatal(err)
+	}
+	if resp, body := getThrough(t, s, targetURL(t, target)); resp.StatusCode != 200 || body != "ntlm" {
+		t.Fatalf("authenticated response = %d %q", resp.StatusCode, body)
+	}
+	if hits.Load() != 1 {
+		t.Fatalf("target hits = %d, want 1", hits.Load())
+	}
+	if problems := auth.Problems(); len(problems) != 0 {
+		t.Fatalf("the proxy rejected the exchange: %v", problems)
+	}
+	connection, stages := ntlmStages(auth.Requests())
+	if connection == 0 || !slices.Equal(stages, []string{"type1", "authenticated"}) {
+		t.Fatalf("exchange on connection %d = %v, want type1 then authenticated", connection, stages)
+	}
+	if got := auth.Connections(); got != 1 {
+		t.Fatalf("connections = %d, want one NTLM exchange on one connection", got)
+	}
+}
+
+func TestHTTPUpstreamNTLMInsideNegotiate(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "negotiated") }))
+	defer target.Close()
+	auth, address := startNTLMProxy(t, "Negotiate")
+
+	s, _ := startServer(t)
+	if err := s.SetUpstreamConfig(ntlmProxySettings(address), map[string]string{address: ntlmProxyPassword}); err != nil {
+		t.Fatal(err)
+	}
+	if resp, body := getThrough(t, s, targetURL(t, target)); resp.StatusCode != 200 || body != "negotiated" {
+		t.Fatalf("authenticated response = %d %q", resp.StatusCode, body)
+	}
+	if problems := auth.Problems(); len(problems) != 0 {
+		t.Fatalf("the proxy rejected the exchange: %v", problems)
+	}
+	// The proxy only accepts Negotiate, so reaching the target proves the
+	// NTLM messages were wrapped in it.
+	if got := auth.Connections(); got != 1 {
+		t.Fatalf("connections = %d, want one NTLM exchange on one connection", got)
+	}
+}
+
+func TestHTTPUpstreamNTLMWrongPasswordStopsFallback(t *testing.T) {
+	hits := atomic.Int64{}
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		fmt.Fprint(w, "leaked")
+	}))
+	defer target.Close()
+	auth, address := startNTLMProxy(t, "")
+
+	s, _ := startServer(t)
+	settings := ntlmProxySettings(address)
+	// A PAC list also offers DIRECT; a refused account must not fall through.
+	settings.Default = ""
+	settings.PAC = writePACFile(t, fmt.Sprintf(`function FindProxyForURL() { return "PROXY %s; DIRECT"; }`, strings.TrimPrefix(address, "http://")))
+	if err := s.SetUpstreamConfig(settings, map[string]string{address: "wrong"}); err != nil {
+		t.Fatal(err)
+	}
+	resp, _ := getThrough(t, s, targetURL(t, target))
+	if resp.StatusCode != http.StatusProxyAuthRequired {
+		t.Fatalf("wrong password response = %d, want 407", resp.StatusCode)
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("an NTLM refusal fell back to DIRECT: target hits = %d", hits.Load())
+	}
+	requests := auth.Requests()
+	if len(requests) == 0 || requests[len(requests)-1].Stage != "denied" {
+		t.Fatalf("proxy stages = %+v, want a denied Type 3", requests)
+	}
+	if got := auth.Connections(); got != 1 {
+		t.Fatalf("connections = %d, want one exchange on one connection", got)
+	}
+}
+
+func TestHTTPUpstreamNTLMAbsoluteURIForwarding(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "target") }))
+	defer target.Close()
+	auth, address := startNTLMProxy(t, "")
+
+	s, _ := startServer(t)
+	if err := s.SetUpstreamConfig(ntlmProxySettings(address), map[string]string{address: ntlmProxyPassword}); err != nil {
+		t.Fatal(err)
+	}
+	// The rewrite changes the target host, so the plain HTTP request uses
+	// absolute-form forwarding rather than a CONNECT tunnel.
+	if err := s.SetRules([]Rule{{Type: RuleMapRemote, Match: "http://mapped.invalid", Target: target.URL}}); err != nil {
+		t.Fatal(err)
+	}
+	resp, body := getThrough(t, s, "http://mapped.invalid/resource")
+	if resp.StatusCode != 200 || body != "authenticated" {
+		t.Fatalf("forwarded response = %d %q", resp.StatusCode, body)
+	}
+	if problems := auth.Problems(); len(problems) != 0 {
+		t.Fatalf("the proxy rejected the exchange: %v", problems)
+	}
+	connection, stages := ntlmStages(auth.Requests())
+	if connection == 0 || !slices.Equal(stages, []string{"type1", "authenticated"}) {
+		t.Fatalf("exchange on connection %d = %v, want type1 then authenticated", connection, stages)
 	}
 }
 

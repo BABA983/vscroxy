@@ -7,8 +7,8 @@ This is the existing capture engine, not another proxy implementation.
 
 The source patches are in `proxy/websocket.go`, `proxy/addon.go`, `proxy/sse.go`, `proxy/flow.go`,
 `proxy/attacker.go`, `proxy/proxy.go`, `proxy/entry.go`, `proxy/connection.go` and
-`internal/helper/proxy.go` and `internal/helper/tls.go`; `proxy/socks.go` is
-new. Everything else is upstream.
+`internal/helper/proxy.go` and `internal/helper/tls.go`; `proxy/socks.go` and
+`proxy/upstream_auth.go` are new. Everything else is upstream.
 
 ## TLS key log reset
 
@@ -222,6 +222,27 @@ target certificate is verified; Basic credentials are sent only after that
 handshake. `helper.GetProxyConn` builds Basic credentials from the raw username
 and password, not `url.User.String()`, which would percent-encode reserved
 password characters.
+
+`UpstreamProxy.Auth` (`*proxy.ProxyAuth`) replaces Basic when an endpoint needs
+an authentication exchange. It carries the initial `Proxy-Authorization` value
+and an `Answer` callback for each 407; the helper keeps one connection for every
+attempt, drains each intermediate response, and treats a 407 after the answer as
+final. `Answer` also reports whether the value is the Type 3 origin request, so
+the plain-HTTP transport can bound only the Type 1 challenge rounds with a
+one-minute handshake context and leave the origin's response on the request's
+own context. A long poll or slow origin behind an NTLM proxy is therefore not
+cut at 60 seconds. `internal/upstream` builds the callback from its NTLM
+session, which uses `internal/ntlm` (the same NTLMv2 messages as authored
+requests) and accepts NTLM inside a Negotiate challenge. The absolute-URI
+transport in `proxy/upstream_auth.go` runs the same loop for a rewritten plain
+HTTP target, buffering the body so the Type 3 attempt can resend it. That buffer
+is capped at 8 MiB (`proxy.MaxProxyAuthBody`): a larger body fails before any
+request is written, names the limit, and suggests HTTPS, whose CONNECT tunnel
+carries the body without buffering. Kerberos/SSPI/GSSAPI single sign-on and
+proxy client certificates remain out of scope. `TestHTTPUpstreamNTLM*` in
+`internal/capture` covers NTLM, NTLM inside Negotiate, a wrong password with no
+DIRECT fallback, and absolute-URI forwarding; `TestProxyAuthTransport*` in
+`proxy` covers the body limit and the unbounded origin response.
 
 The connection log shows the selection reason before the dial. Credentials are
 never part of `Reason`, and the helper's errors do not include them.

@@ -13,10 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/go-ntlmssp"
-
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/certs"
+	"github.com/baba983/vscroxy/internal/ntlm"
 )
 
 // AuthNTLM is the Auth type that answers an NTLM challenge.
@@ -264,11 +263,12 @@ func (t *ntlmTransport) exchange(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	user, domain := ntlmUserDomain(t.auth.Username, t.auth.Domain)
+	creds := ntlm.Credentials{Username: t.auth.Username, Password: t.auth.Password, Domain: t.auth.Domain, Workstation: t.auth.Workstation}
+	user, _ := ntlm.UserDomain(t.auth.Username, t.auth.Domain)
 	if user == "" {
 		return nil, ntlmError(NTLMUsernameRequired, "enter a username")
 	}
-	negotiate, err := ntlmssp.NewNegotiateMessage(domain, t.auth.Workstation)
+	negotiate, err := creds.NegotiateMessage()
 	if err != nil {
 		return nil, ntlmError(NTLMUnsupported, err.Error())
 	}
@@ -305,12 +305,7 @@ func (t *ntlmTransport) exchange(req *http.Request) (*http.Response, error) {
 		return nil, drainErr
 	}
 
-	account := user
-	if domain != "" {
-		account = domain + `\` + user
-	}
-	authenticate, err := ntlmssp.NewAuthenticateMessage(type2, account, t.auth.Password,
-		&ntlmssp.AuthenticateMessageOptions{WorkstationName: t.auth.Workstation})
+	authenticate, err := creds.AuthenticateMessage(type2)
 	if err != nil {
 		return nil, ntlmError(NTLMUnsupported, err.Error())
 	}
@@ -384,99 +379,10 @@ func drainNTLM(res *http.Response) error {
 	return errors.Join(err, res.Body.Close())
 }
 
-// ntlmUserDomain splits Postman's username forms: a non-empty Domain field
-// wins and the username is sent as written; otherwise DOMAIN\user or
-// user@domain supply the domain.
-func ntlmUserDomain(username, domain string) (user, userDomain string) {
-	username, domain = strings.TrimSpace(username), strings.TrimSpace(domain)
-	if domain != "" {
-		return username, domain
-	}
-	if strings.Contains(username, `\`) && strings.Contains(username, "@") {
-		return username, ""
-	}
-	if before, after, ok := strings.Cut(username, `\`); ok && before != "" && after != "" && !strings.Contains(after, `\`) {
-		return after, before
-	}
-	if before, after, ok := strings.Cut(username, "@"); ok && before != "" && after != "" && !strings.Contains(after, "@") {
-		return before, after
-	}
-	return username, ""
-}
-
 // ntlmChallenge reports whether WWW-Authenticate values offer NTLM and returns
 // the first Type 2 message they carry. A bare "NTLM" challenge has none yet.
 func ntlmChallenge(values []string) (type2 []byte, offered bool) {
-	for _, value := range values {
-		for i := 0; i < len(value); {
-			switch value[i] {
-			case ' ', '\t', ',':
-				i++
-				continue
-			case '"':
-				i++
-				for i < len(value) && value[i] != '"' {
-					if value[i] == '\\' {
-						i++
-					}
-					i++
-				}
-				i++
-				continue
-			}
-			start := i
-			for i < len(value) && !strings.ContainsRune(" \t,=\"", rune(value[i])) {
-				i++
-			}
-			if start == i {
-				i++
-				continue
-			}
-			token := value[start:i]
-			j := i
-			for j < len(value) && (value[j] == ' ' || value[j] == '\t') {
-				j++
-			}
-			if j < len(value) && value[j] == '=' {
-				// A parameter name and value: skip to the next challenge.
-				i = j + 1
-				for i < len(value) && (value[i] == ' ' || value[i] == '\t') {
-					i++
-				}
-				if i < len(value) && value[i] == '"' {
-					i++
-					for i < len(value) && value[i] != '"' {
-						if value[i] == '\\' {
-							i++
-						}
-						i++
-					}
-					i++
-					continue
-				}
-				for i < len(value) && value[i] != ',' {
-					i++
-				}
-				continue
-			}
-			if strings.EqualFold(token, "NTLM") {
-				offered = true
-				tokenStart := j
-				for j < len(value) && !strings.ContainsRune(" \t,", rune(value[j])) {
-					j++
-				}
-				if raw := value[tokenStart:j]; raw != "" {
-					if decoded, err := base64.StdEncoding.DecodeString(raw); err == nil {
-						return decoded, true
-					}
-				}
-				i = j
-				continue
-			}
-			i = j
-		}
-	}
-	return nil, offered
+	return ntlm.Challenge(values)
 }
 
 // sameOrigin reports whether two URLs name the same scheme, host and port.

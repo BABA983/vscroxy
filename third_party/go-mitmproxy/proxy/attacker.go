@@ -412,10 +412,12 @@ func (a *attacker) upstreamClient(req *http.Request, address string, verify bool
 // httpUpstreamTransport picks the first candidate that accepts a TCP
 // connection for a plain HTTP target. An HTTP(S) candidate is used with
 // net/http's absolute-URI forwarding and the connection already dialled; a
-// DIRECT candidate is used with the target connection already dialled. SOCKS5
-// candidates need the regular tunnel path, so they leave the choice to
-// dialUpstream. TCP failures before a request is written are safe to retry.
-func (a *attacker) httpUpstreamTransport(req *http.Request, address string, candidates []UpstreamProxy) (*http.Transport, bool, error) {
+// candidate with an Auth exchange uses its own transport so every attempt
+// keeps the connection; a DIRECT candidate is used with the target connection
+// already dialled. SOCKS5 candidates need the regular tunnel path, so they
+// leave the choice to dialUpstream. TCP failures before a request is written
+// are safe to retry.
+func (a *attacker) httpUpstreamTransport(req *http.Request, address string, candidates []UpstreamProxy) (http.RoundTripper, bool, error) {
 	if len(candidates) == 0 {
 		return nil, false, nil
 	}
@@ -453,6 +455,9 @@ func (a *attacker) httpUpstreamTransport(req *http.Request, address string, cand
 				cc.RecordEvent("TCP", "Could not connect to "+candidate.URL.Host, err)
 			}
 			continue
+		}
+		if candidate.Auth != nil {
+			return &proxyAuthTransport{proxyURL: candidate.URL, proxyTLS: proxyTLS, auth: candidate.Auth, first: conn}, true, nil
 		}
 		t := httpTransportWithConn(candidate.URL, conn, candidate.URL.Host)
 		if candidate.URL.Scheme == "https" {

@@ -9,6 +9,7 @@ package upstream
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
@@ -18,6 +19,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/baba983/vscroxy/internal/ntlm"
 )
 
 // Rule sends requests whose host matches Host through Proxy. Proxy is a proxy
@@ -28,11 +31,23 @@ type Rule struct {
 	Proxy string `json:"proxy"`
 }
 
-// Credential names the username for one proxy endpoint. The password is kept
+// The authentication methods one proxy endpoint may use. An empty Auth is
+// Basic, so a settings file written before NTLM existed stays valid.
+const (
+	AuthBasic = "basic"
+	AuthNTLM  = "ntlm"
+)
+
+// Credential names the account for one proxy endpoint. The password is kept
 // separately, sealed at rest, and never written to settings or exports.
+// Auth is empty (or AuthBasic) for HTTP Basic, and AuthNTLM for NTLMv2;
+// Domain and Workstation apply only to NTLM.
 type Credential struct {
-	Proxy    string `json:"proxy"` // scheme://host:port
-	Username string `json:"username,omitempty"`
+	Proxy       string `json:"proxy"` // scheme://host:port
+	Username    string `json:"username,omitempty"`
+	Auth        string `json:"auth,omitempty"`
+	Domain      string `json:"domain,omitempty"`
+	Workstation string `json:"workstation,omitempty"`
 }
 
 // Settings is the persisted upstream configuration. It never holds a
@@ -104,6 +119,14 @@ func (s Settings) Normalize() Settings {
 	creds := s.Credentials[:0]
 	for _, c := range s.Credentials {
 		c.Proxy, c.Username = strings.TrimSpace(c.Proxy), strings.TrimSpace(c.Username)
+		c.Auth = strings.ToLower(strings.TrimSpace(c.Auth))
+		c.Domain, c.Workstation = strings.TrimSpace(c.Domain), strings.TrimSpace(c.Workstation)
+		if c.Auth == AuthBasic {
+			c.Auth = ""
+		}
+		if c.Auth != AuthNTLM {
+			c.Domain, c.Workstation = "", ""
+		}
 		if c.Proxy == "" {
 			continue
 		}
@@ -116,7 +139,7 @@ func (s Settings) Normalize() Settings {
 // Validate checks addresses, host patterns and PAC syntax without touching the
 // network. New performs the same checks and also loads a PAC script.
 func (s Settings) Validate() error {
-	_, err := compile(s, nil, false)
+	_, err := compile(s.Normalize(), nil, false)
 	return err
 }
 
@@ -148,6 +171,88 @@ func (p *Proxy) Display() string {
 	return p.URL.Scheme + "://" + p.URL.Host
 }
 
+var (
+	// ErrAuthRejected marks an NTLM exchange whose answer the proxy refused.
+	ErrAuthRejected = errors.New("the upstream proxy rejected the NTLM credentials")
+	// ErrAuthUnsupported marks a 407 that offered neither NTLM nor Negotiate.
+	ErrAuthUnsupported = errors.New("the upstream proxy did not offer NTLM or Negotiate")
+)
+
+// NTLMSession is one NTLMv2 exchange with an upstream proxy. NTLM ties the
+// challenge to the connection, so a session is used for exactly one
+// connection and must not be shared between requests.
+type NTLMSession struct {
+	creds ntlm.Credentials
+	type1 []byte
+	// scheme is where the Type 1 message went. The preemptive header uses
+	// NTLM; a proxy that offers only Negotiate receives the same messages
+	// there.
+	scheme string
+	// type1Count bounds a proxy that keeps sending a bare challenge.
+	type1Count int
+	type3      bool
+}
+
+// NTLMSession returns the exchange for a candidate, or nil when the endpoint
+// uses Basic or has no credentials.
+func (c *Config) NTLMSession(px *Proxy) (*NTLMSession, error) {
+	if c == nil || px == nil || px.URL == nil || px.URL.User == nil {
+		return nil, nil
+	}
+	key := px.URL.Scheme + "://" + px.URL.Host
+	cred, ok := c.credentials[key]
+	if !ok || cred.auth != AuthNTLM {
+		return nil, nil
+	}
+	password, _ := px.URL.User.Password()
+	creds := ntlm.Credentials{
+		Username: px.URL.User.Username(), Password: password,
+		Domain: cred.domain, Workstation: cred.workstation,
+	}
+	type1, err := creds.NegotiateMessage()
+	if err != nil {
+		return nil, fmt.Errorf("NTLM for %s: %w", key, err)
+	}
+	return &NTLMSession{creds: creds, type1: type1, scheme: ntlm.SchemeNTLM, type1Count: 1}, nil
+}
+
+// Initial is the Proxy-Authorization value for the first request.
+func (s *NTLMSession) Initial() string {
+	return ntlm.SchemeNTLM + " " + base64.StdEncoding.EncodeToString(s.type1)
+}
+
+// Answer returns the Proxy-Authorization value for a 407's challenges. final
+// reports that this is the Type 3 answer, whose response is the origin's
+// response and may be a long poll. An error means the exchange cannot
+// continue; the 407 is then the result.
+func (s *NTLMSession) Answer(challenges []string) (authorization string, final bool, err error) {
+	scheme, type2, ok := ntlm.ProxyChallenge(challenges)
+	if !ok {
+		return "", false, ErrAuthUnsupported
+	}
+	if s.type3 {
+		return "", false, ErrAuthRejected
+	}
+	if !strings.EqualFold(scheme, s.scheme) {
+		// A proxy that offers only Negotiate receives the same NTLM messages
+		// in that scheme.
+		s.scheme, s.type1Count = scheme, 0
+	}
+	if len(type2) == 0 {
+		if s.type1Count >= 2 {
+			return "", false, ErrAuthRejected
+		}
+		s.type1Count++
+		return s.scheme + " " + base64.StdEncoding.EncodeToString(s.type1), false, nil
+	}
+	message, err := s.creds.AuthenticateMessage(type2)
+	if err != nil {
+		return "", false, err
+	}
+	s.type3 = true
+	return s.scheme + " " + base64.StdEncoding.EncodeToString(message), true, nil
+}
+
 // Config is a validated, immutable upstream configuration. Resolve is safe
 // for concurrent use.
 type Config struct {
@@ -160,8 +265,11 @@ type Config struct {
 }
 
 type credential struct {
-	username string
-	password string
+	username    string
+	password    string
+	auth        string
+	domain      string
+	workstation string
 }
 
 type hostRule struct {
@@ -212,7 +320,26 @@ func compile(settings Settings, passwords map[string]string, loadPAC bool) (*Con
 		if _, ok := cfg.credentials[key]; ok {
 			return nil, fmt.Errorf("credentials for %s are listed twice", key)
 		}
-		cfg.credentials[key] = credential{username: c.Username, password: passwords[key]}
+		auth := strings.ToLower(strings.TrimSpace(c.Auth))
+		if auth == AuthBasic {
+			auth = ""
+		}
+		switch auth {
+		case "":
+		case AuthNTLM:
+			if !strings.HasPrefix(key, "http://") && !strings.HasPrefix(key, "https://") {
+				return nil, fmt.Errorf("credential %s: NTLM needs an http:// or https:// upstream", key)
+			}
+			if strings.TrimSpace(c.Username) == "" {
+				return nil, fmt.Errorf("credential %s: NTLM needs a username", key)
+			}
+		default:
+			return nil, fmt.Errorf("credential %s: unknown authentication %q", key, c.Auth)
+		}
+		cfg.credentials[key] = credential{
+			username: c.Username, password: passwords[key], auth: auth,
+			domain: c.Domain, workstation: c.Workstation,
+		}
 	}
 	if settings.Default != "" {
 		px, err := cfg.parseProxy(settings.Default)

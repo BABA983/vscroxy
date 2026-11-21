@@ -1127,8 +1127,18 @@ func (u *UpstreamSnapshot) resolve(req *http.Request, address string) ([]proxy.U
 	out := make([]proxy.UpstreamProxy, len(decision.Candidates))
 	for i, candidate := range decision.Candidates {
 		out[i].Reason = candidate.Reason
-		if candidate.Proxy != nil {
-			out[i].URL = candidate.Proxy.URL
+		if candidate.Proxy == nil {
+			continue
+		}
+		out[i].URL = candidate.Proxy.URL
+		// NTLM's challenge is tied to one connection, so every candidate
+		// resolution builds a fresh exchange for this request.
+		session, err := u.cfg.NTLMSession(candidate.Proxy)
+		if err != nil {
+			return nil, err
+		}
+		if session != nil {
+			out[i].Auth = &proxy.ProxyAuth{Initial: session.Initial(), Answer: session.Answer}
 		}
 	}
 	return out, nil
