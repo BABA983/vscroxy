@@ -22,12 +22,12 @@ type Palette struct {
 	Muted, MutedHover, MutedPressed    ui.Color
 	Foreground, MutedForeground, Faint ui.Color
 	// Primary fills the one action a screen is for. Hover and pressed share
-	// one face, measured from Amp Web: Light lifts the ink, Dark lowers it.
+	// one face: Light lifts the ink, Dark lowers it.
 	// A disabled primary is the same face at MyGo's half opacity, so none of
 	// the four states moves the button's text, border or geometry.
 	Primary, PrimaryHover, PrimaryPressed, PrimaryForeground ui.Color
-	// Accent is Foreground at 7%: AMP's --accent, --sidebar-accent and the
-	// highlighted menu item are the same wash of ink over any surface.
+	// Accent is Foreground at 7%: the accent, sidebar accent and highlighted
+	// menu item are the same wash of ink over any surface.
 	Accent ui.Color
 	// Ring is the keyboard focus color: a quiet, readable neutral that is
 	// distinct from Primary, so a focused control and the screen's one main
@@ -45,10 +45,10 @@ type Palette struct {
 	Info, Warning, Danger                      ui.Color
 	MethodGet, MethodPost, MethodPatch, Socket ui.Color
 	// Editor is the GitHub Light/Dark token palette @pierre/diffs emits as
-	// --diffs-token-light/dark in Amp's file diffs. It is a different family
-	// from Amp's --syntax-* colors, which only style Markdown in chat.
+	// --diffs-token-light/dark. It is a different family from the syntax
+	// colors that style prose in Markdown.
 	EditorForeground, EditorKeyword, EditorEntity, EditorTag, EditorVariable, EditorConstant, EditorString, EditorRegexp, EditorComment, EditorInvalid ui.Color
-	// Diff is Amp's --diff-* override palette for added, removed and meta lines.
+	// Diff is the --diff-* override palette for added, removed and meta lines.
 	DiffAdded, DiffRemoved, DiffMeta ui.Color
 	// Inverse fills tooltips, so they stand out from what they cover.
 	Inverse, InverseText ui.Color
@@ -67,7 +67,7 @@ func fills(p Palette, rest, hover, pressed float32) Palette {
 	return p
 }
 
-// Light is the light theme, Amp's Daydream: a green-tinted gray-white, with
+// Light is the light theme: a green-tinted gray-white, with
 // ink for anything selected, primary or on, and green only for what passed or
 // is recording. Every surface keeps Daydream's green tint, fields included,
 // and the shell is Daydream's own outer shade, a step under the content panel,
@@ -146,15 +146,15 @@ func Theme(dark bool) *ui.Theme {
 	// recording is the only thing that is ever green.
 	t.Danger, t.Warning, t.Success = p.Danger, p.Warning, p.Success
 	t.Inverse, t.InverseText = p.Inverse, p.InverseText
-	// Amp Web shows a tip about 120ms after the pointer settles; MyGo's warm
+	// A tip appears about 120ms after the pointer settles; MyGo's warm
 	// window, within which the next tip shows at once, follows that delay.
 	t.TooltipDelay = 120 * time.Millisecond
 	t.Font, t.FontSize, t.Radius, t.Spacing = FontUI, Scaled(TextBody), RadiusControl, SpaceGrid
 	// Selection is the low-alpha wash for rows; Accent stays the ink that
 	// fills the primary button. Writing the wash into Accent here would make
 	// a resting primary button faint while its hover and press were solid.
-	// Amp Web's keyboard ring is one point with no offset; MyGo defaults to
-	// two points one point out.
+	// The keyboard ring is one point with no offset; MyGo defaults to two
+	// points one point out.
 	t.Selection, t.Focus = p.Accent, p.Ring
 	t.FocusRingWidth, t.FocusRingOffset = 1, 0
 	return t
@@ -207,12 +207,10 @@ func StatusColor(status int, t *ui.Theme) ui.Color {
 }
 
 // EditorTheme maps the GitHub token palette that @pierre/diffs emits as
-// --diffs-token-light/dark in Amp's file diffs onto MyGo's editor kinds. Amp's
-// --syntax-* colors only style Markdown in chat and are a different family.
-// An unchanged diff line has no diff fill: its code keeps these token colors;
-// only added and removed lines get a diff fill from the --diff-* overrides.
-// MyGo derives that fill from Added/Deleted, so it is not the exact fill Amp
-// paints in the shadow DOM.
+// --diffs-token-light/dark onto MyGo's editor kinds. Syntax colors style prose
+// and are a different family. An unchanged diff line has no diff fill: its
+// code keeps these token colors; only added and removed lines get a diff fill
+// from the --diff-* overrides. MyGo derives that fill from Added/Deleted.
 func EditorTheme(t *ui.Theme) *editor.Theme {
 	p := Colors(t)
 	theme := editor.DefaultTheme(t)

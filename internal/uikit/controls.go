@@ -5,9 +5,9 @@ import (
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
-// Checkbox and Radio are the kit's choice controls. Their boxes follow Amp
-// Web: a clear face with a Primary edge when off, and a Primary fill with a
-// PrimaryForeground mark when on. Hover and press leave the box alone; MyGo
+// Checkbox and Radio are the kit's choice controls. Their boxes have a clear
+// face with a Primary edge when off and a Primary fill with a PrimaryForeground
+// mark when on. Hover and press leave the box alone; MyGo
 // dims a disabled row. The label stays body text beside the box.
 
 var checkIcon = lucide.Check()

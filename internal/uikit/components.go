@@ -184,16 +184,16 @@ func busyButton(c *ui.Context, b ui.Element, label string, weight int, ink ui.Co
 	return b
 }
 
-// SecondaryButton is Amp Web's outlined ghost: clear at rest with a
-// hairline, a 5% ink wash under the pointer, and 8 points of side room. It
-// reads the same on the window, a panel or a selected row.
+// SecondaryButton is an outlined ghost: clear at rest with a hairline, a 5%
+// ink wash under the pointer, and 8 points of side room. It reads the same on
+// the window, a panel or a selected row.
 func SecondaryButton(c *ui.Context, label string) ui.Element {
 	return secondary(c, label, HeightSecondary, ControlPaddingXSmall, TextSmall)
 }
 
-// secondary is the face behind SecondaryButton and CompactButton. Amp Web
-// keeps the button clear until hovered, so neither the resting wash nor the
-// pressed face replaces the hairline.
+// secondary is the face behind SecondaryButton and CompactButton. The button
+// stays clear until hovered, so neither the resting wash nor the pressed face
+// replaces the hairline.
 func secondary(c *ui.Context, label string, height, inset, size float32) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	b := ui.Button(c, label).Height(height).Padding(0, Scaled(inset)).FontSize(Scaled(size)).
@@ -213,7 +213,7 @@ func ChipButton(c *ui.Context, label, tip string) ui.Element {
 		Height(HeightControlSmall).Padding(0, Scaled(ControlPaddingXSmall)).Gap(t.Space(SpaceS)).Radius(RadiusControl).AlignItems(ui.Center)
 }
 
-// CompactButton is a secondary button for dense rows and bars: Amp's same
+// CompactButton is a secondary button for dense rows and bars: the same
 // clear/hairline face at the smaller control height and meta type size.
 func CompactButton(c *ui.Context, label string) ui.Element {
 	return secondary(c, label, HeightControlSmall, ControlPaddingXSmall, TextMeta)
@@ -709,8 +709,8 @@ func FrameEnd(c *ui.Context) {
 // A URL or another long run breaks after / ? & = - _ . and every 32
 // characters, so a tip never runs off the window.
 //
-// The timing is MyGo's TooltipBase: the pointer rests for TooltipDelay (120ms,
-// measured from Amp Web) before the tip appears, and within two thirds of it
+// The timing is MyGo's TooltipBase: the pointer rests for TooltipDelay (120ms)
+// before the tip appears, and within two thirds of it
 // after a tip goes the next shows at once, so moving along a row of controls
 // does not wait again. Keyboard focus shows the tip at once; Escape hides it;
 // it goes above e, or below where there is no room. e is described to
@@ -719,8 +719,8 @@ func Tip(c *ui.Context, e ui.Element, text string) ui.Element {
 	return TipKeys(c, e, text)
 }
 
-// TipKeys is Tip with the shortcut as quiet text after the sentence, as Amp
-// Web draws it: TipKeys(c, b, "Hide sidebar", "⌘", "B") reads "⌘B".
+// TipKeys is Tip with the shortcut as quiet text after the sentence:
+// TipKeys(c, b, "Hide sidebar", "⌘", "B") reads "⌘B".
 func TipKeys(c *ui.Context, e ui.Element, text string, keys ...string) ui.Element {
 	if text == "" && len(keys) == 0 {
 		return e
@@ -766,8 +766,8 @@ func tipDescription(text string, keys []string) string {
 	return text + " (" + shortcutLabel(keys) + ")"
 }
 
-// tipFace is the one surface a tip and a hover card share: Amp Web's square
-// popover face, 2×4 inset, 450-point wrap and three-layer shadow. The tip's
+// tipFace is the one surface a tip and a hover card share: a square popover
+// face, 2×4 inset, 450-point wrap and three-layer shadow. The tip's
 // own short words do not need a corner or a border as a card would.
 func tipFace(c *ui.Context, tip ui.Element) {
 	t, p := c.Theme(), Colors(c.Theme())
@@ -776,7 +776,7 @@ func tipFace(c *ui.Context, tip ui.Element) {
 	ShadowPopover.Apply(tip, t.Dark)
 }
 
-// cardFace is Amp Web's rich hover card: a 320-point, 6-point-corner panel
+// cardFace is the rich hover card: a 320-point, 6-point-corner panel
 // with the same shadow as the small tip and 10/10/8 inset.
 func cardFace(c *ui.Context, tip ui.Element) {
 	t, p := c.Theme(), Colors(c.Theme())
@@ -786,8 +786,8 @@ func cardFace(c *ui.Context, tip ui.Element) {
 	ShadowPopover.Apply(tip, t.Dark)
 }
 
-// TipSurface gives a tip built by the caller the kit's one face: Amp Web's
-// square popover panel. It is for a tip whose content is more than text and
+// TipSurface gives a tip built by the caller the kit's one face: a square
+// popover panel. It is for a tip whose content is more than text and
 // key/value rows, as a field's list of variables; the timing, placement and
 // dismissal are still TooltipBase's.
 func TipSurface(c *ui.Context, tip ui.Element) {
@@ -810,7 +810,7 @@ type HoverCardRow struct {
 }
 
 // CardTip gives e a rich tip: a title, one line of meta and key/value rows on
-// Amp Web's 320-point card. It waits longer than a one-line tip and is
+// a 320-point card. It waits longer than a one-line tip and is
 // described to assistive technology by its text, since MyGo's tooltip itself
 // is not read. TooltipBase's placement keeps it clear of the window's edges.
 func CardTip(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
@@ -826,8 +826,8 @@ func CardTipBeside(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
 	})
 }
 
-// Amp Web shows a rich card much later than a one-line tip: about 650ms
-// after the pointer settles. The theme is scoped to the card's construction,
+// A rich card appears much later than a one-line tip: about 650ms after the
+// pointer settles. The theme is scoped to the card's construction,
 // which is when MyGo reads TooltipDelay.
 const cardTipDelay = 650 * time.Millisecond
 
@@ -981,7 +981,7 @@ func ToastPanel(c *ui.Context, panel ui.Element) ui.Element {
 	return ShadowPopover.Apply(panel.Radius(RadiusDialog).Background(p.Background).InsetShadow(0, 0, 0, HairlineWidth, p.Border), c.Theme().Dark)
 }
 
-// MenuPanel is the chrome of a drawn menu: Amp Web's 6-point panel on the
+// MenuPanel is the chrome of a drawn menu: a 6-point panel on the
 // shadow-popover's three layers. MyGo builds the items; this is the face
 // they sit on. The 1-point ring is part of the shadow, not a Border token.
 func MenuPanel(c *ui.Context, panel ui.Element) ui.Element {
@@ -991,7 +991,7 @@ func MenuPanel(c *ui.Context, panel ui.Element) ui.Element {
 	return ShadowMenu.Apply(e, c.Theme().Dark)
 }
 
-// menuTheme scopes a menu's items to Amp Web's face: a 7% ink highlight with
+// menuTheme scopes a menu's items to the menu face: a 7% ink highlight with
 // ink text, a 4-point item corner and 12-point type. MyGo reads these from
 // the theme while it builds the menu, so the wrapper must be around that
 // build, not around the button that opens it.
@@ -1007,7 +1007,7 @@ func menuTheme(c *ui.Context, build func()) {
 	c.SetTheme(t)
 }
 
-// MenuFace builds a menu button with Amp Web's item face. MyGo reads the
+// MenuFace builds a menu button with the item face. MyGo reads the
 // highlight colors, radius and type from the theme when the button is made,
 // not when its menu opens, so the scope has to cover construction.
 func MenuFace(c *ui.Context, build func()) { menuTheme(c, build) }
@@ -1019,8 +1019,8 @@ func MenuButtonOptions(c *ui.Context) ui.PopoverMenuButtonOptions {
 	return ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { MenuPanel(c, panel) }}
 }
 
-// StatusPill prints a status in its signal color. It follows Amp Web's quiet
-// filter pill: clear face, 28 points tall, 4×6 inset, 11-point type and a
+// StatusPill prints a status in its signal color. It uses the quiet filter
+// pill: clear face, 28 points tall, 4×6 inset, 11-point type and a
 // full-pill corner. Status and method colors never fill a background here.
 func StatusPill(c *ui.Context, label string, foreground ui.Color) ui.Element {
 	t := c.Theme()
@@ -1261,7 +1261,7 @@ func DialogTitle(c *ui.Context, title string) ui.Element {
 	return Heading(c, title).TextColor(c.Theme().Text)
 }
 
-// Tabs is a row of text tabs; the chosen one is Amp Web's raised panel chip,
+// Tabs is a row of text tabs; the chosen one is a raised panel chip,
 // with an ink label and no line. A tab is a filter, not a selection of data,
 // so it is never green. The prefix names each tab for assistive technology,
 // so a screen with two tab rows of the same labels can name the one it means.
@@ -1319,14 +1319,14 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 			case chosen && sub:
 				tab.TextColor(t.Text)
 			case chosen:
-				// Amp's selected nav tab is a raised panel chip. Our panel
+				// The selected nav tab is a raised panel chip. Our panel
 				// and that chip are only two levels apart, so the hairline
 				// keeps the shape readable without a darker fill.
 				tab.Background(p.Background).InsetShadow(0, 0, 0, HairlineWidth, p.Border).TextColor(t.Text)
 			case sub && (tab.Pressed() || tab.Hovered()):
 				tab.TextColor(t.Text)
 			case tab.Pressed() || tab.Hovered():
-				// Amp Web's unchosen top tab takes a 5% ink wash.
+				// An unchosen top tab takes a 5% ink wash.
 				tab.Background(p.Foreground.Alpha(0.05)).TextColor(t.Text)
 			}
 			tab.Children(func() {
@@ -1791,9 +1791,9 @@ func SettingsCardBlockWithReset(c *ui.Context, title, description string, modifi
 	return block
 }
 
-// Switch is the kit's 36-by-20 switch. Its off face follows Amp Web: a 20%
-// text track and a muted thumb. The on track comes from SwitchOn, so Dark can
-// keep a readable edge under its knob instead of Amp's two near-black colors.
+// Switch is the kit's 36-by-20 switch. Its off face is a 20% muted-text track
+// and a muted thumb. The on track comes from SwitchOn, so Dark can keep a
+// readable edge under its knob.
 func Switch(c *ui.Context, on *bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	sw := ui.SwitchBase(c, on).Size(SettingsControlHeight, switchHeight).Radius(switchHeight / 2)
@@ -2018,11 +2018,11 @@ func SelectLabels(c *ui.Context, selected *string, options []string, label func(
 	sel.Popup(func(panel ui.Element) {
 		menuTheme(c, func() {
 			// MyGo's popover helper attaches a Select panel flush to its
-			// trigger. Amp's Select and Menu poppers keep sideOffset 4.
+			// trigger. Select and Menu poppers keep sideOffset 4.
 			panel.Margin(t.Space(SpaceXS), 0, 0, 0)
 			popoverFace(c, panel.Padding(t.Space(SpaceXS)).Gap(t.Space(SpaceHair)))
 			for _, option := range options {
-				// Amp Web's menu item: one 7% wash while highlighted, the
+				// Menu item: one 7% wash while highlighted, the
 				// chosen option marked with a check in the same ink.
 				item := sel.Item(option).Height(MenuRowHeight).Padding(0, t.Space(SpaceM)).
 					Radius(RadiusInner).AlignItems(ui.Center).Gap(t.Space(SpaceS))

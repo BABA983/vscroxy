@@ -16,7 +16,7 @@ import (
 // is the one exception: the Space names are multiples of the theme's grid,
 // read through t.Space, so a local theme can tighten a dense table.
 const (
-	// Sizes follow Amp Web's text scale: 11/12/13/15/16/20 at the usual
+	// Sizes follow the text scale: 11/12/13/15/16/20 at the usual
 	// font size, with two weights (400 and 500). Monospace is only for wire
 	// data: paths, header values, numbers and bodies.
 	WeightMedium = 500
@@ -27,7 +27,7 @@ const (
 	TextMedium   = 15 // the scale's md step
 	TextTitle    = 16 // a dialog, a pane or the request an inspector shows
 	TextDisplay  = 20 // a first-run title or a command palette's heading
-	// Line heights are multiples of the font size, pinned to Amp Web's
+	// Line heights are multiples of the font size, pinned to the text
 	// scale: 11/13.6, 12/16, 13/20, 15/20, 16/24 and 20/28. Prose uses
 	// the body's 20/13 leading.
 	LineMeta    = 13.6 / 11.0
@@ -97,7 +97,7 @@ const (
 	ToastPaddingX        = 16
 	ToastPaddingY        = 8
 	ToastWidth           = 360 // a toast is at most this wide
-	CardTipWidth         = 320 // Amp Web's w-80 hover card
+	CardTipWidth         = 320 // a w-80 hover card
 	CardTipPaddingX      = 10  // a hover card, left and right
 	CardTipPaddingY      = 10  // top; the rows end 8 above the bottom edge
 	CardTipPaddingBottom = 8
@@ -162,7 +162,7 @@ const (
 	// FontUI and FontMono are per platform: font_darwin.go, font_other.go.
 )
 
-// Shadow is Amp Web's floating elevation. Its layers map to --shadow-sm/md/lg
+// Shadow is the kit's floating elevation. Its layers map to --shadow-sm/md/lg
 // and the shadow-popover ring; a menu takes a deeper Dark variant. The
 // workspace has no shadow.
 type shadowLayer struct {
@@ -206,7 +206,7 @@ var (
 )
 
 // Apply puts the shadow's layers under e. Dark changes the ring to white and
-// deepens the menu's lower layers, as Amp Web's dark shadow-popover does.
+// deepens the menu's lower layers.
 func (s Shadow) Apply(e ui.Element, dark bool) ui.Element {
 	for _, layer := range s.layers {
 		ink := layer.light

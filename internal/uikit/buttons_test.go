@@ -68,10 +68,10 @@ func TestNumberFieldShowsItsUnit(t *testing.T) {
 	}
 }
 
-// The primary button is ink, and Amp Web gives hover and pressed one shared
-// face: the ink lifts in Light and lowers in Dark. Disabled keeps the resting
-// face at MyGo's half opacity. None of them changes the button's geometry.
-func TestPrimaryButtonFacesFollowAmpWeb(t *testing.T) {
+// The primary button is ink, and hover and pressed share one face: the ink
+// lifts in Light and lowers in Dark. Disabled keeps the resting face at
+// MyGo's half opacity. None of them changes the button's geometry.
+func TestPrimaryButtonFaces(t *testing.T) {
 	for _, tc := range []struct {
 		dark                     bool
 		rest, active, foreground ui.Color
@@ -124,9 +124,9 @@ func TestPrimaryButtonFacesFollowAmpWeb(t *testing.T) {
 	}
 }
 
-// Amp Web's small status badge tints its face with 10% of its signal color,
-// and its quiet status pill is a full-pill, 28-point label.
-func TestBadgeTintFollowsAmpWeb(t *testing.T) {
+// The small status badge tints its face with 10% of its signal color, and the
+// quiet status pill is a full-pill, 28-point label.
+func TestBadgeTint(t *testing.T) {
 	theme := Theme(false)
 	p := Colors(theme)
 	tt := ui.NewTester(func(c *ui.Context) {
@@ -163,7 +163,7 @@ func TestBadgeTintFollowsAmpWeb(t *testing.T) {
 	}
 }
 
-// Amp writes tooltip shortcuts as quiet joined text, not a row of Kbd caps.
+// Tooltip shortcuts are quiet joined text, not a row of Kbd caps.
 func TestTooltipShortcutLabel(t *testing.T) {
 	for _, tc := range []struct {
 		keys []string
@@ -179,9 +179,9 @@ func TestTooltipShortcutLabel(t *testing.T) {
 	}
 }
 
-// Tabs follow Amp Web's nav chip: 32 points high, not the 22-point pane tab
-// the kit used before. SubTabs keep their smaller, underlined word row.
-func TestTabsUseAmpNavHeight(t *testing.T) {
+// Tabs use the 32-point nav chip, not the kit's 22-point pane tab. SubTabs keep
+// their smaller, underlined word row.
+func TestTabsUseNavHeight(t *testing.T) {
 	selected := 0
 	tt := ui.NewTester(func(c *ui.Context) {
 		c.SetTheme(Theme(false))

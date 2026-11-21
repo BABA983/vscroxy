@@ -196,7 +196,7 @@ func (k *components) buttonPlate(c *ui.Context) {
 		uikit.CompactButton(c, "Copy").Disabled(true)
 		addLink(c, "Add property").Disabled(true)
 	})
-	caption(c, "Three heights: 28 for forms, toolbars and the one primary action, 26 for Amp's outlined secondary button, 22 for inline actions, chips and the footer. A secondary button is clear until a 5% ink hover; focus needs the keyboard (Tab). No loading state: the kit has none, so a screen disables the button and shows progress beside it.")
+	caption(c, "Three heights: 28 for forms, toolbars and the one primary action, 26 for the outlined secondary button, 22 for inline actions, chips and the footer. A secondary button is clear until a 5% ink hover; focus needs the keyboard (Tab). No loading state: the kit has none, so a screen disables the button and shows progress beside it.")
 }
 
 func (k *components) quietPlate(c *ui.Context) {
@@ -324,7 +324,7 @@ func (k *components) tabPlate(c *ui.Context) {
 			}
 		}).Width(320)
 	})
-	caption(c, "The chosen tab is Amp Web's raised panel chip with a hairline; hovering an unchosen one takes a 5% ink wash. A sub-tab is ink text with a rule only. The strip fades the edge that hides more tabs.")
+	caption(c, "Pane tabs are 32-point raised chips with a hairline; hovering an unchosen one takes a 5% ink wash. A counted tab keeps the same face with a quiet number. A sub-tab is ink text with a rule only. The strip fades the edge that hides more tabs.")
 }
 
 func (k *components) segmentedPlate(c *ui.Context) {
@@ -379,7 +379,7 @@ func (k *components) menuPlate(c *ui.Context) {
 	stateRow(c, "Tooltip", func() {
 		labelled(uikit.Tip(c, uikit.SecondaryButton(c, "Hover for a tip"), "Copy as cURL · Ctrl+C").Width(180), hoverMenus)
 	})
-	caption(c, "A menu is a 6-point canvas panel on Amp's three-layer shadow-popover; its rows are 28 points with 4-point corners and a 7% ink highlight. The shortcut is a Kbd, not plain muted text. Tooltips keep their inverse face and wait for the pointer.")
+	caption(c, "A menu is a 6-point canvas panel on the three-layer shadow-popover; its rows are 28 points with 4-point corners and a 7% ink highlight. The shortcut is a Kbd, not plain muted text. Tooltips keep their inverse face and wait for the pointer.")
 }
 
 // menuRow is a drawn menu's row in the gallery: the real menus are MyGo's,
@@ -435,7 +435,7 @@ func (k *components) tooltipPlate(c *ui.Context) {
 	stateRow(c, "Long URL", func() {
 		uikit.Tip(c, uikit.SecondaryButton(c, "Hover a long URL"), "https://api.example.com/v1/projects?include=members&page=2&per_page=50").Width(uikit.WidthWide)
 	})
-	caption(c, "A tip is Amp Web's square canvas panel on the three-layer shadow-popover, 4×2 of padding: 12-point text at the normal ink, up to 450 wide, with a shortcut as muted text (⌘B). It waits 120ms and does not wait again when the pointer moves to its neighbour.")
+	caption(c, "A tip is a square canvas panel on the three-layer shadow-popover, 4×2 of padding: 12-point text at the normal ink, up to 450 wide, with a shortcut as muted text (⌘B). It waits 120ms and does not wait again when the pointer moves to its neighbour.")
 }
 
 func (k *components) hoverCardPlate(c *ui.Context) {
@@ -458,7 +458,7 @@ func (k *components) hoverCardPlate(c *ui.Context) {
 	})
 	// The card hangs below the row; leave it room so the caption stays clear.
 	ui.Box(c).Height(uikit.WidthField).Shrink(0)
-	caption(c, "A rich card adds a title, one meta line and key/value rows to Amp's 320-point hover-card face. It is still tooltip semantics, waits about 650ms, and is for what a row's width cannot show: the full URL, method, status and client of a captured request, or a saved request's address.")
+	caption(c, "A rich card adds a title, one meta line and key/value rows to the 320-point hover-card face. It is still tooltip semantics, waits about 650ms, and is for what a row's width cannot show: the full URL, method, status and client of a captured request, or a saved request's address.")
 }
 
 func (k *components) sidebarCardPlate(c *ui.Context) {

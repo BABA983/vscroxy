@@ -5,8 +5,8 @@ import (
 	"github.com/egoist/mygo/ui/markdown"
 )
 
-// MarkdownTheme is the prose scale inside a Markdown view. Amp Web's
-// --prose-* variables set body 13/20, paragraph gap .75em, list gap .375em,
+// MarkdownTheme is the prose scale inside a Markdown view. The prose rules
+// set body 13/20, paragraph gap .75em, list gap .375em,
 // 2.5/2/1.5em above H1/H2/H3 and .5em below each heading. MyGo measures
 // these in ems, so the values cross over unchanged.
 func MarkdownTheme(t *ui.Theme) *markdown.Theme {

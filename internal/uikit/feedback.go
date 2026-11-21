@@ -63,7 +63,7 @@ func Callout(c *ui.Context, kind CalloutKind, text string, actions func()) ui.El
 	return row
 }
 
-// Badge is a count or a short status. Amp Web tints its 18-point small badge
+// Badge is a count or a short status. Its 18-point small badge is tinted
 // with 10% of the signal color, so ink colors both the label and its face.
 func Badge(c *ui.Context, label string, ink ui.Color) ui.Element {
 	t := c.Theme()

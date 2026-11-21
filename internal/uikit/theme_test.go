@@ -125,7 +125,7 @@ func TestSuccessIsNotTheAccent(t *testing.T) {
 	}
 }
 
-// The floating radius scale and Amp Web's shadow layers stay fixed; Dark
+// The floating radius scale and shadow layers stay fixed; Dark
 // swaps the ring color and deepens the menu's lower layers.
 func TestFloatingScaleTokens(t *testing.T) {
 	if RadiusMenu != 6 || RadiusCard != 12 || RadiusDialog != 16 {
@@ -156,15 +156,15 @@ func TestFloatingScaleTokens(t *testing.T) {
 		t.Fatalf("tooltip metrics = %d/%d/%d, want 4/2/450", TipPaddingX, TipPaddingY, TipMaxWidth)
 	}
 	if TextMedium != 15 || LineMedium != 20.0/15.0 || LineMeta != 13.6/11.0 || LineProse != LineBody {
-		t.Fatal("typography scale must follow Amp Web's text and prose scale")
+		t.Fatal("typography scale differs from the text and prose scale")
 	}
 	if CardTipWidth != 320 || CardTipPaddingX != 10 || CardTipPaddingY != 10 || CardTipPaddingBottom != 8 || cardTipDelay != 650*time.Millisecond {
 		t.Fatalf("card metrics = %d/%d/%d/%d/%v", CardTipWidth, CardTipPaddingX, CardTipPaddingY, CardTipPaddingBottom, cardTipDelay)
 	}
 }
 
-// Amp Web draws its keyboard ring one point wide, on the element's edge.
-func TestFocusRingFollowsAmpWeb(t *testing.T) {
+// The keyboard ring is one point wide, on the element's edge.
+func TestFocusRingOnePoint(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		theme := Theme(dark)
 		if theme.FocusRingWidth != 1 || theme.FocusRingOffset != 0 {
@@ -268,9 +268,9 @@ func TestScaledGrowsTheTablesFixedWidths(t *testing.T) {
 	}
 }
 
-// Amp Web's prose variables set the Markdown view's body, block gaps and
-// heading rhythm; MyGo takes all three in ems, so the values cross over.
-func TestMarkdownThemeFollowsAmpProse(t *testing.T) {
+// The prose rules set the Markdown view's body, block gaps and heading
+// rhythm; MyGo takes all three in ems, so the values cross over.
+func TestMarkdownThemeProse(t *testing.T) {
 	th := MarkdownTheme(Theme(false))
 	if th.FontSize != 13 || th.LineHeight != LineBody || th.CodeSize != 0.85 {
 		t.Fatalf("markdown body = %v/%v/code %v", th.FontSize, th.LineHeight, th.CodeSize)
@@ -293,9 +293,9 @@ func TestMarkdownThemeFollowsAmpProse(t *testing.T) {
 	}
 }
 
-// Amp's file diff editor uses the GitHub Light/Dark token palette that
-// @pierre/diffs emits as --diffs-token-light/dark, not --syntax-* in chat.
-func TestEditorThemeFollowsAmpDiffsTokens(t *testing.T) {
+// The editor uses the GitHub Light/Dark token palette that @pierre/diffs emits
+// as --diffs-token-light/dark, not the syntax colors used for prose.
+func TestEditorThemeTokenPalette(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		theme := Theme(dark)
 		p := Colors(theme)
