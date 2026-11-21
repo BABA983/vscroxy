@@ -471,7 +471,7 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 				u.dirty = true
 			}
 			return in
-		}, locales.ALocalPacFileOr())
+		}, locales.ALocalPacFileOrFindProxyForUrlEx())
 		a.settingBlock(c, "proxy.upstream.credentials", locales.Credentials(), func() ui.Element {
 			return ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 				remove := -1

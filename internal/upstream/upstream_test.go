@@ -375,6 +375,137 @@ func TestPACNetworkHelpers(t *testing.T) {
 	}
 }
 
+// The Ex helpers follow Microsoft's documented IPv6 extensions. The resolver
+// hook returns IPv4 before IPv6 on purpose, so the expected strings prove the
+// documented IPv6-first order instead of the resolver's order.
+func TestPACIPv6Extensions(t *testing.T) {
+	lookup := func(_ context.Context, host string) ([]netip.Addr, error) {
+		switch host {
+		case "dual.example":
+			return []netip.Addr{netip.MustParseAddr("10.1.2.3"), netip.MustParseAddr("2001:db8::10")}, nil
+		case "v6.example":
+			return []netip.Addr{netip.MustParseAddr("2001:db8:1::5")}, nil
+		default:
+			return nil, errors.New("not found")
+		}
+	}
+	myIPs := func() []netip.Addr {
+		return []netip.Addr{netip.MustParseAddr("10.9.8.7"), netip.MustParseAddr("2001:db8::99")}
+	}
+	for _, tc := range []struct {
+		name string
+		call string
+		want string
+	}{
+		{"dnsResolveEx orders IPv6 before IPv4", `dnsResolveEx("dual.example")`, "2001:db8::10;10.1.2.3"},
+		{"dnsResolveEx on an unknown host is empty", `dnsResolveEx("missing.example")`, ""},
+		{"dnsResolveEx accepts a literal", `dnsResolveEx("2001:db8::7")`, "2001:db8::7"},
+		{"isResolvableEx sees IPv4 and IPv6", `isResolvableEx("dual.example")`, "true"},
+		{"isResolvableEx rejects an unknown host", `isResolvableEx("missing.example")`, "false"},
+		{"isResolvableEx accepts a literal IPv6", `isResolvableEx("2001:db8::7")`, "true"},
+		{"isInNetEx includes the first address", `isInNetEx("10.1.2.0", "10.1.2.0/24")`, "true"},
+		{"isInNetEx includes the last address", `isInNetEx("10.1.2.255", "10.1.2.0/24")`, "true"},
+		{"isInNetEx excludes the next subnet", `isInNetEx("10.1.3.0", "10.1.2.0/24")`, "false"},
+		{"isInNetEx excludes the previous subnet", `isInNetEx("10.1.1.255", "10.1.2.0/24")`, "false"},
+		{"isInNetEx includes the last IPv6 /32", `isInNetEx("2001:db8:ffff::1", "2001:db8::/32")`, "true"},
+		{"isInNetEx excludes the next IPv6 /32", `isInNetEx("2001:db9::1", "2001:db8::/32")`, "false"},
+		{"isInNetEx matches a /128", `isInNetEx("2001:db8::1", "2001:db8::1/128")`, "true"},
+		{"isInNetEx misses a /128 neighbour", `isInNetEx("2001:db8::2", "2001:db8::1/128")`, "false"},
+		{"isInNetEx rejects mixed families", `isInNetEx("2001:db8::1", "10.0.0.0/8")`, "false"},
+		{"isInNetEx rejects mixed families the other way", `isInNetEx("10.1.2.3", "2001:db8::/32")`, "false"},
+		{"isInNetEx rejects a malformed prefix", `isInNetEx("10.1.2.3", "10.1.2.0/33")`, "false"},
+		{"isInNetEx resolves an IPv4 host name", `isInNetEx("dual.example", "10.1.2.0/24")`, "true"},
+		{"isInNetEx resolves an IPv6 host name", `isInNetEx("v6.example", "2001:db8:1::/48")`, "true"},
+		{"isInNetEx checks every address in a dnsResolveEx list", `isInNetEx(dnsResolveEx("dual.example"), "10.1.2.0/24")`, "true"},
+		{"isInNetEx checks every literal in a list", `isInNetEx("192.0.2.1;10.1.2.3", "10.1.2.0/24")`, "true"},
+		{"myIpAddressEx orders IPv6 before IPv4", `myIpAddressEx()`, "2001:db8::99;10.9.8.7"},
+		{"sortIpAddressList sorts IPv6 then IPv4", `sortIpAddressList("10.0.0.2;2001:db8::2;10.0.0.1;2001:db8::1")`, "2001:db8::1;2001:db8::2;10.0.0.1;10.0.0.2"},
+		{"sortIpAddressList ignores surrounding spaces", `sortIpAddressList("10.0.0.2; 10.0.0.1")`, "10.0.0.1;10.0.0.2"},
+		{"sortIpAddressList rejects a malformed list", `sortIpAddressList("2001:db8::1;not-an-ip")`, ""},
+		{"sortIpAddressList rejects an empty list", `sortIpAddressList(" ; ")`, ""},
+		{"getClientVersion reports the WPAD engine version", `getClientVersion()`, "1.0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p, err := newPAC(fmt.Sprintf(`function FindProxyForURLEx(url, host) {
+				return String(%s) === %q ? "DIRECT" : "PROXY failed:1";
+			}`, tc.call, tc.want), "ex.pac", PACOptions{Lookup: lookup, MyIPs: myIPs})
+			if err != nil {
+				t.Fatal(err)
+			}
+			candidates, _, err := p.findProxy(t.Context(), "https://www.example.com/", "www.example.com", 443)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if candidates[0].Proxy != nil {
+				t.Fatalf("%s != %q", tc.call, tc.want)
+			}
+		})
+	}
+}
+
+func TestPACPrefersFindProxyForURLEx(t *testing.T) {
+	p, err := newPAC(`function FindProxyForURL() { return "DIRECT"; }
+		function FindProxyForURLEx(url, host) { return "PROXY [::1]:8080"; }`, "ex.pac", PACOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidates, display, err := p.findProxy(t.Context(), "https://example.com/", "example.com", 443)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if candidates[0].Proxy == nil || candidates[0].Proxy.URL.String() != "http://[::1]:8080" {
+		t.Fatalf("FindProxyForURLEx was not preferred: %+v", candidates)
+	}
+	if display != "PROXY [::1]:8080" {
+		t.Fatalf("display = %q", display)
+	}
+}
+
+func TestPACResultIPv6ProxyHosts(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		raw         string
+		wantDisplay string
+		wantURL     string
+	}{
+		{"loopback PROXY", "PROXY [::1]:8080", "PROXY [::1]:8080", "http://[::1]:8080"},
+		{"global HTTPS", "HTTPS [2001:db8::2]:8443", "HTTPS [2001:db8::2]:8443", "https://[2001:db8::2]:8443"},
+		{"SOCKS5 with DIRECT fallback", "SOCKS5 [fe80::1]:1080; DIRECT", "SOCKS5 [fe80::1]:1080; DIRECT", "socks5://[fe80::1]:1080"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			candidates, display, err := parsePACResult(tc.raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if display != tc.wantDisplay {
+				t.Fatalf("display = %q, want %q", display, tc.wantDisplay)
+			}
+			if candidates[0].Proxy == nil || candidates[0].Proxy.URL.String() != tc.wantURL {
+				t.Fatalf("candidate = %+v, want %q", candidates[0], tc.wantURL)
+			}
+		})
+	}
+	if _, _, err := parsePACResult("PROXY ::1:8080"); err == nil {
+		t.Fatal("an unbracketed IPv6 proxy address was accepted")
+	}
+}
+
+func TestPACFindProxyForURLExTimeout(t *testing.T) {
+	p, err := newPAC(`function FindProxyForURL() { return "DIRECT"; }
+		function FindProxyForURLEx() { while (true) {} }`, "ex-slow.pac", PACOptions{Timeout: 50 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	_, _, err = p.findProxy(t.Context(), "https://example.com/", "example.com", 443)
+	if err == nil || !strings.Contains(err.Error(), "FindProxyForURLEx did not finish") {
+		t.Fatalf("err = %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("timeout took %s", elapsed)
+	}
+}
+
 func TestPACTimeout(t *testing.T) {
 	p, err := newPAC(`function FindProxyForURL() { while (true) {} }`, "slow.pac", PACOptions{Timeout: 50 * time.Millisecond})
 	if err != nil {

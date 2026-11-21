@@ -694,6 +694,7 @@
   "aFilterKeepsThisView": "筛选会保留此视图的 URL、内容和分类条件。应用筛选只改变当前视图；其他视图保留各自的条件。",
   "aHigherProfileMapsThe": "靠上的方案会把同一主机映射到别处",
   "aLocalPacFileOr": "本地 .pac 文件或 http(s) URL。FindProxyForURL 运行有超时；原生分配调用无法中断。",
+  "aLocalPacFileOrFindProxyForUrlEx": "本地 .pac 文件或 http(s) URL。FindProxyForURL 或 FindProxyForURLEx 运行有超时；原生分配调用无法中断。",
   "aNewViewWithIts": "新建视图，拥有自己的筛选、选择和滚动位置",
   "aPathStartingWithThe": "以第一段开头的路径会改为以第二段开头。",
   "aProfileFetchedFromA": "从 URL 获取的方案，每小时刷新",

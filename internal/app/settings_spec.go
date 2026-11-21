@@ -221,7 +221,7 @@ var settingsRegistry = []settingSpec{
 	},
 	{
 		id: "proxy.upstream.pac", section: settingsProxy,
-		title: locales.Pac, description: locales.ALocalPacFileOr,
+		title: locales.Pac, description: locales.ALocalPacFileOrFindProxyForUrlEx,
 		value: settingValue{get: func(a *app) any { return a.upstreamCfg.PAC }, def: "",
 			set: func(a *app, _ any) {
 				a.resetUpstream(func(s *upstream.Settings) { s.PAC = "" })

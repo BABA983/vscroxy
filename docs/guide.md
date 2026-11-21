@@ -1417,28 +1417,55 @@ HTTP/2 to the upstream is not used: the tunnel carries the target's protocol.
 ### PAC scripts
 
 Set a local `.pac` file or an `http(s)://` URL as **PAC**. The script is read
-once when saved (at most 2 MiB, a URL fetch times out after 10 seconds) and
+once when saved (at most 2 MiB, a URL fetch times out after 10 seconds).
 `FindProxyForURL(url, host)` runs in an isolated goja runtime with the standard
 helpers: `isPlainHostName`, `dnsDomainIs`, `localHostOrDomainIs`,
 `isResolvable`, `isInNet`, `dnsResolve`, `convert_addr`, `myIpAddress`,
 `dnsDomainLevels`, `shExpMatch`, `weekdayRange`, `dateRange`, `timeRange` and a
-no-op `alert`. `shExpMatch` supports `*`, `?` and `[...]`; date, weekday and time
-ranges include both ends and reversed ranges wrap, as Firefox 49 and later do.
-`myIpAddress()` returns this computer's first non-loopback IPv4 address, or
+no-op `alert`. When the script also defines `FindProxyForURLEx(url, host)`,
+Microsoft's IPv6-aware replacement, that entry point runs instead of
+`FindProxyForURL`. `shExpMatch` supports `*`, `?` and `[...]`; date, weekday and
+time ranges include both ends and reversed ranges wrap, as Firefox 49 and later
+do. `myIpAddress()` returns this computer's first non-loopback IPv4 address, or
 `127.0.0.1`.
+
+Microsoft's IPv6-aware helpers are installed in the same runtime, following the
+[WinHTTP IPv6 extensions](https://learn.microsoft.com/en-us/windows/win32/winhttp/ipv6-aware-proxy-helper-api-definitions):
+
+- `dnsResolveEx(host)` returns a semicolon-separated list of IPv6 addresses
+  followed by IPv4 addresses, or an empty string when the host does not resolve.
+- `isResolvableEx(host)` is true when the host resolves to an IPv6 or IPv4
+  address.
+- `isInNetEx(address, prefix)` matches a literal address, a host name, or a
+  semicolon-separated list of literals such as `dnsResolveEx(host)` against a
+  CIDR prefix such as `10.1.2.0/24` or `2001:db8::/32`; any matching entry is
+  true. A malformed prefix, a malformed list, or a prefix of the other address
+  family is false.
+- `myIpAddressEx()` returns this computer's non-loopback addresses as a
+  semicolon-separated list, IPv6 first, or an empty string when it has none.
+- `sortIpAddressList(list)` sorts a semicolon-separated list into ascending IPv6
+  addresses followed by ascending IPv4 addresses; a malformed entry yields an
+  empty string.
+- `getClientVersion()` returns `1.0`, the WPAD engine version these helpers
+  belong to.
+
+Every Ex lookup uses the same one-second DNS bound as `dnsResolve`, and all
+helpers still count against the evaluation's 2-second timeout.
 
 PAC errors and the connection log show a PAC URL as `scheme://host/path` only;
 userinfo, query and fragment never appear in errors, Settings or logs.
 
 The result is a semicolon-separated list of `DIRECT`, `PROXY host:port`,
 `HTTP host:port`, `HTTPS host:port`, `SOCKS host:port` and `SOCKS5 host:port`.
+An IPv6 proxy host is written in brackets, as in `PROXY [2001:db8::1]:8080`.
 The app tries them left to right; a dial, TLS or EOF failure moves to the next
 entry, and `DIRECT` is a valid last entry. Each candidate has an 8-second total
 limit for dial, TLS and CONNECT. Any HTTP response from the proxy (407, 403,
 502, …) stops the list: a proxy's refusal is a policy decision, not a transport
 failure, so it is never bypassed by another candidate or DIRECT.
 
-Each evaluation has a 2-second timeout and a bounded JavaScript call stack. An
+Each evaluation of `FindProxyForURL` or `FindProxyForURLEx` has a 2-second
+timeout and a bounded JavaScript call stack. An
 infinite JavaScript loop, syntax error or thrown exception fails the request
 with 502 and an explicit error, never a silent direct connection. There is no
 separate memory quota: a native goja call such as a very large array `fill` or
@@ -1476,10 +1503,11 @@ not on every request and not from the operating system's current PAC setting.
 The fetch is direct — it does not go through the upstream you are configuring —
 so the URL must be reachable without that proxy. A local copy is more reliable
 when the VPN only publishes its PAC URL after sign-in. Changing the file on
-disk requires **Save** again. The script must define `FindProxyForURL` using the
-standard helpers listed under [PAC scripts](#pac-scripts); vendor-specific
-helpers or IPv6 `…Ex` functions are not installed, and an exception fails the
-request rather than silently going direct. A URL PAC that fails to load is
+disk requires **Save** again. The script must define `FindProxyForURL` or
+Microsoft's `FindProxyForURLEx`, using the helpers listed under
+[PAC scripts](#pac-scripts) including Microsoft's IPv6 `…Ex` functions;
+vendor-specific helpers are not installed, and an exception fails the request
+rather than silently going direct. A URL PAC that fails to load is
 retried with backoff; the toolbar shows **Upstream error** until it succeeds.
 
 Selection is fixed: **Bypass** first, then the first matching **Host rules**
