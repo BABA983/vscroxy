@@ -5,11 +5,12 @@ import (
 	"time"
 )
 
-// watchApp installs the app's test signal before any worker starts. Production
-// sends on it only when a test has done this.
+// watchApp installs the app's test signal. Construction starts workers before
+// a test can run, so the signal is published atomically and may be installed
+// while they are already running.
 func watchApp(a *app) {
-	if a.changed == nil {
-		a.changed = make(chan struct{}, 1)
+	if a.changed.Load() == nil {
+		a.changed.CompareAndSwap(nil, &appSignal{ch: make(chan struct{}, 1)})
 	}
 }
 
@@ -60,11 +61,12 @@ func waitSignal(t *testing.T, changed, done <-chan struct{}, check func() bool, 
 func waitAppSignal(t *testing.T, a *app, done func() bool, settle func(), what func() string) {
 	t.Helper()
 	watchApp(a)
+	changed := a.changeSignal()
 	timer := time.NewTimer(10 * time.Second)
 	defer timer.Stop()
 	for !done() {
 		select {
-		case <-a.changed:
+		case <-changed:
 			if settle != nil {
 				settle()
 			}

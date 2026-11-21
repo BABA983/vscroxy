@@ -159,8 +159,7 @@ func TestMessageSearchAndDirection(t *testing.T) {
 // its detail pane shows the Messages tab.
 func messagesApp(frames map[int][]frame) *app {
 	a := &app{
-		changed: make(chan struct{}, 1),
-		filter:  "all", sidebarWidth: 220, tablePercent: 56,
+		filter: "all", sidebarWidth: 220, tablePercent: 56,
 		collectionOpen: make(map[string]*bool), icons: make(map[string]ui.ImageSource),
 		detailFor: -1, frames: frames,
 		flows: []flow{{
@@ -169,6 +168,7 @@ func messagesApp(frames map[int][]frame) *app {
 			process: "Browser", at: time.Now(),
 		}},
 	}
+	watchApp(a)
 	a.recount()
 	a.applyFilter()
 	return a

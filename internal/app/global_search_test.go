@@ -255,7 +255,7 @@ func TestGlobalSearchDebouncesAndCancelsOldQuery(t *testing.T) {
 	}
 	clock.Advance(globalSearchDebounce / 2)
 	select {
-	case <-a.changed: // the timer's completion is what posts the start
+	case <-a.changeSignal(): // the timer's completion is what posts the start
 	case <-t.Context().Done():
 		t.Fatal("the debounced query never started")
 	}

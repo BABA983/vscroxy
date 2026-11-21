@@ -68,11 +68,18 @@ const (
 // capture reports whether the page reads captured traffic.
 func (p page) capture() bool { return p == pageLive }
 
+// appSignal is the channel a test installs through watchApp. Construction
+// starts workers before a test can install it, so workers load it from other
+// goroutines: publish it with CompareAndSwap instead of assigning the field.
+type appSignal struct {
+	ch chan struct{}
+}
+
 // app is the state the window shows; view reads it and the controls write it.
 type app struct {
 	// changed is a test hook: workers pulse it when they ask the UI to redraw,
 	// so tests can wait for the state change instead of polling the clock.
-	changed chan struct{}
+	changed atomic.Pointer[appSignal]
 
 	flows   []flow
 	visible []int
@@ -1231,11 +1238,19 @@ func (a *app) reloadConfig() {
 	a.loadScripts()
 }
 
+// changeSignal returns the test signal, or nil before a test installs one.
+func (a *app) changeSignal() chan struct{} {
+	if s := a.changed.Load(); s != nil {
+		return s.ch
+	}
+	return nil
+}
+
 // invalidate asks for a frame, so what a goroutine changed shows.
 func (a *app) invalidate() {
-	if a.changed != nil {
+	if changed := a.changeSignal(); changed != nil {
 		select {
-		case a.changed <- struct{}{}:
+		case changed <- struct{}{}:
 		default:
 		}
 	}
