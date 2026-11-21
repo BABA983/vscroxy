@@ -161,13 +161,14 @@ func settingsFind(a *app, input string) []settingsSearchHit {
 // settingsSearchBar sits above both Settings shells, so Cmd/Ctrl+, can focus
 // the same field whether Settings is a window or a dialog.
 func (a *app) settingsSearchBar(c *ui.Context, t *ui.Theme) {
-	// The bar takes exactly the old page's top inset, so the controls below
-	// keep their positions when Settings opens or a value is toggled.
-	ui.Row(c.Key("settings-search")).FillWidth().Height(t.Space(uikit.Space2XL)).AlignItems(ui.Center).
+	// The field is the app's own search field, not a text field with a
+	// magnifier beside it: Settings is one more list to find something in.
+	// The bar keeps a margin under the field, so it does not sit on the
+	// categories it opens.
+	ui.Row(c.Key("settings-search")).FillWidth().Height(uikit.HeightBar+t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 		Padding(0, t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceS)).Children(func() {
-		ui.Icon(c, searchIcon).Size(uikit.IconInline, uikit.IconInline).Shrink(0)
-		input := uikit.Input(c, &a.settingsQuery).Label(locales.SettingsSearchLabel()).
-			Placeholder(locales.SettingsSearchPlaceholder()).Height(uikit.HeightControlSmall).Grow(1).MinWidth(0)
+		field, input := uikit.SearchFieldInput(c, &a.settingsQuery, locales.SettingsSearchLabel(), locales.SettingsSearchPlaceholder(), false)
+		field.Grow(1).MinWidth(240)
 		input.Bind(&a.settingsSearchHandle)
 		input.FocusBind(&a.settingsFocusSearch, a.settingsFocusSearch)
 		input.OnShortcut(0, ui.KeyEscape, func() {
@@ -177,7 +178,9 @@ func (a *app) settingsSearchBar(c *ui.Context, t *ui.Theme) {
 		if a.settingsQuery != "" && uikit.SecondaryButton(c, locales.Clear()).KeepFocus().Clicked() {
 			a.settingsQuery = ""
 		}
-		uikit.Tip(c, uikit.Meta(c, locales.SettingsSearchHint()), locales.SettingsSearchHint())
+		// A window narrow enough for Settings keeps the field's room and
+		// shortens the hint, whose tooltip still says the whole sentence.
+		uikit.Tip(c, uikit.Meta(c, locales.SettingsSearchHint()).SingleLine().Shrink(1), locales.SettingsSearchHint())
 	})
 }
 

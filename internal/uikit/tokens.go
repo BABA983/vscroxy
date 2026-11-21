@@ -102,7 +102,7 @@ const (
 	CardTipPaddingY      = 10  // top; the rows end 8 above the bottom edge
 	CardTipPaddingBottom = 8
 	CardPaddingX         = 16 // a settings card row, left and right
-	CardRowPaddingY      = 4
+	CardRowPaddingY      = 6
 	// Corners stay concentric: something nested in a padded container takes
 	// the container's radius less the padding, which is RadiusInner. The
 	// workspace stops at RadiusPanel; a card and dialog take a step of the
@@ -137,7 +137,7 @@ const (
 	DialogPadding     = 24
 	DialogGap         = 16
 	SettingsWidth     = 620
-	SettingsRowHeight = 44
+	SettingsRowHeight = 48
 	// WindowMargin is the space a modal, a toast or a popover keeps from the
 	// window's edge, on each side.
 	WindowMargin = 16
@@ -181,11 +181,6 @@ var (
 	}}
 	ShadowKbd = Shadow{layers: []shadowLayer{
 		{0, 0, 0, HairlineWidth, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(255, 255, 255, 0.1)},
-		{0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
-		{0, 1, 2, -1, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
-	}}
-	ShadowNavSelected = Shadow{layers: []shadowLayer{
-		{0, 0, 0, HairlineWidth, ui.RGBA(135, 139, 134, 0.12), ui.RGBA(255, 255, 255, 0.12)},
 		{0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
 		{0, 1, 2, -1, ui.RGBA(0, 0, 0, 0.1), ui.RGBA(0, 0, 0, 0.1)},
 	}}

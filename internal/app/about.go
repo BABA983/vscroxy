@@ -52,9 +52,10 @@ func (a *app) aboutModal(c *ui.Context, t *ui.Theme) {
 	if !a.aboutOpen {
 		return
 	}
-	_, height := c.Size()
 	uikit.Modal(c, &a.aboutOpen, locales.AboutVscroxy(), func() {
-		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(680, height-80)).Children(func() {
+		// A license reads at 60–75 characters a line, so the sheet is the
+		// narrow tier: a wider one leaves the text running across the dialog.
+		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, locales.AboutVscroxy())
 			uikit.Tabs(c, &a.aboutTab, "About vscroxy", locales.License(), locales.ThirdPartyNotices())
 			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceL)).Children(func() {

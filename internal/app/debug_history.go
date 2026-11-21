@@ -100,38 +100,42 @@ func (s *experimentWorkbench) includes(r experimentRecord) bool {
 
 func (a *app) debugDrafts(c *ui.Context) {
 	s := &a.experiments
+	t := c.Theme()
 	if s.scope == nil {
 		if s.draftKey != "" || s.assetID != "" {
 			uikit.Meta(c, locales.OnlyRunsLinkedToThis())
-			if uikit.SecondaryButton(c, locales.ShowAllHistory()).FillWidth().Clicked() {
+			if uikit.SecondaryButton(c, locales.ShowAllHistory()).Clicked() {
 				s.draftKey, s.assetID = "", ""
 			}
-			ui.Divider(c)
 		}
 		return
 	}
 	uikit.Body(c, locales.SourceSnapshot(s.scope.Exchange.ID)).FontFeatures("tnum").FontWeight(500)
 	uikit.Meta(c, locales.OnlyExplicitlyLinkedDraftsAnd())
 	index := slices.IndexFunc(a.flows, func(f flow) bool { return f.debugKey == s.scope.Key })
-	if uikit.SecondaryButton(c, locales.InspectSourceCapture()).FillWidth().Disabled(index < 0).Clicked() {
+	// The column's own padding does not reach a stretched control, so the
+	// buttons keep the text's edges instead of the panel's.
+	inset := t.Space(uikit.SpaceXS)
+	if uikit.SecondaryButton(c, locales.InspectSourceCapture()).Margin(0, inset).Disabled(index < 0).Clicked() {
 		s.open = false
 		a.inspectCapture(a.flows[index].id)
 	}
 	if index < 0 {
 		uikit.Meta(c, locales.OriginalCaptureUnavailableSnapshotRetained())
 	}
-	if uikit.SecondaryButton(c, locales.ShowAllHistory()).FillWidth().Clicked() {
+	if uikit.SecondaryButton(c, locales.ShowAllHistory()).Margin(0, inset).Clicked() {
 		s.scope, s.draftKey = nil, ""
 	}
-	ui.Divider(c)
-	uikit.Body(c, locales.OpenDrafts()).FontWeight(500)
+	// A section is a heading and its space, not a rule: the column is one
+	// surface, and a line under a sentence reads as an underline on it.
+	uikit.Body(c, locales.OpenDrafts()).FontWeight(500).Padding(t.Space(uikit.SpaceS), 0, 0, 0)
 	n := 0
 	for _, d := range a.documents {
 		if d.origin == nil || s.scope == nil || d.origin.Key != s.scope.Key {
 			continue
 		}
 		n++
-		if uikit.Tip(c, uikit.SecondaryButton(c, d.title()).Label(locales.OpenLinkedDraft(n)).FillWidth(), d.composeMethod+" "+d.composeURL).Clicked() {
+		if uikit.Tip(c, uikit.SecondaryButton(c, d.title()).Label(locales.OpenLinkedDraft(n)), d.composeMethod+" "+d.composeURL).Clicked() {
 			a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
 			s.open = false
 			d.urlInput.Focus()
@@ -140,8 +144,7 @@ func (a *app) debugDrafts(c *ui.Context) {
 	if n == 0 {
 		uikit.Caption(c, locales.NoOpenDraftsForThis())
 	}
-	ui.Divider(c)
-	uikit.Body(c, locales.History()).FontWeight(500)
+	uikit.Body(c, locales.History()).FontWeight(500).Padding(t.Space(uikit.SpaceS), 0, 0, 0)
 }
 
 func (a *app) debugWire(c *ui.Context, r experimentRecord) {

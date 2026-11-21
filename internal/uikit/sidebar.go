@@ -226,12 +226,10 @@ func sidebarRowSized(c *ui.Context, id, label string, chosen, active bool, icon 
 		Padding(0, t.Space(padX)).Margin(0, t.Space(SpaceS)).Radius(radius).
 		Role(ui.RoleTreeItem).Level(1).TextColor(ink)
 	if chosen {
-		if nav {
-			row.Background(p.Background)
-			ShadowNavSelected.Apply(row, t.Dark)
-		} else {
-			Selected(c, row, active)
-		}
+		// A chosen row takes the same wash in either list: Settings draws
+		// its categories on the page's own surface, so a lighter face would
+		// not show there.
+		Selected(c, row, active)
 	}
 	row.Children(func() {
 		ui.Row(c).Width(IconLarge).Shrink(0).Justify(ui.Center).AlignItems(ui.Center).Children(func() { icon(iconInk) })
@@ -292,7 +290,7 @@ type SidebarPane struct {
 // the window. Each body also scrolls inside itself, so a list longer than
 // its region keeps its heading and the regions below it.
 func SidebarPanes(c *ui.Context, key string, available float32, panes []SidebarPane) ui.Element {
-	t, p := c.Theme(), Colors(c.Theme())
+	t := c.Theme()
 	last := -1
 	for i, pane := range panes {
 		if pane.Open == nil || *pane.Open {
@@ -343,7 +341,10 @@ func SidebarPanes(c *ui.Context, key string, available float32, panes []SidebarP
 						Justify(ui.Center).Cursor(ui.CursorResizeNS)
 					var line ui.Element
 					handle.Children(func() {
-						line = ui.Box(c).Height(HairlineWidth).Background(p.Border)
+						// The boundary is a drag handle, not a rule: the regions
+						// are told apart by their space, and the line appears
+						// under the pointer or while dragging.
+						line = ui.Box(c).Height(HairlineWidth).Background(ui.Color{})
 					})
 					handles, lines = append(handles, handle), append(lines, line)
 					gaps = append(gaps, [2]int{previous, i})

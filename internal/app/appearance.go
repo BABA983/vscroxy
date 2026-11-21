@@ -82,12 +82,15 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 	_, height := c.Size()
 	uikit.Modal(c, &a.settingsOpen, locales.Settings(), func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(640, height-80)).Children(func() {
-			uikit.DialogTitle(c, locales.Settings())
-			a.settingsContent(c, t, !a.windowBehind)
-			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, locales.Done()).Clicked() {
-					a.settingsOpen = false
-				}
+			// The title shares the search field's left edge, so the two
+			// read as one column above the categories.
+			uikit.DialogTitle(c, locales.Settings()).PaddingStart(t.Space(uikit.SpaceXL))
+			a.settingsContent(c, t, !a.windowBehind, func() {
+				uikit.DialogFooter(c).Children(func() {
+					if uikit.SecondaryButton(c, locales.Done()).Clicked() {
+						a.settingsOpen = false
+					}
+				})
 			})
 		})
 	})
@@ -128,7 +131,11 @@ func (a *app) openSettings(tab int) {
 		MinHeight:       420,
 		StateKey:        "settings",
 		AutoHideMenuBar: true,
-		Content:         ui.View(a.settingsView),
+		// Settings is the same window material as the main window: the view
+		// draws the title bar under the controls, instead of the system's.
+		TitleBarStyle:        mygo.TitleBarHidden,
+		TrafficLightPosition: &mygo.Point{X: 16, Y: 13},
+		Content:              ui.View(a.settingsView),
 	})
 	a.settingsWin, a.settingsFocused = w, true
 	w.OnFocus(func() { w.Update(func() { a.settingsFocused = true }) })
@@ -171,7 +178,8 @@ func (a *app) settingsView(c *ui.Context) {
 		a.showNotices(c)
 	}
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
-		a.settingsContent(c, t, a.settingsFocused)
+		a.settingsTitleBar(c, t)
+		a.settingsContent(c, t, a.settingsFocused, nil)
 	})
 	uikit.Toasts(c)
 	a.systemProxy.shown = a.settingsTab == 1
@@ -180,10 +188,25 @@ func (a *app) settingsView(c *ui.Context) {
 	}
 }
 
+// settingsTitleBar is the Settings window's own title bar: the traffic lights
+// sit on it and the row drags the window, as the main window's brand bar does,
+// so Settings is the same material as the rest of the app.
+func (a *app) settingsTitleBar(c *ui.Context, t *ui.Theme) {
+	bar := c.TitleBar()
+	start := t.Space(uikit.SpaceXL)
+	if bar.Left > 0 {
+		start += bar.Left
+	}
+	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).PaddingEnd(t.Space(uikit.SpaceXL)).
+		AlignItems(ui.Center).DragWindow().Children(func() {
+		uikit.Heading(c, locales.Settings()).TextColor(t.Text).SingleLine()
+	})
+}
+
 // settingsContent is Settings itself: categories on the left, the chosen
 // one on the right. active draws the chosen category as in a window in
 // front. The editors it opens own their values and persistence.
-func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
+func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool, footer func()) {
 	if a.settingsQuery != "" {
 		c.OnShortcut(0, ui.KeyEscape, func() { a.settingsQuery = "" })
 	}
@@ -217,8 +240,9 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 				} {
 					uikit.SidebarItem(c, item.id, item.icon, item.label, a.settingsChoice == item.id, active).Label(locales.SettingsCategory(item.label))
 				}
-			}).Width(188).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceHair)).Background(uikit.Colors(t).Window)
-			ui.Divider(c)
+			}).Width(188).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceHair))
+			// The categories and the page are one surface: the chosen one's
+			// wash and the space between the two columns say where each is.
 			ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
 				// The search bar above replaces the page's old top inset.
 				top := float32(0)
@@ -249,6 +273,11 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 				})
 				if a.settingsTab == 6 {
 					a.certificateFooter(c, t)
+				}
+				// The dialog's actions belong to the page, not to the dialog:
+				// the categories run to the window's bottom edge beside them.
+				if footer != nil {
+					footer()
 				}
 			})
 		})

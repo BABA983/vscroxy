@@ -2829,7 +2829,6 @@ func (a *app) sidebar(c *ui.Context) {
 			a.brandBar(c, t)
 		}
 		a.trafficRegion(c, t)
-		ui.Divider(c).Shrink(0)
 		a.sidebarPanes(c, t)
 		// No rule above the sidebar's footer: the shell is one surface from
 		// the title bar to the window's bottom edge.
@@ -2860,7 +2859,10 @@ func (a *app) trafficRegion(c *ui.Context, t *ui.Theme) {
 		})
 
 		if *traffic {
-			ui.Column(c.Key("traffic-region")).Gap(0).Shrink(0).Children(func() {
+			// The region ends in space, not a rule: the pane below opens
+			// with its own heading margin, and the shell reads as one
+			// surface from the title bar to the footer.
+			ui.Column(c.Key("traffic-region")).Gap(0).Shrink(0).Padding(0, 0, t.Space(uikit.SpaceM), 0).Children(func() {
 				a.trafficRows(c)
 				a.views.sidebar(c, t, a)
 			})

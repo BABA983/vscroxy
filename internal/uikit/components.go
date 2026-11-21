@@ -478,6 +478,13 @@ func ChromeFieldFace(c *ui.Context, field ui.Element, focused bool) ui.Element {
 // magnifier that says so. onChrome draws it as a field on chrome: the canvas
 // with a hairline rather than the well it is on the canvas.
 func SearchField(c *ui.Context, value *string, label, placeholder string, onChrome bool) ui.Element {
+	field, _ := SearchFieldInput(c, value, label, placeholder, onChrome)
+	return field
+}
+
+// SearchFieldInput is SearchField with its text input, for a field a screen
+// focuses from elsewhere.
+func SearchFieldInput(c *ui.Context, value *string, label, placeholder string, onChrome bool) (ui.Element, ui.Element) {
 	t := c.Theme()
 	field := ui.Row(c).Height(HeightSearchField).AlignItems(ui.Center).Gap(t.Space(SpaceXS)).Padding(0, t.Space(SpaceM))
 	var in ui.Element
@@ -496,7 +503,7 @@ func SearchField(c *ui.Context, value *string, label, placeholder string, onChro
 	// Search is a near-white surface with a 15% edge, not the Input well used
 	// by ordinary text fields, on either chrome or canvas.
 	fieldFaceRadius(Colors(t), field, in.Focused(), false, radius)
-	return field
+	return field, in
 }
 
 // fieldFace draws a field's face inside its own edges, so its box stays the
@@ -950,10 +957,13 @@ func DialogColumn(c *ui.Context, width float32) ui.Element {
 	return ui.Column(c).Width(min(width, innerW)).MaxHeight(innerH).MinHeight(0).Gap(DialogGap)
 }
 
+// DialogFooter holds a dialog's actions at its end. It has no rule above it:
+// the dialog's own gap and the actions' inset carry the separation, as they do
+// between every other pair of groups on the surface.
 func DialogFooter(c *ui.Context) ui.Element {
 	t := c.Theme()
 	return ui.Row(c).FillWidth().Gap(t.Space(SpaceM)).Wrap().AlignItems(ui.Center).Justify(ui.End).
-		Padding(t.Space(SpaceL), 0, 0, 0).Border(0, t.Border).BorderWidth(HairlineWidth, 0, 0, 0)
+		Padding(t.Space(SpaceL), 0, 0, 0)
 }
 
 // Panel frames one data area on the canvas: the surface behind it, a
@@ -1727,11 +1737,14 @@ func SettingsCardRowWithReset(c *ui.Context, title, description string, modified
 	t := c.Theme()
 	row := ui.Row(c).FillWidth().MinHeight(SettingsRowHeight).Padding(0, CardPaddingX).
 		Gap(t.Space(SpaceM)).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+	// The marker sits on the card's own edge, out of the row's layout: every
+	// row keeps the same inset whether or not its setting is modified, so
+	// titles in one card line up.
+	if modified {
+		ui.Box(c).Absolute().Left(0).Top(t.Space(SpaceS)).Bottom(t.Space(SpaceS)).Width(3).Radius(2).
+			Background(Colors(t).Info)
+	}
 	row.Children(func() {
-		marker := ui.Box(c).Width(3).Height(SettingsRowHeight - t.Space(SpaceL)).Shrink(0).Radius(2)
-		if modified {
-			marker.Background(Colors(t).Info)
-		}
 		head := ui.Column(c).Grow(1).MinWidth(0).Gap(0)
 		head.Children(func() {
 			Body(c, title)
@@ -1758,14 +1771,14 @@ func SettingsCardRowWithReset(c *ui.Context, title, description string, modified
 // takes the card's full width; its marker and menu reserve their slots too.
 func SettingsCardBlockWithReset(c *ui.Context, title, description string, modified bool, content func(), menu func(*ui.Menu), tip ...string) ui.Element {
 	t := c.Theme()
-	block := ui.Column(c).FillWidth().Padding(t.Space(SpaceL), t.Space(SpaceXL)).Gap(t.Space(SpaceM)).
+	block := ui.Column(c).FillWidth().Padding(t.Space(SpaceL), CardPaddingX).Gap(t.Space(SpaceM)).
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+	if modified {
+		ui.Box(c).Absolute().Left(0).Top(t.Space(SpaceS)).Bottom(t.Space(SpaceS)).Width(3).Radius(2).
+			Background(Colors(t).Info)
+	}
 	block.Children(func() {
 		ui.Row(c).FillWidth().Gap(t.Space(SpaceM)).Children(func() {
-			marker := ui.Box(c).Width(3).Height(t.Space(SpaceXL) + t.Space(SpaceM)).Shrink(0).Radius(2)
-			if modified {
-				marker.Background(Colors(t).Info)
-			}
 			head := ui.Column(c).Grow(1).MinWidth(0).Gap(0)
 			head.Children(func() {
 				if title != "" {

@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -2114,6 +2115,9 @@ var snapshotTime = time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
 
 func snapshotSettings(a *app, tab int) {
 	a.settingsOpen, a.settingsTab = true, tab
+	// The categories mark the chosen one by its id, as openSettings does: a
+	// scene without it renders every row the same and hides the selection.
+	a.settingsChoice = strconv.Itoa(tab)
 	// Render known state; never read or write this machine's proxy/CA setup.
 	a.systemProxy.checked, a.systemProxy.shown = true, true
 	a.systemProxy.check.Target = a.systemProxyTarget()
