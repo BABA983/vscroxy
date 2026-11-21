@@ -990,8 +990,8 @@ func menuTheme(c *ui.Context, build func()) {
 func MenuFace(c *ui.Context, build func()) { menuTheme(c, build) }
 
 // MenuButtonOptions gives a PopoverMenuButton the kit's menu face. Use it
-// for a menu the app opens from its own button; MyGo's ContextMenu and
-// PopoverMenu have no panel option of their own.
+// for a menu the app opens from its own button; MyGo's ContextMenu is the
+// system's menu and takes no panel option.
 func MenuButtonOptions(c *ui.Context) ui.PopoverMenuButtonOptions {
 	return ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { MenuPanel(c, panel) }}
 }
