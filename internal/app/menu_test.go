@@ -13,6 +13,7 @@ import (
 func TestCollectionRequestMenusMatch(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1440, 800)
+	showCollections(t, tt)
 	tt.Frame()
 	row := "List projects"
 	more := locales.RequestActionsPrefix(row)

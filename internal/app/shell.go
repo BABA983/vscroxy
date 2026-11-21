@@ -25,23 +25,22 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 		if !a.macChrome || !a.sidebarShown() {
 			a.barLeading(c, t)
 		}
-		ui.Spacer(c)
 		// The switch sits with the state it reports: on macOS the brand is in
 		// the sidebar, so the bar would otherwise start with a lone button.
-		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).PaddingStart(t.Space(uikit.SpaceM)).Children(func() {
 			if a.macChrome && a.sidebarShown() {
 				a.recordButton(c, t)
 			}
 			a.proxyIndicator(c, t)
 		})
 		ui.Spacer(c)
-		// Five at most: the palette, notifications, the layout, the tools
-		// and everything else. Settings is in the app menu and in ⋯, so
-		// the bar does not carry a third way to it.
+		a.commandButton(c, t)
+		ui.Spacer(c)
+		// Global only: notifications, the tools and everything else. The
+		// layout belongs to the screen and sits in the footer; Settings is in
+		// the app menu and in ⋯, so the bar does not carry a third way to it.
 		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceHair)).AlignItems(ui.Center).PaddingEnd(max(bar.Right, t.Space(uikit.SpaceL))).Children(func() {
-			a.commandButton(c, t)
 			a.notificationButton(c, t)
-			a.layoutToggle(c)
 			uikit.MenuFace(c, func() {
 				uikit.IconButton(c, locales.Tools(), locales.ManageDebuggingRulesAndNetwork(), toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
 					actionMenu(m, append([]action{do("tools.rules", locales.DebuggingRules2(), a.openRules).in("rules")}, a.networkTools()...))
@@ -96,14 +95,21 @@ func (a *app) recordButton(c *ui.Context, t *ui.Theme) {
 	}
 }
 
-// commandButton is the title bar's way to every command: the magnifier and
-// the shortcut that opens the palette, small enough to leave the bar's room to
-// the tools that are on.
+// commandButton is the title bar's way to every command, request and flow:
+// a field-shaped button in the middle of the bar, as Postman's search is,
+// that opens the palette. It gives way before the pill and the tools do.
 func (a *app) commandButton(c *ui.Context, t *ui.Theme) {
-	b := uikit.ChipButton(c, locales.Commands2(), locales.SearchEveryActionCtrlCmd()).Shrink(0)
+	p := uikit.Colors(t)
+	b := uikit.ChipButton(c, locales.Commands2(), locales.SearchEveryActionCtrlCmd()).
+		Width(320).Shrink(1).MinWidth(t.Space(uikit.SpaceXXL)*3).Gap(t.Space(uikit.SpaceS)).
+		Background(p.Background).InsetShadow(0, 0, 0, uikit.HairlineWidth, p.Border)
+	if b.Hovered() {
+		b.Background(p.MutedHover)
+	}
 	b.Children(func() {
-		ui.Icon(c, searchIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
-		uikit.Meta(c, commandShortcut()).NoWrap()
+		ui.Icon(c, searchIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted).Shrink(0)
+		uikit.Meta(c, locales.SearchRequestsTrafficAndCommands()).SingleLine().MinWidth(0).Grow(1)
+		uikit.Meta(c, commandShortcut()).NoWrap().Shrink(0)
 	})
 	if b.Clicked() {
 		a.workbench.openPalette()
@@ -379,6 +385,12 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		// The tools that are on follow the window, not one screen: a
 		// breakpoint or a throttle is on everywhere.
 		a.footerTools(c, t)
+		// The window's own controls end the bar: connecting a client and
+		// the split of the screen on show.
+		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
+			a.footerSetup(c)
+			a.layoutToggle(c)
+		})
 	})
 }
 
@@ -646,6 +658,8 @@ func (a *app) footerRoom(c *ui.Context, t *ui.Theme) float32 {
 		}
 	}
 	room -= paneTextWidth(c, a.footerCountsText(), uikit.TextMeta, 400)
+	// Setup and the layout switch at the end.
+	room -= paneTextWidth(c, locales.SetupMenu(), uikit.TextMeta, 400) + 2*t.Space(uikit.SpaceM) + uikit.HeightControl + 2*gap
 	return max(room, 0)
 }
 

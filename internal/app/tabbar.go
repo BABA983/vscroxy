@@ -45,11 +45,17 @@ func (a *app) tabBar(c *ui.Context, t *ui.Theme) {
 		NewLabel:      locales.NewRequest(),
 		OverflowLabel: locales.AllOpenTabs(),
 		OverflowTip:   locales.OpenTabsMostRecentlyUsed(),
-		OnActivate:    func(i int) { a.activateTab(ids[i]) },
-		OnClose:       func(i int) { a.closeTab(ids[i], false) },
-		OnPin:         func(i int) { a.promoteTab(ids[i]) },
-		OnNew:         a.openCompose,
-		OnOverflow:    a.openTabsMenu,
+		OnActivate: func(i int) {
+			// Choosing Live is choosing the traffic; Live after a close is not.
+			if ids[i].kind == pageLive {
+				a.sidebarMode = sidebarTraffic
+			}
+			a.activateTab(ids[i])
+		},
+		OnClose:    func(i int) { a.closeTab(ids[i], false) },
+		OnPin:      func(i int) { a.promoteTab(ids[i]) },
+		OnNew:      a.openCompose,
+		OnOverflow: a.openTabsMenu,
 	})
 	// The strip takes room from the list. When LIVE becomes active, a list
 	// that follows traffic scrolls to its new end, as it would after a resize.

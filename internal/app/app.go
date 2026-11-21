@@ -121,8 +121,13 @@ type app struct {
 	// an investigation, and request documents or API contracts.
 	page          page
 	sidebarChoice string
-	requestChoice string
-	requestQuery  string
+	// sidebarMode is which half of the sidebar shows: the traffic or the
+	// collections. It follows the active tab when that changes, and the
+	// switch at the sidebar's top flips it without touching the tabs.
+	sidebarMode    int
+	sidebarFollows tabID
+	requestChoice  string
+	requestQuery   string
 	// requestGen changes with the library, so the command palette rebuilds
 	// its request index only when the requests do.
 	requestGen   int
@@ -2830,17 +2835,59 @@ func (a *app) sidebar(c *ui.Context) {
 	local := *t
 	local.Surface = panel
 	c.SetTheme(&local)
+	a.followActiveTab()
 	ui.Column(c).Fill().Background(panel).Children(func() {
 		if a.macChrome {
 			a.brandBar(c, t)
 		}
-		a.trafficRegion(c, t)
+		a.sidebarModeSwitch(c, t)
+		if a.sidebarMode == sidebarTraffic {
+			a.trafficRegion(c, t)
+		}
 		a.sidebarPanes(c, t)
-		// No rule above the sidebar's footer: the shell is one surface from
-		// the title bar to the window's bottom edge.
-		a.sidebarFooter(c, t)
 	})
 	c.SetTheme(t)
+}
+
+// The sidebar's two halves, in the order its switch reads.
+const (
+	sidebarTraffic = iota
+	sidebarCollections
+)
+
+// sidebarModeFor is the half that lists what a tab of this kind shows, and
+// false for a tab that leaves the sidebar alone. Live is where closing the
+// last tab lands, so it does not take the tree away from someone who just
+// closed a request; the switch is one click.
+func sidebarModeFor(kind page) (int, bool) {
+	switch kind {
+	case pageRequest, pageAPI:
+		return sidebarCollections, true
+	case pageSession:
+		return sidebarTraffic, true
+	}
+	return 0, false
+}
+
+// followActiveTab turns the sidebar to the half the active tab belongs to
+// when the active tab changes. Between changes the reader's own choice
+// stands.
+func (a *app) followActiveTab() {
+	if id := a.tabsGroup().active(); id != a.sidebarFollows {
+		a.sidebarFollows = id
+		if mode, ok := sidebarModeFor(id.kind); ok {
+			a.sidebarMode = mode
+		}
+	}
+}
+
+// sidebarModeSwitch is the sidebar's top: Traffic or Collections. It only
+// changes the list; the open tabs stay.
+func (a *app) sidebarModeSwitch(c *ui.Context, t *ui.Theme) {
+	ui.Box(c).Shrink(0).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Children(func() {
+		uikit.Segmented(c, &a.sidebarMode, locales.Traffic(), locales.Collections()).
+			Label(locales.SidebarShows()).FillWidth()
+	})
 }
 
 // trafficRegion is the fixed top of the sidebar: the scopes the traffic list
@@ -2889,7 +2936,7 @@ const sidebarCollectionsBody = 144
 func (a *app) sidebarPanes(c *ui.Context, t *ui.Theme) {
 	_, windowHeight := c.Size()
 	sources, sessions := a.sourcesBodyHeight(windowHeight), a.sessionsBodyHeight(windowHeight)
-	stack := uikit.SidebarPanes(c, "sidebar-panes", a.paneViewport, []uikit.SidebarPane{
+	panes := []uikit.SidebarPane{
 		{
 			ID: "sources", Title: locales.Sources(), Open: a.regionOpen("sources"),
 			Height: a.paneHeight("sources", sources), Default: sources, Min: uikit.HeightRow,
@@ -2901,13 +2948,18 @@ func (a *app) sidebarPanes(c *ui.Context, t *ui.Theme) {
 			Height: a.paneHeight("sessions", sessions), Default: sessions, Min: uikit.HeightRow,
 			Body: func() { a.sessionsPane(c, t) },
 		},
-		{
+	}
+	// Collections has the sidebar to itself: its tree is the one pane, and
+	// as the last open one it takes the whole middle.
+	if a.sidebarMode == sidebarCollections {
+		panes = []uikit.SidebarPane{{
 			ID: "collections", Title: locales.Collections(), Open: a.regionOpen("collections"),
 			Height: a.paneHeight("collections", sidebarCollectionsBody), Default: sidebarCollectionsBody, Min: uikit.HeightRow * 5,
 			Trailing: func() { a.collectionsHeadingActions(c) },
 			Body:     func() { a.collectionsPane(c, t) },
-		},
-	})
+		}}
+	}
+	stack := uikit.SidebarPanes(c, "sidebar-panes-"+strconv.Itoa(a.sidebarMode), a.paneViewport, panes)
 	// The scroll is the middle's viewport: its height is what the fixed
 	// traffic and footer leave. Read it once the frame has laid it out, and
 	// build the next frame with it, so the last open region fills exactly
@@ -3132,21 +3184,20 @@ func (a *app) sourcesAllRow(c *ui.Context, t *ui.Theme, apps bool) {
 	}
 }
 
-// sidebarFooter is fixed under the middle: the setup of a client, the HTTPS rules
-// and the connection's diagnostics. They open a window or a page rather than
-// choose a place in the list above, so they carry no selection.
-func (a *app) sidebarFooter(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Shrink(0).Padding(t.Space(uikit.SpaceXS), 0).Gap(0).Children(func() {
-		if uikit.SidebarButton(c, locales.ClientSetup(), locales.CopyAProcessScopedProxy(), monitorIcon, false).Clicked() {
-			a.openClientSetup()
-		}
-		if uikit.SidebarButton(c, locales.HttpsDecryption(), locales.HttpsInspectionRules(), lockIcon, false).
-			Label(locales.ManageHttpsRules()).Clicked() {
-			a.sslOpen = true
-		}
-		if uikit.SidebarButton(c, locales.Diagnostics(), locales.ConnectionDiagnostics(), diagnosticsIcon, a.page == pageDiagnostics).Clicked() {
-			a.goTo("diagnostics")
-		}
+// footerSetup is the footer's way to connecting a client: its setup, the
+// HTTPS rules and the connection's diagnostics. They are set up once and
+// visited when something breaks, so they share one entry instead of three
+// sidebar rows.
+func (a *app) footerSetup(c *ui.Context) {
+	b := uikit.FooterButton(c, locales.SetupMenu(), locales.SetupMenuTip(), a.page == pageDiagnostics)
+	uikit.MenuFace(c, func() {
+		b.PopoverMenuButton(func(m *ui.Menu) {
+			actionMenu(m, []action{
+				do("setup.client", locales.ClientSetup(), a.openClientSetup),
+				do("setup.https", locales.HttpsDecryption(), func() { a.sslOpen = true }),
+				do("setup.diagnostics", locales.Diagnostics(), func() { a.goTo("diagnostics") }),
+			})
+		}, uikit.MenuButtonOptions(c))
 	})
 }
 
@@ -3286,7 +3337,7 @@ func (a *app) table(c *ui.Context) {
 		}
 		// One sentence and at most two buttons. Setting up a client is the
 		// first thing a capture needs, so it is here as well as in the
-		// sidebar's footer; a stopped listener is the other way forward.
+		// footer's Setup menu; a stopped listener is the other way forward.
 		uikit.EmptyState(c, title, hint, func() {
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().Justify(ui.Center).Children(func() {
 				if !running && uikit.PrimaryButton(c, locales.StartCapture()).Disabled(a.srv == nil).Clicked() {

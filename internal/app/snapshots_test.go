@@ -594,7 +594,7 @@ func snapshotStates(t *testing.T) []snapshot {
 		}, want: "Traffic"},
 		{name: "capture-sidebar-hidden", setup: func(a *app) { a.workbench.sidebarHidden = true }, want: "Captured requests"},
 		{name: "capture-sidebar-long", setup: func(a *app) { snapshotSidebar(a, 20, 3, 14) }, want: "Show all domains"},
-		{name: "capture-sidebar-card", setup: func(a *app) { snapshotSidebar(a, 20, 3, 14) }, act: func(t *testing.T, tt *ui.Tester) {
+		{name: "capture-sidebar-card", setup: func(a *app) { snapshotSidebar(a, 20, 3, 14); a.sidebarMode = sidebarCollections }, act: func(t *testing.T, tt *ui.Tester) {
 			// A request low in the sidebar: its card opens beside the row, inside the window.
 			tt.Scroll(120, 300, 0, -120)
 			tt.Scroll(120, 300, 0, -120)
@@ -1992,7 +1992,7 @@ func snapshotStates(t *testing.T) []snapshot {
 		}, want: "no space left on device"},
 		{name: "notification-warning", toasts: []ui.Toast{{Title: "Response body incomplete", Description: "The captured bytes are still available.", Type: "warning"}}, want: "Response body incomplete"},
 		{name: "capture-menu", act: click("More capture options"), menu: "Clear unpinned requests…"},
-		{name: "collections-menu", act: click("Collection options"), menu: "Generate API from collection…"},
+		{name: "collections-menu", setup: func(a *app) { a.sidebarMode = sidebarCollections }, act: click("Collection options"), menu: "Generate API from collection…"},
 		{name: "body-menu", setup: func(a *app) { a.workbench.sidePercent = 40 },
 			act: click("Response body format"), menu: "Pretty"},
 		{name: "inspector-menu", act: click("Inspector options"), menu: "Replay"},

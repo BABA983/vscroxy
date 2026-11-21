@@ -13136,6 +13136,48 @@ func (msgs Messages) Commands2() string {
 	return Catalog.Format(msgs.locale, "commands2", nil)
 }
 
+// SearchRequestsTrafficAndCommands says "Search requests, traffic and commands"
+// in the language the app shows.
+func SearchRequestsTrafficAndCommands() string {
+	return In(i18n.Locale()).SearchRequestsTrafficAndCommands()
+}
+
+// SearchRequestsTrafficAndCommands says "Search requests, traffic and commands"
+// in the language of msgs.
+func (msgs Messages) SearchRequestsTrafficAndCommands() string {
+	return Catalog.Format(msgs.locale, "searchRequestsTrafficAndCommands", nil)
+}
+
+// SidebarShows says "Sidebar"
+// in the language the app shows.
+func SidebarShows() string { return In(i18n.Locale()).SidebarShows() }
+
+// SidebarShows says "Sidebar"
+// in the language of msgs.
+func (msgs Messages) SidebarShows() string {
+	return Catalog.Format(msgs.locale, "sidebarShows", nil)
+}
+
+// SetupMenu says "Setup"
+// in the language the app shows.
+func SetupMenu() string { return In(i18n.Locale()).SetupMenu() }
+
+// SetupMenu says "Setup"
+// in the language of msgs.
+func (msgs Messages) SetupMenu() string {
+	return Catalog.Format(msgs.locale, "setupMenu", nil)
+}
+
+// SetupMenuTip says "Client setup, HTTPS decryption and diagnostics"
+// in the language the app shows.
+func SetupMenuTip() string { return In(i18n.Locale()).SetupMenuTip() }
+
+// SetupMenuTip says "Client setup, HTTPS decryption and diagnostics"
+// in the language of msgs.
+func (msgs Messages) SetupMenuTip() string {
+	return Catalog.Format(msgs.locale, "setupMenuTip", nil)
+}
+
 // Comment says "Comment"
 // in the language the app shows.
 func Comment() string { return In(i18n.Locale()).Comment() }
@@ -19504,16 +19546,6 @@ func (msgs Messages) HttpsInspectionByExecutable() string {
 	return Catalog.Format(msgs.locale, "httpsInspectionByExecutable", nil)
 }
 
-// HttpsInspectionRules says "HTTPS decryption rules"
-// in the language the app shows.
-func HttpsInspectionRules() string { return In(i18n.Locale()).HttpsInspectionRules() }
-
-// HttpsInspectionRules says "HTTPS decryption rules"
-// in the language of msgs.
-func (msgs Messages) HttpsInspectionRules() string {
-	return Catalog.Format(msgs.locale, "httpsInspectionRules", nil)
-}
-
 // HttpsRules says "HTTPS decryption"
 // in the language the app shows.
 func HttpsRules() string { return In(i18n.Locale()).HttpsRules() }
@@ -21508,16 +21540,6 @@ func ManageHostProfiles() string { return In(i18n.Locale()).ManageHostProfiles()
 // in the language of msgs.
 func (msgs Messages) ManageHostProfiles() string {
 	return Catalog.Format(msgs.locale, "manageHostProfiles", nil)
-}
-
-// ManageHttpsRules says "Manage HTTPS decryption"
-// in the language the app shows.
-func ManageHttpsRules() string { return In(i18n.Locale()).ManageHttpsRules() }
-
-// ManageHttpsRules says "Manage HTTPS decryption"
-// in the language of msgs.
-func (msgs Messages) ManageHttpsRules() string {
-	return Catalog.Format(msgs.locale, "manageHttpsRules", nil)
 }
 
 // ManageProfiles says "Manage profiles…"

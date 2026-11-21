@@ -977,6 +977,7 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 	if value("URL") != "https://api.example.com/login" || !tt.HasText("Save to collection") || !tt.HasText("401") {
 		t.Fatal("the captured request did not open in place as a document")
 	}
+	click("Collections")
 	click("List projects")
 	if value("URL") != "https://api.example.com/projects" || tt.HasText("Captured requests") {
 		t.Fatal("a saved request should replace the traffic list with its draft")
@@ -1038,6 +1039,7 @@ func TestRequestResourcesPreserveDraftAndTreeExpansion(t *testing.T) {
 	}
 	// Other places in the window never replace the draft.
 	tt.Key(ui.Cmd, ui.Key1)
+	click("Collections")
 	click("Collection options")
 	if err := chooseMenu(tt, "Runs"); err != nil {
 		t.Fatal(err)
@@ -1581,7 +1583,10 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	if !tt.HasText("Encrypted, not decrypted — not individual requests") {
 		t.Fatalf("enabling an app claimed this historical tunnel was decrypted: %q", tt.Texts())
 	}
-	click("Manage HTTPS decryption")
+	click("Setup")
+	if err := chooseMenu(tt, "HTTPS decryption"); err != nil {
+		t.Fatal(err)
+	}
 	click("Decryption domains")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("edited.test")
@@ -1590,7 +1595,10 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	if !cfg.Decrypts("edited.test") || cfg.Decrypts("existing.test") || len(cfg.Apps) != 1 || cfg.Apps[0].Path != path {
 		t.Fatalf("editing domains lost the independent app rule: %+v", cfg)
 	}
-	click("Manage HTTPS decryption")
+	click("Setup")
+	if err := chooseMenu(tt, "HTTPS decryption"); err != nil {
+		t.Fatal(err)
+	}
 	box, ok := tt.Find("Decryption domains")
 	if !ok {
 		t.Fatal("rule editor did not open")
@@ -1598,7 +1606,10 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	tt.Scroll(box.X+10, box.Y+10, 0, 1e6)
 	click("Remove HTTPS app: " + path)
 	click("Cancel")
-	click("Manage HTTPS decryption")
+	click("Setup")
+	if err := chooseMenu(tt, "HTTPS decryption"); err != nil {
+		t.Fatal(err)
+	}
 	tt.Scroll(box.X+10, box.Y+10, 0, 1e6)
 	if !tt.HasText(path) || len(load().Apps) != 1 {
 		t.Fatal("cancelling a removal changed the enabled app rule")
@@ -2275,7 +2286,7 @@ func TestEmptyCaptureOffersTheProxyAndClientSetup(t *testing.T) {
 		t.Fatalf("the empty list says something else: %v", tt.Texts())
 	}
 	// Setting up a client is the first thing a capture needs.
-	if err := tt.Click("Client setup"); err != nil {
+	if err := tt.Click("Set up a client…"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -2330,17 +2341,14 @@ func TestCaptureStartsBelowFourBars(t *testing.T) {
 
 func TestSidebarRegionsScrollApart(t *testing.T) {
 	a := workspaceApp()
-	// Twenty hosts above a tree of forty-two requests: neither region can
-	// show all of what it holds, and neither may push the other away.
+	// Twenty hosts above the sessions: Sources cannot show all it holds, and
+	// scrolling it may not push the sessions away.
 	snapshotSidebar(a, 20, 3, 14)
 	a.sourcesAll = true
 	tt := ui.NewTester(a.view, 1280, 800)
-	collections, ok := tt.Find("Collections")
+	sessions, ok := tt.Find("Sessions")
 	if !ok {
-		t.Fatal("the collections region is not on screen beside a long list of hosts")
-	}
-	if _, ok := tt.Find("Workspace"); !ok {
-		t.Fatal("the tree is not on screen beside a long list of hosts")
+		t.Fatal("the sessions region is not on screen beside a long list of hosts")
 	}
 	first, ok := tt.Find("service-01.example.com")
 	if !ok {
@@ -2352,21 +2360,8 @@ func TestSidebarRegionsScrollApart(t *testing.T) {
 	if !ok || host.Y >= first.Y {
 		t.Fatalf("the traffic region did not scroll: %v → %v", first.Y, host.Y)
 	}
-	if after, ok := tt.Find("Collections"); !ok || after.Y != collections.Y {
-		t.Fatalf("scrolling the traffic region moved the collections: %v → %v", collections.Y, after.Y)
-	}
-	// The tree scrolls in its own region, and the hosts stay where they were.
-	treeBefore, ok := tt.Find("List items 1")
-	if !ok {
-		t.Fatal("the tree's first row is not on screen")
-	}
-	tt.Scroll(120, 660, 0, 120)
-	tt.Frame()
-	if treeAfter, ok := tt.Find("List items 1"); !ok || treeAfter.Y >= treeBefore.Y {
-		t.Fatalf("the collections region did not scroll: %v → %v", treeBefore.Y, treeAfter.Y)
-	}
-	if after, ok := tt.Find("service-01.example.com"); !ok || after.Y != host.Y {
-		t.Fatalf("scrolling the tree moved the hosts: %v → %v", host.Y, after.Y)
+	if after, ok := tt.Find("Sessions"); !ok || after.Y != sessions.Y {
+		t.Fatalf("scrolling the hosts moved the sessions: %v → %v", sessions.Y, after.Y)
 	}
 }
 
@@ -2543,13 +2538,13 @@ func TestShellIsOneSurfaceAroundTheRaisedPanel(t *testing.T) {
 		a.workbench.sidebarHidden = hidden
 		tt := ui.NewTester(a.view, 1280, 800)
 		im := tt.Image()
-		// The bar's own surface, clear of the listening pill at its middle
+		// The bar's own surface, clear of the search field at its middle
 		// and of the controls at either end.
-		chrome := im.RGBAAt(800, 20)
+		chrome := im.RGBAAt(1000, 20)
 		for _, at := range []struct {
 			name string
 			x, y int
-		}{{"title bar", 800, 20}, {"footer", 640, 790}} {
+		}{{"title bar", 1000, 20}, {"footer", 640, 790}} {
 			if got := im.RGBAAt(at.x, at.y); got != chrome {
 				t.Fatalf("sidebarHidden=%t: the %s is %v, not the shell's %v", hidden, at.name, got, chrome)
 			}
@@ -3377,6 +3372,7 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 		}
 	}
 	tt := ui.NewTester(a.view, 1280, 800)
+	showCollections(t, tt)
 	click := func(label string) {
 		t.Helper()
 		if err := tt.Click(label); err != nil {
@@ -5187,7 +5183,7 @@ func TestCaptureEmptyStateOffersSetupWithoutConfusingFilteredTraffic(t *testing.
 	}
 	// A stopped listener is one click from running, beside the way to set a
 	// client up.
-	if !tt.HasText("Start capture") || !tt.HasText("Client setup") {
+	if !tt.HasText("Start capture") || !tt.HasText("Set up a client…") {
 		t.Fatalf("empty state lost its setup actions: %v", tt.Texts())
 	}
 	a.srv = requestProxy(t)
@@ -5195,7 +5191,7 @@ func TestCaptureEmptyStateOffersSetupWithoutConfusingFilteredTraffic(t *testing.
 	if !tt.HasText("Listening at " + a.srv.Addr() + " · no retained requests yet") {
 		t.Fatal("empty state omitted the actual bound address")
 	}
-	if tt.HasText("Start capture") || !tt.HasText("Client setup") || !tt.HasText("Diagnose capture…") {
+	if tt.HasText("Start capture") || !tt.HasText("Set up a client…") || !tt.HasText("Diagnose capture…") {
 		t.Fatal("a running listener offered the wrong two actions")
 	}
 	a.flows = []flow{{id: 1, method: "GET", url: "http://example.test/"}}
@@ -6114,9 +6110,12 @@ func TestConnectionDiagnosticsEmptyAndInvalidTargetsDoNotClaimProxyFailure(t *te
 		return system.ProxyCheck{Target: target, Status: system.ProxyOff}
 	}
 	tt := ui.NewTester(a.view, 960, 600)
-	// Diagnostics has its own place in the sidebar's footer, under both of
-	// the empty list's setup actions.
-	if err := tt.Click("Diagnostics"); err != nil {
+	// Diagnostics is in the footer's Setup menu, beside the empty list's
+	// setup actions.
+	if err := tt.Click("Setup"); err != nil {
+		t.Fatal(err)
+	}
+	if err := chooseMenu(tt, "Diagnostics"); err != nil {
 		t.Fatal(err)
 	}
 	settleProxy(t, a, tt)
@@ -6627,6 +6626,7 @@ func TestCollectionDocumentationView(t *testing.T) {
 	a.folders = []request.Folder{{Path: "Workspace/API", Description: "## Workspace API\n\nEndpoints for **projects**."}}
 	a.requests[0].Description = "Lists projects."
 	tt := ui.NewTester(a.view, 960, 600)
+	showCollections(t, tt)
 	if err := tt.Click("Collection actions: Workspace/API"); err != nil {
 		t.Fatal(err)
 	}
@@ -7005,6 +7005,7 @@ func TestEscapeClearsTheSearchText(t *testing.T) {
 func TestDuplicateOpensACopyOfTheRequest(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1280, 800)
+	showCollections(t, tt)
 	tt.Frame()
 	if err := tt.Click("List projects"); err != nil {
 		t.Fatal(err)
@@ -7311,13 +7312,12 @@ func TestSessionsLiveWithTheTraffic(t *testing.T) {
 	a.sessions.items = []*savedSession{{key: "k1", data: sessionFile{Title: "Morning evidence"}, count: 3, loaded: true}}
 	tt := ui.NewTester(a.view, 1280, 800)
 	tt.Frame()
-	row, ok := tt.Find("Morning evidence")
-	if !ok {
+	if _, ok := tt.Find("Morning evidence"); !ok {
 		t.Fatalf("the session is not in the sidebar: %q", tt.Texts())
 	}
-	collections, ok := tt.Find("Collections")
-	if !ok || row.Y > collections.Y {
-		t.Fatalf("the session sits at %v, not above the collections at %v", row.Y, collections.Y)
+	// Sessions are kept traffic: they share the Traffic half, not the tree's.
+	if _, ok := tt.Find("Search collections"); ok {
+		t.Fatal("the session's half also shows the collections")
 	}
 	if err := tt.Click("Morning evidence"); err != nil {
 		t.Fatal(err)
@@ -7341,6 +7341,7 @@ func TestEmptyCollectionsOfferARequestRow(t *testing.T) {
 	a := workspaceApp()
 	a.requests, a.folders, a.documents = nil, nil, nil
 	tt := ui.NewTester(a.view, 1280, 800)
+	showCollections(t, tt)
 	tt.Frame()
 	row, ok := tt.Find("New request")
 	search, okSearch := tt.Find("Search collections")
@@ -7462,4 +7463,14 @@ func TestUnknownClientBadgeIsNeutral(t *testing.T) {
 	if spread := max(p.R, max(p.G, p.B)) - min(p.R, min(p.G, p.B)); spread > 8 {
 		t.Fatalf("the badge is colored: %v", p)
 	}
+}
+
+// showCollections turns the sidebar to its Collections half, where the tree
+// is: a window opens on Live, and Live shows the traffic.
+func showCollections(t testing.TB, tt *ui.Tester) {
+	t.Helper()
+	if err := tt.Click("Collections"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 }

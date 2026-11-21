@@ -166,6 +166,7 @@ func TestRequestAndFolderMenusOfferLocalHistory(t *testing.T) {
 	a.folders = []request.Folder{{Path: "Shop"}}
 	a.requests[0].Collection = "Shop"
 	tt := ui.NewTester(a.view, 1200, 800)
+	showCollections(t, tt)
 	tt.Frame()
 	if err := tt.RightClick("List projects"); err != nil {
 		t.Fatalf("right-click the request: %v", err)

@@ -707,12 +707,14 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("go.live", locales.GoToLiveTraffic(), func(x *commandContext) {
 		a := x.a
 		a.openPageTab(pageLive, tabOpen{})
+		a.sidebarMode = sidebarTraffic
 		*a.regionOpen("traffic") = true
 		x.focusTraffic()
 	}).keys(ui.Cmd, ui.Key1)
 	r.add("go.collections", locales.GoToCollections(), func(x *commandContext) {
 		a := x.a
 		*a.regionOpen("collections") = true
+		a.sidebarMode = sidebarCollections
 		a.showRequestWorkspace()
 		if x.d != nil {
 			x.focusURL()

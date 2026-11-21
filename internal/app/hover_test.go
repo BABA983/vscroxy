@@ -93,6 +93,7 @@ func TestOpenRequestKeepsItsActions(t *testing.T) {
 func TestRequestActionsFollowThePointer(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1440, 800)
+	showCollections(t, tt)
 	tt.Frame()
 	row, ok := tt.Find("List projects")
 	if !ok {
