@@ -46,7 +46,8 @@ type Argv struct {
 	// Env, when non-nil, is the complete environment for the child. Windows
 	// uses it to open a terminal with the proxy variables without a batch file.
 	Env []string
-	// NewConsole asks Windows to create a console window for the child.
+	// NewConsole asks Windows to open the child in a console window of its own
+	// instead of handing it the app's standard handles.
 	NewConsole bool
 	// OnStartError removes resources such as a temporary browser profile when
 	// the client could not be started. It must not run after a successful
@@ -72,7 +73,6 @@ func (c Argv) command(bin string) *exec.Cmd {
 		// docker and keytool where the user's login shell finds them.
 		cmd.Env = system.ShellEnv(context.Background())
 	}
-	configureStart(cmd, c.NewConsole)
 	return cmd
 }
 
@@ -103,11 +103,9 @@ func (c Argv) Start() error {
 	if err != nil {
 		return err
 	}
-	cmd := c.command(bin)
-	if err := cmd.Start(); err != nil {
+	if err := startDetached(c, bin); err != nil {
 		return fmt.Errorf("start %s: %w", c.Name, err)
 	}
-	go func() { _ = cmd.Wait() }()
 	return nil
 }
 

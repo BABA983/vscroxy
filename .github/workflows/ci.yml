@@ -100,6 +100,14 @@ jobs:
       - name: Test named pipes
         if: runner.os == 'Windows'
         run: go test ./internal/request -run 'NamedPipe' -timeout 60s
+      # The terminal launch and the Windows trust check are platform code that
+      # only a Windows runner exercises. The rest of these packages assert
+      # POSIX paths and modes, so CI runs the Windows behavior by name.
+      - name: Test Windows terminal and trust
+        if: runner.os == 'Windows'
+        run: |
+          go test ./internal/clientsetup -run 'TestOpenTerminalKeepsAConsoleWindow|TestWindowsTerminalUsesCmdEnvAndANewConsole'
+          go test ./internal/system -run 'TestCheckCA|TestInstallCARejectsInvalidInput'
       - name: Test every package
         if: runner.os == 'macOS'
         run: go test ./...

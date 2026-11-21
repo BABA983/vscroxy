@@ -191,6 +191,16 @@ are included. Windows also lazy-loads some public roots; a root that Windows has
 not fetched yet may be missing until Windows updates the store, after which the
 next launch includes it.
 
+Windows curl uses Schannel instead of a CA bundle, so the `CURL_CA_BUNDLE` the
+terminal sets has no effect there. Schannel cannot check revocation for the
+app's CA and fails with `CRYPT_E_NO_REVOCATION_CHECK` even when the CA is
+trusted; add `--ssl-no-revoke` for those requests, which turns revocation
+checking off for that curl run only:
+
+```sh
+curl --ssl-no-revoke -x http://127.0.0.1:7890 https://example.com/
+```
+
 ## Connect a phone or another device
 
 For copyable cURL, Node.js (`https-proxy-agent`), Python (`requests`) and Go
