@@ -227,15 +227,22 @@ password characters.
 an authentication exchange. It carries the initial `Proxy-Authorization` value
 and an `Answer` callback for each 407; the helper keeps one connection for every
 attempt, drains each intermediate response, and treats a 407 after the answer as
-final. `internal/upstream` builds the callback from its NTLM session, which uses
-`internal/ntlm` (the same NTLMv2 messages as authored requests) and accepts NTLM
-inside a Negotiate challenge. The absolute-URI transport in
-`proxy/upstream_auth.go` runs the same loop for a rewritten plain HTTP target,
-buffering the body so the Type 3 attempt can resend it. Kerberos/SSPI/GSSAPI
-single sign-on and proxy client certificates remain out of scope.
-`TestHTTPUpstreamNTLM*` in `internal/capture` covers NTLM, NTLM inside
-Negotiate, a wrong password with no DIRECT fallback, and absolute-URI
-forwarding.
+final. `Answer` also reports whether the value is the Type 3 origin request, so
+the plain-HTTP transport can bound only the Type 1 challenge rounds with a
+one-minute handshake context and leave the origin's response on the request's
+own context. A long poll or slow origin behind an NTLM proxy is therefore not
+cut at 60 seconds. `internal/upstream` builds the callback from its NTLM
+session, which uses `internal/ntlm` (the same NTLMv2 messages as authored
+requests) and accepts NTLM inside a Negotiate challenge. The absolute-URI
+transport in `proxy/upstream_auth.go` runs the same loop for a rewritten plain
+HTTP target, buffering the body so the Type 3 attempt can resend it. That buffer
+is capped at 8 MiB (`proxy.MaxProxyAuthBody`): a larger body fails before any
+request is written, names the limit, and suggests HTTPS, whose CONNECT tunnel
+carries the body without buffering. Kerberos/SSPI/GSSAPI single sign-on and
+proxy client certificates remain out of scope. `TestHTTPUpstreamNTLM*` in
+`internal/capture` covers NTLM, NTLM inside Negotiate, a wrong password with no
+DIRECT fallback, and absolute-URI forwarding; `TestProxyAuthTransport*` in
+`proxy` covers the body limit and the unbounded origin response.
 
 The connection log shows the selection reason before the dial. Credentials are
 never part of `Reason`, and the helper's errors do not include them.

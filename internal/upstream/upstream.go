@@ -221,15 +221,17 @@ func (s *NTLMSession) Initial() string {
 	return ntlm.SchemeNTLM + " " + base64.StdEncoding.EncodeToString(s.type1)
 }
 
-// Answer returns the Proxy-Authorization value for a 407's challenges. An
-// error means the exchange cannot continue; the 407 is then the result.
-func (s *NTLMSession) Answer(challenges []string) (string, error) {
+// Answer returns the Proxy-Authorization value for a 407's challenges. final
+// reports that this is the Type 3 answer, whose response is the origin's
+// response and may be a long poll. An error means the exchange cannot
+// continue; the 407 is then the result.
+func (s *NTLMSession) Answer(challenges []string) (authorization string, final bool, err error) {
 	scheme, type2, ok := ntlm.ProxyChallenge(challenges)
 	if !ok {
-		return "", ErrAuthUnsupported
+		return "", false, ErrAuthUnsupported
 	}
 	if s.type3 {
-		return "", ErrAuthRejected
+		return "", false, ErrAuthRejected
 	}
 	if !strings.EqualFold(scheme, s.scheme) {
 		// A proxy that offers only Negotiate receives the same NTLM messages
@@ -238,17 +240,17 @@ func (s *NTLMSession) Answer(challenges []string) (string, error) {
 	}
 	if len(type2) == 0 {
 		if s.type1Count >= 2 {
-			return "", ErrAuthRejected
+			return "", false, ErrAuthRejected
 		}
 		s.type1Count++
-		return s.scheme + " " + base64.StdEncoding.EncodeToString(s.type1), nil
+		return s.scheme + " " + base64.StdEncoding.EncodeToString(s.type1), false, nil
 	}
 	message, err := s.creds.AuthenticateMessage(type2)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	s.type3 = true
-	return s.scheme + " " + base64.StdEncoding.EncodeToString(message), nil
+	return s.scheme + " " + base64.StdEncoding.EncodeToString(message), true, nil
 }
 
 // Config is a validated, immutable upstream configuration. Resolve is safe

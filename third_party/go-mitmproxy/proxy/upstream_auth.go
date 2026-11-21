@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -16,6 +17,12 @@ import (
 	"github.com/lqqyt2423/go-mitmproxy/internal/helper"
 )
 
+// MaxProxyAuthBody is the largest plain-HTTP request body an upstream proxy
+// authentication exchange buffers so the Type 3 attempt can resend it. A
+// larger body fails with a clear error; HTTPS uses the CONNECT tunnel and
+// needs no buffering.
+const MaxProxyAuthBody = 8 << 20
+
 // proxyAuthTransport sends a plain HTTP request through an upstream proxy that
 // needs an authentication exchange. The first connection is the one the caller
 // already dialled; every attempt reuses it, because a challenge and its answer
@@ -24,6 +31,10 @@ type proxyAuthTransport struct {
 	proxyURL *url.URL
 	proxyTLS *tls.Config
 	auth     *ProxyAuth
+	// handshakeContext bounds the Type 1 challenge rounds. Tests replace it
+	// with a shorter bound. The Type 3 answer is the origin request, so its
+	// response uses the request's own context.
+	handshakeContext func(context.Context) (context.Context, context.CancelFunc)
 
 	mu    sync.Mutex
 	first net.Conn
@@ -39,11 +50,18 @@ func (t *proxyAuthTransport) RoundTrip(req *http.Request) (*http.Response, error
 	}
 	var body []byte
 	if req.Body != nil {
-		body, err = io.ReadAll(req.Body)
+		body, err = io.ReadAll(io.LimitReader(req.Body, MaxProxyAuthBody+1))
 		_ = req.Body.Close()
 		if err != nil {
 			_ = conn.Close()
 			return nil, err
+		}
+		if len(body) > MaxProxyAuthBody {
+			_ = conn.Close()
+			return nil, fmt.Errorf("the plain HTTP request body is larger than %d MiB; an NTLM upstream proxy buffers it to answer the challenge, so use HTTPS, whose CONNECT tunnel carries the body without buffering", MaxProxyAuthBody>>20)
+		}
+		if len(body) == 0 {
+			body = nil
 		}
 	}
 	res, err := t.exchange(req, conn, body)
@@ -69,22 +87,38 @@ func (t *proxyAuthTransport) connection(ctx context.Context) (net.Conn, error) {
 }
 
 // exchange runs the challenge loop on one connection. A 407 after the answer
-// is final, as it is for Basic: the configured proxy refused the request.
+// is final, as it is for Basic: the configured proxy refused the request. The
+// first attempt and the Type 3 origin request use the request's own context;
+// only the Type 1 challenge rounds get the handshake bound.
 func (t *proxyAuthTransport) exchange(req *http.Request, conn net.Conn, body []byte) (*http.Response, error) {
-	ctx, cancel := context.WithTimeout(req.Context(), time.Minute)
-	defer cancel()
 	br := bufio.NewReader(conn)
-	res, err := writeProxyRequest(ctx, conn, br, req, body, t.auth.Initial)
+	res, err := writeProxyRequest(req.Context(), conn, br, req, body, t.auth.Initial)
 	for i := 0; err == nil && res.StatusCode == http.StatusProxyAuthRequired && i < 4; i++ {
 		challenges := res.Header.Values("Proxy-Authenticate")
 		drainProxyResponse(res)
-		next, answerErr := t.auth.Answer(challenges)
+		next, final, answerErr := t.auth.Answer(challenges)
 		if answerErr != nil {
 			break
 		}
-		res, err = writeProxyRequest(ctx, conn, br, req, body, next)
+		if final {
+			// Type 3 is the origin request; its response may be a long poll.
+			res, err = writeProxyRequest(req.Context(), conn, br, req, body, next)
+			break
+		}
+		handshakeCtx, cancel := t.handshakeCtx(req.Context())
+		res, err = writeProxyRequest(handshakeCtx, conn, br, req, body, next)
+		cancel()
 	}
 	return res, err
+}
+
+// handshakeCtx bounds one Type 1 challenge round. The default matches the
+// CONNECT helper's one-minute bound; a test can inject a shorter one.
+func (t *proxyAuthTransport) handshakeCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	if t.handshakeContext != nil {
+		return t.handshakeContext(ctx)
+	}
+	return context.WithTimeout(ctx, time.Minute)
 }
 
 // writeProxyRequest writes one absolute-form attempt and reads its response.

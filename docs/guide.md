@@ -1383,9 +1383,14 @@ default upstream. A rule or the default may say `direct`.
   request proceeds. A proxy that offers `Negotiate` receives the same NTLM
   messages inside it. **Domain** and **Workstation** are optional NTLM settings;
   a username's `DOMAIN\user` or `user@domain` form supplies the domain when the
-  field is empty. SOCKS5 uses RFC 1929 username/password and does not support
-  NTLM. Kerberos/SSPI/GSSAPI single sign-on and proxy client certificates are
-  not supported. Passwords are sealed in `~/.vscroxy/upstream-secrets.json` with
+  field is empty. A plain HTTP request body through an NTLM proxy is buffered
+  for the Type 3 resend, up to 8 MiB; a larger body fails with an error naming
+  the limit, so use HTTPS, whose CONNECT tunnel carries the body without
+  buffering. The handshake bound covers only the 407 rounds, so a slow origin
+  response is not cut at 60 seconds. SOCKS5 uses RFC 1929 username/password and
+  does not support NTLM. Kerberos/SSPI/GSSAPI single sign-on and proxy client
+  certificates are not supported. Passwords are sealed in
+  `~/.vscroxy/upstream-secrets.json` with
   `upstream.key` (0600); settings, configuration export and logs contain only
   the endpoint, username and NTLM settings. A wrong password fails the request
   with 407 for HTTP or 502 for SOCKS5 and does not fall back to another proxy or

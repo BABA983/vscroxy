@@ -35,8 +35,10 @@ type ProxyAuth struct {
 	// sends the request without credentials.
 	Initial string
 	// Answer returns the value answering a 407's Proxy-Authenticate values.
-	// An error makes that 407 the final response.
-	Answer func(challenges []string) (string, error)
+	// final reports that this value is the origin request's answer (Type 3),
+	// whose response is the final response and is not bound by a handshake
+	// timeout. An error makes that 407 the final response.
+	Answer func(challenges []string) (authorization string, final bool, err error)
 }
 
 // GetProxyConn connect proxy
@@ -172,11 +174,17 @@ func authenticateProxy(ctx context.Context, conn net.Conn, req *http.Request, au
 	for i := 0; err == nil && resp.StatusCode == http.StatusProxyAuthRequired && i < 4; i++ {
 		challenges := resp.Header.Values("Proxy-Authenticate")
 		drainProxyResponse(resp)
-		next, answerErr := auth.Answer(challenges)
+		next, final, answerErr := auth.Answer(challenges)
 		if answerErr != nil {
 			break
 		}
-		resp, err = writeConnect(connectCtx, conn, br, req, next)
+		// The Type 3 CONNECT is the origin request; its 200 is the tunnel, so
+		// it keeps the caller's context rather than the handshake bound.
+		attemptCtx := connectCtx
+		if final {
+			attemptCtx = ctx
+		}
+		resp, err = writeConnect(attemptCtx, conn, br, req, next)
 	}
 	if err != nil {
 		return err
