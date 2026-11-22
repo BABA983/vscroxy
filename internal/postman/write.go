@@ -80,10 +80,11 @@ type outRequest struct {
 }
 
 type outHeader struct {
-	Key      string `json:"key"`
-	Value    string `json:"value"`
-	Type     string `json:"type"`
-	Disabled bool   `json:"disabled,omitzero"`
+	Key         string `json:"key"`
+	Value       string `json:"value"`
+	Description string `json:"description,omitempty"`
+	Type        string `json:"type"`
+	Disabled    bool   `json:"disabled,omitzero"`
 }
 
 type outURL struct {
@@ -98,8 +99,9 @@ type outURL struct {
 }
 
 type outQuery struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Key         string `json:"key"`
+	Value       string `json:"value"`
+	Description string `json:"description,omitempty"`
 }
 
 type outBody struct {
@@ -129,11 +131,12 @@ type outOptions struct {
 }
 
 type outFormField struct {
-	Key      string `json:"key"`
-	Value    string `json:"value,omitempty"`
-	Type     string `json:"type"`
-	Src      string `json:"src,omitempty"`
-	Disabled bool   `json:"disabled,omitzero"`
+	Key         string `json:"key"`
+	Value       string `json:"value,omitempty"`
+	Description string `json:"description,omitempty"`
+	Type        string `json:"type"`
+	Src         string `json:"src,omitempty"`
+	Disabled    bool   `json:"disabled,omitzero"`
 }
 
 type outAuth struct {
@@ -199,6 +202,7 @@ func WriteCollection(name string, requests []request.Request, folders []request.
 		if f.Settings.RedirectMode == capture.RedirectCurl {
 			warn.add("curl redirects", "", 1)
 		}
+		warnUnsupportedSettings(&warn, f.Settings)
 	}
 	for _, r := range requests {
 		if n := root.at(name, r.Collection); n != nil {
@@ -222,6 +226,7 @@ func WriteCollection(name string, requests []request.Request, folders []request.
 			if r.Settings.RedirectMode == capture.RedirectCurl {
 				warn.add("curl redirects", "", 1)
 			}
+			warnUnsupportedSettings(&warn, r.Settings)
 		}
 	}
 	var out outCollection
@@ -288,6 +293,26 @@ func (n *node) items() []outItem {
 	return items
 }
 
+// warnUnsupportedSettings counts the request transport choices Postman v2.1
+// cannot hold. They stay in vscroxy's own collection file.
+func warnUnsupportedSettings(warn *tally, s request.Settings) {
+	if s.FollowOriginalMethod != nil {
+		warn.add("redirect method", "", 1)
+	}
+	if s.KeepAuthorization != nil {
+		warn.add("redirect authorization", "", 1)
+	}
+	if s.RemoveReferer != nil {
+		warn.add("redirect referer", "", 1)
+	}
+	if s.DisabledTLSVersions != nil {
+		warn.add("TLS versions", "", 1)
+	}
+	if s.CipherSuites != nil {
+		warn.add("cipher suites", "", 1)
+	}
+}
+
 // writeProfile writes the transport settings Postman can hold; nil when the
 // level sets none.
 func writeProfile(s request.Settings) *outProfile {
@@ -305,7 +330,8 @@ func writeProfile(s request.Settings) *outProfile {
 }
 
 func writeRequest(r request.Request) *outRequest {
-	out := &outRequest{Method: strings.ToUpper(strings.TrimSpace(r.Method)), Header: []outHeader{}, URL: writeURL(r.URL, r.PathVariables)}
+	out := &outRequest{Method: strings.ToUpper(strings.TrimSpace(r.Method)), Header: []outHeader{},
+		URL: writeURL(r.URL, r.PathVariables, r.QueryDescriptions)}
 	if out.Method == "" {
 		out.Method = "GET"
 	}
@@ -314,7 +340,7 @@ func writeRequest(r request.Request) *outRequest {
 		rows = headerRows(r.Headers)
 	}
 	for _, h := range rows {
-		out.Header = append(out.Header, outHeader{Key: h.Name, Value: h.Value, Type: "text", Disabled: h.Disabled})
+		out.Header = append(out.Header, outHeader{Key: h.Name, Value: h.Value, Description: h.Description, Type: "text", Disabled: h.Disabled})
 	}
 	switch r.BodyMode {
 	case "", "Raw":
@@ -337,12 +363,12 @@ func writeRequest(r request.Request) *outRequest {
 	case "URL encoded":
 		out.Body = &outBody{Mode: "urlencoded", URLEncoded: []outFormField{}}
 		for _, f := range r.Form {
-			out.Body.URLEncoded = append(out.Body.URLEncoded, outFormField{Key: f.Name, Value: f.Value, Type: "text", Disabled: f.Disabled})
+			out.Body.URLEncoded = append(out.Body.URLEncoded, outFormField{Key: f.Name, Value: f.Value, Description: f.Description, Type: "text", Disabled: f.Disabled})
 		}
 	case "Multipart":
 		out.Body = &outBody{Mode: "formdata", FormData: []outFormField{}}
 		for _, f := range r.Form {
-			field := outFormField{Key: f.Name, Value: f.Value, Type: "text", Disabled: f.Disabled}
+			field := outFormField{Key: f.Name, Value: f.Value, Description: f.Description, Type: "text", Disabled: f.Disabled}
 			if f.File {
 				field.Value, field.Type, field.Src = "", "file", f.Value
 			}
@@ -560,7 +586,7 @@ func writeVariables(vars []request.Variable) []outVariable {
 
 // writeURL splits raw into Postman's parts without judging it: {{var}}
 // hosts and missing schemes are fine, and raw stays verbatim.
-func writeURL(raw string, pathVariables []request.Field) outURL {
+func writeURL(raw string, pathVariables []request.Field, descriptions []string) outURL {
 	u := outURL{Raw: raw}
 	for _, v := range pathVariables {
 		u.Variable = append(u.Variable, outVariable{Key: v.Name, Value: v.Value, Type: "string"})
@@ -569,9 +595,15 @@ func writeURL(raw string, pathVariables []request.Field) outURL {
 	rest, u.Hash, _ = strings.Cut(rest, "#")
 	rest, query, hasQuery := strings.Cut(rest, "?")
 	if hasQuery && query != "" {
+		at := 0
 		for pair := range strings.SplitSeq(query, "&") {
 			key, value, _ := strings.Cut(pair, "=")
-			u.Query = append(u.Query, outQuery{Key: key, Value: value})
+			description := ""
+			if at < len(descriptions) {
+				description = descriptions[at]
+			}
+			at++
+			u.Query = append(u.Query, outQuery{Key: key, Value: value, Description: description})
 		}
 	}
 	if scheme, after, ok := strings.Cut(rest, "://"); ok && !strings.ContainsAny(scheme, "/") {

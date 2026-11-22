@@ -1,6 +1,9 @@
 package request
 
 import (
+	"crypto/tls"
+	"fmt"
+	"slices"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
@@ -38,6 +41,35 @@ type Settings struct {
 	// Linux, or to a named pipe such as \\.\pipe\app on Windows, instead of
 	// through the capture proxy. Empty uses the network.
 	SocketPath string `json:"socketPath,omitempty"`
+	// FollowOriginalMethod keeps the request's method and body when a 301,
+	// 302 or 303 redirects; nil keeps Go's switch to GET.
+	FollowOriginalMethod *bool `json:"followOriginalMethod,omitempty"`
+	// KeepAuthorization sends the Authorization header to a redirect on a
+	// different host; nil strips it, as Go does.
+	KeepAuthorization *bool `json:"keepAuthorization,omitempty"`
+	// RemoveReferer stops the automatic Referer header on a redirect.
+	RemoveReferer *bool `json:"removeReferer,omitempty"`
+	// DisabledTLSVersions are the TLS versions the handshake may not use. nil
+	// keeps Go's defaults; an empty list explicitly enables every supported
+	// version. The transport can only express a contiguous range for the
+	// outer bounds; a disabled version inside it is rejected after the
+	// handshake, before any HTTP request is sent.
+	DisabledTLSVersions *[]string `json:"disabledTlsVersions,omitempty"`
+	// CipherSuites are the TLS 1.0–1.2 cipher suites the handshake may use.
+	// nil keeps Go's defaults. TLS 1.3 suites are chosen by crypto/tls and
+	// cannot be configured.
+	CipherSuites *[]string `json:"cipherSuites,omitempty"`
+}
+
+// IsZero reports whether the settings set nothing and therefore inherit every
+// value.
+func (s Settings) IsZero() bool {
+	return s.TimeoutSeconds == nil && s.FollowRedirects == nil && s.MaxRedirects == nil &&
+		s.RedirectMode == "" && !s.KeepMethod && !s.DropContentType &&
+		s.VerifyTLS == nil && s.HTTPVersion == "" && s.DisableURLEncoding == nil &&
+		s.DisableCookies == nil && s.SocketPath == "" && s.FollowOriginalMethod == nil &&
+		s.KeepAuthorization == nil && s.RemoveReferer == nil &&
+		s.DisabledTLSVersions == nil && s.CipherSuites == nil
 }
 
 // Clone returns settings that can be edited without changing s.
@@ -67,7 +99,119 @@ func (s Settings) Clone() Settings {
 		value := *s.DisableCookies
 		out.DisableCookies = &value
 	}
+	cloneList := func(list *[]string) *[]string {
+		if list == nil {
+			return nil
+		}
+		value := slices.Clone(*list)
+		return &value
+	}
+	out.DisabledTLSVersions = cloneList(s.DisabledTLSVersions)
+	out.CipherSuites = cloneList(s.CipherSuites)
 	return out
+}
+
+// FollowsOriginalMethod reports whether redirects keep the original method and
+// body. Off by default, as Go and Postman's default behavior.
+func (s Settings) FollowsOriginalMethod() bool {
+	return s.FollowOriginalMethod != nil && *s.FollowOriginalMethod
+}
+
+// KeepsAuthorization reports whether Authorization survives a redirect to
+// another host. Off by default.
+func (s Settings) KeepsAuthorization() bool {
+	return s.KeepAuthorization != nil && *s.KeepAuthorization
+}
+
+// RemovesReferer reports whether a redirect carries no Referer header. Off by
+// default, where Go adds the previous URL.
+func (s Settings) RemovesReferer() bool {
+	return s.RemoveReferer != nil && *s.RemoveReferer
+}
+
+// tlsVersionNames are the versions the settings and UI know, oldest first.
+var tlsVersionNames = []string{"1.0", "1.1", "1.2", "1.3"}
+
+var tlsVersionIDs = map[string]uint16{
+	"1.0": tls.VersionTLS10,
+	"1.1": tls.VersionTLS11,
+	"1.2": tls.VersionTLS12,
+	"1.3": tls.VersionTLS13,
+}
+
+// SupportedTLSVersions lists the TLS versions the setting can disable.
+func SupportedTLSVersions() []string { return slices.Clone(tlsVersionNames) }
+
+// TLSCipherSuiteNames lists the cipher suites Go can select. TLS 1.3 suites
+// are omitted because crypto/tls does not let a client restrict them.
+func TLSCipherSuiteNames() []string {
+	var names []string
+	for _, suite := range tls.CipherSuites() {
+		if slices.Contains(suite.SupportedVersions, tls.VersionTLS12) {
+			names = append(names, suite.Name)
+		}
+	}
+	return names
+}
+
+func tlsVersionID(name string) (uint16, bool) {
+	id, ok := tlsVersionIDs[name]
+	return id, ok
+}
+
+func cipherSuiteID(name string) (uint16, bool) {
+	for _, suite := range tls.CipherSuites() {
+		if suite.Name == name {
+			return suite.ID, true
+		}
+	}
+	return 0, false
+}
+
+// TLSVersions resolves the disabled list to the versions a handshake may use,
+// or nil when the request keeps Go's defaults.
+func (s Settings) TLSVersions() ([]uint16, error) {
+	if s.DisabledTLSVersions == nil {
+		return nil, nil
+	}
+	disabled := map[uint16]bool{}
+	for _, name := range *s.DisabledTLSVersions {
+		id, ok := tlsVersionID(name)
+		if !ok {
+			return nil, fmt.Errorf("unknown TLS version %q", name)
+		}
+		disabled[id] = true
+	}
+	var enabled []uint16
+	for _, name := range tlsVersionNames {
+		if id := tlsVersionIDs[name]; !disabled[id] {
+			enabled = append(enabled, id)
+		}
+	}
+	if len(enabled) == 0 {
+		return nil, fmt.Errorf("select at least one TLS version")
+	}
+	return enabled, nil
+}
+
+// TLSCipherSuites resolves the selected suites to their wire IDs, or nil when
+// the request keeps Go's defaults.
+func (s Settings) TLSCipherSuites() ([]uint16, error) {
+	if s.CipherSuites == nil {
+		return nil, nil
+	}
+	if len(*s.CipherSuites) == 0 {
+		return nil, fmt.Errorf("select at least one cipher suite")
+	}
+	ids := make([]uint16, 0, len(*s.CipherSuites))
+	for _, name := range *s.CipherSuites {
+		id, ok := cipherSuiteID(name)
+		if !ok {
+			return nil, fmt.Errorf("unknown or unconfigurable cipher suite %q", name)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 // Follows reports whether the settings follow redirects. A zero hop limit
@@ -120,10 +264,11 @@ func (s Settings) Unlimited() bool {
 	return s.TimeoutSeconds != nil && *s.TimeoutSeconds == 0
 }
 
-// Transfer is the policy a send uses: redirects and certificate handling.
-// Authored requests verify certificates unless they turn verification off;
-// capture replay asks for neither and keeps the engine's inspection behavior.
-func (s Settings) Transfer() capture.TransferPolicy {
+// Transfer is the policy a send uses: redirects, certificate handling and TLS
+// negotiation. Authored requests verify certificates unless they turn
+// verification off; capture replay asks for neither and keeps the engine's
+// inspection behavior.
+func (s Settings) Transfer() (capture.TransferPolicy, error) {
 	p := capture.TransferPolicy{Redirects: capture.RedirectPolicy{}, TLS: capture.TLSVerify, HTTPVersion: s.HTTPVersion}
 	switch {
 	case !s.Follows():
@@ -139,7 +284,23 @@ func (s Settings) Transfer() capture.TransferPolicy {
 	if s.VerifyTLS != nil && !*s.VerifyTLS {
 		p.TLS = capture.TLSInsecure
 	}
-	return p
+	if s.FollowsOriginalMethod() {
+		p.Redirects.KeepMethod = true
+		p.Redirects.KeepBody = true
+	}
+	p.Redirects.KeepAuthorization = s.KeepsAuthorization()
+	p.Redirects.RemoveReferer = s.RemovesReferer()
+	versions, err := s.TLSVersions()
+	if err != nil {
+		return p, err
+	}
+	p.TLSVersions = versions
+	ciphers, err := s.TLSCipherSuites()
+	if err != nil {
+		return p, err
+	}
+	p.TLSCipherSuites = ciphers
+	return p, nil
 }
 
 // InheritSettings resolves s against the folders the request lives in, the
@@ -181,6 +342,26 @@ func (c Context) InheritSettings(s Settings) Settings {
 		}
 		if v.SocketPath != "" {
 			out.SocketPath = v.SocketPath
+		}
+		if v.FollowOriginalMethod != nil {
+			value := *v.FollowOriginalMethod
+			out.FollowOriginalMethod = &value
+		}
+		if v.KeepAuthorization != nil {
+			value := *v.KeepAuthorization
+			out.KeepAuthorization = &value
+		}
+		if v.RemoveReferer != nil {
+			value := *v.RemoveReferer
+			out.RemoveReferer = &value
+		}
+		if v.DisabledTLSVersions != nil {
+			value := slices.Clone(*v.DisabledTLSVersions)
+			out.DisabledTLSVersions = &value
+		}
+		if v.CipherSuites != nil {
+			value := slices.Clone(*v.CipherSuites)
+			out.CipherSuites = &value
 		}
 	}
 	for _, f := range c.Folders {

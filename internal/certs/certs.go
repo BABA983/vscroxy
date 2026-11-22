@@ -495,6 +495,20 @@ func (s Settings) RootPool(proxyCA []byte) (*x509.CertPool, error) {
 // still loaded and presented: mTLS is independent of verifying the server.
 // proxyCA is the running capture proxy's public CA, if any.
 func (s Settings) TLSConfig(address string, proxyCA []byte, insecure bool) (*tls.Config, error) {
+	return s.TLSConfigWithOptions(address, proxyCA, insecure, TLSOptions{})
+}
+
+// TLSOptions narrow the protocol versions and TLS 1.0–1.2 cipher suites a
+// request's handshake may use. Empty slices keep Go's defaults.
+type TLSOptions struct {
+	Versions     []uint16
+	CipherSuites []uint16
+}
+
+// TLSConfigWithOptions is TLSConfig with a request's TLS negotiation choices.
+// A disabled version inside the enabled range is rejected by VerifyConnection
+// after the handshake, before HTTP is sent.
+func (s Settings) TLSConfigWithOptions(address string, proxyCA []byte, insecure bool, opts TLSOptions) (*tls.Config, error) {
 	config := &tls.Config{MinVersion: tls.VersionTLS12}
 	if insecure {
 		config.InsecureSkipVerify = true
@@ -512,6 +526,23 @@ func (s Settings) TLSConfig(address string, proxyCA []byte, insecure bool) (*tls
 	if cert != nil {
 		config.Certificates = []tls.Certificate{*cert}
 	}
+	if len(opts.CipherSuites) > 0 {
+		config.CipherSuites = slices.Clone(opts.CipherSuites)
+	}
+	if len(opts.Versions) > 0 {
+		allowed := slices.Clone(opts.Versions)
+		config.MinVersion, config.MaxVersion = slices.Min(allowed), slices.Max(allowed)
+		verify := config.VerifyConnection
+		config.VerifyConnection = func(state tls.ConnectionState) error {
+			if !slices.Contains(allowed, state.Version) {
+				return fmt.Errorf("TLS %s is disabled for this request", tls.VersionName(state.Version))
+			}
+			if verify != nil {
+				return verify(state)
+			}
+			return nil
+		}
+	}
 	return config, nil
 }
 
@@ -521,7 +552,12 @@ func (s Settings) TLSConfig(address string, proxyCA []byte, insecure bool) (*tls
 // certificate or root files at all. base is cloned per request and must not
 // carry a TLSClientConfig of its own.
 func (s Settings) Transport(base *http.Transport, proxyCA []byte, insecure bool) http.RoundTripper {
-	return &settingsTransport{settings: s, base: base, proxyCA: proxyCA, insecure: insecure}
+	return s.TransportWithOptions(base, proxyCA, insecure, TLSOptions{})
+}
+
+// TransportWithOptions is Transport with a request's TLS negotiation choices.
+func (s Settings) TransportWithOptions(base *http.Transport, proxyCA []byte, insecure bool, opts TLSOptions) http.RoundTripper {
+	return &settingsTransport{settings: s, base: base, proxyCA: proxyCA, insecure: insecure, opts: opts}
 }
 
 type settingsTransport struct {
@@ -529,12 +565,13 @@ type settingsTransport struct {
 	base     *http.Transport
 	proxyCA  []byte
 	insecure bool
+	opts     TLSOptions
 }
 
 func (t *settingsTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	transport := t.base.Clone()
 	if req.URL != nil && strings.EqualFold(req.URL.Scheme, "https") {
-		config, err := t.settings.TLSConfig(Address(req.URL), t.proxyCA, t.insecure)
+		config, err := t.settings.TLSConfigWithOptions(Address(req.URL), t.proxyCA, t.insecure, t.opts)
 		if err != nil {
 			return nil, err
 		}

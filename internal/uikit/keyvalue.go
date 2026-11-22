@@ -31,9 +31,6 @@ type KeyValueTableOptions struct {
 	// Rows is the number of saved rows. OnAdd adds one more: the empty row
 	// that adds a row when its Key or Value is typed into.
 	Rows int
-	// HeaderEnd draws the header row's own controls at its right end, such as
-	// Bulk Edit.
-	HeaderEnd func()
 	// OnAdd receives the typed key and value. valueCell says the value was
 	// the cell typed into, so the caller can focus the same cell in the row it
 	// adds.
@@ -44,6 +41,12 @@ type KeyValueTableOptions struct {
 	ValuePlaceholder string
 	KeyLabel         string
 	ValueLabel       string
+	// EmptyRowText gives a column that has no input in the trailing row, such
+	// as Description, the same muted placeholder the Key and Value cells show.
+	EmptyRowText map[int]string
+	// Measure receives the grid's laid-out width, which a caller can read on
+	// the next frame to decide whether an optional column fits.
+	Measure *ui.Handle
 	// NoScroll leaves the rows in the caller's scroll, for a table that shares
 	// its scroll with other content.
 	NoScroll bool
@@ -75,6 +78,9 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 		// inside the pane and keeps its header in place.
 		draw := func() {
 			table := ui.Column(c).Key(o.Key).FillWidth().Border(HairlineWidth, p.Border).Radius(RadiusControl).Clip()
+			if o.Measure != nil {
+				table.Bind(o.Measure)
+			}
 			table.Children(func() {
 				header := ui.Row(c).FillWidth().Height(HeightControl).AlignItems(ui.Stretch).
 					BorderWidth(0, 0, HairlineWidth, 0).BorderColor(p.Border).
@@ -87,10 +93,6 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 								Label(c, col.Title).FillWidth().Padding(0, t.Space(SpaceM))
 							}
 						})
-					}
-					if o.HeaderEnd != nil {
-						ui.Row(c).Absolute().Right(0).Top(0).Bottom(0).Padding(0, t.Space(SpaceM)).
-							AlignItems(ui.Center).Children(o.HeaderEnd)
 					}
 				})
 				for row := 0; row < o.Rows; row++ {
@@ -158,6 +160,12 @@ func (o KeyValueTableOptions) emptyRow(c *ui.Context, table ui.Element, pad floa
 					valueInput = emptyGridInput(c, newValue, o.ValuePlaceholder, o.ValueLabel, pad)
 					haveValue = true
 				})
+			default:
+				if text := o.EmptyRowText[i]; text != "" {
+					cell.Children(func() {
+						emptyGridPlaceholder(c, text, pad)
+					})
+				}
 			}
 		}
 	})
@@ -182,4 +190,15 @@ func (o KeyValueTableOptions) emptyRow(c *ui.Context, table ui.Element, pad floa
 func emptyGridInput(c *ui.Context, value *string, placeholder, label string, pad float32) ui.Element {
 	return InputControl(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
 		FillHeight().Padding(0, pad).Border(HairlineWidth, ui.Color{})
+}
+
+// emptyGridPlaceholder is the trailing row's read-only cell. It uses the same
+// body type, inset and vertical centering as emptyGridInput, so a Description
+// placeholder lines up with Key and Value without becoming an input that adds
+// a row.
+func emptyGridPlaceholder(c *ui.Context, text string, pad float32) ui.Element {
+	return ui.Row(c).FillWidth().FillHeight().Padding(0, pad).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, text).FontSize(Scaled(TextBody)).LineHeight(LineBody).
+			TextColor(c.Theme().TextMuted).SingleLine()
+	})
 }

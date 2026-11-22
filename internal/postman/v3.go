@@ -1123,7 +1123,7 @@ func (r *v3reader) urlValue(req v3Request, raw string) jsontext.Value {
 func marshalURL(raw string, query, path []v3KV) jsontext.Value {
 	u := pmURL{Raw: raw}
 	for _, q := range query {
-		u.Query = append(u.Query, pmKeyValue{Key: q.Key, Value: q.Value, Disabled: q.Disabled})
+		u.Query = append(u.Query, pmKeyValue{Key: q.Key, Value: q.Value, Description: q.Description, Disabled: q.Disabled})
 	}
 	for _, p := range path {
 		u.Variable = append(u.Variable, pmKeyValue{Key: p.Key, Value: p.Value})
@@ -1144,13 +1144,14 @@ func (r *v3reader) headers(rows []v3KV) jsontext.Value {
 		return nil
 	}
 	type row struct {
-		Key      string         `json:"key"`
-		Value    jsontext.Value `json:"value"`
-		Disabled bool           `json:"disabled,omitempty"`
+		Key         string         `json:"key"`
+		Value       jsontext.Value `json:"value"`
+		Description jsontext.Value `json:"description,omitempty"`
+		Disabled    bool           `json:"disabled,omitempty"`
 	}
 	out := make([]row, 0, len(rows))
 	for _, h := range rows {
-		out = append(out, row{Key: h.Key, Value: h.Value, Disabled: h.Disabled})
+		out = append(out, row{Key: h.Key, Value: h.Value, Description: h.Description, Disabled: h.Disabled})
 	}
 	data, err := json.Marshal(out)
 	if err != nil {
@@ -1159,12 +1160,12 @@ func (r *v3reader) headers(rows []v3KV) jsontext.Value {
 	return jsontext.Value(data)
 }
 
-// paramMetadata counts descriptions and schema types the app's field model
-// has nowhere to keep.
+// paramMetadata counts schema types and content types the app's field model
+// has nowhere to keep. Row descriptions are kept as the table's column.
 func (r *v3reader) paramMetadata(rows []v3KV) {
 	n := 0
 	for _, row := range rows {
-		if strings.TrimSpace(text(row.Description)) != "" || row.SchemaType != "" || strings.TrimSpace(row.ContentType) != "" {
+		if row.SchemaType != "" || strings.TrimSpace(row.ContentType) != "" {
 			n++
 		}
 	}
@@ -1207,7 +1208,7 @@ func v3BodyToPM(body *v3Body) (*pmBody, string) {
 		}
 		out := &pmBody{Mode: "urlencoded"}
 		for _, row := range rows {
-			out.URLEncoded = append(out.URLEncoded, pmFormField{Key: row.Key, Value: row.Value, Disabled: row.Disabled})
+			out.URLEncoded = append(out.URLEncoded, pmFormField{Key: row.Key, Value: row.Value, Description: row.Description, Disabled: row.Disabled})
 		}
 		return out, ""
 	case "formdata":
@@ -1217,7 +1218,7 @@ func v3BodyToPM(body *v3Body) (*pmBody, string) {
 		}
 		out := &pmBody{Mode: "formdata"}
 		for _, row := range rows {
-			field := pmFormField{Key: row.Key, Value: row.Value, Type: row.Type, Src: row.Src, Disabled: row.Disabled}
+			field := pmFormField{Key: row.Key, Value: row.Value, Description: row.Description, Type: row.Type, Src: row.Src, Disabled: row.Disabled}
 			if field.Type == "" {
 				field.Type = "text"
 			}

@@ -324,6 +324,35 @@ func TestURLEncodedAuthAndCookiesFollowHTTPRules(t *testing.T) {
 	}
 }
 
+func TestQueryDescriptionsFollowRowsAndURL(t *testing.T) {
+	a := workspaceApp()
+	a.addDocument(savedRequest{URL: "https://example.com/items?tag=one&tag=two", QueryDescriptions: []string{"First", "Second"}}, "")
+	d := a.requestDocument
+	if len(d.queryRows) != 2 || d.queryRows[0].Description != "First" || d.queryRows[1].Description != "Second" {
+		t.Fatalf("loaded query rows = %+v", d.queryRows)
+	}
+	if got := d.value().QueryDescriptions; !slices.Equal(got, []string{"First", "Second"}) {
+		t.Fatalf("saved descriptions = %q", got)
+	}
+	// A URL edit keeps descriptions for the keys that remain, in occurrence
+	// order, and drops one whose key was renamed.
+	d.composeURL = "https://example.com/items?tag=one&page=2&tag=two"
+	rows, err := queryRowsFor(d.composeURL, d.queryRows)
+	if err != nil || len(rows) != 3 || rows[0].Description != "First" || rows[1].Description != "" || rows[2].Description != "Second" {
+		t.Fatalf("refreshed rows = %+v, %v", rows, err)
+	}
+	d.queryRows = rows
+	if got := d.value().QueryDescriptions; !slices.Equal(got, []string{"First", "", "Second"}) {
+		t.Fatalf("saved descriptions after URL edit = %q", got)
+	}
+	// A disabled row is not in the URL and contributes no saved description.
+	d.queryRows[1].Disabled = true
+	d.composeURL = "https://example.com/items?tag=one&tag=two"
+	if got := d.value().QueryDescriptions; !slices.Equal(got, []string{"First", "Second"}) {
+		t.Fatalf("saved descriptions with a disabled row = %q", got)
+	}
+}
+
 func TestParamsEditorUpdatesURLWithoutLosingDuplicateKeysOrEscapedPath(t *testing.T) {
 	a := workspaceApp()
 	a.addDocument(savedRequest{URL: "https://example.com/a%2Fb?tag=first&tag=two+words#anchor"}, "")

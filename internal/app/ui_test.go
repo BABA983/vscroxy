@@ -4244,6 +4244,70 @@ func TestEmptyTableRowAddsARow(t *testing.T) {
 	}
 }
 
+func TestRowDescriptionColumnEditsAndSaves(t *testing.T) {
+	a := workspaceApp()
+	a.addDocument(savedRequest{URL: "https://example.com/items?q=1",
+		HeaderList: []request.Field{{Name: "X-One", Value: "1"}}}, "")
+	tt := ui.NewTester(a.view, 1600, 900)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	edit := func(label, value string) {
+		t.Helper()
+		click(label)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Type(value)
+	}
+	click("Request pane: Params")
+	edit("parameter description 1", "What q means")
+	d := a.requestDocument
+	if d.queryRows[0].Description != "What q means" || !slices.Equal(d.value().QueryDescriptions, []string{"What q means"}) {
+		t.Fatalf("query description = %+v / %q", d.queryRows, d.value().QueryDescriptions)
+	}
+	click("Request pane: Headers")
+	edit("header description 1", "Trace the call")
+	if d.headerRows[0].Description != "Trace the call" || d.value().HeaderList[0].Description != "Trace the call" {
+		t.Fatalf("header description = %+v / %+v", d.headerRows, d.value().HeaderList)
+	}
+	// A narrow pane hides the column without dropping the descriptions.
+	d.composeTab = composeTabParams
+	d.requestPercent = responsePercent
+	narrow := ui.NewTester(a.view, 1280, 900)
+	narrow.Frame()
+	if _, ok := narrow.Find("parameter description 1"); ok {
+		t.Fatal("the Description column stayed visible in a narrow pane")
+	}
+	if d.queryRows[0].Description != "What q means" || d.headerRows[0].Description != "Trace the call" {
+		t.Fatalf("narrow pane dropped descriptions: %+v / %+v", d.queryRows, d.headerRows)
+	}
+}
+
+func TestDescriptionColumnFollowsTheRequestPaneWidth(t *testing.T) {
+	a := workspaceApp()
+	a.addDocument(savedRequest{URL: "https://example.com/items?q=1",
+		QueryDescriptions: []string{"What q means"}}, "")
+	d := a.requestDocument
+	d.requestPercent = responsePercent
+	d.composeTab = composeTabParams
+	tt := ui.NewTester(a.view, 1280, 900)
+	tt.Frame()
+	tt.Frame()
+	if _, ok := tt.Find("parameter description 1"); ok {
+		t.Fatal("the default split showed Description before the request pane had room")
+	}
+	// A fixed window, wider request pane: the measured table width, not the
+	// window, must bring the column back.
+	d.requestPercent = 60
+	tt.Frame()
+	tt.Frame()
+	if _, ok := tt.Find("parameter description 1"); !ok {
+		t.Fatalf("dragging the divider to 60%% did not show Description: %q", tt.Texts())
+	}
+}
+
 func TestHeaderTableKeepsOrderDuplicatesAndDisabledRows(t *testing.T) {
 	a := workspaceApp()
 	a.library.root = filepath.Join(t.TempDir(), "collections")

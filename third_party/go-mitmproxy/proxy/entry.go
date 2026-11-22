@@ -315,7 +315,11 @@ func (e *entry) handleConnect(res http.ResponseWriter, req *http.Request) {
 	if req.Header.Get(HeaderVerifyUpstream) == "1" {
 		connCtx.VerifyUpstream = true
 	}
+	connCtx.TLSVersions = parseUint16List(req.Header.Get(HeaderTLSVersions))
+	connCtx.TLSCipherSuites = parseUint16List(req.Header.Get(HeaderTLSCipherSuites))
 	req.Header.Del(HeaderVerifyUpstream)
+	req.Header.Del(HeaderTLSVersions)
+	req.Header.Del(HeaderTLSCipherSuites)
 	f := newFlow()
 	f.Request = newRequest(req)
 	f.ConnContext = connCtx

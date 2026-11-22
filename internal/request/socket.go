@@ -31,8 +31,9 @@ func socketSend(ctx context.Context, f capture.Flow, policy capture.TransferPoli
 	// protocol, so "2" can require h2 and "1.1" keeps it out.
 	base.ForceAttemptHTTP2 = policy.HTTPVersion != "1.1"
 	client := &http.Client{
-		Jar:       jar,
-		Transport: certificates.Transport(base, ca, policy.TLS == capture.TLSInsecure),
+		Jar: jar,
+		Transport: certificates.TransportWithOptions(base, ca, policy.TLS == capture.TLSInsecure,
+			certs.TLSOptions{Versions: policy.TLSVersions, CipherSuites: policy.TLSCipherSuites}),
 	}
 	client.CheckRedirect = policy.Redirects.Checker(req)
 	defer client.CloseIdleConnections()

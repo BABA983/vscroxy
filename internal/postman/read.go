@@ -81,9 +81,10 @@ type pmRequest struct {
 }
 
 type pmKeyValue struct {
-	Key      string         `json:"key"`
-	Value    jsontext.Value `json:"value"`
-	Disabled bool           `json:"disabled"`
+	Key         string         `json:"key"`
+	Value       jsontext.Value `json:"value"`
+	Description jsontext.Value `json:"description"`
+	Disabled    bool           `json:"disabled"`
 }
 
 type pmBody struct {
@@ -108,11 +109,12 @@ type pmBody struct {
 }
 
 type pmFormField struct {
-	Key      string         `json:"key"`
-	Value    jsontext.Value `json:"value"`
-	Type     string         `json:"type"`
-	Src      jsontext.Value `json:"src"`
-	Disabled bool           `json:"disabled"`
+	Key         string         `json:"key"`
+	Value       jsontext.Value `json:"value"`
+	Description jsontext.Value `json:"description"`
+	Type        string         `json:"type"`
+	Src         jsontext.Value `json:"src"`
+	Disabled    bool           `json:"disabled"`
 }
 
 type pmURL struct {
@@ -279,7 +281,7 @@ func (r *reader) folder(path string, description, auth jsontext.Value, events []
 	if a, set := r.auth(auth, authWarning); set {
 		f.Auth = a
 	}
-	if f.Description != "" || f.Auth.Type != "" || f.Pre != "" || f.Post != "" || len(f.Variables) > 0 || f.Settings != (request.Settings{}) {
+	if f.Description != "" || f.Auth.Type != "" || f.Pre != "" || f.Post != "" || len(f.Variables) > 0 || !f.Settings.IsZero() {
 		r.out.Folders = append(r.out.Folders, f)
 	}
 }
@@ -305,7 +307,7 @@ func (r *reader) request(it pmItem, parent string, ordinal int) error {
 			return fmt.Errorf("read request %q in %s: %w", it.Name, parent, err)
 		}
 		out.Method = strings.ToUpper(cmp.Or(strings.TrimSpace(req.Method), "GET"))
-		out.URL, out.PathVariables = r.url(req.URL)
+		out.URL, out.PathVariables, out.QueryDescriptions = r.url(req.URL)
 		out.HeaderList = readHeaders(req.Header)
 		r.body(&out, req.Body)
 		if a, set := r.auth(req.Auth, "request auth"); set {
@@ -396,7 +398,7 @@ func (r *reader) examples(list []jsontext.Value, requestID string) []request.Exa
 			if json.Unmarshal(res.OriginalRequest, &req) == nil {
 				e.Request.Method = strings.ToUpper(cmp.Or(strings.TrimSpace(req.Method), "GET"))
 				// An example records what was sent, so its path values are filled in.
-				raw, vars := r.url(req.URL)
+				raw, vars, _ := r.url(req.URL)
 				e.Request.URL = request.FillPath(raw, vars)
 				e.Request.Headers = headerBlock(readHeaders(req.Header))
 				if req.Body != nil && req.Body.Mode == "raw" {
@@ -683,7 +685,7 @@ func readHeaders(v jsontext.Value) []request.Field {
 		}
 		var rows []request.Field
 		for _, h := range list {
-			rows = append(rows, request.Field{Name: h.Key, Value: text(h.Value), Disabled: h.Disabled})
+			rows = append(rows, request.Field{Name: h.Key, Value: text(h.Value), Description: describe(h.Description), Disabled: h.Disabled})
 		}
 		return rows
 	}
@@ -692,14 +694,15 @@ func readHeaders(v jsontext.Value) []request.Field {
 
 // url reads a string or object URL: raw when present, else rebuilt from its
 // parts. The path variables come back as rows; the URL keeps its :name
-// segments, so the values stay editable.
-func (r *reader) url(v jsontext.Value) (string, []request.Field) {
+// segments, so the values stay editable. Query descriptions align with the
+// pairs in raw, not with Postman's disabled rows the URL omits.
+func (r *reader) url(v jsontext.Value) (string, []request.Field, []string) {
 	if v.Kind() != '{' {
-		return text(v), nil
+		return text(v), nil, nil
 	}
 	var u pmURL
 	if json.Unmarshal(v, &u) != nil {
-		return "", nil
+		return "", nil, nil
 	}
 	disabled := 0
 	for _, q := range u.Query {
@@ -716,7 +719,45 @@ func (r *reader) url(v jsontext.Value) (string, []request.Field) {
 	for _, pv := range u.Variable {
 		vars = append(vars, request.Field{Name: pv.Key, Value: text(pv.Value)})
 	}
-	return raw, vars
+	return raw, vars, queryDescriptions(raw, u.Query)
+}
+
+// queryDescriptions aligns Postman's query descriptions with raw's pairs by
+// key occurrence. Disabled rows never reached the URL and contribute nothing.
+func queryDescriptions(raw string, query []pmKeyValue) []string {
+	byKey := map[string][]string{}
+	for _, q := range query {
+		if q.Disabled {
+			continue
+		}
+		byKey[q.Key] = append(byKey[q.Key], describe(q.Description))
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return nil
+	}
+	seen := map[string]int{}
+	var out []string
+	any := false
+	for part := range strings.SplitSeq(u.RawQuery, "&") {
+		if part == "" {
+			continue
+		}
+		key, _, _ := strings.Cut(part, "=")
+		key, _ = url.QueryUnescape(key)
+		at := seen[key]
+		value := ""
+		if at < len(byKey[key]) {
+			value = byKey[key][at]
+		}
+		seen[key]++
+		out = append(out, value)
+		any = any || value != ""
+	}
+	if !any {
+		return nil
+	}
+	return out
 }
 
 // rebuildURL writes a URL object without raw from its parts.
@@ -806,12 +847,12 @@ func (r *reader) body(out *request.Request, body *pmBody) {
 	case "urlencoded":
 		out.BodyMode = "URL encoded"
 		for _, f := range body.URLEncoded {
-			out.Form = append(out.Form, request.Field{Name: f.Key, Value: text(f.Value), Disabled: f.Disabled})
+			out.Form = append(out.Form, request.Field{Name: f.Key, Value: text(f.Value), Description: describe(f.Description), Disabled: f.Disabled})
 		}
 	case "formdata":
 		out.BodyMode = "Multipart"
 		for _, f := range body.FormData {
-			field := request.Field{Name: f.Key, Value: text(f.Value), Disabled: f.Disabled}
+			field := request.Field{Name: f.Key, Value: text(f.Value), Description: describe(f.Description), Disabled: f.Disabled}
 			if f.Type == "file" {
 				field.File, field.Value = true, text(f.Src)
 				if f.Src.Kind() == '[' {

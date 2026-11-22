@@ -22,11 +22,11 @@
           "method": "GET",
           "endpoint": "https://echo.example.com/users",
           "params": [
-            {"key": "page", "value": "1", "active": true},
+            {"key": "page", "value": "1", "description": "Page number", "active": true},
             {"key": "draft", "value": "x", "active": false}
           ],
           "headers": [
-            {"key": "Accept", "value": "application/json", "active": true},
+            {"key": "Accept", "value": "application/json", "description": "Wants JSON", "active": true},
             {"key": "X-Off", "value": "no", "active": false}
           ],
           "auth": {"authType": "basic", "authActive": true, "username": "ada", "password": "secret"},
@@ -56,7 +56,7 @@
       "body": {
         "contentType": "multipart/form-data",
         "body": [
-          {"key": "note", "value": "hi", "active": true, "isFile": false},
+          {"key": "note", "value": "hi", "description": "A note", "active": true, "isFile": false},
           {"key": "file", "value": [{}], "active": true, "isFile": true}
         ]
       }

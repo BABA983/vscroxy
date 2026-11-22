@@ -1783,6 +1783,14 @@ type RedirectPolicy struct {
 	Mode       string `json:"mode,omitempty"`
 	Max        int    `json:"max,omitempty"`
 	KeepMethod bool   `json:"keepMethod,omitzero"`
+	// KeepBody restores the original body when KeepMethod keeps the method
+	// through a 301, 302 or 303. curl's -X keeps the method without it.
+	KeepBody bool `json:"keepBody,omitzero"`
+	// KeepAuthorization sends the original Authorization header to a redirect
+	// on another host; off strips it, even to a subdomain.
+	KeepAuthorization bool `json:"keepAuthorization,omitzero"`
+	// RemoveReferer leaves the automatic Referer off every redirect.
+	RemoveReferer bool `json:"removeReferer,omitzero"`
 	// DropContentType marks curl's implicit form Content-Type, not a -H header.
 	// It disappears with the body; explicitly authored headers survive redirects.
 	DropContentType bool `json:"dropContentType,omitzero"`
@@ -1808,7 +1816,9 @@ func (p RedirectPolicy) Limit() int {
 // Checker is the CheckRedirect a client sending first uses under p. Manual
 // stops at the first response; cURL keeps -X's method, drops a form
 // Content-Type with the body and never widens Authorization or Cookie;
-// otherwise Go's redirects apply up to Limit.
+// otherwise Go's redirects apply up to Limit. The request-level switches can
+// keep the original method and body, keep Authorization across hosts, or
+// remove the automatic Referer.
 func (p RedirectPolicy) Checker(first *http.Request) func(*http.Request, []*http.Request) error {
 	if p.Mode == RedirectManual {
 		return func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
@@ -1822,13 +1832,7 @@ func (p RedirectPolicy) Checker(first *http.Request) func(*http.Request, []*http
 			if next.URL.Scheme != "http" && next.URL.Scheme != "https" {
 				return errors.New("redirects require HTTP(S)")
 			}
-			if p.KeepMethod {
-				next.Method = first.Method
-			}
-			switch next.Response.StatusCode {
-			case 301, 302, 303:
-				bodyDropped = true
-			}
+			p.keepRedirectShape(first, next, &bodyDropped)
 			for _, name := range []string{"Content-Type", "Content-Encoding", "Content-Language", "Content-Location"} {
 				if values := first.Header.Values(name); len(values) > 0 {
 					next.Header[name] = slices.Clone(values)
@@ -1839,29 +1843,93 @@ func (p RedirectPolicy) Checker(first *http.Request) func(*http.Request, []*http
 			}
 			// curl does not enable automatic Referer generation without --auto-referer.
 			next.Header.Del("Referer")
-			if value := first.Header.Get("Referer"); value != "" {
+			if value := first.Header.Get("Referer"); value != "" && !p.RemoveReferer {
 				next.Header.Set("Referer", value)
 			}
 			// Bound Authorization to the original origin; literal cookies to the
 			// original host (cookie domains do not include ports). Unlike Go's
 			// defaults, never widen either to subdomains or restore stripped values.
 			for _, previous := range via {
-				if originOf(previous.URL) != originOf(next.URL) {
+				if !p.KeepAuthorization && originOf(previous.URL) != originOf(next.URL) {
 					next.Header.Del("Authorization")
 				}
 				if !strings.EqualFold(previous.URL.Hostname(), next.URL.Hostname()) {
 					next.Header.Del("Cookie")
 				}
 			}
+			if p.KeepAuthorization {
+				restoreAuthorization(first, next)
+			}
+			if p.RemoveReferer {
+				next.Header.Del("Referer")
+			}
 			return nil
 		}
 	}
 	limit := p.Limit()
-	return func(_ *http.Request, via []*http.Request) error {
+	return func(next *http.Request, via []*http.Request) error {
 		if len(via) > limit {
 			return fmt.Errorf("stopped after %d redirects", limit)
 		}
+		if p.KeepMethod {
+			var bodyDropped bool
+			p.keepRedirectShape(first, next, &bodyDropped)
+		}
+		// Go's copier keeps Authorization for the same domain and subdomains.
+		// The request's setting is about the host, so make the boundary exact.
+		// A chain that leaves a host and comes back still crossed one.
+		crossed := false
+		for _, previous := range via {
+			if !strings.EqualFold(previous.URL.Hostname(), next.URL.Hostname()) {
+				crossed = true
+				break
+			}
+		}
+		if crossed {
+			if p.KeepAuthorization {
+				restoreAuthorization(first, next)
+			} else {
+				next.Header.Del("Authorization")
+			}
+		}
+		if p.RemoveReferer {
+			next.Header.Del("Referer")
+		}
 		return nil
+	}
+}
+
+// keepRedirectShape restores the method, and with KeepBody the body, that Go's
+// 301, 302 and 303 handling would otherwise replace with GET and no body.
+func (p RedirectPolicy) keepRedirectShape(first, next *http.Request, bodyDropped *bool) {
+	switch next.Response.StatusCode {
+	case 301, 302, 303:
+		if !p.KeepMethod {
+			*bodyDropped = true
+			return
+		}
+		next.Method = first.Method
+		if p.KeepBody && first.GetBody != nil {
+			if body, err := first.GetBody(); err == nil {
+				next.Body, next.ContentLength = body, first.ContentLength
+				*bodyDropped = false
+				return
+			}
+		}
+		*bodyDropped = true
+	}
+}
+
+// restoreAuthorization puts the first request's Authorization on next. Go may
+// have stripped it as a cross-domain header before CheckRedirect ran.
+func restoreAuthorization(first, next *http.Request) {
+	values := first.Header.Values("Authorization")
+	if len(values) == 0 {
+		return
+	}
+	next.Header.Del("Authorization")
+	for _, value := range values {
+		next.Header.Add("Authorization", value)
 	}
 }
 
@@ -1890,6 +1958,13 @@ type TransferPolicy struct {
 	// Empty lets the proxy negotiate. NTLM sessions keep HTTP/1.1 because the
 	// challenge and its answer must share one connection.
 	HTTPVersion string
+	// TLSVersions are the enabled TLS protocol versions, oldest first. Empty
+	// keeps the engine's defaults. A disabled version inside the range is
+	// rejected after the handshake, before the request is sent.
+	TLSVersions []uint16
+	// TLSCipherSuites are the enabled TLS 1.0–1.2 cipher suites. Empty keeps
+	// Go's defaults; TLS 1.3 suites cannot be configured.
+	TLSCipherSuites []uint16
 }
 
 const (
@@ -1897,6 +1972,15 @@ const (
 	TLSVerify   = "verify"
 	TLSInsecure = "insecure"
 )
+
+// joinUint16 writes a wire-value list for a proxy CONNECT header.
+func joinUint16(values []uint16) string {
+	parts := make([]string, len(values))
+	for i, value := range values {
+		parts[i] = strconv.FormatUint(uint64(value), 10)
+	}
+	return strings.Join(parts, ",")
+}
 
 // validate refuses a policy a send cannot apply.
 func (p TransferPolicy) validate() error {
@@ -1988,10 +2072,20 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 		// An intercepted upstream is verified by the proxy, not by this
 		// client, which only sees the proxy's own certificate.
 		GetProxyConnectHeader: func(context.Context, *url.URL, string) (http.Header, error) {
-			if policy.TLS != TLSVerify {
+			header := http.Header{}
+			if policy.TLS == TLSVerify {
+				header.Set(proxy.HeaderVerifyUpstream, "1")
+			}
+			if len(policy.TLSVersions) > 0 {
+				header.Set(proxy.HeaderTLSVersions, joinUint16(policy.TLSVersions))
+			}
+			if len(policy.TLSCipherSuites) > 0 {
+				header.Set(proxy.HeaderTLSCipherSuites, joinUint16(policy.TLSCipherSuites))
+			}
+			if len(header) == 0 {
 				return nil, nil
 			}
-			return http.Header{proxy.HeaderVerifyUpstream: {"1"}}, nil
+			return header, nil
 		},
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
@@ -2021,8 +2115,11 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 	client := &http.Client{
 		Jar: jar,
 		// The transport builds TLS per request, so a redirect to another host
-		// presents that host's certificate, never the first host's.
-		Transport: s.certificates().Transport(base, s.CACertificate(), policy.TLS == TLSInsecure),
+		// presents that host's certificate, never the first host's. A tunneled
+		// upstream also sees the request's protocol and cipher choices here;
+		// an intercepted one gets them on CONNECT.
+		Transport: s.certificates().TransportWithOptions(base, s.CACertificate(), policy.TLS == TLSInsecure,
+			certs.TLSOptions{Versions: policy.TLSVersions, CipherSuites: policy.TLSCipherSuites}),
 	}
 	client.CheckRedirect = policy.Redirects.Checker(req)
 	defer client.CloseIdleConnections()

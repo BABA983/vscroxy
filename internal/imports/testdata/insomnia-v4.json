@@ -37,8 +37,8 @@
       "description": "Lists orders.",
       "method": "GET",
       "url": "{{ _.base_url }}/orders",
-      "parameters": [{"name": "page", "value": "1", "disabled": false}, {"name": "draft", "value": "x", "disabled": true}],
-      "headers": [{"name": "Accept", "value": "application/json"}],
+      "parameters": [{"name": "page", "value": "1", "description": "Page number", "disabled": false}, {"name": "draft", "value": "x", "disabled": true}],
+      "headers": [{"name": "Accept", "value": "application/json", "description": "Wants JSON"}],
       "authentication": {"type": "bearer", "token": "{{ _.token }}"},
       "preRequestScript": "insomnia.request.addHeader('X-Script', 'yes');",
       "metaSortKey": -1
@@ -65,7 +65,7 @@
       "method": "POST",
       "url": "{{ _.base_url }}/receipts",
       "body": {"mimeType": "multipart/form-data", "params": [
-        {"name": "note", "value": "hello", "type": "text"},
+        {"name": "note", "value": "hello", "description": "A note", "type": "text"},
         {"name": "file", "fileName": "/tmp/receipt.png", "type": "file"}
       ]},
       "metaSortKey": 1

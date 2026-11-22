@@ -256,9 +256,10 @@ func brunoRequest(indexed bruBlocks, method string, values map[string]string, me
 	out.URL = normalizeTags(pathVariables(out.URL, pathValues))
 	var query []requestField
 	for _, pair := range indexed.pairs("params:query") {
-		query = append(query, requestField{Name: normalizeTags(pair.key), Value: normalizeTags(pair.value), Disabled: pair.disabled})
+		query = append(query, requestField{Name: normalizeTags(pair.key), Value: normalizeTags(pair.value), Description: pair.description, Disabled: pair.disabled})
 	}
 	out.URL = appendQuery(out.URL, query)
+	out.QueryDescriptions = queryDescriptions(out.URL, query)
 	out.HeaderList = bruFields(indexed.pairs("headers"))
 	if authMode := values["auth"]; authMode != "" {
 		out.Auth = bruAuth(authMode, indexed, warnings)
@@ -290,7 +291,7 @@ func brunoRequest(indexed bruBlocks, method string, values map[string]string, me
 func bruFields(pairs []bruPair) []request.Field {
 	var fields []request.Field
 	for _, pair := range pairs {
-		fields = append(fields, request.Field{Name: normalizeTags(pair.key), Value: normalizeTags(pair.value), Disabled: pair.disabled})
+		fields = append(fields, request.Field{Name: normalizeTags(pair.key), Value: normalizeTags(pair.value), Description: pair.description, Disabled: pair.disabled})
 	}
 	return fields
 }
@@ -331,7 +332,7 @@ func brunoBody(out *request.Request, mode string, indexed bruBlocks, root string
 	case "multipartForm":
 		var fields []request.Field
 		for _, pair := range indexed.pairs("body:multipart-form") {
-			field := request.Field{Name: pair.key, Value: pair.value, Disabled: pair.disabled}
+			field := request.Field{Name: pair.key, Value: pair.value, Description: pair.description, Disabled: pair.disabled}
 			if path, ok := brunoFileValue(pair.value); ok {
 				field.File, field.Value = true, brunoPath(root, path)
 				if strings.Contains(pair.value, "|") {

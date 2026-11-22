@@ -1,6 +1,7 @@
 package app
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/request"
@@ -77,12 +78,27 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 					d.settings.HTTPVersion = httpVersionFromChoice(choice)
 				}
 			}, defaultFor(func(s request.Settings) bool { return s.HTTPVersion != "" }))
-			uikit.PropertyRow(c, locales.Tls(), locales.UsesTheSystemRootsAnd(), func() {
+			uikit.PropertyRow(c, locales.TlsVerification(), locales.UsesTheSystemRootsAnd(), func() {
 				switchRow(locales.VerifyTlsCertificate(), effective.Verifies(), d.setVerify)
 			}, defaultFor(func(s request.Settings) bool { return s.VerifyTLS != nil }))
 			uikit.PropertyRow(c, locales.Redirects(), locales.N3xxResponsesAreFollowedUnless(), func() {
 				switchRow(locales.FollowRedirects(), effective.Follows(), d.setFollow)
 			}, defaultFor(func(s request.Settings) bool { return s.FollowRedirects != nil }))
+			uikit.PropertyRow(c, locales.FollowOriginalMethod(), locales.FollowOriginalMethodHint(), func() {
+				switchRow(locales.FollowOriginalMethod(), effective.FollowsOriginalMethod(), d.setFollowOriginalMethod)
+			}, defaultFor(func(s request.Settings) bool { return s.FollowOriginalMethod != nil }))
+			uikit.PropertyRow(c, locales.KeepAuthorizationOnRedirect(), locales.KeepAuthorizationOnRedirectHint(), func() {
+				switchRow(locales.KeepAuthorizationOnRedirect(), effective.KeepsAuthorization(), d.setKeepAuthorization)
+			}, defaultFor(func(s request.Settings) bool { return s.KeepAuthorization != nil }))
+			uikit.PropertyRow(c, locales.RemoveRefererOnRedirect(), locales.RemoveRefererOnRedirectHint(), func() {
+				switchRow(locales.RemoveRefererOnRedirect(), effective.RemovesReferer(), d.setRemoveReferer)
+			}, defaultFor(func(s request.Settings) bool { return s.RemoveReferer != nil }))
+			uikit.PropertyRow(c, locales.EncodeUrlAutomatically(), locales.EncodeUrlAutomaticallyHint(), func() {
+				switchRow(locales.EncodeUrlAutomatically(), effective.EncodesURL(), d.setURLEncoding)
+			}, defaultFor(func(s request.Settings) bool { return s.DisableURLEncoding != nil }))
+			uikit.PropertyRow(c, locales.SendCookiesFromTheJar(), locales.SendCookiesFromTheJarHint(), func() {
+				switchRow(locales.SendCookiesFromTheJar(), effective.UsesCookies(), d.setCookies)
+			}, defaultFor(func(s request.Settings) bool { return s.DisableCookies != nil }))
 			if effective.Follows() {
 				uikit.PropertyRow(c, locales.MaximumRedirects(), locales.HttpSHops(), func() {
 					// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
@@ -92,12 +108,12 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 					}
 				}, defaultFor(func(s request.Settings) bool { return s.MaxRedirects != nil }))
 			}
-			uikit.PropertyRow(c, locales.EncodeUrlAutomatically(), locales.EncodeUrlAutomaticallyHint(), func() {
-				switchRow(locales.EncodeUrlAutomatically(), effective.EncodesURL(), d.setURLEncoding)
-			}, defaultFor(func(s request.Settings) bool { return s.DisableURLEncoding != nil }))
-			uikit.PropertyRow(c, locales.SendCookiesFromTheJar(), locales.SendCookiesFromTheJarHint(), func() {
-				switchRow(locales.SendCookiesFromTheJar(), effective.UsesCookies(), d.setCookies)
-			}, defaultFor(func(s request.Settings) bool { return s.DisableCookies != nil }))
+			uikit.PropertyRow(c, locales.TlsProtocols(), locales.TlsProtocolsHint(), func() {
+				uikit.MenuSelect(c, tlsProtocolsLabel(effective), tlsProtocolsMenu(&d.settings, effective)).Label(locales.ChooseTlsProtocols())
+			}, defaultFor(func(s request.Settings) bool { return s.DisabledTLSVersions != nil }))
+			uikit.PropertyRow(c, locales.CipherSuites(), locales.CipherSuitesHint(), func() {
+				uikit.MenuSelect(c, cipherSuitesLabel(effective), cipherSuitesMenu(&d.settings, effective)).Label(locales.ChooseCipherSuites())
+			}, defaultFor(func(s request.Settings) bool { return s.CipherSuites != nil }))
 			uikit.PropertyRow(c, locales.Timeout(), locales.Seconds0WaitsWithNo(), func() {
 				// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
 				if ui.NumberInput(c, &d.timeout, 0, 3600, 1).Label(locales.RequestTimeoutInSeconds()).Changed() {
@@ -119,7 +135,7 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 				uikit.Caption(c, locales.CertificateVerificationIsOffThis()).TextColor(t.Warning).Grow(1)
 			})
 		}
-		if d.settings != (request.Settings{}) {
+		if !d.settings.IsZero() {
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, locales.SomeValuesOverrideTheCollection())
 				if uikit.SecondaryButton(c, locales.UseCollectionDefaults()).Clicked() {
@@ -152,6 +168,122 @@ func (d *requestDocument) setURLEncoding(encode bool) {
 func (d *requestDocument) setCookies(use bool) {
 	disable := !use
 	d.settings.DisableCookies = &disable
+}
+
+func (d *requestDocument) setFollowOriginalMethod(follow bool) {
+	d.settings.FollowOriginalMethod = &follow
+}
+
+func (d *requestDocument) setKeepAuthorization(keep bool) {
+	d.settings.KeepAuthorization = &keep
+}
+
+func (d *requestDocument) setRemoveReferer(remove bool) {
+	d.settings.RemoveReferer = &remove
+}
+
+// tlsProtocolsLabel names the enabled protocols, or the inherited default.
+func tlsProtocolsLabel(s request.Settings) string {
+	if s.DisabledTLSVersions == nil {
+		return locales.DefaultValue()
+	}
+	disabled := *s.DisabledTLSVersions
+	var enabled []string
+	for _, version := range request.SupportedTLSVersions() {
+		if !slices.Contains(disabled, version) {
+			enabled = append(enabled, locales.Tls()+" "+version)
+		}
+	}
+	if len(enabled) == 0 {
+		return locales.NoneSelected()
+	}
+	return strings.Join(enabled, ", ")
+}
+
+// tlsProtocolsMenu toggles the protocol versions a handshake may use. The
+// last enabled version cannot be switched off.
+func tlsProtocolsMenu(target *request.Settings, effective request.Settings) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		enabled := []string{"1.2", "1.3"} // Go's baseline when the setting is inherited.
+		if effective.DisabledTLSVersions != nil {
+			enabled = enabled[:0]
+			for _, version := range request.SupportedTLSVersions() {
+				if !slices.Contains(*effective.DisabledTLSVersions, version) {
+					enabled = append(enabled, version)
+				}
+			}
+		}
+		for _, version := range request.SupportedTLSVersions() {
+			checked := slices.Contains(enabled, version)
+			item := m.Item(locales.Tls() + " " + version).Checked(checked)
+			if !item.Chosen() {
+				continue
+			}
+			nextEnabled := slices.Clone(enabled)
+			if checked {
+				nextEnabled = slices.DeleteFunc(nextEnabled, func(value string) bool { return value == version })
+			} else {
+				nextEnabled = append(nextEnabled, version)
+			}
+			if len(nextEnabled) == 0 {
+				return // At least one protocol must remain enabled.
+			}
+			var nextDisabled []string
+			for _, name := range request.SupportedTLSVersions() {
+				if !slices.Contains(nextEnabled, name) {
+					nextDisabled = append(nextDisabled, name)
+				}
+			}
+			target.DisabledTLSVersions = &nextDisabled
+		}
+	}
+}
+
+// cipherSuitesLabel names the selected TLS 1.0–1.2 suites, or the default.
+func cipherSuitesLabel(s request.Settings) string {
+	if s.CipherSuites == nil {
+		return locales.DefaultValue()
+	}
+	if len(*s.CipherSuites) == 0 {
+		return locales.NoneSelected()
+	}
+	if len(*s.CipherSuites) == 1 {
+		return (*s.CipherSuites)[0]
+	}
+	return locales.SelectedCount(len(*s.CipherSuites))
+}
+
+// cipherSuitesMenu toggles the TLS 1.0–1.2 suites a handshake may use. Clearing
+// the last one returns to Go's default selection.
+func cipherSuitesMenu(target *request.Settings, effective request.Settings) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		selected := []string(nil)
+		if effective.CipherSuites != nil {
+			selected = *effective.CipherSuites
+		}
+		if m.Item(locales.DefaultValue()).Checked(effective.CipherSuites == nil).Chosen() {
+			target.CipherSuites = nil
+			return
+		}
+		m.Separator()
+		for _, name := range request.TLSCipherSuiteNames() {
+			checked := slices.Contains(selected, name)
+			if !m.Item(name).Checked(checked).Chosen() {
+				continue
+			}
+			next := slices.Clone(selected)
+			if checked {
+				next = slices.DeleteFunc(next, func(value string) bool { return value == name })
+			} else {
+				next = append(next, name)
+			}
+			if len(next) == 0 {
+				target.CipherSuites = nil
+			} else {
+				target.CipherSuites = &next
+			}
+		}
+	}
 }
 
 // httpVersionChoices are the HTTP version choices, in display order.
@@ -255,6 +387,35 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 				}
 				uikit.Meta(c, locales.SendCookiesFromTheJarHint())
 			})
+			ui.Field(c, locales.FollowOriginalMethod(), func() {
+				follow := effective.FollowsOriginalMethod()
+				if uikit.Switch(c, &follow).Label(locales.FollowOriginalMethod()).Changed() {
+					f.settings.FollowOriginalMethod = &follow
+				}
+				uikit.Meta(c, locales.FollowOriginalMethodHint())
+			})
+			ui.Field(c, locales.KeepAuthorizationOnRedirect(), func() {
+				keep := effective.KeepsAuthorization()
+				if uikit.Switch(c, &keep).Label(locales.KeepAuthorizationOnRedirect()).Changed() {
+					f.settings.KeepAuthorization = &keep
+				}
+				uikit.Meta(c, locales.KeepAuthorizationOnRedirectHint())
+			})
+			ui.Field(c, locales.RemoveRefererOnRedirect(), func() {
+				remove := effective.RemovesReferer()
+				if uikit.Switch(c, &remove).Label(locales.RemoveRefererOnRedirect()).Changed() {
+					f.settings.RemoveReferer = &remove
+				}
+				uikit.Meta(c, locales.RemoveRefererOnRedirectHint())
+			})
+			ui.Field(c, locales.TlsProtocols(), func() {
+				uikit.MenuSelect(c, tlsProtocolsLabel(effective), tlsProtocolsMenu(&f.settings, effective)).Label(locales.ChooseTlsProtocols())
+				uikit.Meta(c, locales.TlsProtocolsHint())
+			})
+			ui.Field(c, locales.CipherSuites(), func() {
+				uikit.MenuSelect(c, cipherSuitesLabel(effective), cipherSuitesMenu(&f.settings, effective)).Label(locales.ChooseCipherSuites())
+				uikit.Meta(c, locales.CipherSuitesHint())
+			})
 		})
 		if !effective.Verifies() {
 			ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).
@@ -263,7 +424,7 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 				uikit.Caption(c, locales.CertificateVerificationIsOffFor()).TextColor(t.Warning).Grow(1)
 			})
 		}
-		if f.settings != (request.Settings{}) {
+		if !f.settings.IsZero() {
 			ui.Row(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.ClearRequestDefaults()).Clicked() {
 					f.settings = request.Settings{}

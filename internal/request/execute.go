@@ -358,7 +358,12 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			}
 		}
 	} else {
-		policy := settings.Transfer()
+		policy, err := settings.Transfer()
+		if err != nil {
+			out.Stage, out.Err = "Request setup failed", err
+			out.Tests, out.Vars = run.tests, run.vars
+			return out
+		}
 		if r.Checks != (Checks{}) {
 			policy.Redirects.Mode = capture.RedirectManual
 		}

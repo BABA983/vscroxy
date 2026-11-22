@@ -20,6 +20,7 @@ type bruBlock struct {
 type bruPair struct {
 	key         string
 	value       string
+	description string
 	disabled    bool
 	contentType string
 	multiline   bool
@@ -147,11 +148,49 @@ func splitBruPair(line string) (key, rest string, ok bool) {
 	return key, strings.TrimSpace(rest), ok
 }
 
+// bruDescription reads a row's @description('...') annotation, including the
+// triple-quoted multiline form, and returns the index of its last line.
+func bruDescription(lines []string, at int) (string, int, bool) {
+	line := strings.TrimSpace(lines[at])
+	open := strings.Index(line, "description(")
+	if open < 0 {
+		return "", at, false
+	}
+	rest := line[open+len("description("):]
+	if strings.HasPrefix(rest, "'''") {
+		rest = strings.TrimPrefix(rest, "'''")
+		if end := strings.Index(rest, "'''"); end >= 0 {
+			return strings.TrimSpace(rest[:end]), at, true
+		}
+		var parts []string
+		if rest != "" {
+			parts = append(parts, rest)
+		}
+		for i := at + 1; i < len(lines); i++ {
+			text := lines[i]
+			if end := strings.Index(text, "'''"); end >= 0 {
+				parts = append(parts, text[:end])
+				return strings.TrimSpace(strings.Join(parts, "\n")), i, true
+			}
+			parts = append(parts, text)
+		}
+		return "", at, false
+	}
+	end := strings.LastIndex(rest, ")")
+	if end < 0 {
+		return "", at, false
+	}
+	value := strings.TrimSpace(rest[:end])
+	value = strings.Trim(value, `'"`)
+	return value, at, true
+}
+
 // parseBruPairs reads dictionary rows, including quoted keys, ~ disabled
 // rows, ”' multiline values and @description annotations.
 func parseBruPairs(content string, firstLine int) ([]bruPair, error) {
 	lines := strings.Split(content, "\n")
 	var pairs []bruPair
+	description := ""
 	for i := 0; i < len(lines); i++ {
 		line := strings.TrimSpace(lines[i])
 		if line == "" {
@@ -159,15 +198,18 @@ func parseBruPairs(content string, firstLine int) ([]bruPair, error) {
 		}
 		if strings.HasPrefix(line, "@") {
 			annotation := strings.TrimPrefix(line, "@")
-			isAnnotation := strings.HasPrefix(annotation, "description(") || annotation == "number" ||
-				annotation == "boolean" || annotation == "object" || strings.HasPrefix(annotation, "contentType(")
-			if isAnnotation {
-				// @description(''' ... ''') or a typed-variable annotation. The
-				// annotation does not change the value for an importer.
-				if strings.Contains(line, "'''") && !strings.HasSuffix(line, "''')") {
-					for i++; i < len(lines) && !strings.Contains(lines[i], "''')"); i++ {
-					}
+			if strings.HasPrefix(annotation, "description(") {
+				value, next, ok := bruDescription(lines, i)
+				if ok {
+					description = value
+					i = next
+					continue
 				}
+			}
+			isAnnotation := annotation == "number" || annotation == "boolean" ||
+				annotation == "object" || strings.HasPrefix(annotation, "contentType(")
+			if isAnnotation {
+				// A typed-variable annotation does not change the value.
 				continue
 			}
 		}
@@ -188,7 +230,8 @@ func parseBruPairs(content string, firstLine int) ([]bruPair, error) {
 			}
 			key = unquoted
 		}
-		pair := bruPair{key: key, disabled: disabled}
+		pair := bruPair{key: key, description: description, disabled: disabled}
+		description = ""
 		if rest == "'''" {
 			var value []string
 			closed := false

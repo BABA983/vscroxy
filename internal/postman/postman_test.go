@@ -1270,6 +1270,41 @@ func TestDescriptionAndTransferSettingsRoundTrip(t *testing.T) {
 	}
 }
 
+// Row descriptions on headers, query parameters and form bodies survive a
+// Postman export and import.
+func TestRowDescriptionsRoundTrip(t *testing.T) {
+	r := request.Request{
+		ID: "rows", Name: "Rows", Collection: "Shop", Method: "POST",
+		URL:               "https://example.com/items?tag=one&tag=two",
+		QueryDescriptions: []string{"First tag", "Second tag"},
+		HeaderList:        []request.Field{{Name: "X-Trace", Value: "1", Description: "Trace this call"}},
+		BodyMode:          "URL encoded",
+		Form:              []request.Field{{Name: "name", Value: "widget", Description: "Display name"}},
+	}
+	data, warnings, err := postman.WriteCollection("Shop", []request.Request{r}, nil)
+	if err != nil || len(warnings) != 0 {
+		t.Fatalf("%v, warnings %q", err, warnings)
+	}
+	compact := strings.Join(strings.Fields(string(data)), "")
+	for _, want := range []string{
+		`"description":"Firsttag"`, `"description":"Secondtag"`,
+		`"description":"Tracethiscall"`, `"description":"Displayname"`,
+	} {
+		if !strings.Contains(compact, want) {
+			t.Errorf("export lacks %s:\n%s", want, data)
+		}
+	}
+	got, err := postman.ReadCollection(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Requests) != 1 || !slices.Equal(got.Requests[0].QueryDescriptions, r.QueryDescriptions) ||
+		len(got.Requests[0].HeaderList) != 1 || got.Requests[0].HeaderList[0].Description != "Trace this call" ||
+		len(got.Requests[0].Form) != 1 || got.Requests[0].Form[0].Description != "Display name" {
+		t.Fatalf("round trip = %+v", got.Requests)
+	}
+}
+
 // A folder's maxRedirects and a request's followRedirects are separate
 // Postman fields; enabling following at the request keeps the folder's limit.
 // maxRedirects 0 means "do not follow", not "use the default".

@@ -536,6 +536,16 @@ insecure proxy verify for that connection. `entry.handleConnect` records it on
 the `ConnContext` and removes the header before the flow is created, so it is
 neither captured nor forwarded.
 
+An authored request's TLS choices arrive on the same CONNECT.
+`HeaderTLSVersions` (`X-Vscroxy-TLS-Versions`) lists the enabled protocol
+versions as decimal wire IDs, and `HeaderTLSCipherSuites`
+(`X-Vscroxy-TLS-Cipher-Suites`) lists TLS 1.0–1.2 cipher-suite IDs.
+`attacker.serverTlsHandshake` narrows the upstream `tls.Config` to them; a
+disabled version inside the min/max range is rejected by `VerifyConnection`
+after the handshake and before any HTTP request. TLS 1.3 cipher suites remain
+Go's fixed set. Both headers are removed on CONNECT like the verification
+signal.
+
 An IP target sends no SNI. `attacker.serverTlsHandshake` verifies against the
 CONNECT host when `ClientHelloInfo.ServerName` is empty, so a certificate's IP
 SAN is checked instead of failing with "either ServerName or

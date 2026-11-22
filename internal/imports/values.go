@@ -131,8 +131,47 @@ func appendQuery(raw string, params []requestField) string {
 // requestField is a source parameter before it becomes a request.Field.
 type requestField struct {
 	Name, Value string
+	Description string
 	Disabled    bool
 	File        bool
+}
+
+// queryDescriptions aligns a source's row descriptions with the query pairs
+// of raw by key occurrence. A disabled source row never reached the URL.
+func queryDescriptions(raw string, params []requestField) []string {
+	byKey := map[string][]string{}
+	for _, param := range params {
+		if param.Disabled || param.Name == "" {
+			continue
+		}
+		byKey[param.Name] = append(byKey[param.Name], param.Description)
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return nil
+	}
+	seen := map[string]int{}
+	var out []string
+	any := false
+	for part := range strings.SplitSeq(u.RawQuery, "&") {
+		if part == "" {
+			continue
+		}
+		key, _, _ := strings.Cut(part, "=")
+		key, _ = url.QueryUnescape(key)
+		at := seen[key]
+		description := ""
+		if at < len(byKey[key]) {
+			description = byKey[key][at]
+		}
+		seen[key]++
+		out = append(out, description)
+		any = any || description != ""
+	}
+	if !any {
+		return nil
+	}
+	return out
 }
 
 func hasQueryKey(raw, escapedName string) bool {

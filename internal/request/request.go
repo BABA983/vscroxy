@@ -50,7 +50,11 @@ type Request struct {
 	// PathVariables are the values of the URL's :name path segments; the
 	// URL keeps the segments as written.
 	PathVariables []Field `json:"pathVariables,omitempty"`
-	Headers       string  `json:"headers,omitempty"`
+	// QueryDescriptions are the descriptions of the URL's query rows, in the
+	// same order. The URL stays the source of the values, so a description is
+	// kept beside it rather than duplicating every key and value.
+	QueryDescriptions []string `json:"queryDescriptions,omitempty"`
+	Headers           string   `json:"headers,omitempty"`
 	// Body is the authored raw body. JSONC comments and trailing commas stay
 	// here; Prepare strips them from Prepared.Body for a JSON media type.
 	Body     string `json:"body,omitempty"`
@@ -162,10 +166,12 @@ type Auth struct {
 }
 
 type Field struct {
-	Name     string `json:"name"`
-	Value    string `json:"value"`
-	File     bool   `json:"file,omitzero"`
-	Disabled bool   `json:"disabled,omitzero"`
+	Name  string `json:"name"`
+	Value string `json:"value"`
+	// Description documents the row in the table; it is never sent.
+	Description string `json:"description,omitempty"`
+	File        bool   `json:"file,omitzero"`
+	Disabled    bool   `json:"disabled,omitzero"`
 	// Revealed is the table's own state, never saved: a masked credential shows
 	// in plain text only when the reader asks for this row.
 	Revealed bool `json:"-"`

@@ -68,6 +68,15 @@ type Options struct {
 // inspection proxy stricter, never weaker; the header is not forwarded.
 const HeaderVerifyUpstream = "X-Vscroxy-Verify-TLS"
 
+// HeaderTLSVersions on a CONNECT lists the TLS protocol versions a replay may
+// negotiate upstream, oldest first, as decimal wire IDs separated by commas.
+// HeaderTLSCipherSuites lists the allowed TLS 1.0–1.2 cipher suites the same
+// way. Both are proxy signals, never forwarded.
+const (
+	HeaderTLSVersions     = "X-Vscroxy-TLS-Versions"
+	HeaderTLSCipherSuites = "X-Vscroxy-TLS-Cipher-Suites"
+)
+
 // HeaderProxyError marks a response the proxy generated because an exchange
 // failed before an origin answered. Replay clients turn it back into a
 // transport error; capture removes it before publishing the flow.

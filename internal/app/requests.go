@@ -102,6 +102,10 @@ type requestDocument struct {
 	formFields  []request.Field
 	queryRows   []request.Field
 	querySource string
+	// fieldTablePane is the row table's last laid-out width. The Description
+	// column hides from this measured width, so moving the request/response
+	// divider changes it without waiting for the window to resize.
+	fieldTablePane ui.Handle
 	// pathRows are the values of the URL's :name segments, in URL order.
 	pathRows    []request.Field
 	queryError  string
@@ -213,7 +217,8 @@ func (d *requestDocument) value() savedRequest {
 	r := savedRequest{
 		ID: d.assetID, Source: d.origin,
 		Name: d.composeName, Collection: d.composeCollection,
-		Method: d.composeMethod, URL: d.composeURL, PathVariables: pathRowsFor(d.composeURL, d.pathRows), Headers: d.composeHeaders,
+		Method: d.composeMethod, URL: d.composeURL, PathVariables: pathRowsFor(d.composeURL, d.pathRows),
+		QueryDescriptions: queryDescriptionsFor(d.composeURL, d.queryRows), Headers: d.composeHeaders,
 		Protocol: d.protocol, GRPC: d.grpcConfig, WebSocket: d.webSocketConfig(), SocketIO: d.socketIOConfig, MQTT: d.mqttConfig, MCP: d.mcpConfig,
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
 		Auth: d.auth, BodyMode: d.bodyMode, BodyFile: d.bodyFile, Form: slices.Clone(d.formFields),
@@ -317,6 +322,14 @@ func (d *requestDocument) load(a *app, r savedRequest, key string) {
 	d.auth, d.bodyMode, d.formFields = r.Auth, cmp.Or(r.BodyMode, "Raw"), slices.Clone(r.Form)
 	d.bodyFile = r.BodyFile
 	d.pathRows = slices.Clone(r.PathVariables)
+	if rows, err := queryRowsFor(d.composeURL, nil); err == nil {
+		for i := range rows {
+			if i < len(r.QueryDescriptions) {
+				rows[i].Description = r.QueryDescriptions[i]
+			}
+		}
+		d.queryRows, d.querySource = rows, d.composeURL
+	}
 	d.graphql = r.GraphQL
 	if d.headerRows == nil && d.composeHeaders != "" {
 		d.headerRows, d.headerFor = parseHeaderRows(d.composeHeaders), d.composeHeaders

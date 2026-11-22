@@ -40055,3 +40055,177 @@ func NtlmProxyHint() string { return In(i18n.Locale()).NtlmProxyHint() }
 func (msgs Messages) NtlmProxyHint() string {
 	return Catalog.Format(msgs.locale, "ntlmProxyHint", nil)
 }
+
+// DefaultValue says "Default"
+// in the language the app shows.
+func DefaultValue() string { return In(i18n.Locale()).DefaultValue() }
+
+// DefaultValue says "Default"
+// in the language of msgs.
+func (msgs Messages) DefaultValue() string {
+	return Catalog.Format(msgs.locale, "defaultValue", nil)
+}
+
+// NoneSelected says "None selected"
+// in the language the app shows.
+func NoneSelected() string { return In(i18n.Locale()).NoneSelected() }
+
+// NoneSelected says "None selected"
+// in the language of msgs.
+func (msgs Messages) NoneSelected() string {
+	return Catalog.Format(msgs.locale, "noneSelected", nil)
+}
+
+// DescriptionOfRow says "{noun} description {index}"
+// in the language the app shows.
+func DescriptionOfRow(noun string, index int) string {
+	return In(i18n.Locale()).DescriptionOfRow(noun, index)
+}
+
+// DescriptionOfRow says "{noun} description {index}"
+// in the language of msgs.
+func (msgs Messages) DescriptionOfRow(noun string, index int) string {
+	return Catalog.Format(msgs.locale, "descriptionOfRow", map[string]any{"noun": noun, "index": index})
+}
+
+// FollowOriginalMethod says "Follow original method"
+// in the language the app shows.
+func FollowOriginalMethod() string { return In(i18n.Locale()).FollowOriginalMethod() }
+
+// FollowOriginalMethod says "Follow original method"
+// in the language of msgs.
+func (msgs Messages) FollowOriginalMethod() string {
+	return Catalog.Format(msgs.locale, "followOriginalMethod", nil)
+}
+
+// FollowOriginalMethodHint says "Keep the method and body when a 301, 302 or 303 redirects."
+// in the language the app shows.
+func FollowOriginalMethodHint() string { return In(i18n.Locale()).FollowOriginalMethodHint() }
+
+// FollowOriginalMethodHint says "Keep the method and body when a 301, 302 or 303 redirects."
+// in the language of msgs.
+func (msgs Messages) FollowOriginalMethodHint() string {
+	return Catalog.Format(msgs.locale, "followOriginalMethodHint", nil)
+}
+
+// KeepAuthorizationOnRedirect says "Keep Authorization on redirect"
+// in the language the app shows.
+func KeepAuthorizationOnRedirect() string { return In(i18n.Locale()).KeepAuthorizationOnRedirect() }
+
+// KeepAuthorizationOnRedirect says "Keep Authorization on redirect"
+// in the language of msgs.
+func (msgs Messages) KeepAuthorizationOnRedirect() string {
+	return Catalog.Format(msgs.locale, "keepAuthorizationOnRedirect", nil)
+}
+
+// KeepAuthorizationOnRedirectHint says "Send the Authorization header when a redirect goes to another host."
+// in the language the app shows.
+func KeepAuthorizationOnRedirectHint() string {
+	return In(i18n.Locale()).KeepAuthorizationOnRedirectHint()
+}
+
+// KeepAuthorizationOnRedirectHint says "Send the Authorization header when a redirect goes to another host."
+// in the language of msgs.
+func (msgs Messages) KeepAuthorizationOnRedirectHint() string {
+	return Catalog.Format(msgs.locale, "keepAuthorizationOnRedirectHint", nil)
+}
+
+// RemoveRefererOnRedirect says "Remove Referer on redirect"
+// in the language the app shows.
+func RemoveRefererOnRedirect() string { return In(i18n.Locale()).RemoveRefererOnRedirect() }
+
+// RemoveRefererOnRedirect says "Remove Referer on redirect"
+// in the language of msgs.
+func (msgs Messages) RemoveRefererOnRedirect() string {
+	return Catalog.Format(msgs.locale, "removeRefererOnRedirect", nil)
+}
+
+// RemoveRefererOnRedirectHint says "Do not add a Referer header when following a redirect."
+// in the language the app shows.
+func RemoveRefererOnRedirectHint() string { return In(i18n.Locale()).RemoveRefererOnRedirectHint() }
+
+// RemoveRefererOnRedirectHint says "Do not add a Referer header when following a redirect."
+// in the language of msgs.
+func (msgs Messages) RemoveRefererOnRedirectHint() string {
+	return Catalog.Format(msgs.locale, "removeRefererOnRedirectHint", nil)
+}
+
+// TlsVerification says "TLS verification"
+// in the language the app shows.
+func TlsVerification() string { return In(i18n.Locale()).TlsVerification() }
+
+// TlsVerification says "TLS verification"
+// in the language of msgs.
+func (msgs Messages) TlsVerification() string {
+	return Catalog.Format(msgs.locale, "tlsVerification", nil)
+}
+
+// ChooseTlsProtocols says "Choose TLS protocols"
+// in the language the app shows.
+func ChooseTlsProtocols() string { return In(i18n.Locale()).ChooseTlsProtocols() }
+
+// ChooseTlsProtocols says "Choose TLS protocols"
+// in the language of msgs.
+func (msgs Messages) ChooseTlsProtocols() string {
+	return Catalog.Format(msgs.locale, "chooseTlsProtocols", nil)
+}
+
+// ChooseCipherSuites says "Choose cipher suites"
+// in the language the app shows.
+func ChooseCipherSuites() string { return In(i18n.Locale()).ChooseCipherSuites() }
+
+// ChooseCipherSuites says "Choose cipher suites"
+// in the language of msgs.
+func (msgs Messages) ChooseCipherSuites() string {
+	return Catalog.Format(msgs.locale, "chooseCipherSuites", nil)
+}
+
+// SendAsFile says "Send as file"
+// in the language the app shows.
+func SendAsFile() string { return In(i18n.Locale()).SendAsFile() }
+
+// SendAsFile says "Send as file"
+// in the language of msgs.
+func (msgs Messages) SendAsFile() string {
+	return Catalog.Format(msgs.locale, "sendAsFile", nil)
+}
+
+// TlsProtocols says "TLS protocols"
+// in the language the app shows.
+func TlsProtocols() string { return In(i18n.Locale()).TlsProtocols() }
+
+// TlsProtocols says "TLS protocols"
+// in the language of msgs.
+func (msgs Messages) TlsProtocols() string {
+	return Catalog.Format(msgs.locale, "tlsProtocols", nil)
+}
+
+// TlsProtocolsHint says "The protocol versions the TLS handshake may negotiate. Older versions are off by default in Go."
+// in the language the app shows.
+func TlsProtocolsHint() string { return In(i18n.Locale()).TlsProtocolsHint() }
+
+// TlsProtocolsHint says "The protocol versions the TLS handshake may negotiate. Older versions are off by default in Go."
+// in the language of msgs.
+func (msgs Messages) TlsProtocolsHint() string {
+	return Catalog.Format(msgs.locale, "tlsProtocolsHint", nil)
+}
+
+// CipherSuites says "Cipher suites"
+// in the language the app shows.
+func CipherSuites() string { return In(i18n.Locale()).CipherSuites() }
+
+// CipherSuites says "Cipher suites"
+// in the language of msgs.
+func (msgs Messages) CipherSuites() string {
+	return Catalog.Format(msgs.locale, "cipherSuites", nil)
+}
+
+// CipherSuitesHint says "TLS 1.0–1.2 suites. TLS 1.3 suites are chosen by Go and cannot be configured."
+// in the language the app shows.
+func CipherSuitesHint() string { return In(i18n.Locale()).CipherSuitesHint() }
+
+// CipherSuitesHint says "TLS 1.0–1.2 suites. TLS 1.3 suites are chosen by Go and cannot be configured."
+// in the language of msgs.
+func (msgs Messages) CipherSuitesHint() string {
+	return Catalog.Format(msgs.locale, "cipherSuitesHint", nil)
+}

@@ -109,11 +109,12 @@ type insomniaBody struct {
 }
 
 type insomniaPair struct {
-	Name     string `json:"name"`
-	Value    any    `json:"value"`
-	Disabled bool   `json:"disabled"`
-	FileName string `json:"fileName"`
-	Type     string `json:"type"`
+	Name        string `json:"name"`
+	Value       any    `json:"value"`
+	Description string `json:"description"`
+	Disabled    bool   `json:"disabled"`
+	FileName    string `json:"fileName"`
+	Type        string `json:"type"`
 }
 
 type insomniaEnvironment struct {
@@ -267,6 +268,7 @@ func readInsomniaV4(file insomniaFile) (Result, error) {
 			Method:     strings.ToUpper(cmp.Or(strings.TrimSpace(resource.Method), "GET")),
 			URL:        insomniaURL(resource.URL, resource.PathParameters, resource.Parameters),
 		}
+		out.QueryDescriptions = insomniaQueryDescriptions(out.URL, resource.Parameters)
 		out.HeaderList = pairFields(resource.Headers)
 		out.Auth = authFromInsomnia(resource.Authentication, &requestSkips)
 		if out.Auth.Type == "" {
@@ -381,6 +383,7 @@ func readInsomniaV5(file insomniaFile) (Result, error) {
 				Method:     strings.ToUpper(cmp.Or(strings.TrimSpace(item.Method), "GET")),
 				URL:        insomniaURL(item.URL, item.PathParameters, item.Parameters),
 			}
+			out.QueryDescriptions = insomniaQueryDescriptions(out.URL, item.Parameters)
 			out.HeaderList = pairFields(item.Headers)
 			out.Auth = authFromInsomnia(item.Authentication, &requestSkips)
 			if out.Auth.Type == "" {
@@ -452,9 +455,19 @@ func insomniaURL(raw string, pathParams, queryParams []insomniaPair) string {
 func pairFields(pairs []insomniaPair) []request.Field {
 	var fields []request.Field
 	for _, pair := range pairs {
-		fields = append(fields, request.Field{Name: pair.Name, Value: valueText(pair.Value), Disabled: pair.Disabled})
+		fields = append(fields, request.Field{Name: pair.Name, Value: valueText(pair.Value), Description: pair.Description, Disabled: pair.Disabled})
 	}
 	return fields
+}
+
+// insomniaQueryDescriptions aligns Insomnia's parameter descriptions with the
+// URL's query pairs.
+func insomniaQueryDescriptions(raw string, pairs []insomniaPair) []string {
+	fields := make([]requestField, 0, len(pairs))
+	for _, pair := range pairs {
+		fields = append(fields, requestField{Name: pair.Name, Description: pair.Description, Disabled: pair.Disabled})
+	}
+	return queryDescriptions(raw, fields)
 }
 
 func fieldsFromMap(values map[string]any) []request.Variable {
@@ -505,7 +518,7 @@ func insomniaBodyRequest(out *request.Request, body *insomniaBody, skips *Tally)
 	case "multipart/form-data":
 		var fields []request.Field
 		for _, param := range body.Params {
-			field := request.Field{Name: param.Name, Value: valueText(param.Value), Disabled: param.Disabled}
+			field := request.Field{Name: param.Name, Value: valueText(param.Value), Description: param.Description, Disabled: param.Disabled}
 			if param.Type == "file" {
 				field.File, field.Value = true, cmp.Or(param.FileName, valueText(param.Value))
 				if field.Value == "" {

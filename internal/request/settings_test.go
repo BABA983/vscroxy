@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -180,6 +182,135 @@ func TestRequestRedirectSettings(t *testing.T) {
 				t.Fatalf("server saw %d requests, want %d", n, tt.hits)
 			}
 		})
+	}
+}
+
+// The redirect switches change what the origin receives: the method and body,
+// Authorization across hosts, and the automatic Referer.
+func TestRedirectRequestSwitchesReachTheOrigin(t *testing.T) {
+	t.Run("original method and body", func(t *testing.T) {
+		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/start" {
+				http.Redirect(w, r, "/end", http.StatusFound)
+				return
+			}
+			body, _ := io.ReadAll(r.Body)
+			fmt.Fprintf(w, "%s|%s", r.Method, body)
+		}))
+		defer upstream.Close()
+		srv := testProxy(t)
+		run := func(settings Settings) string {
+			out := (Request{Method: "POST", URL: upstream.URL + "/start", Body: "payload", Settings: settings}).
+				Execute(t.Context(), srv, Context{}, nil, nil)
+			if out.Err != nil || out.Response == nil {
+				t.Fatalf("request = %+v", out)
+			}
+			return out.Response.ResponseBody
+		}
+		if got := run(Settings{}); got != "GET|" {
+			t.Fatalf("default redirect = %q, want GET with no body", got)
+		}
+		follow := true
+		if got := run(Settings{FollowOriginalMethod: &follow}); got != "POST|payload" {
+			t.Fatalf("original method = %q, want POST with the body", got)
+		}
+	})
+
+	t.Run("Authorization across hosts", func(t *testing.T) {
+		var seen atomic.Value
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			seen.Store(r.Header.Get("Authorization"))
+		}))
+		defer target.Close()
+		redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "http://localhost:"+strings.TrimPrefix(target.URL, "http://127.0.0.1:")+"/end", http.StatusFound)
+		}))
+		defer redirect.Close()
+		srv := testProxy(t)
+		run := func(settings Settings) string {
+			out := (Request{Method: "GET", URL: redirect.URL + "/start", Headers: "Authorization: Bearer secret", Settings: settings}).
+				Execute(t.Context(), srv, Context{}, nil, nil)
+			if out.Err != nil {
+				t.Fatalf("request = %+v", out)
+			}
+			value, _ := seen.Load().(string)
+			return value
+		}
+		if got := run(Settings{}); got != "" {
+			t.Fatalf("default cross-host Authorization = %q, want none", got)
+		}
+		keep := true
+		if got := run(Settings{KeepAuthorization: &keep}); got != "Bearer secret" {
+			t.Fatalf("kept cross-host Authorization = %q", got)
+		}
+	})
+
+	t.Run("Referer", func(t *testing.T) {
+		var seen atomic.Value
+		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/start" {
+				http.Redirect(w, r, "/end", http.StatusFound)
+				return
+			}
+			seen.Store(r.Header.Get("Referer"))
+		}))
+		defer upstream.Close()
+		srv := testProxy(t)
+		run := func(settings Settings) string {
+			out := (Request{Method: "GET", URL: upstream.URL + "/start", Settings: settings}).
+				Execute(t.Context(), srv, Context{}, nil, nil)
+			if out.Err != nil {
+				t.Fatalf("request = %+v", out)
+			}
+			value, _ := seen.Load().(string)
+			return value
+		}
+		if got := run(Settings{}); !strings.HasSuffix(got, "/start") {
+			t.Fatalf("default Referer = %q, want the redirecting URL", got)
+		}
+		remove := true
+		if got := run(Settings{RemoveReferer: &remove}); got != "" {
+			t.Fatalf("removed Referer = %q, want none", got)
+		}
+	})
+}
+
+// The TLS protocol and cipher-suite choices reach the upstream handshake
+// through the proxy's CONNECT.
+func TestTLSProtocolAndCipherChoicesReachTheOrigin(t *testing.T) {
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "%s|%s", tls.VersionName(r.TLS.Version), tls.CipherSuiteName(r.TLS.CipherSuite))
+	}))
+	upstream.TLS = &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		MaxVersion: tls.VersionTLS13,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+		},
+	}
+	upstream.StartTLS()
+	defer upstream.Close()
+	insecure := false
+	run := func(settings Settings) string {
+		settings.VerifyTLS = &insecure
+		out := (Request{Method: "GET", URL: upstream.URL, Settings: settings}).
+			Execute(t.Context(), testProxy(t), Context{}, nil, nil)
+		if out.Err != nil || out.Response == nil {
+			t.Fatalf("request = %+v", out)
+		}
+		return out.Response.ResponseBody
+	}
+	only12 := []string{"1.0", "1.1", "1.3"}
+	if got := run(Settings{DisabledTLSVersions: &only12}); got != "TLS 1.2|TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384" {
+		// The server may choose either suite; only the version is asserted here.
+		if !strings.HasPrefix(got, "TLS 1.2|") {
+			t.Fatalf("TLS 1.2 only = %q", got)
+		}
+	}
+	suite := []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"}
+	if got := run(Settings{DisabledTLSVersions: &only12, CipherSuites: &suite}); got != "TLS 1.2|TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256" {
+		t.Fatalf("selected cipher = %q", got)
 	}
 }
 
@@ -357,15 +488,47 @@ func TestHTTPVersionAndRequestSwitchesInherit(t *testing.T) {
 	if got.HTTPVersion != "2" || got.UsesCookies() || got.EncodesURL() || got.SocketPath != "/var/run/folder.sock" {
 		t.Fatalf("inherited = %+v, want HTTP/2, no cookies, no URL encoding and the folder socket", got)
 	}
-	if p := got.Transfer(); p.HTTPVersion != "2" {
-		t.Fatalf("transfer HTTP version = %q, want 2", p.HTTPVersion)
+	if p, err := got.Transfer(); err != nil || p.HTTPVersion != "2" {
+		t.Fatalf("transfer HTTP version = %q, %v, want 2", p.HTTPVersion, err)
 	}
 	got = in.InheritSettings(Settings{HTTPVersion: "1.1", DisableCookies: &enable, DisableURLEncoding: &enable, SocketPath: "/var/run/own.sock"})
 	if got.HTTPVersion != "1.1" || !got.UsesCookies() || !got.EncodesURL() || got.SocketPath != "/var/run/own.sock" {
 		t.Fatalf("request overrides = %+v, want HTTP/1.1, cookies, URL encoding and the request socket", got)
 	}
-	if p := got.Transfer(); p.HTTPVersion != "1.1" {
-		t.Fatalf("transfer HTTP version = %q, want 1.1", p.HTTPVersion)
+	if p, err := got.Transfer(); err != nil || p.HTTPVersion != "1.1" {
+		t.Fatalf("transfer HTTP version = %q, %v, want 1.1", p.HTTPVersion, err)
+	}
+}
+
+// Redirect and TLS choices inherit independently, and a request's own value
+// wins over the folder's.
+func TestRedirectAndTLSSettingsInherit(t *testing.T) {
+	keep, remove := true, true
+	versions := []string{"1.0", "1.1", "1.2"}
+	suites := []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"}
+	in := Context{Folders: []Folder{{Path: "Shop", Settings: Settings{
+		KeepAuthorization:   &keep,
+		RemoveReferer:       &remove,
+		DisabledTLSVersions: &versions,
+		CipherSuites:        &suites,
+	}}}}
+	got := in.InheritSettings(Settings{})
+	if !got.KeepsAuthorization() || !got.RemovesReferer() || !slices.Equal(*got.DisabledTLSVersions, versions) ||
+		!slices.Equal(*got.CipherSuites, suites) {
+		t.Fatalf("inherited = %+v", got)
+	}
+	follow := true
+	ownVersions := []string{"1.2"}
+	got = in.InheritSettings(Settings{FollowOriginalMethod: &follow, DisabledTLSVersions: &ownVersions})
+	if !got.FollowsOriginalMethod() || !slices.Equal(*got.DisabledTLSVersions, ownVersions) || !slices.Equal(*got.CipherSuites, suites) {
+		t.Fatalf("request overrides = %+v", got)
+	}
+	policy, err := got.Transfer()
+	if err != nil || !policy.Redirects.KeepMethod || !policy.Redirects.KeepBody ||
+		!policy.Redirects.KeepAuthorization || !policy.Redirects.RemoveReferer ||
+		!slices.Equal(policy.TLSVersions, []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS13}) ||
+		!slices.Equal(policy.TLSCipherSuites, []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}) {
+		t.Fatalf("transfer = %+v, %v", policy, err)
 	}
 }
 

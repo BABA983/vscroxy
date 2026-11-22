@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -58,6 +59,10 @@ func TestReadInsomniaV4(t *testing.T) {
 	if got := request.ParseHeaderBlock(list.Headers).Get("Accept"); got != "application/json" {
 		t.Errorf("Accept %q", got)
 	}
+	if !slices.Equal(list.QueryDescriptions, []string{"Page number"}) ||
+		list.HeaderList[0].Description != "Wants JSON" {
+		t.Errorf("List orders descriptions: query %q, headers %+v", list.QueryDescriptions, list.HeaderList)
+	}
 	create := requestNamed(t, collection, "Create order")
 	if create.Collection != "Shop API/Orders/2026" || create.URL != "{{base_url}}/orders/{{order_id}}" ||
 		create.BodyMode != "Raw" || create.Body != `{"item":"widget"}` || create.Auth.Type != request.AuthInherit {
@@ -67,7 +72,8 @@ func TestReadInsomniaV4(t *testing.T) {
 		t.Errorf("follow redirects off: %+v", create.Settings)
 	}
 	upload := requestNamed(t, collection, "Upload receipt")
-	if upload.BodyMode != "Multipart" || len(upload.Form) != 2 || !upload.Form[1].File || upload.Form[1].Value != "/tmp/receipt.png" {
+	if upload.BodyMode != "Multipart" || len(upload.Form) != 2 || !upload.Form[1].File ||
+		upload.Form[1].Value != "/tmp/receipt.png" || upload.Form[0].Description != "A note" {
 		t.Errorf("Upload receipt %+v", upload)
 	}
 	graph := requestNamed(t, collection, "Order graph")
@@ -156,13 +162,17 @@ func TestReadHoppscotch(t *testing.T) {
 	if !strings.Contains(list.Pre, `pm.variables.set("local", "v");`) {
 		t.Errorf("request variables %q", list.Pre)
 	}
+	if !slices.Equal(list.QueryDescriptions, []string{"Page number"}) ||
+		list.HeaderList[0].Description != "Wants JSON" {
+		t.Errorf("List users descriptions: query %q, headers %+v", list.QueryDescriptions, list.HeaderList)
+	}
 	create := requestNamed(t, collection, "Create user")
 	if create.BodyMode != "Raw" || create.Body != `{"name":"Ada"}` || create.Auth.Type != "API key" ||
 		create.Auth.Key != "X-API-Key" || create.Auth.Location != "Header" {
 		t.Errorf("Create user %+v", create)
 	}
 	upload := requestNamed(t, collection, "Upload")
-	if upload.BodyMode != "Multipart" || !upload.Form[1].File {
+	if upload.BodyMode != "Multipart" || !upload.Form[1].File || upload.Form[0].Description != "A note" {
 		t.Errorf("Upload %+v", upload)
 	}
 	form := requestNamed(t, collection, "Form")
@@ -294,6 +304,10 @@ func TestReadBrunoDir(t *testing.T) {
 	headers := request.ParseHeaderBlock(list.Headers)
 	if headers.Get("X-Collection") != "yes" || headers.Get("X-Folder") != "users" || headers.Get("Accept") != "application/json" {
 		t.Errorf("headers %q", list.Headers)
+	}
+	accept := slices.IndexFunc(list.HeaderList, func(row request.Field) bool { return row.Name == "Accept" })
+	if accept < 0 || list.HeaderList[accept].Description != "Accept header: JSON" {
+		t.Errorf("Bruno row description = %+v", list.HeaderList)
 	}
 	create := requestNamed(t, collection, "Create user")
 	if create.BodyMode != "Raw" || create.Body != "{\n  \"name\": \"Ada\"\n}" || create.Checks.Status != "201" ||

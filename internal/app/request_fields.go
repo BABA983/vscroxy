@@ -69,25 +69,8 @@ func pathRowsFor(url string, rows []request.Field) []request.Field {
 func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	a.pathEditor(c, d, t)
 	if d.querySource != d.composeURL {
-		d.querySource, d.queryRows, d.queryError = d.composeURL, nil, ""
-		u, err := url.Parse(d.composeURL)
-		if err == nil {
-			for part := range strings.SplitSeq(u.RawQuery, "&") {
-				if part == "" {
-					continue
-				}
-				key, value, _ := strings.Cut(part, "=")
-				key, err = url.QueryUnescape(key)
-				if err != nil {
-					break
-				}
-				value, err = url.QueryUnescape(value)
-				if err != nil {
-					break
-				}
-				d.queryRows = append(d.queryRows, request.Field{Name: key, Value: value})
-			}
-		}
+		rows, err := queryRowsFor(d.composeURL, d.queryRows)
+		d.querySource, d.queryRows, d.queryError = d.composeURL, rows, ""
 		if err != nil {
 			d.queryError = err.Error()
 		}
@@ -96,7 +79,7 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		uikit.ErrorText(c, d.queryError)
 	}
 	if a.requestFieldsEditor(c, &d.queryRows, fieldsOptions{collection: d.composeCollection, caption: locales.QueryParams(),
-		key: "parameter", focus: d.unicodeHandle}, locales.Parameter()) {
+		key: "parameter", focus: d.unicodeHandle, description: true, measure: &d.fieldTablePane}, locales.Parameter()) {
 		u, err := url.Parse(d.composeURL)
 		if err == nil {
 			encode := a.inheritance(d.composeCollection).InheritSettings(d.settings).EncodesURL()
@@ -118,12 +101,94 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	}
 }
 
+// queryRowsFor reads a URL's query rows in their written order and carries a
+// description from the previous rows by key occurrence. A key that was
+// renamed loses its description, as the row is a new one.
+func queryRowsFor(raw string, previous []request.Field) ([]request.Field, error) {
+	rows, err := parseQueryRows(raw)
+	if err != nil {
+		return nil, err
+	}
+	descriptions := map[string][]string{}
+	for _, row := range previous {
+		descriptions[row.Name] = append(descriptions[row.Name], row.Description)
+	}
+	seen := map[string]int{}
+	for i := range rows {
+		name := rows[i].Name
+		if at := seen[name]; at < len(descriptions[name]) {
+			rows[i].Description = descriptions[name][at]
+		}
+		seen[name]++
+	}
+	return rows, nil
+}
+
+// parseQueryRows reads the URL's query pairs, preserving order, duplicates
+// and escapes. net/url's Query() sorts keys and loses that order.
+func parseQueryRows(raw string) ([]request.Field, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+	var rows []request.Field
+	for part := range strings.SplitSeq(u.RawQuery, "&") {
+		if part == "" {
+			continue
+		}
+		key, value, _ := strings.Cut(part, "=")
+		key, err = url.QueryUnescape(key)
+		if err != nil {
+			return nil, err
+		}
+		value, err = url.QueryUnescape(value)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, request.Field{Name: key, Value: value})
+	}
+	return rows, nil
+}
+
+// queryDescriptionsFor aligns the table's descriptions with the URL's query
+// pairs. A row no longer in the URL contributes nothing.
+func queryDescriptionsFor(raw string, rows []request.Field) []string {
+	parsed, err := parseQueryRows(raw)
+	if err != nil {
+		return nil
+	}
+	descriptions := map[string][]string{}
+	for _, row := range rows {
+		if row.Disabled || row.Name == "" {
+			continue
+		}
+		descriptions[row.Name] = append(descriptions[row.Name], row.Description)
+	}
+	seen := map[string]int{}
+	out := make([]string, len(parsed))
+	any := false
+	for i, row := range parsed {
+		at := seen[row.Name]
+		if at < len(descriptions[row.Name]) {
+			out[i] = descriptions[row.Name][at]
+			any = any || out[i] != ""
+		}
+		seen[row.Name]++
+	}
+	if !any {
+		return nil
+	}
+	return out
+}
+
 // fieldsOptions says what a row table edits: file parts carry a File flag,
 // and header values are masked while their key is a credential.
 type fieldsOptions struct {
-	file       bool
-	secret     bool
-	collection string
+	file   bool
+	secret bool
+	// description adds the row's documentation column.
+	description bool
+	collection  string
 	// caption names the table above its grid, as "Query Params" or "Headers".
 	caption string
 	// captionEnd draws a control at the caption's right end, such as a form's
@@ -134,6 +199,9 @@ type fieldsOptions struct {
 	key string
 	// focus hands a row cell its handle, so a send warning can open it.
 	focus func(string) *ui.Handle
+	// measure receives the table's laid-out width, which decides whether the
+	// Description column fits.
+	measure *ui.Handle
 	// filters are the captured values a row's context menu offers, by name.
 	filters map[string][]string
 }
@@ -147,9 +215,38 @@ func fieldsKey(opts fieldsOptions, noun, part string, row int) string {
 // Fields are rows rather than a map: duplicate names, disabled entries and file
 // parts all survive saving. Only Send/export reads a selected file. The table
 // itself is the kit's grid: its trailing empty row adds a row when typed into.
-func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOptions, noun string, actions ...func()) bool {
+func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOptions, noun string) bool {
 	t := c.Theme()
 	changed, remove := false, -1
+	keyGrow, valueGrow, keyMin, valueMin := float32(1), float32(2), float32(uikit.WidthNarrow), float32(uikit.WidthPicker)
+	// The value cell also holds its row actions: the mask/file toggle and the
+	// delete action. Keep their room inside the column minimum, so a wide
+	// value can never squeeze them into its text. A table with no masked or
+	// file row spends the second action's room on the Description column.
+	valueMin += uikit.HeightRowAction + t.Space(uikit.SpaceXS)
+	if opts.file || opts.secret && slices.ContainsFunc(*rows, func(r request.Field) bool { return sensitiveHeader(r.Name) }) {
+		valueMin += uikit.HeightRowAction + t.Space(uikit.SpaceXS)
+	}
+	showDescription := false
+	if opts.description {
+		// The table's own width from the frame before, as the pane's tab row
+		// measures itself. Moving the divider or stacking the panes changes it
+		// on the next frame.
+		tableWidth := float32(0)
+		if opts.measure != nil {
+			tableWidth = opts.measure.Bounds(c).W
+		}
+		if tableWidth > 0 {
+			left := tableWidth - uikit.HeightControl - keyMin - valueMin
+			showDescription = left >= uikit.WidthNarrow
+		} else {
+			// No layout yet: use the window so the first frame at a wide size
+			// does not flash the narrow layout.
+			width, _ := c.Size()
+			showDescription = width >= uikit.WidthWide*6+uikit.HeightControl*2
+		}
+	}
+	descriptionGrow, descriptionMin := float32(2), float32(uikit.WidthNarrow)
 	columns := []uikit.KeyValueColumn{
 		{
 			Width: uikit.HeightControl,
@@ -164,7 +261,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 			},
 		},
 		{
-			Title: locales.Key(), Grow: 1, MinWidth: uikit.WidthNarrow,
+			Title: locales.Key(), Grow: keyGrow, MinWidth: keyMin,
 			Cell: func(row int, _ ui.Element) {
 				r := &(*rows)[row]
 				ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
@@ -187,7 +284,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 			},
 		},
 		{
-			Title: locales.Value(), Grow: 2, MinWidth: uikit.WidthNarrow,
+			Title: locales.Value(), Grow: valueGrow, MinWidth: valueMin,
 			Cell: func(row int, line ui.Element) {
 				r := &(*rows)[row]
 				// Masked until the reader reveals this row with its eye: the
@@ -216,6 +313,16 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 					if value.Changed() {
 						changed = true
 					}
+					if opts.file {
+						toggle := uikit.RowIconButton(c, locales.FilePartLabel(row+1), locales.SendAsFile(), fileInputIcon)
+						if r.File {
+							toggle.Background(t.Accent.Alpha(0.18)).TextColor(t.Accent)
+						}
+						if toggle.Clicked() {
+							r.File = !r.File
+							changed = true
+						}
+					}
 					if secret {
 						label := locales.RevealRow(noun, row+1)
 						if r.Revealed {
@@ -243,24 +350,34 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 			},
 		},
 	}
-	if opts.file {
+	descriptionColumn := -1
+	if showDescription {
+		descriptionColumn = len(columns)
 		columns = append(columns, uikit.KeyValueColumn{
-			Title: locales.File(), Width: 64,
+			Title: locales.Description(), Grow: descriptionGrow, MinWidth: descriptionMin,
 			Cell: func(row int, _ ui.Element) {
 				r := &(*rows)[row]
-				if uikit.OutlineCheckbox(c, &r.File, locales.File()).Label(locales.FilePartLabel(row + 1)).Changed() {
-					changed = true
-				}
+				ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+					field := a.variableGridInput(c, fieldsKey(opts, noun, "description", row+1), &r.Description,
+						locales.Description(), locales.DescriptionOfRow(noun, row+1), opts.collection, false, false).Grow(1).MinWidth(0)
+					if opts.focus != nil {
+						field.Bind(opts.focus(fieldsKey(opts, noun, "description", row+1)))
+					}
+					cellBorder(t, field, false, false)
+					if len(r.Description) > 20 {
+						uikit.Tip(c, field, r.Description)
+					}
+					a.unicodeMarker(c, fmt.Sprintf("%s-description-hint-%d", noun, row+1), r.Description, false)
+					if field.Changed() {
+						changed = true
+					}
+				})
 			},
 		})
 	}
-	var headerEnd func()
-	if len(actions) > 0 {
-		headerEnd = func() {
-			for _, action := range actions {
-				action()
-			}
-		}
+	var emptyRowText map[int]string
+	if descriptionColumn >= 0 {
+		emptyRowText = map[int]string{descriptionColumn: locales.Description()}
 	}
 	uikit.KeyValueTable(c, uikit.KeyValueTableOptions{
 		Key:              "kv:" + cmp.Or(opts.key, noun),
@@ -268,13 +385,14 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 		CaptionEnd:       opts.captionEnd,
 		Columns:          columns,
 		Rows:             len(*rows),
-		HeaderEnd:        headerEnd,
 		KeyColumn:        1,
 		ValueColumn:      2,
 		KeyPlaceholder:   locales.Key(),
 		ValuePlaceholder: locales.Value(),
 		KeyLabel:         locales.KeyOfRow(noun, len(*rows)+1),
 		ValueLabel:       locales.ValueOfRow(noun, len(*rows)+1),
+		EmptyRowText:     emptyRowText,
+		Measure:          opts.measure,
 		OnAdd: func(key, value string, valueCell bool) {
 			*rows = append(*rows, request.Field{Name: key, Value: value})
 			changed = true
@@ -425,12 +543,12 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		}
 		return
 	}
-	if a.requestFieldsEditor(c, &d.headerRows, fieldsOptions{secret: true, collection: d.composeCollection,
-		caption: locales.Headers(), key: "header", focus: d.unicodeHandle, filters: a.capturedHeaders()}, locales.NounHeader(), func() {
-		if uikit.LinkButton(c, locales.BulkEdit()).Clicked() {
-			a.toggleHeaderBulk(d)
-		}
-	}) {
+	if a.requestFieldsEditor(c, &d.headerRows, fieldsOptions{secret: true, description: true, collection: d.composeCollection,
+		measure: &d.fieldTablePane, caption: locales.Headers(), captionEnd: func() {
+			if uikit.LinkButton(c, locales.BulkEdit()).Clicked() {
+				a.toggleHeaderBulk(d)
+			}
+		}, key: "header", focus: d.unicodeHandle, filters: a.capturedHeaders()}, locales.NounHeader()) {
 		d.composeHeaders = headerRowsText(d.headerRows)
 		d.headerFor = d.composeHeaders
 	}
@@ -822,8 +940,8 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		uikit.Hint(c, locales.OnlyThePathIsSaved())
 	} else {
 		caption := locales.UrlEncoded()
-		opts := fieldsOptions{file: d.bodyMode == "Multipart", collection: d.composeCollection,
-			caption: caption, key: "field", focus: d.unicodeHandle}
+		opts := fieldsOptions{file: d.bodyMode == "Multipart", description: true, collection: d.composeCollection,
+			measure: &d.fieldTablePane, caption: caption, key: "field", focus: d.unicodeHandle}
 		if d.bodyMode == "Multipart" {
 			opts.caption = locales.FormData()
 			opts.captionEnd = func() {

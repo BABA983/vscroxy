@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -121,6 +122,11 @@ type ConnContext struct {
 	// VerifyUpstream makes an intercepted TLS handshake verify the server's
 	// certificate, as a CONNECT's HeaderVerifyUpstream asks.
 	VerifyUpstream bool `json:"-"`
+	// TLSVersions and TLSCipherSuites narrow an intercepted upstream
+	// handshake, as a CONNECT's own headers ask. Empty keeps the engine's
+	// defaults.
+	TLSVersions     []uint16 `json:"-"`
+	TLSCipherSuites []uint16 `json:"-"`
 	// upstreamTLSFailure is set when an intercepted upstream handshake fails
 	// before the client handshake. The client handshake still completes with
 	// our certificate so the request can be answered with the reason.
@@ -169,6 +175,24 @@ func (c *ConnContext) ConnectionEvents() []ConnectionEvent {
 	c.eventsMu.Lock()
 	defer c.eventsMu.Unlock()
 	return slices.Clone(c.events)
+}
+
+// parseUint16List reads a comma-separated list of decimal wire values, as a
+// CONNECT's TLS headers carry them.
+func parseUint16List(value string) []uint16 {
+	var out []uint16
+	for part := range strings.SplitSeq(value, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		n, err := strconv.ParseUint(part, 10, 16)
+		if err != nil {
+			continue
+		}
+		out = append(out, uint16(n))
+	}
+	return out
 }
 
 // Used by the normal dial and by a separate transport after a URL rewrite.

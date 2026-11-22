@@ -256,14 +256,15 @@ func hoppRequestValue(input hoppRequest, parent string, index int, warnings *[]s
 	url := normalizeTags(cmp.Or(input.Endpoint, input.URL))
 	var params []requestField
 	for _, param := range input.Params {
-		params = append(params, requestField{Name: normalizeTags(param.Key), Value: valueText(param.Value), Disabled: param.Active != nil && !*param.Active})
+		params = append(params, requestField{Name: normalizeTags(param.Key), Value: valueText(param.Value), Description: param.Description, Disabled: param.Active != nil && !*param.Active})
 	}
 	out.URL = appendQuery(url, params)
+	out.QueryDescriptions = queryDescriptions(out.URL, params)
 	for _, header := range input.Headers {
 		if header.Active != nil && !*header.Active {
 			continue
 		}
-		out.HeaderList = append(out.HeaderList, request.Field{Name: normalizeTags(header.Key), Value: valueText(header.Value)})
+		out.HeaderList = append(out.HeaderList, request.Field{Name: normalizeTags(header.Key), Value: valueText(header.Value), Description: header.Description})
 	}
 	out.Auth = hoppAuth(input.Auth, warnings)
 	if out.Auth.Type == "" {
@@ -300,7 +301,7 @@ func hoppRequestValue(input hoppRequest, parent string, index int, warnings *[]s
 func hoppPairFields(pairs []hoppPair) []request.Field {
 	var fields []request.Field
 	for _, pair := range pairs {
-		fields = append(fields, request.Field{Name: pair.Key, Value: valueText(pair.Value), Disabled: pair.Active != nil && !*pair.Active})
+		fields = append(fields, request.Field{Name: pair.Key, Value: valueText(pair.Value), Description: pair.Description, Disabled: pair.Active != nil && !*pair.Active})
 	}
 	return fields
 }
@@ -350,7 +351,7 @@ func hoppBodyRequest(out *request.Request, body *hoppBody, warnings *[]string) {
 		var fields []request.Field
 		for _, item := range valueList(body.Body) {
 			pair := valueMap(item)
-			field := request.Field{Name: valueText(pair["key"]), Value: valueText(pair["value"])}
+			field := request.Field{Name: valueText(pair["key"]), Value: valueText(pair["value"]), Description: valueText(pair["description"])}
 			if active, ok := pair["active"].(bool); ok && !active {
 				field.Disabled = true
 			}

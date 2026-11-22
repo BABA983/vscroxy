@@ -597,6 +597,23 @@ func (a *attacker) serverTlsHandshake(ctx context.Context, connCtx *ConnContext)
 			serverTlsConfig.MaxVersion = maxVersion
 		}
 	}
+	if len(connCtx.TLSCipherSuites) > 0 {
+		serverTlsConfig.CipherSuites = slices.Clone(connCtx.TLSCipherSuites)
+	}
+	if len(connCtx.TLSVersions) > 0 {
+		allowed := slices.Clone(connCtx.TLSVersions)
+		serverTlsConfig.MinVersion, serverTlsConfig.MaxVersion = slices.Min(allowed), slices.Max(allowed)
+		verifyConnection := serverTlsConfig.VerifyConnection
+		serverTlsConfig.VerifyConnection = func(state tls.ConnectionState) error {
+			if !slices.Contains(allowed, state.Version) {
+				return fmt.Errorf("TLS %s is disabled for this request", tls.VersionName(state.Version))
+			}
+			if verifyConnection != nil {
+				return verifyConnection(state)
+			}
+			return nil
+		}
+	}
 	serverTlsConn := tls.Client(serverConn.Conn, serverTlsConfig)
 	serverConn.tlsConn = serverTlsConn
 	connCtx.RecordEvent("TLS upstream", "Starting handshake with "+serverConn.Address, nil)
