@@ -1041,12 +1041,8 @@ func typeHover(def *ast.Definition) string {
 		text += "\n\n" + desc
 	}
 	if def.Kind == ast.Union || def.Kind == ast.Interface {
-		var names []string
-		for _, possible := range def.Types {
-			names = append(names, possible)
-		}
-		if len(names) > 0 {
-			text += "\n\nPossible types: " + strings.Join(names, ", ")
+		if len(def.Types) > 0 {
+			text += "\n\nPossible types: " + strings.Join(def.Types, ", ")
 		}
 	}
 	return text

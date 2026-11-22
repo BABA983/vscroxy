@@ -11,7 +11,3 @@ func init() {
 // guarded runs one app-owned background goroutine. Other packages call
 // errorsx.Guard directly.
 func guarded(fn func()) { errorsx.Guard(fn) }
-
-// reportUnexpectedPanic reports a panic the way the app always has: into the
-// app log with its stack, and through the notice handler installed by Run.
-func reportUnexpectedPanic(value any, stack []byte) { errorsx.ReportPanic(value, stack) }

@@ -208,9 +208,9 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 	}
 	chip := uikit.StatusPill(c, status, color).Shrink(0)
 	if f.conn.error != "" {
-		chip = uikit.Tip(c, chip, cmp.Or(f.conn.errorStage, "Connection")+": "+f.conn.error)
+		uikit.Tip(c, chip, cmp.Or(f.conn.errorStage, "Connection")+": "+f.conn.error)
 	} else if doc := statusDoc(f.status); doc != "" {
-		chip = uikit.Tip(c, chip, doc)
+		uikit.Tip(c, chip, doc)
 	}
 	if !compact {
 		uikit.Body(c, "·").TextColor(t.Border)

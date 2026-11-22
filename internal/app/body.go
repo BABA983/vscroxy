@@ -92,7 +92,7 @@ type jsonReader struct {
 // JSONC comments and trailing commas become part of the tree, and NDJSON is
 // shown as one root per line.
 func parseJSON(body string) jsonTreeResult {
-	if roots, ok := strictJSON(body); ok {
+	if roots, ok, _ := probeStrictJSON(body); ok {
 		return jsonTreeResult{roots: roots}
 	}
 	return faultTolerantJSON(body)
@@ -113,11 +113,6 @@ func faultTolerantJSON(body string) jsonTreeResult {
 		stop:    jsonStopLine(body, errs),
 		rawRoot: root,
 	}
-}
-
-func strictJSON(body string) ([]*jsonNode, bool) {
-	roots, ok, _ := probeStrictJSON(body)
-	return roots, ok
 }
 
 // probeStrictJSON reports whether a body is complete JSON and, if it is not,

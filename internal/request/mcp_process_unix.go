@@ -46,8 +46,6 @@ func mcpTerminateProcessTree(tree mcpProcessTree, force bool) {
 	_ = syscall.Kill(-tree.pgid, signal)
 }
 
-func mcpCloseProcessTree(mcpProcessTree) {}
-
 // mcpCloseProcess never signals the saved group after cmd.Wait: the leader
 // may have been reaped and its pid reused. The grace period deliberately does
 // not reap the leader, so the process group id stays reserved while SIGTERM

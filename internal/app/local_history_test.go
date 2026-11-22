@@ -94,7 +94,7 @@ func TestLocalHistoryListsNewestBackupFirstRatherThanReadDirOrder(t *testing.T) 
 	oldLabel := historyEntryLabel(a.history.entries[1])
 	texts := tt.Texts()
 	text := strings.Join(texts, "\n")
-	if strings.Index(text, newLabel) < 0 || strings.Index(text, oldLabel) < 0 ||
+	if !strings.Contains(text, newLabel) || !strings.Contains(text, oldLabel) ||
 		strings.Index(text, newLabel) >= strings.Index(text, oldLabel) {
 		t.Fatalf("the list does not show newest first (%q before %q): %q", newLabel, oldLabel, text)
 	}

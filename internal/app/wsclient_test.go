@@ -1,7 +1,6 @@
 package app
 
 import (
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -56,16 +55,4 @@ func TestStructuredWebSocketSendsAuthHeadersAndCookiesWithVerifiedTLS(t *testing
 			}
 		})
 	}
-}
-
-// freeProxyAddr is a loopback address nothing listens on.
-func freeProxyAddr(t *testing.T) string {
-	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-	addr := l.Addr().String()
-	_ = l.Close()
-	return addr
 }

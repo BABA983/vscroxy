@@ -339,9 +339,7 @@ func (p *outlinePanel) childKeys(key string) []string {
 		return keys
 	}
 	all := p.filterKids[key]
-	for _, child := range all[:min(len(all), outlineChildLimit)] {
-		keys = append(keys, child)
-	}
+	keys = append(keys, all[:min(len(all), outlineChildLimit)]...)
 	if len(all) > outlineChildLimit {
 		keys = append(keys, key+"/more")
 		p.byKey[key+"/more"] = &outlineSymbol{key: key + "/more", parent: key,

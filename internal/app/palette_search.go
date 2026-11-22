@@ -36,7 +36,6 @@ type requestSearchEntry struct {
 	key    string
 	label  string
 	detail string
-	path   string
 }
 
 type pathSearchEntry struct {
@@ -178,11 +177,6 @@ func splitPaletteQuery(query string) paletteQuery {
 	default:
 		return paletteQuery{text: q}
 	}
-}
-
-// paletteSearchEntries is paletteSearch without the overflow count.
-func (a *app) paletteSearchEntries(query string) []paletteEntry {
-	return a.paletteSearch(query).entries
 }
 
 // paletteScoreItem is the fuzzy accessor for one candidate's label and
@@ -721,48 +715,11 @@ func (a *app) paletteHelp(q paletteQuery) paletteSearch {
 	return result
 }
 
-// paletteSearch finds collections, folders, requests, environments and
-// variable names with VS Code's fuzzy scorer. Variable values are never part
-// of a label, detail or score, so typing a secret cannot reveal it exists.
-func (a *app) paletteSearch(query string) paletteSearch {
-	q := splitPaletteQuery(query)
-	switch q.scope {
-	case paletteMixed:
-		return a.paletteSearchMixed(query)
-	case paletteHelp:
-		return a.paletteHelp(q)
-	case paletteCommandsOnly:
-		return paletteSearch{}
-	}
-	prepared := fuzzy.PrepareQuery(q.text)
-	assets := a.paletteAssetsFor(prepared, q.scope)
-	visible := assets.candidates
-	if len(visible) > paletteResultLimit {
-		visible = visible[:paletteResultLimit]
-	}
-	out := a.paletteFinalize(visible)
-	out.more = assets.overflow
-	return out
-}
-
-func (a *app) paletteSearchMixed(query string) paletteSearch {
-	prepared := fuzzy.PrepareQuery(strings.TrimSpace(query))
-	if prepared.Normalized == "" {
-		return paletteSearch{}
-	}
-	assets := a.paletteAssetsFor(prepared, paletteMixed)
-	visible := assets.candidates
-	if len(visible) > paletteResultLimit {
-		visible = visible[:paletteResultLimit]
-	}
-	out := a.paletteFinalize(visible)
-	out.more = assets.overflow
-	return out
-}
-
 // paletteRankedResults ranks commands and saved entries together. An
 // unprefixed query keeps the mixed list; a quick-access prefix narrows it to
-// one scope without letting the prefix take part in the fuzzy query.
+// one scope without letting the prefix take part in the fuzzy query. Variable
+// values are never part of a label, detail or score, so typing a secret
+// cannot reveal it exists.
 func (a *app) paletteRankedResults(query string, actions []action) paletteSearch {
 	q := splitPaletteQuery(query)
 	switch q.scope {

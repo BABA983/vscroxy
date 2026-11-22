@@ -10,7 +10,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -366,30 +365,6 @@ func (a *app) importSystemHosts() {
 	if a.newProfile("System hosts", text, "") {
 		a.done(locales.ImportedProfile(path))
 	}
-}
-
-// subscribe adds a profile fetched from source, kept up to date hourly.
-func (a *app) subscribe(source string) {
-	source = strings.TrimSpace(source)
-	name := "Subscription"
-	if u, err := urlHost(source); err == nil {
-		name = u
-	}
-	if a.newProfile(name, "", source) {
-		a.refreshProfile(a.profiles.choice)
-	}
-}
-
-func urlHost(source string) (string, error) {
-	_, rest, ok := strings.Cut(source, "://")
-	if !ok {
-		return "", fs.ErrInvalid
-	}
-	host, _, _ := strings.Cut(rest, "/")
-	if host == "" {
-		return "", fs.ErrInvalid
-	}
-	return host, nil
 }
 
 // refreshProfile fetches a subscribed profile in the background.

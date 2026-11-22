@@ -382,7 +382,7 @@ func TestVariableHintsPreferCurrentAndMaskCredentials(t *testing.T) {
 	}}}
 	a.folderCurrent = map[string]map[string]string{"Shop": {"fallback": ""}}
 	hints := map[string]variableHint{}
-	for _, h := range a.variableHints("Shop") {
+	for _, h := range a.variableHintSet("Shop").list {
 		hints[h.Name] = h
 	}
 	for name, want := range map[string]struct{ value, source, display string }{
@@ -403,7 +403,7 @@ func TestVariableHintsPreferCurrentAndMaskCredentials(t *testing.T) {
 	if h, ok := hints["$randomLoremParagraphs"]; !ok || !h.Dynamic || h.display() != "generated at send" {
 		t.Errorf("full-list dynamic hint = %+v, %v", h, ok)
 	}
-	marks := a.variableMarks("{{base}} {{missing}} {{token}} {{$guid}}", "Shop")
+	marks := variableMarksWith(a.variableHintSet("Shop"), "{{base}} {{missing}} {{token}} {{$guid}}")
 	if len(marks) != 4 || !marks[0].Defined || marks[1].Defined || !marks[2].Defined || !marks[3].Defined {
 		t.Fatalf("marks = %+v", marks)
 	}
@@ -415,7 +415,7 @@ func TestVariableHintsPreferCurrentAndMaskCredentials(t *testing.T) {
 func TestVariableHintsAndCompletionCoverEveryDynamicName(t *testing.T) {
 	a := workspaceApp()
 	hints := map[string]variableHint{}
-	for _, h := range a.variableHints("Shop") {
+	for _, h := range a.variableHintSet("Shop").list {
 		hints[h.Name] = h
 	}
 	for _, name := range request.DynamicNames() {

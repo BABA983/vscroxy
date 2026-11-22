@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/library"
 	"github.com/baba983/vscroxy/internal/request"
 )
 
@@ -122,11 +123,11 @@ func TestEscapedNamesRoundTrip(t *testing.T) {
 		if strings.ContainsAny(escaped, "/\\:*?\"<>|\t") || strings.HasPrefix(escaped, ".") || strings.HasSuffix(escaped, ".") || strings.HasSuffix(escaped, " ") {
 			t.Errorf("escapeName(%q) = %q is not a portable file name", name, escaped)
 		}
-		if got := unescapeName(escaped); got != name {
-			t.Errorf("unescapeName(escapeName(%q)) = %q", name, got)
+		if got := library.UnescapeName(escaped); got != name {
+			t.Errorf("library.UnescapeName(escapeName(%q)) = %q", name, got)
 		}
 	}
-	if got := unescapeName("100%-done %zz"); got != "100%-done %zz" {
+	if got := library.UnescapeName("100%-done %zz"); got != "100%-done %zz" {
 		t.Errorf("a stray %% must stay literal: %q", got)
 	}
 }
@@ -229,7 +230,7 @@ func TestLibraryLoadFailureInvalidatesPaletteIndex(t *testing.T) {
 	if err := a.writeLibrary([]savedRequest{{Request: request.Request{ID: "visible", Name: "Visible", Method: "GET", URL: "https://api.example.com/visible"}}}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if got := a.paletteSearchEntries("visible"); len(got) != 1 {
+	if got := a.paletteRankedResults("visible", nil).entries; len(got) != 1 {
 		t.Fatalf("initial palette search = %+v", got)
 	}
 	gen := a.requestGen
@@ -241,7 +242,7 @@ func TestLibraryLoadFailureInvalidatesPaletteIndex(t *testing.T) {
 	if a.requestsProblem == "" || a.requestGen == gen {
 		t.Fatalf("load failure did not invalidate the index: problem=%q gen=%d", a.requestsProblem, a.requestGen)
 	}
-	if got := a.paletteSearchEntries("visible"); len(got) != 0 {
+	if got := a.paletteRankedResults("visible", nil).entries; len(got) != 0 {
 		t.Fatalf("palette still lists removed requests: %+v", got)
 	}
 }

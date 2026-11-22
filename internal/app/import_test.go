@@ -812,14 +812,14 @@ func TestDownloadImportURL(t *testing.T) {
 		w.Write([]byte(`{"client":"Thunder Client","collectionName":"Remote","requests":[]}`))
 	}))
 	defer upstream.Close()
-	data, name, err := downloadImportURL(upstream.Client(), upstream.URL+"/collection.json")
+	data, name, err := downloadImportURLContext(t.Context(), upstream.Client(), upstream.URL+"/collection.json")
 	if err != nil || name != "collection.json" || !strings.Contains(string(data), "Thunder Client") {
 		t.Fatalf("data=%q name=%q err=%v", data, name, err)
 	}
-	if _, _, err := downloadImportURL(upstream.Client(), "file:///tmp/x.json"); err == nil || !strings.Contains(err.Error(), "http") {
+	if _, _, err := downloadImportURLContext(t.Context(), upstream.Client(), "file:///tmp/x.json"); err == nil || !strings.Contains(err.Error(), "http") {
 		t.Fatalf("non-HTTP URL error = %v", err)
 	}
-	if _, _, err := downloadImportURL(upstream.Client(), upstream.URL+"/missing"); err == nil || !strings.Contains(err.Error(), "404") {
+	if _, _, err := downloadImportURLContext(t.Context(), upstream.Client(), upstream.URL+"/missing"); err == nil || !strings.Contains(err.Error(), "404") {
 		t.Fatalf("404 error = %v", err)
 	}
 }

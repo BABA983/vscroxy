@@ -215,15 +215,6 @@ func ClearAndroidProxy(serial string, port int, previous string) (warning error,
 	return nil, nil
 }
 
-// PushAndroidCA copies the public CA to Downloads.
-func PushAndroidCA(serial, caPath string) error {
-	command, err := AndroidCACopyCommand(serial, caPath)
-	if err != nil {
-		return err
-	}
-	return command.Run()
-}
-
 func runAll(commands []Argv) error {
 	for _, command := range commands {
 		if err := command.Run(); err != nil {

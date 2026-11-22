@@ -190,12 +190,8 @@ func (s *Schema) QueryType() string {
 	return s.ast.Query.Name
 }
 
-// field finds a field of a composite type. __typename exists on every
+// fieldOf finds a field of a composite type. __typename exists on every
 // composite type; a union has no other fields.
-func (s *Schema) field(typeName, name string) *ast.FieldDefinition {
-	return fieldOf(s.ast, typeName, name)
-}
-
 func fieldOf(schema *ast.Schema, typeName, name string) *ast.FieldDefinition {
 	if name == "__typename" {
 		return &ast.FieldDefinition{Name: "__typename", Type: ast.NonNullNamedType("String", nil)}

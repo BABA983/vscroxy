@@ -3702,17 +3702,6 @@ func millisOrZero(phase func() (int, bool)) int {
 	return millis
 }
 
-// statusNote is what a row's status says: its code, or why it has none.
-func statusNote(f flow) string {
-	switch {
-	case f.conn.error != "":
-		return f.conn.errorStage + ": " + f.conn.error
-	case f.kind == "connect":
-		return locales.TunnelTooltip(f.status)
-	}
-	return fmt.Sprint(f.status)
-}
-
 // secureRank sorts the SSL column: plaintext first, then TLS.
 func secureRank(f flow) int {
 	if f.secure() {
@@ -4284,14 +4273,8 @@ func (a *app) clientIcon(process, path string) (ui.ImageSource, bool) {
 	return src, src != nil
 }
 
-// loadIcon decodes an app's icon: an SVG as an SVG, anything else as a
-// bitmap.
-func loadIcon(process, path string) ui.ImageSource {
-	return loadIconWith(systemIcon, process, path)
-}
-
-// loadIconWith is loadIcon with where the desktop's icon comes from, which a
-// test stands in for.
+// loadIconWith decodes an app's icon, an SVG as an SVG and anything else as a
+// bitmap, from lookup, which a test stands in for the desktop's icons.
 func loadIconWith(lookup func(string) ([]byte, bool), process, path string) ui.ImageSource {
 	// The desktop's own icon first: the app a process belongs to, or the
 	// executable itself. It is read once per path and kept, never per frame.

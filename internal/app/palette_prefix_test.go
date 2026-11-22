@@ -22,7 +22,7 @@ func paletteFindEntry(entries []paletteEntry, label string) (paletteEntry, bool)
 func TestQuickAccessPrefixesLimitScope(t *testing.T) {
 	a := paletteTestApp()
 	actions := a.actions(nil)
-	if got := paletteLabels(a.paletteSearchEntries("order")); !slices.Equal(got, []string{"Orders", "Create order"}) {
+	if got := paletteLabels(a.paletteRankedResults("order", nil).entries); !slices.Equal(got, []string{"Orders", "Create order"}) {
 		t.Fatalf("unprefixed order = %v", got)
 	}
 	if got := paletteLabels(a.paletteRankedResults("order", actions).entries); !slices.Contains(got, "Create order") {
@@ -62,7 +62,7 @@ func TestQuickAccessPrefixesLimitScope(t *testing.T) {
 		if result.entries[0].action {
 			t.Fatal("a request prefix included a command")
 		}
-		if got := paletteLabels(a.paletteSearchEntries("#order")); !slices.Equal(got, []string{"Create order"}) {
+		if got := paletteLabels(a.paletteRankedResults("#order", nil).entries); !slices.Equal(got, []string{"Create order"}) {
 			t.Fatalf("paletteSearch #order = %v", got)
 		}
 	})
@@ -77,7 +77,7 @@ func TestQuickAccessPrefixesLimitScope(t *testing.T) {
 				t.Fatalf("$base included a command: %+v", e)
 			}
 		}
-		local := paletteLabels(a.paletteSearchEntries("$local"))
+		local := paletteLabels(a.paletteRankedResults("$local", nil).entries)
 		if !slices.Contains(local, "Local") || slices.Contains(local, "Create order") || slices.Contains(local, "Orders") {
 			t.Fatalf("$local = %v, want environments and variables only", local)
 		}

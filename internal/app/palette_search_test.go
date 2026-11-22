@@ -64,7 +64,7 @@ func TestPaletteSearchMatchesAndOrdersLibraryAndVariables(t *testing.T) {
 		{"trace", []string{"trace_id"}},
 	}
 	for _, tc := range cases {
-		if got := paletteLabels(a.paletteSearchEntries(tc.query)); !slices.Equal(got, tc.want) {
+		if got := paletteLabels(a.paletteRankedResults(tc.query, nil).entries); !slices.Equal(got, tc.want) {
 			t.Errorf("query %q = %v, want %v", tc.query, got, tc.want)
 		}
 	}
@@ -73,18 +73,18 @@ func TestPaletteSearchMatchesAndOrdersLibraryAndVariables(t *testing.T) {
 func TestPaletteSearchNeverMatchesVariableValues(t *testing.T) {
 	a := paletteTestApp()
 	for _, query := range []string{"needle", "current-needle", "current-only-needle", "global-value", "global-current-needle", "staging.example.com"} {
-		if got := a.paletteSearchEntries(query); len(got) != 0 {
+		if got := a.paletteRankedResults(query, nil).entries; len(got) != 0 {
 			t.Errorf("query %q matched a variable value: %+v", query, got)
 		}
 	}
-	entries := a.paletteSearchEntries("base_url")
+	entries := a.paletteRankedResults("base_url", nil).entries
 	for _, entry := range entries {
 		if entry.detail == "https://api.example.com" || entry.detail == "https://staging.example.com" {
 			t.Fatalf("variable result exposed a value: %+v", entry)
 		}
 	}
 	for _, query := range []string{"current_only", "global_current"} {
-		for _, entry := range a.paletteSearchEntries(query) {
+		for _, entry := range a.paletteRankedResults(query, nil).entries {
 			if strings.Contains(entry.detail, "needle") {
 				t.Fatalf("Current-only result exposed a value: %+v", entry)
 			}
@@ -96,7 +96,7 @@ func TestPaletteSearchEntriesOpenTheirTarget(t *testing.T) {
 	a := paletteTestApp()
 	entry := func(query, label string) paletteEntry {
 		t.Helper()
-		for _, candidate := range a.paletteSearchEntries(query) {
+		for _, candidate := range a.paletteRankedResults(query, nil).entries {
 			if candidate.label == label {
 				return candidate
 			}
@@ -268,7 +268,7 @@ func TestPaletteFuzzyRanksGetUserAndRecentRows(t *testing.T) {
 	a.requests = append(a.requests, getUser)
 	a.requestGen++
 
-	entries := a.paletteSearchEntries("getusr")
+	entries := a.paletteRankedResults("getusr", nil).entries
 	if len(entries) == 0 || entries[0].label != "Get User" {
 		t.Fatalf("fuzzy query getusr = %v", paletteLabels(entries))
 	}
@@ -283,7 +283,7 @@ func TestPaletteFuzzyRanksGetUserAndRecentRows(t *testing.T) {
 
 	// A recently used row outranks a better fuzzy score, like VS Code quick open.
 	a.workbench.rememberPalette("request:" + getUser.key())
-	recent := a.paletteSearchEntries("getusr")
+	recent := a.paletteRankedResults("getusr", nil).entries
 	if len(recent) == 0 || recent[0].label != "Get User" || recent[0].run == nil {
 		t.Fatalf("recent row not first: %v", paletteLabels(recent))
 	}
@@ -315,7 +315,7 @@ func TestPaletteDetailHighlightsDescription(t *testing.T) {
 	)
 	a.requestGen++
 
-	byURL := a.paletteSearchEntries("users/1")
+	byURL := a.paletteRankedResults("users/1", nil).entries
 	if len(byURL) == 0 {
 		t.Fatal("no request matched users/1")
 	}
@@ -324,7 +324,7 @@ func TestPaletteDetailHighlightsDescription(t *testing.T) {
 		t.Fatalf("url detail highlights = %v from %q (entry %+v)", got, entry.detail, entry)
 	}
 
-	for _, entry := range a.paletteSearchEntries("accounts get user") {
+	for _, entry := range a.paletteRankedResults("accounts get user", nil).entries {
 		if entry.label != "Get User" {
 			continue
 		}
@@ -341,7 +341,7 @@ func TestPaletteDetailHighlightsDescription(t *testing.T) {
 func TestPaletteDetailMatchesStayWithinDisplayedDetail(t *testing.T) {
 	a := paletteTestApp()
 	for _, query := range []string{"shop", "orders", "local", "base_url", "health", "get"} {
-		for _, entry := range a.paletteSearchEntries(query) {
+		for _, entry := range a.paletteRankedResults(query, nil).entries {
 			if got := matchedStrings(entry.detail, entry.detailMatches); slices.Contains(got, "<invalid>") {
 				t.Fatalf("detail offsets outside %q for %q: %v (%v)", entry.detail, query, got, entry.detailMatches)
 			}
@@ -364,7 +364,7 @@ func TestPaletteFuzzyUsesVSCodeComparator(t *testing.T) {
 	// "Get User" scores 65582 against "Get user details" at 65583. The ported
 	// comparator ranks that one-point higher score first before considering
 	// the shorter label, so this is the correct quick-open order.
-	got := paletteLabels(a.paletteSearchEntries("getusr"))
+	got := paletteLabels(a.paletteRankedResults("getusr", nil).entries)
 	if len(got) < 2 || got[0] != "Get user details" || got[1] != "Get User" {
 		t.Fatalf("getusr order = %v", got)
 	}
@@ -379,7 +379,7 @@ func TestPaletteSearchLimitsBroadResultsWithHistory(t *testing.T) {
 	a.requestGen++
 	a.workbench.rememberPalette("request:" + a.requests[79].key())
 
-	got := a.paletteSearch("entry")
+	got := a.paletteRankedResults("entry", nil)
 	if len(got.entries) != paletteResultLimit || got.more != 80-paletteResultLimit {
 		t.Fatalf("broad search = %d entries, %d more", len(got.entries), got.more)
 	}
@@ -395,7 +395,7 @@ func TestPaletteSearchLimitsBroadResults(t *testing.T) {
 		a.requests[i] = savedRequest{ID: fmt.Sprintf("r%d", i), Name: fmt.Sprintf("Entry %02d", i), Method: "GET", URL: "https://api.example.com/entry"}
 	}
 	a.requestGen++
-	got := a.paletteSearch("entry")
+	got := a.paletteRankedResults("entry", nil)
 	if len(got.entries) != paletteResultLimit || got.more != 80-paletteResultLimit {
 		t.Fatalf("broad search = %d entries, %d more", len(got.entries), got.more)
 	}
@@ -423,16 +423,16 @@ func TestPaletteSearchIndexUpdatesWithTheLibrary(t *testing.T) {
 	a := workspaceApp()
 	a.requests = []savedRequest{{ID: "one", Name: "Alpha", Method: "GET", URL: "https://api.example.com/alpha"}}
 	a.requestGen++
-	if got := paletteLabels(a.paletteSearchEntries("alpha")); !slices.Equal(got, []string{"Alpha"}) {
+	if got := paletteLabels(a.paletteRankedResults("alpha", nil).entries); !slices.Equal(got, []string{"Alpha"}) {
 		t.Fatalf("initial search = %v", got)
 	}
 	if err := a.persistRequests([]savedRequest{{ID: "two", Name: "Beta", Method: "GET", URL: "https://api.example.com/beta"}}); err != nil {
 		t.Fatal(err)
 	}
-	if got := paletteLabels(a.paletteSearchEntries("beta")); !slices.Equal(got, []string{"Beta"}) {
+	if got := paletteLabels(a.paletteRankedResults("beta", nil).entries); !slices.Equal(got, []string{"Beta"}) {
 		t.Fatalf("search after a library change = %v", got)
 	}
-	if got := a.paletteSearchEntries("alpha"); len(got) != 0 {
+	if got := a.paletteRankedResults("alpha", nil).entries; len(got) != 0 {
 		t.Fatalf("replaced library still matched: %+v", got)
 	}
 }
@@ -525,10 +525,10 @@ func BenchmarkPaletteSearch5000RequestsWarm(b *testing.B) {
 		}
 	}
 	a.requestGen++
-	a.paletteSearchEntries("warm the index")
+	a.paletteRankedResults("warm the index", nil)
 	b.ResetTimer()
 	for b.Loop() {
-		if got := a.paletteSearchEntries("items/4999"); len(got) != 1 {
+		if got := a.paletteRankedResults("items/4999", nil).entries; len(got) != 1 {
 			b.Fatalf("matches = %d", len(got))
 		}
 	}
@@ -545,10 +545,10 @@ func BenchmarkPaletteSearch5000RequestsBroad(b *testing.B) {
 		}
 	}
 	a.requestGen++
-	a.paletteSearch("warm the index")
+	a.paletteRankedResults("warm the index", nil)
 	b.ResetTimer()
 	for b.Loop() {
-		got := a.paletteSearch("request")
+		got := a.paletteRankedResults("request", nil)
 		if len(got.entries) != paletteResultLimit || got.more != 5000-paletteResultLimit {
 			b.Fatalf("broad search = %d entries, %d more", len(got.entries), got.more)
 		}
@@ -568,7 +568,7 @@ func BenchmarkPaletteSearch5000RequestsCold(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		a.requestGen++
-		if got := a.paletteSearchEntries("items/4999"); len(got) != 1 {
+		if got := a.paletteRankedResults("items/4999", nil).entries; len(got) != 1 {
 			b.Fatalf("matches = %d", len(got))
 		}
 	}

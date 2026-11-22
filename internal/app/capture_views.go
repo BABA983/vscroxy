@@ -160,21 +160,6 @@ func (a *app) matchesContent(f flow) (matched, active bool) {
 	return matched, active
 }
 
-func (q captureTriage) summary() []string {
-	var parts []string
-	for _, field := range []struct{ name, value string }{
-		{"host", q.Host}, {"app", q.Client}, {"ip", q.IP}, {"query", q.Query},
-		{"operation", q.Operation},
-		{"method", q.Method}, {"duration ms", q.Duration}, {"response bytes", q.Size}, {"request bytes", q.RequestSize},
-		{"color", q.Color}, {"note", q.Note},
-	} {
-		if field.value != "" {
-			parts = append(parts, field.name+" "+field.value)
-		}
-	}
-	return parts
-}
-
 // clientAddress is the client's IP address, without the port that follows it.
 func clientAddress(endpoint string) string {
 	if host, _, err := net.SplitHostPort(endpoint); err == nil {

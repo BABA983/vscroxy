@@ -380,7 +380,7 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		ui.Row(c).Shrink(1).MinWidth(0).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			counts := uikit.Meta(c, a.footerCountsText()).FontFeatures("tnum").SingleLine()
 			if a.page == pageDiagnostics {
-				counts = uikit.Tip(c, counts, locales.EvidenceFromThisLiveSession())
+				uikit.Tip(c, counts, locales.EvidenceFromThisLiveSession())
 			}
 			if a.dropped > 0 {
 				uikit.Caption(c, locales.DroppedCount(int(a.dropped))).FontFeatures("tnum").TextColor(t.Warning).SingleLine()

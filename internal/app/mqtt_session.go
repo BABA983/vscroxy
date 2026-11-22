@@ -140,14 +140,6 @@ func (s *mqttSession) stop() {
 
 func (s *mqttSession) Dispose() { s.stop() }
 
-// stopAndWait cancels the session and gives the connection loop a moment to
-// send DISCONNECT. Quitting uses it so the broker does not publish the will
-// for an app exit.
-func (s *mqttSession) stopAndWait() {
-	s.stop()
-	s.await(time.Second)
-}
-
 // waitMQTTSessions gives all canceled sessions one shared window to send
 // DISCONNECT, instead of spending the timeout once per document.
 func waitMQTTSessions(sessions []*mqttSession, timeout time.Duration) {
@@ -210,13 +202,6 @@ func (s *mqttSession) systemLocked(name, note string) {
 func (s *mqttSession) system(name, note string) {
 	s.mu.Lock()
 	s.systemLocked(name, note)
-	s.mu.Unlock()
-	s.changed()
-}
-
-func (s *mqttSession) setState(state string) {
-	s.mu.Lock()
-	s.state = state
 	s.mu.Unlock()
 	s.changed()
 }

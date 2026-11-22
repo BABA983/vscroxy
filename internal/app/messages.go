@@ -367,7 +367,7 @@ func (m messageView) row(c *ui.Context) {
 		muted := t.TextMuted
 		uikit.Caption(c, m.stamp()).FontFeatures("tnum").TextColor(muted).Width(80).SingleLine()
 		label := uikit.Caption(c, m.label()).TextColor(muted).Width(52).SingleLine()
-		label = uikit.Tip(c, label, m.kindLine())
+		uikit.Tip(c, label, m.kindLine())
 		preview := uikit.DataBody(c, m.preview()).
 			TextColor(t.Text).SingleLine().Grow(1)
 		uikit.Tip(c, preview, m.preview())

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -241,7 +242,7 @@ func TestGlobalSearchDebouncesAndCancelsOldQuery(t *testing.T) {
 	firstGen, firstContext := r.gen, r.ctx
 	clock.Advance(globalSearchDebounce / 2)
 	a.setSearchQuery("second")
-	if !searchIsCanceled(firstContext.Err()) {
+	if !errors.Is(firstContext.Err(), context.Canceled) {
 		t.Fatal("changing the query did not cancel the previous search")
 	}
 	if r.gen <= firstGen {

@@ -20,8 +20,6 @@ type variableScope struct {
 	Path string
 }
 
-func (s variableScope) key() string { return s.Kind + "\x00" + s.Path }
-
 func (s variableScope) label() string {
 	if s.Kind == "" {
 		return locales.UndefinedVariable()

@@ -44,7 +44,6 @@ type Entry struct {
 	Tip bool
 
 	build func(*ui.Context)
-	close func()
 }
 
 // Gallery is the window: a catalog on the left, the chosen plate on the

@@ -723,15 +723,6 @@ func (a *app) trackEditorQuickFix(d *requestDocument, code string, state *editor
 	a.setVariableCaret(target)
 }
 
-func (a *app) setQuickFixCaret(target quickFixTarget) {
-	fixes := a.quickFixes(target)
-	if len(fixes) == 0 {
-		return
-	}
-	copied := target
-	a.problems.caret, a.problems.caretFixes = &copied, fixes
-}
-
 // quickFixFieldCode maps a field's completion key to the code its marker
 // carries, so the shortcut and the Problems panel can share the fix target.
 func quickFixFieldCode(key string) string {

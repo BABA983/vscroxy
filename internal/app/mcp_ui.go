@@ -49,7 +49,6 @@ type mcpDocument struct {
 	schemaFor    string
 	split        float32
 	list         ui.ListState
-	catalogList  ui.ListState
 	resultFor    string
 	resultBmp    []*ui.Bitmap
 	resultErr    []string

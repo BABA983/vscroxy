@@ -390,7 +390,7 @@ func TestBreakpointResponseReplacementFileIsClosed(t *testing.T) {
 			return &trackedReplacementFile{File: f, closed: closed}, nil
 		},
 	})
-	_ = <-done // A HEAD response may abort; only the file's lifetime is under test.
+	<-done // A HEAD response may abort; only the file's lifetime is under test.
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()

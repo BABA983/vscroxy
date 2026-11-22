@@ -149,22 +149,22 @@ func TestBreadcrumbRecomputesOnlyOnChange(t *testing.T) {
 	view := &editor.State{Buffer: editor.NewBuffer(`{"a":{"b":1}}`)}
 	crumbs, parses, scans := countedBreadcrumbs()
 	for range 4 {
-		crumbs.refresh("body", view, 8)
+		crumbs.refreshWith("body", view, 8, jsonCrumbSource{})
 	}
 	if *parses != 1 || *scans != 1 {
 		t.Fatalf("unchanged caret: %d parses, %d scans", *parses, *scans)
 	}
-	crumbs.refresh("body", view, 9)
+	crumbs.refreshWith("body", view, 9, jsonCrumbSource{})
 	if *parses != 1 || *scans != 2 {
 		t.Fatalf("moved caret: %d parses, %d scans", *parses, *scans)
 	}
 	view.Select(len(`{"a":`), len(`{"a":`))
 	view.Insert("x")
-	crumbs.refresh("body", view, view.Cursor())
+	crumbs.refreshWith("body", view, view.Cursor(), jsonCrumbSource{})
 	if *parses != 2 || *scans != 3 {
 		t.Fatalf("edited buffer: %d parses, %d scans", *parses, *scans)
 	}
-	crumbs.refresh("other", view, view.Cursor())
+	crumbs.refreshWith("other", view, view.Cursor(), jsonCrumbSource{})
 	if *parses != 3 || *scans != 4 {
 		t.Fatalf("another body: %d parses, %d scans", *parses, *scans)
 	}
@@ -174,7 +174,7 @@ func TestBreadcrumbCaretMovesDoNotReparse(t *testing.T) {
 	view := &editor.State{Buffer: editor.NewBuffer(`{"items":[{"id":1},{"id":2},{"id":3}]}`)}
 	crumbs, parses, scans := countedBreadcrumbs()
 	for offset := 3; offset < 13; offset++ {
-		crumbs.refresh("body", view, offset)
+		crumbs.refreshWith("body", view, offset, jsonCrumbSource{})
 	}
 	if *parses != 1 {
 		t.Fatalf("10 caret moves parsed %d times", *parses)
@@ -183,7 +183,7 @@ func TestBreadcrumbCaretMovesDoNotReparse(t *testing.T) {
 		t.Fatalf("10 caret moves built %d paths", *scans)
 	}
 	view.Buffer.Set(`{"items":[{"id":4}]}`)
-	crumbs.refresh("body", view, 3)
+	crumbs.refreshWith("body", view, 3, jsonCrumbSource{})
 	if *parses != 2 {
 		t.Fatalf("a buffer edit parsed %d times", *parses)
 	}
@@ -192,14 +192,14 @@ func TestBreadcrumbCaretMovesDoNotReparse(t *testing.T) {
 func TestBreadcrumbFollowsInPlaceBufferSet(t *testing.T) {
 	view := &editor.State{Buffer: editor.NewBuffer(`{"data":{"value":1}}`)}
 	crumbs, parses, _ := countedBreadcrumbs()
-	before := crumbs.refresh("body", view, 13)
+	before := crumbs.refreshWith("body", view, 13, jsonCrumbSource{})
 	if before.JSONPath != "$.data.value" {
 		t.Fatalf("before Set: %q", before.JSONPath)
 	}
 	// A fault-tolerant JSON answer now rewrites the existing buffer. Its
 	// version changes, so the bar follows the new text at the same offset.
 	view.Buffer.Set(`{"data":{"other":2}}`)
-	after := crumbs.refresh("body", view, 13)
+	after := crumbs.refreshWith("body", view, 13, jsonCrumbSource{})
 	if *parses != 2 {
 		t.Fatalf("Buffer.Set parsed %d times", *parses)
 	}

@@ -21,6 +21,7 @@ func parseWebSocketFrames(data []byte, direction string, limit int) ([]CaptureFr
 	if limit <= 0 {
 		return nil, true, false
 	}
+scan:
 	for pos := 0; pos < len(data); {
 		if len(data)-pos < 2 {
 			truncated = true
@@ -47,20 +48,20 @@ func parseWebSocketFrames(data []byte, direction string, limit int) ([]CaptureFr
 		case 126:
 			if len(data)-pos < 2 {
 				truncated = true
-				break
+				break scan
 			}
 			length = uint64(binary.BigEndian.Uint16(data[pos:]))
 			pos += 2
 		case 127:
 			if len(data)-pos < 8 {
 				truncated = true
-				break
+				break scan
 			}
 			length = binary.BigEndian.Uint64(data[pos:])
 			pos += 8
 			if length>>63 != 0 {
 				truncated = true
-				break
+				break scan
 			}
 		}
 		var mask [4]byte
@@ -90,7 +91,7 @@ func parseWebSocketFrames(data []byte, direction string, limit int) ([]CaptureFr
 				truncated = true
 				break
 			}
-			kind := ""
+			var kind string
 			switch opcode {
 			case 0x8:
 				kind = "close"
@@ -100,10 +101,7 @@ func parseWebSocketFrames(data []byte, direction string, limit int) ([]CaptureFr
 				kind = "pong"
 			default:
 				truncated = true
-				break
-			}
-			if kind == "" {
-				break
+				break scan
 			}
 			if len(frames) >= limit {
 				truncated = true
@@ -165,7 +163,6 @@ func parseWebSocketFrames(data []byte, direction string, limit int) ([]CaptureFr
 			pending = payload
 		default:
 			truncated = true
-			break
 		}
 		if truncated {
 			break

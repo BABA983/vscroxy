@@ -38,13 +38,8 @@ var curlSkip = map[string]bool{
 	"proxy-authorization": true,
 }
 
-// curlCommand writes the flow's request as a curl command line, the way it
-// would be run from a terminal.
-func curlCommand(f flow) (string, error) {
-	return curlCommandFor(f, false)
-}
-
-// CMD uses curl.exe, never PowerShell's historical curl alias. Its command
+// curlCommandFor writes the flow's request as a curl command line, the way it
+// would be run from a terminal. CMD uses curl.exe, never PowerShell's historical curl alias. Its command
 // line and encoding limits are stricter than Bash's; refuse lossy output.
 func curlCommandFor(f flow, cmd bool) (string, error) {
 	return curlCommandWith(f, nil, cmd)
@@ -264,15 +259,10 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// parseCurl reads one request from a Bash/POSIX curl command, Chrome's
-// Copy as cURL (cmd) output, or Chrome's Copy as PowerShell output.
-func parseCurl(source string) (savedRequest, error) {
-	r, _, err := imports.ParseCurl(source)
-	return savedRequest{Request: r}, err
-}
-
-// parseCurlImport also returns what the command held but the request cannot:
-// a cookie's domain/path, for example.
+// parseCurlImport reads one request from a Bash/POSIX curl command, Chrome's
+// Copy as cURL (cmd) output, or Chrome's Copy as PowerShell output. It also
+// returns what the command held but the request cannot: a cookie's
+// domain/path, for example.
 func parseCurlImport(source string) (savedRequest, []string, error) {
 	r, warnings, err := imports.ParseCurl(source)
 	return savedRequest{Request: r}, warnings, err

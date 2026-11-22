@@ -66,10 +66,6 @@ func (b *jsonBreadcrumbs) treeFor(key string, view *editor.State, provided jsonC
 	return b.root, b.text
 }
 
-func (b *jsonBreadcrumbs) refresh(key string, view *editor.State, cursor int) jsonc.BreadcrumbPath {
-	return b.refreshWith(key, view, cursor, jsonCrumbSource{})
-}
-
 func (b *jsonBreadcrumbs) refreshWith(key string, view *editor.State, cursor int, provided jsonCrumbSource) jsonc.BreadcrumbPath {
 	version := view.Buffer.Version()
 	sameBuffer := b.ready && b.key == key && b.buf == view.Buffer && b.version == version

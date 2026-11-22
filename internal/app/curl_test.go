@@ -29,7 +29,7 @@ func TestCurlCommand(t *testing.T) {
 		reqHeader: http.Header{"Content-Type": {"application/json"}, "Host": {"example.com"}, "Cookie": {"a=1"}},
 		reqBody:   `{"name":"it's"}`,
 	}
-	got, err := curlCommand(f)
+	got, err := curlCommandFor(f, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,17 +42,17 @@ func TestCurlCommand(t *testing.T) {
 		"'https://example.com/a?b=1'",
 	} {
 		if !strings.Contains(got, want) {
-			t.Errorf("curlCommand() = %q, missing %q", got, want)
+			t.Errorf("curlCommandFor() = %q, missing %q", got, want)
 		}
 	}
 	if strings.Contains(got, "Content-Length") {
-		t.Errorf("curlCommand() = %q, should leave Content-Length to curl", got)
+		t.Errorf("curlCommandFor() = %q, should leave Content-Length to curl", got)
 	}
 }
 
 func TestCurlCommandGetsOnlyTheURL(t *testing.T) {
-	if got, err := curlCommand(flow{method: "GET", url: "http://example.com/"}); err != nil || got != "curl -q --path-as-is -H 'Accept:' -H 'User-Agent:' -H 'Content-Type:' --url 'http://example.com/'" {
-		t.Errorf("curlCommand() = %q, %v", got, err)
+	if got, err := curlCommandFor(flow{method: "GET", url: "http://example.com/"}, false); err != nil || got != "curl -q --path-as-is -H 'Accept:' -H 'User-Agent:' -H 'Content-Type:' --url 'http://example.com/'" {
+		t.Errorf("curlCommandFor() = %q, %v", got, err)
 	}
 }
 
@@ -87,7 +87,7 @@ func TestParseCurlRequestData(t *testing.T) {
 		{"environment placeholders", `curl '{{base_url}}/items/{{id}}' -H 'Authorization: Bearer {{token}}'`, "GET", "{{base_url}}/items/{{id}}", "", http.Header{"Authorization": {"Bearer {{token}}"}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			r, err := parseCurl(tc.command)
+			r, _, err := parseCurlImport(tc.command)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -127,7 +127,7 @@ func TestCurlImportRedirectSemantics(t *testing.T) {
 					w.WriteHeader(http.StatusNoContent)
 				}))
 				defer upstream.Close()
-				r, err := parseCurl("curl " + tc.flags + " " + shellQuote(upstream.URL+"/start"))
+				r, _, err := parseCurlImport("curl " + tc.flags + " " + shellQuote(upstream.URL+"/start"))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -193,7 +193,7 @@ func TestCurlImportRedirectHeadersAndLimits(t *testing.T) {
 				w.WriteHeader(http.StatusFound)
 			}))
 			defer upstream.Close()
-			r, err := parseCurl("curl --location --request POST --data-raw payload -H 'Content-Type: application/json' -H 'Authorization: Bearer fixture' -H 'Cookie: session=fixture' " + shellQuote(upstream.URL))
+			r, _, err := parseCurlImport("curl --location --request POST --data-raw payload -H 'Content-Type: application/json' -H 'Authorization: Bearer fixture' -H 'Cookie: session=fixture' " + shellQuote(upstream.URL))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -225,7 +225,7 @@ func TestCurlImportRedirectHeadersAndLimits(t *testing.T) {
 				w.WriteHeader(http.StatusTemporaryRedirect)
 			}))
 			defer upstream.Close()
-			r, err := parseCurl("curl -L " + shellQuote(upstream.URL))
+			r, _, err := parseCurlImport("curl -L " + shellQuote(upstream.URL))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -246,7 +246,7 @@ func TestCurlImportAcceptsCMDAndPowerShell(t *testing.T) {
 		`  -X ^"POST^" ^` + "\n" +
 		`  -H ^"Accept: application/json^" ^` + "\n" +
 		`  --data-raw ^"^{^` + "\n\n" + `^\^"name^\^":^\^"Ada^\^"^` + "\n\n" + `^}^"`
-	r, err := parseCurl(cmd)
+	r, _, err := parseCurlImport(cmd)
 	if err != nil || r.Method != "POST" || r.Body != "{\n\"name\":\"Ada\"\n}" || request.ParseHeaderBlock(r.Headers).Get("Accept") != "application/json" {
 		t.Fatalf("CMD import %+v, %v", r, err)
 	}
@@ -256,7 +256,7 @@ func TestCurlImportAcceptsCMDAndPowerShell(t *testing.T) {
 		"-Method \"PATCH\" `\n" +
 		"-Headers @{\n\"accept\"=\"application/json\"\n} `\n" +
 		"-Body \"hello\""
-	r, err = parseCurl(ps)
+	r, _, err = parseCurlImport(ps)
 	if err != nil || r.Method != "PATCH" || r.Body != "hello" || request.ParseHeaderBlock(r.Headers).Get("User-Agent") != "fixture-agent" {
 		t.Fatalf("PowerShell import %+v, %v", r, err)
 	}
@@ -270,7 +270,7 @@ func TestParseCurlRefusesExecutableOrUnsupportedInput(t *testing.T) {
 		"curl https://a.test -d $(touch /tmp/not-executed)", "curl https://a.test -d `id`", "curl https://a.test -H \"Authorization: $TOKEN\"", "curl https://a.test -d $((1+2))", "curl https://a.test -d <(cat /etc/passwd)",
 		"curl https://a.test --data @/etc/passwd", "curl https://a.test --data-binary @-", "curl https://a.test --data-urlencode x@file", "curl https://a.test -H @file", "curl https://a.test -b cookies.txt", "curl https://a.test --config config.txt", "curl https://a.test --form file=@private", "curl https://a.test --location=true", "curl https://a.test --location-trusted", "curl https://a.test --max-time NaN", "curl https://a.test --post302", "curl https://a.test -H $'X-Test: a\\nInjected: b'", "curl https://a.test -d $'a\\0b'", "curl https://a.test -X", "curl file:///etc/passwd",
 	} {
-		if _, err := parseCurl(command); err == nil {
+		if _, _, err := parseCurlImport(command); err == nil {
 			t.Errorf("accepted unsafe or unsupported input: %q", command)
 		}
 	}
@@ -286,11 +286,11 @@ func TestCurlCopyPreservesTextBodyAndMethod(t *testing.T) {
 		{method: "GET", url: "https://api.example.test/?q[]=7", reqBody: "stale head", reqFile: path, reqSize: len(body), reqHeader: http.Header{"X-Empty": {""}}},
 		{method: "X|id", url: "https://api.example.test", reqBody: "quotes ' and \" and \\", reqHeader: http.Header{}},
 	} {
-		command, err := curlCommand(f)
+		command, err := curlCommandFor(f, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		r, err := parseCurl(command)
+		r, _, err := parseCurlImport(command)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -302,7 +302,7 @@ func TestCurlCopyPreservesTextBodyAndMethod(t *testing.T) {
 			t.Fatalf("copy/import changed method, headers, URL or body: %+v", r)
 		}
 	}
-	if _, err := curlCommand(flow{reqFile: filepath.Join(t.TempDir(), "gone")}); err == nil {
+	if _, err := curlCommandFor(flow{reqFile: filepath.Join(t.TempDir(), "gone")}, false); err == nil {
 		t.Fatal("missing body was silently exported as a truncated request")
 	}
 	for _, f := range []flow{
@@ -312,7 +312,7 @@ func TestCurlCopyPreservesTextBodyAndMethod(t *testing.T) {
 		{reqHeader: http.Header{"X-Test": {"a\r\nInjected: b"}}},
 		{reqTrailer: http.Header{"X-Final": {"signature"}}},
 	} {
-		if _, err := curlCommand(f); err == nil {
+		if _, err := curlCommandFor(f, false); err == nil {
 			t.Fatal("an incomplete or unsupported request was exported as replayable")
 		}
 	}
@@ -354,7 +354,7 @@ func TestCurlCommandReplaysToServer(t *testing.T) {
 				}
 				f.reqBody, f.reqSize = tc.body[:64<<10], len(tc.body)
 			}
-			command, err := curlCommand(f)
+			command, err := curlCommandFor(f, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -459,7 +459,7 @@ func TestCurlCommandFromCompressedCapture(t *testing.T) {
 		t.Fatal("no captured request")
 	}
 	a.drain()
-	command, err := curlCommand(a.flows[0])
+	command, err := curlCommandFor(a.flows[0], false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -475,7 +475,7 @@ func TestCurlCommandFromCompressedCapture(t *testing.T) {
 // cURL's redirect, certificate and timeout options become request settings and
 // come back out in a copied command.
 func TestCurlTransferSettingsImportExport(t *testing.T) {
-	r, err := parseCurl("curl -L --max-redirs 3 -k --max-time 2.5 https://a.test/start")
+	r, _, err := parseCurlImport("curl -L --max-redirs 3 -k --max-time 2.5 https://a.test/start")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -497,7 +497,7 @@ func TestCurlTransferSettingsImportExport(t *testing.T) {
 			t.Errorf("command %q lacks %q", command, want)
 		}
 	}
-	again, err := parseCurl(command)
+	again, _, err := parseCurlImport(command)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -518,7 +518,7 @@ func TestCurlTransferSettingsImportExport(t *testing.T) {
 	}
 
 	// -m is --max-time, and zero redirects stops even after -L.
-	r, err = parseCurl("curl -L --max-redirs 0 -m 0 https://a.test")
+	r, _, err = parseCurlImport("curl -L --max-redirs 0 -m 0 https://a.test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -534,8 +534,8 @@ func TestCurlCommandKeepsGraphQLOperationName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := curlCommand(flow{method: "POST", url: r.URL,
-		reqHeader: http.Header{"Content-Type": {"application/json"}}, reqBody: prepared.Body})
+	got, err := curlCommandFor(flow{method: "POST", url: r.URL,
+		reqHeader: http.Header{"Content-Type": {"application/json"}}, reqBody: prepared.Body}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3768,16 +3768,6 @@ func clipFrames(frames []Frame) []Frame {
 	return frames
 }
 
-func bodyText(b []byte, err error) string {
-	if err != nil {
-		return ""
-	}
-	if len(b) > maxBody {
-		return string(b[:maxBody]) + fmt.Sprintf("\n\n… truncated: %d of %d bytes shown", maxBody, len(b))
-	}
-	return string(b)
-}
-
 func formatRequest(r *proxy.Request, u *url.URL) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s %s %s\n", r.Method, u.RequestURI(), r.Proto)

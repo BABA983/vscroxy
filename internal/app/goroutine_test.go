@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+
+	"github.com/baba983/vscroxy/internal/errorsx"
 )
 
 func TestGuardedRepanicsInTests(t *testing.T) {
@@ -28,7 +30,7 @@ func TestReportUnexpectedPanicLogsStackWithoutPanicValue(t *testing.T) {
 	})
 	defer setUnexpectedErrorHandler(nil)
 
-	reportUnexpectedPanic("secret request content", []byte("stack: worker.go:12"))
+	errorsx.ReportPanic("secret request content", []byte("stack: worker.go:12"))
 
 	if !strings.Contains(log.String(), "stack: worker.go:12") {
 		t.Errorf("stack missing from log: %s", log.String())

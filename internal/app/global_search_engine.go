@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"sync"
 	"time"
@@ -374,10 +373,4 @@ func searchProblemText(problem string) string {
 		return ""
 	}
 	return locales.InvalidSearchPatternWith(problem)
-}
-
-// searchIsCanceled helps tests assert that a new query really ended an older
-// worker without relying on sleeps or wall-clock time.
-func searchIsCanceled(err error) bool {
-	return errors.Is(err, context.Canceled)
 }

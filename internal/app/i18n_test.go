@@ -558,9 +558,9 @@ func TestScriptSnippetsUseTheCatalog(t *testing.T) {
 		if !ok {
 			return true
 		}
-		length, ok := arr.Len.(*ast.BasicLit)
+		length, lengthOK := arr.Len.(*ast.BasicLit)
 		element, ok := arr.Elt.(*ast.Ident)
-		if !ok || length.Value != "2" || element.Name != "string" {
+		if !lengthOK || !ok || length.Value != "2" || element.Name != "string" {
 			return true
 		}
 		if label, ok := lit.Elts[0].(*ast.BasicLit); ok && label.Kind == token.STRING {

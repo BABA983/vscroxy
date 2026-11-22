@@ -63,7 +63,7 @@ func WriteTrustBundle(roots, ca []byte, path string) error {
 		err = os.Chmod(name, 0o600)
 	}
 	if err == nil {
-		err = replaceFile(name, path)
+		err = os.Rename(name, path)
 	}
 	if err != nil {
 		_ = os.Remove(name)

@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -88,13 +87,6 @@ func (fuzzyListAccessor) GetItemDescription(item fuzzyListItem) (string, bool) {
 }
 
 func (fuzzyListAccessor) GetItemPath(fuzzyListItem) (string, bool) { return "", false }
-
-// fuzzySource is the generation of an append-only event list. Replacing the
-// list with the same length and edge sequence numbers is rare; where it can
-// happen the caller adds a session key or a counter of its own.
-func fuzzySource(count, first, last int) string {
-	return strconv.Itoa(count) + ":" + strconv.Itoa(first) + ":" + strconv.Itoa(last)
-}
 
 // fuzzyListOwner identifies the document and the current session generation.
 // A reconnect resets sequence numbers, so it must not share cached hits with

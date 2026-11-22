@@ -121,10 +121,9 @@ type brunoFolder struct {
 }
 
 type brunoRequestFile struct {
-	file  string
-	seq   int
-	order int
-	req   request.Request
+	file string
+	seq  int
+	req  request.Request
 }
 
 // readBrunoTree reads one directory's folders and request files.

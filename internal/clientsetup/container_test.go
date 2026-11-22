@@ -117,7 +117,7 @@ func TestContainerRunArgsDoNotRepeatTheEntrypoint(t *testing.T) {
 			if !strings.HasSuffix(joined, tc.want) {
 				t.Fatalf("command ends %q, want %q", joined, tc.want)
 			}
-			if tc.cfg.Entrypoint != nil && len(tc.cfg.Entrypoint) > 0 {
+			if len(tc.cfg.Entrypoint) > 0 {
 				if !strings.Contains(joined, "--entrypoint "+tc.cfg.Entrypoint[0]) {
 					t.Fatalf("missing entrypoint override:\n%s", joined)
 				}

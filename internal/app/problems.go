@@ -73,7 +73,6 @@ type variablesResolver func(savedRequest, request.Context, map[string]string) []
 // one edit, and Debug variables are read on each pass.
 type problemsState struct {
 	open      bool
-	tab       int
 	query     string
 	filter    ui.Handle
 	show      [4]bool

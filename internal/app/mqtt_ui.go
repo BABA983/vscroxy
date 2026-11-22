@@ -122,14 +122,6 @@ func (u *mqttDocument) stop() {
 	}
 }
 
-// stopAndWait is for app quit: give the session a moment to send DISCONNECT,
-// so a clean exit does not make the broker publish the will.
-func (u *mqttDocument) stopAndWait() {
-	if u.session != nil {
-		u.session.stopAndWait()
-	}
-}
-
 func (u *mqttDocument) sync(c *request.MQTTConfig) {
 	u.version = request.MQTTVersionLabel(c.Version)
 	u.keepAlive, u.connectTimeout = float64(c.KeepAlive), float64(c.ConnectTimeoutMs)

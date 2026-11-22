@@ -400,7 +400,7 @@ func scriptQuoted(s string, i int) (string, int, bool) {
 		}
 		i++
 	}
-	return s[start:len(s)], len(s), true
+	return s[start:], len(s), true
 }
 
 // scriptMatching finds the closing delimiter, skipping strings and comments

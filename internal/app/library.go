@@ -131,11 +131,6 @@ func escapeName(name string) string {
 	return s
 }
 
-// unescapeName reverses escapeName; a % that starts no escape stays as it is.
-func unescapeName(s string) string {
-	return library.UnescapeName(s)
-}
-
 // dirOf is the library directory, slash-separated, of a collection path.
 func dirOf(collection string) string {
 	if collection == "" {

@@ -332,7 +332,8 @@ func TestMQTT311ConnectGeneratesClientIDWithoutSavingIt(t *testing.T) {
 	if snapshot.clientID == "" {
 		t.Fatal("3.1.1 connection did not generate a client ID")
 	}
-	d.mqttUI.stopAndWait()
+	d.mqttUI.stop()
+	waitMQTTSessions([]*mqttSession{d.mqttUI.session}, time.Second)
 }
 
 func TestMQTT5AssignedClientIDReusedOnReconnect(t *testing.T) {
@@ -479,7 +480,8 @@ func TestMQTTQuitSendsDisconnect(t *testing.T) {
 	}
 	s := openMQTTSession(prepared.URL, input, scope, nil, cfg, nil, false, nil, nil)
 	waitMQTT(t, s, "connection", func() bool { return s.snapshot().ready })
-	s.stopAndWait()
+	s.stop()
+	waitMQTTSessions([]*mqttSession{s}, time.Second)
 	select {
 	case <-disconnected:
 	case <-time.After(2 * time.Second):

@@ -91,9 +91,7 @@ func jmxSampler(collection string, n jmxNode) (request.Request, []string) {
 	}
 	r := request.Request{Name: cmp.Or(strings.TrimSpace(n.TestName), strings.ToUpper(cmp.Or(props["HTTPSampler.method"], "GET"))+" "+path),
 		Collection: collection, Method: strings.ToUpper(cmp.Or(props["HTTPSampler.method"], "GET")), URL: raw}
-	for _, header := range jmxHeaders(n) {
-		r.HeaderList = append(r.HeaderList, header)
-	}
+	r.HeaderList = append(r.HeaderList, jmxHeaders(n)...)
 	if rawArgs := jmxArguments(n, "Arguments"); len(rawArgs) > 0 {
 		if strings.EqualFold(props["HTTPSampler.postBodyRaw"], "true") {
 			r.BodyMode, r.Body = "Raw", rawArgs[0].Value

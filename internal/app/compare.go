@@ -86,13 +86,6 @@ type comparePart struct {
 	hash            string
 }
 
-func (p comparePart) text(raw bool) string {
-	if raw {
-		return p.raw
-	}
-	return p.normalized
-}
-
 type compareExchange struct {
 	target                 compareTarget
 	label, method, url     string

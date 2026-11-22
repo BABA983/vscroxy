@@ -18,10 +18,9 @@ import (
 const responseRefMarker = "vscroxy response reference:"
 
 type exportedResponseRef struct {
-	name      string
-	target    request.ResponseRef
-	variable  string
-	preScript string
+	name     string
+	target   request.ResponseRef
+	variable string
 }
 
 // convertResponseRefs turns each {{response "Login" "/token"}} into a

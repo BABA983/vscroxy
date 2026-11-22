@@ -83,11 +83,6 @@ func (a *app) fetchImportURL() {
 	})
 }
 
-// downloadImportURL fetches one import document without a task context.
-func downloadImportURL(client *http.Client, raw string) ([]byte, string, error) {
-	return downloadImportURLContext(context.Background(), client, raw)
-}
-
 // downloadImportURLContext fetches one import document. It refuses a non-HTTP
 // URL, a non-2xx answer and anything over maxURLImport instead of truncating.
 func downloadImportURLContext(ctx context.Context, client *http.Client, raw string) ([]byte, string, error) {

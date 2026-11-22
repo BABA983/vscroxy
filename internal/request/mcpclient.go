@@ -1099,19 +1099,6 @@ func (c *MCPClient) catalogSchema(v any, limit int) string {
 	return mcpTruncate(string(data), limit)
 }
 
-// mcpSchemaText is pretty JSON for a schema or annotation value, bounded to
-// the requested share of the catalog.
-func mcpSchemaText(v any, limit int) string {
-	if v == nil {
-		return ""
-	}
-	data, err := json.Marshal(v, jsontext.WithIndent("  "))
-	if err != nil {
-		return ""
-	}
-	return mcpTruncate(string(data), limit)
-}
-
 // mcpValueText keeps a string log value readable and renders other values as
 // JSON.
 func mcpValueText(v any) string {

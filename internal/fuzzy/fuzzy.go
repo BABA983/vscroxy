@@ -44,11 +44,6 @@ func ScoreFuzzyWithScratch(target, query, queryLower string, allowNonContiguousM
 	return doScoreFuzzyInto(queryRunes, queryLowerRunes, queryLength, targetRunes, targetLower, targetLength, allowNonContiguousMatches, scores, matches)
 }
 
-func doScoreFuzzy(query, queryLower []rune, queryLength int, target, targetLower []rune, targetLength int, allowNonContiguousMatches bool) FuzzyScore {
-	return doScoreFuzzyInto(query, queryLower, queryLength, target, targetLower, targetLength, allowNonContiguousMatches,
-		make([]int, queryLength*targetLength), make([]int, queryLength*targetLength))
-}
-
 func doScoreFuzzyInto(query, queryLower []rune, queryLength int, target, targetLower []rune, targetLength int, allowNonContiguousMatches bool, scores, matches []int) FuzzyScore {
 
 	for queryIndex := 0; queryIndex < queryLength; queryIndex++ {

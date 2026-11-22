@@ -29,9 +29,6 @@ type undoRecord struct {
 	before      undoState
 	after       undoState
 	notice      func(redo bool)
-	// valid adds a target check to the toast, such as a move whose item
-	// was moved again; the handle alone cannot tell that story.
-	valid func() bool
 	// inverse actions replace the state snapshots for operations that must
 	// preserve later, unrelated work, such as moving or deleting rows.
 	undoAction, redoAction func() error

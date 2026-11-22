@@ -189,9 +189,7 @@ func (a *app) applyControlSetting(id string, value any) error {
 	}
 	a.bypassSettingsSave()
 	if err := a.persistSettings(); err != nil {
-		if restore != nil {
-			restore()
-		}
+		restore()
 		return err
 	}
 	if afterSave != nil {

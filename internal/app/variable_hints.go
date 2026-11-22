@@ -238,11 +238,6 @@ func (a *app) variableHintSet(collection string) variableSet {
 	return variableSet{list: list, byName: byName, vaultLocked: !a.vault.loaded}
 }
 
-// variableHints is the completion list alone.
-func (a *app) variableHints(collection string) []variableHint {
-	return a.variableHintSet(collection).list
-}
-
 // variableScopeRank orders the completion list from the nearest scope out.
 func variableScopeRank(h variableHint) int {
 	switch {
@@ -290,11 +285,6 @@ type variableMark struct {
 	Defined bool
 	Start   int // runes into the text
 	End     int
-}
-
-// variableMarks resolves the references in text for inline styling.
-func (a *app) variableMarks(text, collection string) []variableMark {
-	return variableMarksWith(a.variableHintSet(collection), text)
 }
 
 // variableMarksWith resolves references against a set already built for the
