@@ -101,20 +101,32 @@ func (a *app) copyJSONPath(c *ui.Context, path string) {
 	a.notify(notice{level: noticeSuccess, text: locales.JsonPathCopied()})
 }
 
+// jsonPathTrack refreshes the path at the caret and records it for Copy path
+// without drawing the bar. An editor that shows the path calls jsonPathBar;
+// one that does not, such as the request body, still lets the command copy the
+// path under its caret.
+func (a *app) jsonPathTrack(crumbs *jsonBreadcrumbs, key string, view *editor.State, provided jsonCrumbSource) jsonc.BreadcrumbPath {
+	path := crumbs.refreshWith(key, view, view.Cursor(), provided)
+	if len(path.Segments) == 0 {
+		return path
+	}
+	if view.Focused() || a.activeJSONPath.key != key {
+		a.activeJSONPath = activeJSONPath{key: key, path: path.JSONPath}
+	}
+	return path
+}
+
 // jsonPathBar draws a VS Code style breadcrumb above a JSON text viewer. Each
 // segment jumps to its node when clicked; its arrow opens the sibling keys or
 // indices at that level.
 func (a *app) jsonPathBar(c *ui.Context, crumbs *jsonBreadcrumbs, key string, view *editor.State, focus func(), provided jsonCrumbSource) {
-	path := crumbs.refreshWith(key, view, view.Cursor(), provided)
+	path := a.jsonPathTrack(crumbs, key, view, provided)
 	// The slot stays even when there is no path: adding it on the frame a
 	// body first parses as JSON must not move the editor among its siblings
 	// and take the keyboard focus away from it.
 	bar := ui.Box(c).Key("json-path-bar")
 	if len(path.Segments) == 0 {
 		return
-	}
-	if view.Focused() || a.activeJSONPath.key != key {
-		a.activeJSONPath = activeJSONPath{key: key, path: path.JSONPath}
 	}
 	t := c.Theme()
 	bar.Children(func() {

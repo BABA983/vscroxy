@@ -448,3 +448,44 @@ func TestRelaxedRestoredFieldsMatchSavedSettings(t *testing.T) {
 		t.Fatal("an omitted restore setting should not equal an explicit one")
 	}
 }
+
+// The open tabs come back after a restart in their order, pinned and preview
+// as they were, with the same tab active. A request deleted in between is
+// skipped without moving the active tab onto its neighbour.
+func TestOpenTabsReopenAfterRestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), tabsFile)
+	requests := []savedRequest{
+		{ID: "a", Name: "Alpha", Collection: "Workspace", Method: "GET", URL: "https://api.example.com/a"},
+		{ID: "gone", Name: "Gone", Collection: "Workspace", Method: "GET", URL: "https://api.example.com/gone"},
+		{ID: "b", Name: "Beta", Collection: "Workspace", Method: "GET", URL: "https://api.example.com/b"},
+	}
+	before := workspaceApp()
+	before.requests, before.tabsPath = slices.Clone(requests), path
+	before.openSavedTab(requests[0].key(), tabOpen{pinned: true})
+	before.openSavedTab(requests[1].key(), tabOpen{})
+	before.openSavedTab(requests[2].key(), tabOpen{preview: true})
+	// An unsaved draft has nothing on disk to reopen.
+	before.openRequestTab(before.newDocument(savedRequest{Name: "Scratch", Method: "GET"}, ""), tabOpen{})
+	before.activateTab(requestTabID(before.documents[2]))
+	before.saveTabs()
+
+	after := workspaceApp()
+	after.requests, after.tabsPath = slices.Clone(requests[:1]), path
+	after.requests = append(after.requests, requests[2]) // "gone" was deleted
+	after.restoreTabs()
+	g := after.tabsGroup()
+	var titles []string
+	for _, e := range g.tabs() {
+		titles = append(titles, e.title)
+	}
+	if want := []string{locales.Live(), "Alpha", "Beta"}; !slices.Equal(titles, want) {
+		t.Fatalf("restored tabs = %q, want %q", titles, want)
+	}
+	alpha, beta := g.tabs()[1].id(), g.tabs()[2].id()
+	if g.active() != beta || after.page != pageRequest || after.requestDocument.assetID != "b" {
+		t.Fatalf("active tab = %v, want Beta", g.active())
+	}
+	if !g.isPinned(alpha) || g.isPinned(beta) || !g.isPreview(beta) || g.isPreview(alpha) {
+		t.Fatal("pinned and preview did not come back as they were")
+	}
+}

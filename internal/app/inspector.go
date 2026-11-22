@@ -417,7 +417,7 @@ func paneTabsWidth(c *ui.Context, labels, counts []string) float32 {
 		if i > 0 {
 			w += t.Space(uikit.SpaceHair)
 		}
-		w += 2*t.Space(uikit.SpaceS) + paneTextWidth(c, label, uikit.TextBody, 400)
+		w += 2*t.Space(uikit.SpaceS) + paneTextWidth(c, label, uikit.TextSmall, 400)
 		if i < len(counts) && counts[i] != "" && counts[i] != "0" {
 			w += t.Space(uikit.SpaceXS) + paneTextWidth(c, counts[i], uikit.TextMeta, 400)
 		}
@@ -467,11 +467,12 @@ func (a *app) paneFormatWidth(c *ui.Context, side int) float32 {
 	return paneTextWidth(c, label, uikit.TextBody, 400) + 2*c.Theme().Space(uikit.SpaceM) + 14
 }
 
-// requestPaneTabs are the views the request pane's row starts with.
+// requestPaneTabs are the views the request pane's row starts with: Params
+// first, as Postman's request editor has it, then Headers, Body and Auth.
 func requestPaneTabs(d *requestDocument, f flow) []paneView {
 	views := []paneView{
-		{composeTabHeaders, locales.RequestHeadersLabel(), requestHeaderCount(d, f)},
 		{composeTabParams, locales.Params(), requestParamCount(d, f)},
+		{composeTabHeaders, locales.RequestHeadersLabel(), requestHeaderCount(d, f)},
 		{composeTabBody, locales.Body(), ""},
 	}
 	if d != nil {
@@ -511,8 +512,8 @@ func (a *app) requestTabsFit(c *ui.Context, d *requestDocument, width float32) b
 // it is showing without a second row.
 func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *requestDocument, f flow, tools paneTools) {
 	views := []paneView{
-		{composeTabHeaders, locales.RequestHeadersLabel(), requestHeaderCount(d, f)},
 		{composeTabParams, locales.Params(), requestParamCount(d, f)},
+		{composeTabHeaders, locales.RequestHeadersLabel(), requestHeaderCount(d, f)},
 		{composeTabBody, locales.Body(), ""},
 	}
 	if d != nil {
@@ -571,9 +572,6 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 		}).Grow(1).FillHeight().Label(locales.RequestPaneName()).OnClick(func() { a.inspect.focus = 1 })
 	}, func() {
 		a.requestMoreMenu(c, selected, more, d, extra)
-		if tools.draw != nil {
-			tools.draw(&room)
-		}
 		if showFormat {
 			a.bodyFormatMenu(c, t, tools.format)
 		}
@@ -1003,7 +1001,7 @@ func (a *app) bodyFormatMenu(c *ui.Context, t *ui.Theme, side int) {
 	if !ok {
 		return
 	}
-	uikit.MenuSelect(c, shown, func(m *ui.Menu) { actionMenu(m, a.bodyFormatActions(side)) }).
+	uikit.ToolbarSelect(c, shown, func(m *ui.Menu) { actionMenu(m, a.bodyFormatActions(side)) }).
 		Label(bodyFormatLabel(side))
 }
 

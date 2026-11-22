@@ -34,6 +34,7 @@ type requestDocument struct {
 	// the retained run shown read-only in place of the response (0 for the
 	// document's own response), and its reader.
 	historyTab        int
+	historyHidden     bool // the reader put the runs column away
 	historyPick       int
 	historyReader     *editor.State
 	historyStatus     string
@@ -328,8 +329,9 @@ func (d *requestDocument) load(a *app, r savedRequest, key string) {
 	}
 }
 
-// A request pane's views, in the order its row shows them. The first four are
-// tabs; the rest open from More, so a pane keeps one row of them.
+// A request pane's views. The row shows the first four in the order
+// requestPaneTabs gives them; the rest open from More, so a pane keeps one row
+// of them.
 const (
 	composeTabHeaders = iota
 	composeTabParams
@@ -506,16 +508,17 @@ func (a *app) cycleDocument(step int) {
 }
 
 // documentHeader names the one request on screen as a breadcrumb — its
-// collection, then its name, which renames or moves it — with the
-// environment it sends in and its actions. Other open requests are in the
-// sidebar: saved ones in their collection, new ones under Unsaved.
+// collection, then its name, which renames or moves it — with its actions.
+// The environment it sends in is at the document strip's end. Other open
+// requests are in the sidebar: saved ones in their collection, new ones under
+// Unsaved.
 func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 	d := a.requestDocument
 	// The editor's first row is the panel's, as the capture screen's filter
 	// bar is: chrome only frames the window, never a line inside the panel.
 	// It is a bar's height, so its controls stand clear of the tab strip
 	// above, and every control in it is the Save button's height, so the
-	// crumb, the environment and the actions share one centre line.
+	// crumb and the actions share one centre line.
 	ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Background(t.Background).Children(func() {
 		if d != nil {
 			crumb := uikit.ToolbarButton(c, locales.RenameRequest(), locales.RenameOrMoveToAnother(), false).
@@ -534,36 +537,6 @@ func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 			}
 		}
 		ui.Spacer(c)
-		if names := a.envNames(); len(names) > 0 {
-			// Bare: the environment is a chip with a status dot, not a 28-point field, so it has no kit trigger.
-			env := ui.SelectBase(c.Key("active-environment"), &a.activeEnv)
-			uikit.Tip(c, env.Trigger.Label(locales.ActiveEnvironment()), locales.ActiveEnvironment()).Width(132).Height(uikit.HeightSecondary).
-				Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
-				ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(t.Accent)
-				uikit.Body(c, cmp.Or(a.activeEnv, locales.NoEnvironment())).SingleLine().Grow(1)
-				uikit.Glyph(c, chevronIcon)
-			})
-			env.Popup(func(panel ui.Element) {
-				uikit.PopoverPanel(c, panel).Padding(t.Space(uikit.SpaceXS))
-				for _, name := range names {
-					item := env.Item(name).Label(name).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
-					if item.Highlighted() {
-						item.Background(t.SurfaceHover)
-					}
-					item.Children(func() {
-						color := t.TextMuted
-						if name == a.activeEnv {
-							color = t.Accent
-						}
-						ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(color)
-						uikit.Body(c, name)
-					})
-				}
-			})
-		} else {
-			uikit.ToolbarButton(c, locales.ManageEnvironments2(), locales.AddAnEnvironmentForRequest(), false).
-				Children(func() { uikit.Body(c, locales.NoEnvironment()) }).OnClick(a.openVars)
-		}
 		if d != nil {
 			// The tab's own × closes the request; the header does not repeat it.
 			a.requestDocumentActions(c, t, d)
@@ -604,12 +577,22 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 		}
 		d.splitSeen = d.requestPercent
 		request := func() { a.requestEditor(c, t, d, flow{}, &d.composeTab) }
+		// A saved request's runs and examples are what came back before, so
+		// they sit at the response's side, under the rule that ends the URL
+		// bar, rather than beside the whole editor.
 		response := func() {
-			if r := a.experiments.record(d.historyPick); r != nil {
-				a.historyResponse(c, t, d, r)
-				return
-			}
-			a.requestResponse(c, t, d)
+			ui.Row(c).Fill().AlignItems(ui.Stretch).Bind(&a.editorRespArea).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+					if r := a.experiments.record(d.historyPick); r != nil {
+						a.historyResponse(c, t, d, r)
+						return
+					}
+					a.requestResponse(c, t, d)
+				})
+				if a.historyColumnShown(c, d) {
+					a.historyColumn(c, t, d)
+				}
+			})
 		}
 		// The same rule as the inspector's panes: side by side while there is
 		// room for both, stacked in a narrow column.
@@ -617,7 +600,10 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 			uikit.SplitVerticalPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1)
 			return
 		}
-		uikit.SplitPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1)
+		// Side by side, the divider runs up to a rule under the URL bar, so
+		// it meets a line instead of stopping in the air.
+		uikit.SplitPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1).
+			Border(0, t.Border).BorderWidth(1, 0, 0, 0)
 	})
 }
 
@@ -871,11 +857,7 @@ const (
 // editorWidth is the room the editor has: the content less the history
 // column a saved request shows beside it.
 func (a *app) editorWidth(c *ui.Context) float32 {
-	width := a.contentWidth(c)
-	if d := a.requestDocument; d != nil && d.assetID != "" && width >= 900 {
-		width -= historyWidth
-	}
-	return width
+	return a.contentWidth(c)
 }
 
 // requestSidesStacked reports whether the debugging screen stacks its two
@@ -1235,14 +1217,11 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 	if *selected == composeTabOriginal && !a.edited(f.id) {
 		*selected = composeTabHeaders
 	}
-	// The body tools share the header only when the pane has room for them;
-	// side by side with the response it takes its own row.
+	// The body's own tools are one row under the pane's tabs: the type and
+	// reader at the left, the format action at the right. The row is only
+	// there while Body is showing, so the other tabs keep their full height.
 	width := a.editorPaneWidthAt(c, &a.editorReqPane, draftPercent)
-	wide := width >= 720
 	bodyTools := func() {
-		if request.IsWebSocket(d.composeURL) {
-			return // the message list has no body type, reader or formatter
-		}
 		// The body type and its reader are choices among the pane's tabs, so
 		// they wear the toolbar's quiet face rather than a field's well.
 		uikit.Tip(c, uikit.ToolbarSelect(c, optionLabel(d.bodyMode), func(m *ui.Menu) {
@@ -1265,6 +1244,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 				}
 			}).Label(locales.ReadBodyAs()), locales.ReadBodyAsHelp())
 		})
+		ui.Spacer(c)
 		text, seen := &d.composeBody, &d.bodyFor
 		formatLabel := locales.FormatBody()
 		formatHelp := locales.FormatBodyHelp()
@@ -1279,17 +1259,10 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 			formatLabel, formatHelp = locales.FormatGraphQLQuery(), locales.FormatTheGraphqlDocumentWithout()
 		}
 		ui.Row(c).Disabled(!query && (!isJSON || !canFormat)).Children(func() {
-			// Beside a response the mode and reader selects take the row, so
-			// Format is its icon alone, with the same label and tip.
-			var clicked bool
-			if wide {
-				clicked = uikit.ToolbarButton(c, formatLabel, formatHelp, false).Children(func() {
-					ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
-					uikit.Caption(c, locales.Format())
-				}).Clicked()
-			} else {
-				clicked = uikit.IconButton(c, formatLabel, formatHelp, formatIcon).Clicked()
-			}
+			clicked := uikit.ToolbarButton(c, formatLabel, formatHelp, false).Children(func() {
+				ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
+				uikit.Caption(c, locales.Format())
+			}).Clicked()
 			if clicked {
 				if query {
 					value, err := graphql.Format(d.graphql.Query)
@@ -1306,18 +1279,9 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 		})
 	}
 	ui.Column(c).Fill().Bind(&a.editorReqPane).Children(func() {
-		a.requestPaneHeader(c, t, selected, d, f, paneTools{format: -1, width: width, draw: func(*paneRoom) {
-			// Beside a capture's response the editor has half the width: its
-			// body tools take their own row there.
-			if wide && *selected == composeTabBody {
-				bodyTools()
-			}
-		}})
-		if !wide && *selected == composeTabBody {
-			ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-				ui.Spacer(c)
-				bodyTools()
-			})
+		a.requestPaneHeader(c, t, selected, d, f, paneTools{format: -1, width: width})
+		if *selected == composeTabBody && !request.IsWebSocket(d.composeURL) {
+			ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(bodyTools)
 		}
 		ui.Column(c).Grow(1).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			switch *selected {
@@ -1435,9 +1399,20 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			if d.response != nil && !d.composeWaiting && outcome != "Network error" && d.sentSet {
 				actions = append(actions, control{locales.SaveAsExample(), locales.KeepThisResponseWithThe(), exampleIcon, false, func() { a.saveExample(d) }})
 			}
-			// Without a retained send there is nothing to read, so the entry
-			// waits rather than opening an empty list.
-			actions = append(actions, control{locales.OpenRequestHistory(), locales.HistoryInspectRetainedAttemptsOpening(), sendHistoryIcon, d.origin == nil && d.experimentID == 0, func() { a.openSendHistory(d) }})
+			// A saved request's runs are a column of the response while it
+			// has room, which the icon shows and hides; otherwise the icon
+			// opens them on their own page. Without a retained send there is
+			// nothing to read there, so the entry waits rather than opening
+			// an empty list.
+			if a.historyColumnFits(c, d) {
+				label := locales.HideRequestRuns()
+				if d.historyHidden {
+					label = locales.ShowRequestRuns()
+				}
+				actions = append(actions, control{label, label, sendHistoryIcon, false, func() { d.historyHidden = !d.historyHidden }})
+			} else {
+				actions = append(actions, control{locales.OpenRequestHistory(), locales.HistoryInspectRetainedAttemptsOpening(), sendHistoryIcon, d.origin == nil && d.experimentID == 0, func() { a.openSendHistory(d) }})
+			}
 			// The body's format menu says how the tab you are reading is
 			// read, so it comes before the pane's actions; the actions are
 			// one group, two points apart, so a row of them costs what it
@@ -1458,7 +1433,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				room.fits(paneTextWidth(c, locales.DecodeResponseText(), uikit.TextBody, 400)+20)
 			if d.responseTab == resViewBody && d.response != nil {
 				if showFormat {
-					uikit.Tip(c, uikit.MenuSelect(c, shown, func(m *ui.Menu) { actionMenu(m, a.responseFormatActions(d)) }).
+					uikit.Tip(c, uikit.ToolbarSelect(c, shown, func(m *ui.Menu) { actionMenu(m, a.responseFormatActions(d)) }).
 						Label(locales.ResponseFormat()), locales.ResponseBodyFormat())
 				} else {
 					leftOut = append(leftOut, submenu(locales.ResponseFormat(), a.responseFormatActions(d)...))

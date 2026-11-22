@@ -994,7 +994,10 @@ func (a *app) requestBodyText(c *ui.Context, d *requestDocument) {
 		d.bodyEditor = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: locales.RequestBody()}
 		d.bodyFor = d.composeBody
 	}
-	a.jsonPathBar(c, &d.jsonCrumbs, "draft", d.bodyEditor, func() { d.unicodeHandle("body").Focus(c) }, jsonCrumbSource{})
+	// The request body keeps no path bar: its tool row and the text are all
+	// that belongs above the editor. The path is still tracked, so Copy path
+	// copies the node under the caret from the command palette.
+	a.jsonPathTrack(&d.jsonCrumbs, "draft", d.bodyEditor, jsonCrumbSource{})
 	bodyFocus := d.unicodeHandle("body")
 	a.outlineEditor(c, d.bodyEditor, outlineTarget{key: "draft", kind: outlineJSON,
 		crumbs: &d.jsonCrumbs, focus: func() { bodyFocus.Focus(c) }}, func() {

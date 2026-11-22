@@ -1301,10 +1301,12 @@ func DialogTitle(c *ui.Context, title string) ui.Element {
 	return Heading(c, title).TextColor(c.Theme().Text)
 }
 
-// Tabs is a row of text tabs; the chosen one is a raised panel chip,
-// with an ink label and no line. A tab is a filter, not a selection of data,
-// so it is never green. The prefix names each tab for assistive technology,
-// so a screen with two tab rows of the same labels can name the one it means.
+// Tabs is a row of text tabs; the chosen one is a soft ink wash under its
+// word, as Postman's request tabs are: a small inner radius, a compact chip
+// height and ink text, with a lighter wash under the pointer. It is never an
+// underline, a raised chip or green: a tab is a filter, not a selection of
+// data. The prefix names each tab for assistive technology, so a screen with
+// two tab rows of the same labels can name the one it means.
 func Tabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Element {
 	return tabs(c, selected, prefix, labels, nil, false)
 }
@@ -1318,7 +1320,7 @@ func CountedTabs(c *ui.Context, selected *int, prefix string, labels, counts []s
 
 // SubTabs is a row of tabs inside what another tab row chose, or at the head
 // of a list beside an editor: the words alone carry the choice, and the chosen
-// one is underlined in the accent. It has no chip, so a second level never
+// one is underlined in the primary ink. It has no chip, so a second level never
 // looks like the row that holds it.
 func SubTabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Element {
 	return tabs(c, selected, prefix, labels, nil, true)
@@ -1343,31 +1345,34 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 				name = prefix + ": " + label
 			}
 			chosen := i == *selected
-			height := float32(HeightTabs)
-			inset := t.Space(SpaceCompact)
+			height := float32(HeightRow)
+			inset := t.Space(SpaceS)
+			radius := float32(RadiusInner)
 			if sub {
-				// A second level is words with an underline, so it keeps
-				// the tighter hit area that fits beside an editor.
-				height, inset = HeightControlSmall, Scaled(ControlPaddingXSmall)
+				// A second level is words with an underline, so it keeps the
+				// tighter hit area that fits beside an editor.
+				height, inset, radius = HeightControlSmall, Scaled(ControlPaddingXSmall), 0
 			}
 			tab := group.Tab(i).Label(name).Height(height).Padding(0, inset).Gap(t.Space(SpaceXS)).
-				Radius(RadiusPanel).AlignItems(ui.Center).TextColor(t.TextMuted)
+				Radius(radius).AlignItems(ui.Center).TextColor(t.TextMuted)
 			if sub {
-				tab.Radius(0)
-			}
-			switch {
-			case chosen && sub:
-				tab.TextColor(t.Text)
-			case chosen:
-				// The selected nav tab is a raised panel chip. Our panel
-				// and that chip are only two levels apart, so the hairline
-				// keeps the shape readable without a darker fill.
-				tab.Background(p.Background).InsetShadow(0, 0, 0, HairlineWidth, p.Border).TextColor(t.Text)
-			case sub && (tab.Pressed() || tab.Hovered()):
-				tab.TextColor(t.Text)
-			case tab.Pressed() || tab.Hovered():
-				// An unchosen top tab takes a 5% ink wash.
-				tab.Background(p.Foreground.Alpha(0.05)).TextColor(t.Text)
+				// The chosen word is ink over its rule; hover only darkens the
+				// word, so a second level never shows a box.
+				if chosen || tab.Pressed() || tab.Hovered() {
+					tab.TextColor(t.Text)
+				}
+			} else {
+				// The chosen tab is a 5% ink wash; hover is lighter, and a press
+				// deepens it, so the row never shows a stronger box than the
+				// choice it is holding.
+				switch {
+				case chosen:
+					tab.Background(p.Foreground.Alpha(0.05)).TextColor(t.Text)
+				case tab.Pressed():
+					tab.Background(p.Muted).TextColor(t.Text)
+				case tab.Hovered():
+					tab.Background(p.Foreground.Alpha(0.03)).TextColor(t.Text)
+				}
 			}
 			tab.Children(func() {
 				ui.Text(c, label).FontSize(Scaled(TextSmall))

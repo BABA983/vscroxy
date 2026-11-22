@@ -2848,9 +2848,10 @@ func TestFooterToolChipsFoldIntoACount(t *testing.T) {
 	}
 }
 
-// The history column steps aside as soon as the request pane could not show
-// its four tabs whole beside it, and comes back when the window has room: the
-// same rule as the sidebar, decided from the measured pane, not a window size.
+// The runs column sits in the response and steps aside when the response
+// could not keep its tabs and numbers beside it, coming back when the window
+// has room; the request pane's four tabs stay whole either way. It is decided
+// from the measured pane, not a window size.
 func TestHistoryColumnYieldsToTheRequestTabs(t *testing.T) {
 	for _, tc := range []struct {
 		width   int
@@ -2863,7 +2864,7 @@ func TestHistoryColumnYieldsToTheRequestTabs(t *testing.T) {
 		tt := ui.NewTester(func(c *ui.Context) {
 			a.view(c)
 			for _, label := range []string{"Headers", "Params", "Body", "Auth"} {
-				need[label] = paneTextWidth(c, label, uikit.TextBody, 400) + 2*c.Theme().Space(uikit.SpaceS)
+				need[label] = paneTextWidth(c, label, uikit.TextSmall, 400) + 2*c.Theme().Space(uikit.SpaceS)
 			}
 		}, tc.width, 800)
 		tt.SetLocale("en-US")
@@ -2890,6 +2891,66 @@ func TestHistoryColumnYieldsToTheRequestTabs(t *testing.T) {
 	}
 }
 
+func TestEnvironmentSelectSitsInTheDocumentStrip(t *testing.T) {
+	a := snapshotApp()
+	a.addDocument(savedRequest{Request: request.Request{Name: "Create project", Method: "POST", URL: "https://api.example.com/projects", Body: `{"name":"Demo project"}`}}, "")
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	env, ok := tt.Find("Active environment")
+	if !ok {
+		t.Fatalf("the request has no environment select: %q", tt.Texts())
+	}
+	save, ok := tt.AccessByRole(ui.RoleButton, locales.Save())
+	if !ok {
+		t.Fatal("the breadcrumb row lost Save")
+	}
+	if env.Y < uikit.HeightBar || env.Y+env.H > save.Bounds.Y {
+		t.Fatalf("environment %v is not in the document strip above the breadcrumb %v", env, save.Bounds)
+	}
+	// Live is the traffic, not a request: it has no request environment.
+	a.activateDocument(nil)
+	tt.Frame()
+	if _, ok := tt.Find("Active environment"); ok {
+		t.Fatal("Live kept the request environment select")
+	}
+	a.openSaved(a.requests[0].key())
+	tt.Frame()
+	if _, ok := tt.Find("Active environment"); !ok {
+		t.Fatal("a request tab lost its environment select")
+	}
+}
+
+// The Body tab's tools are one row under the tabs: the type and reader at the
+// left and Format at the right, with the pane's width between them.
+func TestRequestBodyToolsShareOneRow(t *testing.T) {
+	a := snapshotApp()
+	a.addDocument(savedRequest{Request: request.Request{Name: "Create project", Method: "POST", URL: "https://api.example.com/projects", Body: `{"name":"Demo project"}`}}, "")
+	a.composeTab = composeTabBody
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	bodyType, ok := tt.Access(locales.RequestBodyType())
+	if !ok {
+		t.Fatal("the body type select is missing")
+	}
+	reader, ok := tt.Access(locales.ReadBodyAs())
+	if !ok {
+		t.Fatal("the body reader select is missing")
+	}
+	format, ok := tt.Access(locales.FormatBody())
+	if !ok {
+		t.Fatal("the body format action is missing")
+	}
+	if bodyType.Bounds.Y != reader.Bounds.Y || reader.Bounds.Y != format.Bounds.Y {
+		t.Fatalf("body tools are not one row: type %v, reader %v, format %v", bodyType.Bounds, reader.Bounds, format.Bounds)
+	}
+	if bodyType.Bounds.X >= reader.Bounds.X {
+		t.Fatalf("body type is not left of the reader: %v, %v", bodyType.Bounds, reader.Bounds)
+	}
+	if format.Bounds.X <= reader.Bounds.X+reader.Bounds.W+8 {
+		t.Fatalf("format is not at the row's right: reader %v, format %v", reader.Bounds, format.Bounds)
+	}
+}
+
 // Every tab on the request pane's row is a whole word: a pane too narrow for
 // all of them moves the last ones into More instead of fading or clipping.
 func TestEditorRequestTabsStayWholeWords(t *testing.T) {
@@ -2898,7 +2959,7 @@ func TestEditorRequestTabsStayWholeWords(t *testing.T) {
 	tt := ui.NewTester(func(c *ui.Context) {
 		a.view(c)
 		for _, label := range []string{"Headers", "Params", "Body", "Auth"} {
-			labelWidth[label] = paneTextWidth(c, label, uikit.TextBody, 400) + 2*c.Theme().Space(uikit.SpaceS)
+			labelWidth[label] = paneTextWidth(c, label, uikit.TextSmall, 400) + 2*c.Theme().Space(uikit.SpaceS)
 		}
 	}, 1280, 800)
 	openEditorResponse(t, tt, a)
@@ -2911,8 +2972,16 @@ func TestEditorRequestTabsStayWholeWords(t *testing.T) {
 			t.Fatalf("the %s tab is cut to %.0f of %.0f", label, r.W, want)
 		}
 	}
-	if _, ok := tt.Find("Request pane: Headers"); !ok {
+	params, ok := tt.Find("Request pane: Params")
+	if !ok {
 		t.Fatal("the request pane lost its first tab")
+	}
+	headers, ok := tt.Find("Request pane: Headers")
+	if !ok {
+		t.Fatal("the request pane lost its headers tab")
+	}
+	if params.X >= headers.X {
+		t.Fatalf("request tabs are not Params then Headers: Params %v, Headers %v", params, headers)
 	}
 	if _, ok := tt.Find("Request pane: Auth"); !ok {
 		if err := tt.Click("Request pane options"); err != nil {
@@ -3375,7 +3444,7 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	tt := ui.NewTester(a.view, 1280, 800)
+	tt := ui.NewTester(a.view, 1600, 800) // room for the runs column
 	showCollections(t, tt)
 	click := func(label string) {
 		t.Helper()
@@ -5807,7 +5876,9 @@ func TestRequestCompactControlsKeepTemplateEditingAndCounts(t *testing.T) {
 			tt.Key(ui.Cmd, ui.KeyA)
 			raw := "https://例.test/中文/{{path}}?secret={{vault:token}}&unfinished={{name"
 			tt.Type(raw)
-			click("Request pane: Headers") // Blur shows chips without replacing the input.
+			// Blur shows chips without replacing the input; the first
+			// tab stays clear of the URL completion popup.
+			click("Request pane: Params")
 			click("URL")
 			tt.Key(ui.Cmd, ui.KeyA)
 			tt.Key(ui.Cmd, ui.KeyC)

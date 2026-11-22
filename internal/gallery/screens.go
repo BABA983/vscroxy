@@ -55,6 +55,7 @@ func (g *Gallery) screensGroup() *Group {
 		{"mcp-catalog", "MCP catalog", "A connected MCP server: the tools catalog beside the tool call", 1280, 800},
 		{"editor-socketio", "Request editor · Socket.IO", "A Socket.IO session with namespace events and a chosen message", 1280, 800},
 		{"tabs-few", "Tabs · few", "LIVE fixed, a dirty request, a saved session and an italic preview tab", 1280, 800},
+		{"tabs-wide", "Tabs · wide", "The same tabs in a wide window: the saved request's runs column beside its response", 1600, 900},
 		{"tabs-overflow", "Tabs · overflow", "Fifteen open tabs: the strip scrolls and the right-hand count opens the MRU list", 1280, 800},
 	}
 	entries := make([]*Entry, 0, len(screens))

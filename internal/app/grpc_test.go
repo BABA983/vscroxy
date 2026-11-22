@@ -297,9 +297,9 @@ func TestGRPCImportFailureKeepsSchemaAndCloseDiscardsLateDiscovery(t *testing.T)
 	}
 }
 
-// Beside the history column a protocol editor's row keeps every tab whole:
-// the ones the pane has no room for move into More, and the view chosen there
-// comes back as the row's last chip, so the row always names what it shows.
+// In a narrow window a protocol editor's row keeps every tab whole: the ones
+// the pane has no room for move into More, and the view chosen there comes
+// back as the row's last chip, so the row always names what it shows.
 func TestGRPCEditorTabsOverflowIntoMore(t *testing.T) {
 	a := libraryApp(t)
 	a.requests = []savedRequest{{
@@ -308,10 +308,10 @@ func TestGRPCEditorTabsOverflowIntoMore(t *testing.T) {
 	}}
 	a.addDocument(a.requests[0], a.requests[0].key())
 	d := a.requestDocument
-	tt := ui.NewTester(a.view, 1280, 800)
+	tt := ui.NewTester(a.view, 1000, 800)
 	tt.Frame()
 	if _, ok := tt.Find("gRPC editor: Examples"); ok {
-		t.Fatalf("the row fits every tab at 410 wide: %q", tt.Texts())
+		t.Fatalf("the row fits every tab in the narrow pane: %q", tt.Texts())
 	}
 	if err := tt.Click("gRPC editor: More"); err != nil {
 		t.Fatal(err)

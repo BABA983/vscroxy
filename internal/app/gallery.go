@@ -290,7 +290,7 @@ func (g *Gallery) setup(screen string) bool {
 		galleryMCP(a)
 	case "editor-socketio":
 		gallerySocketIO(a)
-	case "tabs-few":
+	case "tabs-few", "tabs-wide":
 		galleryTabs(a, false)
 	case "tabs-overflow":
 		galleryTabs(a, true)

@@ -31220,6 +31220,46 @@ func (msgs Messages) ShowFewer() string {
 	return Catalog.Format(msgs.locale, "showFewer", nil)
 }
 
+// ShowRequestRuns says "Show request runs"
+// in the language the app shows.
+func ShowRequestRuns() string { return In(i18n.Locale()).ShowRequestRuns() }
+
+// ShowRequestRuns says "Show request runs"
+// in the language of msgs.
+func (msgs Messages) ShowRequestRuns() string {
+	return Catalog.Format(msgs.locale, "showRequestRuns", nil)
+}
+
+// HideRequestRuns says "Hide request runs"
+// in the language the app shows.
+func HideRequestRuns() string { return In(i18n.Locale()).HideRequestRuns() }
+
+// HideRequestRuns says "Hide request runs"
+// in the language of msgs.
+func (msgs Messages) HideRequestRuns() string {
+	return Catalog.Format(msgs.locale, "hideRequestRuns", nil)
+}
+
+// OpenTabsNotSaved says "Open tabs were not saved"
+// in the language the app shows.
+func OpenTabsNotSaved() string { return In(i18n.Locale()).OpenTabsNotSaved() }
+
+// OpenTabsNotSaved says "Open tabs were not saved"
+// in the language of msgs.
+func (msgs Messages) OpenTabsNotSaved() string {
+	return Catalog.Format(msgs.locale, "openTabsNotSaved", nil)
+}
+
+// OpenTabsNotRestored says "Open tabs were not restored"
+// in the language the app shows.
+func OpenTabsNotRestored() string { return In(i18n.Locale()).OpenTabsNotRestored() }
+
+// OpenTabsNotRestored says "Open tabs were not restored"
+// in the language of msgs.
+func (msgs Messages) OpenTabsNotRestored() string {
+	return Catalog.Format(msgs.locale, "openTabsNotRestored", nil)
+}
+
 // ShowHistory says "Show History"
 // in the language the app shows.
 func ShowHistory() string { return In(i18n.Locale()).ShowHistory() }

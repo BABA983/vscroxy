@@ -250,7 +250,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 				ui.Column(c).Width(620).Border(1, t.Border).Radius(RadiusPanel).Children(func() {
 					PaneHeader(c, func() {
 						PaneTitle(c, "Request", "Request pane", ui.Color{}, t.Text, nil)
-						CountedTabs(c, &o.reqTab, "Request pane", []string{"Headers", "Params", "Body", "Auth"}, []string{"5"})
+						CountedTabs(c, &o.reqTab, "Request pane", []string{"Params", "Headers", "Body", "Auth"}, []string{"5"})
 					}, func() {
 						TabMenu(c, "More", "Request pane options", func(*ui.Menu) {})
 					})

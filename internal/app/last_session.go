@@ -253,7 +253,9 @@ func (a *app) applyLastSession(state lastSessionState, file sessionFile) {
 	if state.Page == lastPageSession && a.sessions.active != "" && a.sessions.current() != nil {
 		a.openPageTab(pageSession, tabOpen{})
 		*a.regionOpen("sessions") = true
-	} else {
+	} else if k := a.tabsGroup().active().kind; k != pageRequest && k != pageAPI {
+		// A request or contract the open tabs brought back stays in front;
+		// the capture loads behind it.
 		a.openPageTab(pageLive, tabOpen{})
 	}
 	a.restoreInspector(state)

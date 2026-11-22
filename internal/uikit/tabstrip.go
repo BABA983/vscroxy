@@ -29,18 +29,23 @@ type DocumentTab struct {
 }
 
 // DocumentTabsOptions is a document strip: fixed tabs, then the tabs that
-// scroll, a new-tab button and the overflow menu. Callbacks receive the tab's
-// index in Tabs.
+// scroll, a new-tab button, the overflow menu and an optional control of the
+// open document at the strip's right end. Callbacks receive the tab's index in
+// Tabs.
 type DocumentTabsOptions struct {
 	Tabs          []DocumentTab
 	NewLabel      string
 	OverflowLabel string
 	OverflowTip   string
-	OnActivate    func(index int)
-	OnClose       func(index int)
-	OnPin         func(index int)
-	OnNew         func()
-	OnOverflow    func(*ui.Menu)
+	// Trailing draws a control that belongs to the open document rather than
+	// to the window, such as the environment a request sends in. It keeps its
+	// place while the tabs scroll.
+	Trailing   func()
+	OnActivate func(index int)
+	OnClose    func(index int)
+	OnPin      func(index int)
+	OnNew      func()
+	OnOverflow func(*ui.Menu)
 }
 
 // DocumentTabs draws a row of document tabs above a content area. The fixed
@@ -51,9 +56,10 @@ type DocumentTabsOptions struct {
 // The strip is chrome: the tabs sit on the shell's surface, and the active
 // one wears the content's surface with no rule under it, so it reads as the
 // top of the page below. The new-tab button follows the last tab, as it does
-// in VS Code and Postman; the list of open tabs keeps the strip's end.
+// in VS Code and Postman; the list of open tabs and the optional document
+// control keep the strip's end.
 func DocumentTabs(c *ui.Context, o DocumentTabsOptions) ui.Element {
-	p := Colors(c.Theme())
+	t, p := c.Theme(), Colors(c.Theme())
 	return ui.Row(c).Shrink(0).Height(HeightTabs).FillWidth().Background(p.Window).AlignItems(ui.Stretch).Children(func() {
 		// The rule under the strip. Tabs paint over it, and the active one
 		// covers it with the content's surface.
@@ -77,6 +83,9 @@ func DocumentTabs(c *ui.Context, o DocumentTabsOptions) ui.Element {
 		}).Grow(1).FillHeight()
 		if o.OnOverflow != nil {
 			overflowTabs(c, o)
+		}
+		if o.Trailing != nil {
+			ui.Row(c).Height(HeightTabs).Shrink(0).AlignItems(ui.Center).Padding(0, t.Space(SpaceM)).Children(o.Trailing)
 		}
 	})
 }

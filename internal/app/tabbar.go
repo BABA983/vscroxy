@@ -40,7 +40,7 @@ func (a *app) tabBar(c *ui.Context, t *ui.Theme) {
 		}
 		items[i] = item
 	}
-	uikit.DocumentTabs(c, uikit.DocumentTabsOptions{
+	opts := uikit.DocumentTabsOptions{
 		Tabs:          items,
 		NewLabel:      locales.NewRequest(),
 		OverflowLabel: locales.AllOpenTabs(),
@@ -56,7 +56,13 @@ func (a *app) tabBar(c *ui.Context, t *ui.Theme) {
 		OnPin:      func(i int) { a.promoteTab(ids[i]) },
 		OnNew:      a.openCompose,
 		OnOverflow: a.openTabsMenu,
-	})
+	}
+	// The environment belongs to the request being edited, so it appears
+	// with a request tab and steps aside for Live, a session or a contract.
+	if active.kind == pageRequest {
+		opts.Trailing = func() { a.environmentSelect(c, t) }
+	}
+	uikit.DocumentTabs(c, opts)
 	// The strip takes room from the list. When LIVE becomes active, a list
 	// that follows traffic scrolls to its new end, as it would after a resize.
 	if active.kind == pageLive && a.tabShown != active && a.autoSelect {
@@ -65,6 +71,45 @@ func (a *app) tabBar(c *ui.Context, t *ui.Theme) {
 		}
 	}
 	a.tabShown = active
+}
+
+// environmentSelect is the environment a request resolves its variables in,
+// at the document strip's right end. It is a chip with a status dot rather
+// than a field: the choice belongs to the request being edited, not to the
+// window's chrome.
+func (a *app) environmentSelect(c *ui.Context, t *ui.Theme) {
+	if names := a.envNames(); len(names) > 0 {
+		env := ui.SelectBase(c.Key("active-environment"), &a.activeEnv)
+		uikit.Tip(c, env.Trigger.Label(locales.ActiveEnvironment()), locales.ActiveEnvironment()).
+			Width(uikit.WidthPicker).Height(uikit.HeightTabs).
+			Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).
+			Background(uikit.Colors(t).Background).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Size(uikit.DotSize, uikit.DotSize).Radius(uikit.DotSize / 2).Background(t.Accent)
+			uikit.Body(c, cmp.Or(a.activeEnv, locales.NoEnvironment())).SingleLine().Grow(1)
+			uikit.Glyph(c, chevronIcon)
+		})
+		env.Popup(func(panel ui.Element) {
+			uikit.PopoverPanel(c, panel).Padding(t.Space(uikit.SpaceXS))
+			for _, name := range names {
+				item := env.Item(name).Label(name).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceM)).
+					Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
+				if item.Highlighted() {
+					item.Background(t.SurfaceHover)
+				}
+				item.Children(func() {
+					color := t.TextMuted
+					if name == a.activeEnv {
+						color = t.Accent
+					}
+					ui.Box(c).Size(uikit.DotSize, uikit.DotSize).Radius(uikit.DotSize / 2).Background(color)
+					uikit.Body(c, name)
+				})
+			}
+		})
+		return
+	}
+	uikit.ToolbarButton(c, locales.ManageEnvironments2(), locales.AddAnEnvironmentForRequest(), false).
+		Height(uikit.HeightTabs).Children(func() { uikit.Body(c, locales.NoEnvironment()) }).OnClick(a.openVars)
 }
 
 func tabIcon(kind page) *ui.SVG {

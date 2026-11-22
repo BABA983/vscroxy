@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/jsonc"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -234,6 +235,29 @@ func TestBreadcrumbReusesReaderTreeForShownText(t *testing.T) {
 	crumbs.refreshWith("body", other, 3, jsonCrumbSource{root: result.crumbRoot, text: result.crumbText})
 	if *parses != 1 {
 		t.Fatalf("a stale tree avoided a needed parse: %d", *parses)
+	}
+}
+
+// The request body keeps no path bar: its tool row and text are all that sits
+// above the editor. The response body still has its bar, and Copy path still
+// knows the request body's node under the caret.
+func TestRequestBodyHasNoJSONPathBar(t *testing.T) {
+	a := snapshotApp()
+	a.addDocument(savedRequest{Request: request.Request{Name: "Create project", Method: "POST",
+		URL: "https://api.example.com/projects", Body: `{"data":{"id":3}}`}}, "")
+	a.composeTab = composeTabBody
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if tt.HasText(locales.JsonBreadcrumbCopyPath()) {
+		t.Fatal("the request body drew a JSON path bar")
+	}
+	if a.activeJSONPath.path == "" {
+		t.Fatal("the request body stopped tracking the path under its caret")
+	}
+	a.activateDocument(nil)
+	tt.Frame()
+	if !tt.HasText(locales.JsonBreadcrumbCopyPath()) {
+		t.Fatal("the response body lost its JSON path bar")
 	}
 }
 

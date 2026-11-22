@@ -50,6 +50,7 @@ func testFormats(t *testing.T) map[string]struct {
 		"protobuf types":      {ProtobufTypes, "protobuf-types.json", "", 1},
 		"MCP consents":        {MCPConsents, "mcp-consents.json", "approvals", 2},
 		"queries":             {Queries, "queries.json", "queries", 0},
+		"tabs":                {Tabs, "tabs.json", "", 0},
 	}
 }
 

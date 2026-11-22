@@ -48,6 +48,7 @@ var (
 		},
 	}}
 	Queries = &Format{Name: "saved JSON queries", Member: "queries"}
+	Tabs    = &Format{Name: "open tabs"}
 
 	Lists = &ListFormat{Name: "host and app lists"}
 )

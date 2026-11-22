@@ -298,6 +298,7 @@ type app struct {
 	// row can decide what fits instead of guessing a share of the window.
 	inspectorReqPane, inspectorRespPane ui.Handle
 	editorReqPane, editorRespPane       ui.Handle
+	editorRespArea                      ui.Handle // the response with its runs column
 	// Captured requests as documents (captured_document.go): the drafts of
 	// edited or sent captures by flow ID, the inspected capture's unchanged
 	// document (or why there is none), and the tab's document to come back
@@ -763,7 +764,8 @@ type app struct {
 	// tabs is the strip's model: the open tabs, their order, the active one,
 	// preview and pinned state, MRU and the reopen order. The fields around
 	// it follow the active tab rather than holding a second copy of it.
-	tabs *tabState
+	tabs     *tabState
+	tabsPath string // where the open tabs are kept across launches
 	// tabDocuments maps an open request tab to its document. closedDocs keeps
 	// the document copies the model's descriptor-only reopen stack does not.
 	tabDocuments map[tabID]*requestDocument
@@ -1106,6 +1108,10 @@ func newApp() *app {
 	}
 	a.placeProjectFiles()
 	a.loadSavedAPIs()
+	if a.dataDir != "" {
+		a.tabsPath = filepath.Join(a.dataDir, tabsFile)
+		a.restoreTabs()
+	}
 	a.recount()
 	a.applyFilter()
 	if a.dataDir != "" {
@@ -5481,6 +5487,7 @@ func (a *app) flushSettings() {
 	// The last session lands before settings point at its snapshot, so a
 	// quit that is interrupted halfway never makes a missing file current.
 	a.saveLastSession()
+	a.saveTabs()
 	a.lastSave = time.Time{}
 	_ = a.persistSettings()
 }

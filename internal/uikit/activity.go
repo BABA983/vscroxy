@@ -191,7 +191,6 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 					bottom -= part
 				}
 			}
-			p.Line(r.X, r.Y+r.H, r.X+r.W, r.Y+r.H, 1, t.Border)
 			if active {
 				for _, at := range []int{rangeNow.From, rangeNow.To} {
 					x := r.X + width*float32(at)

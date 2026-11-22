@@ -324,7 +324,7 @@ func (k *components) tabPlate(c *ui.Context) {
 			}
 		}).Width(320)
 	})
-	caption(c, "Pane tabs are 32-point raised chips with a hairline; hovering an unchosen one takes a 5% ink wash. A counted tab keeps the same face with a quiet number. A sub-tab is ink text with a rule only. The strip fades the edge that hides more tabs.")
+	caption(c, "Pane tabs are 24-point ink-washed chips: the chosen one takes a 5% ink wash, a 4-point inner corner and ink text, and the pointer lightens an unchosen one to 3%. A counted tab keeps the same face with a quiet number. A sub-tab is ink text with a rule only. The strip fades the edge that hides more tabs.")
 }
 
 func (k *components) segmentedPlate(c *ui.Context) {
@@ -539,7 +539,7 @@ func (k *components) panePlate(c *ui.Context) {
 		ui.Column(c).Width(680).Border(1, c.Theme().Border).Radius(uikit.RadiusPanel).Children(func() {
 			uikit.PaneHeader(c, func() {
 				uikit.PaneTitle(c, "Request", "Request pane", ui.Color{}, c.Theme().Text, nil)
-				uikit.CountedTabs(c, &k.tab, "Request pane", []string{"Headers", "Params", "Body", "Auth"}, []string{"5"})
+				uikit.CountedTabs(c, &k.tab, "Request pane", []string{"Params", "Headers", "Body", "Auth"}, []string{"5"})
 			}, func() {
 				uikit.TabMenu(c, "More", "Request pane options", func(m *ui.Menu) { m.Item("Raw").ID("raw") })
 			})
