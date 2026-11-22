@@ -1196,6 +1196,18 @@ func TestWebSocketRSV1SkipsOnlyTheCompressedMessage(t *testing.T) {
 	if truncated || !compressed || len(frames) != 1 || string(frames[0].Data) != "b" {
 		t.Fatalf("fragmented frames = %+v truncated %v compressed %v", frames, truncated, compressed)
 	}
+
+	// A new message before the skipped one's last fragment is reported as
+	// truncated, but it and the messages after it still import.
+	interrupted := []byte{
+		0x41, 0x01, 'x',
+		0x81, 0x02, 'h', 'i',
+		0x81, 0x01, '!',
+	}
+	frames, truncated, compressed = parseWebSocketFrames(interrupted, "in", 100)
+	if !truncated || !compressed || len(frames) != 2 || string(frames[0].Data) != "hi" || string(frames[1].Data) != "!" {
+		t.Fatalf("interrupted skip frames = %+v truncated %v compressed %v", frames, truncated, compressed)
+	}
 }
 
 func TestCharlesWebSocketRawBodyIsNotDoubleCounted(t *testing.T) {

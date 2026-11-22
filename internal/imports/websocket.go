@@ -15,7 +15,7 @@ func parseWebSocketFrames(data []byte, direction string, limit int) ([]CaptureFr
 	var frames []CaptureFrame
 	var pending []byte
 	pendingKind := ""
-	skipUntilFin := false
+	skipUntilFin, skipCut := false, false
 	truncated := false
 	compressed := false
 	if limit <= 0 {
@@ -120,8 +120,9 @@ scan:
 			}
 			if opcode == 0x1 || opcode == 0x2 {
 				// A new message arrived before the skipped compressed one
-				// ended. Keep the new one and report the incomplete skip.
-				truncated = true
+				// ended. Keep the new one and report the incomplete skip
+				// once parsing ends; truncated now would stop the loop.
+				skipCut = true
 				skipUntilFin = false
 			}
 		}
@@ -180,7 +181,7 @@ scan:
 		frames = append(frames, CaptureFrame{Direction: direction, Kind: pendingKind, Data: pending})
 		pending, pendingKind = nil, ""
 	}
-	if pendingKind != "" || skipUntilFin {
+	if pendingKind != "" || skipUntilFin || skipCut {
 		truncated = true
 	}
 	return frames, truncated, compressed
