@@ -34,85 +34,83 @@ func (a *app) requestDocsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 }
 
 // requestSettingsEditor edits the request's transport choices. Unset fields
-// follow the collection and folder defaults, which the controls show.
+// follow the collection and folder defaults, which each row names under its
+// control.
 func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
-	effective := a.inheritance(d.composeCollection).InheritSettings(d.settings)
-	ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceL)).Children(func() {
-		uikit.Meta(c, locales.TransportAppliesToSendAnd())
-		if request.IsWebSocket(d.composeURL) {
-			uikit.Meta(c, locales.WebsocketSendsUseTheirOwn())
+	inheritance := a.inheritance(d.composeCollection)
+	effective := inheritance.InheritSettings(d.settings)
+	defaultFor := func(set func(request.Settings) bool) string {
+		if set(d.settings) {
+			return ""
 		}
-		ui.Form(c, func() {
-			ui.Field(c, locales.Timeout(), func() {
-				// The hint sits under the stepper: beside it, the form's field
-				// column leaves it a few points, too narrow for a word.
-				ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
-					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-						// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-						if ui.NumberInput(c, &d.timeout, 0, 3600, 1).Label(locales.RequestTimeoutInSeconds()).Changed() {
-							seconds := int(d.timeout)
-							d.settings.TimeoutSeconds = &seconds
-						}
-					})
-					uikit.Meta(c, locales.Seconds0WaitsWithNo())
-				})
-			})
-			ui.Field(c, locales.Redirects(), func() {
-				follow := effective.Follows()
-				if uikit.Switch(c, &follow).Label(locales.FollowRedirects()).Changed() {
-					d.setFollow(follow)
+		for i := len(inheritance.Folders) - 1; i >= 0; i-- {
+			if set(inheritance.Folders[i].Settings) {
+				if i == 0 {
+					return locales.DefaultCollection()
 				}
-				uikit.Meta(c, locales.N3xxResponsesAreFollowedUnless())
-			})
-			if effective.Follows() {
-				ui.Field(c, locales.MaximumRedirects(), func() {
-					ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
-						ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-							// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-							if ui.NumberInput(c, &d.maxRedirects, 1, 50, 1).Label(locales.MaximumRedirects()).Changed() {
-								value := int(d.maxRedirects)
-								d.settings.MaxRedirects = &value
-							}
-						})
-						uikit.Meta(c, locales.HttpSHops())
-					})
-				})
+				return locales.DefaultFolder()
 			}
-			ui.Field(c, locales.Tls(), func() {
-				verify := effective.Verifies()
-				if uikit.Switch(c, &verify).Label(locales.VerifyTlsCertificate()).Changed() {
-					d.setVerify(verify)
-				}
-				uikit.Meta(c, locales.UsesTheSystemRootsAnd())
-			})
-			ui.Field(c, locales.HttpVersion(), func() {
+		}
+		return locales.DefaultSettings()
+	}
+	switchRow := func(label string, value bool, set func(bool)) {
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+			if uikit.Switch(c, &value).Label(label).Changed() {
+				set(value)
+			}
+			word := locales.SwitchOff()
+			if value {
+				word = locales.SwitchOn()
+			}
+			uikit.Meta(c, word)
+		})
+	}
+	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(uikit.SpaceL)).Children(func() {
+		uikit.Label(c, locales.Transport())
+		if request.IsWebSocket(d.composeURL) {
+			uikit.Hint(c, locales.WebsocketSendsUseTheirOwn())
+		}
+		ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceL)).Children(func() {
+			uikit.PropertyRow(c, locales.HttpVersion(), locales.HttpVersionAutoHint(), func() {
 				choice := httpVersionChoice(effective.HTTPVersion)
 				if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).Width(uikit.WidthField).Changed() {
 					d.settings.HTTPVersion = httpVersionFromChoice(choice)
 				}
-				uikit.Meta(c, locales.HttpVersionAutoHint())
-			})
-			ui.Field(c, locales.EncodeUrlAutomatically(), func() {
-				encode := effective.EncodesURL()
-				if uikit.Switch(c, &encode).Label(locales.EncodeUrlAutomatically()).Changed() {
-					d.setURLEncoding(encode)
+			}, defaultFor(func(s request.Settings) bool { return s.HTTPVersion != "" }))
+			uikit.PropertyRow(c, locales.Tls(), locales.UsesTheSystemRootsAnd(), func() {
+				switchRow(locales.VerifyTlsCertificate(), effective.Verifies(), d.setVerify)
+			}, defaultFor(func(s request.Settings) bool { return s.VerifyTLS != nil }))
+			uikit.PropertyRow(c, locales.Redirects(), locales.N3xxResponsesAreFollowedUnless(), func() {
+				switchRow(locales.FollowRedirects(), effective.Follows(), d.setFollow)
+			}, defaultFor(func(s request.Settings) bool { return s.FollowRedirects != nil }))
+			if effective.Follows() {
+				uikit.PropertyRow(c, locales.MaximumRedirects(), locales.HttpSHops(), func() {
+					// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
+					if ui.NumberInput(c, &d.maxRedirects, 1, 50, 1).Label(locales.MaximumRedirects()).Changed() {
+						value := int(d.maxRedirects)
+						d.settings.MaxRedirects = &value
+					}
+				}, defaultFor(func(s request.Settings) bool { return s.MaxRedirects != nil }))
+			}
+			uikit.PropertyRow(c, locales.EncodeUrlAutomatically(), locales.EncodeUrlAutomaticallyHint(), func() {
+				switchRow(locales.EncodeUrlAutomatically(), effective.EncodesURL(), d.setURLEncoding)
+			}, defaultFor(func(s request.Settings) bool { return s.DisableURLEncoding != nil }))
+			uikit.PropertyRow(c, locales.SendCookiesFromTheJar(), locales.SendCookiesFromTheJarHint(), func() {
+				switchRow(locales.SendCookiesFromTheJar(), effective.UsesCookies(), d.setCookies)
+			}, defaultFor(func(s request.Settings) bool { return s.DisableCookies != nil }))
+			uikit.PropertyRow(c, locales.Timeout(), locales.Seconds0WaitsWithNo(), func() {
+				// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
+				if ui.NumberInput(c, &d.timeout, 0, 3600, 1).Label(locales.RequestTimeoutInSeconds()).Changed() {
+					seconds := int(d.timeout)
+					d.settings.TimeoutSeconds = &seconds
 				}
-				uikit.Meta(c, locales.EncodeUrlAutomaticallyHint())
-			})
-			ui.Field(c, locales.SendCookiesFromTheJar(), func() {
-				use := effective.UsesCookies()
-				if uikit.Switch(c, &use).Label(locales.SendCookiesFromTheJar()).Changed() {
-					d.setCookies(use)
-				}
-				uikit.Meta(c, locales.SendCookiesFromTheJarHint())
-			})
-			ui.Field(c, locales.SocketPath(), func() {
+			}, defaultFor(func(s request.Settings) bool { return s.TimeoutSeconds != nil }))
+			uikit.PropertyRow(c, locales.SocketPath(), locales.SocketPathHint(), func() {
 				socket := effective.SocketPath
-				if uikit.Input(c, &socket).Label(locales.SocketPath()).Placeholder("/var/run/app.sock").Grow(1).Changed() {
+				if uikit.Input(c, &socket).Label(locales.SocketPath()).Placeholder("/var/run/app.sock").Width(uikit.WidthFieldWide).Changed() {
 					d.settings.SocketPath = strings.TrimSpace(socket)
 				}
-				uikit.Meta(c, locales.SocketPathHint())
-			})
+			}, defaultFor(func(s request.Settings) bool { return s.SocketPath != "" }))
 		})
 		if !effective.Verifies() {
 			ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).
@@ -121,16 +119,14 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 				uikit.Caption(c, locales.CertificateVerificationIsOffThis()).TextColor(t.Warning).Grow(1)
 			})
 		}
-		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-			if d.settings == (request.Settings{}) {
-				uikit.Meta(c, locales.UsingTheCollectionAndFolder())
-			} else {
+		if d.settings != (request.Settings{}) {
+			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, locales.SomeValuesOverrideTheCollection())
 				if uikit.SecondaryButton(c, locales.UseCollectionDefaults()).Clicked() {
 					d.resetSettings(a)
 				}
-			}
-		})
+			})
+		}
 	})
 }
 

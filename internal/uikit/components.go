@@ -1674,6 +1674,31 @@ func Selected(c *ui.Context, e ui.Element, focused bool) ui.Element {
 	return e.Background(fill).TextColor(t.Text)
 }
 
+// PropertyRow is a workspace setting: a bold title with one muted description
+// under it on the left, and the control on the right. A footnote under the
+// control, such as "Default: Collection", is muted and right-aligned. Rows are
+// separated by their parent's gap rather than a rule.
+func PropertyRow(c *ui.Context, title, description string, control func(), footnote ...string) ui.Element {
+	t := c.Theme()
+	row := ui.Row(c).FillWidth().Gap(t.Space(SpaceXL)).AlignItems(ui.Start)
+	row.Children(func() {
+		head := ui.Column(c).Basis(0).Grow(1).MinWidth(0).Gap(t.Space(SpaceXS))
+		head.Children(func() {
+			BodyStrong(c, title)
+			if description != "" {
+				Hint(c, description)
+			}
+		})
+		ui.Column(c).Shrink(0).AlignItems(ui.End).Gap(t.Space(SpaceXS)).Children(func() {
+			control()
+			if len(footnote) > 0 && footnote[0] != "" {
+				Hint(c, footnote[0])
+			}
+		})
+	})
+	return row
+}
+
 // FormRow is one field: its label, the control, an optional description and an
 // optional error. It uses MyGo's Field, so the label names the control and the
 // description and error are read with it; the error also marks the control

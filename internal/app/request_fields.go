@@ -39,7 +39,7 @@ func (a *app) pathEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				})
 				ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().Children(func() {
 					ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
-						a.variableGridInput(c, fmt.Sprintf("path-value-%d", i), &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), d.composeCollection, false).Grow(1).MinWidth(0)
+						a.variableGridInput(c, fmt.Sprintf("path-value-%d", i), &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), d.composeCollection, false, true).Grow(1).MinWidth(0)
 						a.unicodeMarker(c, fmt.Sprintf("path-value-hint-%d", i), r.Value, false)
 					})
 				})
@@ -92,11 +92,10 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			d.queryError = err.Error()
 		}
 	}
-	uikit.Meta(c, locales.EditsUpdateTheUrlRepeated())
 	if d.queryError != "" {
 		uikit.ErrorText(c, d.queryError)
 	}
-	if a.requestFieldsEditor(c, &d.queryRows, fieldsOptions{collection: d.composeCollection,
+	if a.requestFieldsEditor(c, &d.queryRows, fieldsOptions{collection: d.composeCollection, caption: locales.QueryParams(),
 		key: "parameter", focus: d.unicodeHandle}, locales.Parameter()) {
 		u, err := url.Parse(d.composeURL)
 		if err == nil {
@@ -125,7 +124,13 @@ type fieldsOptions struct {
 	file       bool
 	secret     bool
 	collection string
-	// key is the locale-independent name used for row focus handles.
+	// caption names the table above its grid, as "Query Params" or "Headers".
+	caption string
+	// captionEnd draws a control at the caption's right end, such as a form's
+	// file picker.
+	captionEnd func()
+	// key is the locale-independent name used for row focus handles and the
+	// table's own empty-row state.
 	key string
 	// focus hands a row cell its handle, so a send warning can open it.
 	focus func(string) *ui.Handle
@@ -140,153 +145,149 @@ func fieldsKey(opts fieldsOptions, noun, part string, row int) string {
 }
 
 // Fields are rows rather than a map: duplicate names, disabled entries and file
-// parts all survive saving. Only Send/export reads a selected file.
+// parts all survive saving. Only Send/export reads a selected file. The table
+// itself is the kit's grid: its trailing empty row adds a row when typed into.
 func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOptions, noun string, actions ...func()) bool {
 	t := c.Theme()
 	changed, remove := false, -1
-	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
-		// Column titles stay above the rows as they scroll, so every cell
-		// reads as a column rather than its own form.
-		ui.Row(c).Height(uikit.HeightRow).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Width(uikit.HeightControl).FillHeight()
-			// The cell's padding stays on the label inside it. On the flex
-			// item itself, padding joins its base size and would make the
-			// header columns wider than the rows' cells.
-			// The key column keeps room for a common header name and the
-			// value column for a common media type: neither is squeezed to a
-			// cut-off word, and a longer value reads in full on hover.
-			ui.Box(c).Basis(0).Grow(1).MinWidth(uikit.WidthNarrow).FillHeight().Children(func() {
-				uikit.Label(c, locales.Key()).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM))
-			})
-			ui.Box(c).Basis(0).Grow(2).MinWidth(uikit.WidthNarrow).FillHeight().Children(func() {
-				uikit.Label(c, locales.Value()).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM))
-			})
-			if opts.secret {
-				ui.Box(c).Width(uikit.HeightRow)
-			}
-			if opts.file {
-				uikit.Label(c, locales.File()).Width(64)
-			}
-			ui.Box(c).Width(uikit.HeightControl)
-		})
-		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
-			for i := range *rows {
-				r := &(*rows)[i]
-				row := ui.Row(c.Key(i)).Height(uikit.HeightRow).AlignItems(ui.Center)
-				row.Children(func() {
-					ui.Box(c).Width(uikit.HeightControl).FillHeight().Center().Children(func() {
-						enabled := !r.Disabled
-						if uikit.Tip(c, uikit.Checkbox(c, &enabled, "").Label(locales.EnableRow(noun, i+1)), locales.UncheckedRowsStayHereAnd()).Changed() {
-							r.Disabled, changed = !enabled, true
-						}
-					})
-					ui.Box(c).Basis(0).Grow(1).MinWidth(uikit.WidthNarrow).FillHeight().Children(func() {
-						ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
-							keyName := fieldsKey(opts, noun, "key", i+1)
-							field := a.variableGridInput(c, keyName, &r.Name, locales.Key(), locales.KeyOfRow(noun, i+1), opts.collection, false).Grow(1).MinWidth(0)
-							if opts.focus != nil {
-								field.Bind(opts.focus(keyName))
-							}
-							cellBorder(t, field, false, false)
-							if values, ok := opts.filters[r.Name]; ok {
-								// The capture's own values are what a filter can
-								// search for, as the reader offers them.
-								field.PopoverMenu(a.headerFilterMenu(c, r.Name, values))
-							}
-							a.unicodeMarker(c, fmt.Sprintf("%s-key-hint-%d", noun, i+1), r.Name, false)
-							if field.Changed() {
-								changed = true
-							}
-						})
-					})
-					// Masked until the reader reveals this row with its eye: the
-					// keyboard alone never shows a credential, so tabbing
-					// through a table cannot put one on a shared screen.
-					secret := opts.secret && sensitiveHeader(r.Name)
-					masked := secret && !r.Revealed
-					ui.Box(c).Basis(0).Grow(2).MinWidth(uikit.WidthNarrow).FillHeight().Children(func() {
-						ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
-							valueKey := fieldsKey(opts, noun, "value", i+1)
-							value := a.variableGridInput(c, valueKey, &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), opts.collection, masked).Grow(1).MinWidth(0)
-							if opts.focus != nil {
-								value.Bind(opts.focus(valueKey))
-							}
-							if masked {
-								value.Password()
-							}
-							cellBorder(t, value, masked, secret && r.Revealed)
-							if !masked && len(r.Value) > 20 {
-								// A long value reads in full on hover, without the click
-								// that would move the keyboard into it.
-								uikit.Tip(c, value, r.Value)
-							}
-							// Scan the raw value even when masked; the hint then names
-							// only code points, kinds and positions.
-							a.unicodeMarker(c, fmt.Sprintf("%s-value-hint-%d", noun, i+1), r.Value, masked)
-							if value.Changed() {
-								changed = true
-							}
-						})
-					})
-					if opts.secret && sensitiveHeader(r.Name) {
-						label := locales.RevealRow(noun, i+1)
+	columns := []uikit.KeyValueColumn{
+		{
+			Width: uikit.HeightControl,
+			Cell: func(row int, _ ui.Element) {
+				r := &(*rows)[row]
+				enabled := !r.Disabled
+				ui.Box(c).FillWidth().FillHeight().Center().Children(func() {
+					if uikit.Tip(c, uikit.OutlineCheckbox(c, &enabled, "").Label(locales.EnableRow(noun, row+1)), locales.UncheckedRowsStayHereAnd()).Changed() {
+						r.Disabled, changed = !enabled, true
+					}
+				})
+			},
+		},
+		{
+			Title: locales.Key(), Grow: 1, MinWidth: uikit.WidthNarrow,
+			Cell: func(row int, _ ui.Element) {
+				r := &(*rows)[row]
+				ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+					keyName := fieldsKey(opts, noun, "key", row+1)
+					field := a.variableGridInput(c, keyName, &r.Name, locales.Key(), locales.KeyOfRow(noun, row+1), opts.collection, false, false).Grow(1).MinWidth(0)
+					if opts.focus != nil {
+						field.Bind(opts.focus(keyName))
+					}
+					cellBorder(t, field, false, false)
+					if values, ok := opts.filters[r.Name]; ok {
+						// The capture's own values are what a filter can
+						// search for, as the reader offers them.
+						field.PopoverMenu(a.headerFilterMenu(c, r.Name, values))
+					}
+					a.unicodeMarker(c, fmt.Sprintf("%s-key-hint-%d", noun, row+1), r.Name, false)
+					if field.Changed() {
+						changed = true
+					}
+				})
+			},
+		},
+		{
+			Title: locales.Value(), Grow: 2, MinWidth: uikit.WidthNarrow,
+			Cell: func(row int, line ui.Element) {
+				r := &(*rows)[row]
+				// Masked until the reader reveals this row with its eye: the
+				// keyboard alone never shows a credential, so tabbing
+				// through a table cannot put one on a shared screen.
+				secret := opts.secret && sensitiveHeader(r.Name)
+				masked := secret && !r.Revealed
+				ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+					valueKey := fieldsKey(opts, noun, "value", row+1)
+					value := a.variableGridInput(c, valueKey, &r.Value, locales.Value(), locales.ValueOfRow(noun, row+1), opts.collection, masked, false).Grow(1).MinWidth(0)
+					if opts.focus != nil {
+						value.Bind(opts.focus(valueKey))
+					}
+					if masked {
+						value.Password()
+					}
+					cellBorder(t, value, masked, secret && r.Revealed)
+					if !masked && len(r.Value) > 20 {
+						// A long value reads in full on hover, without the click
+						// that would move the keyboard into it.
+						uikit.Tip(c, value, r.Value)
+					}
+					// Scan the raw value even when masked; the hint then names
+					// only code points, kinds and positions.
+					a.unicodeMarker(c, fmt.Sprintf("%s-value-hint-%d", noun, row+1), r.Value, masked)
+					if value.Changed() {
+						changed = true
+					}
+					if secret {
+						label := locales.RevealRow(noun, row+1)
 						if r.Revealed {
-							label = locales.HideRow(noun, i+1)
+							label = locales.HideRow(noun, row+1)
 						}
-						reveal := uikit.RowIconButton(c, label, locales.CredentialsAreMaskedByDefault(), eyeIcon)
+						reveal := uikit.RowIconButton(c, label, locales.CredentialsAreMaskedByDefault(), eyeIcon).Shrink(0)
 						if r.Revealed {
 							reveal.TextColor(t.Accent)
 						}
 						if reveal.Clicked() {
 							r.Revealed = !r.Revealed
 						}
-					} else if opts.secret {
-						// Every header keeps the same action column, even when
-						// its value does not need an explicit reveal control.
-						ui.Box(c).Width(uikit.HeightRow)
 					}
-					if opts.file {
-						ui.Box(c).Width(64).Children(func() {
-							if uikit.Checkbox(c, &r.File, locales.File()).Label(locales.FilePartLabel(i + 1)).Changed() {
-								changed = true
-							}
-						})
+					label := locales.RemoveRow(noun, row+1)
+					button := uikit.RowIconButton(c, label, label, closeIcon).FocusRingOffset(-2).Shrink(0)
+					// Keep the control mounted, named and in the Tab order even while
+					// quiet. Any focus in the row reveals its action.
+					if !line.Hovered() && !line.FocusWithin() {
+						button.Opacity(0)
 					}
-					ui.Box(c).Width(uikit.HeightControl).Center().Children(func() {
-						label := locales.RemoveRow(noun, i+1)
-						// The action column ends at the grid's edge, so keep
-						// its focus ring inside the button instead of clipping
-						// it against the table border.
-						button := uikit.RowIconButton(c, label, label, closeIcon).FocusRingOffset(-2)
-						// Keep the control mounted, named and in the Tab order even
-						// while quiet. Any focus in the row reveals its action.
-						if !row.Hovered() && !row.FocusWithin() {
-							button.Opacity(0)
-						}
-						if button.Clicked() {
-							remove = i
-						}
-					})
+					if button.Clicked() {
+						remove = row
+					}
 				})
-			}
-			// The spacer carries the row to the full width, so the action stays
-			// at the table's left edge rather than in the middle.
-			ui.Row(c).MinHeight(uikit.HeightRow).Gap(t.Space(uikit.SpaceM)).Children(func() {
-				// The row sits on the scroll's bottom edge; keep the focus
-				// ring inside it instead of clipping it against the border.
-				if uikit.ToolbarButton(c, locales.AddNoun(noun), locales.AddNoun(noun), false).FocusRingOffset(-2).Children(func() {
-					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
-					uikit.Body(c, locales.AddNoun(noun))
-				}).Clicked() {
-					*rows = append(*rows, request.Field{})
+			},
+		},
+	}
+	if opts.file {
+		columns = append(columns, uikit.KeyValueColumn{
+			Title: locales.File(), Width: 64,
+			Cell: func(row int, _ ui.Element) {
+				r := &(*rows)[row]
+				if uikit.OutlineCheckbox(c, &r.File, locales.File()).Label(locales.FilePartLabel(row + 1)).Changed() {
 					changed = true
 				}
-				for _, action := range actions {
-					action()
-				}
-				ui.Spacer(c)
-			})
+			},
 		})
+	}
+	var headerEnd func()
+	if len(actions) > 0 {
+		headerEnd = func() {
+			for _, action := range actions {
+				action()
+			}
+		}
+	}
+	uikit.KeyValueTable(c, uikit.KeyValueTableOptions{
+		Key:              "kv:" + cmp.Or(opts.key, noun),
+		Caption:          opts.caption,
+		CaptionEnd:       opts.captionEnd,
+		Columns:          columns,
+		Rows:             len(*rows),
+		HeaderEnd:        headerEnd,
+		KeyColumn:        1,
+		ValueColumn:      2,
+		KeyPlaceholder:   locales.Key(),
+		ValuePlaceholder: locales.Value(),
+		KeyLabel:         locales.KeyOfRow(noun, len(*rows)+1),
+		ValueLabel:       locales.ValueOfRow(noun, len(*rows)+1),
+		OnAdd: func(key, value string, valueCell bool) {
+			*rows = append(*rows, request.Field{Name: key, Value: value})
+			changed = true
+			if opts.focus != nil {
+				part := "key"
+				if valueCell {
+					part = "value"
+				}
+				if handle := opts.focus(fieldsKey(opts, noun, part, len(*rows))); handle != nil {
+					handle.Focus(c)
+				}
+			}
+		},
 	})
 	if remove >= 0 {
 		*rows = slices.Delete(*rows, remove, remove+1)
@@ -396,6 +397,13 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		d.headerRows, d.headerFor = parseHeaderRows(d.composeHeaders), d.composeHeaders
 	}
 	if d.headerBulk {
+		ui.Row(c).Height(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
+			uikit.Small(c, locales.Headers()).TextColor(t.Text)
+			ui.Spacer(c)
+			if uikit.LinkButton(c, locales.BulkEdit()).Clicked() {
+				a.toggleHeaderBulk(d)
+			}
+		})
 		// The editor keeps the block verbatim; the marker reads the raw text
 		// rather than its soft-wrapped display.
 		a.unicodeMarker(c, "bulk-headers", d.composeHeaders, false)
@@ -418,30 +426,73 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		return
 	}
 	if a.requestFieldsEditor(c, &d.headerRows, fieldsOptions{secret: true, collection: d.composeCollection,
-		key: "header", focus: d.unicodeHandle, filters: a.capturedHeaders()}, locales.NounHeader()) {
+		caption: locales.Headers(), key: "header", focus: d.unicodeHandle, filters: a.capturedHeaders()}, locales.NounHeader(), func() {
+		if uikit.LinkButton(c, locales.BulkEdit()).Clicked() {
+			a.toggleHeaderBulk(d)
+		}
+	}) {
 		d.composeHeaders = headerRowsText(d.headerRows)
 		d.headerFor = d.composeHeaders
 	}
 }
 
+// toggleHeaderBulk opens the block, asking first when it would put a
+// credential on the screen.
+func (a *app) toggleHeaderBulk(d *requestDocument) {
+	if d.headerBulk || !hasSecretHeader(d.headerRows) {
+		toggleHeaderMode(d)
+		return
+	}
+	d.headerWarn = true
+}
+
 func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
-	ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
-		a.authFields(c, &d.auth, append([]string{request.AuthInherit}, authTypes...), d.composeCollection, d.unicodeHandle)
-		if d.auth.Type == request.AuthOAuth2 {
-			a.savedOAuthTokens(c)
+	inherited := d.auth.Type == request.AuthInherit
+	resolved, from := a.inheritance(d.composeCollection).InheritAuth(d.auth)
+	shown, typeName := &d.auth, optionLabel(d.auth.Type)
+	if inherited {
+		shown, typeName = &resolved, optionLabel(resolved.Type)
+	}
+	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
+		columns := ui.Row(c).FillWidth().Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Start)
+		if a.editorPaneWidthAt(c, &a.editorReqPane, draftPercent) < 460 {
+			columns = ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceL))
 		}
-		if d.auth.Type == request.AuthInherit {
-			resolved, from := a.inheritance(d.composeCollection).InheritAuth(d.auth)
-			text := locales.NoAuthSet()
-			if from != "" {
-				text = locales.UsesAuthFrom(resolved.Type, from)
-			}
-			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-				uikit.Meta(c, text)
-				if path := cmp.Or(from, d.composeCollection); path != "" && uikit.SecondaryButton(c, settingsLabel(path)).Clicked() {
-					a.openFolder(path)
+		columns.Children(func() {
+			ui.Column(c).Width(uikit.WidthFieldWide).Shrink(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
+				uikit.Label(c, locales.AuthType())
+				uikit.Select(c, &d.auth.Type, append([]string{request.AuthInherit}, authTypes...)).
+					Label(locales.AuthorizationType()).FillWidth()
+				uikit.Hint(c, locales.PreferVariablesOrVaultName())
+			})
+			ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
+				ui.Row(c).Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Children(func() {
+					uikit.BodyStrong(c, typeName)
+					if inherited {
+						uikit.Badge(c, locales.Inherited(), t.TextMuted)
+					}
+				})
+				if inherited {
+					ui.Column(c).Disabled(true).Children(func() {
+						ui.Form(c, func() { a.authFieldRows(c, shown, d.composeCollection, d.unicodeHandle) })
+					})
+					text := locales.NoAuthSet()
+					if from != "" {
+						text = locales.UsesAuthFrom(resolved.Type, from)
+					}
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+						uikit.Hint(c, text)
+						if path := cmp.Or(from, d.composeCollection); path != "" && uikit.SecondaryButton(c, settingsLabel(path)).Clicked() {
+							a.openFolder(path)
+						}
+					})
+				} else {
+					ui.Form(c, func() { a.authFieldRows(c, shown, d.composeCollection, d.unicodeHandle) })
 				}
 			})
+		})
+		if d.auth.Type == request.AuthOAuth2 {
+			a.savedOAuthTokens(c)
 		}
 	})
 }
@@ -450,13 +501,24 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 var authTypes = []string{"None", "Bearer", "Basic", "API key", request.AuthOAuth2, request.AuthOAuth1,
 	request.AuthDigest, request.AuthNTLM, request.AuthAWS, request.AuthJWT, request.AuthHawk, request.AuthEdgeGrid, request.AuthASAP}
 
-// authFields edits one Auth, a request's or a folder's; collection is where
-// it is used, for the variables an OAuth 2.0 token request expands.
+// authFields edits one Auth in a Form: its type, then the fields that type
+// uses. The request tab puts the type beside the fields instead.
 func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, collection string, focus ...func(string) *ui.Handle) {
 	t := c.Theme()
 	if auth.Type != request.AuthInherit {
 		uikit.Meta(c, locales.PreferVariablesOrVaultName())
 	}
+	ui.Form(c, func() {
+		ui.Field(c, locales.TypeText(), func() {
+			uikit.Select(c, &auth.Type, types).Label(locales.AuthorizationType()).Width(uikit.WidthWide)
+		})
+		a.authFieldRows(c, auth, collection, focus...)
+	}).Gap(t.Space(uikit.SpaceL))
+}
+
+// authFieldRows draws the fields the chosen type uses, inside a Form so their
+// labels line up with the control beside them.
+func (a *app) authFieldRows(c *ui.Context, auth *request.Auth, collection string, focus ...func(string) *ui.Handle) {
 	bind := func(element ui.Element, label string) ui.Element {
 		if len(focus) > 0 && focus[0] != nil {
 			if handle := focus[0]("auth-" + label); handle != nil {
@@ -466,215 +528,210 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 		return element
 	}
 	input := func(value *string, label string) ui.Element {
-		return bind(a.variableInput(c, "auth-"+label, value, label, collection), label)
+		return bind(a.variableInput(c, "auth-"+label, value, label, collection), label).FillWidth()
 	}
 	area := func(value *string, label string) ui.Element {
-		return bind(a.variableTextArea(c, "auth-"+label, value, label, collection), label)
+		return bind(a.variableTextArea(c, "auth-"+label, value, label, collection), label).FillWidth()
 	}
 	password := func(value *string, label string) ui.Element {
-		return bind(a.variablePasswordInput(c, "auth-"+label, value, label, collection), label)
+		return bind(a.variablePasswordInput(c, "auth-"+label, value, label, collection), label).FillWidth()
 	}
 	sensitiveArea := func(value *string, label string) ui.Element {
-		return bind(a.variableSensitiveTextArea(c, "auth-"+label, value, label, collection), label)
+		return bind(a.variableSensitiveTextArea(c, "auth-"+label, value, label, collection), label).FillWidth()
 	}
-	ui.Form(c, func() {
-		ui.Field(c, locales.TypeText(), func() {
-			uikit.Select(c, &auth.Type, types).Label(locales.AuthorizationType()).Width(uikit.WidthWide)
+	switch auth.Type {
+	case "Bearer":
+		ui.Field(c, locales.BearerToken(), func() {
+			password(&auth.Token, "Bearer token").Placeholder(locales.Token())
 		})
-		switch auth.Type {
-		case "Bearer":
-			ui.Field(c, locales.BearerToken(), func() {
-				password(&auth.Token, "Bearer token").Placeholder(locales.Token())
-			})
-		case "Basic":
-			ui.Field(c, locales.Username(), func() { input(&auth.Username, "Username") })
-			ui.Field(c, locales.Password(), func() { password(&auth.Password, "Password") })
-		case "API key":
-			ui.Field(c, locales.ApiKeyName(), func() { input(&auth.Key, "API key name") })
-			ui.Field(c, locales.ApiKeyValue(), func() { password(&auth.Value, "API key value") })
-			ui.Field(c, locales.Location(), func() {
-				uikit.SelectLabels(c, &auth.Location, []string{"Header", "Query"}, optionLabel).Label(locales.ApiKeyLocation()).Width(uikit.WidthField)
-			})
-		case request.AuthOAuth2:
-			a.oauthFields(c, auth, collection)
-		case request.AuthOAuth1:
-			o := &auth.OAuth1
-			if o.SignatureMethod == "" {
-				o.SignatureMethod = request.OAuth1Methods[0]
-			}
-			addTo := cmp.Or(o.AddTo, "Header")
-			if addTo == "Auto" {
-				addTo = "Automatic"
-			}
-			ui.Field(c, locales.ConsumerKey(), func() { input(&o.ConsumerKey, "Consumer key") })
-			ui.Field(c, locales.ConsumerSecret(), func() {
-				password(&o.ConsumerSecret, "Consumer secret").Placeholder("{{vault:oauth1_secret}}")
-			})
-			ui.Field(c, locales.Token2(), func() { input(&o.Token, "Token").Placeholder(locales.OptionalForTwoLeggedAuth()) })
-			ui.Field(c, locales.TokenSecret(), func() { password(&o.TokenSecret, "Token secret") })
-			ui.Field(c, locales.SignatureMethod(), func() {
-				uikit.Select(c, &o.SignatureMethod, request.OAuth1Methods).Width(180)
-			})
-			if strings.HasPrefix(o.SignatureMethod, "RSA-") {
-				ui.Field(c, locales.PrivateKey(), func() {
-					sensitiveArea(&o.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:oauth1_key}}")
-				})
-			}
-			ui.Field(c, locales.AddAuthorizationTo(), func() {
-				if uikit.SelectLabels(c, &addTo, []string{"Header", "Query", "Body", "Automatic"}, optionLabel).Width(180).Changed() {
-					o.AddTo = addTo
-					if addTo == "Header" {
-						o.AddTo = ""
-					} else if addTo == "Automatic" {
-						o.AddTo = "Auto"
-					}
-				}
-			}).Description(locales.AutomaticUsesAFormBody())
-			ui.Field(c, locales.BodyHash(), func() {
-				uikit.Checkbox(c, &o.IncludeBodyHash, locales.HashNonFormBody())
-			}).Description(locales.AddsOauthBodyHashForm())
-			ui.Field(c, locales.EmptyParameters(), func() {
-				uikit.Checkbox(c, &o.AddEmptyParamsToSign, locales.IncludeInSignature())
-			})
-			ui.Field(c, locales.Timestamp(), func() { input(&o.Timestamp, "Timestamp").Placeholder(locales.Now()).Width(uikit.WidthFieldWide) })
-			ui.Field(c, locales.Nonce(), func() { input(&o.Nonce, "Nonce").Placeholder(locales.Random()).Width(uikit.WidthFieldWide) })
-			ui.Field(c, locales.Version(), func() { input(&o.Version, "Version").Placeholder("1.0").Width(uikit.WidthNarrow) })
-			ui.Field(c, locales.Realm(), func() { input(&o.Realm, "Realm").Placeholder(locales.Optional()) })
-			ui.Field(c, locales.CallbackUrl(), func() { input(&o.Callback, "Callback URL").Placeholder(locales.OptionalOauthCallback()) })
-			ui.Field(c, locales.Verifier(), func() { input(&o.Verifier, "Verifier").Placeholder(locales.OptionalOauthVerifier()) })
-		case request.AuthDigest:
-			ui.Field(c, locales.Username(), func() { input(&auth.Username, "Username") })
-			ui.Field(c, locales.Password(), func() { password(&auth.Password, "Password") }).
-				Description(locales.TheFirstSendGetsThe())
-		case request.AuthNTLM:
-			n := &auth.NTLM
-			ui.Field(c, locales.Username(), func() { input(&n.Username, "Username") }).
-				Description(locales.NtlmUsernameHint())
-			ui.Field(c, locales.Password(), func() {
-				password(&n.Password, "Password").Placeholder("{{vault:ntlm_password}}")
-			})
-			ui.Field(c, locales.Domain(), func() { input(&n.Domain, "Domain").Placeholder(locales.Optional()) })
-			ui.Field(c, locales.Workstation(), func() { input(&n.Workstation, "Workstation").Placeholder(locales.OptionalWorkstationExample()) })
-			ui.Field(c, locales.Retry(), func() {
-				uikit.Checkbox(c, &n.DisableRetry, locales.DisableRetryingTheRequest())
-			}).Description(locales.NtlmDisableRetryHint())
-		case request.AuthAWS:
-			aws := &auth.AWS
-			ui.Field(c, locales.AccessKey(), func() { input(&aws.AccessKey, "Access key") })
-			ui.Field(c, locales.SecretKey(), func() {
-				password(&aws.SecretKey, "Secret key").Placeholder("{{vault:aws_secret}}")
-			})
-			ui.Field(c, locales.Region(), func() { input(&aws.Region, "Region").Placeholder("us-east-1").Width(260) })
-			ui.Field(c, locales.Service(), func() {
-				input(&aws.Service, "Service").Placeholder("e.g. execute-api or s3").Width(260)
-			})
-			ui.Field(c, locales.SessionToken(), func() {
-				password(&aws.SessionToken, "Session token").Placeholder(locales.Optional())
-			})
-		case request.AuthJWT:
-			jwt := &auth.JWT
-			if jwt.Algorithm == "" {
-				jwt.Algorithm = request.JWTAlgorithms[0]
-			}
-			addTo := "Header"
-			if jwt.AddTo == "Query" {
-				addTo = "Query"
-			}
-			ui.Field(c, locales.Algorithm(), func() { uikit.Select(c, &jwt.Algorithm, request.JWTAlgorithms).Width(uikit.WidthField) })
-			if strings.HasPrefix(jwt.Algorithm, "HS") {
-				ui.Field(c, locales.Secret(), func() {
-					password(&jwt.Secret, "Secret").Placeholder("{{vault:jwt_secret}}")
-				})
-				ui.Field(c, "", func() { uikit.Checkbox(c, &jwt.SecretBase64, locales.SecretIsBase64()) })
-			} else {
-				ui.Field(c, locales.PrivateKey(), func() {
-					sensitiveArea(&jwt.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
-				})
-			}
-			ui.Field(c, locales.Payload(), func() {
-				area(&jwt.Payload, "Payload").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder("{\"sub\": \"{{user_id}}\"}")
-			})
-			ui.Field(c, locales.ExtraHeader(), func() {
-				input(&jwt.Header, "Extra header").Placeholder(locales.OptionalEGKidKey()).Font(uikit.FontMono)
-			})
-			ui.Field(c, locales.AddTokenTo(), func() {
-				if uikit.SelectLabels(c, &addTo, []string{"Header", "Query"}, optionLabel).Width(uikit.WidthField).Changed() {
-					jwt.AddTo = ""
-					if addTo == "Query" {
-						jwt.AddTo = "Query"
-					}
-				}
-			})
-			if jwt.AddTo == "Query" {
-				ui.Field(c, locales.QueryParameter(), func() { input(&jwt.QueryParam, "Query parameter").Placeholder("token").Width(uikit.WidthFieldWide) })
-			} else {
-				ui.Field(c, locales.HeaderPrefix(), func() { input(&jwt.Prefix, "Header prefix").Placeholder(locales.Bearer()).Width(150) })
-			}
-		case request.AuthHawk:
-			h := &auth.Hawk
-			if h.Algorithm == "" {
-				h.Algorithm = request.HawkAlgorithms[0]
-			}
-			ui.Field(c, locales.AuthId(), func() { input(&h.AuthID, "Auth ID") })
-			ui.Field(c, locales.AuthKey(), func() {
-				password(&h.AuthKey, "Auth key").Placeholder("{{vault:hawk_key}}")
-			})
-			ui.Field(c, locales.Algorithm(), func() {
-				uikit.Select(c, &h.Algorithm, request.HawkAlgorithms).Width(uikit.WidthField)
-			})
-			ui.Field(c, locales.PayloadHash(), func() {
-				uikit.Checkbox(c, &h.IncludePayloadHash, locales.IncludePayloadHash())
-			}).Description(locales.CoversContentTypeAndThe())
-			ui.Field(c, locales.Timestamp(), func() { input(&h.Timestamp, "Timestamp").Placeholder(locales.Now()).Width(uikit.WidthFieldWide) })
-			ui.Field(c, locales.Nonce(), func() { input(&h.Nonce, "Nonce").Placeholder(locales.Random()).Width(uikit.WidthFieldWide) })
-			ui.Field(c, locales.Ext(), func() { input(&h.ExtraData, "ext").Placeholder(locales.ApplicationSpecificDataOptional()) })
-			ui.Field(c, locales.App(), func() { input(&h.App, "App").Placeholder(locales.OzApplicationIdOptional()) })
-			ui.Field(c, locales.Delegation(), func() { input(&h.Delegation, "Delegation").Placeholder(locales.OzDelegatedByIdOptional()) })
-			if h.User != "" {
-				ui.Field(c, locales.User(), func() { input(&h.User, "User") }).
-					Description(locales.KeptForPostmanTheRequest())
-			}
-		case request.AuthASAP:
-			s := &auth.ASAP
-			if s.Algorithm == "" {
-				s.Algorithm = request.ASAPAlgorithms[0]
-			}
-			ui.Field(c, locales.Algorithm(), func() { uikit.Select(c, &s.Algorithm, request.ASAPAlgorithms).Width(uikit.WidthField) })
-			ui.Field(c, locales.Issuer(), func() { input(&s.Issuer, "Issuer") })
-			ui.Field(c, locales.Audience(), func() { input(&s.Audience, "Audience") })
-			ui.Field(c, locales.KeyId(), func() { input(&s.KeyID, "Key ID") })
-			ui.Field(c, locales.PrivateKey(), func() {
-				sensitiveArea(&s.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:asap_key}}")
-			})
-			ui.Field(c, locales.Subject(), func() { input(&s.Subject, "Subject").Placeholder(locales.OptionalDefaultsToTheIssuer()) })
-			ui.Field(c, locales.AdditionalClaims(), func() {
-				area(&s.Claims, "Additional claims").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder(`{"custom": "{{value}}"}`)
-			})
-			ui.Field(c, locales.Expiry(), func() {
-				expiry := float64(cmp.Or(s.Expiry, 3600))
-				// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-				if ui.NumberInput(c, &expiry, 1, 86400, 1).Label(locales.Expiry()).Changed() {
-					s.Expiry = int(expiry)
-				}
-				uikit.Meta(c, locales.AsapExpiryHint())
-			})
-		case request.AuthEdgeGrid:
-			e := &auth.EdgeGrid
-			ui.Field(c, locales.AccessToken(), func() { input(&e.AccessToken, "Access token") })
-			ui.Field(c, locales.ClientToken(), func() { input(&e.ClientToken, "Client token") })
-			ui.Field(c, locales.ClientSecret(), func() {
-				password(&e.ClientSecret, "Client secret").Placeholder("{{vault:edgegrid_secret}}")
-			})
-			ui.Field(c, locales.BaseUrl(), func() {
-				input(&e.BaseURL, "Base URL").Placeholder(locales.RequestHostByDefault())
-			}).Description(locales.TheHostTheSignatureCovers())
-			ui.Field(c, locales.Timestamp(), func() { input(&e.Timestamp, "Timestamp").Placeholder(locales.Now()).Width(uikit.WidthWide) })
-			ui.Field(c, locales.Nonce(), func() { input(&e.Nonce, "Nonce").Placeholder(locales.RandomUuid()).Width(uikit.WidthWide) })
-			ui.Field(c, locales.HeadersToSign(), func() {
-				input(&e.HeadersToSign, "Headers to sign").Placeholder(locales.CommaSeparatedEGX())
-			}).Description(locales.NamesAreSignedInThis())
+	case "Basic":
+		ui.Field(c, locales.Username(), func() { input(&auth.Username, "Username") })
+		ui.Field(c, locales.Password(), func() { password(&auth.Password, "Password") })
+	case "API key":
+		ui.Field(c, locales.ApiKeyName(), func() { input(&auth.Key, "API key name") })
+		ui.Field(c, locales.ApiKeyValue(), func() { password(&auth.Value, "API key value") })
+		ui.Field(c, locales.Location(), func() {
+			uikit.SelectLabels(c, &auth.Location, []string{"Header", "Query"}, optionLabel).Label(locales.ApiKeyLocation()).FillWidth()
+		})
+	case request.AuthOAuth2:
+		a.oauthFields(c, auth, collection)
+	case request.AuthOAuth1:
+		o := &auth.OAuth1
+		if o.SignatureMethod == "" {
+			o.SignatureMethod = request.OAuth1Methods[0]
 		}
-	}).Gap(t.Space(uikit.SpaceL))
+		addTo := cmp.Or(o.AddTo, "Header")
+		if addTo == "Auto" {
+			addTo = "Automatic"
+		}
+		ui.Field(c, locales.ConsumerKey(), func() { input(&o.ConsumerKey, "Consumer key") })
+		ui.Field(c, locales.ConsumerSecret(), func() {
+			password(&o.ConsumerSecret, "Consumer secret").Placeholder("{{vault:oauth1_secret}}")
+		})
+		ui.Field(c, locales.Token2(), func() { input(&o.Token, "Token").Placeholder(locales.OptionalForTwoLeggedAuth()) })
+		ui.Field(c, locales.TokenSecret(), func() { password(&o.TokenSecret, "Token secret") })
+		ui.Field(c, locales.SignatureMethod(), func() {
+			uikit.Select(c, &o.SignatureMethod, request.OAuth1Methods).Width(180)
+		})
+		if strings.HasPrefix(o.SignatureMethod, "RSA-") {
+			ui.Field(c, locales.PrivateKey(), func() {
+				sensitiveArea(&o.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:oauth1_key}}")
+			})
+		}
+		ui.Field(c, locales.AddAuthorizationTo(), func() {
+			if uikit.SelectLabels(c, &addTo, []string{"Header", "Query", "Body", "Automatic"}, optionLabel).Width(180).Changed() {
+				o.AddTo = addTo
+				if addTo == "Header" {
+					o.AddTo = ""
+				} else if addTo == "Automatic" {
+					o.AddTo = "Auto"
+				}
+			}
+		}).Description(locales.AutomaticUsesAFormBody())
+		ui.Field(c, locales.BodyHash(), func() {
+			uikit.Checkbox(c, &o.IncludeBodyHash, locales.HashNonFormBody())
+		}).Description(locales.AddsOauthBodyHashForm())
+		ui.Field(c, locales.EmptyParameters(), func() {
+			uikit.Checkbox(c, &o.AddEmptyParamsToSign, locales.IncludeInSignature())
+		})
+		ui.Field(c, locales.Timestamp(), func() { input(&o.Timestamp, "Timestamp").Placeholder(locales.Now()).Width(uikit.WidthFieldWide) })
+		ui.Field(c, locales.Nonce(), func() { input(&o.Nonce, "Nonce").Placeholder(locales.Random()).Width(uikit.WidthFieldWide) })
+		ui.Field(c, locales.Version(), func() { input(&o.Version, "Version").Placeholder("1.0").Width(uikit.WidthNarrow) })
+		ui.Field(c, locales.Realm(), func() { input(&o.Realm, "Realm").Placeholder(locales.Optional()) })
+		ui.Field(c, locales.CallbackUrl(), func() { input(&o.Callback, "Callback URL").Placeholder(locales.OptionalOauthCallback()) })
+		ui.Field(c, locales.Verifier(), func() { input(&o.Verifier, "Verifier").Placeholder(locales.OptionalOauthVerifier()) })
+	case request.AuthDigest:
+		ui.Field(c, locales.Username(), func() { input(&auth.Username, "Username") })
+		ui.Field(c, locales.Password(), func() { password(&auth.Password, "Password") }).
+			Description(locales.TheFirstSendGetsThe())
+	case request.AuthNTLM:
+		n := &auth.NTLM
+		ui.Field(c, locales.Username(), func() { input(&n.Username, "Username") }).
+			Description(locales.NtlmUsernameHint())
+		ui.Field(c, locales.Password(), func() {
+			password(&n.Password, "Password").Placeholder("{{vault:ntlm_password}}")
+		})
+		ui.Field(c, locales.Domain(), func() { input(&n.Domain, "Domain").Placeholder(locales.Optional()) })
+		ui.Field(c, locales.Workstation(), func() { input(&n.Workstation, "Workstation").Placeholder(locales.OptionalWorkstationExample()) })
+		ui.Field(c, locales.Retry(), func() {
+			uikit.Checkbox(c, &n.DisableRetry, locales.DisableRetryingTheRequest())
+		}).Description(locales.NtlmDisableRetryHint())
+	case request.AuthAWS:
+		aws := &auth.AWS
+		ui.Field(c, locales.AccessKey(), func() { input(&aws.AccessKey, "Access key") })
+		ui.Field(c, locales.SecretKey(), func() {
+			password(&aws.SecretKey, "Secret key").Placeholder("{{vault:aws_secret}}")
+		})
+		ui.Field(c, locales.Region(), func() { input(&aws.Region, "Region").Placeholder("us-east-1").Width(260) })
+		ui.Field(c, locales.Service(), func() {
+			input(&aws.Service, "Service").Placeholder("e.g. execute-api or s3").Width(260)
+		})
+		ui.Field(c, locales.SessionToken(), func() {
+			password(&aws.SessionToken, "Session token").Placeholder(locales.Optional())
+		})
+	case request.AuthJWT:
+		jwt := &auth.JWT
+		if jwt.Algorithm == "" {
+			jwt.Algorithm = request.JWTAlgorithms[0]
+		}
+		addTo := "Header"
+		if jwt.AddTo == "Query" {
+			addTo = "Query"
+		}
+		ui.Field(c, locales.Algorithm(), func() { uikit.Select(c, &jwt.Algorithm, request.JWTAlgorithms).Width(uikit.WidthField) })
+		if strings.HasPrefix(jwt.Algorithm, "HS") {
+			ui.Field(c, locales.Secret(), func() {
+				password(&jwt.Secret, "Secret").Placeholder("{{vault:jwt_secret}}")
+			})
+			ui.Field(c, "", func() { uikit.Checkbox(c, &jwt.SecretBase64, locales.SecretIsBase64()) })
+		} else {
+			ui.Field(c, locales.PrivateKey(), func() {
+				sensitiveArea(&jwt.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
+			})
+		}
+		ui.Field(c, locales.Payload(), func() {
+			area(&jwt.Payload, "Payload").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder("{\"sub\": \"{{user_id}}\"}")
+		})
+		ui.Field(c, locales.ExtraHeader(), func() {
+			input(&jwt.Header, "Extra header").Placeholder(locales.OptionalEGKidKey()).Font(uikit.FontMono)
+		})
+		ui.Field(c, locales.AddTokenTo(), func() {
+			if uikit.SelectLabels(c, &addTo, []string{"Header", "Query"}, optionLabel).Width(uikit.WidthField).Changed() {
+				jwt.AddTo = ""
+				if addTo == "Query" {
+					jwt.AddTo = "Query"
+				}
+			}
+		})
+		if jwt.AddTo == "Query" {
+			ui.Field(c, locales.QueryParameter(), func() { input(&jwt.QueryParam, "Query parameter").Placeholder("token").Width(uikit.WidthFieldWide) })
+		} else {
+			ui.Field(c, locales.HeaderPrefix(), func() { input(&jwt.Prefix, "Header prefix").Placeholder(locales.Bearer()).Width(150) })
+		}
+	case request.AuthHawk:
+		h := &auth.Hawk
+		if h.Algorithm == "" {
+			h.Algorithm = request.HawkAlgorithms[0]
+		}
+		ui.Field(c, locales.AuthId(), func() { input(&h.AuthID, "Auth ID") })
+		ui.Field(c, locales.AuthKey(), func() {
+			password(&h.AuthKey, "Auth key").Placeholder("{{vault:hawk_key}}")
+		})
+		ui.Field(c, locales.Algorithm(), func() {
+			uikit.Select(c, &h.Algorithm, request.HawkAlgorithms).Width(uikit.WidthField)
+		})
+		ui.Field(c, locales.PayloadHash(), func() {
+			uikit.Checkbox(c, &h.IncludePayloadHash, locales.IncludePayloadHash())
+		}).Description(locales.CoversContentTypeAndThe())
+		ui.Field(c, locales.Timestamp(), func() { input(&h.Timestamp, "Timestamp").Placeholder(locales.Now()).Width(uikit.WidthFieldWide) })
+		ui.Field(c, locales.Nonce(), func() { input(&h.Nonce, "Nonce").Placeholder(locales.Random()).Width(uikit.WidthFieldWide) })
+		ui.Field(c, locales.Ext(), func() { input(&h.ExtraData, "ext").Placeholder(locales.ApplicationSpecificDataOptional()) })
+		ui.Field(c, locales.App(), func() { input(&h.App, "App").Placeholder(locales.OzApplicationIdOptional()) })
+		ui.Field(c, locales.Delegation(), func() { input(&h.Delegation, "Delegation").Placeholder(locales.OzDelegatedByIdOptional()) })
+		if h.User != "" {
+			ui.Field(c, locales.User(), func() { input(&h.User, "User") }).
+				Description(locales.KeptForPostmanTheRequest())
+		}
+	case request.AuthASAP:
+		s := &auth.ASAP
+		if s.Algorithm == "" {
+			s.Algorithm = request.ASAPAlgorithms[0]
+		}
+		ui.Field(c, locales.Algorithm(), func() { uikit.Select(c, &s.Algorithm, request.ASAPAlgorithms).Width(uikit.WidthField) })
+		ui.Field(c, locales.Issuer(), func() { input(&s.Issuer, "Issuer") })
+		ui.Field(c, locales.Audience(), func() { input(&s.Audience, "Audience") })
+		ui.Field(c, locales.KeyId(), func() { input(&s.KeyID, "Key ID") })
+		ui.Field(c, locales.PrivateKey(), func() {
+			sensitiveArea(&s.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:asap_key}}")
+		})
+		ui.Field(c, locales.Subject(), func() { input(&s.Subject, "Subject").Placeholder(locales.OptionalDefaultsToTheIssuer()) })
+		ui.Field(c, locales.AdditionalClaims(), func() {
+			area(&s.Claims, "Additional claims").Height(72).Font(uikit.FontMono).Radius(uikit.RadiusControl).Placeholder(`{"custom": "{{value}}"}`)
+		})
+		ui.Field(c, locales.Expiry(), func() {
+			expiry := float64(cmp.Or(s.Expiry, 3600))
+			// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
+			if ui.NumberInput(c, &expiry, 1, 86400, 1).Label(locales.Expiry()).Changed() {
+				s.Expiry = int(expiry)
+			}
+			uikit.Meta(c, locales.AsapExpiryHint())
+		})
+	case request.AuthEdgeGrid:
+		e := &auth.EdgeGrid
+		ui.Field(c, locales.AccessToken(), func() { input(&e.AccessToken, "Access token") })
+		ui.Field(c, locales.ClientToken(), func() { input(&e.ClientToken, "Client token") })
+		ui.Field(c, locales.ClientSecret(), func() {
+			password(&e.ClientSecret, "Client secret").Placeholder("{{vault:edgegrid_secret}}")
+		})
+		ui.Field(c, locales.BaseUrl(), func() {
+			input(&e.BaseURL, "Base URL").Placeholder(locales.RequestHostByDefault())
+		}).Description(locales.TheHostTheSignatureCovers())
+		ui.Field(c, locales.Timestamp(), func() { input(&e.Timestamp, "Timestamp").Placeholder(locales.Now()).Width(uikit.WidthWide) })
+		ui.Field(c, locales.Nonce(), func() { input(&e.Nonce, "Nonce").Placeholder(locales.RandomUuid()).Width(uikit.WidthWide) })
+		ui.Field(c, locales.HeadersToSign(), func() {
+			input(&e.HeadersToSign, "Headers to sign").Placeholder(locales.CommaSeparatedEGX())
+		}).Description(locales.NamesAreSignedInThis())
+	}
 }
 
 func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
@@ -764,21 +821,26 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		})
 		uikit.Hint(c, locales.OnlyThePathIsSaved())
 	} else {
-		uikit.Meta(c, locales.FormDataFileValuesAre())
-		a.requestFieldsEditor(c, &d.formFields, fieldsOptions{file: true, collection: d.composeCollection,
-			key: "field", focus: d.unicodeHandle}, locales.Field(), func() {
-			if uikit.ToolbarButton(c, locales.AttachFile(), locales.AddAFilePartOnly(), false).Children(func() {
-				ui.Icon(c, fileInputIcon).Size(uikit.IconInline, uikit.IconInline)
-				uikit.Body(c, locales.AttachFile())
-			}).Clicked() && a.win != nil {
-				go guarded(func() {
-					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.AttachRequestFile()})
-					if err == nil && len(paths) > 0 {
-						a.win.Update(func() { d.formFields = append(d.formFields, request.Field{Name: "file", Value: paths[0], File: true}) })
-					}
-				})
+		caption := locales.UrlEncoded()
+		opts := fieldsOptions{file: d.bodyMode == "Multipart", collection: d.composeCollection,
+			caption: caption, key: "field", focus: d.unicodeHandle}
+		if d.bodyMode == "Multipart" {
+			opts.caption = locales.FormData()
+			opts.captionEnd = func() {
+				if uikit.ToolbarButton(c, locales.AttachFile(), locales.AddAFilePartOnly(), false).Children(func() {
+					ui.Icon(c, fileInputIcon).Size(uikit.IconInline, uikit.IconInline)
+					uikit.Body(c, locales.AttachFile())
+				}).Clicked() && a.win != nil {
+					go guarded(func() {
+						paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.AttachRequestFile()})
+						if err == nil && len(paths) > 0 {
+							a.win.Update(func() { d.formFields = append(d.formFields, request.Field{Name: "file", Value: paths[0], File: true}) })
+						}
+					})
+				}
 			}
-		})
+		}
+		a.requestFieldsEditor(c, &d.formFields, opts, locales.Field())
 	}
 }
 
@@ -923,8 +985,9 @@ func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
 // The document's string stays the source of truth for running and saving.
 func (a *app) requestScriptText(c *ui.Context, d *requestDocument) {
 	if d.scriptTab == 1 {
-		a.authoredTextOutlined(c, &d.composePost, &d.postEditor, &d.postFor,
-			locales.PostResponseScript(), "JavaScript", outlineTarget{key: "draft:script:post", kind: outlineScript},
+		a.authoredTextOutlinedHint(c, &d.composePost, &d.postEditor, &d.postFor,
+			locales.PostResponseScript(), "JavaScript", locales.PostResponseScriptPlaceholder(),
+			outlineTarget{key: "draft:script:post", kind: outlineScript},
 			d.unicodeHandle(problemFieldPost))
 		a.installUnicodeHover(d.postEditor)
 		a.wireVariableEditor(d.postEditor, d.composeCollection)
@@ -932,8 +995,9 @@ func (a *app) requestScriptText(c *ui.Context, d *requestDocument) {
 		a.trackEditorQuickFix(d, problemFieldPost, d.postEditor)
 		a.quickFixHandleMenu(c, d.unicodeHandle(problemFieldPost), d.postEditor)
 	} else {
-		a.authoredTextOutlined(c, &d.composePre, &d.preEditor, &d.preFor,
-			locales.PreRequestScript(), "JavaScript", outlineTarget{key: "draft:script:pre", kind: outlineScript},
+		a.authoredTextOutlinedHint(c, &d.composePre, &d.preEditor, &d.preFor,
+			locales.PreRequestScript(), "JavaScript", locales.PreRequestScriptPlaceholder(),
+			outlineTarget{key: "draft:script:pre", kind: outlineScript},
 			d.unicodeHandle(problemFieldPre))
 		a.installUnicodeHover(d.preEditor)
 		a.wireVariableEditor(d.preEditor, d.composeCollection)
@@ -965,12 +1029,20 @@ func authoredText(c *ui.Context, text *string, state **editor.State, seen *strin
 // the only thing that recomputes its symbols.
 func (a *app) authoredTextOutlined(c *ui.Context, text *string, state **editor.State, seen *string,
 	label, language string, target outlineTarget, focus ...*ui.Handle) {
+	a.authoredTextOutlinedHint(c, text, state, seen, label, language, "", target, focus...)
+}
+
+// authoredTextOutlinedHint is authoredTextOutlined with a placeholder for an
+// empty document, as a script editor shows before the first line is typed.
+func (a *app) authoredTextOutlinedHint(c *ui.Context, text *string, state **editor.State, seen *string,
+	label, language, placeholder string, target outlineTarget, focus ...*ui.Handle) {
 	if *state == nil || *seen != *text {
 		buf := editor.NewBuffer(*text)
 		buf.SetLanguage(editor.LanguageNamed(language))
-		*state = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: label}
+		*state = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: label, Placeholder: placeholder}
 		*seen = *text
 	}
+	(*state).Placeholder = placeholder
 	if len(focus) > 0 && focus[0] != nil && target.focus == nil {
 		handle := focus[0]
 		target.focus = func() { handle.Focus(c) }

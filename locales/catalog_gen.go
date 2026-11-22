@@ -5710,6 +5710,16 @@ func (msgs Messages) PostResponseScriptOf(kind string) string {
 	return Catalog.Format(msgs.locale, "postResponseScriptOf", map[string]any{"kind": kind})
 }
 
+// PostResponseScriptPlaceholder says "Use the pm API to test responses."
+// in the language the app shows.
+func PostResponseScriptPlaceholder() string { return In(i18n.Locale()).PostResponseScriptPlaceholder() }
+
+// PostResponseScriptPlaceholder says "Use the pm API to test responses."
+// in the language of msgs.
+func (msgs Messages) PostResponseScriptPlaceholder() string {
+	return Catalog.Format(msgs.locale, "postResponseScriptPlaceholder", nil)
+}
+
 // PreRequestScript says "Pre-request script"
 // in the language the app shows.
 func PreRequestScript() string { return In(i18n.Locale()).PreRequestScript() }
@@ -5728,6 +5738,16 @@ func PreRequestScriptOf(kind string) string { return In(i18n.Locale()).PreReques
 // in the language of msgs.
 func (msgs Messages) PreRequestScriptOf(kind string) string {
 	return Catalog.Format(msgs.locale, "preRequestScriptOf", map[string]any{"kind": kind})
+}
+
+// PreRequestScriptPlaceholder says "Use the pm API to set variables."
+// in the language the app shows.
+func PreRequestScriptPlaceholder() string { return In(i18n.Locale()).PreRequestScriptPlaceholder() }
+
+// PreRequestScriptPlaceholder says "Use the pm API to set variables."
+// in the language of msgs.
+func (msgs Messages) PreRequestScriptPlaceholder() string {
+	return Catalog.Format(msgs.locale, "preRequestScriptPlaceholder", nil)
 }
 
 // PreparingRequests says "Preparing requests and examples…"
@@ -7686,6 +7706,26 @@ func SwitchHostProfiles() string { return In(i18n.Locale()).SwitchHostProfiles()
 // in the language of msgs.
 func (msgs Messages) SwitchHostProfiles() string {
 	return Catalog.Format(msgs.locale, "switchHostProfiles", nil)
+}
+
+// SwitchOff says "OFF"
+// in the language the app shows.
+func SwitchOff() string { return In(i18n.Locale()).SwitchOff() }
+
+// SwitchOff says "OFF"
+// in the language of msgs.
+func (msgs Messages) SwitchOff() string {
+	return Catalog.Format(msgs.locale, "switchOff", nil)
+}
+
+// SwitchOn says "ON"
+// in the language the app shows.
+func SwitchOn() string { return In(i18n.Locale()).SwitchOn() }
+
+// SwitchOn says "ON"
+// in the language of msgs.
+func (msgs Messages) SwitchOn() string {
+	return Catalog.Format(msgs.locale, "switchOn", nil)
 }
 
 // SystemProxyAutoOn says "System proxy: automatic configuration is still on"
@@ -10158,6 +10198,16 @@ func AuthorizationUrl() string { return In(i18n.Locale()).AuthorizationUrl() }
 // in the language of msgs.
 func (msgs Messages) AuthorizationUrl() string {
 	return Catalog.Format(msgs.locale, "authorizationUrl", nil)
+}
+
+// AuthType says "Auth type"
+// in the language the app shows.
+func AuthType() string { return In(i18n.Locale()).AuthType() }
+
+// AuthType says "Auth type"
+// in the language of msgs.
+func (msgs Messages) AuthType() string {
+	return Catalog.Format(msgs.locale, "authType", nil)
 }
 
 // AttentionBreakpoint says "{method} {host} is paused at a breakpoint"
@@ -15196,6 +15246,26 @@ func (msgs Messages) DecryptionDomains() string {
 	return Catalog.Format(msgs.locale, "decryptionDomains", nil)
 }
 
+// DefaultCollection says "Default: Collection"
+// in the language the app shows.
+func DefaultCollection() string { return In(i18n.Locale()).DefaultCollection() }
+
+// DefaultCollection says "Default: Collection"
+// in the language of msgs.
+func (msgs Messages) DefaultCollection() string {
+	return Catalog.Format(msgs.locale, "defaultCollection", nil)
+}
+
+// DefaultFolder says "Default: Folder"
+// in the language the app shows.
+func DefaultFolder() string { return In(i18n.Locale()).DefaultFolder() }
+
+// DefaultFolder says "Default: Folder"
+// in the language of msgs.
+func (msgs Messages) DefaultFolder() string {
+	return Catalog.Format(msgs.locale, "defaultFolder", nil)
+}
+
 // DefaultLatestSuccessfulResponseAnd says "Default: latest successful response and one response per error status. Deselect incomplete or binary responses."
 // in the language the app shows.
 func DefaultLatestSuccessfulResponseAnd() string {
@@ -15206,6 +15276,16 @@ func DefaultLatestSuccessfulResponseAnd() string {
 // in the language of msgs.
 func (msgs Messages) DefaultLatestSuccessfulResponseAnd() string {
 	return Catalog.Format(msgs.locale, "defaultLatestSuccessfulResponseAnd", nil)
+}
+
+// DefaultSettings says "Default: Settings"
+// in the language the app shows.
+func DefaultSettings() string { return In(i18n.Locale()).DefaultSettings() }
+
+// DefaultSettings says "Default: Settings"
+// in the language of msgs.
+func (msgs Messages) DefaultSettings() string {
+	return Catalog.Format(msgs.locale, "defaultSettings", nil)
 }
 
 // DefaultText says "/ (default)"
@@ -18382,6 +18462,16 @@ func (msgs Messages) FormDataFileValuesAre() string {
 	return Catalog.Format(msgs.locale, "formDataFileValuesAre", nil)
 }
 
+// FormData says "Form Data"
+// in the language the app shows.
+func FormData() string { return In(i18n.Locale()).FormData() }
+
+// FormData says "Form Data"
+// in the language of msgs.
+func (msgs Messages) FormData() string {
+	return Catalog.Format(msgs.locale, "formData", nil)
+}
+
 // FormFields says "Form fields"
 // in the language the app shows.
 func FormFields() string { return In(i18n.Locale()).FormFields() }
@@ -20274,6 +20364,16 @@ func Inherit() string { return In(i18n.Locale()).Inherit() }
 // in the language of msgs.
 func (msgs Messages) Inherit() string {
 	return Catalog.Format(msgs.locale, "inherit", nil)
+}
+
+// Inherited says "Inherited"
+// in the language the app shows.
+func Inherited() string { return In(i18n.Locale()).Inherited() }
+
+// Inherited says "Inherited"
+// in the language of msgs.
+func (msgs Messages) Inherited() string {
+	return Catalog.Format(msgs.locale, "inherited", nil)
 }
 
 // Initial says "Initial"
@@ -26070,6 +26170,16 @@ func QueryParameter() string { return In(i18n.Locale()).QueryParameter() }
 // in the language of msgs.
 func (msgs Messages) QueryParameter() string {
 	return Catalog.Format(msgs.locale, "queryParameter", nil)
+}
+
+// QueryParams says "Query Params"
+// in the language the app shows.
+func QueryParams() string { return In(i18n.Locale()).QueryParams() }
+
+// QueryParams says "Query Params"
+// in the language of msgs.
+func (msgs Messages) QueryParams() string {
+	return Catalog.Format(msgs.locale, "queryParams", nil)
 }
 
 // QuickAccessCommands says "Commands"
@@ -33938,6 +34048,16 @@ func Trailers() string { return In(i18n.Locale()).Trailers() }
 // in the language of msgs.
 func (msgs Messages) Trailers() string {
 	return Catalog.Format(msgs.locale, "trailers", nil)
+}
+
+// Transport says "Transport"
+// in the language the app shows.
+func Transport() string { return In(i18n.Locale()).Transport() }
+
+// Transport says "Transport"
+// in the language of msgs.
+func (msgs Messages) Transport() string {
+	return Catalog.Format(msgs.locale, "transport", nil)
 }
 
 // TransportAppliesToSendAnd says "TRANSPORT · applies to Send and the Collection Runner"

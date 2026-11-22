@@ -2605,7 +2605,7 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 				}
 				if a.bp.Phase == capture.PhaseRequest {
 					uikit.Meta(c, locales.QueryParameters())
-					a.requestFieldsEditor(c, &a.bpQuery, fieldsOptions{}, locales.Parameter())
+					a.requestFieldsEditor(c, &a.bpQuery, fieldsOptions{key: "breakpoint-query"}, locales.Parameter())
 					uikit.Meta(c, locales.UncheckedRowsStayHereAnd())
 				}
 				uikit.Meta(c, locales.HeadersOneNameValuePer())
@@ -2620,7 +2620,7 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 					a.breakpointFileActions(c)
 				} else if a.bpFormRows {
 					uikit.Meta(c, locales.FormFields())
-					a.requestFieldsEditor(c, &a.bpForm, fieldsOptions{}, locales.Parameter())
+					a.requestFieldsEditor(c, &a.bpForm, fieldsOptions{key: "breakpoint-form"}, locales.Parameter())
 					uikit.Meta(c, locales.UncheckedRowsStayHereAnd())
 				} else {
 					uikit.TextArea(c, &a.bpBody).Height(160).Label(locales.Body()).Radius(uikit.RadiusControl)

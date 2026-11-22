@@ -56,10 +56,13 @@ func (a *app) variableSensitiveTextArea(c *ui.Context, key string, value *string
 
 // variableGridInput is requestGridInput with the same variable help, for the
 // Params, Headers and form tables. mask hides every hover value.
-func (a *app) variableGridInput(c *ui.Context, key string, value *string, placeholder, label, collection string, mask bool) ui.Element {
+func (a *app) variableGridInput(c *ui.Context, key string, value *string, placeholder, label, collection string, mask, mono bool) ui.Element {
 	in := uikit.InputControl(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
-		FillHeight().Padding(0, c.Theme().Space(uikit.SpaceM)).Font(uikit.FontMono).
+		FillHeight().Padding(0, c.Theme().Space(uikit.SpaceM)).
 		Border(1, ui.Color{})
+	if mono {
+		in.Font(uikit.FontMono)
+	}
 	a.attachVariables(c, in, key, value, label, collection, mask)
 	return in
 }

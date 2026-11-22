@@ -329,9 +329,8 @@ func (d *requestDocument) load(a *app, r savedRequest, key string) {
 	}
 }
 
-// A request pane's views. The row shows the first four in the order
-// requestPaneTabs gives them; the rest open from More, so a pane keeps one row
-// of them.
+// A request pane's views. The row fills from requestPaneViews' order, keeping
+// as many as fit; the rest open from More, so a pane keeps one row of them.
 const (
 	composeTabHeaders = iota
 	composeTabParams
@@ -1217,34 +1216,38 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 	if *selected == composeTabOriginal && !a.edited(f.id) {
 		*selected = composeTabHeaders
 	}
-	// The body's own tools are one row under the pane's tabs: the type and
-	// reader at the left, the format action at the right. The row is only
-	// there while Body is showing, so the other tabs keep their full height.
+	// The body type is a row of radio buttons, as Postman has it. The reader
+	// and Format follow it on the same row when the pane has room; in a narrow
+	// pane the type keeps its own row above them.
 	width := a.editorPaneWidthAt(c, &a.editorReqPane, draftPercent)
 	bodyTools := func() {
-		// The body type and its reader are choices among the pane's tabs, so
-		// they wear the toolbar's quiet face rather than a field's well.
-		uikit.Tip(c, uikit.ToolbarSelect(c, optionLabel(d.bodyMode), func(m *ui.Menu) {
-			for _, kind := range bodyTypes {
-				if m.Item(optionLabel(kind)).Checked(kind == d.bodyMode).Chosen() {
-					d.bodyMode = kind
+		typeRow := func() {
+			group := uikit.RadioGroup(c, func() {
+				for _, kind := range bodyTypes {
+					uikit.CompactRadio(c, &d.bodyMode, kind, optionLabel(kind))
 				}
+			}).Row().Gap(t.Space(uikit.SpaceL)).Label(locales.RequestBodyType())
+			if width < 560 {
+				group.FillWidth().Wrap()
+			} else {
+				group.Shrink(0)
 			}
-		}).Label(locales.RequestBodyType()), locales.RequestBodyType())
+		}
 		// Reading the bytes is a view of the same draft: the formats a
 		// capture's readers used to offer, without leaving the Body tab.
 		formats := a.draftBodyFormats(d)
 		shown := formats[min(max(d.bodyRead, 0), len(formats)-1)]
-		ui.Row(c).Disabled(d.bodyMode != "Raw").Children(func() {
-			uikit.Tip(c, uikit.ToolbarSelect(c, shown, func(m *ui.Menu) {
-				for i, name := range formats {
-					if m.Item(name).Checked(i == d.bodyRead).Chosen() {
-						d.bodyRead = i
+		reader := func() {
+			ui.Row(c).Disabled(d.bodyMode != "Raw").Children(func() {
+				uikit.Tip(c, uikit.ToolbarSelect(c, locales.ReadBodyAs()+": "+shown, func(m *ui.Menu) {
+					for i, name := range formats {
+						if m.Item(name).Checked(i == d.bodyRead).Chosen() {
+							d.bodyRead = i
+						}
 					}
-				}
-			}).Label(locales.ReadBodyAs()), locales.ReadBodyAsHelp())
-		})
-		ui.Spacer(c)
+				}).Label(locales.ReadBodyAs()), locales.ReadBodyAsHelp())
+			})
+		}
 		text, seen := &d.composeBody, &d.bodyFor
 		formatLabel := locales.FormatBody()
 		formatHelp := locales.FormatBodyHelp()
@@ -1258,32 +1261,51 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 		if query {
 			formatLabel, formatHelp = locales.FormatGraphQLQuery(), locales.FormatTheGraphqlDocumentWithout()
 		}
-		ui.Row(c).Disabled(!query && (!isJSON || !canFormat)).Children(func() {
-			clicked := uikit.ToolbarButton(c, formatLabel, formatHelp, false).Children(func() {
-				ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
-				uikit.Caption(c, locales.Format())
-			}).Clicked()
-			if clicked {
-				if query {
-					value, err := graphql.Format(d.graphql.Query)
-					if err != nil {
-						a.fail(locales.FormatGraphqlQuery(), err)
+		format := func() {
+			ui.Row(c).Disabled(!query && (!isJSON || !canFormat)).Children(func() {
+				clicked := uikit.ToolbarButton(c, formatLabel, formatHelp, false).Children(func() {
+					ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
+					uikit.Caption(c, locales.Format())
+				}).Clicked()
+				if clicked {
+					if query {
+						value, err := graphql.Format(d.graphql.Query)
+						if err != nil {
+							a.fail(locales.FormatGraphqlQuery(), err)
+							return
+						}
+						d.graphql.Query, d.queryFor = value, ""
 						return
 					}
-					d.graphql.Query, d.queryFor = value, ""
-					return
+					// Rebuild the editor rather than writing its old buffer back.
+					*text, *seen = formatted, ""
 				}
-				// Rebuild the editor rather than writing its old buffer back.
-				*text, *seen = formatted, ""
-			}
+			})
+		}
+		if width >= 560 {
+			ui.Row(c).FillWidth().Height(uikit.HeightControl).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+				typeRow()
+				reader()
+				ui.Spacer(c)
+				format()
+			})
+			return
+		}
+		ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceM)).Children(func() {
+			typeRow()
+			ui.Row(c).FillWidth().Height(uikit.HeightControl).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+				reader()
+				ui.Spacer(c)
+				format()
+			})
 		})
 	}
 	ui.Column(c).Fill().Bind(&a.editorReqPane).Children(func() {
 		a.requestPaneHeader(c, t, selected, d, f, paneTools{format: -1, width: width})
 		if *selected == composeTabBody && !request.IsWebSocket(d.composeURL) {
-			ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(bodyTools)
+			ui.Column(c).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(bodyTools)
 		}
-		ui.Column(c).Grow(1).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
+		ui.Column(c).Grow(1).FillWidth().Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			switch *selected {
 			case composeTabParams:
 				a.paramsEditor(c, d, t)

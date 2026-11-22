@@ -324,7 +324,7 @@ func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 			a.variableInput(c, "mcp-dir", &d.mcpConfig.WorkingDir, locales.WorkingDirectory(), d.composeCollection).
 				Placeholder(locales.OptionalTheAppSDirectory()).Font(uikit.FontMono)
 			uikit.Meta(c, locales.EnvironmentValuesMayUseVariables()).Padding(0, t.Space(uikit.SpaceXS))
-			a.requestFieldsEditor(c, &d.mcpConfig.Env, fieldsOptions{secret: true, collection: d.composeCollection}, locales.EnvironmentVariable())
+			a.requestFieldsEditor(c, &d.mcpConfig.Env, fieldsOptions{secret: true, collection: d.composeCollection, key: "mcp-env"}, locales.EnvironmentVariable())
 			uikit.Hint(c, locales.TheCommandStartsOnlyWhen())
 		} else {
 			uikit.Hint(c, locales.TheAddressBarIsThe())

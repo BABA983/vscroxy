@@ -121,11 +121,19 @@ func chooseMenu(tt *ui.Tester, path ...string) error {
 	return nil
 }
 
-// choosePaneView opens a pane's More menu and picks a view it keeps out of
-// the tab row.
+// choosePaneView picks a view from a pane's row when it fits there, else
+// opens More and picks it from the views the row keeps out.
 func choosePaneView(t *testing.T, tt *ui.Tester, pane, label string) {
 	t.Helper()
 	dismissToasts(t, tt)
+	if err := tt.Click(pane + ": " + label); err == nil {
+		return
+	}
+	if i := strings.LastIndexByte(label, ' '); i > 0 {
+		if err := tt.Click(pane + ": " + label[:i]); err == nil {
+			return
+		}
+	}
 	if err := tt.Click(pane + " options"); err != nil {
 		t.Fatal(err)
 	}
@@ -1694,7 +1702,7 @@ func TestRequestBodyEditorKeepsTheDraftInSync(t *testing.T) {
 	if d.composeBody != `{"quantity": 0}` || d.bodyEditor.Buffer.String() != `{"quantity": 0}` {
 		t.Fatalf("an external body change was lost: %q / %q", d.composeBody, d.bodyEditor.Buffer.String())
 	}
-	for _, label := range []string{"Request body type", "Binary", "Binary body file"} {
+	for _, label := range []string{"Binary", "Binary body file"} {
 		if err := tt.Click(label); err != nil {
 			t.Fatal(err)
 		}
@@ -1704,9 +1712,6 @@ func TestRequestBodyEditorKeepsTheDraftInSync(t *testing.T) {
 		t.Fatal("the binary file editor did not update the draft")
 	}
 	for _, mode := range []string{"Raw", "Binary"} {
-		if err := tt.Click("Request body type"); err != nil {
-			t.Fatal(err)
-		}
 		if err := tt.Click(mode); err != nil {
 			t.Fatal(err)
 		}
@@ -1714,7 +1719,7 @@ func TestRequestBodyEditorKeepsTheDraftInSync(t *testing.T) {
 	if d.composeBody != `{"quantity": 0}` || d.bodyFile != "{{upload_path}}" {
 		t.Fatal("switching body types lost the raw body or binary file path")
 	}
-	for _, label := range []string{"Request body type", "GraphQL", "GraphQL query"} {
+	for _, label := range []string{"GraphQL", "GraphQL query"} {
 		if err := tt.Click(label); err != nil {
 			t.Fatal(err)
 		}
@@ -1734,7 +1739,7 @@ func TestRequestBodyEditorKeepsTheDraftInSync(t *testing.T) {
 	if d.value().GraphQL.Query != `query Search($q: String!) { search(q: $q) { id } }` || d.value().GraphQL.Variables != wantVariables || d.composeBody != `{"quantity": 0}` {
 		t.Fatalf("GraphQL editor changed another body or lost edits: %+v", d.value())
 	}
-	for _, label := range []string{"Request body type", "Raw", "Request body type", "GraphQL", "Query", "GraphQL query"} {
+	for _, label := range []string{"Raw", "GraphQL", "Query", "GraphQL query"} {
 		if err := tt.Click(label); err != nil {
 			t.Fatal(err)
 		}
@@ -2920,34 +2925,52 @@ func TestEnvironmentSelectSitsInTheDocumentStrip(t *testing.T) {
 	}
 }
 
-// The Body tab's tools are one row under the tabs: the type and reader at the
-// left and Format at the right, with the pane's width between them.
-func TestRequestBodyToolsShareOneRow(t *testing.T) {
-	a := snapshotApp()
-	a.addDocument(savedRequest{Request: request.Request{Name: "Create project", Method: "POST", URL: "https://api.example.com/projects", Body: `{"name":"Demo project"}`}}, "")
-	a.composeTab = composeTabBody
-	tt := ui.NewTester(a.view, 1280, 800)
-	tt.Frame()
-	bodyType, ok := tt.Access(locales.RequestBodyType())
-	if !ok {
-		t.Fatal("the body type select is missing")
-	}
-	reader, ok := tt.Access(locales.ReadBodyAs())
-	if !ok {
-		t.Fatal("the body reader select is missing")
-	}
-	format, ok := tt.Access(locales.FormatBody())
-	if !ok {
-		t.Fatal("the body format action is missing")
-	}
-	if bodyType.Bounds.Y != reader.Bounds.Y || reader.Bounds.Y != format.Bounds.Y {
-		t.Fatalf("body tools are not one row: type %v, reader %v, format %v", bodyType.Bounds, reader.Bounds, format.Bounds)
-	}
-	if bodyType.Bounds.X >= reader.Bounds.X {
-		t.Fatalf("body type is not left of the reader: %v, %v", bodyType.Bounds, reader.Bounds)
-	}
-	if format.Bounds.X <= reader.Bounds.X+reader.Bounds.W+8 {
-		t.Fatalf("format is not at the row's right: reader %v, format %v", reader.Bounds, format.Bounds)
+// The Body tab's tools put the type radios at the left, then the reader and
+// Format at the right. A narrow pane gives the radios their own wrapped row.
+func TestRequestBodyToolsLayout(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		width int
+		one   bool
+	}{{"wide", 1600, true}, {"narrow", 1280, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := snapshotApp()
+			a.addDocument(savedRequest{Request: request.Request{Name: "Create project", Method: "POST", URL: "https://api.example.com/projects", Body: `{"name":"Demo project"}`}}, "")
+			a.composeTab = composeTabBody
+			tt := ui.NewTester(a.view, tc.width, 800)
+			tt.Frame()
+			bodyType, ok := tt.Access(locales.RequestBodyType())
+			if !ok {
+				t.Fatal("the body type radios are missing")
+			}
+			reader, ok := tt.Access(locales.ReadBodyAs())
+			if !ok {
+				t.Fatal("the body reader select is missing")
+			}
+			format, ok := tt.Access(locales.FormatBody())
+			if !ok {
+				t.Fatal("the body format action is missing")
+			}
+			center := func(r ui.Rect) float32 { return r.Y + r.H/2 }
+			if tc.one {
+				if center(bodyType.Bounds) != center(reader.Bounds) || center(reader.Bounds) != center(format.Bounds) {
+					t.Fatalf("body tools are not one row: type %v, reader %v, format %v", bodyType.Bounds, reader.Bounds, format.Bounds)
+				}
+				if bodyType.Bounds.X >= reader.Bounds.X {
+					t.Fatalf("body type is not left of the reader: %v, %v", bodyType.Bounds, reader.Bounds)
+				}
+			} else {
+				if bodyType.Bounds.Y+bodyType.Bounds.H > reader.Bounds.Y {
+					t.Fatalf("the type radios do not have their own row: type %v, reader %v", bodyType.Bounds, reader.Bounds)
+				}
+				if reader.Bounds.Y != format.Bounds.Y {
+					t.Fatalf("reader and Format are not one row: reader %v, format %v", reader.Bounds, format.Bounds)
+				}
+			}
+			if format.Bounds.X <= reader.Bounds.X+reader.Bounds.W+8 {
+				t.Fatalf("format is not at the row's right: reader %v, format %v", reader.Bounds, format.Bounds)
+			}
+		})
 	}
 }
 
@@ -2992,6 +3015,30 @@ func TestEditorRequestTabsStayWholeWords(t *testing.T) {
 			t.Fatalf("the tab that left the row is not in More: %q", tt.Texts())
 		}
 	}
+}
+
+// The row fills with the full ordered set, and More appears only when a view
+// does not fit or the row has extra actions of its own.
+func TestRequestTabsFillTheRowAndHideMoreWhenTheyFit(t *testing.T) {
+	g := NewGallery("editor-http-response")
+	d := g.a.requestDocument
+	d.composeTab = composeTabSettings
+	tt := ui.NewTester(g.View, 900, 800)
+	tt.Frame()
+	for _, label := range []string{"Params", "Headers", "Body", "Auth", "Scripts", "Settings", "Checks", "Examples", "Docs", "Cookies"} {
+		if _, ok := tt.Find("Request pane: " + label); !ok {
+			t.Fatalf("%s is not in the filled row: %q", label, tt.Texts())
+		}
+	}
+	if _, ok := tt.Find("Request pane options"); ok {
+		t.Fatal("More is shown although every view fits")
+	}
+	d.composeTab = composeTabBody
+	tt.Frame()
+	if _, ok := tt.Find("Request pane options"); !ok {
+		t.Fatal("the body's own actions have no More menu")
+	}
+	g.Close()
 }
 
 func TestCaptureOrdersRequestsByNumberAndCaptureTime(t *testing.T) {
@@ -3499,7 +3546,7 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 		t.Fatal("Open as draft did not open an unsaved copy with that run's result")
 	}
 	click("GET  List projects") // The saved one; its copy waits under Unsaved.
-	click("Examples")
+	click("Request runs: Examples")
 	if a.requestDocument.historyTab != 1 {
 		t.Fatal("Examples did not switch the history column")
 	}
@@ -4037,7 +4084,7 @@ func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 	if !imported || len(rows) != 3 {
 		t.Fatalf("imported headers were not shown as table rows: %+v", rows)
 	}
-	choosePaneView(t, tt, "Request pane", "Bulk edit")
+	click("Bulk edit")
 	if !strings.Contains(read("Request headers"), "X-Count: 19") {
 		t.Fatal("bulk edit did not show the imported header block")
 	}
@@ -4098,10 +4145,9 @@ func TestBodyTabFormatIndentsTheDraftBody(t *testing.T) {
 	if !strings.Contains(formatted, "\n  \"b\": 1") || a.requestDocument.composeBody != formatted {
 		t.Fatalf("Format did not indent the draft body: %q", formatted)
 	}
-	// The body type shares the same row and still switches what is edited.
-	click("Request body type")
+	// The body type is a radio row and still switches what is edited.
 	click("Multipart")
-	if !tt.HasText("FORM DATA · file values are local paths, 16 MiB in total") || a.requestDocument.bodyMode != "Multipart" {
+	if !tt.HasText("Form Data") || a.requestDocument.bodyMode != "Multipart" {
 		t.Fatalf("body type did not switch to form fields: %v", tt.Texts())
 	}
 }
@@ -4118,7 +4164,6 @@ func TestHeaderCellsLineUpWithRows(t *testing.T) {
 	tt.Key(ui.Cmd, ui.Key2)
 	click("List projects")
 	click("Request pane: Headers")
-	click("Add header")
 	header, ok := tt.Find("Key")
 	if !ok {
 		t.Fatal("the header table has no Key title")
@@ -4164,6 +4209,41 @@ func TestHeaderCellsLineUpWithRows(t *testing.T) {
 	checkRight("ALLOWED DOMAINS", "Allowed domains 1")
 }
 
+func TestEmptyTableRowAddsARow(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1200, 900)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	edit := func(label, value string) {
+		t.Helper()
+		click(label)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Type(value)
+	}
+	tt.Key(ui.Cmd, ui.Key2)
+	click("List projects")
+	click("Request pane: Headers")
+	edit("header key 1", "X-New")
+	d := a.requestDocument
+	if len(d.headerRows) != 1 || d.headerRows[0].Name != "X-New" {
+		t.Fatalf("typing in the empty row did not add a header: %+v", d.headerRows)
+	}
+	edit("header value 1", "one")
+	if d.composeHeaders != "X-New: one" {
+		t.Fatalf("the added header did not reach the block: %q", d.composeHeaders)
+	}
+	click("Request pane: Params")
+	edit("parameter key 1", "page")
+	edit("parameter value 1", "2")
+	if !strings.HasSuffix(d.composeURL, "?page=2") {
+		t.Fatalf("typing in the empty query row did not update the URL: %q", d.composeURL)
+	}
+}
+
 func TestHeaderTableKeepsOrderDuplicatesAndDisabledRows(t *testing.T) {
 	a := workspaceApp()
 	a.library.root = filepath.Join(t.TempDir(), "collections")
@@ -4190,13 +4270,10 @@ func TestHeaderTableKeepsOrderDuplicatesAndDisabledRows(t *testing.T) {
 	tt.Key(ui.Cmd, ui.Key2)
 	click("List projects")
 	click("Request pane: Headers")
-	click("Add header")
 	edit("header key 1", "X-Tag")
 	edit("header value 1", "first")
-	click("Add header")
 	edit("header key 2", "X-Tag")
 	edit("header value 2", "second")
-	click("Add header")
 	edit("header key 3", "X-Skip")
 	edit("header value 3", "not sent")
 	click("Enable header 3")
@@ -4209,12 +4286,12 @@ func TestHeaderTableKeepsOrderDuplicatesAndDisabledRows(t *testing.T) {
 		t.Fatalf("a disabled row was dropped from the saved request: %+v", kept)
 	}
 	// Bulk edit shows what is sent, and its text replaces the table.
-	choosePaneView(t, tt, "Request pane", "Bulk edit")
+	click("Bulk edit")
 	if got := read("Request headers"); got != "X-Tag: first\nX-Tag: second" {
 		t.Fatalf("bulk edit did not show the enabled rows: %q", got)
 	}
 	edit("Request headers", "Accept: text/plain")
-	choosePaneView(t, tt, "Request pane", "Bulk edit")
+	click("Bulk edit")
 	if d.composeHeaders != "Accept: text/plain" || len(d.headerRows) != 2 || !d.headerRows[1].Disabled || d.headerRows[1].Name != "X-Skip" {
 		t.Fatalf("bulk text replaced the table but lost a switched-off row: %q %+v", d.composeHeaders, d.headerRows)
 	}
@@ -4342,7 +4419,7 @@ func TestBulkEditAsksBeforeShowingCredentials(t *testing.T) {
 	tt.Key(ui.Cmd, ui.Key2)
 	click("List projects")
 	click("Request pane: Headers")
-	choosePaneView(t, tt, "Request pane", "Bulk edit")
+	click("Bulk edit")
 	if !tt.HasText("Bulk edit shows credentials") {
 		t.Fatalf("bulk edit opened without warning about credentials: %q", tt.Texts())
 	}
@@ -4350,7 +4427,7 @@ func TestBulkEditAsksBeforeShowingCredentials(t *testing.T) {
 	if a.requestDocument.headerBulk || !tt.HasText("header value 1") {
 		t.Fatal("cancelling the warning still switched to the block")
 	}
-	choosePaneView(t, tt, "Request pane", "Bulk edit")
+	click("Bulk edit")
 	click("Show values")
 	if !a.requestDocument.headerBulk {
 		t.Fatal("confirming the warning did not switch to the block")
@@ -4791,7 +4868,7 @@ func TestCaptureRegressionIsAnOrdinarySavedRequestWithChecks(t *testing.T) {
 	if err := chooseMenu(tt, "Save as regression…"); err != nil {
 		t.Fatal(err)
 	}
-	if a.page.capture() || !tt.HasText("RESPONSE CHECKS") || a.sourceFlow != 1 || a.composeWaiting {
+	if a.page.capture() || a.requestDocument.composeTab != composeTabChecks || a.sourceFlow != 1 || a.composeWaiting {
 		t.Fatal("capture did not become an unsent regression draft")
 	}
 	click("Save")

@@ -481,11 +481,26 @@ func requestPaneTabs(d *requestDocument, f flow) []paneView {
 	return views
 }
 
-// requestTabsFit reports whether a request pane of this width shows every tab
-// as a whole word, with no room saved for the history column beside it. The
-// width is measured, not taken from a window size: a pane that fits at 1200
-// with a short header count and not at 1300 with a long one is decided the
-// same way.
+// requestPaneViews is the full row order: the start above, then Scripts and
+// Settings, then the quieter views. The row keeps as many as fit and puts the
+// rest in More.
+func (a *app) requestPaneViews(d *requestDocument, f flow) []paneView {
+	views := requestPaneTabs(d, f)
+	return append(views, a.requestMoreViews(d, f)...)
+}
+
+func paneLabelsAndCounts(views []paneView) ([]string, []string) {
+	labels, counts := make([]string, len(views)), make([]string, len(views))
+	for i, v := range views {
+		labels[i], counts[i] = v.label, v.count
+	}
+	return labels, counts
+}
+
+// requestTabsFit reports whether a request pane of this width shows every view
+// in its row as a whole word, with no More beside it. The width is measured,
+// not taken from a window size: a pane that fits at 1200 with a short header
+// count and not at 1300 with a long one is decided the same way.
 func (a *app) requestTabsFit(c *ui.Context, d *requestDocument, width float32) bool {
 	t := c.Theme()
 	if !a.requestSidesStacked(c) {
@@ -497,73 +512,76 @@ func (a *app) requestTabsFit(c *ui.Context, d *requestDocument, width float32) b
 		}
 		width = width * share / 100
 	}
-	views := requestPaneTabs(d, flow{})
-	labels, counts := make([]string, len(views)), make([]string, len(views))
-	for i, v := range views {
-		labels[i], counts[i] = v.label, v.count
-	}
-	need := 2*t.Space(uikit.SpaceL) + paneTabsWidth(c, labels, counts) + 2*t.Space(uikit.SpaceM) + paneMoreWidth(c)
+	labels, counts := paneLabelsAndCounts(a.requestPaneViews(d, flow{}))
+	need := 2*t.Space(uikit.SpaceL) + paneTabsWidth(c, labels, counts) + 2*t.Space(uikit.SpaceM)
 	return width >= need
 }
 
 // requestPaneHeader draws the request pane's one row and settles the view it
-// shows. The first tabs are always in the row; the rest open from More, and
-// the one chosen there takes the last place in the row so the pane says what
-// it is showing without a second row.
+// shows. It starts with the full ordered row, keeps as many views as fit, and
+// puts the rest in More; the selected view always stays in the row. More is
+// hidden when nothing overflows, unless extra actions need it.
 func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *requestDocument, f flow, tools paneTools) {
-	views := []paneView{
-		{composeTabParams, locales.Params(), requestParamCount(d, f)},
-		{composeTabHeaders, locales.RequestHeadersLabel(), requestHeaderCount(d, f)},
-		{composeTabBody, locales.Body(), ""},
-	}
-	if d != nil {
-		views = append(views, paneView{composeTabAuth, locales.Auth(), ""})
-	}
-	more := a.requestMoreViews(d, f)
-	if i := slices.IndexFunc(more, func(v paneView) bool { return v.view == *selected }); i >= 0 {
-		views = append(views, more[i])
-	}
 	before := *selected
-	labels, counts := make([]string, len(views)), make([]string, len(views))
-	for i, v := range views {
-		labels[i], counts[i] = v.label, v.count
-	}
-	var extra []action
+	all := a.requestPaneViews(d, f)
+	var baseExtra []action
 	if before == composeTabBody {
-		extra = a.bodyPaneActions(c, 1)
+		baseExtra = a.bodyPaneActions(c, 1)
 	}
 	width := tools.width
 	if width <= 0 {
 		width = a.paneWidth(c)
 	}
-	// A tab is always a whole word: a pane too narrow for all of them moves
-	// the last ones into More, from the right, and never scrolls or fades
-	// the row. The view on screen stays where the reader put it.
-	menu := paneMoreWidth(c)
-	room := paneRoomFor(c, width, "", false, labels, counts, menu)
-	for len(views) > 1 && room.left < 0 {
-		at := -1
-		for i := len(views) - 1; i >= 0; i-- {
-			if views[i].view != before {
-				at = i
-				break
-			}
-		}
-		if at < 0 {
-			break
-		}
-		dropped := views[at]
-		views = slices.Delete(views, at, at+1)
-		labels = slices.Delete(labels, at, at+1)
-		counts = slices.Delete(counts, at, at+1)
-		more = append([]paneView{dropped}, more...)
-		room = paneRoomFor(c, width, "", false, labels, counts, menu)
+	formatWidth := float32(0)
+	if tools.format >= 0 {
+		formatWidth = a.paneFormatWidth(c, tools.format)
 	}
-	shown := max(0, slices.IndexFunc(views, func(v paneView) bool { return v.view == before }))
-	showFormat := tools.format >= 0 && room.fits(a.paneFormatWidth(c, tools.format))
+	labels, counts := paneLabelsAndCounts(all)
+	room := paneRoomFor(c, width, "", false, labels, counts, 0)
+	showFormat := tools.format >= 0 && room.fits(formatWidth)
+	extra := baseExtra
 	if !showFormat && tools.format >= 0 {
 		extra = append([]action{submenu(bodyFormatLabel(tools.format), a.bodyFormatActions(tools.format)...)}, extra...)
 	}
+	views := all
+	var more []paneView
+	showMore := false
+	if len(extra) > 0 || room.left < 0 {
+		// The row needs More, for overflow or for its own actions. Reserve
+		// its room, then drop whole views from the right until the rest fit.
+		showMore = true
+		menu := paneMoreWidth(c)
+		views = slices.Clone(all)
+		for len(views) > 1 {
+			labels, counts = paneLabelsAndCounts(views)
+			room = paneRoomFor(c, width, "", false, labels, counts, menu)
+			if room.left >= 0 {
+				break
+			}
+			at := -1
+			for i := len(views) - 1; i >= 0; i-- {
+				if views[i].view != before {
+					at = i
+					break
+				}
+			}
+			if at < 0 {
+				break
+			}
+			views = slices.Delete(views, at, at+1)
+		}
+		more = slices.DeleteFunc(slices.Clone(all), func(v paneView) bool {
+			return slices.Contains(views, v)
+		})
+		labels, counts = paneLabelsAndCounts(views)
+		room = paneRoomFor(c, width, "", false, labels, counts, menu)
+		showFormat = tools.format >= 0 && room.fits(formatWidth)
+		extra = baseExtra
+		if !showFormat && tools.format >= 0 {
+			extra = append([]action{submenu(bodyFormatLabel(tools.format), a.bodyFormatActions(tools.format)...)}, extra...)
+		}
+	}
+	shown := max(0, slices.IndexFunc(views, func(v paneView) bool { return v.view == before }))
 	uikit.PaneHeader(c, func() {
 		// The tabs are the pane's name: a "Request" before them repeated
 		// what they say and took the room they need.
@@ -571,7 +589,9 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 			uikit.CountedTabs(c, &shown, locales.RequestPaneName(), labels, counts)
 		}).Grow(1).FillHeight().Label(locales.RequestPaneName()).OnClick(func() { a.inspect.focus = 1 })
 	}, func() {
-		a.requestMoreMenu(c, selected, more, d, extra)
+		if showMore {
+			a.requestMoreMenu(c, selected, more, extra)
+		}
 		if showFormat {
 			a.bodyFormatMenu(c, t, tools.format)
 		}
@@ -603,20 +623,25 @@ func protocolTabRow(c *ui.Context, selected *int, prefix string, labels []string
 	for i, label := range labels {
 		views[i] = paneView{view: i, label: label}
 	}
-	room := width - 2*t.Space(uikit.SpaceL) - paneMoreWidth(c) - t.Space(uikit.SpaceM)
 	kept := slices.Clone(views)
-	for len(kept) > 1 && paneTabsWidth(c, paneLabels(kept), nil) > room {
-		at := -1
-		for i := len(kept) - 1; i >= 0; i-- {
-			if kept[i].view != *selected {
-				at = i
+	room := width - 2*t.Space(uikit.SpaceL)
+	if paneTabsWidth(c, paneLabels(kept), nil) > room {
+		// More is needed: reserve its word and the gap before it, then drop
+		// whole tabs from the right until the rest fit.
+		room -= paneMoreWidth(c) + t.Space(uikit.SpaceM)
+		for len(kept) > 1 && paneTabsWidth(c, paneLabels(kept), nil) > room {
+			at := -1
+			for i := len(kept) - 1; i >= 0; i-- {
+				if kept[i].view != *selected {
+					at = i
+					break
+				}
+			}
+			if at < 0 {
 				break
 			}
+			kept = slices.Delete(kept, at, at+1)
 		}
-		if at < 0 {
-			break
-		}
-		kept = slices.Delete(kept, at, at+1)
 	}
 	dropped := slices.DeleteFunc(slices.Clone(views), func(v paneView) bool { return slices.Contains(kept, v) })
 	shown := max(0, slices.IndexFunc(kept, func(v paneView) bool { return v.view == *selected }))
@@ -645,8 +670,9 @@ func paneLabels(views []paneView) []string {
 	return labels
 }
 
-// requestMoreViews are the request views the row keeps out: the parts of a
-// document read or edited one at a time, and the capture a draft came from.
+// requestMoreViews are the request views after the row's start, in the order
+// the row tries to keep them: the parts of a document read or edited one at a
+// time, and the capture a draft came from.
 func (a *app) requestMoreViews(d *requestDocument, f flow) []paneView {
 	if d == nil {
 		return []paneView{{composeTabRaw, locales.Raw(), ""}, {composeTabCookies, locales.Cookies2(), ""}}
@@ -657,10 +683,10 @@ func (a *app) requestMoreViews(d *requestDocument, f flow) []paneView {
 	}
 	more := []paneView{
 		{composeTabScripts, locales.Scripts(), ""},
+		{composeTabSettings, locales.Settings(), ""},
 		{composeTabChecks, locales.Checks(), checkCount(d)},
 		{composeTabExamples, locales.Examples(), examples},
 		{composeTabDocs, locales.Docs(), ""},
-		{composeTabSettings, locales.Settings(), ""},
 	}
 	// The capture is only somewhere else to go once the draft differs from
 	// it: until then the tabs are the capture.
@@ -734,7 +760,7 @@ func checkCount(d *requestDocument) string {
 	return fmt.Sprint(n)
 }
 
-func (a *app) requestMoreMenu(c *ui.Context, selected *int, more []paneView, d *requestDocument, extra []action) {
+func (a *app) requestMoreMenu(c *ui.Context, selected *int, more []paneView, extra []action) {
 	uikit.TabMenu(c, locales.More(), locales.RequestPaneOptions(), func(m *ui.Menu) {
 		var items []action
 		for _, v := range more {
@@ -744,15 +770,6 @@ func (a *app) requestMoreMenu(c *ui.Context, selected *int, more []paneView, d *
 			}
 			items = append(items, do("request.view", label, func() { *selected = v.view }).
 				checked(checkbox(*selected == v.view)).in("views"))
-		}
-		if d != nil {
-			items = append(items, do("request.bulk-edit", locales.BulkEdit(), func() {
-				if d.headerBulk || !hasSecretHeader(d.headerRows) {
-					toggleHeaderMode(d)
-					return
-				}
-				d.headerWarn = true
-			}).checked(checkbox(d.headerBulk)).in("edit"))
 		}
 		actionMenu(m, append(items, extra...))
 	})
@@ -1139,6 +1156,11 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 					})
 				}
 			}
+			type capturedHeader struct {
+				key, raw, value string
+				masked          bool
+			}
+			rows := make([]capturedHeader, 0, len(headers))
 			for _, key := range slices.Sorted(maps.Keys(headers)) {
 				rawValue := strings.Join(headers[key], "\n")
 				value := rawValue
@@ -1146,20 +1168,39 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				if masked {
 					value = locales.MaskedValue()
 				}
-				uikit.KVRow(c, func() {
-					ui.Row(c).Width(124).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
-						uikit.Hint(c, key).Font(uikit.FontMono).SingleLine().Shrink(1).
-							Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key))).PopoverMenu(
-							a.headerFilterMenu(c, key, headers[key]))
-						a.unicodeMarker(c, fmt.Sprintf("header-%d-key-%s", side, key), key, false)
-					})
-
-					ui.Row(c).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
-						uikit.DataBody(c, value).TextColor(t.Text).Grow(1).MinWidth(0).Selectable().PopoverMenu(a.headerFilterMenu(c, key, headers[key]))
-						a.unicodeMarker(c, fmt.Sprintf("header-%d-value-%s", side, key), rawValue, masked)
-					})
-				})
-				ui.Divider(c).Background(t.Border.Alpha(0.45))
+				rows = append(rows, capturedHeader{key: key, raw: rawValue, value: value, masked: masked})
+			}
+			if len(rows) > 0 {
+				uikit.KeyValueTable(c, uikit.KeyValueTableOptions{
+					Key:      fmt.Sprintf("capture-headers-%d", side),
+					Caption:  locales.Headers(),
+					Rows:     len(rows),
+					NoScroll: true,
+					Columns: []uikit.KeyValueColumn{
+						{
+							Title: locales.Key(), Width: 124,
+							Cell: func(row int, _ ui.Element) {
+								r := rows[row]
+								ui.Row(c).FillWidth().Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
+									uikit.Body(c, r.key).TextColor(t.Text).SingleLine().Shrink(1).
+										Tooltip(strings.TrimSpace(r.key + "\n" + headerDoc(r.key))).PopoverMenu(
+										a.headerFilterMenu(c, r.key, headers[r.key]))
+									a.unicodeMarker(c, fmt.Sprintf("header-%d-key-%s", side, r.key), r.key, false)
+								})
+							},
+						},
+						{
+							Title: locales.Value(), Grow: 1, MinWidth: uikit.WidthNarrow,
+							Cell: func(row int, _ ui.Element) {
+								r := rows[row]
+								ui.Row(c).FillWidth().MinWidth(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
+									uikit.Body(c, r.value).TextColor(t.Text).Grow(1).MinWidth(0).Selectable().PopoverMenu(a.headerFilterMenu(c, r.key, headers[r.key]))
+									a.unicodeMarker(c, fmt.Sprintf("header-%d-value-%s", side, r.key), r.raw, r.masked)
+								})
+							},
+						},
+					},
+				}).Padding(0, t.Space(uikit.SpaceL))
 			}
 			if len(trailers) > 0 {
 				uikit.Label(c, locales.Trailers()).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL), t.Space(uikit.SpaceXS)).FillWidth()
