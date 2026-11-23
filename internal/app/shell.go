@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"net"
 	"runtime"
 	"strconv"
 	"strings"
@@ -12,10 +13,10 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// shell draws the window's own title bar: the switch that starts or pauses
-// capture, the brand, where the proxy is listening, and the window's own
-// controls. The tools that are on and the Host profiles live in the footer
-// with the counts, so the bar itself stays quiet.
+// shell draws the window's own title bar, across the whole window as VS Code
+// and Postman draw theirs: the sidebar switch at its start, the search in the
+// middle, and at its end the screen's layout, Tools and Settings. Live state
+// (the proxy, the tools that are on, notifications) is the footer's.
 func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
 	// The bar is the shell's own surface. On macOS the window's root is clear
@@ -23,41 +24,29 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	// the desktop behind it instead of chrome.
 	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).Background(uikit.Colors(t).Window).
 		AlignItems(ui.Center).DragWindow().Children(func() {
-		if !a.macChrome || !a.sidebarShown() {
-			a.barLeading(c, t)
-		}
-		// The switch sits with the state it reports: on macOS the brand is in
-		// the sidebar, so the bar would otherwise start with a lone button.
-		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).PaddingStart(t.Space(uikit.SpaceM)).Children(func() {
-			if a.macChrome && a.sidebarShown() {
-				a.recordButton(c, t)
-			}
-			a.proxyIndicator(c, t)
-		})
+		a.barLeading(c, t)
 		ui.Spacer(c)
 		a.commandButton(c, t)
 		ui.Spacer(c)
-		// Global only: notifications, the tools, Settings and everything
-		// else. The layout belongs to the screen and sits in the footer.
 		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceHair)).AlignItems(ui.Center).PaddingEnd(max(bar.Right, t.Space(uikit.SpaceL))).Children(func() {
-			a.notificationButton(c, t)
+			// The layout switches pair across the bar: the sidebar's at the
+			// start, the screen's split here, as VS Code keeps them.
+			a.layoutToggle(c)
 			uikit.MenuFace(c, func() {
 				uikit.IconButton(c, locales.Tools(), locales.ManageDebuggingRulesAndNetwork(), toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
-					actionMenu(m, append([]action{do("tools.rules", locales.DebuggingRules2(), a.openRules).in("rules")}, a.networkTools()...))
+					actionMenu(m, a.moreActions(c))
 				}, uikit.MenuButtonOptions(c))
 			})
 			if uikit.IconButton(c, locales.Settings(), locales.OpenSettings(), settingsIcon, settingsKeys()...).Clicked() {
 				a.openSettings(-1)
 			}
-			uikit.MoreButton(c, locales.More(), locales.MoreCommands(), func(m *ui.Menu) { a.moreMenu(c, m) })
 		})
 	})
 }
 
-// barLeading is the title bar's start: the sidebar switch, the record switch
-// and the brand, past any window controls on the left. The sidebar switch sits
-// beside the window's controls, where macOS apps keep it, rather than at the
-// far end of the bar with the tools.
+// barLeading is the title bar's start: the sidebar switch, past any window
+// controls on the left. It sits beside the window's controls, where macOS apps
+// keep it, rather than at the far end of the bar with the tools.
 func (a *app) barLeading(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
 	start := t.Space(uikit.SpaceM)
@@ -67,13 +56,11 @@ func (a *app) barLeading(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).
 		DragWindow().Children(func() {
 		a.sidebarToggle(c)
-		a.recordButton(c, t)
-		a.brand(c, t)
 	})
 }
 
-// recordButton starts capture, or pauses what it keeps: the one switch the
-// title bar always carries.
+// recordButton starts capture, or pauses what it keeps: the switch that sits
+// beside the proxy state in the footer.
 func (a *app) recordButton(c *ui.Context, t *ui.Theme) {
 	running := a.srv != nil && a.srv.Running()
 	if !running {
@@ -100,7 +87,7 @@ func (a *app) recordButton(c *ui.Context, t *ui.Theme) {
 
 // commandButton is the title bar's way to every command, request and flow:
 // a field-shaped button in the middle of the bar, as Postman's search is,
-// that opens the palette. It gives way before the pill and the tools do.
+// that opens the palette. It gives way before the tools do.
 func (a *app) commandButton(c *ui.Context, t *ui.Theme) {
 	p := uikit.Colors(t)
 	b := uikit.ChipButton(c, locales.Commands2(), locales.SearchEveryActionCtrlCmd()).
@@ -117,34 +104,6 @@ func (a *app) commandButton(c *ui.Context, t *ui.Theme) {
 	if b.Clicked() {
 		a.workbench.openPalette()
 	}
-}
-
-// brandBar is the window's name past any window controls on the left, with the
-// sidebar's switch beside them: at the top of the sidebar on macOS, where the
-// bar's own start is.
-func (a *app) brandBar(c *ui.Context, t *ui.Theme) {
-	bar := c.TitleBar()
-	// bar.Left ends at the last window control's edge; the switch and the
-	// brand keep a gap from it rather than touching the zoom button.
-	start := t.Space(uikit.SpaceL)
-	if bar.Left > 0 {
-		start += bar.Left
-	}
-	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
-		DragWindow().Children(func() {
-		a.sidebarToggle(c)
-		a.brand(c, t)
-		// On macOS this row is the title bar while the sidebar is shown,
-		// so the unread count stays one click away there too.
-		ui.Spacer(c)
-		a.notificationButton(c, t)
-	})
-}
-
-// brand is the app's icon and name.
-func (a *app) brand(c *ui.Context, t *ui.Theme) {
-	ui.Icon(c, brandIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
-	uikit.BodyStrong(c, "vscroxy").TextColor(t.Text).SingleLine()
 }
 
 // sidebarToggle hides the sidebar or brings it back: the same choice Cmd+B
@@ -168,9 +127,8 @@ func (a *app) sidebarToggle(c *ui.Context) {
 
 // layoutToggle switches the current screen's split: the inspector beside the
 // traffic list or under it, and on a request the editor beside its response or
-// above it. One button shows the layout it switches to, so the title bar
-// carries one control rather than a pair that has to be read to tell which is
-// on.
+// above it. One button shows the layout it switches to, so the footer carries
+// one control rather than a pair that has to be read to tell which is on.
 func (a *app) layoutToggle(c *ui.Context) {
 	w := &a.workbench
 	if a.page == pageRequest {
@@ -186,6 +144,10 @@ func (a *app) layoutToggle(c *ui.Context) {
 		if uikit.IconButton(c, label, label, icon).Clicked() {
 			next := !side
 			d.split = &next
+			// The split is a layout change, not a repaint of the old tree:
+			// ask for the next frame here so the panes move on the click,
+			// not on the next pointer move.
+			c.Invalidate()
 		}
 		return
 	}
@@ -196,13 +158,15 @@ func (a *app) layoutToggle(c *ui.Context) {
 	b := uikit.IconButton(c, label, label, icon)
 	if b.Clicked() {
 		w.layout, w.focused = next, false
+		c.Invalidate()
 	}
 }
 
-// proxyIndicator is the listening pill: whether traffic is being kept and
-// where the proxy listens, centred in the title bar. Listening is never
-// presented as proof of HTTPS inspection, and a stopped proxy has no green
-// dot to mistake for one.
+// proxyIndicator is the footer's lamp: a dot and one word for whether traffic
+// is being kept. Where the proxy listens, this computer's addresses and
+// device access are details a reader asks for, so they wait in a hover card
+// instead of taking the footer's width. Listening is never presented as proof
+// of HTTPS inspection, and a stopped proxy has no green dot to mistake for one.
 func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	pal := uikit.Colors(t)
 	running := a.srv != nil && a.srv.Running() || a.diagnostics.demoRunning
@@ -211,28 +175,34 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	case running && a.recordingPaused:
 		state, dot = locales.PausedState(), pal.Faint
 	case running:
-		state, dot = locales.ListeningOn(), t.Success
+		state, dot = locales.RecordingState(), t.Success
 	}
-	tip, face := locales.ProxyTipOff(), pal.Muted
+	b := ui.ButtonBase(c).Label(locales.ProxyStatus()).Height(uikit.HeightControlSmall).
+		Padding(0, uikit.Scaled(uikit.ControlPaddingXSmall)).Gap(t.Space(uikit.SpaceS)).
+		Radius(uikit.RadiusInner).AlignItems(ui.Center)
+	switch {
+	case b.Pressed():
+		b.Background(pal.MutedPressed)
+	case b.Hovered():
+		b.Background(pal.MutedHover)
+	}
+	card := uikit.HoverCard{Title: state, Meta: locales.ProxyTipOff()}
 	if running {
-		tip = locales.ProxyTipOn()
+		card.Meta = locales.ProxyTipOn()
 	}
-	// The pill is the window's live lamp and the one place the shell spends
-	// color: while it records, its face takes a wash of the recording green,
-	// so "is it on?" is answered from across the room. Stopped and paused
-	// stay on the neutral face, with only their dot to say why.
-	if running && !a.recordingPaused {
-		face = t.Success.Alpha(0.10)
+	// The addresses are read only while the card can show: listing the
+	// network interfaces every frame would cost the footer for nothing.
+	if running && (b.Hovered() || b.Focused()) {
+		card.Rows = a.proxyCardRows()
 	}
-	b := uikit.ToolbarButton(c, locales.ProxyStatus(), tip, false).
-		Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceS)).Radius(uikit.RadiusControl).Background(face)
+	uikit.CardTip(c, b, card)
 	b.Children(func() {
 		mark := ui.Box(c).Size(7, 7).Shrink(0)
 		// Recording with traffic arriving: the dot breathes. Nothing
-		// arriving, or paused: it rests, so the pill does not twitch all day.
+		// arriving, or paused: it rests, so the lamp does not twitch all day.
 		// The pulse is painted rather than built: its frames repeat the last
-		// layout, so the table under the pill is not run again at 30 a second
-		// while capture is on.
+		// layout, so the table above is not run again at 30 a second while
+		// capture is on.
 		if running && !a.recordingPaused && a.rate.perSecond() > 0 {
 			mark.Draw(func(p *ui.Painter, r ui.Rect) {
 				p.AnimationFrameRate(30)
@@ -245,18 +215,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 		} else {
 			mark.Radius(uikit.RadiusControl).Background(dot)
 		}
-		uikit.Caption(c, state).TextColor(t.Text).SingleLine()
-		if !running {
-			return
-		}
-		addr := a.diagnostics.demoAddr
-		if addr == "" && a.srv != nil {
-			addr = a.srv.Addr()
-		}
-		if a.deviceUI.gateway != nil {
-			addr += locales.LanSuffix()
-		}
-		uikit.DataMeta(c, addr).FontFeatures("tnum").SingleLine()
+		uikit.Meta(c, state).TextColor(t.Text).SingleLine()
 	})
 	uikit.MenuFace(c, func() {
 		b.PopoverMenuButton(func(m *ui.Menu) {
@@ -271,6 +230,29 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 			}
 		}, uikit.MenuButtonOptions(c))
 	})
+}
+
+// proxyCardRows are the proxy lamp's details: the address a client on this
+// computer uses, its port, this computer's addresses on the network, and
+// where other devices connect, or Off. The keys are single words: the card's
+// key column is narrow.
+func (a *app) proxyCardRows() []uikit.HoverCardRow {
+	addr := a.diagnostics.demoAddr
+	if addr == "" && a.srv != nil {
+		addr = a.srv.Addr()
+	}
+	rows := []uikit.HoverCardRow{{Key: locales.Address(), Value: addr}}
+	if _, port, err := net.SplitHostPort(addr); err == nil {
+		rows = append(rows, uikit.HoverCardRow{Key: locales.Port(), Value: port})
+	}
+	if ips := deviceIPs(); len(ips) > 0 {
+		rows = append(rows, uikit.HoverCardRow{Key: locales.Network(), Value: strings.Join(ips[:min(len(ips), 3)], ", ")})
+	}
+	access := locales.Off()
+	if g := a.deviceUI.gateway; g != nil {
+		access = g.Addr()
+	}
+	return append(rows, uikit.HoverCardRow{Key: locales.Devices(), Value: access})
 }
 
 // hostsKeys spells the Host profiles shortcut as keycaps for its tip.
@@ -341,46 +323,32 @@ func (a *app) networkTools() []action {
 	)
 }
 
-// footer is the bar under everything: what can be done to the list, what is
-// chosen, and the tools that are on. It is the same chrome as the title bar
-// and the sidebar, so the window reads as one frame around the panel.
+// footer is the window's status bar, as VS Code's: at its start the state
+// that holds everywhere -- the proxy, its pause switch and the tools that
+// are on -- and at its end what the current screen counts, with the
+// notifications. Commands on one screen's list live in that screen's
+// toolbar, not here.
 func (a *app) footer(c *ui.Context, t *ui.Theme) {
 	p := uikit.Colors(t)
 	ui.Row(c).Height(uikit.HeightFooter).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 		Background(p.Window).Children(func() {
-		if a.page.capture() {
-			ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
-				if uikit.FooterButton(c, locales.Clear(), locales.ClearRecords(), false).Disabled(len(a.flows) == 0).Clicked() {
-					a.clearOpen = true
-				}
-				on := a.following()
-				tip := locales.AutoSelectOnTip()
-				if !on {
-					tip = locales.AutoSelectOffTip()
-				}
-				follow := uikit.FooterButton(c, locales.AutoSelect(), tip, on).Gap(t.Space(uikit.SpaceXS))
-				// New traffic that is not being followed says so on the
-				// button, so the count is not hidden behind a tint. The count
-				// is its own run: run into the label it reads "Auto-follow6
-				// new".
-				if n := a.newRows; n > 0 {
-					follow.Children(func() {
-						uikit.Meta(c, locales.AutoSelectCount(n))
-					})
-				}
-				if follow.Clicked() {
-					a.autoSelect = !a.autoSelect
-					if a.autoSelect {
-						a.follow()
-					}
-				}
-			})
-		}
+		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
+			a.proxyIndicator(c, t)
+			a.recordButton(c, t)
+		})
+		// The tools that are on follow the window, not one screen: a
+		// breakpoint or a throttle is on everywhere.
+		a.footerTools(c, t)
 		ui.Spacer(c)
+		// A Window progress task takes its place in the status bar, before
+		// the counts, so its Cancel stays reachable.
+		a.progressStatus(c, t)
 		ui.Row(c).Shrink(1).MinWidth(0).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-			counts := uikit.Meta(c, a.footerCountsText()).FontFeatures("tnum").SingleLine()
-			if a.page == pageDiagnostics {
-				uikit.Tip(c, counts, locales.EvidenceFromThisLiveSession())
+			if text := a.footerCountsText(); text != "" {
+				counts := uikit.Meta(c, text).FontFeatures("tnum").SingleLine()
+				if a.page == pageDiagnostics {
+					uikit.Tip(c, counts, locales.EvidenceFromThisLiveSession())
+				}
 			}
 			if a.dropped > 0 {
 				uikit.Caption(c, locales.DroppedCount(int(a.dropped))).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
@@ -389,25 +357,7 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 				uikit.Caption(c, locales.ScriptErrors(int(a.scriptErrs))).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 			}
 		})
-		// A Window progress task takes its place in the status bar; it
-		// stays before the tools so its Cancel remains reachable.
-		a.progressStatus(c, t)
-		ui.Spacer(c)
-		// The tools that are on follow the window, not one screen: a
-		// breakpoint or a throttle is on everywhere.
-		a.footerTools(c, t)
-		// The window's own controls end the bar: the stores every request
-		// draws on, connecting a client, and the split of the screen on show.
-		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Children(func() {
-			if uikit.FooterButton(c, strings.TrimSuffix(locales.Cookies(), "…"), locales.Cookies(), false).Clicked() {
-				a.openCookies()
-			}
-			if uikit.FooterButton(c, strings.TrimSuffix(locales.Vault(), "…"), locales.Vault(), false).Clicked() {
-				a.openVault()
-			}
-			a.footerSetup(c)
-			a.layoutToggle(c)
-		})
+		a.notificationButton(c, t)
 	})
 }
 
@@ -453,13 +403,8 @@ func (a *app) footerCountsText() string {
 		return locales.ContractsCount(len(a.apis))
 	}
 	if !a.page.capture() {
-		env := locales.NoEnvironment()
-		if a.activeEnv != "" {
-			env = locales.EnvironmentNamed(a.activeEnv)
-		}
-		// The response's own empty state names the Send key; the footer
-		// states what is being edited, once.
-		return locales.RequestSummary(len(a.requests)) + " · " + env
+		// The environment is the tab strip's select; the footer only counts.
+		return locales.RequestSummary(len(a.requests))
 	}
 	if n := a.chosen.Len(); n > 1 {
 		return locales.SelectedOfTotal(n, len(a.visible))
@@ -669,17 +614,10 @@ func (a *app) footerTools(c *ui.Context, t *ui.Theme) {
 func (a *app) footerRoom(c *ui.Context, t *ui.Theme) float32 {
 	padding, gap := 2*t.Space(uikit.SpaceL), t.Space(uikit.SpaceM)
 	room := a.windowWidth - padding - 4*gap
-	if a.page.capture() {
-		for _, label := range []string{locales.Clear(), locales.AutoSelect()} {
-			room -= paneTextWidth(c, label, uikit.TextMeta, 400) + 2*t.Space(uikit.SpaceM) + gap
-		}
-	}
 	room -= paneTextWidth(c, a.footerCountsText(), uikit.TextMeta, 400)
-	// Cookies, Vault, Setup and the layout switch at the end.
-	for _, label := range []string{locales.Cookies(), locales.Vault(), locales.SetupMenu()} {
-		room -= paneTextWidth(c, label, uikit.TextMeta, 400) + 2*t.Space(uikit.SpaceM) + gap
-	}
-	room -= uikit.HeightControl + gap
+	// The proxy state and its pause switch at the start, the notifications
+	// at the end.
+	room -= uikit.WidthPicker + uikit.HeightRowAction + uikit.HeightControl + 2*gap
 	return max(room, 0)
 }
 
@@ -743,10 +681,9 @@ func footerChipRow(c *ui.Context, t *ui.Theme, chip footerChip) {
 	})
 }
 
-// moreMenu keeps the less frequent menus one step away without hiding them:
-// the same items stay where they were, grouped as they were.
-func (a *app) moreMenu(c *ui.Context, m *ui.Menu) { actionMenu(m, a.moreActions(c)) }
-
+// moreActions is the title bar's Tools menu: the tools and stores at its top,
+// then Git and the less frequent menus one step away. It took in what the
+// bar's ⋯ held, so the bar's end is the layout, Tools and Settings.
 func (a *app) moreActions(c *ui.Context) []action {
 	global := a.actions(c)
 	oneClick := []action{
@@ -758,22 +695,16 @@ func (a *app) moreActions(c *ui.Context) []action {
 		pick(global, "network.java"),
 		pick(global, "network.electron"),
 	}
+	// Network holds the throttles, caching and upstream with the client tools;
+	// client setup, diagnostics and HTTPS decryption are the menu's top.
 	network := []action{
-		pick(global, "network.diagnostics").in("tools"),
-		pick(global, "network.client").in("tools"),
 		submenu(locales.OneClickSetup(), oneClick...).in("tools"),
 		pick(global, "network.websocket").in("tools"),
 		pick(global, "network.sse").in("tools"),
 	}
-	for _, x := range a.networkTools() {
-		if x.group == "caching" {
-			x.group = "tools" // No Caching follows the client tools directly.
-		}
-		network = append(network, x)
-	}
+	network = append(network, a.networkTools()...)
 	network = append(network,
 		pick(global, "network.devices").checked(checkbox(a.deviceUI.gateway != nil)).in("devices"),
-		do("https.rules", locales.SslProxying2(), func() { a.sslOpen = true }).in("lists"),
 		do("capture.ignored-hosts", locales.IgnoredHosts(), func() { a.ignoreOpen = true }).in("lists"),
 		do("capture.ignored-apps", locales.IgnoredApps(), func() { a.ignoreAppsOpen = true }).in("lists"),
 		pick(a.hostsActions(), "hosts.manage").as(locales.HostProfiles2()).in("lists"),
@@ -814,16 +745,24 @@ func (a *app) moreActions(c *ui.Context) []action {
 		do("capture.add-column", locales.AddColumn(), a.openColumn).in("columns"),
 		do("protobuf.schema", locales.ProtobufSchema(), func() { a.protobuf.open = true }).in("protobuf"),
 	)
-	return []action{
-		pick(global, "tools.rules").as(locales.DebuggingRules2()),
-		do("tools.git", locales.Git(), func() { a.openTools("git") }),
-		submenu(locales.Network(), network...),
-		submenu(locales.Session(), session...),
-		submenu(locales.View(), view...),
-		// The window's settings, as the gear in the bar, the app menu's ⌘,
-		// and the palette open them: ⋯ is where people look for them too.
-		pick(global, "app.settings").in("settings"),
+	tools := []action{
+		pick(global, "tools.rules").as(locales.DebuggingRules2()).in("rules"),
+		do("tools.cookies", locales.Cookies(), a.openCookies).in("stores"),
+		do("tools.vault", locales.Vault(), a.openVault).in("stores"),
+		do("setup.client", locales.ClientSetup(), a.openClientSetup).in("setup"),
+		do("setup.https", locales.HttpsDecryption(), func() { a.sslOpen = true }).in("setup"),
+		do("setup.diagnostics", locales.Diagnostics(), func() { a.goTo("diagnostics") }).in("setup"),
 	}
+	return append(tools,
+		do("tools.git", locales.Git(), func() { a.openTools("git") }).in("more"),
+		submenu(locales.Network(), network...).in("more"),
+		submenu(locales.Session(), session...).in("more"),
+		submenu(locales.View(), view...).in("more"),
+		// The window's settings, as the gear beside this menu, the app
+		// menu's ⌘, and the palette open them: a menu is where people look
+		// for them too.
+		pick(global, "app.settings").in("settings"),
+	)
 }
 
 // syncSections keeps the sidebar's one choice and the content on screen in

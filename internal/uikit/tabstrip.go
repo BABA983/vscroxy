@@ -53,16 +53,16 @@ type DocumentTabsOptions struct {
 // dirty tab shows a dot that becomes its close mark under the pointer. A
 // middle click closes a tab, as it does in a browser.
 //
-// The strip is chrome: the tabs sit on the shell's surface, and the active
-// one wears the content's surface with no rule under it, so it reads as the
-// top of the page below. The new-tab button follows the last tab, as it does
-// in VS Code and Postman; the list of open tabs and the optional document
-// control keep the strip's end.
+// The strip is chrome on the shell's surface. The chosen tab is a soft ink
+// wash in a rounded box, as Postman draws it, rather than a browser tab that
+// joins the page below; no rule separates one tab from the next. The new-tab
+// button follows the last tab, as it does in VS Code and Postman; the list of
+// open tabs and the optional document control keep the strip's end.
 func DocumentTabs(c *ui.Context, o DocumentTabsOptions) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	return ui.Row(c).Shrink(0).Height(HeightTabs).FillWidth().Background(p.Window).AlignItems(ui.Stretch).Children(func() {
-		// The rule under the strip. Tabs paint over it, and the active one
-		// covers it with the content's surface.
+	return ui.Row(c).Shrink(0).Height(HeightTabs).FillWidth().Background(p.Window).AlignItems(ui.Stretch).Gap(t.Space(SpaceXS)).Children(func() {
+		// The rule under the strip. Every tab sits above it, as in Postman;
+		// the chosen tab's pill does not join the page.
 		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(HairlineWidth).Background(p.Border).PassThrough()
 		for i, item := range o.Tabs {
 			if item.Fixed {
@@ -70,7 +70,7 @@ func DocumentTabs(c *ui.Context, o DocumentTabsOptions) ui.Element {
 			}
 		}
 		tabStripOn(c, p.Window, func() {
-			ui.Row(c).Height(HeightTabs).AlignItems(ui.Stretch).Children(func() {
+			ui.Row(c).Height(HeightTabs).AlignItems(ui.Stretch).Gap(t.Space(SpaceXS)).Children(func() {
 				for i, item := range o.Tabs {
 					if !item.Fixed {
 						documentTab(c, item, i, o)
@@ -97,14 +97,17 @@ func documentTab(c *ui.Context, item DocumentTab, index int, o DocumentTabsOptio
 		// Live is one short word with its icon: it takes what it needs.
 		minWidth = 0
 	}
-	tab := ui.ButtonBase(c).Height(HeightTabs).MinWidth(minWidth).MaxWidth(180).Shrink(0).
-		Padding(0, t.Space(SpaceM)).Gap(t.Space(SpaceXS)).AlignItems(ui.Center).Radius(0).
+	tab := ui.ButtonBase(c).Height(HeightTabs-2*t.Space(SpaceXS)).MarginY(t.Space(SpaceXS)).
+		MinWidth(minWidth).MaxWidth(180).Shrink(0).
+		Padding(0, t.Space(SpaceS)).Gap(t.Space(SpaceXS)).AlignItems(ui.Center).Radius(RadiusControl).
 		Border(0, ui.Color{}).Label(item.Title)
 	switch {
 	case item.Active:
-		tab.Background(p.Background).TextColor(t.Text)
+		tab.Background(p.Foreground.Alpha(0.05)).TextColor(t.Text)
+	case tab.Pressed():
+		tab.Background(p.Muted).TextColor(t.Text)
 	case tab.Hovered():
-		tab.Background(p.MutedHover).TextColor(t.Text)
+		tab.Background(p.Foreground.Alpha(0.03)).TextColor(t.Text)
 	default:
 		tab.TextColor(t.TextMuted)
 	}
@@ -119,24 +122,23 @@ func documentTab(c *ui.Context, item DocumentTab, index int, o DocumentTabsOptio
 	closeSet := false
 	tab.Children(func() {
 		if item.Method != "" {
-			MethodLabel(c, item.Method).Shrink(0)
+			MethodLabel(c, item.Method).FontSize(Scaled(TextMeta)).Shrink(0)
 		} else if item.Icon != nil {
 			ui.Icon(c, item.Icon).Size(IconInline, IconInline).Shrink(0)
 		}
-		title := Body(c, item.Title).SingleLine().MinWidth(0).Grow(1)
+		title := ui.Text(c, item.Title).FontSize(Scaled(TextMeta)).LineHeight(LineSmall).
+			SingleLine().MinWidth(0).Grow(1)
 		if item.Preview {
 			title.Italic()
 		}
 		if item.Closable {
 			close = documentTabClose(c, item, tab)
+			// Postman keeps the close mark out of the strip until the tab is
+			// under the pointer or keyboard; a dirty tab's dot stays visible.
+			if !item.Dirty && !tab.Hovered() && !tab.FocusWithin() {
+				close.Opacity(0)
+			}
 			closeSet = true
-		}
-		// The hairline between neighbours belongs to the tab, so an active
-		// tab keeps its edge while the row scrolls. An inactive tab also
-		// carries the strip's rule, which a hover face would otherwise hide.
-		ui.Box(c).Absolute().Right(0).Top(0).Bottom(0).Width(HairlineWidth).Background(p.Border)
-		if !item.Active {
-			ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(HairlineWidth).Background(p.Border)
 		}
 	})
 
@@ -190,10 +192,11 @@ func newDocumentTab(c *ui.Context, o DocumentTabsOptions) {
 	if label == "" {
 		label = locales.NewRequest()
 	}
-	button := ui.ButtonBase(c).Size(HeightTabs, HeightTabs).Shrink(0).
+	size := HeightTabs - 2*t.Space(SpaceXS)
+	button := ui.ButtonBase(c).Size(size, size).MarginY(t.Space(SpaceXS)).Radius(RadiusControl).Shrink(0).
 		AlignItems(ui.Center).Justify(ui.Center).Label(label)
 	if button.Hovered() {
-		button.Background(p.MutedHover)
+		button.Background(p.Foreground.Alpha(0.03))
 	}
 	button.Children(func() {
 		ui.Icon(c, lucide.Plus()).Size(IconInline, IconInline).TextColor(t.TextMuted)
@@ -205,7 +208,7 @@ func newDocumentTab(c *ui.Context, o DocumentTabsOptions) {
 }
 
 func overflowTabs(c *ui.Context, o DocumentTabsOptions) {
-	t, p := c.Theme(), Colors(c.Theme())
+	t := c.Theme()
 	label := o.OverflowLabel
 	if label == "" {
 		label = locales.AllOpenTabs()
@@ -215,13 +218,14 @@ func overflowTabs(c *ui.Context, o DocumentTabsOptions) {
 		button = ui.ButtonBase(c).Label(label+" ("+strconv.Itoa(len(o.Tabs))+")").
 			PopoverMenuButton(o.OnOverflow, MenuButtonOptions(c))
 	})
-	button.Height(HeightTabs).Padding(0, t.Space(SpaceM)).Gap(t.Space(SpaceXS)).
-		Shrink(0).AlignItems(ui.Center)
+	button.Height(HeightControlSmall).MarginY((HeightTabs-HeightControlSmall)/2).
+		Padding(0, t.Space(SpaceS)).Gap(t.Space(SpaceXS)).
+		Radius(RadiusControl).Shrink(0).AlignItems(ui.Center)
 	if button.Hovered() {
-		button.Background(p.MutedHover)
+		button.Background(t.Border)
 	}
 	button.Children(func() {
-		ui.Icon(c, chevronIcon).Size(IconInline, IconInline).TextColor(t.TextMuted)
+		ui.Icon(c, chevronIcon).Size(IconLarge, IconLarge).TextColor(t.TextMuted)
 		Meta(c, strconv.Itoa(len(o.Tabs)))
 	})
 	if o.OverflowTip != "" {

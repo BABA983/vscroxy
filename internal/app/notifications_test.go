@@ -167,7 +167,8 @@ func notificationTester(t *testing.T, a *app, dark bool) *ui.Tester {
 	tt := ui.NewTester(func(c *ui.Context) {
 		c.SetTheme(th)
 		ui.Column(c).Fill().Background(th.Background).Children(func() {
-			a.shell(c, th)
+			ui.Spacer(c)
+			a.footer(c, th)
 		})
 	}, 1200, 640)
 	tt.SetLocale("en-US")

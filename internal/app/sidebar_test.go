@@ -60,9 +60,9 @@ func TestSidebarHalvesShareTheMiddle(t *testing.T) {
 }
 
 // A short window takes its room from the middle, not from Traffic: every
-// scope and view in the fixed top stays visible, as does the footer's Setup,
-// while Sources and Sessions give way first. Collections keeps its heading,
-// search and rows in the same window.
+// scope and view in the fixed top stays visible, as does the footer's layout
+// switch, while Sources and Sessions give way first. Collections keeps its
+// heading, search and rows in the same window.
 func TestSidebarTrafficStaysVisibleInShortWindow(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 960, 600)
@@ -74,8 +74,8 @@ func TestSidebarTrafficStaysVisibleInShortWindow(t *testing.T) {
 			t.Fatalf("traffic row %q is not visible in a 600-high window: %+v", label, row)
 		}
 	}
-	if row, ok := tt.Find("Setup"); !ok || row.H == 0 || row.Y+row.H > 600 {
-		t.Fatalf("the footer's Setup is not visible in a 600-high window: %+v", row)
+	if row, ok := tt.Find("Stacked layout"); !ok || row.H == 0 || row.Y+row.H > 600 {
+		t.Fatalf("the footer's layout switch is not visible in a 600-high window: %+v", row)
 	}
 	showCollections(t, tt)
 	collections, ok := tt.Find("Collections")

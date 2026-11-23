@@ -278,7 +278,7 @@ func TestScenarioRulesUIControlsSavedAndRunningConfiguration(t *testing.T) {
 		}
 		return loaded
 	}
-	click("More")
+	click("Tools")
 	if err := chooseMenu(tt, "Debugging rules…"); err != nil {
 		t.Fatal(err)
 	}

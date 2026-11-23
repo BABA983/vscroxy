@@ -4036,16 +4036,6 @@ func (msgs Messages) KindWithSize(kind string, size int) string {
 	return Catalog.Format(msgs.locale, "kindWithSize", map[string]any{"kind": kind, "size": size})
 }
 
-// LanSuffix says " · LAN"
-// in the language the app shows.
-func LanSuffix() string { return In(i18n.Locale()).LanSuffix() }
-
-// LanSuffix says " · LAN"
-// in the language of msgs.
-func (msgs Messages) LanSuffix() string {
-	return Catalog.Format(msgs.locale, "lanSuffix", nil)
-}
-
 // LastAttempt says "Last attempt · {time} · {request}"
 // in the language the app shows.
 func LastAttempt(time_ string, request string) string {
@@ -16676,16 +16666,6 @@ func (msgs Messages) EnvironmentLabel(name string) string {
 	return Catalog.Format(msgs.locale, "environmentLabel", map[string]any{"name": name})
 }
 
-// EnvironmentNamed says "{name} environment"
-// in the language the app shows.
-func EnvironmentNamed(name string) string { return In(i18n.Locale()).EnvironmentNamed(name) }
-
-// EnvironmentNamed says "{name} environment"
-// in the language of msgs.
-func (msgs Messages) EnvironmentNamed(name string) string {
-	return Catalog.Format(msgs.locale, "environmentNamed", map[string]any{"name": name})
-}
-
 // EnvironmentNewCurrent says "Environment: {environment} · new Current: {variable}"
 // in the language the app shows.
 func EnvironmentNewCurrent(environment string, variable string) string {
@@ -21306,16 +21286,6 @@ func (msgs Messages) ListeningNoRequests(addr string) string {
 	return Catalog.Format(msgs.locale, "listeningNoRequests", map[string]any{"addr": addr})
 }
 
-// ListeningOn says "Listening on"
-// in the language the app shows.
-func ListeningOn() string { return In(i18n.Locale()).ListeningOn() }
-
-// ListeningOn says "Listening on"
-// in the language of msgs.
-func (msgs Messages) ListeningOn() string {
-	return Catalog.Format(msgs.locale, "listeningOn", nil)
-}
-
 // Live says "Live"
 // in the language the app shows.
 func Live() string { return In(i18n.Locale()).Live() }
@@ -23130,6 +23100,16 @@ func MockServerStopped(path string) string { return In(i18n.Locale()).MockServer
 // in the language of msgs.
 func (msgs Messages) MockServerStopped(path string) string {
 	return Catalog.Format(msgs.locale, "mockServerStopped", map[string]any{"path": path})
+}
+
+// NewFolder says "New folder"
+// in the language the app shows.
+func NewFolder() string { return In(i18n.Locale()).NewFolder() }
+
+// NewFolder says "New folder"
+// in the language of msgs.
+func (msgs Messages) NewFolder() string {
+	return Catalog.Format(msgs.locale, "newFolder", nil)
 }
 
 // NewLocalCurrentVariable says "New local Current variable"
@@ -26018,21 +25998,21 @@ func (msgs Messages) ProxyStopped() string {
 	return Catalog.Format(msgs.locale, "proxyStopped", nil)
 }
 
-// ProxyTipOff says "Proxy settings · the listener failed or is off"
+// ProxyTipOff says "The proxy is off; click to start it"
 // in the language the app shows.
 func ProxyTipOff() string { return In(i18n.Locale()).ProxyTipOff() }
 
-// ProxyTipOff says "Proxy settings · the listener failed or is off"
+// ProxyTipOff says "The proxy is off; click to start it"
 // in the language of msgs.
 func (msgs Messages) ProxyTipOff() string {
 	return Catalog.Format(msgs.locale, "proxyTipOff", nil)
 }
 
-// ProxyTipOn says "Listening address · proxy settings; listening is not proof of HTTPS inspection"
+// ProxyTipOn says "Listening is not proof of HTTPS inspection"
 // in the language the app shows.
 func ProxyTipOn() string { return In(i18n.Locale()).ProxyTipOn() }
 
-// ProxyTipOn says "Listening address · proxy settings; listening is not proof of HTTPS inspection"
+// ProxyTipOn says "Listening is not proof of HTTPS inspection"
 // in the language of msgs.
 func (msgs Messages) ProxyTipOn() string {
 	return Catalog.Format(msgs.locale, "proxyTipOn", nil)

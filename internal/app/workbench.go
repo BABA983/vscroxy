@@ -356,6 +356,12 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				a.applyFilter()
 			}
 		})
+		// What the list does with itself sits with the list, as Proxyman's
+		// toolbar keeps it, rather than in the window's status bar.
+		a.followButton(c, t)
+		if uikit.IconButton(c, locales.Clear(), locales.ClearRecords(), clearIcon).Disabled(len(a.flows) == 0).Clicked() {
+			a.clearOpen = true
+		}
 		breakButton := uikit.IconButton(c, locales.Breakpoints(), locales.PauseEachMatchingRequestOr(), breakIcon)
 		if breakButton.Clicked() && a.srv != nil {
 			a.breakOn = !a.breakOn
@@ -364,6 +370,30 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 		uikit.MoreButton(c, locales.MoreCaptureOptions(), locales.MoreCaptureOptions(), func(m *ui.Menu) { actionMenu(m, a.captureActions(c)) })
 	})
 	ui.Divider(c)
+}
+
+// followButton turns Auto-select on or off: while on, the newest request is
+// chosen as it arrives. New traffic that is not being followed says so on the
+// button, so the count is not hidden behind a tint.
+func (a *app) followButton(c *ui.Context, t *ui.Theme) {
+	on := a.following()
+	tip := locales.AutoSelectOnTip()
+	if !on {
+		tip = locales.AutoSelectOffTip()
+	}
+	b := uikit.ToolbarButton(c, locales.AutoSelect(), tip, on).Gap(t.Space(uikit.SpaceXS)).Padding(0, t.Space(uikit.SpaceS))
+	b.Children(func() {
+		ui.Icon(c, followIcon).Size(uikit.IconInline, uikit.IconInline)
+		if n := a.newRows; n > 0 {
+			uikit.Meta(c, locales.AutoSelectCount(n)).FontFeatures("tnum").SingleLine()
+		}
+	})
+	if b.Clicked() {
+		a.autoSelect = !a.autoSelect
+		if a.autoSelect {
+			a.follow()
+		}
+	}
 }
 
 // Conditions are chips inside the search field; overflow scrolls rather

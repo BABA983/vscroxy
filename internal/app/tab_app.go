@@ -101,6 +101,11 @@ func (a *app) openRequestTab(d *requestDocument, opts tabOpen) tabID {
 	if d == nil {
 		return tabID{}
 	}
+	// Leaving the current tab commits an inline name edit before the
+	// breadcrumb that owns it disappears.
+	if a.titleEdit.id != 0 && (a.requestDocument == nil || a.requestDocument.id != d.id) {
+		a.commitRequestRename()
+	}
 	if !slices.Contains(a.documents, d) {
 		a.documents = append(a.documents, d)
 	}

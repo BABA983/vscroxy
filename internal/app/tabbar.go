@@ -74,19 +74,25 @@ func (a *app) tabBar(c *ui.Context, t *ui.Theme) {
 }
 
 // environmentSelect is the environment a request resolves its variables in,
-// at the document strip's right end. It is a chip with a status dot rather
-// than a field: the choice belongs to the request being edited, not to the
-// window's chrome.
+// at the document strip's right end. It reads as chrome rather than a field:
+// the name and chevron take a face only under the pointer, as Postman's
+// environment switcher does.
 func (a *app) environmentSelect(c *ui.Context, t *ui.Theme) {
 	if names := a.envNames(); len(names) > 0 {
 		env := ui.SelectBase(c.Key("active-environment"), &a.activeEnv)
-		uikit.Tip(c, env.Trigger.Label(locales.ActiveEnvironment()), locales.ActiveEnvironment()).
-			Width(uikit.WidthPicker).Height(uikit.HeightTabs).
-			Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).
-			Background(uikit.Colors(t).Background).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(uikit.DotSize, uikit.DotSize).Radius(uikit.DotSize / 2).Background(t.Accent)
-			uikit.Body(c, cmp.Or(a.activeEnv, locales.NoEnvironment())).SingleLine().Grow(1)
-			uikit.Glyph(c, chevronIcon)
+		trigger := uikit.Tip(c, env.Trigger.Label(locales.ActiveEnvironment()), locales.ActiveEnvironment())
+		trigger.MaxWidth(uikit.WidthWide).Height(uikit.HeightControlSmall).
+			Padding(0, t.Space(uikit.SpaceS), 0, t.Space(uikit.SpaceCompact)).Gap(t.Space(uikit.SpaceXS)).
+			Radius(uikit.RadiusControl).AlignItems(ui.Center).Background(ui.Color{})
+		if trigger.Hovered() {
+			// The selector is chrome, not a field: its face appears under the
+			// pointer, as Postman's environment switcher does.
+			trigger.Background(t.Border)
+		}
+		trigger.Children(func() {
+			uikit.Caption(c, cmp.Or(a.activeEnv, locales.NoEnvironment())).
+				TextColor(t.TextMuted).SingleLine().MinWidth(0).Grow(1)
+			ui.Icon(c, chevronIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.TextMuted)
 		})
 		env.Popup(func(panel ui.Element) {
 			uikit.PopoverPanel(c, panel).Padding(t.Space(uikit.SpaceXS))
@@ -109,7 +115,9 @@ func (a *app) environmentSelect(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	uikit.ToolbarButton(c, locales.ManageEnvironments2(), locales.AddAnEnvironmentForRequest(), false).
-		Height(uikit.HeightTabs).Children(func() { uikit.Body(c, locales.NoEnvironment()) }).OnClick(a.openVars)
+		Height(uikit.HeightControlSmall).TextColor(t.TextMuted).Children(func() {
+		uikit.Caption(c, locales.NoEnvironment())
+	}).OnClick(a.openVars)
 }
 
 func tabIcon(kind page) *ui.SVG {

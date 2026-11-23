@@ -157,6 +157,29 @@ func (a *app) saveAPI(d *apiDocument) {
 	a.done(locales.ApiSaved(d.title()))
 }
 
+// apiActions are an API contract row's: opening it, validating and saving the
+// source, syncing with its collection, and exporting the contract or creating
+// a collection from it. The last two need a valid source, as the API screen's
+// buttons do.
+func (a *app) apiActions(d *apiDocument) []action {
+	valid := d.code.Buffer.String() == d.checked && d.parsed != nil
+	actions := []action{
+		do("api.open", locales.Open(), func() { a.openAPITab(d.spec.ID) }).in("open"),
+		do("api.validate", locales.Validate(), func() { d.validate() }).in("edit"),
+		do("api.save", locales.SaveApi(), func() { a.saveAPI(d) }).in("edit"),
+	}
+	if d.spec.Collection != "" {
+		actions = append(actions, do("api.sync", locales.Sync(), func() { a.openAPISync(d) }).
+			when(valid, locales.UnvalidatedChangesValidateBeforeUsing()).in("edit"))
+	}
+	return append(actions,
+		do("api.export", locales.ExportOpenapi(), func() { a.exportOpenAPI(d) }).
+			when(valid, locales.UnvalidatedChangesValidateBeforeUsing()).in("copy"),
+		do("api.create-collection", locales.CreateCollectionFromOpenapi(), func() {
+			a.importOpenAPICollection(d.parsed, d.title(), nil, "")
+		}).when(valid, locales.UnvalidatedChangesValidateBeforeUsing()).in("save"))
+}
+
 func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 	d := a.activeAPI()
 	if d == nil {

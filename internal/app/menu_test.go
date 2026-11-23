@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -24,6 +25,11 @@ func TestCollectionRequestMenusMatch(t *testing.T) {
 	if len(want) == 0 {
 		t.Fatal("the request's right-click menu is empty")
 	}
+	for _, label := range []string{locales.RenameRequest(), locales.DuplicateAsNewRequest()} {
+		if !slices.Contains(want, label) {
+			t.Fatalf("the request's right-click menu is missing %q: %q", label, want)
+		}
+	}
 	tt.Key(0, ui.KeyEscape)
 	tt.Frame()
 	if err := tt.Click(more); err != nil {
@@ -32,6 +38,103 @@ func TestCollectionRequestMenusMatch(t *testing.T) {
 	got := tt.Menu()
 	if !slices.Equal(got, want) {
 		t.Fatalf("⋯ menu %q, right-click menu %q", got, want)
+	}
+}
+
+// The collection tree's folder menu offers the Postman-like creation and
+// rename actions, not only the settings and export actions.
+func TestCollectionFolderMenuCreatesRequestsAndFolders(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.SetLocale("en-US")
+	showCollections(t, tt)
+	tt.Frame()
+	if err := tt.RightClick("API"); err != nil {
+		t.Fatalf("right-click the API folder: %v", err)
+	}
+	menu := tt.Menu()
+	for _, label := range []string{locales.NewRequest(), locales.NewFolder(), locales.RenameNamed("API")} {
+		if !slices.Contains(menu, label) {
+			t.Fatalf("the folder menu is missing %q: %q", label, menu)
+		}
+	}
+	if err := tt.ChooseMenuItem(locales.NewRequest()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if d := a.requestDocument; d == nil || d.composeCollection != "Workspace/API" {
+		t.Fatalf("New request opened %+v, want the API folder", d)
+	}
+
+	// A new folder opens its editor on a free path; nothing is written until
+	// the editor is saved.
+	a = workspaceApp()
+	tt = ui.NewTester(a.view, 1280, 800)
+	tt.SetLocale("en-US")
+	showCollections(t, tt)
+	tt.Frame()
+	if err := tt.RightClick("API"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem(locales.NewFolder()); err != nil {
+		t.Fatal(err)
+	}
+	if !a.folderUI.open || a.folderUI.draft.Path != "Workspace/API/New folder" {
+		t.Fatalf("New folder opened %+v, want Workspace/API/New folder", a.folderUI)
+	}
+}
+
+// An API contract's row has its own actions: opening it, validating and
+// saving its source, and exporting or creating a collection from it.
+func TestAPIContractRowMenu(t *testing.T) {
+	a := workspaceApp()
+	a.addAPI(apiSpec{ID: "menu-api", Source: `{"openapi":"3.0.3","info":{"title":"Menu API","version":"1"},"paths":{}}`}, true)
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.SetLocale("en-US")
+	showCollections(t, tt)
+	tt.Frame()
+	if err := tt.RightClick(locales.ApiTitle("Menu API")); err != nil {
+		t.Fatalf("right-click the API contract: %v", err)
+	}
+	menu := tt.Menu()
+	for _, label := range []string{locales.Open(), locales.Validate(), locales.SaveApi(), locales.ExportOpenapi(), locales.CreateCollectionFromOpenapi()} {
+		if !slices.Contains(menu, label) {
+			t.Fatalf("the API contract menu is missing %q: %q", label, menu)
+		}
+	}
+}
+
+// A collection or folder's name edits in place: Rename in its menu shows an
+// input on the row, and Enter writes the name without opening the settings
+// dialog.
+func TestCollectionFolderRenamesInline(t *testing.T) {
+	a := libraryApp(t)
+	if err := a.writeLibrary(nil, []request.Folder{{Path: "Shop"}}); err != nil {
+		t.Fatal(err)
+	}
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.SetLocale("en-US")
+	showCollections(t, tt)
+	tt.Frame()
+	if err := tt.RightClick("Shop"); err != nil {
+		t.Fatalf("right-click the folder name: %v", err)
+	}
+	if err := tt.ChooseMenuItem(locales.RenameNamed("Shop")); err != nil {
+		t.Fatalf("choose Rename: %v", err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("Rename Shop"); !ok {
+		t.Fatalf("the folder name did not become an input: %q", tt.Texts())
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("Renamed")
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if len(a.folders) != 1 || a.folders[0].Path != "Renamed" {
+		t.Fatalf("folders after inline rename = %+v", a.folders)
+	}
+	if _, ok := tt.Find("Rename Shop"); ok {
+		t.Fatal("the inline editor stayed open after Enter")
 	}
 }
 

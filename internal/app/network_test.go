@@ -384,7 +384,7 @@ func TestNetworkPresetsIntegrateWithToolsAndActiveChip(t *testing.T) {
 	if err := tt.Click("Tools"); err != nil {
 		t.Fatal(err)
 	}
-	if err := chooseMenu(tt, "Custom presets…"); err != nil {
+	if err := chooseMenu(tt, "Network", "Custom presets…"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("Custom network presets") {
@@ -396,7 +396,7 @@ func TestNetworkPresetsIntegrateWithToolsAndActiveChip(t *testing.T) {
 	if err := tt.Click("Tools"); err != nil {
 		t.Fatal(err)
 	}
-	if err := chooseMenu(tt, "Mobile"); err != nil {
+	if err := chooseMenu(tt, "Network", "Mobile"); err != nil {
 		t.Fatal(err)
 	}
 	if a.throttle.Name != "Mobile" || !tt.HasText("Active tool: Mobile") {
@@ -494,7 +494,7 @@ func TestNetworkOffPersistsAllRuleDisablesOrLeavesConditionsAlone(t *testing.T) 
 	if err := tt.Click("Tools"); err != nil {
 		t.Fatal(err)
 	}
-	if err := chooseMenu(tt, "Off"); err != nil {
+	if err := chooseMenu(tt, "Network", "Off"); err != nil {
 		t.Fatal(err)
 	}
 	saved, err := capture.LoadRules(a.rulesPath)

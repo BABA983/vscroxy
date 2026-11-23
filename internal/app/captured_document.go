@@ -241,7 +241,7 @@ func (a *app) capturedDocument(c *ui.Context, t *ui.Theme, f flow, d *requestDoc
 			d.composeName = cmp.Or(d.composeName, d.composeMethod+" "+f.path)
 			a.renameOpen, a.saveAfterRename = true, true
 		}
-	})
+	}, false)
 	if d.comparing {
 		// A comparison takes the whole document, as in a request tab.
 		ui.Column(c).Grow(1).MinHeight(0).Children(func() { a.requestResponse(c, t, d) })

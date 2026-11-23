@@ -186,7 +186,6 @@ func chooseBodyFormat(t *testing.T, tt *ui.Tester, side, mode string) {
 func TestShellPaintsItsOwnSurfaceOverTheWindowMaterial(t *testing.T) {
 	for _, material := range []bool{false, true} {
 		a := workspaceApp()
-		a.macChrome = true
 		tt := ui.NewTester(a.view, 1280, 800)
 		tt.SetVibrancy(material)
 		im := tt.Image()
@@ -202,59 +201,51 @@ func TestShellPaintsItsOwnSurfaceOverTheWindowMaterial(t *testing.T) {
 }
 
 func TestShellKeepsItsControlsInsideTheWindow(t *testing.T) {
-	for _, mac := range []bool{false, true} {
-		for _, width := range []int{960, 1280} {
-			for _, scale := range []float32{1, 2} {
-				for _, bar := range []ui.TitleBar{{}, {Height: 48, Left: 76}, {Height: 44, Right: 192}} {
-					a := workspaceApp()
-					a.macChrome = mac
-					tt := ui.NewTester(a.view, width, 800)
-					tt.SetScale(scale)
-					tt.SetTitleBar(bar)
-					// The pill leads the bar after the brand — past the
-					// native insets — then the tools that are on and the
-					// field that finds every command; the switches close it.
-					status, ok := tt.Find("Proxy status")
-					if !ok {
-						t.Fatal("the recording pill is missing")
-					}
-					brand, _ := tt.Find("vscroxy")
-					// The way to every command is a button with the
-					// shortcut, not a field: it leaves the bar's room to
-					// the tools that are on.
-					field, ok := tt.Find("Commands")
-					if !ok || !tt.HasText(commandShortcut()) {
-						t.Fatalf("the command button is missing its shortcut: %v", field)
-					}
-					more, _ := tt.Find("More")
-					// One button switches the layout; its label names the
-					// layout a click goes to.
-					layout, ok := tt.Find("Stacked layout")
-					if !ok {
-						layout, _ = tt.Find("Side by side layout")
-					}
-					if mac {
-						// Beside the sidebar the brand is the sidebar's.
-						if brand.X >= a.sidebarWidth {
-							t.Fatalf("the brand left the sidebar at mac=%t: %v", mac, brand)
-						}
-					} else if bar.Left > 0 && brand.X < bar.Left+uikit.IconLarge+16 {
-						// With controls on the left the brand keeps a gap
-						// from them, as it does from its own icon.
-						t.Fatalf("the brand sits on the native controls: %v", brand)
-					}
-					if status.X < bar.Left || status.X+status.W > field.X {
-						t.Fatalf("the pill does not lead the bar at mac=%t: pill=%v field=%v", mac, status, field)
-					}
-					if field.X+field.W > layout.X || layout.X < status.X+status.W {
-						t.Fatalf("the command field and the switches overlap at mac=%t: %v %v", mac, field, layout)
-					}
-					if more.X+more.W > float32(width)-bar.Right {
-						t.Fatalf("the switches run past the window at width=%d: %v", width, more)
-					}
-					if field.W < 48 {
-						t.Fatalf("the command button is squeezed to %g at width=%d", field.W, width)
-					}
+	for _, width := range []int{960, 1280} {
+		for _, scale := range []float32{1, 2} {
+			for _, bar := range []ui.TitleBar{{}, {Height: 48, Left: 76}, {Height: 44, Right: 192}} {
+				a := workspaceApp()
+				tt := ui.NewTester(a.view, width, 800)
+				tt.SetScale(scale)
+				tt.SetTitleBar(bar)
+				// Live state is in the footer: the proxy at its start, the
+				// notifications at its end. The title bar carries the
+				// sidebar switch, the search, the layout and Settings,
+				// clear of the window's own controls on either side.
+				status, ok := tt.Find("Proxy status")
+				if !ok {
+					t.Fatal("the proxy lamp is missing")
+				}
+				bell, ok := tt.Find("Notifications")
+				if !ok {
+					t.Fatal("the notifications button is missing")
+				}
+				// The way to every command is a button with the
+				// shortcut, not a field.
+				field, ok := tt.Find("Commands")
+				if !ok || !tt.HasText(commandShortcut()) {
+					t.Fatalf("the command button is missing its shortcut: %v", field)
+				}
+				toggle, _ := tt.Find("Hide sidebar")
+				settings, _ := tt.Find("Settings")
+				// One button switches the layout; its label names the
+				// layout a click goes to.
+				layout, ok := tt.Find("Stacked layout")
+				if !ok {
+					layout, _ = tt.Find("Side by side layout")
+				}
+				footer := float32(800 - uikit.HeightFooter)
+				if status.X < 0 || status.Y < footer || bell.Y < footer || bell.X+bell.W > float32(width) || bell.X < status.X {
+					t.Fatalf("the proxy and the notifications are not at the footer's ends: %v %v", status, bell)
+				}
+				if toggle.X < bar.Left || field.X < toggle.X+toggle.W || field.X+field.W > layout.X {
+					t.Fatalf("the title bar's start overlaps at width=%d: %v %v %v", width, toggle, field, layout)
+				}
+				if layout.Y > float32(uikit.HeightBar) || settings.X+settings.W > float32(width)-bar.Right {
+					t.Fatalf("the layout and Settings are not inside the title bar's end at width=%d: %v %v", width, layout, settings)
+				}
+				if field.W < 48 {
+					t.Fatalf("the command button is squeezed to %g at width=%d", field.W, width)
 				}
 			}
 		}
@@ -319,7 +310,7 @@ func TestActiveToolChipsChangeConfigurationInBothWorkspaces(t *testing.T) {
 			}
 			// Disappearing and returning chips retain independent identities.
 			click("Tools")
-			if err := chooseMenu(tt, "No Caching"); err != nil {
+			if err := chooseMenu(tt, "Network", "No Caching"); err != nil {
 				t.Fatal(err)
 			}
 			if !a.srv.NoCaching() || !tt.HasText("Active tool: No Caching") {
@@ -355,7 +346,7 @@ func appearanceOf(dark bool) string {
 // than a button of its own.
 func openSettingsFromBar(t *testing.T, tt *ui.Tester) {
 	t.Helper()
-	if err := tt.Click("More"); err != nil {
+	if err := tt.Click(locales.Tools()); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.ChooseMenuItem("Open settings…"); err != nil {
@@ -364,11 +355,11 @@ func openSettingsFromBar(t *testing.T, tt *ui.Tester) {
 	tt.Frame()
 }
 
-// The title bar's end carries only what is global: notifications, the tools,
-// Settings and ⋯. The layout belongs to the screen and sits in the footer;
-// the sidebar's switch sits at the bar's start, beside the window's controls.
-// Settings opens from the gear and from ⋯ alike.
-func TestTitleBarKeepsGlobalControlsAndSettingsInMore(t *testing.T) {
+// The title bar pairs the layout switches across it: the sidebar's at its
+// start, the screen's split at its end with Tools and Settings. Live state and
+// notifications are the footer's, and the brand is not repeated in the chrome.
+// Settings opens from the gear and from Tools alike.
+func TestTitleBarKeepsGlobalControlsAndSettingsInTools(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1280, 800)
 	tt.Frame()
@@ -376,28 +367,47 @@ func TestTitleBarKeepsGlobalControlsAndSettingsInMore(t *testing.T) {
 	if !ok || gear.Y > float32(uikit.HeightBar) {
 		t.Fatalf("the title bar has no Settings button: %+v", gear)
 	}
-	if layout, ok := tt.Find("Stacked layout"); !ok || layout.Y < 700 {
-		t.Fatalf("the layout switch is not in the footer: %+v", layout)
+	if layout, ok := tt.Find("Stacked layout"); !ok || layout.Y > float32(uikit.HeightBar) || layout.X > gear.X {
+		t.Fatalf("the layout switch is not before Settings in the title bar: %+v", layout)
+	}
+	if bell, ok := tt.Find("Notifications"); !ok || bell.Y < 700 {
+		t.Fatalf("the notifications are not in the footer: %+v", bell)
 	}
 	toggle, ok := tt.Find("Hide sidebar")
 	if !ok {
 		t.Fatal("the title bar has no sidebar switch")
 	}
-	brand, ok := tt.Find("vscroxy")
-	if !ok {
-		t.Fatal("the title bar has no brand")
+	if toggle.X >= gear.X {
+		t.Fatalf("the sidebar switch sits at %v, not at the bar's start before Settings at %v", toggle.X, gear.X)
 	}
-	if toggle.X > brand.X {
-		t.Fatalf("the sidebar switch sits at %v, right of the brand at %v: want it at the bar's start", toggle.X, brand.X)
+	if _, ok := tt.Find("vscroxy"); ok {
+		t.Fatal("the title bar repeats the vscroxy brand")
 	}
-	if err := tt.Click("More"); err != nil {
+	// Live state is the footer's, not a second thing in the title bar.
+	status, ok := tt.Find(locales.Stopped())
+	if !ok || status.Y < 700 {
+		t.Fatalf("the proxy state is not in the footer: %v (found %t)", status, ok)
+	}
+	// The stores every request draws on are in Tools, not the footer.
+	if err := tt.Click(locales.Tools()); err != nil {
+		t.Fatal(err)
+	}
+	menu := tt.Menu()
+	for _, label := range []string{locales.Cookies(), locales.Vault(), locales.ClientSetup(), locales.HttpsDecryption(), locales.Diagnostics()} {
+		if !slices.Contains(menu, label) {
+			t.Fatalf("Tools is missing %q: %q", label, menu)
+		}
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if err := tt.Click(locales.Tools()); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.ChooseMenuItem("Open settings…"); err != nil {
 		t.Fatal(err)
 	}
 	if !a.settingsOpen {
-		t.Fatal("⋯ does not open Settings")
+		t.Fatal("Tools does not open Settings")
 	}
 }
 
@@ -1101,12 +1111,28 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !tt.HasText("Listening on") || !tt.HasText(srv.Addr()) || !tt.HasText("Listening at "+srv.Addr()+" · no retained requests yet") {
+	if !tt.HasText("Recording") || !tt.HasText("Listening at "+srv.Addr()+" · no retained requests yet") {
 		t.Fatalf("capture must show its actual bound address, texts: %q", tt.Texts())
 	}
 	if !tt.HasText(locales.PauseCapture()) {
 		t.Fatal("a running capture lost its record button")
 	}
+	// The footer says only that it records; where it listens waits under
+	// the pointer.
+	status, _ := tt.Find("Proxy status")
+	_, port, _ := net.SplitHostPort(srv.Addr())
+	if tt.HasText(locales.ProxyTipOn()) {
+		t.Fatal("the proxy card shows before hover")
+	}
+	tt.Move(status.X+status.W/2, status.Y+status.H/2)
+	tt.Advance(700 * time.Millisecond)
+	tt.Frame()
+	if !tt.HasText(locales.ProxyTipOn()) || !tt.HasText(port) || !tt.HasText("Devices") {
+		t.Fatalf("the proxy card lacks the address, port or device access: %q", tt.Texts())
+	}
+	tt.Move(600, 400)
+	tt.Advance(700 * time.Millisecond)
+	tt.Frame()
 	// Paused, the proxy still forwards but keeps only what the app itself
 	// sent; resuming keeps ambient traffic again.
 	if err := tt.Click("Pause capture"); err != nil {
@@ -1122,7 +1148,7 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 	}
 	a.pending = []capture.Flow{{ID: 3, Method: "GET", Host: "ambient.test"}}
 	tt.Frame()
-	if !tt.HasText("Listening on") || len(a.flows) != 2 || a.flows[1].id != 3 {
+	if !tt.HasText("Recording") || len(a.flows) != 2 || a.flows[1].id != 3 {
 		t.Fatalf("resumed recording kept %d flows, want the ambient one too", len(a.flows))
 	}
 	openSettingsFromBar(t, tt)
@@ -1595,8 +1621,8 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	if !tt.HasText("Encrypted, not decrypted — not individual requests") {
 		t.Fatalf("enabling an app claimed this historical tunnel was decrypted: %q", tt.Texts())
 	}
-	click("Setup")
-	if err := chooseMenu(tt, "HTTPS decryption"); err != nil {
+	click(locales.Tools())
+	if err := chooseMenu(tt, locales.HttpsDecryption()); err != nil {
 		t.Fatal(err)
 	}
 	click("Decryption domains")
@@ -1607,8 +1633,8 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	if !cfg.Decrypts("edited.test") || cfg.Decrypts("existing.test") || len(cfg.Apps) != 1 || cfg.Apps[0].Path != path {
 		t.Fatalf("editing domains lost the independent app rule: %+v", cfg)
 	}
-	click("Setup")
-	if err := chooseMenu(tt, "HTTPS decryption"); err != nil {
+	click(locales.Tools())
+	if err := chooseMenu(tt, locales.HttpsDecryption()); err != nil {
 		t.Fatal(err)
 	}
 	box, ok := tt.Find("Decryption domains")
@@ -1618,8 +1644,8 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	tt.Scroll(box.X+10, box.Y+10, 0, 1e6)
 	click("Remove HTTPS app: " + path)
 	click("Cancel")
-	click("Setup")
-	if err := chooseMenu(tt, "HTTPS decryption"); err != nil {
+	click(locales.Tools())
+	if err := chooseMenu(tt, locales.HttpsDecryption()); err != nil {
 		t.Fatal(err)
 	}
 	tt.Scroll(box.X+10, box.Y+10, 0, 1e6)
@@ -2343,7 +2369,7 @@ func TestCaptureStartsBelowFourBars(t *testing.T) {
 	}
 	// The status bar closes the window; its buttons are the small control
 	// height inside the 28-point footer.
-	if footer, ok := tt.Find("Auto-select"); !ok || footer.Y < height-uikit.HeightFooter || footer.Y+footer.H > height {
+	if footer, ok := tt.Find("Proxy status"); !ok || footer.Y < height-uikit.HeightFooter || footer.Y+footer.H > height {
 		t.Fatalf("the status bar is not the last row of the window: %v", footer)
 	}
 }
@@ -2609,6 +2635,41 @@ func TestRequestLayoutTogglePinsTheSplit(t *testing.T) {
 	}
 }
 
+// The breadcrumb's request name edits in place, as Postman's does. Clicking
+// it does not open the rename dialog, Enter writes the draft's name, and the
+// change stays unsaved until Save.
+func TestRequestNameEditsInline(t *testing.T) {
+	a := workspaceApp()
+	a.addDocument(a.requests[0], "")
+	tt := ui.NewTester(a.view, 1440, 800)
+	tt.SetLocale("en-US")
+	tt.Frame()
+	d := a.requestDocument
+	if err := tt.Click(locales.RenameRequest()); err != nil {
+		t.Fatalf("click the breadcrumb name: %v", err)
+	}
+	tt.Frame()
+	if a.renameOpen {
+		t.Fatal("clicking the name opened the rename dialog")
+	}
+	if a.titleEdit.id != d.id {
+		t.Fatalf("the name did not become an inline input: %+v", a.titleEdit)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("Renamed inline")
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if d.composeName != "Renamed inline" {
+		t.Fatalf("name after Enter = %q", d.composeName)
+	}
+	if !d.dirty() {
+		t.Fatal("an inline rename must stay a draft change until Save")
+	}
+	if a.titleEdit.id != 0 {
+		t.Fatal("the inline editor stayed open after Enter")
+	}
+}
+
 // The inspector's own shortcut detaches and docks it, without opening the
 // command palette.
 func TestInspectorShortcutDetaches(t *testing.T) {
@@ -2694,16 +2755,16 @@ func TestFooterActionsClearFilterAndFollow(t *testing.T) {
 	}
 	click("Auto-select")
 	if !a.following() || a.picked != len(a.visible)-1 {
-		t.Fatal("the footer's Auto-select did not select the newest request")
+		t.Fatal("the toolbar's Auto-select did not select the newest request")
 	}
 }
 
-// The Send shortcut is named once, in the response's empty state; the footer
-// states what is being edited instead of repeating it.
+// The Send shortcut is named once, in the response's empty state, and the
+// environment once, in the tab strip's select: the footer only counts.
 func TestFooterDoesNotRepeatTheSendShortcut(t *testing.T) {
 	a := workspaceApp()
 	a.page = pageRequest
-	want := locales.RequestSummary(len(a.requests)) + " · " + locales.NoEnvironment()
+	want := locales.RequestSummary(len(a.requests))
 	if got := a.footerCountsText(); got != want {
 		t.Fatalf("footer says %q, want %q", got, want)
 	}
@@ -2778,9 +2839,9 @@ func TestFooterKeepsTheNewCountApartFromTheLabel(t *testing.T) {
 	}
 }
 
-// Auto-follow at rest, under the pointer and on are three faces: on borrows
-// the chosen segment's raised canvas, not a tint that reads as hover.
-func TestFooterAutoSelectFacesAreDistinct(t *testing.T) {
+// Auto-select at rest, under the pointer and on are three faces: on is the
+// toolbar's active tint, which does not read as hover.
+func TestAutoSelectFacesAreDistinct(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1280, 800)
 	tt.Frame()
@@ -2806,9 +2867,6 @@ func TestFooterAutoSelectFacesAreDistinct(t *testing.T) {
 	tt.Frame()
 	tt.Advance(400 * time.Millisecond)
 	hoverR, hoverG, hoverB := face()
-	if want := uikit.Colors(uikit.Theme(false)).Background; onR != want.R || onG != want.G || onB != want.B {
-		t.Fatalf("on face is (%d,%d,%d), want the chosen segment's canvas (%d,%d,%d)", onR, onG, onB, want.R, want.G, want.B)
-	}
 	if restR == onR && restG == onG && restB == onB || restR == hoverR && restG == hoverG && restB == hoverB || onR == hoverR && onG == hoverG && onB == hoverB {
 		t.Fatalf("faces read alike: rest (%d,%d,%d), on (%d,%d,%d), hover (%d,%d,%d)", restR, restG, restB, onR, onG, onB, hoverR, hoverG, hoverB)
 	}
@@ -3582,16 +3640,18 @@ func TestOpenRequestsKeepDraftsAndConfirmClose(t *testing.T) {
 	tt.Key(ui.Cmd, ui.Key2)
 	click("Create request")
 	click("Rename request")
-	edit("Name", "Draft A")
-	click("Done")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("Draft A")
+	tt.Key(0, ui.KeyEnter)
 	edit("URL", "https://example.test/a?limit=7")
 	click("Body")
 	edit("Request body", `{"side":"A"}`)
 	// One request shows at a time; a new one waits under Unsaved.
 	click("New request")
 	click("Rename request")
-	edit("Name", "Draft B")
-	click("Done")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("Draft B")
+	tt.Key(0, ui.KeyEnter)
 	edit("URL", "https://example.test/b")
 	if !tt.HasText("Unsaved: Draft A") || !tt.HasText("Unsaved: Draft B") {
 		t.Fatal("new requests are not listed under Unsaved")
@@ -4308,6 +4368,54 @@ func TestDescriptionColumnFollowsTheRequestPaneWidth(t *testing.T) {
 	}
 }
 
+// A form body keeps one column budget across its modes. The File toggle's
+// room is reserved in both, and the last measured width survives the Binary
+// mode's missing table, so switching modes cannot grow or drop Description at
+// the same pane size.
+func TestFormBodyModesKeepTheDescriptionColumn(t *testing.T) {
+	g := NewGallery("editor-http-response")
+	d := g.a.requestDocument
+	d.composeTab, d.bodyMode = composeTabBody, "Multipart"
+	d.formFields = []request.Field{{Name: "project", Value: "Demo", Description: "Project name", File: true}}
+	d.requestPercent, d.splitTouched = 25, true
+	tt := ui.NewTester(g.View, 1600, 900)
+	tt.SetLocale("en-US")
+	tt.Frame()
+	tt.Frame()
+	if _, ok := tt.Find("field description 1"); ok {
+		t.Fatal("the narrow request pane kept Description before any mode switch")
+	}
+	if err := tt.Click("Binary"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Multipart"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := tt.Find("field description 1"); ok {
+		t.Fatal("coming back from Binary grew a Description column the narrow pane cannot fit")
+	}
+	// The other form mode uses the same budget at this width.
+	if err := tt.Click("URL encoded"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := tt.Find("field description 1"); ok {
+		t.Fatal("URL encoded and Multipart disagreed about Description at the same width")
+	}
+	// A wider request pane brings it back, and the modes still agree.
+	d.requestPercent = 60
+	tt.Frame()
+	tt.Frame()
+	if _, ok := tt.Find("field description 1"); !ok {
+		t.Fatalf("the wider pane did not bring Description back: %q", tt.Texts())
+	}
+	if err := tt.Click("Multipart"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := tt.Find("field description 1"); !ok {
+		t.Fatalf("Multipart dropped Description the wide pane fits: %q", tt.Texts())
+	}
+}
+
 func TestHeaderTableKeepsOrderDuplicatesAndDisabledRows(t *testing.T) {
 	a := workspaceApp()
 	a.library.root = filepath.Join(t.TempDir(), "collections")
@@ -4583,7 +4691,7 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 		}
 		return rules
 	}
-	click("More")
+	click("Tools")
 	if err := chooseMenu(tt, "Debugging rules…"); err != nil {
 		t.Fatal(err)
 	}
@@ -4712,7 +4820,7 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 		t.Fatalf("typed body %q: %v", body, err)
 	}
 	click("Done")
-	click("More")
+	click("Tools")
 	if err := chooseMenu(tt, "Debugging rules…"); err != nil {
 		t.Fatal(err)
 	}
@@ -4884,7 +4992,7 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 		}
 	}
 	echo(mobile, "device tunnel before disable")
-	click("More")
+	click("Tools")
 	if err := chooseMenu(tt, "Network", "Connect a device…"); err != nil {
 		t.Fatal(err)
 	}
@@ -5082,7 +5190,7 @@ func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
 	a.chosen.Add(1)
 	a.chosen.Add(2)
 	tt := ui.NewTester(a.view, 960, 600)
-	tt.Click("More")
+	tt.Click("Tools")
 	if err := chooseMenu(tt, "Session", "Replay chosen…"); err != nil {
 		t.Fatal(err)
 	}
@@ -5456,7 +5564,7 @@ func TestDesktopLayoutDefaultsSideBySideAndSwitchesWithoutLosingCaptureContext(t
 	check(false)
 	click("Side by side layout")
 	check(true)
-	click("More")
+	click("Tools")
 	if err := chooseMenu(tt, "View", "Layout: Stacked"); err != nil {
 		t.Fatal(err)
 	}
@@ -6326,12 +6434,11 @@ func TestConnectionDiagnosticsEmptyAndInvalidTargetsDoNotClaimProxyFailure(t *te
 		return system.ProxyCheck{Target: target, Status: system.ProxyOff}
 	}
 	tt := ui.NewTester(a.view, 960, 600)
-	// Diagnostics is in the footer's Setup menu, beside the empty list's
-	// setup actions.
-	if err := tt.Click("Setup"); err != nil {
+	// Diagnostics is in Tools with the other setup entries.
+	if err := tt.Click(locales.Tools()); err != nil {
 		t.Fatal(err)
 	}
-	if err := chooseMenu(tt, "Diagnostics"); err != nil {
+	if err := chooseMenu(tt, locales.Diagnostics()); err != nil {
 		t.Fatal(err)
 	}
 	settleProxy(t, a, tt)
@@ -7376,10 +7483,10 @@ func TestTunnelRowsReadAsTunnels(t *testing.T) {
 	}
 }
 
-// The footer's actions are actions: at rest they are text on the bar's own
-// surface, the pointer gives them a face, and a Host profile that is off is
-// not a chip at all.
-func TestFooterActionsReadAsActions(t *testing.T) {
+// The list's actions are actions: at rest Clear is an icon on the toolbar's
+// own surface, the pointer gives it a face, and a Host profile that is off is
+// not a footer chip at all.
+func TestCaptureToolbarActionsReadAsActions(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1280, 800)
 	tt.Frame()
@@ -7387,14 +7494,16 @@ func TestFooterActionsReadAsActions(t *testing.T) {
 		t.Fatalf("the footer offers a Hosts switch that is off: %q", tt.Texts())
 	}
 	clear, ok := tt.Find("Clear")
-	if !ok {
-		t.Fatal("the footer has no Clear")
+	if !ok || clear.Y > float32(uikit.HeightBar+uikit.HeightTabs*2) {
+		t.Fatalf("the capture toolbar has no Clear: %v", clear)
 	}
-	chrome := uikit.Colors(uikit.Theme(false)).Window
 	at := func() ui.Color {
-		p := tt.Image().RGBAAt(int(clear.X+3), int(clear.Y+clear.H/2))
+		p := tt.Image().RGBAAt(int(clear.X+2), int(clear.Y+2))
 		return ui.RGB(p.R, p.G, p.B)
 	}
+	// The toolbar's own surface, just outside the button.
+	p := tt.Image().RGBAAt(int(clear.X-1), int(clear.Y+clear.H/2))
+	chrome := ui.RGB(p.R, p.G, p.B)
 	if at() != chrome {
 		t.Fatalf("Clear wears a face at rest: %v, want the bar's %v", at(), chrome)
 	}

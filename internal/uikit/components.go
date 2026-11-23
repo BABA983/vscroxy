@@ -1404,7 +1404,22 @@ func tabStripOn(c *ui.Context, fill ui.Color, tabs func()) ui.Element {
 	strip := ui.Box(c).MinWidth(0)
 	scroll := ui.Local(strip, "scroll", func() ui.ScrollState { return ui.ScrollState{} })
 	return strip.Children(func() {
-		ui.ScrollHorizontal(c).TrackScroll(scroll).Fill().Children(tabs)
+		scroller := ui.ScrollHorizontal(c).TrackScroll(scroll).Fill().Scrollbars(false)
+		scroller.HandleInput(func(ev ui.InputEvent) bool {
+			// A mouse wheel's ordinary gesture is vertical, while this row
+			// only goes sideways: turn a bare vertical notch into horizontal
+			// travel toward the end. Shift+wheel keeps MyGo's own mapping.
+			if ev.Kind != ui.InputScroll || ev.Mods != 0 || ev.DX != 0 || ev.DY == 0 {
+				return false
+			}
+			next := max(0, min(scroll.X+ev.DY, scroll.MaxX))
+			if next == scroll.X {
+				return false
+			}
+			scroll.X = next
+			c.Invalidate()
+			return true
+		}).Children(tabs)
 		if scroll.X > 0.5 {
 			EdgeFade(c, true, fill)
 		}

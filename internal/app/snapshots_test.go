@@ -1973,10 +1973,10 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.upstreamLoading = true
 		}, want: "Disable Upstream loading"},
 		{name: "requests-active-tools", setup: func(a *app) { snapshotActiveTools(a); draft(a) }, want: "Disable No Caching"},
-		{name: "shell-menu", act: click("More"), menu: "Network"},
-		{name: "tools-menu", setup: snapshotActiveTools, act: click("Tools"), menu: "No Caching"},
-		{name: "network-submenu", act: func(t *testing.T, tt *ui.Tester) {
-			click("More")(t, tt)
+		{name: "shell-menu", act: click("Tools"), menu: "Network"},
+		{name: "tools-menu", setup: snapshotActiveTools, act: click("Tools"), menu: "Cookies…"},
+		{name: "network-submenu", setup: snapshotActiveTools, act: func(t *testing.T, tt *ui.Tester) {
+			click("Tools")(t, tt)
 			if err := chooseMenu(tt, "Network"); err != nil {
 				t.Fatal(err)
 			}

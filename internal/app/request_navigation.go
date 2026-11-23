@@ -72,6 +72,150 @@ func branchArrow(c *ui.Context, open *bool) {
 	})
 }
 
+// folderRenameState is a collection or folder's name being edited in the
+// tree: the path says which row, and focus asks the input to take the
+// keyboard in the frame it appears.
+type folderRenameState struct {
+	path, name     string
+	focus, focused bool
+}
+
+// startFolderRename turns a folder row's name into an input in place, as
+// Postman renames a collection. Another row being edited is committed first,
+// so a click on a second name does not silently discard the first.
+func (a *app) startFolderRename(path string) {
+	if a.folderRename.path != "" && a.folderRename.path != path {
+		a.commitFolderRename(a.folderRename.path)
+	}
+	name := path
+	if _, last, found := strings.CutLast(path, "/"); found {
+		name = last
+	}
+	a.folderRename = folderRenameState{path: path, name: name, focus: true}
+	a.invalidate()
+}
+
+// cancelFolderRename leaves the saved name untouched.
+func (a *app) cancelFolderRename(path string) {
+	if a.folderRename.path != path {
+		return
+	}
+	a.folderRename = folderRenameState{}
+	a.invalidate()
+}
+
+// commitFolderRename writes the name typed in the tree. An empty or unchanged
+// name closes the editor; a refused rename warns and leaves the input open so
+// the reader can correct it. path keeps a late blur from committing another
+// row's draft after the reader has started editing it.
+func (a *app) commitFolderRename(path string) {
+	st := &a.folderRename
+	if st.path != path {
+		return
+	}
+	from, name := st.path, strings.TrimSpace(st.name)
+	if name == "" {
+		a.cancelFolderRename(path)
+		return
+	}
+	if _, last, found := strings.CutLast(from, "/"); found && name == last || !found && name == from {
+		*st = folderRenameState{}
+		a.invalidate()
+		return
+	}
+	if err := a.renameFolder(from, name); err != nil {
+		a.warn(locales.NotRenamedWith(err.Error()))
+		a.invalidate()
+		return
+	}
+	*st = folderRenameState{}
+	a.invalidate()
+}
+
+// folderName edits a collection's or folder's name in place when its menu's
+// Rename starts it; Enter or leaving it commits, and Escape leaves the saved
+// name alone. A plain click still belongs to the tree row, not to renaming.
+func (a *app) folderName(c *ui.Context, path, name string, matches []fuzzy.Match) {
+	t := c.Theme()
+	if a.folderRename.path == path {
+		input := ui.TextInput(c, &a.folderRename.name).
+			Label(locales.RenameNamed(name)).
+			Height(uikit.HeightRow).Grow(1).MinWidth(0).
+			FontSize(uikit.Scaled(uikit.TextBody)).
+			Padding(0, t.Space(uikit.SpaceS)).
+			Radius(uikit.RadiusInner).FocusRing(false).
+			Background(t.Background).Border(uikit.HairlineWidth, t.Accent)
+		if a.folderRename.focus {
+			input.AutoFocus()
+			a.folderRename.focus = false
+		}
+		input.HandleInput(func(ev ui.InputEvent) bool {
+			if ev.Kind == ui.InputKeyDown && ev.Key == ui.KeyEscape {
+				a.cancelFolderRename(path)
+				return true
+			}
+			return false
+		})
+		switch {
+		case input.Submitted():
+			a.commitFolderRename(path)
+		case input.Focused() || input.FocusWithin():
+			a.folderRename.focused = true
+		case a.folderRename.focused:
+			a.commitFolderRename(path)
+		}
+		return
+	}
+	fuzzyListBody(c, name, matches).SingleLine().Grow(1)
+}
+
+// newRequestIn opens an empty request already filed under collection, as a
+// New Request on that collection's menu does.
+func (a *app) newRequestIn(collection string) {
+	a.openCompose()
+	if d := a.requestDocument; d != nil {
+		d.composeCollection = collection
+	}
+}
+
+// newFolderIn opens the folder editor on a new path under parent. Saving it
+// creates the folder; Cancel leaves the tree as it was.
+func (a *app) newFolderIn(parent string) {
+	base := locales.NewFolder()
+	for n := 1; ; n++ {
+		name := base
+		if n > 1 {
+			name = fmt.Sprintf("%s %d", base, n)
+		}
+		path := name
+		if parent != "" {
+			path = parent + "/" + name
+		}
+		exists := false
+		for _, f := range a.folders {
+			if f.Path == path {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			a.openFolder(path)
+			return
+		}
+	}
+}
+
+// duplicateSaved opens a copy of a saved request as a new unsaved draft.
+func (a *app) duplicateSaved(r savedRequest) {
+	before := a.snapshotDraftsUndo()
+	duplicate := r
+	duplicate.ID, duplicate.Name = "", uniqueRequestName(a.requests, r.Name+" copy")
+	a.addDocument(duplicate, "")
+	after := a.snapshotDraftsUndo()
+	a.recordUndo(undoRecord{code: "draft.duplicate", label: locales.DuplicateAsNewRequest(),
+		before: before, after: after})
+}
+
 // collectionTree uses full paths for identity and short names for presentation.
 // Search opens matching ancestors without rewriting the user's collapsed state.
 // VS Code's tree FindFilter (src/vs/base/browser/ui/tree/abstractTree.ts)
@@ -134,6 +278,9 @@ func (a *app) collectionTree(c *ui.Context) {
 					mock = locales.RebuildScenarioFromExamples(path)
 				}
 				actions := append([]action{
+					do("collection.new-request", locales.NewRequest(), func() { a.newRequestIn(path) }).in("create"),
+					do("collection.new-folder", locales.NewFolder(), func() { a.newFolderIn(path) }).in("create"),
+					do("collection.rename", locales.RenameNamed(name), func() { a.startFolderRename(path) }).in("edit"),
 					do("collection.docs", locales.ViewDocumentation(), func() { a.openDocs(path) }).in("open"),
 					do("collection.history", locales.LocalHistoryEllipsis(), func() { a.openFolderHistory(path) }).in("open"),
 				}, a.folderSettingsActions(path)...)
@@ -158,7 +305,10 @@ func (a *app) collectionTree(c *ui.Context) {
 			a.queueTreeDrop(c, row, folderDrag, true, parent, paths)
 			row.Children(func() {
 				branchArrow(c, open)
-				fuzzyListBody(c, name, folderMatches[path]).SingleLine().Grow(1)
+				a.folderName(c, path, name, folderMatches[path])
+				if a.folderRename.path == path {
+					return
+				}
 				action := uikit.MoreMenu(c, locales.CollectionActionsPrefix(path), menu).
 					Absolute().Right(uikit.RowActionInset).Top(uikit.RowActionInset).Background(uikit.Colors(c.Theme()).Window)
 				if !row.Hovered() && !row.FocusWithin() {
@@ -178,6 +328,11 @@ func (a *app) collectionTree(c *ui.Context) {
 				actionMenu(m, append(append([]action{
 					do("request.open", locales.Open(), func() { a.openSaved(r.key()) }).in("open"),
 					do("request.history", locales.LocalHistoryEllipsis(), func() { a.openRequestHistory(r.key()) }).in("open"),
+					do("request.rename", locales.RenameRequest(), func() {
+						a.openSaved(r.key())
+						a.startRequestRename(a.requestDocument)
+					}).in("edit"),
+					do("request.duplicate", locales.DuplicateAsNewRequest(), func() { a.duplicateSaved(r) }).in("edit"),
 				}, a.folderSettingsActions(r.Collection)...),
 					do("library.move", locales.MoveToEllipsis(), func() { a.openMoveTo(requestDrag) }).in("edit"),
 					do("request.delete", locales.DeleteRequest(), func() { a.confirmDeleteRequest(r.key(), r.Name) }).in("danger")))

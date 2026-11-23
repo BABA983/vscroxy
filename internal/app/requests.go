@@ -106,6 +106,11 @@ type requestDocument struct {
 	// column hides from this measured width, so moving the request/response
 	// divider changes it without waiting for the window to resize.
 	fieldTablePane ui.Handle
+	// fieldTableWidth remembers that width while no table is laid out, as on
+	// the Binary body mode: the first frame after switching back uses the
+	// same budget instead of the window's width, so a column cannot appear
+	// for one frame and then stay until the pointer moves.
+	fieldTableWidth float32
 	// pathRows are the values of the URL's :name segments, in URL order.
 	pathRows    []request.Field
 	queryError  string
@@ -519,34 +524,124 @@ func (a *app) cycleDocument(step int) {
 	a.activateDocument(a.documents[index-1])
 }
 
+// requestTitleEdit is an open request's name being edited on its breadcrumb.
+// The draft stays here until Enter or leaving the field, so Escape can leave
+// the saved name untouched.
+type requestTitleEdit struct {
+	id             int
+	name           string
+	focus, focused bool
+}
+
+// startRequestRename turns the breadcrumb's request name into an input in
+// place, as Postman does, rather than opening the rename dialog. Another open
+// request's title is committed first, so a click does not discard its draft.
+func (a *app) startRequestRename(d *requestDocument) {
+	if d == nil {
+		return
+	}
+	if a.titleEdit.id != 0 && a.titleEdit.id != d.id {
+		a.commitRequestRename()
+	}
+	a.titleEdit = requestTitleEdit{id: d.id, name: d.composeName, focus: true}
+	a.invalidate()
+}
+
+// cancelRequestRename closes the inline title editor without changing the name.
+func (a *app) cancelRequestRename(id int) {
+	if a.titleEdit.id != id {
+		return
+	}
+	a.titleEdit = requestTitleEdit{}
+	a.invalidate()
+}
+
+// commitRequestRename writes the name typed on the breadcrumb into the draft.
+// An empty or unchanged name just closes; the file is written by Save, as any
+// other draft edit is.
+func (a *app) commitRequestRename() {
+	st := &a.titleEdit
+	if st.id == 0 {
+		return
+	}
+	id, name := st.id, strings.TrimSpace(st.name)
+	*st = requestTitleEdit{}
+	var d *requestDocument
+	for _, candidate := range a.documents {
+		if candidate.id == id {
+			d = candidate
+			break
+		}
+	}
+	if d != nil && name != "" && name != d.composeName {
+		d.composeName = name
+	}
+	a.invalidate()
+}
+
+// requestTitle draws the breadcrumb's request name: read-only until clicked,
+// then the inline editor. The collection prefix is not part of the name and
+// stays put while the name changes.
+func (a *app) requestTitle(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	if a.titleEdit.id == d.id {
+		input := ui.TextInput(c, &a.titleEdit.name).
+			Label(locales.RenameRequest()).
+			Height(uikit.HeightSecondary).Grow(1).MinWidth(uikit.WidthField).
+			FontSize(uikit.Scaled(uikit.TextBody)).
+			Padding(0, t.Space(uikit.SpaceS)).
+			Radius(uikit.RadiusControl).FocusRing(false).
+			Background(t.Background).Border(uikit.HairlineWidth, t.Accent)
+		if a.titleEdit.focus {
+			input.AutoFocus()
+			a.titleEdit.focus = false
+		}
+		input.HandleInput(func(ev ui.InputEvent) bool {
+			if ev.Kind == ui.InputKeyDown && ev.Key == ui.KeyEscape {
+				a.cancelRequestRename(d.id)
+				return true
+			}
+			return false
+		})
+		switch {
+		case input.Submitted():
+			a.commitRequestRename()
+		case input.Focused() || input.FocusWithin():
+			a.titleEdit.focused = true
+		case a.titleEdit.focused:
+			a.commitRequestRename()
+		}
+		return
+	}
+	button := uikit.ToolbarButton(c, locales.RenameRequest(), locales.RenameRequest(), false).
+		Height(uikit.HeightSecondary).Padding(0, t.Space(uikit.SpaceXS)).MinWidth(0)
+	button.Children(func() {
+		uikit.Body(c, d.title()).FontWeight(500).SingleLine().MinWidth(0)
+		if d.dirty() {
+			unsavedDot(c)
+		}
+	})
+	if button.Clicked() {
+		a.startRequestRename(d)
+	}
+}
+
 // documentHeader names the one request on screen as a breadcrumb — its
-// collection, then its name, which renames or moves it — with its actions.
-// The environment it sends in is at the document strip's end. Other open
-// requests are in the sidebar: saved ones in their collection, new ones under
-// Unsaved.
+// collection, then its name, which edits in place — with its actions. The
+// environment it sends in is at the document strip's end. Other open requests
+// are in the sidebar: saved ones in their collection, new ones under Unsaved.
 func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 	d := a.requestDocument
 	// The editor's first row is the panel's, as the capture screen's filter
 	// bar is: chrome only frames the window, never a line inside the panel.
-	// It is a bar's height, so its controls stand clear of the tab strip
-	// above, and every control in it is the Save button's height, so the
+	// It is the tab strip's height, so the crumb sits close to the URL bar
+	// below, and every control in it is the Save button's height, so the
 	// crumb and the actions share one centre line.
-	ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Background(t.Background).Children(func() {
+	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Background(t.Background).Children(func() {
 		if d != nil {
-			crumb := uikit.ToolbarButton(c, locales.RenameRequest(), locales.RenameOrMoveToAnother(), false).
-				Height(uikit.HeightSecondary).Padding(0, t.Space(uikit.SpaceXS)).Gap(t.Space(uikit.SpaceXS)).MinWidth(0)
-			crumb.Children(func() {
-				if d.composeCollection != "" {
-					uikit.Meta(c, strings.ReplaceAll(d.composeCollection, "/", " / ")+" /").SingleLine().MinWidth(0)
-				}
-				uikit.Body(c, d.title()).FontWeight(500).SingleLine().MinWidth(0)
-				if d.dirty() {
-					unsavedDot(c)
-				}
-			})
-			if crumb.Clicked() {
-				a.renameOpen, a.saveAfterRename = true, false
+			if d.composeCollection != "" {
+				uikit.Meta(c, strings.ReplaceAll(d.composeCollection, "/", " / ")+" /").SingleLine().MinWidth(0)
 			}
+			a.requestTitle(c, t, d)
 		}
 		ui.Spacer(c)
 		if d != nil {
@@ -573,7 +668,7 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 		a.protoOwner = 1
 	}
 	ui.Column(c.Key(d.id)).Fill().Children(func() {
-		a.requestBar(c, t, d, nil)
+		a.requestBar(c, t, d, nil, true)
 		a.requestVariablesPanel(c, t, d)
 		if d.comparing {
 			ui.Column(c).Grow(1).Children(func() { a.requestResponse(c, t, d) })
@@ -932,8 +1027,15 @@ func protocolDefaultURL(protocol, current string) string {
 	}
 }
 
-func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more func()) {
-	ui.Row(c).Height(48).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+// requestBar is the method, URL and Send; more adds what follows Send. compact
+// draws it at the pane header's height for the request editor, whose crumb sits
+// directly above it; the capture inspector keeps its taller bar.
+func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more func(), compact bool) {
+	height := float32(48)
+	if compact {
+		height = uikit.HeightBar
+	}
+	ui.Row(c).Height(height).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		field := ui.Row(c).Grow(1).Height(uikit.HeightControl).AlignItems(ui.Center)
 		field.Disabled(d.protocol != "" && d.composeWaiting)
 		uikit.FieldFace(c, field, field.FocusWithin()).Children(func() {
@@ -1235,11 +1337,18 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 	width := a.editorPaneWidthAt(c, &a.editorReqPane, draftPercent)
 	bodyTools := func() {
 		typeRow := func() {
+			before := d.bodyMode
 			group := uikit.RadioGroup(c, func() {
 				for _, kind := range bodyTypes {
 					uikit.CompactRadio(c, &d.bodyMode, kind, optionLabel(kind))
 				}
 			}).Row().Gap(t.Space(uikit.SpaceL)).Label(locales.RequestBodyType())
+			if d.bodyMode != before {
+				// The table below changes with the mode, and its column
+				// budget is read from the previous frame. Ask for that frame
+				// now instead of waiting for the pointer to move.
+				c.Invalidate()
+			}
 			if width < 560 {
 				group.FillWidth().Wrap()
 			} else {

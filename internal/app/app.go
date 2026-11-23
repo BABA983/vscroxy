@@ -128,6 +128,12 @@ type app struct {
 	sidebarFollows tabID
 	requestChoice  string
 	requestQuery   string
+	// folderRename is the collection or folder being renamed in place, with
+	// its draft name. A path that is empty means no row is editing.
+	folderRename folderRenameState
+	// titleEdit is the open request's name being edited on its breadcrumb,
+	// with its draft name. An empty id means no title is editing.
+	titleEdit requestTitleEdit
 	// requestGen changes with the library, so the command palette rebuilds
 	// its request index only when the requests do.
 	requestGen   int
@@ -525,9 +531,6 @@ type app struct {
 	// language is "en" or "zh-Hans", or empty to follow the computer's
 	// languages (see language.go).
 	language string
-	// macChrome is macOS's window layout: the sidebar full height with
-	// the traffic lights at its top (see view).
-	macChrome bool
 	// windowBehind is whether another window is in front of this one;
 	// its selections then turn gray.
 	windowBehind bool
@@ -893,7 +896,6 @@ type domain struct {
 
 func newApp() *app {
 	a := &app{
-		macChrome:      runtime.GOOS == "darwin",
 		responseRefs:   &request.Responses{},
 		filter:         "all",
 		sidebarChoice:  "all",
@@ -2262,9 +2264,9 @@ func (a *app) view(c *ui.Context) {
 	frame := uikit.Colors(t).Window
 	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Background(frame).
 		ObserveInput(a.observeMRUInput).Children(func() {
-		if !a.macChrome {
-			a.shell(c, t)
-		}
+		// One title bar across the window on every system, as VS Code and
+		// Postman have: macOS's traffic lights sit at its start.
+		a.shell(c, t)
 		if a.sidebarShown() {
 			ui.Row(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 				ui.Column(c).Width(a.sidebarWidth).Shrink(0).FillHeight().Children(func() { a.sidebar(c) })
@@ -2284,6 +2286,12 @@ func (a *app) view(c *ui.Context) {
 	a.checkpointExperiments(c)
 	a.checkpointSessions()
 	a.checkpointInspectorRestore()
+	// The center and the toasts share the window's bottom-right corner, under
+	// the footer's bell: while the center is open it shows every notice, so
+	// the toasts give way, as VS Code's do.
+	if a.notificationOpen() {
+		c.CloseToast("")
+	}
 	// Dialogs keep their input and actions above background notifications.
 	uikit.Toasts(c)
 	a.commandPalette(c)
@@ -2391,12 +2399,8 @@ func (a *app) view(c *ui.Context) {
 	c.Root().Background(uikit.Colors(c.Theme()).Window)
 }
 
-// mainColumn is everything beside the sidebar: on macOS the title bar (which
-// carries the tools that are on), then problems, the content and the footer.
+// mainColumn is everything beside the sidebar: the content panel.
 func (a *app) mainColumn(c *ui.Context, t *ui.Theme) {
-	if a.macChrome {
-		a.shell(c, t)
-	}
 	a.panel(c.Key("workspace-content"), t)
 }
 
@@ -2843,9 +2847,6 @@ func (a *app) sidebar(c *ui.Context) {
 	c.SetTheme(&local)
 	a.followActiveTab()
 	ui.Column(c).Fill().Background(panel).Children(func() {
-		if a.macChrome {
-			a.brandBar(c, t)
-		}
 		a.sidebarModeSwitch(c, t)
 		if a.sidebarMode == sidebarCollections {
 			// Collections has the sidebar to itself: no heading repeats the
@@ -3017,7 +3018,8 @@ func (a *app) collectionsPane(c *ui.Context, t *ui.Theme) {
 			}, false)
 			for _, hit := range hits {
 				d := a.apis[hit.index]
-				uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label(locales.ApiTitle(d.title())).Children(func() {
+				menu := func(m *ui.Menu) { actionMenu(m, a.apiActions(d)) }
+				uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label(locales.ApiTitle(d.title())).PopoverMenu(menu).Children(func() {
 					if d.dirty() {
 						ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label(locales.UnsavedApi())
 					}
@@ -3179,23 +3181,6 @@ func (a *app) sourcesAllRow(c *ui.Context, t *ui.Theme, apps bool) {
 	if row.Clicked() {
 		a.sourcesAll = !a.sourcesAll
 	}
-}
-
-// footerSetup is the footer's way to connecting a client: its setup, the
-// HTTPS rules and the connection's diagnostics. They are set up once and
-// visited when something breaks, so they share one entry instead of three
-// sidebar rows.
-func (a *app) footerSetup(c *ui.Context) {
-	b := uikit.FooterButton(c, locales.SetupMenu(), locales.SetupMenuTip(), a.page == pageDiagnostics)
-	uikit.MenuFace(c, func() {
-		b.PopoverMenuButton(func(m *ui.Menu) {
-			actionMenu(m, []action{
-				do("setup.client", locales.ClientSetup(), a.openClientSetup),
-				do("setup.https", locales.HttpsDecryption(), func() { a.sslOpen = true }),
-				do("setup.diagnostics", locales.Diagnostics(), func() { a.goTo("diagnostics") }),
-			})
-		}, uikit.MenuButtonOptions(c))
-	})
 }
 
 // clientActions are a sidebar app's: HTTPS inspection of its executables

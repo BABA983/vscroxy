@@ -258,8 +258,9 @@ func (a *app) closeNotifications() {
 func (a *app) notificationList(c *ui.Context, t *ui.Theme, anchor, panel ui.Element) {
 	items := a.notificationItems()
 	width, height := c.Size()
-	uikit.PopoverPanel(c, panel).AttachTo(anchor, ui.AnchorBottomRight, ui.AnchorTopRight).
-		Margin(t.Space(uikit.SpaceS), 0, 0, 0).Padding(t.Space(uikit.SpaceM)).
+	// The bell is at the footer's end, so the list opens above it.
+	uikit.PopoverPanel(c, panel).AttachTo(anchor, ui.AnchorTopRight, ui.AnchorBottomRight).
+		Margin(0, 0, t.Space(uikit.SpaceS), 0).Padding(t.Space(uikit.SpaceM)).
 		Width(min(420, width-32)).MaxHeight(min(520, height-80)).
 		Gap(t.Space(uikit.SpaceXS))
 

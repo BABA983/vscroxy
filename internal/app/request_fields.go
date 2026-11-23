@@ -79,7 +79,7 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		uikit.ErrorText(c, d.queryError)
 	}
 	if a.requestFieldsEditor(c, &d.queryRows, fieldsOptions{collection: d.composeCollection, caption: locales.QueryParams(),
-		key: "parameter", focus: d.unicodeHandle, description: true, measure: &d.fieldTablePane}, locales.Parameter()) {
+		key: "parameter", focus: d.unicodeHandle, description: true, measure: &d.fieldTablePane, seen: &d.fieldTableWidth}, locales.Parameter()) {
 		u, err := url.Parse(d.composeURL)
 		if err == nil {
 			encode := a.inheritance(d.composeCollection).InheritSettings(d.settings).EncodesURL()
@@ -184,8 +184,13 @@ func queryDescriptionsFor(raw string, rows []request.Field) []string {
 // fieldsOptions says what a row table edits: file parts carry a File flag,
 // and header values are masked while their key is a credential.
 type fieldsOptions struct {
-	file   bool
-	secret bool
+	file bool
+	// fileRoom reserves the Value cell's file-toggle room even when the
+	// table is a URL-encoded one. Both form body modes then decide the
+	// Description column from the same width, so switching mode does not
+	// make a column appear or disappear at the same pane size.
+	fileRoom bool
+	secret   bool
 	// description adds the row's documentation column.
 	description bool
 	collection  string
@@ -200,8 +205,10 @@ type fieldsOptions struct {
 	// focus hands a row cell its handle, so a send warning can open it.
 	focus func(string) *ui.Handle
 	// measure receives the table's laid-out width, which decides whether the
-	// Description column fits.
+	// Description column fits. seen keeps the last non-zero width while the
+	// table is not mounted, so a mode switch does not flash a column.
 	measure *ui.Handle
+	seen    *float32
 	// filters are the captured values a row's context menu offers, by name.
 	filters map[string][]string
 }
@@ -224,7 +231,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 	// value can never squeeze them into its text. A table with no masked or
 	// file row spends the second action's room on the Description column.
 	valueMin += uikit.HeightRowAction + t.Space(uikit.SpaceXS)
-	if opts.file || opts.secret && slices.ContainsFunc(*rows, func(r request.Field) bool { return sensitiveHeader(r.Name) }) {
+	if opts.file || opts.fileRoom || opts.secret && slices.ContainsFunc(*rows, func(r request.Field) bool { return sensitiveHeader(r.Name) }) {
 		valueMin += uikit.HeightRowAction + t.Space(uikit.SpaceXS)
 	}
 	showDescription := false
@@ -235,6 +242,20 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 		tableWidth := float32(0)
 		if opts.measure != nil {
 			tableWidth = opts.measure.Bounds(c).W
+		}
+		if tableWidth > 0 && opts.seen != nil {
+			*opts.seen = tableWidth
+		}
+		if tableWidth == 0 && opts.seen != nil {
+			tableWidth = *opts.seen
+		}
+		if tableWidth == 0 {
+			// No table has been laid out yet in this pane: use the request
+			// pane's committed width, less the content's side padding, and
+			// only fall back to the window before the first frame.
+			if b := a.editorReqPane.Bounds(c); b.W > 0 {
+				tableWidth = b.W - 2*t.Space(uikit.SpaceL)
+			}
 		}
 		if tableWidth > 0 {
 			left := tableWidth - uikit.HeightControl - keyMin - valueMin
@@ -544,7 +565,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		return
 	}
 	if a.requestFieldsEditor(c, &d.headerRows, fieldsOptions{secret: true, description: true, collection: d.composeCollection,
-		measure: &d.fieldTablePane, caption: locales.Headers(), captionEnd: func() {
+		measure: &d.fieldTablePane, seen: &d.fieldTableWidth, caption: locales.Headers(), captionEnd: func() {
 			if uikit.LinkButton(c, locales.BulkEdit()).Clicked() {
 				a.toggleHeaderBulk(d)
 			}
@@ -940,8 +961,8 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		uikit.Hint(c, locales.OnlyThePathIsSaved())
 	} else {
 		caption := locales.UrlEncoded()
-		opts := fieldsOptions{file: d.bodyMode == "Multipart", description: true, collection: d.composeCollection,
-			measure: &d.fieldTablePane, caption: caption, key: "field", focus: d.unicodeHandle}
+		opts := fieldsOptions{file: d.bodyMode == "Multipart", fileRoom: true, description: true, collection: d.composeCollection,
+			measure: &d.fieldTablePane, seen: &d.fieldTableWidth, caption: caption, key: "field", focus: d.unicodeHandle}
 		if d.bodyMode == "Multipart" {
 			opts.caption = locales.FormData()
 			opts.captionEnd = func() {
