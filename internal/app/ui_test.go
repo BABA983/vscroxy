@@ -309,7 +309,7 @@ func TestActiveToolChipsChangeConfigurationInBothWorkspaces(t *testing.T) {
 				t.Fatal("chip close only hid the tool instead of disabling it")
 			}
 			// Disappearing and returning chips retain independent identities.
-			click("Tools")
+			click("Manage")
 			if err := chooseMenu(tt, "Network", "No Caching"); err != nil {
 				t.Fatal(err)
 			}
@@ -346,7 +346,7 @@ func appearanceOf(dark bool) string {
 // than a button of its own.
 func openSettingsFromBar(t *testing.T, tt *ui.Tester) {
 	t.Helper()
-	if err := tt.Click(locales.Tools()); err != nil {
+	if err := tt.Click(locales.Manage()); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.ChooseMenuItem("Open settings…"); err != nil {
@@ -356,19 +356,23 @@ func openSettingsFromBar(t *testing.T, tt *ui.Tester) {
 }
 
 // The title bar pairs the layout switches across it: the sidebar's at its
-// start, the screen's split at its end with Tools and Settings. Live state and
-// notifications are the footer's, and the brand is not repeated in the chrome.
-// Settings opens from the gear and from Tools alike.
-func TestTitleBarKeepsGlobalControlsAndSettingsInTools(t *testing.T) {
+// start, the screen's split at its end with one gear, as VS Code's Manage.
+// Live state and notifications are the footer's, and the brand is not
+// repeated in the chrome. The gear's menu opens Settings and the debugging
+// tools, which share one window.
+func TestTitleBarKeepsGlobalControlsBehindOneGear(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1280, 800)
 	tt.Frame()
-	gear, ok := tt.Find("Settings")
+	gear, ok := tt.Find(locales.Manage())
 	if !ok || gear.Y > float32(uikit.HeightBar) {
-		t.Fatalf("the title bar has no Settings button: %+v", gear)
+		t.Fatalf("the title bar has no gear: %+v", gear)
+	}
+	if wrench, ok := tt.Find("Tools"); ok && wrench.Y < float32(uikit.HeightBar) {
+		t.Fatalf("the title bar still has a separate Tools button: %+v", wrench)
 	}
 	if layout, ok := tt.Find("Stacked layout"); !ok || layout.Y > float32(uikit.HeightBar) || layout.X > gear.X {
-		t.Fatalf("the layout switch is not before Settings in the title bar: %+v", layout)
+		t.Fatalf("the layout switch is not before the gear in the title bar: %+v", layout)
 	}
 	if bell, ok := tt.Find("Notifications"); !ok || bell.Y < 700 {
 		t.Fatalf("the notifications are not in the footer: %+v", bell)
@@ -378,7 +382,7 @@ func TestTitleBarKeepsGlobalControlsAndSettingsInTools(t *testing.T) {
 		t.Fatal("the title bar has no sidebar switch")
 	}
 	if toggle.X >= gear.X {
-		t.Fatalf("the sidebar switch sits at %v, not at the bar's start before Settings at %v", toggle.X, gear.X)
+		t.Fatalf("the sidebar switch sits at %v, not at the bar's start before the gear at %v", toggle.X, gear.X)
 	}
 	if _, ok := tt.Find("vscroxy"); ok {
 		t.Fatal("the title bar repeats the vscroxy brand")
@@ -388,26 +392,62 @@ func TestTitleBarKeepsGlobalControlsAndSettingsInTools(t *testing.T) {
 	if !ok || status.Y < 700 {
 		t.Fatalf("the proxy state is not in the footer: %v (found %t)", status, ok)
 	}
-	// The stores every request draws on are in Tools, not the footer.
-	if err := tt.Click(locales.Tools()); err != nil {
+	if err := tt.Click(locales.Manage()); err != nil {
 		t.Fatal(err)
 	}
 	menu := tt.Menu()
-	for _, label := range []string{locales.Cookies(), locales.Vault(), locales.ClientSetup(), locales.HttpsDecryption(), locales.Diagnostics()} {
+	for _, label := range []string{locales.CommandPalette(), locales.OpenSettings(), locales.DebuggingRules2(), locales.Cookies(), locales.Vault(), locales.ClientSetup(), locales.HttpsDecryption(), locales.Diagnostics()} {
 		if !slices.Contains(menu, label) {
-			t.Fatalf("Tools is missing %q: %q", label, menu)
+			t.Fatalf("the gear's menu is missing %q: %q", label, menu)
 		}
 	}
-	tt.Key(0, ui.KeyEscape)
+	// Debugging rules open in the Settings window, on Rules.
+	if err := tt.ChooseMenuItem(locales.DebuggingRules2()); err != nil {
+		t.Fatal(err)
+	}
 	tt.Frame()
-	if err := tt.Click(locales.Tools()); err != nil {
+	if !a.settingsOpen || !a.toolsOpen || a.toolsPage != "rules" || !tt.HasText(locales.DebuggingTools()) {
+		t.Fatalf("Debugging rules did not open Settings on Rules: settings=%t tools=%t page=%q", a.settingsOpen, a.toolsOpen, a.toolsPage)
+	}
+	// A settings category leaves the tool, in the same window.
+	if err := tt.Click(locales.SettingsCategory(locales.Proxy())); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Open settings…"); err != nil {
+	if !a.settingsOpen || a.toolsOpen || a.settingsTab != 1 {
+		t.Fatalf("choosing Proxy did not show the setting: settings=%t tools=%t tab=%d", a.settingsOpen, a.toolsOpen, a.settingsTab)
+	}
+}
+
+// One search finds settings, the debugging tools and the rules, scripts and
+// Host profiles in them by name, and a result opens what it names.
+func TestSettingsSearchFindsToolsAndTheirItems(t *testing.T) {
+	a := workspaceApp()
+	a.rules = []capture.Rule{{Name: "Block admin", Type: capture.RuleBlock, Match: "/admin"}, {Name: "Slow checkout", Type: capture.RuleBlock, Match: "/checkout"}}
+	a.openSettings(0)
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	a.settingsQuery = "checkout"
+	tt.Frame()
+	if _, ok := tt.Find(locales.Rules() + ": Slow checkout"); !ok {
+		t.Fatalf("the rule is not a search result: %q", tt.Texts())
+	}
+	if _, ok := tt.Find(locales.Rules() + ": Block admin"); ok {
+		t.Fatal("a rule that does not match is a result")
+	}
+	if err := tt.Click(locales.Rules() + ": Slow checkout"); err != nil {
 		t.Fatal(err)
 	}
-	if !a.settingsOpen {
-		t.Fatal("Tools does not open Settings")
+	if !a.toolsOpen || a.toolsPage != "rules" || !a.ruleUI.open || a.ruleUI.index != 1 || a.settingsQuery != "" {
+		t.Fatalf("the result did not open the rule: tools=%t page=%q editing=%d query=%q", a.toolsOpen, a.toolsPage, a.ruleUI.index, a.settingsQuery)
+	}
+	// A tool's own page is found by its name, beside the settings.
+	a.settingsQuery = "host prof"
+	tt.Frame()
+	if err := tt.Click(locales.DebuggingTools() + ": " + locales.HostProfiles()); err != nil {
+		t.Fatalf("Host profiles is not a result: %v %q", err, tt.Texts())
+	}
+	if !a.toolsOpen || a.toolsPage != "hosts" {
+		t.Fatalf("the page result did not open Host profiles: %q", a.toolsPage)
 	}
 }
 
@@ -1398,8 +1438,10 @@ func TestSettingsCategoriesKeepNativeNavigationAndEditorRoutes(t *testing.T) {
 	}
 	click("Settings category: Appearance")
 	tt.Key(0, ui.KeyEnd)
-	if !tt.HasText("Client certificates and extra roots for requests and captured upstream TLS.") {
-		t.Fatal("native End navigation did not select Certificates")
+	// The debugging tools follow the settings in the same list: End goes
+	// to the last of them.
+	if !a.toolsOpen || a.toolsPage != "git" {
+		t.Fatalf("native End navigation did not select Git: open=%t page=%q", a.toolsOpen, a.toolsPage)
 	}
 	click("Settings category: Capture")
 	tt.Scroll(600, 300, 0, 200) // the Ignored group is below the search bar and fold
@@ -1426,7 +1468,7 @@ func TestProxyPillMenuRestoresVisibleKeyboardFocus(t *testing.T) {
 			// focused, so exclude it by checking a neighboring control.
 			for range 100 {
 				tt.Key(0, ui.KeyTab)
-				if tt.Focused("Proxy status") && !tt.Focused("Tools") {
+				if tt.Focused("Proxy status") && !tt.Focused("Manage") {
 					break
 				}
 			}
@@ -1446,7 +1488,7 @@ func TestProxyPillMenuRestoresVisibleKeyboardFocus(t *testing.T) {
 				}
 				return false
 			}
-			if !tt.Focused("Proxy status") || tt.Focused("Tools") || !hasRing() {
+			if !tt.Focused("Proxy status") || tt.Focused("Manage") || !hasRing() {
 				t.Fatal("Tab did not visibly focus the Settings opener")
 			}
 			tt.Key(0, ui.KeyEnter)
@@ -1456,7 +1498,7 @@ func TestProxyPillMenuRestoresVisibleKeyboardFocus(t *testing.T) {
 			// Inspect before key release or another input can request an
 			// unrelated frame and hide a missing dismissal repaint.
 			tt.KeyDown(ui.KeyEscape)
-			if !tt.Focused("Proxy status") || tt.Focused("Tools") || !hasRing() {
+			if !tt.Focused("Proxy status") || tt.Focused("Manage") || !hasRing() {
 				t.Fatal("Escape did not restore a visible focus ring to the proxy pill")
 			}
 			tt.KeyUp(ui.KeyEscape)
@@ -1621,7 +1663,7 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	if !tt.HasText("Encrypted, not decrypted — not individual requests") {
 		t.Fatalf("enabling an app claimed this historical tunnel was decrypted: %q", tt.Texts())
 	}
-	click(locales.Tools())
+	click(locales.Manage())
 	if err := chooseMenu(tt, locales.HttpsDecryption()); err != nil {
 		t.Fatal(err)
 	}
@@ -1633,7 +1675,7 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	if !cfg.Decrypts("edited.test") || cfg.Decrypts("existing.test") || len(cfg.Apps) != 1 || cfg.Apps[0].Path != path {
 		t.Fatalf("editing domains lost the independent app rule: %+v", cfg)
 	}
-	click(locales.Tools())
+	click(locales.Manage())
 	if err := chooseMenu(tt, locales.HttpsDecryption()); err != nil {
 		t.Fatal(err)
 	}
@@ -1644,7 +1686,7 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	tt.Scroll(box.X+10, box.Y+10, 0, 1e6)
 	click("Remove HTTPS app: " + path)
 	click("Cancel")
-	click(locales.Tools())
+	click(locales.Manage())
 	if err := chooseMenu(tt, locales.HttpsDecryption()); err != nil {
 		t.Fatal(err)
 	}
@@ -4691,7 +4733,7 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 		}
 		return rules
 	}
-	click("Tools")
+	click("Manage")
 	if err := chooseMenu(tt, "Debugging rules…"); err != nil {
 		t.Fatal(err)
 	}
@@ -4820,7 +4862,7 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 		t.Fatalf("typed body %q: %v", body, err)
 	}
 	click("Done")
-	click("Tools")
+	click("Manage")
 	if err := chooseMenu(tt, "Debugging rules…"); err != nil {
 		t.Fatal(err)
 	}
@@ -4992,7 +5034,7 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 		}
 	}
 	echo(mobile, "device tunnel before disable")
-	click("Tools")
+	click("Manage")
 	if err := chooseMenu(tt, "Network", "Connect a device…"); err != nil {
 		t.Fatal(err)
 	}
@@ -5190,7 +5232,7 @@ func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
 	a.chosen.Add(1)
 	a.chosen.Add(2)
 	tt := ui.NewTester(a.view, 960, 600)
-	tt.Click("Tools")
+	tt.Click("Manage")
 	if err := chooseMenu(tt, "Session", "Replay chosen…"); err != nil {
 		t.Fatal(err)
 	}
@@ -5564,7 +5606,7 @@ func TestDesktopLayoutDefaultsSideBySideAndSwitchesWithoutLosingCaptureContext(t
 	check(false)
 	click("Side by side layout")
 	check(true)
-	click("Tools")
+	click("Manage")
 	if err := chooseMenu(tt, "View", "Layout: Stacked"); err != nil {
 		t.Fatal(err)
 	}
@@ -6435,7 +6477,7 @@ func TestConnectionDiagnosticsEmptyAndInvalidTargetsDoNotClaimProxyFailure(t *te
 	}
 	tt := ui.NewTester(a.view, 960, 600)
 	// Diagnostics is in Tools with the other setup entries.
-	if err := tt.Click(locales.Tools()); err != nil {
+	if err := tt.Click(locales.Manage()); err != nil {
 		t.Fatal(err)
 	}
 	if err := chooseMenu(tt, locales.Diagnostics()); err != nil {

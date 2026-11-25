@@ -108,10 +108,6 @@ func (a *app) watchLocale() {
 			a.settingsWin.SetTitle(locales.Settings())
 			a.settingsWin.Invalidate()
 		}
-		if a.toolsWin != nil {
-			a.toolsWin.SetTitle(locales.Tools())
-			a.toolsWin.Invalidate()
-		}
 		if a.win != nil {
 			a.win.Invalidate()
 		}

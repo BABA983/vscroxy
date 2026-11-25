@@ -13,8 +13,9 @@ func (a *app) menu() *mygo.Menu {
 	command := func(id, label string) *mygo.MenuItem {
 		item := &mygo.MenuItem{ID: id, Label: label, Disabled: true, Click: func(_ *mygo.MenuItem, w *mygo.Window) {
 			// Every window has the menu, and its shortcuts come before the
-			// content's: the Tools window runs the commands it has itself.
-			if w != nil && w == a.toolsWin {
+			// content's: a tool in the Settings window runs the commands it
+			// has itself.
+			if w != nil && w == a.settingsWin && a.toolsOpen {
 				a.toolsMenuAction = id
 				a.invalidateTools()
 				return

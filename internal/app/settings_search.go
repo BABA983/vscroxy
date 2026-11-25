@@ -7,7 +7,10 @@ package app
 // password or token cannot be echoed into a match.
 
 import (
+	"cmp"
+	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -171,10 +174,14 @@ func (a *app) settingsSearchBar(c *ui.Context, t *ui.Theme) {
 		field.Grow(1).MinWidth(240)
 		input.Bind(&a.settingsSearchHandle)
 		input.FocusBind(&a.settingsFocusSearch, a.settingsFocusSearch)
-		input.OnShortcut(0, ui.KeyEscape, func() {
-			a.settingsQuery = ""
-			a.settingsFocusSearch = 0
-		})
+		// Escape clears a query; on an empty field it is left to the
+		// window, so it closes Settings as it closed Tools.
+		if a.settingsQuery != "" {
+			input.OnShortcut(0, ui.KeyEscape, func() {
+				a.settingsQuery = ""
+				a.settingsFocusSearch = 0
+			})
+		}
 		if a.settingsQuery != "" && uikit.SecondaryButton(c, locales.Clear()).KeepFocus().Clicked() {
 			a.settingsQuery = ""
 		}
@@ -190,16 +197,21 @@ func (a *app) settingsSearchBar(c *ui.Context, t *ui.Theme) {
 func (a *app) settingsSearchResults(c *ui.Context, t *ui.Theme) {
 	_, modifiedOnly := settingsSearchQuery(a.settingsQuery)
 	hits := settingsFind(a, a.settingsQuery)
+	var tools []toolSearchHit
+	if !modifiedOnly {
+		tools = a.toolSearch(a.settingsQuery)
+	}
 	if modifiedOnly {
 		uikit.Hint(c, locales.SettingsModifiedCount(len(hits))).Padding(0, t.Space(uikit.SpaceXL))
 		if len(hits) == 0 {
 			uikit.Hint(c, locales.SettingsNoModified()).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceXL))
 			return
 		}
-	} else if len(hits) == 0 {
+	} else if len(hits) == 0 && len(tools) == 0 {
 		uikit.Hint(c, locales.SettingsSearchNoMatches(a.settingsQuery)).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceXL))
 		return
 	}
+	defer a.toolSearchResults(c, t, tools)
 	var section settingsSection = -1
 	for _, hit := range hits {
 		if hit.entry.spec.section != section {
@@ -272,7 +284,86 @@ func (a *app) revealSetting(id string) {
 	if !ok {
 		return
 	}
-	a.settingsTab = int(spec.section)
-	a.settingsChoice = spec.section.id()
+	a.chooseSettingsCategory(spec.section.id())
 	a.settingsQuery = ""
+}
+
+// toolSearchHit is a debugging tool, or a rule, script or Host profile in
+// one, found by its name. Only names are searched: a rule's match or a
+// script's code is the editor's own Find.
+type toolSearchHit struct {
+	key, name, kind string
+	matches         []fuzzy.Match
+	score           int
+	open            func()
+}
+
+// toolSearch ranks the tools' pages and the named things on them for the
+// Settings search, best first.
+func (a *app) toolSearch(input string) []toolSearchHit {
+	query, _ := settingsSearchQuery(input)
+	prepared := fuzzy.PrepareQuery(query)
+	if prepared.Normalized == "" {
+		return nil
+	}
+	var hits []toolSearchHit
+	add := func(key, name, kind string, open func()) {
+		score, matches := settingsScoreField(name, prepared)
+		if score == 0 {
+			return
+		}
+		hits = append(hits, toolSearchHit{key: key, name: name, kind: kind, matches: matches, score: score, open: open})
+	}
+	for _, page := range toolPages() {
+		add("page:"+page.id, page.label, locales.DebuggingTools(), func() { a.chooseSettingsCategory(page.id) })
+	}
+	for i, r := range a.rules {
+		add("rule:"+strconv.Itoa(i), cmp.Or(r.Name, r.Match), locales.Rules(), func() {
+			a.chooseSettingsCategory("rules")
+			a.editRule(i, r)
+		})
+	}
+	a.scripts.mu.RLock()
+	names := slices.Sorted(maps.Keys(a.scripts.texts))
+	a.scripts.mu.RUnlock()
+	for _, name := range names {
+		add("script:"+name, name, locales.Scripts(), func() {
+			a.chooseSettingsCategory("scripts")
+			a.openScript(name)
+		})
+	}
+	for i, p := range a.profiles.set.Profiles {
+		add("hosts:"+strconv.Itoa(i), p.Name, locales.HostProfiles(), func() {
+			a.chooseSettingsCategory("hosts")
+			a.profiles.choice = i
+		})
+	}
+	slices.SortStableFunc(hits, func(x, y toolSearchHit) int { return y.score - x.score })
+	return hits
+}
+
+// toolSearchResults lists the tools' hits under the settings: a row names
+// what it found and where, and opens it there.
+func (a *app) toolSearchResults(c *ui.Context, t *ui.Theme, hits []toolSearchHit) {
+	if len(hits) == 0 {
+		return
+	}
+	uikit.Label(c, locales.DebuggingTools()).Padding(t.Space(uikit.SpaceL), t.Space(uikit.SpaceXL))
+	for _, hit := range hits {
+		row := ui.Row(c.Key("tool-result:"+hit.key)).FillWidth().MinHeight(uikit.HeightRow).
+			Padding(t.Space(uikit.SpaceS), t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
+			Role(ui.RoleButton).Label(hit.kind + ": " + hit.name)
+		if row.Hovered() {
+			row.Background(t.SurfaceHover)
+		}
+		row.OnClick(func() {
+			a.settingsQuery = ""
+			hit.open()
+		})
+		row.Children(func() {
+			ui.Box(c).Width(3).Shrink(0)
+			settingsHighlighted(c, hit.name, hit.matches, uikit.Scaled(uikit.TextBody), false, t.Text).SingleLine().Grow(1).MinWidth(0)
+			uikit.Meta(c, hit.kind).SingleLine()
+		})
+	}
 }

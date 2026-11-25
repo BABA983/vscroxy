@@ -14,47 +14,19 @@ import (
 	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
-// openTools shows the Tools window on page ("rules", "scenarios", "scripts",
-// "hosts" or "mocks"), focused if
-// already open. Without a main window (headless tests) it is a dialog instead.
+// openTools shows a debugging tool's page ("rules", "scenarios", "scripts",
+// "hosts", "mocks" or "git") in the Settings window, whose categories list
+// the tools below the settings, as one place to find and change anything.
 func (a *app) openTools(page string) {
 	a.profiles.menuOpen = false
 	a.toolsOpen, a.toolsPage = true, page
-	if a.win == nil {
-		return
-	}
-	if a.toolsWin != nil {
-		a.toolsWin.Invalidate()
-		a.toolsWin.Focus()
-		return
-	}
-	w := mygo.NewWindow(mygo.WindowOptions{
-		Title:           locales.Tools(),
-		Width:           1080,
-		Height:          680,
-		MinWidth:        760,
-		MinHeight:       460,
-		StateKey:        "tools",
-		AutoHideMenuBar: true,
-		Content:         ui.View(a.toolsView),
-	})
-	a.toolsWin, a.toolsFocused = w, true
-	w.OnFocus(func() { w.Update(func() { a.toolsFocused = true }) })
-	w.OnBlur(func() { w.Update(func() { a.toolsFocused = false }) })
-	w.OnClosed(func() {
-		a.win.Update(func() {
-			if a.toolsWin == w {
-				a.toolsWin, a.toolsFocused = nil, false
-				a.closeTools()
-			}
-		})
-	})
+	a.settingsChoice = page
+	a.showSettings()
 }
 
 // closeTools forgets what Tools had not saved: a new rule's response file.
@@ -64,19 +36,29 @@ func (a *app) closeTools() {
 }
 
 func (a *app) invalidateTools() {
-	if w := a.toolsWin; w != nil {
+	if w := a.settingsWin; w != nil {
 		w.Invalidate()
 	}
 }
 
-// toolsView is the Tools window, on the main window's state, which it
-// redraws as it changes.
-func (a *app) toolsView(c *ui.Context) {
-	dark := a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
-	c.SetTheme(uikit.Theme(dark))
-	c.SetMenuPresentation(ui.PopoverMenus)
-	t := c.Theme()
-	a.drainHosts()
+// toolPages are the debugging tools Settings lists under its own
+// categories, in that order.
+func toolPages() []struct {
+	id    string
+	icon  *ui.SVG
+	label string
+} {
+	return []struct {
+		id    string
+		icon  *ui.SVG
+		label string
+	}{{"rules", rulesIcon, locales.Rules()}, {"scenarios", layersIcon, locales.Scenarios()}, {"scripts", scriptsIcon, locales.Scripts()},
+		{"hosts", hostsIcon, locales.HostProfiles()}, {"mocks", mocksIcon, locales.Mocks()}, {"git", gitIcon, locales.Git()}}
+}
+
+// toolsPageContent is the chosen tool's page beside Settings' categories.
+// It runs the menu command chosen while it was in front, Save, first.
+func (a *app) toolsPageContent(c *ui.Context, t *ui.Theme, active bool) {
 	if a.toolsMenuAction == "request.save" {
 		switch a.toolsPage {
 		case "rules", "mocks":
@@ -94,90 +76,28 @@ func (a *app) toolsView(c *ui.Context) {
 		}
 	}
 	a.toolsMenuAction = ""
-	if a.toolsFocused {
-		a.showNotices(c)
+	// The search bar above takes the place of the window's title inset.
+	top := t.Space(uikit.SpaceXS)
+	switch a.toolsPage {
+	case "rules", "mocks":
+		a.rulesPage(c, t, top, active)
+	case "scenarios":
+		a.scenariosPage(c, t, top, active)
+	case "scripts":
+		a.scriptsPage(c, t, top, active)
+	case "git":
+		a.gitPage(c, t, top, active)
+	default:
+		a.hostProfilesPage(c, t, top)
 	}
-	ui.Column(c).Fill().Background(t.Background).Children(func() {
-		a.toolsContent(c, t, a.toolsFocused, true)
-	})
-	uikit.Toasts(c)
-	if a.win != nil {
-		a.win.Invalidate()
-	}
-}
-
-// toolsModal is Tools without a main window to open its own beside, as in
-// headless tests: the same content, in a dialog.
-func (a *app) toolsModal(c *ui.Context, t *ui.Theme) {
-	if a.win != nil || !a.toolsOpen {
-		return
-	}
-	width, height := c.Size()
-	if uikit.Modal(c, &a.toolsOpen, locales.Tools(), func() {
-		ui.Column(c).Width(min(1040, width-80)).Height(min(640, height-80)).Gap(t.Space(uikit.SpaceL)).Children(func() {
-			uikit.DialogTitle(c, locales.Tools())
-			a.toolsContent(c, t, true, false)
-			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, locales.Done()).Clicked() {
-					a.closeTools()
-				}
-			})
-		})
-	}).Dismissed() {
-		a.closeTools()
-	}
-}
-
-// toolsContent is the categories on the left and the chosen one beside.
-// active draws the chosen category as in a window in front.
-func (a *app) toolsContent(c *ui.Context, t *ui.Theme, active, window bool) {
-	pal := uikit.Colors(t)
-	width, _ := c.Size()
-	navWidth := float32(180)
-	if width < 1000 {
-		navWidth = 150
-	}
-	ui.Row(c).Grow(1).FillWidth().MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-		top := t.Space(uikit.SpaceM)
-		if window {
-			top = max(c.TitleBar().Height+t.Space(uikit.SpaceXS), t.Space(uikit.SpaceXL))
-		}
-		uikit.SidebarList(c, "tools-categories", &a.toolsPage, func(id string) { a.toolsPage = id }, func() {
-			for _, page := range []struct {
-				id    string
-				icon  *ui.SVG
-				label string
-			}{{"rules", rulesIcon, locales.Rules()}, {"scenarios", layersIcon, locales.Scenarios()}, {"scripts", scriptsIcon, locales.Scripts()},
-				{"hosts", hostsIcon, locales.HostProfiles()}, {"mocks", mocksIcon, locales.Mocks()}, {"git", gitIcon, locales.Git()}} {
-				uikit.SidebarItem(c, page.id, page.icon, page.label, a.toolsPage == page.id, active).Label(locales.ToolsCategory(page.label))
-			}
-		}).Width(navWidth).Padding(top, t.Space(uikit.SpaceM), t.Space(uikit.SpaceM), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceHair)).Background(pal.Window)
-		ui.Divider(c)
-		switch a.toolsPage {
-		case "rules", "mocks":
-			a.rulesPage(c, t, top, active)
-		case "scenarios":
-			a.scenariosPage(c, t, top, active)
-		case "scripts":
-			a.scriptsPage(c, t, top, active)
-		case "git":
-			a.gitPage(c, t, top, active)
-		default:
-			a.hostProfilesPage(c, t, window)
-		}
-	})
 }
 
 var mocksIcon = lucide.Server()
 
 // hostProfilesPage is the profiles in priority order beside the chosen one's
 // hosts file.
-func (a *app) hostProfilesPage(c *ui.Context, t *ui.Theme, window bool) {
+func (a *app) hostProfilesPage(c *ui.Context, t *ui.Theme, top float32) {
 	h := &a.profiles
-	top := t.Space(uikit.SpaceM)
-	if window {
-		top = max(c.TitleBar().Height+t.Space(uikit.SpaceXS), t.Space(uikit.SpaceXL))
-	}
 	width, _ := c.Size()
 	listWidth := float32(268)
 	if width < 1000 {

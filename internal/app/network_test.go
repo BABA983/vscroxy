@@ -381,7 +381,7 @@ func TestNetworkPresetsIntegrateWithToolsAndActiveChip(t *testing.T) {
 	}
 	a.setThrottle(capture.Presets[0])
 	tt := ui.NewTester(a.view, 960, 600)
-	if err := tt.Click("Tools"); err != nil {
+	if err := tt.Click("Manage"); err != nil {
 		t.Fatal(err)
 	}
 	if err := chooseMenu(tt, "Network", "Custom presets…"); err != nil {
@@ -393,7 +393,7 @@ func TestNetworkPresetsIntegrateWithToolsAndActiveChip(t *testing.T) {
 	if err := tt.Click("Close"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Tools"); err != nil {
+	if err := tt.Click("Manage"); err != nil {
 		t.Fatal(err)
 	}
 	if err := chooseMenu(tt, "Network", "Mobile"); err != nil {
@@ -491,7 +491,7 @@ func TestNetworkOffPersistsAllRuleDisablesOrLeavesConditionsAlone(t *testing.T) 
 		t.Fatal("failed Off modified the running configuration")
 	}
 	a.rulesPath = filepath.Join(t.TempDir(), "rules.json")
-	if err := tt.Click("Tools"); err != nil {
+	if err := tt.Click("Manage"); err != nil {
 		t.Fatal(err)
 	}
 	if err := chooseMenu(tt, "Network", "Off"); err != nil {

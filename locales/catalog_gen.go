@@ -15074,6 +15074,36 @@ func (msgs Messages) DebuggingRules() string {
 	return Catalog.Format(msgs.locale, "debuggingRules", nil)
 }
 
+// Manage says "Manage"
+// in the language the app shows.
+func Manage() string { return In(i18n.Locale()).Manage() }
+
+// Manage says "Manage"
+// in the language of msgs.
+func (msgs Messages) Manage() string {
+	return Catalog.Format(msgs.locale, "manage", nil)
+}
+
+// ManageTip says "Settings, debugging tools and commands"
+// in the language the app shows.
+func ManageTip() string { return In(i18n.Locale()).ManageTip() }
+
+// ManageTip says "Settings, debugging tools and commands"
+// in the language of msgs.
+func (msgs Messages) ManageTip() string {
+	return Catalog.Format(msgs.locale, "manageTip", nil)
+}
+
+// CommandPalette says "Command palette…"
+// in the language the app shows.
+func CommandPalette() string { return In(i18n.Locale()).CommandPalette() }
+
+// CommandPalette says "Command palette…"
+// in the language of msgs.
+func (msgs Messages) CommandPalette() string {
+	return Catalog.Format(msgs.locale, "commandPalette", nil)
+}
+
 // DebuggingRules2 says "Debugging rules…"
 // in the language the app shows.
 func DebuggingRules2() string { return In(i18n.Locale()).DebuggingRules2() }
@@ -21538,18 +21568,6 @@ func ManageDebuggingRules() string { return In(i18n.Locale()).ManageDebuggingRul
 // in the language of msgs.
 func (msgs Messages) ManageDebuggingRules() string {
 	return Catalog.Format(msgs.locale, "manageDebuggingRules", nil)
-}
-
-// ManageDebuggingRulesAndNetwork says "Manage debugging rules and network conditions"
-// in the language the app shows.
-func ManageDebuggingRulesAndNetwork() string {
-	return In(i18n.Locale()).ManageDebuggingRulesAndNetwork()
-}
-
-// ManageDebuggingRulesAndNetwork says "Manage debugging rules and network conditions"
-// in the language of msgs.
-func (msgs Messages) ManageDebuggingRulesAndNetwork() string {
-	return Catalog.Format(msgs.locale, "manageDebuggingRulesAndNetwork", nil)
 }
 
 // ManageDomains says "Manage domains…"
@@ -38924,21 +38942,21 @@ func (msgs Messages) SettingsSearchLabel() string {
 	return Catalog.Format(msgs.locale, "settingsSearchLabel", nil)
 }
 
-// SettingsSearchPlaceholder says "Title, description or setting ID"
+// SettingsSearchPlaceholder says "Settings, tools, rules, scripts or Host profiles"
 // in the language the app shows.
 func SettingsSearchPlaceholder() string { return In(i18n.Locale()).SettingsSearchPlaceholder() }
 
-// SettingsSearchPlaceholder says "Title, description or setting ID"
+// SettingsSearchPlaceholder says "Settings, tools, rules, scripts or Host profiles"
 // in the language of msgs.
 func (msgs Messages) SettingsSearchPlaceholder() string {
 	return Catalog.Format(msgs.locale, "settingsSearchPlaceholder", nil)
 }
 
-// SettingsSearchHint says "Search all settings · @modified shows changed ones · Esc clears"
+// SettingsSearchHint says "@modified shows changed settings · Esc clears"
 // in the language the app shows.
 func SettingsSearchHint() string { return In(i18n.Locale()).SettingsSearchHint() }
 
-// SettingsSearchHint says "Search all settings · @modified shows changed ones · Esc clears"
+// SettingsSearchHint says "@modified shows changed settings · Esc clears"
 // in the language of msgs.
 func (msgs Messages) SettingsSearchHint() string {
 	return Catalog.Format(msgs.locale, "settingsSearchHint", nil)

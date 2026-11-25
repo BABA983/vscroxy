@@ -189,14 +189,11 @@ type app struct {
 	inspectorDetached bool
 	inspectorFocused  bool
 	inspectorInWindow bool
-	// toolsWin is the Tools window while it is open, toolsOpen whether Tools
-	// shows (as a dialog without a main window), and toolsFocused whether
-	// its window is in front.
-	toolsWin                *mygo.Window
-	toolsOpen, toolsFocused bool
-	// toolsPage is the category Tools shows: "rules" or "hosts".
+	// toolsOpen is whether Settings shows a debugging tool's page rather
+	// than a settings category, and toolsPage which one: "rules", "hosts"...
+	toolsOpen bool
 	toolsPage string
-	// toolsMenuAction is a menu command chosen while Tools was in front.
+	// toolsMenuAction is a menu command chosen while a tool was in front.
 	toolsMenuAction string
 	// launchPort is the saved setting this run started with: a different
 	// saved value waits for a restart.
@@ -2163,7 +2160,7 @@ func (a *app) view(c *ui.Context) {
 	if settings && busy != [3]bool{a.certificate.checking, a.systemProxy.checking, a.systemProxy.applying} {
 		a.settingsWin.Invalidate()
 	}
-	if (!settings || !a.settingsFocused) && (a.toolsWin == nil || !a.toolsFocused) {
+	if !settings || !a.settingsFocused {
 		a.showNotices(c)
 	}
 	a.mu.Lock()
@@ -2316,7 +2313,6 @@ func (a *app) view(c *ui.Context) {
 	a.workspaceTrustModal(c, t)
 	a.logLevelModal(c)
 	a.sslModal(c, t)
-	a.toolsModal(c, t)
 	a.configImportDialog(c, t)
 	a.progressDialog(c, t)
 	a.dnsRuleModal(c, t)

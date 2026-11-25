@@ -15,7 +15,7 @@ import (
 
 // shell draws the window's own title bar, across the whole window as VS Code
 // and Postman draw theirs: the sidebar switch at its start, the search in the
-// middle, and at its end the screen's layout, Tools and Settings. Live state
+// middle, and at its end the screen's layout and the gear. Live state
 // (the proxy, the tools that are on, notifications) is the footer's.
 func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
@@ -32,14 +32,13 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 			// The layout switches pair across the bar: the sidebar's at the
 			// start, the screen's split here, as VS Code keeps them.
 			a.layoutToggle(c)
+			// One gear, as VS Code's Manage: Settings and the debugging
+			// tools share a window, and everything else is one menu.
 			uikit.MenuFace(c, func() {
-				uikit.IconButton(c, locales.Tools(), locales.ManageDebuggingRulesAndNetwork(), toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
+				uikit.IconButton(c, locales.Manage(), locales.ManageTip(), settingsIcon).PopoverMenuButton(func(m *ui.Menu) {
 					actionMenu(m, a.moreActions(c))
 				}, uikit.MenuButtonOptions(c))
 			})
-			if uikit.IconButton(c, locales.Settings(), locales.OpenSettings(), settingsIcon, settingsKeys()...).Clicked() {
-				a.openSettings(-1)
-			}
 		})
 	})
 }
@@ -681,9 +680,9 @@ func footerChipRow(c *ui.Context, t *ui.Theme, chip footerChip) {
 	})
 }
 
-// moreActions is the title bar's Tools menu: the tools and stores at its top,
-// then Git and the less frequent menus one step away. It took in what the
-// bar's ⋯ held, so the bar's end is the layout, Tools and Settings.
+// moreActions is the title bar's gear menu, ordered as VS Code's Manage:
+// the command palette, Settings and the debugging tools that share its
+// window, the stores and setup, then the less frequent menus one step away.
 func (a *app) moreActions(c *ui.Context) []action {
 	global := a.actions(c)
 	oneClick := []action{
@@ -746,7 +745,9 @@ func (a *app) moreActions(c *ui.Context) []action {
 		do("protobuf.schema", locales.ProtobufSchema(), func() { a.protobuf.open = true }).in("protobuf"),
 	)
 	tools := []action{
-		pick(global, "tools.rules").as(locales.DebuggingRules2()).in("rules"),
+		pick(global, "app.palette").as(locales.CommandPalette()).in("palette"),
+		pick(global, "app.settings").in("settings"),
+		pick(global, "tools.rules").as(locales.DebuggingRules2()).in("settings"),
 		do("tools.cookies", locales.Cookies(), a.openCookies).in("stores"),
 		do("tools.vault", locales.Vault(), a.openVault).in("stores"),
 		do("setup.client", locales.ClientSetup(), a.openClientSetup).in("setup"),
@@ -754,14 +755,9 @@ func (a *app) moreActions(c *ui.Context) []action {
 		do("setup.diagnostics", locales.Diagnostics(), func() { a.goTo("diagnostics") }).in("setup"),
 	}
 	return append(tools,
-		do("tools.git", locales.Git(), func() { a.openTools("git") }).in("more"),
 		submenu(locales.Network(), network...).in("more"),
 		submenu(locales.Session(), session...).in("more"),
 		submenu(locales.View(), view...).in("more"),
-		// The window's settings, as the gear beside this menu, the app
-		// menu's ⌘, and the palette open them: a menu is where people look
-		// for them too.
-		pick(global, "app.settings").in("settings"),
 	)
 }
 

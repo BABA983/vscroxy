@@ -484,7 +484,7 @@ func TestCodeMockEditorAndSavedRuleLifecycle(t *testing.T) {
 	a.scripts.dir, a.addons.dir = filepath.Join(dir, "scripts"), filepath.Join(dir, "addons")
 	a.loadScripts()
 	a.openTools("mocks")
-	tt := ui.NewTester(a.toolsView, 960, 600)
+	tt := ui.NewTester(a.settingsView, 960, 600)
 	for _, label := range []string{"New rule", "Rule type", "Code Mock"} {
 		if err := tt.Click(label); err != nil {
 			t.Fatal(err)

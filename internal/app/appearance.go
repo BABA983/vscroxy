@@ -72,13 +72,13 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 	}
 	// Closing Settings or leaving the Proxy tab makes the next visit read the
 	// OS again.
-	defer func() { a.systemProxy.shown = a.settingsOpen && a.settingsTab == 1 }()
+	defer func() { a.systemProxy.shown = a.settingsOpen && !a.toolsOpen && a.settingsTab == 1 }()
 	if !a.settingsOpen {
 		return
 	}
-	_, height := c.Size()
+	width, height := c.Size()
 	uikit.Modal(c, &a.settingsOpen, locales.Settings(), func() {
-		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(640, height-80)).Children(func() {
+		uikit.DialogColumn(c, uikit.DialogLarge).Width(min(1040, width-80)).Height(min(640, height-80)).Children(func() {
 			// The title shares the search field's left edge, so the two
 			// read as one column above the categories.
 			uikit.DialogTitle(c, locales.Settings()).PaddingStart(t.Space(uikit.SpaceXL))
@@ -91,6 +91,9 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 			})
 		})
 	})
+	if !a.settingsOpen && a.toolsOpen {
+		a.closeTools()
+	}
 }
 
 // openSettings shows Settings on a category, or the last one for a negative
@@ -98,6 +101,9 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 func (a *app) openSettings(tab int) {
 	if tab >= 0 {
 		a.settingsTab = tab
+	}
+	if a.toolsOpen {
+		a.closeTools()
 	}
 	a.settingsChoice = strconv.Itoa(a.settingsTab)
 	switch a.settingsTab {
@@ -108,6 +114,12 @@ func (a *app) openSettings(tab int) {
 	case 2:
 		a.checkCertificate(false)
 	}
+	a.showSettings()
+}
+
+// showSettings brings up the Settings window, which holds the settings and
+// the debugging tools, on whatever settingsChoice names.
+func (a *app) showSettings() {
 	if !a.settingsOpen {
 		a.upstreamUI.loaded = false
 	}
@@ -121,11 +133,12 @@ func (a *app) openSettings(tab int) {
 		return
 	}
 	w := mygo.NewWindow(mygo.WindowOptions{
-		Title:           locales.Settings(),
-		Width:           760,
-		Height:          560,
-		MinWidth:        600,
-		MinHeight:       420,
+		Title:  locales.Settings(),
+		Width:  1080,
+		Height: 680,
+		// The tools' list-and-editor pages need the room Tools had.
+		MinWidth:        760,
+		MinHeight:       460,
 		StateKey:        "settings",
 		AutoHideMenuBar: true,
 		// Settings is the same window material as the main window: the view
@@ -142,6 +155,7 @@ func (a *app) openSettings(tab int) {
 			if a.settingsWin == w {
 				a.settingsWin, a.settingsOpen, a.settingsFocused = nil, false, false
 				a.systemProxy.shown = false
+				a.closeTools()
 			}
 		})
 	})
@@ -171,6 +185,7 @@ func (a *app) settingsView(c *ui.Context) {
 	a.drainCertificate()
 	a.drainSystemProxy()
 	a.drainUpstream()
+	a.drainHosts()
 	if a.settingsFocused {
 		a.showNotices(c)
 	}
@@ -179,7 +194,7 @@ func (a *app) settingsView(c *ui.Context) {
 		a.settingsContent(c, t, a.settingsFocused, nil)
 	})
 	uikit.Toasts(c)
-	a.systemProxy.shown = a.settingsTab == 1
+	a.systemProxy.shown = !a.toolsOpen && a.settingsTab == 1
 	if a.win != nil {
 		a.win.Invalidate()
 	}
@@ -200,6 +215,28 @@ func (a *app) settingsTitleBar(c *ui.Context, t *ui.Theme) {
 	})
 }
 
+// chooseSettingsCategory shows a settings category ("0" to "6") or a tool's
+// page by its id. Leaving a tool forgets its unsaved new-rule draft, as
+// closing Tools did.
+func (a *app) chooseSettingsCategory(id string) {
+	a.settingsChoice = id
+	if tab, err := strconv.Atoi(id); err == nil {
+		if a.toolsOpen {
+			a.closeTools()
+		}
+		a.settingsTab = tab
+		if tab == 2 {
+			a.checkCertificate(false)
+		}
+		return
+	}
+	a.profiles.menuOpen = false
+	if id == "rules" && !a.ruleUI.open && len(a.rules) > 0 {
+		a.editRule(0, a.rules[0])
+	}
+	a.toolsOpen, a.toolsPage = true, id
+}
+
 // settingsContent is Settings itself: categories on the left, the chosen
 // one on the right. active draws the chosen category as in a window in
 // front. The editors it opens own their values and persistence.
@@ -216,18 +253,17 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool, footer fu
 			return
 		}
 		ui.Row(c).Grow(1).FillWidth().MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-			uikit.SidebarList(c, "settings-categories", &a.settingsChoice, func(id string) {
-				a.settingsTab, _ = strconv.Atoi(id)
-				if a.settingsTab == 2 {
-					a.checkCertificate(false)
-				}
-			}, func() {
+			uikit.SidebarList(c, "settings-categories", &a.settingsChoice, a.chooseSettingsCategory, func() {
+				// Two groups in one list: what the app is set to, then the
+				// debugging tools that change traffic, as VS Code keeps its
+				// settings and its editors behind one gear.
+				uikit.Label(c, locales.Settings()).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceS))
 				for _, item := range []struct {
 					id    string
 					icon  *ui.SVG
 					label string
 				}{
-					{"0", lucide.SlidersHorizontal(), locales.General()},
+					{"0", settingsIcon, locales.General()},
 					{"3", lucide.SunMoon(), locales.Appearance()},
 					{"1", upstreamIcon, locales.Proxy()},
 					{"2", lockIcon, locales.HttpsDecryption()},
@@ -237,7 +273,25 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool, footer fu
 				} {
 					uikit.SidebarItem(c, item.id, item.icon, item.label, a.settingsChoice == item.id, active).Label(locales.SettingsCategory(item.label))
 				}
+				uikit.Label(c, locales.DebuggingTools()).Padding(t.Space(uikit.SpaceL), t.Space(uikit.SpaceS), t.Space(uikit.SpaceXS), t.Space(uikit.SpaceS))
+				for _, page := range toolPages() {
+					uikit.SidebarItem(c, page.id, page.icon, page.label, a.settingsChoice == page.id, active).Label(locales.ToolsCategory(page.label))
+				}
 			}).Width(188).Padding(t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceHair))
+			if a.toolsOpen {
+				// A tool's page is a list beside its editor, each scrolling
+				// on its own: no page scroll or padding around it.
+				ui.Divider(c)
+				ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
+					ui.Row(c).Grow(1).FillWidth().MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+						a.toolsPageContent(c, t, active)
+					})
+					if footer != nil {
+						footer()
+					}
+				})
+				return
+			}
 			// The categories and the page are one surface: the chosen one's
 			// wash and the space between the two columns say where each is.
 			ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
