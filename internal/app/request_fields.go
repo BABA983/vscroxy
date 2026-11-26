@@ -225,6 +225,9 @@ func fieldsKey(opts fieldsOptions, noun, part string, row int) string {
 func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOptions, noun string) bool {
 	t := c.Theme()
 	changed, remove := false, -1
+	// A grid cell's minimum describes its content; each editable titled
+	// column also keeps GridCellPadding at both sides.
+	cellInset := 2 * t.Space(uikit.GridCellPadding)
 	keyGrow, valueGrow, keyMin, valueMin := float32(1), float32(2), float32(uikit.WidthNarrow), float32(uikit.WidthPicker)
 	// The value cell also holds its row actions: the mask/file toggle and the
 	// delete action. Keep their room inside the column minimum, so a wide
@@ -258,8 +261,8 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 			}
 		}
 		if tableWidth > 0 {
-			left := tableWidth - uikit.HeightControl - keyMin - valueMin
-			showDescription = left >= uikit.WidthNarrow
+			left := tableWidth - uikit.HeightControl - keyMin - valueMin - 2*cellInset
+			showDescription = left >= uikit.WidthNarrow+cellInset
 		} else {
 			// No layout yet: use the window so the first frame at a wide size
 			// does not flash the narrow layout.
@@ -287,11 +290,13 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 				r := &(*rows)[row]
 				ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					keyName := fieldsKey(opts, noun, "key", row+1)
-					field := a.variableGridInput(c, keyName, &r.Name, locales.Key(), locales.KeyOfRow(noun, row+1), opts.collection, false, false).Grow(1).MinWidth(0)
+					field := a.variableGridInput(c, keyName, &r.Name, locales.Key(), locales.KeyOfRow(noun, row+1), opts.collection, false, false).
+						Padding(0, 0).Grow(1).MinWidth(0)
 					if opts.focus != nil {
 						field.Bind(opts.focus(keyName))
 					}
 					cellBorder(t, field, false, false)
+					field = uikit.TruncatedCell(c, field, r.Name, false, uikit.GridCellInset, t.Background, t.SurfaceHover)
 					if values, ok := opts.filters[r.Name]; ok {
 						// The capture's own values are what a filter can
 						// search for, as the reader offers them.
@@ -315,7 +320,8 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 				masked := secret && !r.Revealed
 				ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					valueKey := fieldsKey(opts, noun, "value", row+1)
-					value := a.variableGridInput(c, valueKey, &r.Value, locales.Value(), locales.ValueOfRow(noun, row+1), opts.collection, masked, false).Grow(1).MinWidth(0)
+					value := a.variableGridInput(c, valueKey, &r.Value, locales.Value(), locales.ValueOfRow(noun, row+1), opts.collection, masked, false).
+						Padding(0, 0).Grow(1).MinWidth(0)
 					if opts.focus != nil {
 						value.Bind(opts.focus(valueKey))
 					}
@@ -323,11 +329,16 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 						value.Password()
 					}
 					cellBorder(t, value, masked, secret && r.Revealed)
-					if !masked && len(r.Value) > 20 {
-						// A long value reads in full on hover, without the click
-						// that would move the keyboard into it.
-						uikit.Tip(c, value, r.Value)
+					fill, hoverFill := t.Background, t.SurfaceHover
+					if secret && r.Revealed {
+						// cellBorder paints a revealed credential over the
+						// cell; the ellipsis patch must cover the same tint.
+						fill = t.Accent.Alpha(0.06).Over(t.Background)
+						hoverFill = fill
 					}
+					// A long value reads in full on hover, without the click
+					// that would move the keyboard into it.
+					value = uikit.TruncatedCell(c, value, r.Value, masked, uikit.GridCellInset, fill, hoverFill)
 					// Scan the raw value even when masked; the hint then names
 					// only code points, kinds and positions.
 					a.unicodeMarker(c, fmt.Sprintf("%s-value-hint-%d", noun, row+1), r.Value, masked)
@@ -380,14 +391,13 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 				r := &(*rows)[row]
 				ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					field := a.variableGridInput(c, fieldsKey(opts, noun, "description", row+1), &r.Description,
-						locales.Description(), locales.DescriptionOfRow(noun, row+1), opts.collection, false, false).Grow(1).MinWidth(0)
+						locales.Description(), locales.DescriptionOfRow(noun, row+1), opts.collection, false, false).
+						Padding(0, 0).Grow(1).MinWidth(0)
 					if opts.focus != nil {
 						field.Bind(opts.focus(fieldsKey(opts, noun, "description", row+1)))
 					}
 					cellBorder(t, field, false, false)
-					if len(r.Description) > 20 {
-						uikit.Tip(c, field, r.Description)
-					}
+					field = uikit.TruncatedCell(c, field, r.Description, false, uikit.GridCellInset, t.Background, t.SurfaceHover)
 					a.unicodeMarker(c, fmt.Sprintf("%s-description-hint-%d", noun, row+1), r.Description, false)
 					if field.Changed() {
 						changed = true
@@ -448,13 +458,13 @@ func requestGridInput(c *ui.Context, value *string, placeholder, label string) u
 func cellBorder(t *ui.Theme, field ui.Element, masked, revealed bool) {
 	switch {
 	case revealed:
-		field.Border(1, t.Accent.Alpha(0.6)).Background(t.Accent.Alpha(0.06))
+		field.Border(uikit.GridCellInset, t.Accent.Alpha(0.6)).Background(t.Accent.Alpha(0.06))
 	case field.Focused():
-		field.Border(1, t.Accent)
+		field.Border(uikit.GridCellInset, t.Accent)
 	case field.Hovered():
-		field.Border(1, t.Border).Background(t.SurfaceHover)
+		field.Border(uikit.GridCellInset, t.Border).Background(t.SurfaceHover)
 	default:
-		field.Border(1, ui.Color{})
+		field.Border(uikit.GridCellInset, ui.Color{})
 	}
 	if masked {
 		field.TextColor(t.TextMuted)

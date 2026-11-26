@@ -417,6 +417,7 @@ func requires(src, name string) bool {
 // addon's file; scripts that require the old name are left to the user.
 func (a *app) renameScript(s *scriptStore, old, name string) {
 	if name == old {
+		s.name = old
 		return
 	}
 	check, what := capture.CheckScriptName, "script"
@@ -429,6 +430,7 @@ func (a *app) renameScript(s *scriptStore, old, name string) {
 	}
 	if err != nil {
 		a.fail(locales.RenameThing(what), err)
+		s.name = old
 		return
 	}
 	text, st := s.texts[old], s.editors[old]
@@ -440,12 +442,14 @@ func (a *app) renameScript(s *scriptStore, old, name string) {
 	if strings.EqualFold(old, name) {
 		if err := os.Rename(filepath.Join(s.dir, scriptFile(old)), filepath.Join(s.dir, scriptFile(name))); err != nil {
 			a.fail(locales.RenameThing(what), err)
+			s.name = old
 			return
 		}
 		a.forgetScript(s, old)
 	}
 	if err := a.writeScript(s, name, text); err != nil {
 		a.fail(locales.RenameThing(what), err)
+		s.name = old
 		return
 	}
 	if !s.addon {
@@ -757,14 +761,15 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 	}
 	ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		in := uikit.Input(c, &s.name).Label(nameLabel).Grow(1).MaxWidth(320).Height(uikit.HeightControl)
-		if in.Submitted() {
+		switch {
+		case uikit.Reverted(c, in, &s.name, name):
+		case uikit.Committed(in):
 			a.renameScript(s, name, strings.TrimSpace(s.name))
 		}
 		ui.Spacer(c)
 		snippetMenu(c, st, map[bool]string{false: "rule", true: "addon"}[s.addon])
 		uikit.MoreMenu(c, actionsLabel, func(m *ui.Menu) {
-			actions := []action{do("scripts.rename", locales.Rename(), func() { a.renameScript(s, name, strings.TrimSpace(s.name)) }).
-				when(strings.TrimSpace(s.name) != name, locales.TypeNewNameFirst()).in("edit")}
+			var actions []action
 			if !s.addon {
 				actions = append(actions, do("scripts.rule", locales.NewRuleRunningIt(), func() {
 					a.editRule(-1, capture.Rule{Name: name, Type: capture.RuleScript, Target: scriptFile(name)})

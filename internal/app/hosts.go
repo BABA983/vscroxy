@@ -478,6 +478,9 @@ func (a *app) renameProfile(i int, name string) {
 	h := &a.profiles
 	old := h.set.Profiles[i]
 	if name == old.Name {
+		// A name typed with only spaces around it is still the saved name:
+		// show it as saved rather than leaving the field looking edited.
+		h.name = old.Name
 		return
 	}
 	if err := h.set.CheckName(name, i); err != nil {

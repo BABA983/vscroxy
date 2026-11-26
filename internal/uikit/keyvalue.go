@@ -1,6 +1,12 @@
 package uikit
 
-import "github.com/egoist/mygo/ui"
+import (
+	"strings"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/egoist/mygo/ui"
+)
 
 // KeyValueColumn is one column of a KeyValueTable. Title is the column's
 // heading, empty for the narrow leading, reveal, file and action columns.
@@ -82,20 +88,26 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 		// trailing row instead of running down the pane. A long table scrolls
 		// inside the pane and keeps its header in place.
 		draw := func() {
-			table := ui.Column(c).Key(o.Key).FillWidth().Border(HairlineWidth, p.Border).Radius(RadiusControl).Clip()
+			// The header is sticky and carries the table's top edge, so the
+			// hairline stays under the scroll bar's viewport when rows scroll
+			// under it. The table's own box, which scrolls away, keeps only its
+			// other three edges.
+			table := ui.Column(c).Key(o.Key).FillWidth().
+				BorderWidth(0, HairlineWidth, HairlineWidth, HairlineWidth).BorderColor(p.Border).
+				Radius(RadiusControl).Clip()
 			if o.Measure != nil {
 				table.Bind(o.Measure)
 			}
 			table.Children(func() {
 				header := ui.Row(c).FillWidth().Height(HeightControl).AlignItems(ui.Stretch).
-					BorderWidth(0, 0, HairlineWidth, 0).BorderColor(p.Border).
+					BorderWidth(HairlineWidth, 0, HairlineWidth, 0).BorderColor(p.Border).
 					Background(t.Background).Sticky().Top(0)
 				header.Children(func() {
 					for i, col := range o.Columns {
 						cell := gridCell(c, col, i > 0, p.Border, false)
 						cell.Children(func() {
 							if col.Title != "" {
-								Label(c, col.Title).FillWidth().Padding(0, t.Space(SpaceM))
+								Label(c, col.Title).FillWidth()
 							}
 						})
 					}
@@ -118,7 +130,7 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 					})
 				}
 				if o.OnAdd != nil {
-					o.emptyRow(c, table, t.Space(SpaceM))
+					o.emptyRow(c, table)
 				}
 			})
 		}
@@ -126,7 +138,10 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 			draw()
 			return
 		}
-		ui.Scroll(c).Grow(1).MinHeight(0).Children(draw)
+		// The scroll bar floats over the container's end. Keep the table's
+		// full width for its header and cells and leave the bar's gutter
+		// outside it, so no column's text is ever drawn under the bar.
+		ui.Scroll(c).Grow(1).MinHeight(0).PaddingEnd(ScrollbarInset(t)).Children(draw)
 	})
 	return column
 }
@@ -135,7 +150,16 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 // carries the column's rule, so the grid is drawn by its cells rather than by
 // overlaid lines.
 func gridCell(c *ui.Context, col KeyValueColumn, rule bool, border ui.Color, readOnly bool) ui.Element {
-	cell := ui.Box(c).FillHeight().MinWidth(col.MinWidth).AlignItems(ui.Center)
+	// An editable titled column keeps the same inset from the dividers on
+	// both sides, so a key's text stops clear of the rule instead of running
+	// under it. The narrow leading and action columns have no title and stay
+	// centered in their fixed width. MinWidth describes the content, so the
+	// column asks for room for the inset too.
+	inset := float32(0)
+	if !readOnly && col.Title != "" {
+		inset = c.Theme().Space(GridCellPadding)
+	}
+	cell := ui.Box(c).FillHeight().MinWidth(col.MinWidth + 2*inset).AlignItems(ui.Center)
 	if readOnly {
 		// A read-only cell starts at the row's top with the same vertical
 		// room a one-line control has, so its text can grow downward, and
@@ -144,6 +168,9 @@ func gridCell(c *ui.Context, col KeyValueColumn, rule bool, border ui.Color, rea
 		cell.Justify(ui.Start).Padding(c.Theme().Space(SpaceXS), c.Theme().Space(SpaceM))
 	} else {
 		cell.Justify(ui.Center)
+		if inset > 0 {
+			cell.Padding(0, inset)
+		}
 	}
 	if col.Width > 0 {
 		cell.Width(col.Width)
@@ -156,9 +183,97 @@ func gridCell(c *ui.Context, col KeyValueColumn, rule bool, border ui.Color, rea
 	return cell
 }
 
+// truncatedCut is the longest prefix of a cell's text that still leaves room
+// for an ellipsis. It is kept in the field's own state, so a cell measures
+// again only after its text or width changes.
+type truncatedCut struct {
+	text                 string
+	avail                float32
+	truncated            bool
+	prefixW              float32
+	ellipsisW, ellipsisH float32
+}
+
+// truncateGap keeps the patch clear of the last kept glyph, whose ink can
+// overhang its advance, as a g's tail does.
+const truncateGap = 1.5
+
+// TruncatedCell ends an unfocused grid cell's text with an ellipsis where it
+// does not fit, and gives the whole value as its tip. It paints over the
+// glyphs after the longest whole-rune prefix that fits with an ellipsis,
+// instead of replacing the input, so the field keeps its focus, caret,
+// selection and place in Tab's order; the visible prefix keeps the field's
+// own colors, variable references included. inset is the field's text inset:
+// its border plus padding. fill and hoverFill are the cell's background under
+// the field and while the pointer is on it; a masked value shows bullets and
+// keeps its text out of the tip.
+func TruncatedCell(c *ui.Context, field ui.Element, value string, masked bool, inset float32, fill, hoverFill ui.Color) ui.Element {
+	if value == "" || field.Focused() {
+		return field
+	}
+	avail := field.Bounds().W - 2*inset
+	if avail <= 0 {
+		return field
+	}
+	t := c.Theme()
+	text, ink := value, t.Text
+	if masked {
+		text, ink = strings.Repeat("•", utf8.RuneCountInString(value)), t.TextMuted
+	}
+	size := Scaled(TextBody)
+	cut := ui.Local(field, "truncated-cell", func() truncatedCut { return truncatedCut{} })
+	if cut.text != text || cut.avail != avail {
+		*cut = truncatedCut{text: text, avail: avail}
+		fullW, _ := c.MeasureText(0, ui.Span{Text: text, Size: size})
+		if cut.truncated = fullW > avail; cut.truncated {
+			cut.ellipsisW, cut.ellipsisH = c.MeasureText(0, ui.Span{Text: "…", Size: size})
+			runes := []rune(text)
+			// The longest prefix whose width plus the ellipsis fits the text
+			// box. Widths grow with the prefix, so a binary search finds it
+			// without measuring every rune of a long value.
+			lo, hi := 0, len(runes)
+			for lo < hi {
+				mid := (lo + hi + 1) / 2
+				w, _ := c.MeasureText(0, ui.Span{Text: string(runes[:mid]), Size: size})
+				if w+truncateGap+cut.ellipsisW <= avail {
+					lo = mid
+				} else {
+					hi = mid - 1
+				}
+			}
+			for lo > 0 && unicode.IsSpace(runes[lo-1]) {
+				lo--
+			}
+			cut.prefixW, _ = c.MeasureText(0, ui.Span{Text: string(runes[:lo]), Size: size})
+		}
+	}
+	if !cut.truncated {
+		return field
+	}
+	if field.Hovered() {
+		// The field paints hoverFill over the cell's background; the patch
+		// covers that same composite, not a second wash of the same color.
+		fill = hoverFill.Over(fill)
+	}
+	field.DrawOver(func(p *ui.Painter, r ui.Rect) {
+		x := r.X + inset + cut.prefixW + truncateGap
+		end := r.X + r.W - inset
+		if x < end {
+			p.Fill(ui.Rect{X: x, Y: r.Y + inset, W: end - x, H: r.H - 2*inset}, fill, 0)
+		}
+		p.Text(x, r.Y+inset+max((r.H-2*inset-cut.ellipsisH)/2, 0), "…", size, ink)
+	})
+	// The tip is for the pointer: a focused cell already scrolls its text
+	// with the caret, and a tip on focus would cover the row above it.
+	if masked || !field.Hovered() {
+		return field
+	}
+	return Tip(c, field, value)
+}
+
 // emptyRow is the trailing row that adds a row when typed into. It keeps its
 // typed text in the table's own state, so no screen needs a draft row.
-func (o KeyValueTableOptions) emptyRow(c *ui.Context, table ui.Element, pad float32) {
+func (o KeyValueTableOptions) emptyRow(c *ui.Context, table ui.Element) {
 	t := c.Theme()
 	newKey := ui.Local(table, "new-key", func() string { return "" })
 	newValue := ui.Local(table, "new-value", func() string { return "" })
@@ -171,18 +286,18 @@ func (o KeyValueTableOptions) emptyRow(c *ui.Context, table ui.Element, pad floa
 			switch i {
 			case o.KeyColumn:
 				cell.Children(func() {
-					keyInput = emptyGridInput(c, newKey, o.KeyPlaceholder, o.KeyLabel, pad)
+					keyInput = emptyGridInput(c, newKey, o.KeyPlaceholder, o.KeyLabel)
 					haveKey = true
 				})
 			case o.ValueColumn:
 				cell.Children(func() {
-					valueInput = emptyGridInput(c, newValue, o.ValuePlaceholder, o.ValueLabel, pad)
+					valueInput = emptyGridInput(c, newValue, o.ValuePlaceholder, o.ValueLabel)
 					haveValue = true
 				})
 			default:
 				if text := o.EmptyRowText[i]; text != "" {
 					cell.Children(func() {
-						emptyGridPlaceholder(c, text, pad)
+						emptyGridPlaceholder(c, text)
 					})
 				}
 			}
@@ -205,18 +320,18 @@ func (o KeyValueTableOptions) emptyRow(c *ui.Context, table ui.Element, pad floa
 
 // emptyGridInput is the placeholder cell of the trailing row. It is a body
 // text input, as the saved rows are, with no face until the pointer or the
-// keyboard reaches it.
-func emptyGridInput(c *ui.Context, value *string, placeholder, label string, pad float32) ui.Element {
+// keyboard reaches it. The cell's own inset keeps it clear of the dividers.
+func emptyGridInput(c *ui.Context, value *string, placeholder, label string) ui.Element {
 	return InputControl(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
-		FillHeight().Padding(0, pad).Border(HairlineWidth, ui.Color{})
+		FillHeight().Padding(0, 0).Border(HairlineWidth, ui.Color{})
 }
 
 // emptyGridPlaceholder is the trailing row's read-only cell. It uses the same
-// body type, inset and vertical centering as emptyGridInput, so a Description
+// body type and vertical centering as emptyGridInput, so a Description
 // placeholder lines up with Key and Value without becoming an input that adds
 // a row.
-func emptyGridPlaceholder(c *ui.Context, text string, pad float32) ui.Element {
-	return ui.Row(c).FillWidth().FillHeight().Padding(0, pad).AlignItems(ui.Center).Children(func() {
+func emptyGridPlaceholder(c *ui.Context, text string) ui.Element {
+	return ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Children(func() {
 		ui.Text(c, text).FontSize(Scaled(TextBody)).LineHeight(LineBody).
 			TextColor(c.Theme().TextMuted).SingleLine()
 	})

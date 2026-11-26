@@ -4476,7 +4476,6 @@
     }
   },
   "typeAndID": "Type: {eventType} · ID: {id}",
-  "typeNewNameFirst": "Type the new name first",
   "unary": "Unary",
   "unavailable": "Unavailable",
   "unavailableForWhatIsShown": "Unavailable for what is shown or selected",

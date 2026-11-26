@@ -2903,7 +2903,6 @@
   "tunnelsHaveNoRequest": "隧道没有可匹配的请求",
   "turningOneOn": "开启其中一个会关闭其他方案。",
   "typeAndID": "类型：{eventType} · ID：{id}",
-  "typeNewNameFirst": "请先输入新名称",
   "unary": "一元",
   "unavailable": "不可用",
   "unavailableForWhatIsShown": "对当前显示或所选内容不可用",

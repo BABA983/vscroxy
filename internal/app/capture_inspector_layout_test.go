@@ -85,8 +85,8 @@ func TestCapturedHeaderRowsGrowAroundWrappedValues(t *testing.T) {
 	if !ok {
 		t.Fatalf("the first header value is not drawn: %v", tt.Texts())
 	}
-	// The column title is a filled label whose text starts after its own
-	// inset; the row text must start at that same edge. Take the title
+	// The grid's cell keeps the inset from the divider, so the column
+	// title's box and the row's text start at the same edge. Take the title
 	// nearest above each cell: the request pane can hold a second table.
 	titleAbove := func(name string, y float32) (ui.Rect, bool) {
 		var found ui.Rect
@@ -97,16 +97,15 @@ func TestCapturedHeaderRowsGrowAroundWrappedValues(t *testing.T) {
 		}
 		return found, found.W > 0
 	}
-	inset := float32(uikit.SpaceM * uikit.SpaceGrid)
 	if keyTitle, ok := titleAbove("Key", keyText.Y); !ok {
 		t.Fatalf("the Key column title is not drawn: %v", tt.Texts())
-	} else if d := keyText.X - (keyTitle.X + inset); d < -1 || d > 1 {
-		t.Fatalf("the header key starts %.1f from the column title's text: title %+v, key %+v", d, keyTitle, keyText)
+	} else if d := keyText.X - keyTitle.X; d < -1 || d > 1 {
+		t.Fatalf("the header key starts %.1f from the column title: title %+v, key %+v", d, keyTitle, keyText)
 	}
 	if valueTitle, ok := titleAbove("Value", value.Y); !ok {
 		t.Fatalf("the Value column title is not drawn: %v", tt.Texts())
-	} else if d := value.X - (valueTitle.X + inset); d < -1 || d > 1 {
-		t.Fatalf("the header value starts %.1f from the column title's text: title %+v, value %+v", d, valueTitle, value)
+	} else if d := value.X - valueTitle.X; d < -1 || d > 1 {
+		t.Fatalf("the header value starts %.1f from the column title: title %+v, value %+v", d, valueTitle, value)
 	}
 	if value.H <= uikit.HeightControl {
 		t.Fatalf("the long header value did not wrap: box %+v", value)

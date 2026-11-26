@@ -59,7 +59,7 @@ func (a *app) variableSensitiveTextArea(c *ui.Context, key string, value *string
 func (a *app) variableGridInput(c *ui.Context, key string, value *string, placeholder, label, collection string, mask, mono bool) ui.Element {
 	in := uikit.InputControl(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
 		FillHeight().Padding(0, c.Theme().Space(uikit.SpaceM)).
-		Border(1, ui.Color{})
+		Border(uikit.GridCellInset, ui.Color{})
 	if mono {
 		in.Font(uikit.FontMono)
 	}

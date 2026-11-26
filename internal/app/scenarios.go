@@ -57,18 +57,23 @@ func (a *app) changeScenario(name string, change func(r *capture.Rule) bool) boo
 
 func (a *app) renameScenario(old, name string) {
 	if name == old {
+		a.scenarioUI.name = old
 		return
 	}
 	if name == "" || strings.ContainsFunc(name, unicode.IsControl) {
 		a.warn(locales.EnterAScenarioNameWithout())
+		a.scenarioUI.name = old
 		return
 	}
 	if slices.Contains(a.scenarioNames(), name) {
 		a.warn(locales.ScenarioExists(name))
+		a.scenarioUI.name = old
 		return
 	}
 	if a.changeScenario(old, func(r *capture.Rule) bool { r.Scenario = name; return true }) {
 		a.scenarioUI.choice, a.scenarioUI.nameFor = name, ""
+	} else {
+		a.scenarioUI.name = old
 	}
 }
 
@@ -175,7 +180,10 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 	// not a title that happens to accept typing.
 	uikit.FormRow(c, locales.ScenarioName(), "", "", func() {
 		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-			if uikit.Input(c, &s.name).Label(locales.ScenarioName()).Grow(1).MaxWidth(360).Height(uikit.HeightControl).Submitted() {
+			in := uikit.Input(c, &s.name).Label(locales.ScenarioName()).Grow(1).MaxWidth(360).Height(uikit.HeightControl)
+			switch {
+			case uikit.Reverted(c, in, &s.name, name):
+			case uikit.Committed(in):
 				a.renameScenario(name, strings.TrimSpace(s.name))
 			}
 			on := name == current
@@ -192,8 +200,6 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 		uikit.Meta(c, status).Grow(1).SingleLine()
 		uikit.MoreMenu(c, locales.ScenarioActions(), func(m *ui.Menu) {
 			actionMenu(m, []action{
-				do("scenarios.rename", locales.Rename(), func() { a.renameScenario(name, strings.TrimSpace(s.name)) }).
-					when(strings.TrimSpace(s.name) != name, locales.TypeNewNameFirst()).in("edit"),
 				do("scenarios.rebuild", locales.RebuildFromExamples(), func() { a.scenarioFromExamples(name) }).
 					when(a.examplesUnder(name), locales.OnlyAScenarioNamedFor()).in("edit"),
 				do("scenarios.ungroup", locales.UngroupRules(), func() {

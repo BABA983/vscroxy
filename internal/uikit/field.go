@@ -53,6 +53,25 @@ func NumberField(c *ui.Context, text *string, value *float64, lo, hi float64, un
 	return row
 }
 
+// Committed reports that an always-visible name field should be written:
+// Enter, or the focus leaving it, as Finder commits a renamed file. Callers
+// check it where they build the field, beside Reverted.
+func Committed(in ui.Element) bool { return in.Submitted() || in.FocusLeft() }
+
+// Reverted restores saved when Escape is pressed in an always-visible name
+// field, and reports it: the caller writes nothing then. It is Committed's
+// other half, so Escape never reaches the commit.
+func Reverted(c *ui.Context, in ui.Element, name *string, saved string) bool {
+	if !in.Shortcut(0, ui.KeyEscape) {
+		return false
+	}
+	if *name != saved {
+		*name = saved
+		c.Invalidate()
+	}
+	return true
+}
+
 // Input is a single-line text field at control height: a near-white
 // Background face with a 15% ink edge at rest and one Ring point outside it
 // while focused.

@@ -56,6 +56,14 @@ const (
 	Space2XL     = 6   // 24: between sections
 	Space3XL     = 8   // 32: between the parts of a page
 
+	// GridCellPadding is the room a key/value grid cell's content keeps from
+	// the dividers on each side. A screen that measures a column's content
+	// adds twice it to know the column's width.
+	GridCellPadding = SpaceM
+	// GridCellInset is the text's inset inside a grid cell's input: its
+	// hairline border, with no padding between the border and the text.
+	GridCellInset = HairlineWidth
+
 	// Bar heights, as in Proxyman and Xcode: the title bar, a pane header or
 	// filter bar, and the one-row strip that holds a sidebar heading or the
 	// activity line.

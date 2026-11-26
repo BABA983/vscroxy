@@ -238,7 +238,9 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 	uikit.FormRow(c, locales.ProfileName(), "", "", func() {
 		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			name := uikit.Input(c, &h.name).Label(locales.ProfileName()).Grow(1).MaxWidth(320).Height(uikit.HeightControl)
-			if name.Submitted() {
+			switch {
+			case uikit.Reverted(c, name, &h.name, p.Name):
+			case uikit.Committed(name):
 				a.renameProfile(i, strings.TrimSpace(h.name))
 			}
 			on := p.On
@@ -252,8 +254,6 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 		ui.Spacer(c)
 		uikit.MoreMenu(c, locales.ProfileActions(), func(m *ui.Menu) {
 			actions := []action{
-				do("hosts.rename", locales.Rename(), func() { a.renameProfile(i, strings.TrimSpace(h.name)) }).
-					when(strings.TrimSpace(h.name) != p.Name, locales.TypeNewNameFirst()).in("edit"),
 				do("hosts.duplicate", locales.Duplicate(), func() { a.duplicateProfile(i) }).in("edit"),
 				do("hosts.refresh", locales.RefreshNow(), func() { a.refreshProfile(i) }).
 					when(p.URL != "" && !h.fetching[p.Name], locales.OnlySubscribedRefresh()).in("edit"),

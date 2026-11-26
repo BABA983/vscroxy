@@ -8320,16 +8320,6 @@ func (msgs Messages) TypeAndID(eventType string, id string) string {
 	return Catalog.Format(msgs.locale, "typeAndID", map[string]any{"eventType": eventType, "id": id})
 }
 
-// TypeNewNameFirst says "Type the new name first"
-// in the language the app shows.
-func TypeNewNameFirst() string { return In(i18n.Locale()).TypeNewNameFirst() }
-
-// TypeNewNameFirst says "Type the new name first"
-// in the language of msgs.
-func (msgs Messages) TypeNewNameFirst() string {
-	return Catalog.Format(msgs.locale, "typeNewNameFirst", nil)
-}
-
 // Unary says "Unary"
 // in the language the app shows.
 func Unary() string { return In(i18n.Locale()).Unary() }

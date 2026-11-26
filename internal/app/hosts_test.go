@@ -225,3 +225,59 @@ func TestNewHostProfileTakesTheSelection(t *testing.T) {
 		t.Fatalf("the list shows row %d, the app chose %d", *h.list.Selected, h.choice)
 	}
 }
+
+// A Host profile's name is written when Enter or the focus leaves the field,
+// as a Finder rename is, and Escape puts the saved name back without writing.
+func TestHostProfileNameCommitsOnBlurAndEscapeReverts(t *testing.T) {
+	a := workspaceApp()
+	dir := t.TempDir()
+	a.profiles.dir = dir
+	if !a.newProfile("Staging", "10.0.3.21 api.example.com\n", "") {
+		t.Fatal("could not create the profile")
+	}
+	a.openTools("hosts")
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.SetLocale("en-US")
+	tt.Frame()
+
+	if err := tt.Click("Profile name"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("Renamed")
+	tt.Key(0, ui.KeyTab)
+	tt.Frame()
+	if got := a.profiles.set.Profiles[0].Name; got != "Renamed" {
+		t.Fatalf("after Tab, profile name = %q, want Renamed", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "Renamed.hosts")); err != nil {
+		t.Fatalf("renamed file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "Staging.hosts")); !os.IsNotExist(err) {
+		t.Fatalf("the old file is still there: %v", err)
+	}
+	index, err := os.ReadFile(filepath.Join(dir, hosts.IndexFile))
+	if err != nil || !strings.Contains(string(index), `"Renamed"`) {
+		t.Fatalf("saved index = %q, %v", index, err)
+	}
+
+	if err := tt.Click("Profile name"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("Discarded")
+	if got := a.profiles.name; got != "Discarded" {
+		t.Fatalf("typing did not reach the field: %q", got)
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if got := a.profiles.name; got != "Renamed" {
+		t.Fatalf("after Escape the field says %q, want Renamed", got)
+	}
+	if got := a.profiles.set.Profiles[0].Name; got != "Renamed" {
+		t.Fatalf("after Escape the profile is %q, want Renamed", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "Discarded.hosts")); !os.IsNotExist(err) {
+		t.Fatalf("Escape wrote a file: %v", err)
+	}
+}
