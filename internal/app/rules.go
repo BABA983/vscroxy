@@ -504,8 +504,8 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 		})
 		uikit.Tip(c, uikit.Input(c, &e.test).Label(locales.TestARequest()).Placeholder(locales.TestUrlPlaceholder()), locales.MethodUrlAppHeaderValue()+"\n"+locales.TestGetHttpsApiExample()).Font(uikit.FontMono).FillWidth()
 		if e.draft.Operation != "" || slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Operation != "" }) {
-			uikit.TextArea(c, &e.testBody).Label(locales.TestGraphqlBody()).Placeholder(`{"query":"query Search { items { id } }"}`).Height(80).FillWidth().Font(uikit.FontMono).
-				Tooltip(locales.PostUsesJsonByDefault())
+			uikit.Tip(c, uikit.TextArea(c, &e.testBody).Label(locales.TestGraphqlBody()).Placeholder(`{"query":"query Search { items { id } }"}`).Height(80).FillWidth().Font(uikit.FontMono),
+				locales.PostUsesJsonByDefault())
 			if testing && e.testProblem != "" {
 				uikit.Hint(c, locales.GraphqlNotVerified(e.testProblem))
 			}
@@ -780,8 +780,8 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []ruleListRow, preview [
 						})
 					case preview == nil && a.srv != nil:
 						if n := a.srv.RuleHits(r); n > 0 {
-							uikit.Meta(c, strconv.Itoa(n)).Font(uikit.FontMono).FontFeatures("tnum").
-								Tooltip(locales.RulesChangedSinceLaunch(n))
+							uikit.Tip(c, uikit.Meta(c, strconv.Itoa(n)).Font(uikit.FontMono).FontFeatures("tnum"),
+								locales.RulesChangedSinceLaunch(n))
 						}
 					}
 				})

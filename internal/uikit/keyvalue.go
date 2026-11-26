@@ -73,6 +73,11 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 				}
 			})
 		}
+		// A table without a row to add is read-only: its rows grow with what
+		// they show, so a wrapped header value pushes the next row and the
+		// rule below it down instead of drawing over them. Editable rows keep
+		// one control height so their inputs line up.
+		readOnly := o.OnAdd == nil
 		// The table is as tall as its rows, so its hairline closes under the
 		// trailing row instead of running down the pane. A long table scrolls
 		// inside the pane and keeps its header in place.
@@ -87,7 +92,7 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 					Background(t.Background).Sticky().Top(0)
 				header.Children(func() {
 					for i, col := range o.Columns {
-						cell := gridCell(c, col, i > 0, p.Border)
+						cell := gridCell(c, col, i > 0, p.Border, false)
 						cell.Children(func() {
 							if col.Title != "" {
 								Label(c, col.Title).FillWidth().Padding(0, t.Space(SpaceM))
@@ -96,11 +101,16 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 					}
 				})
 				for row := 0; row < o.Rows; row++ {
-					line := ui.Row(c).FillWidth().Height(HeightControl).AlignItems(ui.Stretch).
+					line := ui.Row(c).FillWidth().AlignItems(ui.Stretch).
 						BorderWidth(0, 0, HairlineWidth, 0).BorderColor(p.Border)
+					if readOnly {
+						line.MinHeight(HeightControl)
+					} else {
+						line.Height(HeightControl)
+					}
 					line.Children(func() {
 						for i, col := range o.Columns {
-							cell := gridCell(c, col, i > 0, p.Border)
+							cell := gridCell(c, col, i > 0, p.Border, readOnly)
 							if col.Cell != nil {
 								cell.Children(func() { col.Cell(row, line) })
 							}
@@ -124,8 +134,17 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 // gridCell is one column of a header or data row. Every cell after the first
 // carries the column's rule, so the grid is drawn by its cells rather than by
 // overlaid lines.
-func gridCell(c *ui.Context, col KeyValueColumn, rule bool, border ui.Color) ui.Element {
-	cell := ui.Box(c).FillHeight().MinWidth(col.MinWidth).AlignItems(ui.Center).Justify(ui.Center)
+func gridCell(c *ui.Context, col KeyValueColumn, rule bool, border ui.Color, readOnly bool) ui.Element {
+	cell := ui.Box(c).FillHeight().MinWidth(col.MinWidth).AlignItems(ui.Center)
+	if readOnly {
+		// A read-only cell starts at the row's top with the same vertical
+		// room a one-line control has, so its text can grow downward, and
+		// the same horizontal inset as the column's title and its editable
+		// cells, so text lines up under the title.
+		cell.Justify(ui.Start).Padding(c.Theme().Space(SpaceXS), c.Theme().Space(SpaceM))
+	} else {
+		cell.Justify(ui.Center)
+	}
 	if col.Width > 0 {
 		cell.Width(col.Width)
 	} else {
@@ -148,7 +167,7 @@ func (o KeyValueTableOptions) emptyRow(c *ui.Context, table ui.Element, pad floa
 	haveKey, haveValue := false, false
 	line.Children(func() {
 		for i, col := range o.Columns {
-			cell := gridCell(c, col, i > 0, Colors(t).Border)
+			cell := gridCell(c, col, i > 0, Colors(t).Border, false)
 			switch i {
 			case o.KeyColumn:
 				cell.Children(func() {

@@ -20,9 +20,9 @@ func (c *clockProbe) AfterFunc(d time.Duration, f func()) async.Timer {
 	return c.FakeClock.AfterFunc(d, f)
 }
 
-// TestTickRateUsesAppClock drives the recording ticker with a fake clock: no
+// TestTickActivityUsesAppClock drives the recording ticker with a fake clock: no
 // wall clock passes before the callback runs and arms the next tick.
-func TestTickRateUsesAppClock(t *testing.T) {
+func TestTickActivityUsesAppClock(t *testing.T) {
 	a := workspaceApp()
 	clock := &clockProbe{FakeClock: async.NewFakeClock(), armed: make(chan time.Duration, 2)}
 	a.clock = clock
@@ -32,11 +32,13 @@ func TestTickRateUsesAppClock(t *testing.T) {
 	finished := make(chan struct{})
 	go guarded(func() {
 		defer close(finished)
-		a.tickRate(done)
+		a.tickActivity(done)
 	})
 
 	for range 2 {
-		clock.Advance(time.Second)
+		// The goroutine arms its first timer after it starts: advance only
+		// once it has, or the fake clock has moved past the tick it waits
+		// for.
 		select {
 		case d := <-clock.armed:
 			if d != time.Second {
@@ -45,11 +47,12 @@ func TestTickRateUsesAppClock(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("the injected clock did not arm the ticker")
 		}
+		clock.Advance(time.Second)
 	}
 	close(done)
 	select {
 	case <-finished:
 	case <-time.After(5 * time.Second):
-		t.Fatal("tickRate did not stop")
+		t.Fatal("tickActivity did not stop")
 	}
 }

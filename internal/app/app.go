@@ -436,11 +436,10 @@ type app struct {
 
 	// recordingPaused keeps the proxy forwarding without keeping ambient
 	// traffic; unrecorded holds what it let pass, so their messages are not
-	// kept either. rate counts what was kept, and lastFlow is when capture
-	// last delivered anything, for the curve's clock.
+	// kept either. lastFlow is when capture last delivered anything, for
+	// the activity strip's clock.
 	recordingPaused     bool
 	unrecorded          map[int]bool
-	rate                rateWindow
 	lastFlow            atomic.Int64
 	collectionRecording *collectionRecording
 
@@ -1410,7 +1409,7 @@ func (a *app) startCapture() {
 	done := make(chan struct{})
 	defer close(done)
 	rateDone := done
-	go guarded(func() { a.tickRate(rateDone) })
+	go guarded(func() { a.tickActivity(rateDone) })
 	for f := range a.srv.Flows() {
 		a.lastFlow.Store(time.Now().Unix())
 		a.mu.Lock()
@@ -3276,7 +3275,7 @@ func captureCard(f flow) uikit.HoverCard {
 	if f.conn.error != "" {
 		rows = append(rows, uikit.HoverCardRow{Key: "Error", Value: f.conn.errorStage + ": " + f.conn.error})
 	}
-	return uikit.HoverCard{Title: title, Meta: strings.Join(meta, " · "), Rows: rows}
+	return uikit.NewHoverCard(title, strings.Join(meta, " · "), rows)
 }
 
 func (a *app) table(c *ui.Context) {
@@ -3495,6 +3494,41 @@ func (a *app) table(c *ui.Context) {
 	// own edge below it, drawn per cell.
 	selectionTheme.Border = ui.Color{}
 	c.SetTheme(selectionTheme)
+	// The cell roles are the table's, not each cell's: a closure per cell is
+	// a closure for every visible row on every frame, and these read only
+	// the context the table was built with.
+	text := func(s string) ui.Element {
+		return uikit.Mono(c, s).Height(15).FixedLineHeight(15).FontFeatures("tnum").SingleLine()
+	}
+	// Facts beside the request: its number, host, client, timing and size.
+	quiet := func(s string) ui.Element {
+		return uikit.Mono(c, s).TextColor(c.Theme().TextMuted).Height(15).FixedLineHeight(15).FontFeatures("tnum").SingleLine()
+	}
+	// What a person reads as a name rather than as wire data: the host,
+	// the client, the path and a note keep the interface font, as the
+	// sidebar does. Mono is for the numbers a reader compares down a
+	// column, and for code.
+	plain := func(s string) ui.Element {
+		return uikit.Hint(c, s).Height(15).FixedLineHeight(15).SingleLine()
+	}
+	named := func(s string) ui.Element {
+		return uikit.Small(c, s).Height(15).FixedLineHeight(15).SingleLine()
+	}
+	// A row's four cells open the same card. The table builds a row's cells
+	// together, so one card is kept for the row being built: a card holds
+	// formatted text and a row slice, and twenty-five visible rows would
+	// otherwise build a hundred of them per frame that nobody opens.
+	cardRow, cardReady := -1, false
+	var card uikit.HoverCard
+	rowCard := func(row int, f flow) uikit.HoverCard {
+		if !cardReady || cardRow != row {
+			card, cardRow, cardReady = captureCard(f), row, true
+		}
+		return card
+	}
+	// One rich-tip theme for the table's cells: the card delay used to copy
+	// the whole theme for every cell of every visible row, every frame.
+	tips := uikit.NewCardTips(c)
 	// Bare: the kit has no table; this is MyGo's table of flows, with its own cell edges.
 	table := ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
@@ -3503,27 +3537,9 @@ func (a *app) table(c *ui.Context) {
 			// column the user moved there.
 			uikit.RowMarker(c, focused)
 		}
-		text := func(s string) ui.Element {
-			return uikit.Mono(c, s).Height(15).FixedLineHeight(15).FontFeatures("tnum").SingleLine()
-		}
-
-		// Facts beside the request: its number, host, client, timing and size.
-		quiet := func(s string) ui.Element {
-			return uikit.Mono(c, s).TextColor(c.Theme().TextMuted).Height(15).FixedLineHeight(15).FontFeatures("tnum").SingleLine()
-		}
-		// What a person reads as a name rather than as wire data: the host,
-		// the client, the path and a note keep the interface font, as the
-		// sidebar does. Mono is for the numbers a reader compares down a
-		// column, and for code.
-		plain := func(s string) ui.Element {
-			return uikit.Hint(c, s).Height(15).FixedLineHeight(15).SingleLine()
-		}
-		named := func(s string) ui.Element {
-			return uikit.Small(c, s).Height(15).FixedLineHeight(15).SingleLine()
-		}
 		switch cols[col].ID {
 		case "id":
-			quiet(fmt.Sprint(f.id))
+			quiet(strconv.Itoa(f.id))
 		case "ssl":
 			if !f.secure() {
 				quiet("—")
@@ -3540,10 +3556,10 @@ func (a *app) table(c *ui.Context) {
 			if f.method == "CONNECT" {
 				ink = t.TextMuted
 			}
-			uikit.CardTip(c, uikit.Small(c, f.method).FontWeight(500).Height(15).FixedLineHeight(15).
-				TextColor(ink).SingleLine(), captureCard(f))
+			tips.Tip(c, uikit.Small(c, f.method).FontWeight(500).Height(15).FixedLineHeight(15).
+				TextColor(ink).SingleLine(), rowCard(row, f))
 		case "host":
-			uikit.CardTip(c, plain(f.host), captureCard(f))
+			tips.Tip(c, plain(f.host), rowCard(row, f))
 		case "remote":
 			a.remoteCell(c, t, f, quiet)
 		case "url":
@@ -3582,19 +3598,19 @@ func (a *app) table(c *ui.Context) {
 				if f.strike {
 					label = label.Strikethrough()
 				}
-				uikit.CardTip(c, label, captureCard(f))
+				tips.Tip(c, label, rowCard(row, f))
 			})
 		case "status":
 			if f.conn.error != "" {
-				uikit.CardTip(c, text(locales.Failed()).TextColor(t.Danger), captureCard(f))
+				tips.Tip(c, text(locales.Failed()).TextColor(t.Danger), rowCard(row, f))
 			} else if f.kind == "connect" && f.status < 400 {
 				// A tunnel that opened has no status of its own: the lock
 				// says what the row is, and the card says how the setup
 				// went. One that never opened keeps its number, so a refused
 				// tunnel does not read as a working one.
-				uikit.CardTip(c, ui.Row(c).Grow(1).AlignItems(ui.Center).Children(func() {
+				tips.Tip(c, ui.Row(c).Grow(1).AlignItems(ui.Center).Children(func() {
 					uikit.Glyph(c, lockIcon)
-				}), captureCard(f)).Label(locales.TunnelTooltip(f.status))
+				}), rowCard(row, f)).Label(locales.TunnelTooltip(f.status))
 			} else {
 				// Only a client or server error is colored: a normal answer is
 				// its number in the secondary ink, with nothing beside it.
@@ -3602,7 +3618,7 @@ func (a *app) table(c *ui.Context) {
 				if f.status >= 400 {
 					ink = uikit.StatusColor(f.status, t)
 				}
-				uikit.CardTip(c, text(fmt.Sprint(f.status)).TextColor(ink), captureCard(f))
+				tips.Tip(c, text(strconv.Itoa(f.status)).TextColor(ink), rowCard(row, f))
 			}
 		case "client":
 			if src, ok := a.clientIcon(f.process, f.processPath); ok {
@@ -3917,8 +3933,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 			field(c, t, locales.AppRule(), app)
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceHair), 0).Children(func() {
 				uikit.Meta(c, locales.Trust()).Width(96)
-				uikit.DataBody(c, trust).TextColor(trustColor).Grow(1).
-					Tooltip(locales.SystemTrustIsNotProof())
+				uikit.Tip(c, uikit.DataBody(c, trust).TextColor(trustColor).Grow(1), locales.SystemTrustIsNotProof())
 			})
 		})
 	}

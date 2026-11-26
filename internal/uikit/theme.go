@@ -157,6 +157,16 @@ func Theme(dark bool) *ui.Theme {
 	// points one point out.
 	t.Selection, t.Focus = p.Accent, p.Ring
 	t.FocusRingWidth, t.FocusRingOffset = 1, 0
+	// Scroll bars follow VS Code's editor: a square 14-point thumb flush with
+	// its track's ends, and a thumb that darkens or lightens from the
+	// palette's secondary ink to the primary ink while dragged. Every scroll
+	// container takes this from the theme, and so does the code editor.
+	t.ScrollbarStyle = ui.ScrollbarStyle{
+		TrackWidth: 14, ThumbWidth: 14, Square: true, Flush: true, MinLength: 20,
+		Thumb:  p.MutedForeground.Alpha(0.4),
+		Hover:  p.MutedForeground.Alpha(0.7),
+		Active: p.Foreground.Alpha(0.4),
+	}
 	return t
 }
 

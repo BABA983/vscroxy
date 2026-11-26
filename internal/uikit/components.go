@@ -838,6 +838,9 @@ type HoverCard struct {
 	Title string
 	Meta  string
 	Rows  []HoverCardRow
+	// description is what assistive technology reads, built when the card
+	// is made (NewHoverCard). A card made as a literal builds it per use.
+	description string
 }
 
 // HoverCardRow is one named value of a HoverCard.
@@ -846,12 +849,56 @@ type HoverCardRow struct {
 	Value string
 }
 
+// NewHoverCard builds a card and the description assistive technology reads
+// from it, once. A table builds a card for a row and gives it to each of the
+// row's cells; building that description per cell allocated a string for
+// every key and value on every frame.
+func NewHoverCard(title, meta string, rows []HoverCardRow) HoverCard {
+	card := HoverCard{Title: title, Meta: meta, Rows: rows}
+	card.description = card.describe()
+	return card
+}
+
+// describe reads the card as one sentence for assistive technology.
+func (card HoverCard) describe() string {
+	parts := make([]string, 0, 2+len(card.Rows))
+	if card.Title != "" {
+		parts = append(parts, card.Title)
+	}
+	if card.Meta != "" {
+		parts = append(parts, card.Meta)
+	}
+	for _, row := range card.Rows {
+		if row.Key != "" || row.Value != "" {
+			parts = append(parts, strings.TrimSpace(row.Key+": "+row.Value))
+		}
+	}
+	return strings.Join(parts, ". ")
+}
+
 // CardTip gives e a rich tip: a title, one line of meta and key/value rows on
 // a 320-point card. It waits longer than a one-line tip and is
 // described to assistive technology by its text, since MyGo's tooltip itself
 // is not read. TooltipBase's placement keeps it clear of the window's edges.
 func CardTip(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
-	return cardTip(c, e, card, nil)
+	return cardTip(c, e, card, nil, nil)
+}
+
+// CardTips is CardTip's rich-tip timing shared by the cells of a table or the
+// rows of a list. Build one per view and give each cell tips.Tip: the delay
+// otherwise copies the whole theme for every cell on every frame.
+type CardTips struct{ theme ui.Theme }
+
+// NewCardTips captures the frame's theme with the rich tip's longer delay.
+func NewCardTips(c *ui.Context) *CardTips {
+	theme := *c.Theme()
+	theme.TooltipDelay = cardTipDelay
+	return &CardTips{theme: theme}
+}
+
+// Tip is CardTip with the timing the CardTips was built with.
+func (s *CardTips) Tip(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
+	return cardTip(c, e, card, nil, &s.theme)
 }
 
 // CardTipBeside is CardTip opened beside e: the card's top edge is level with
@@ -860,7 +907,7 @@ func CardTip(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
 func CardTipBeside(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
 	return cardTip(c, e, card, func(tip ui.Element) {
 		tip.AttachTo(e, ui.AnchorTopRight, ui.AnchorTopLeft).MarginStart(c.Theme().Space(SpaceS))
-	})
+	}, nil)
 }
 
 // A rich card appears much later than a one-line tip: about 650ms after the
@@ -869,15 +916,20 @@ func CardTipBeside(c *ui.Context, e ui.Element, card HoverCard) ui.Element {
 const cardTipDelay = 650 * time.Millisecond
 
 // cardTip is the body of CardTip and CardTipBeside; place, when set, positions
-// the card inside TooltipBase.
-func cardTip(c *ui.Context, e ui.Element, card HoverCard, place func(tip ui.Element)) ui.Element {
+// the card inside TooltipBase. shared, when set, is the frame's theme already
+// carrying the rich-tip delay, so that a table's cells do not copy it each.
+func cardTip(c *ui.Context, e ui.Element, card HoverCard, place func(tip ui.Element), shared *ui.Theme) ui.Element {
 	if card.Title == "" && card.Meta == "" && len(card.Rows) == 0 {
 		return e
 	}
 	t := c.Theme()
-	cardTheme := *t
-	cardTheme.TooltipDelay = cardTipDelay
-	c.SetTheme(&cardTheme)
+	cardTheme := shared
+	if cardTheme == nil {
+		local := *t
+		local.TooltipDelay = cardTipDelay
+		cardTheme = &local
+	}
+	c.SetTheme(cardTheme)
 	ui.TooltipBase(c, e, func(tip ui.Element) {
 		cardFace(c, tip)
 		if place != nil {
@@ -917,19 +969,10 @@ func cardTip(c *ui.Context, e ui.Element, card HoverCard, place func(tip ui.Elem
 		})
 	})
 	c.SetTheme(t)
-	parts := make([]string, 0, 2+len(card.Rows))
-	if card.Title != "" {
-		parts = append(parts, card.Title)
+	if card.description == "" {
+		card.description = card.describe()
 	}
-	if card.Meta != "" {
-		parts = append(parts, card.Meta)
-	}
-	for _, row := range card.Rows {
-		if row.Key != "" || row.Value != "" {
-			parts = append(parts, strings.TrimSpace(row.Key+": "+row.Value))
-		}
-	}
-	e.Description(strings.Join(parts, ". "))
+	e.Description(card.description)
 	return e
 }
 
@@ -1832,7 +1875,7 @@ func SettingsCard(c *ui.Context, legend string, rows func()) ui.Element {
 // pointer between a press and a release.
 func SettingsCardRowWithReset(c *ui.Context, title, description string, modified bool, control func(), menu func(*ui.Menu), tip ...string) ui.Element {
 	t := c.Theme()
-	row := ui.Row(c).FillWidth().MinHeight(SettingsRowHeight).Padding(0, CardPaddingX).
+	row := ui.Row(c).FillWidth().MinHeight(SettingsRowHeight).Padding(CardRowPaddingY, CardPaddingX).
 		Gap(t.Space(SpaceM)).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
 	// The marker sits on the card's own edge, out of the row's layout: every
 	// row keeps the same inset whether or not its setting is modified, so
@@ -1869,7 +1912,7 @@ func SettingsCardRowWithReset(c *ui.Context, title, description string, modified
 // takes the card's full width; its marker and menu reserve their slots too.
 func SettingsCardBlockWithReset(c *ui.Context, title, description string, modified bool, content func(), menu func(*ui.Menu), tip ...string) ui.Element {
 	t := c.Theme()
-	block := ui.Column(c).FillWidth().Padding(t.Space(SpaceL), CardPaddingX).Gap(t.Space(SpaceM)).
+	block := ui.Column(c).FillWidth().Padding(CardRowPaddingY, CardPaddingX).Gap(t.Space(SpaceM)).
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
 	if modified {
 		ui.Box(c).Absolute().Left(0).Top(t.Space(SpaceS)).Bottom(t.Space(SpaceS)).Width(3).Radius(2).
@@ -1972,7 +2015,7 @@ func SettingsCardRow(c *ui.Context, title, description string, control func(), t
 // block keeps the card's full width.
 func SettingsCardBlock(c *ui.Context, title, description string, content func(), tip ...string) ui.Element {
 	t := c.Theme()
-	block := ui.Column(c).FillWidth().Padding(t.Space(SpaceL), t.Space(SpaceXL)).Gap(t.Space(SpaceM)).
+	block := ui.Column(c).FillWidth().Padding(CardRowPaddingY, CardPaddingX).Gap(t.Space(SpaceM)).
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
 	block.Children(func() {
 		if title != "" || description != "" {

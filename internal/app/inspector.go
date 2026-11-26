@@ -1168,8 +1168,8 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 			// line is the one thing the row adds.
 			if side == 1 {
 				ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).Grow(1).MinWidth(0).Children(func() {
-					uikit.Mono(c, line).TextColor(t.TextMuted).SingleLine().Selectable().Shrink(1).
-						Tooltip(strings.TrimSpace(line + "\n" + note))
+					label := uikit.Mono(c, line).TextColor(t.TextMuted).SingleLine().Selectable().Shrink(1)
+					uikit.Tip(c, label, strings.TrimSpace(line+"\n"+note))
 					a.unicodeMarker(c, "request-line", f.path, false)
 				})
 			}
@@ -1227,9 +1227,9 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 							Cell: func(row int, _ ui.Element) {
 								r := rows[row]
 								ui.Row(c).FillWidth().Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
-									uikit.Body(c, r.key).TextColor(t.Text).SingleLine().Shrink(1).
-										Tooltip(strings.TrimSpace(r.key + "\n" + headerDoc(r.key))).PopoverMenu(
-										a.headerFilterMenu(c, r.key, headers[r.key]))
+									key := uikit.Body(c, r.key).TextColor(t.Text).SingleLine().Shrink(1)
+									uikit.Tip(c, key, strings.TrimSpace(r.key+"\n"+headerDoc(r.key))).
+										PopoverMenu(a.headerFilterMenu(c, r.key, headers[r.key]))
 									a.unicodeMarker(c, fmt.Sprintf("header-%d-key-%s", side, r.key), r.key, false)
 								})
 							},

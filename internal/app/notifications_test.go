@@ -128,14 +128,15 @@ func TestStaleDeleteUndoIsRefusedUntilItIsNewestAgain(t *testing.T) {
 	}
 }
 
-// A disclosure appears only when expanding shows more: a detail string or a
-// message that the two-line summary cuts. A short notice with neither has no
-// chevron, so nothing opens an empty row.
+// A disclosure appears only when there is a detail to open. The message
+// itself wraps across the card and is never cut, so a long one needs no
+// chevron and opening nothing is never offered.
 func TestNotificationCenterChevronOnlyWhenThereIsMore(t *testing.T) {
 	a := &app{}
 	a.inform("Saved the collection")
 	a.notify(notice{level: noticeError, text: "Import failed", detail: "unsupported export format"})
-	a.warn(strings.Repeat("A long message about a task that cannot finish. ", 4))
+	long := strings.Repeat("A long message about a task that cannot finish. ", 4)
+	a.warn(long)
 	a.openNotifications()
 	tt := notificationTester(t, a, false)
 	disclosures := 0
@@ -144,8 +145,11 @@ func TestNotificationCenterChevronOnlyWhenThereIsMore(t *testing.T) {
 			disclosures++
 		}
 	}
-	if disclosures != 2 {
-		t.Fatalf("disclosures = %d, want the detail and the truncated message only: %v", disclosures, tt.Texts())
+	if disclosures != 1 {
+		t.Fatalf("disclosures = %d, want only the notice with a detail: %v", disclosures, tt.Texts())
+	}
+	if !tt.HasText(strings.TrimSpace(long)) {
+		t.Error("a long message is cut instead of wrapping across the card")
 	}
 }
 

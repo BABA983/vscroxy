@@ -196,24 +196,11 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	}
 	uikit.CardTip(c, b, card)
 	b.Children(func() {
-		mark := ui.Box(c).Size(7, 7).Shrink(0)
-		// Recording with traffic arriving: the dot breathes. Nothing
-		// arriving, or paused: it rests, so the lamp does not twitch all day.
-		// The pulse is painted rather than built: its frames repeat the last
-		// layout, so the table above is not run again at 30 a second while
-		// capture is on.
-		if running && !a.recordingPaused && a.rate.perSecond() > 0 {
-			mark.Draw(func(p *ui.Painter, r ui.Rect) {
-				p.AnimationFrameRate(30)
-				phase := float32(p.Now().UnixMilli()%1200) / 1200
-				if phase > 0.5 {
-					phase = 1 - phase
-				}
-				p.Fill(r, dot.Alpha(0.55+0.45*ui.EaseInOut(phase*2)), r.W/2)
-			})
-		} else {
-			mark.Radius(uikit.RadiusControl).Background(dot)
-		}
+		// The lamp is a static dot: its state is the word beside it, and a
+		// pulse would ask the window for frames while it records. A drawing
+		// that animates with p.AnimationFrameRate also lowers the display's
+		// own refresh rate on macOS, which paced every scroll at 30 fps.
+		ui.Box(c).Size(7, 7).Radius(uikit.RadiusControl).Background(dot).Shrink(0)
 		uikit.Meta(c, state).TextColor(t.Text).SingleLine()
 	})
 	uikit.MenuFace(c, func() {

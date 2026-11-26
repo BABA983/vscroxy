@@ -301,8 +301,8 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 					v.rows = append(v.rows, vaultRow{})
 				}
 			})
-			uikit.Checkbox(c, &v.scriptsDraft, locales.LetScriptsUsePmVault()).
-				Tooltip(locales.ScriptsCanThenReadAny())
+			uikit.Tip(c, uikit.Checkbox(c, &v.scriptsDraft, locales.LetScriptsUsePmVault()),
+				locales.ScriptsCanThenReadAny())
 			if v.editProblem != "" {
 				uikit.ErrorText(c, v.editProblem)
 			}

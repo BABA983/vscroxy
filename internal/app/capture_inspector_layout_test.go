@@ -56,3 +56,67 @@ func TestSettingsScrollReachesItsLastRow(t *testing.T) {
 		t.Fatalf("the Settings scroll ends at %.1f, past the footer at %.1f: %+v", scroll.Y+scroll.H, footer.Y, scroll)
 	}
 }
+
+// A captured header's value wraps inside its row: the next row starts below
+// the wrapped text instead of drawing over it, as a fixed row height did.
+func TestCapturedHeaderRowsGrowAroundWrappedValues(t *testing.T) {
+	a := workspaceApp()
+	long := "authorization, content-type, x-request-id, x-trace-id, x-correlation-id, x-session-id, x-client-version, x-feature-flags, x-rate-limit"
+	a.flows[0].respHeader.Set("Access-Control-Allow-Headers", long)
+	a.flows[0].respHeader.Set("Access-Control-Expose-Headers", "x-request-id, x-trace-id, x-correlation-id, x-session-id, x-client-version, x-feature-flags, x-rate-limit")
+	a.flows[0].respHeader.Set("Cache-Control", "no-store")
+
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.SetLocale("en-US")
+	tt.Frame()
+	if err := tt.Click("api.example.com/projects"); err != nil {
+		t.Fatalf("select the capture: %v", err)
+	}
+	tt.Frame()
+	a.inspect.tab[0], a.inspect.tab[1] = composeTabRaw, resViewHeaders
+	tt.Frame()
+	tt.Frame()
+
+	keyText, ok := tt.Find("Access-Control-Allow-Headers")
+	if !ok {
+		t.Fatalf("the first header key is not drawn: %v", tt.Texts())
+	}
+	value, ok := tt.Find(long)
+	if !ok {
+		t.Fatalf("the first header value is not drawn: %v", tt.Texts())
+	}
+	// The column title is a filled label whose text starts after its own
+	// inset; the row text must start at that same edge. Take the title
+	// nearest above each cell: the request pane can hold a second table.
+	titleAbove := func(name string, y float32) (ui.Rect, bool) {
+		var found ui.Rect
+		for _, info := range tt.AccessAll() {
+			if info.Name == name && info.Bounds.Y < y && (found.W == 0 || info.Bounds.Y > found.Y) {
+				found = info.Bounds
+			}
+		}
+		return found, found.W > 0
+	}
+	inset := float32(uikit.SpaceM * uikit.SpaceGrid)
+	if keyTitle, ok := titleAbove("Key", keyText.Y); !ok {
+		t.Fatalf("the Key column title is not drawn: %v", tt.Texts())
+	} else if d := keyText.X - (keyTitle.X + inset); d < -1 || d > 1 {
+		t.Fatalf("the header key starts %.1f from the column title's text: title %+v, key %+v", d, keyTitle, keyText)
+	}
+	if valueTitle, ok := titleAbove("Value", value.Y); !ok {
+		t.Fatalf("the Value column title is not drawn: %v", tt.Texts())
+	} else if d := value.X - (valueTitle.X + inset); d < -1 || d > 1 {
+		t.Fatalf("the header value starts %.1f from the column title's text: title %+v, value %+v", d, valueTitle, value)
+	}
+	if value.H <= uikit.HeightControl {
+		t.Fatalf("the long header value did not wrap: box %+v", value)
+	}
+	next, ok := tt.Find("Access-Control-Expose-Headers")
+	if !ok {
+		t.Fatalf("the next header row is not drawn: %v", tt.Texts())
+	}
+	if next.Y < value.Y+value.H {
+		t.Fatalf("the next header row starts at %.1f, above the wrapped value ending at %.1f: value %+v, next %+v",
+			next.Y, value.Y+value.H, value, next)
+	}
+}

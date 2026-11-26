@@ -74,8 +74,8 @@ func (a *app) replayLinks(c *ui.Context, f flow) {
 	ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Wrap().Children(func() {
 		if f.replayOf != 0 {
 			_, present := a.tally.known[f.replayOf]
-			if uikit.SecondaryButton(c, locales.ReplayOf(f.replayOf)).Disabled(!present).
-				Tooltip(locales.InspectSourceCaptureUnavailableIf()).Clicked() {
+			if uikit.Tip(c, uikit.SecondaryButton(c, locales.ReplayOf(f.replayOf)).Disabled(!present),
+				locales.InspectSourceCaptureUnavailableIf()).Clicked() {
 				a.inspectCapture(f.replayOf)
 			}
 			if uikit.SecondaryButton(c, locales.CompareWithSource()).Disabled(!present).Clicked() {

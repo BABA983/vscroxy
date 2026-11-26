@@ -235,8 +235,8 @@ func (a *app) capturedDocument(c *ui.Context, t *ui.Theme, f flow, d *requestDoc
 		if a.inspectorWidth(c) < 600 {
 			save = uikit.IconButton(c, locales.SaveToCollection(), locales.SaveThisRequestToA(), saveIcon)
 		} else {
-			save = uikit.SecondaryButton(c, locales.SaveToCollection()).
-				Tooltip(locales.SaveThisRequestToA())
+			save = uikit.SecondaryButton(c, locales.SaveToCollection())
+			uikit.Tip(c, save, locales.SaveThisRequestToA())
 		}
 		save.Shrink(0)
 		if save.Clicked() {

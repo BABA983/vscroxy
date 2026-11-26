@@ -121,7 +121,7 @@ func (a *app) desktopContent(c *ui.Context) {
 		default:
 			ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 				if w.focused && !a.inspectorDetached {
-					ui.Row(c).Height(uikit.HeightControl).Padding(0, c.Theme().Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
+					ui.Row(c).Height(uikit.HeightControl).Padding(0, c.Theme().Space(uikit.SpaceL)).Gap(c.Theme().Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 						a.actionButton(c, "view.focus-inspector", locales.BackToList())
 						uikit.Meta(c, locales.InspectorFocusCtrlCmdShift())
 					})
@@ -230,8 +230,8 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			placeholder := a.searchPlaceholder(c)
 			// Bare: the query field carries its own tokens and completion popup, which uikit.Combobox does not model.
 			cb := ui.ComboboxBase(c.Key("capture-search"+a.captureSearchKey), &a.query)
-			search := cb.Input.Bind(&a.search).Label(locales.SearchHostOrPath()).Placeholder(placeholder).
-				Tooltip(cmp.Or(a.queryProblem, a.searchProblem, locales.SearchHostAndPathIncluding())).
+			search := uikit.Tip(c, cb.Input.Bind(&a.search).Label(locales.SearchHostOrPath()).Placeholder(placeholder),
+				cmp.Or(a.queryProblem, a.searchProblem, locales.SearchHostAndPathIncluding())).
 				Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceXS)).Grow(1).MinWidth(min(200, width/5)).FocusRing(false).Border(0, ui.Color{}).
 				OnShortcut(0, ui.KeyEscape, func() { a.clearQuery(c) })
 			if a.queryProblem != "" || a.searchProblem != "" {

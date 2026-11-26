@@ -393,8 +393,8 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 						record()
 					default:
 						if !domainEnabled {
-							if uikit.SecondaryButton(c, locales.DecryptHost(hostOnly(f.host))).Label(locales.DecryptHost(f.host)).
-								Tooltip(locales.ConfigurationForNewConnectionsA()).Clicked() {
+							if uikit.Tip(c, uikit.SecondaryButton(c, locales.DecryptHost(hostOnly(f.host))).Label(locales.DecryptHost(f.host)),
+								locales.ConfigurationForNewConnectionsA()).Clicked() {
 								a.decryptHost(f.host)
 							}
 						}

@@ -1134,8 +1134,8 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			if d.sendCancelling && !narrow {
 				label = locales.Cancelling()
 			}
-			a.actionButton(c, "request.cancel-send", label).Label(locales.CancelSend()).Width(cancelWidth).Shrink(0).
-				Tooltip(locales.StopWaitingCancellingDoesNot())
+			cancel := a.actionButton(c, "request.cancel-send", label).Label(locales.CancelSend()).Width(cancelWidth).Shrink(0)
+			uikit.Tip(c, cancel, locales.StopWaitingCancellingDoesNot())
 		}
 		if more != nil {
 			more()
@@ -1427,39 +1427,46 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 		if *selected == composeTabBody && !request.IsWebSocket(d.composeURL) {
 			ui.Column(c).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(bodyTools)
 		}
-		ui.Column(c).Grow(1).MinHeight(0).FillWidth().Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
-			switch *selected {
-			case composeTabParams:
-				a.paramsEditor(c, d, t)
-			case composeTabHeaders:
-				a.headerEditor(c, d, t)
-			case composeTabAuth:
-				a.authEditor(c, d, t)
-			case composeTabBody:
-				a.requestBodyEditor(c, d, t)
-			case composeTabScripts:
-				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-					uikit.SubTabs(c, &d.scriptTab, locales.Scripts(), locales.PreRequest(), locales.PostResponse())
-					ui.Spacer(c)
-					if st := map[bool]*editor.State{false: d.preEditor, true: d.postEditor}[d.scriptTab == 1]; st != nil {
-						snippetMenu(c, st, "request")
-					}
-				})
-				a.requestScriptText(c, d)
-			case composeTabChecks:
-				a.checksEditor(c, d, t)
-			case composeTabExamples:
-				a.examplesEditor(c, d, t)
-			case composeTabDocs:
-				a.requestDocsEditor(c, d, t)
-			case composeTabSettings:
+		// Settings is one Scroll of its own: it keeps the pane's padding
+		// inside, so its scroll bar sits at the pane's edge as VS Code's
+		// does, rather than a side padding away from the divider.
+		if *selected == composeTabSettings {
+			ui.Column(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
 				a.requestSettingsEditor(c, d, t)
-			case composeTabOriginal:
-				a.headersSide(c, f, 1)
-			case composeTabCookies:
-				cookieView(c, f.reqHeader, false, &a.inspect.reveal[1], func() { a.saveFlowCookies(f) })
-			}
-		})
+			})
+		} else {
+			ui.Column(c).Grow(1).MinHeight(0).FillWidth().Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
+				switch *selected {
+				case composeTabParams:
+					a.paramsEditor(c, d, t)
+				case composeTabHeaders:
+					a.headerEditor(c, d, t)
+				case composeTabAuth:
+					a.authEditor(c, d, t)
+				case composeTabBody:
+					a.requestBodyEditor(c, d, t)
+				case composeTabScripts:
+					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+						uikit.SubTabs(c, &d.scriptTab, locales.Scripts(), locales.PreRequest(), locales.PostResponse())
+						ui.Spacer(c)
+						if st := map[bool]*editor.State{false: d.preEditor, true: d.postEditor}[d.scriptTab == 1]; st != nil {
+							snippetMenu(c, st, "request")
+						}
+					})
+					a.requestScriptText(c, d)
+				case composeTabChecks:
+					a.checksEditor(c, d, t)
+				case composeTabExamples:
+					a.examplesEditor(c, d, t)
+				case composeTabDocs:
+					a.requestDocsEditor(c, d, t)
+				case composeTabOriginal:
+					a.headersSide(c, f, 1)
+				case composeTabCookies:
+					cookieView(c, f.reqHeader, false, &a.inspect.reveal[1], func() { a.saveFlowCookies(f) })
+				}
+			})
+		}
 		// A visible response already names the last attempt and draft changes.
 		if d.composeWaiting || d.sentSet && d.response == nil {
 			ui.Row(c).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
@@ -1478,11 +1485,11 @@ func (a *app) requestSentState(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	case !d.sentSet:
 		uikit.Meta(c, locales.NotSentYet())
 	case reflect.DeepEqual(d.draft(), d.sent):
-		uikit.Meta(c, locales.DraftMatchesAttemptAt(d.sentAt.Local().Format("15:04:05"))).
-			Tooltip(locales.TheDraftSnapshotMatchesVariables())
+		uikit.Tip(c, uikit.Meta(c, locales.DraftMatchesAttemptAt(d.sentAt.Local().Format("15:04:05"))),
+			locales.TheDraftSnapshotMatchesVariables())
 	default:
-		uikit.Caption(c, locales.EditedSinceLastSendNot()).TextColor(t.Warning).
-			Tooltip(locales.TheResponseBelowBelongsTo())
+		uikit.Tip(c, uikit.Caption(c, locales.EditedSinceLastSendNot()).TextColor(t.Warning),
+			locales.TheResponseBelowBelongsTo())
 	}
 }
 
@@ -1624,8 +1631,8 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			d.comparing = false
 		}
 		if d.experimentID != 0 && !d.composeWaiting {
-			uikit.Meta(c, locales.RecordedRun(d.experimentID)).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).
-				Tooltip(locales.RetainedResultFromThisExperiment())
+			uikit.Tip(c, uikit.Meta(c, locales.RecordedRun(d.experimentID)).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)),
+				locales.RetainedResultFromThisExperiment())
 		}
 		if !d.composeWaiting && outcome != "" && outcome != "Response received" {
 			uikit.Caption(c, outcome).TextColor(t.Warning).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))
@@ -1651,8 +1658,8 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if !reflect.DeepEqual(d.draft(), d.sent) {
 					uikit.Caption(c, locales.DraftChangedNotSent()).TextColor(t.Warning)
 				} else if !d.composeWaiting {
-					uikit.Meta(c, locales.DraftMatchesLastAttempt()).
-						Tooltip(locales.TheDraftSnapshotMatchesVariables())
+					uikit.Tip(c, uikit.Meta(c, locales.DraftMatchesLastAttempt()),
+						locales.TheDraftSnapshotMatchesVariables())
 				}
 			})
 			if d.lastAttemptOpen {
@@ -1703,8 +1710,8 @@ func (a *app) responseProvenance(c *ui.Context, t *ui.Theme, d *requestDocument)
 		return
 	}
 	provenance := locales.ResponseFromTime(d.response.At.Local().Format("15:04:05"))
-	uikit.Meta(c, provenance).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).
-		Tooltip(locales.RedirectsCookiesAndProxyRules())
+	uikit.Tip(c, uikit.Meta(c, provenance).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)),
+		locales.RedirectsCookiesAndProxyRules())
 }
 
 // responseBody shows the chosen view of the last response.

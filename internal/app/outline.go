@@ -268,12 +268,12 @@ func (a *app) outlineSection(c *ui.Context, p *outlinePanel, view *editor.State)
 				ui.Icon(c, outlineIconSVG(p.kind, sym)).Size(uikit.IconInline, uikit.IconInline).
 					TextColor(muted).Shrink(0)
 				if sym.key != "" && strings.HasSuffix(sym.key, "/more") {
-					uikit.Hint(c, sym.label).TextColor(fg).SingleLine().MinWidth(0).Shrink(1).Tooltip(sym.label)
+					uikit.Tip(c, uikit.Hint(c, sym.label).TextColor(fg).SingleLine().MinWidth(0).Shrink(1), sym.label)
 				} else if selected {
 					// The completion rows' rule: no muted ink on Primary.
-					uikit.Body(c, sym.label).TextColor(fg).SingleLine().MinWidth(0).Shrink(1).Tooltip(sym.label)
+					uikit.Tip(c, uikit.Body(c, sym.label).TextColor(fg).SingleLine().MinWidth(0).Shrink(1), sym.label)
 				} else {
-					fuzzyListBody(c, sym.label, p.matches[key]).SingleLine().MinWidth(0).Shrink(1).Tooltip(sym.label)
+					uikit.Tip(c, fuzzyListBody(c, sym.label, p.matches[key]).SingleLine().MinWidth(0).Shrink(1), sym.label)
 				}
 				// Hints are useful context at full width, but a label must
 				// not lose what is left of its row to a value preview.

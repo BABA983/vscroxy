@@ -98,8 +98,8 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 				if before != s.options || raw != s.unredacted {
 					s.reviewed = false
 				}
-				uikit.Callout(c, uikit.CalloutWarning, locales.FieldBasedRedactionIsNot(), nil).
-					Tooltip(locales.PathsHostsNamesParameterNames())
+				uikit.Tip(c, uikit.Callout(c, uikit.CalloutWarning, locales.FieldBasedRedactionIsNot(), nil),
+					locales.PathsHostsNamesParameterNames())
 				for _, warning := range s.warnings {
 					uikit.Body(c, "• "+warning)
 				}

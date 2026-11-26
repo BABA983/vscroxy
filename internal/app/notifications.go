@@ -4,7 +4,6 @@ import (
 	"slices"
 	"strconv"
 	"time"
-	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
@@ -255,9 +254,9 @@ func (a *app) closeNotifications() {
 }
 
 // notificationList is the list itself, after VS Code's notification center:
-// a title with icon-only Clear all and Hide, then each notice as a two-line
-// summary with its time, an optional disclosure for the rest and the close
-// mark that appears under the pointer.
+// a title with icon-only Clear all and Hide, then each notice as its own card
+// with the level icon, the message across the card, its time under it and its
+// choices at the card's bottom right.
 func (a *app) notificationList(c *ui.Context, t *ui.Theme, anchor, panel ui.Element) {
 	items := a.notificationItems()
 	width, height := c.Size()
@@ -280,26 +279,20 @@ func (a *app) notificationList(c *ui.Context, t *ui.Theme, anchor, panel ui.Elem
 		uikit.Hint(c, locales.NoNewNotifications()).FillWidth().Padding(t.Space(uikit.SpaceM), 0)
 		return
 	}
-	// The width a summary has for its message, once the level icon, the time,
-	// the chevron slot and the close mark have theirs.
-	textWidth := panelWidth - 2*t.Space(uikit.SpaceM) - uikit.IconInline -
-		3*t.Space(uikit.SpaceXS) - 44 - uikit.IconInline - uikit.HeightRowAction
 	ui.Scroll(c).FillWidth().MinHeight(0).MaxHeight(min(440, height-160)).Children(func() {
-		ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceXS)).Children(func() {
+		ui.Column(c).FillWidth().Gap(c.Theme().Space(uikit.SpaceM)).Children(func() {
 			for i := len(items) - 1; i >= 0; i-- {
-				n := items[i]
-				a.noticeRow(c, t, center, n, textWidth)
+				a.noticeCard(c, t, center, items[i])
 			}
 		})
 	})
 }
 
-// noticeRow draws one notice. Its summary is the message, clamped to two
-// lines, with the time on the first; a chevron opens the rest when there is
-// more to read, and the close mark waits at the top-right for the pointer or
-// the keyboard. Actions stay under the message, as VS Code keeps them, so
-// they never hide behind an expansion.
-func (a *app) noticeRow(c *ui.Context, t *ui.Theme, center *noticeCenter, n notice, textWidth float32) {
+// noticeCard draws one notice as a card: a hairline of the card's own, the
+// level icon level with the first line of the message, the message across the
+// card, then its time and its choices. A notice with more to read opens it
+// under the message, aligned with the message's own left edge.
+func (a *app) noticeCard(c *ui.Context, t *ui.Theme, center *noticeCenter, n notice) {
 	if center.expanded == nil {
 		center.expanded = make(map[uint64]*bool)
 	}
@@ -320,98 +313,85 @@ func (a *app) noticeRow(c *ui.Context, t *ui.Theme, center *noticeCenter, n noti
 		expanded = new(false)
 		center.expanded[n.id] = expanded
 	}
-	detail := noticeDetail(n, textWidth)
-	summary := func(chevron float32) {
-		ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline).TextColor(ink).Shrink(0)
-		uikit.Body(c, n.text).Grow(1).MinWidth(0).MaxLines(2)
-		uikit.Meta(c, noticeTime(n.at)).Shrink(0).SingleLine()
-		// The chevron keeps its slot whether or not this notice opens one,
-		// so every timestamp ends at the same x.
-		if chevron >= 0 {
-			ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline).
-				TextColor(p.Faint).Rotate(chevron).Shrink(0)
-			return
+	// The message starts after the level icon; the time, the detail and the
+	// choices line up with its left edge below it.
+	inset := uikit.IconInline + t.Space(uikit.SpaceXS)
+	// The dismiss mark keeps its slot at the end of the first line whether
+	// or not the pointer shows it, so the chevron and the message do not
+	// move on hover.
+	dismissSlot := uikit.HeightRowAction + t.Space(uikit.SpaceXS)
+	pad := t.Space(uikit.SpaceL)
+	card := ui.Column(c.Key("notification-"+strconv.FormatUint(n.id, 10))).FillWidth().
+		Padding(pad).Gap(t.Space(uikit.SpaceM)).
+		Radius(uikit.RadiusControl).Border(uikit.HairlineWidth, p.Border)
+	card.Children(func() {
+		// The first line carries the level icon and, at its end, the
+		// disclosure and dismiss controls. They share the line's 20 points
+		// and are centered on it, as VS Code puts a card's controls on its
+		// title line.
+		summary := func(chevron float32) {
+			// The level icon sits on the first line of the message, not at
+			// the middle of a tall notice.
+			ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline).TextColor(ink).Shrink(0).
+				Margin(t.Space(uikit.SpaceXS)-uikit.HairlineWidth, 0, 0, 0)
+			uikit.Body(c, n.text).Grow(1).MinWidth(0)
+			if n.detail != "" {
+				ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline).
+					TextColor(p.Faint).Rotate(180*chevron).Shrink(0).
+					Margin(t.Space(uikit.SpaceXS)-uikit.HairlineWidth, 0, 0, 0)
+			}
 		}
-		ui.Box(c).Size(uikit.IconInline, uikit.IconInline).Shrink(0)
-	}
-	row := ui.Column(c.Key("notification-" + strconv.FormatUint(n.id, 10))).FillWidth()
-	row.Children(func() {
-		slot := uikit.HeightRowAction + t.Space(uikit.SpaceXS)
-		// The message column starts after the level icon. The detail and the
-		// actions use the same inset, so they line up under the message.
-		inset := uikit.IconInline + t.Space(uikit.SpaceXS)
-		if detail != "" {
+		if n.detail != "" {
 			col := ui.CollapsibleBase(c, expanded)
-			col.Trigger.FillWidth().MinWidth(0).PaddingEnd(slot).
+			col.Trigger.FillWidth().MinWidth(0).PaddingEnd(dismissSlot).
 				Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
-				summary(180 * col.Progress())
+				summary(col.Progress())
 			})
 			col.Panel(func() {
-				ui.Column(c).FillWidth().Padding(0, slot, t.Space(uikit.SpaceS), inset).Children(func() {
-					uikit.Body(c, detail).FillWidth().MinWidth(0).Selectable()
-				})
+				uikit.Small(c, n.detail).TextColor(t.TextMuted).FillWidth().MinWidth(0).Selectable().
+					PaddingStart(inset)
 			})
 		} else {
-			ui.Row(c).FillWidth().MinWidth(0).PaddingEnd(slot).
+			ui.Row(c).FillWidth().MinWidth(0).PaddingEnd(dismissSlot).
 				Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
 				summary(-1)
 			})
 		}
-		a.noticeActions(c, t, n)
-		// The close mark is an overlay, so the row keeps one height whether
-		// or not the pointer is on it.
+		uikit.Caption(c, noticeTime(n.at)).TextColor(t.TextMuted).PaddingStart(inset)
+		a.noticeActions(c, n)
+		// Absolute children are placed from the card's border edge, so the
+		// padding puts the mark on the first line's center (20 points high)
+		// and inside the card. It stays outside the disclosure so assistive
+		// technology sees a button of its own.
 		dismiss := uikit.RowIconButton(c, locales.DismissNotification(), locales.DismissNotification(), closeIcon)
-		dismiss.Absolute().Top(0).Right(0)
-		if !row.Hovered() && !row.FocusWithin() {
+		dismiss.Absolute().Top(pad).Right(pad)
+		if !card.Hovered() && !card.FocusWithin() {
 			dismiss.Opacity(0)
 		}
 		dismiss.OnClick(func() { a.dismissNotice(n.id) })
 	})
 }
 
-// noticeActions draws the notice's choices under its message, without making
-// the reader open an expansion for them. A notice with none draws no row.
-func (a *app) noticeActions(c *ui.Context, t *ui.Theme, n notice) {
+// noticeActions draws the notice's choices at the card's bottom right, as
+// VS Code ends a notification: the primary choice last, and only it takes the
+// primary button.
+func (a *app) noticeActions(c *ui.Context, n notice) {
 	hasAction := n.action != "" && (n.run != nil || n.openURL != "") && !n.spent && (n.valid == nil || n.valid())
 	hasAlternate := n.alternate != "" && n.alternateRun != nil && !n.spent && (n.valid == nil || n.valid())
 	if !hasAction && !hasAlternate && n.neverShowAgain == "" {
 		return
 	}
-	ui.Row(c).FillWidth().Padding(t.Space(uikit.SpaceXS), 0, t.Space(uikit.SpaceXS), uikit.IconInline+t.Space(uikit.SpaceXS)).
-		AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
-		// The button's box starts under the message, and no inner left
-		// padding pushes its label past the message's own inset.
-		button := func(label string) ui.Element {
-			return uikit.SecondaryButton(c, label).PaddingStart(0)
-		}
-		if hasAction {
-			button(n.action).OnClick(func() { a.notificationAction(c, n.id) })
-		}
+	ui.Row(c).FillWidth().Justify(ui.End).AlignItems(ui.Center).Gap(c.Theme().Space(uikit.SpaceM)).Children(func() {
 		if hasAlternate {
-			button(n.alternate).OnClick(func() { a.notificationAlternate(n.id) })
+			uikit.SecondaryButton(c, n.alternate).OnClick(func() { a.notificationAlternate(n.id) })
 		}
 		if n.neverShowAgain != "" {
-			button(locales.DontShowAgain()).OnClick(func() { a.suppressNotice(n.id) })
+			uikit.SecondaryButton(c, locales.DontShowAgain()).OnClick(func() { a.suppressNotice(n.id) })
+		}
+		if hasAction {
+			uikit.PrimaryButton(c, n.action).OnClick(func() { a.notificationAction(c, n.id) })
 		}
 	})
-}
-
-// noticeDetail is what a notice's disclosure shows, or "" when its two-line
-// summary already says everything. A message is measured at the width the row
-// gives it, so a chevron appears only when expanding shows more than the
-// clamped text; an empty row never opens.
-func noticeDetail(n notice, textWidth float32) string {
-	if n.detail != "" {
-		return n.detail
-	}
-	if textWidth <= 0 || utf8.RuneCountInString(n.text) < 40 {
-		return ""
-	}
-	font := ui.Font{Family: uikit.FontUI, Size: uikit.Scaled(uikit.TextBody), LineHeight: uikit.LineBody}
-	if len(ui.ShapeText(n.text, font, textWidth).Lines()) > 2 {
-		return n.text
-	}
-	return ""
 }
 
 // noticeTime is the timestamp beside a notice: a clock time today, and the

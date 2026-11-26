@@ -163,6 +163,22 @@ func TestFloatingScaleTokens(t *testing.T) {
 	}
 }
 
+// Scroll bars match VS Code's editor in both themes: a 14-point square thumb
+// flush with its track, no shorter than 20 points, and the palette's inks.
+func TestScrollbarsFollowVSCode(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		theme := Theme(dark)
+		style := theme.ScrollbarStyle.Resolve(theme)
+		if style.TrackWidth != 14 || style.ThumbWidth != 14 || style.Radius != 0 || !style.Square || !style.Flush || style.MinLength != 20 {
+			t.Errorf("dark=%t: scroll bar = %+v, want a square 14-point thumb flush with a 14-point track and 20 minimum", dark, style)
+		}
+		p := Colors(theme)
+		if style.Thumb != p.MutedForeground.Alpha(0.4) || style.Hover != p.MutedForeground.Alpha(0.7) || style.Active != p.Foreground.Alpha(0.4) {
+			t.Errorf("dark=%t: scroll bar inks = %v/%v/%v, want the palette's 0.4/0.7/0.4 levels", dark, style.Thumb, style.Hover, style.Active)
+		}
+	}
+}
+
 // The keyboard ring is one point wide, on the element's edge.
 func TestFocusRingOnePoint(t *testing.T) {
 	for _, dark := range []bool{false, true} {

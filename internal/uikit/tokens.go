@@ -101,8 +101,11 @@ const (
 	CardTipPaddingX      = 10  // a hover card, left and right
 	CardTipPaddingY      = 10  // top; the rows end 8 above the bottom edge
 	CardTipPaddingBottom = 8
-	CardPaddingX         = 16 // a settings card row, left and right
-	CardRowPaddingY      = 6
+	// A settings card row's padding: the horizontal inset controls and the
+	// card's edge share, and the vertical room that keeps a two-line title
+	// and description off the row's top and bottom edges.
+	CardPaddingX    = SpaceXL * SpaceGrid // 16
+	CardRowPaddingY = SpaceL * SpaceGrid  // 12
 	// Corners stay concentric: something nested in a padded container takes
 	// the container's radius less the padding, which is RadiusInner. The
 	// workspace stops at RadiusPanel; a card and dialog take a step of the

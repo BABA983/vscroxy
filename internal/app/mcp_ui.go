@@ -304,14 +304,14 @@ func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 			uikit.Select(c, &d.mcpConfig.Transport, []string{request.MCPTransportStreamableHTTP, request.MCPTransportSSE, request.MCPTransportStdio}).
 				Label(locales.McpTransport()).Width(190)
 			timeout := strconv.Itoa(a.mcpEffectiveTimeout(d))
-			uikit.Select(c, &timeout, []string{"10", "30", "60", "300", "3600"}).Label(locales.McpTimeoutSeconds()).Width(96).
-				Tooltip(locales.ConnectAndEachRequestUse()).OnChange(func() {
+			uikit.Tip(c, uikit.Select(c, &timeout, []string{"10", "30", "60", "300", "3600"}).Label(locales.McpTimeoutSeconds()).Width(96),
+				locales.ConnectAndEachRequestUse()).OnChange(func() {
 				d.mcpConfig.TimeoutSeconds, _ = strconv.Atoi(timeout)
 			})
 		})
 		version := cmp.Or(d.mcpConfig.ProtocolVersion, "auto")
-		uikit.Select(c, &version, []string{"auto", "2025-06-18", "2025-11-25", "2026-07-28"}).Label(locales.McpProtocolVersion()).Width(180).
-			Tooltip(locales.AutoNegotiatesTheLatestVersion()).OnChange(func() {
+		uikit.Tip(c, uikit.Select(c, &version, []string{"auto", "2025-06-18", "2025-11-25", "2026-07-28"}).Label(locales.McpProtocolVersion()).Width(180),
+			locales.AutoNegotiatesTheLatestVersion()).OnChange(func() {
 			d.mcpConfig.ProtocolVersion = version
 		})
 		if d.mcpConfig.Transport == request.MCPTransportStdio {

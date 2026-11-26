@@ -179,8 +179,8 @@ func (a *app) breakTemplates(c *ui.Context, t *ui.Theme, valid bool) {
 				})
 			}).Height(uikit.HeightRow).Label(locales.BreakpointTemplate()), locales.FillThisWithSaved(phase))
 		}
-		save := uikit.CompactButton(c, locales.SaveAsTemplate()).Disabled(!valid).
-			Tooltip(locales.KeepThisAsEdited(phase))
+		save := uikit.CompactButton(c, locales.SaveAsTemplate()).Disabled(!valid)
+		uikit.Tip(c, save, locales.KeepThisAsEdited(phase))
 		if save.Clicked() {
 			a.bpSaving, a.bpName = true, a.bpTemplate
 		}

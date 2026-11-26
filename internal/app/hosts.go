@@ -253,8 +253,8 @@ func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 				uikit.Tip(c, uikit.Glyph(c, subscribeIcon), locales.SubscribedURL(p.URL))
 			}
 			if n := conflicts[p.Name]; n > 0 && p.On {
-				uikit.Caption(c, locales.ConflictsCount(n)).TextColor(t.Warning).SingleLine().
-					Tooltip(locales.AHigherProfileMapsThe())
+				uikit.Tip(c, uikit.Caption(c, locales.ConflictsCount(n)).TextColor(t.Warning).SingleLine(),
+					locales.AHigherProfileMapsThe())
 			}
 			ui.Spacer(c)
 			n := profileHosts(p)
