@@ -51,6 +51,27 @@ func TestBreadcrumbsAtPathsAndJSONPath(t *testing.T) {
 	}
 }
 
+func TestBreadcrumbsCopyKeyAndValue(t *testing.T) {
+	const src = `{"data":{"items":[{"sku":"A"},{"id":3}]},"ok":true}`
+	cases := []struct {
+		name, at, wantKey, wantValue string
+	}{
+		{"value in nested array", `"id":3`, "id", "3"},
+		{"key of nested value", `"id"`, "id", "3"},
+		{"array element", `"sku":"A"`, "sku", `"A"`},
+		{"root member", `"ok":true`, "ok", "true"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pos := offsetOf(src, tc.at) + len(tc.at) - 1
+			got := BreadcrumbsAt(src, pos)
+			if got.Key != tc.wantKey || got.Value != tc.wantValue {
+				t.Fatalf("key = %q, value = %q; want %q, %q", got.Key, got.Value, tc.wantKey, tc.wantValue)
+			}
+		})
+	}
+}
+
 func TestBreadcrumbsInReusesTheParsedTree(t *testing.T) {
 	const src = `{"data":{"items":[{"id":3}]},"ok":true}`
 	root, errs := ParseTree(src)

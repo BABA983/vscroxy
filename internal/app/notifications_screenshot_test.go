@@ -4,15 +4,15 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
 )
 
-// TestNotificationScreenshots exports 2x Tester captures of the status bar
-// entry, the opened list with a notice expanded, and the empty state. Set
+// TestNotificationScreenshots exports 2x Tester captures of the bell with its
+// toasts, the opened center with a notice expanded, and the empty state. Set
 // VSCROXY_NOTIFICATION_SCREENSHOTS to an output directory.
 func TestNotificationScreenshots(t *testing.T) {
 	dir := os.Getenv("VSCROXY_NOTIFICATION_SCREENSHOTS")
@@ -39,7 +39,8 @@ func TestNotificationScreenshots(t *testing.T) {
 				appearance = "dark"
 			}
 			t.Run(scene.name+"-"+appearance, func(t *testing.T) {
-				a := &app{}
+				a := workspaceApp()
+				a.appearance = appearance
 				if scene.fill {
 					a.warn("Project watch stopped reading .vscroxy")
 					a.notify(notice{level: noticeError, text: "Import collection", detail: "unsupported export format",
@@ -48,23 +49,23 @@ func TestNotificationScreenshots(t *testing.T) {
 				if scene.open {
 					a.openNotifications()
 				}
-				th := uikit.Theme(dark)
-				tt := ui.NewTester(func(c *ui.Context) {
-					c.SetTheme(th)
-					ui.Column(c).Fill().Background(uikit.Colors(th).Window).Children(func() {
-						a.shell(c, th)
-					})
-				}, 1200, 560)
+				tt := ui.NewTester(a.view, 1200, 700)
 				tt.SetLocale("en-US")
+				tt.SetDark(dark)
 				tt.SetScale(2)
 				tt.Frame()
+				tt.Frame()
 				if scene.expand {
-					row, ok := tt.AccessByRole(ui.RoleDisclosure, "")
-					if !ok {
+					var row ui.Rect
+					for _, info := range tt.AccessAll() {
+						if info.Role == ui.RoleDisclosure && strings.Contains(info.Name, "Import collection") {
+							row = info.Bounds
+						}
+					}
+					if row.W == 0 {
 						t.Fatalf("notice not listed: %v", tt.Texts())
 					}
-					box := row.Bounds
-					tt.ClickAt(box.X+box.W-20, box.Y+box.H/2)
+					tt.ClickAt(row.X+row.W/2, row.Y+row.H/2)
 					tt.Advance(300 * time.Millisecond)
 					tt.Frame()
 				}

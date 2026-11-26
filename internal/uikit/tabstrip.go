@@ -24,6 +24,9 @@ type DocumentTab struct {
 	// is the fixed tab of the main window.
 	Fixed    bool
 	Closable bool
+	// Pinned tabs stay at the start of the scrolling tabs, as VS Code's do;
+	// bulk closes skip them.
+	Pinned bool
 	// Reveal scrolls this tab into view this frame. The screen sets it when
 	// the active tab changed, so the reader can still scroll the strip away.
 	Reveal bool
@@ -46,6 +49,10 @@ type DocumentTabsOptions struct {
 	OnPin      func(index int)
 	OnNew      func()
 	OnOverflow func(*ui.Menu)
+	// TabMenu builds a tab's own menu when it is right-clicked, or nil for
+	// none. The strip stays generic: the screen offers only the actions that
+	// tab supports, in its own words.
+	TabMenu func(index int) func(*ui.Menu)
 }
 
 // DocumentTabs draws a row of document tabs above a content area. The fixed
@@ -142,6 +149,12 @@ func documentTab(c *ui.Context, item DocumentTab, index int, o DocumentTabsOptio
 			closeSet = true
 		}
 	})
+
+	if o.TabMenu != nil {
+		if build := o.TabMenu(index); build != nil {
+			tab.PopoverMenu(build, MenuOptions(c))
+		}
+	}
 
 	if closeSet && close.Clicked() {
 		if o.OnClose != nil {

@@ -28,6 +28,7 @@ var (
 	pinIcon           = lucide.Pin()
 	filterIcon        = lucide.Funnel()
 	breakIcon         = lucide.CirclePause()
+	followIcon        = lucide.ListEnd()
 	clearIcon         = lucide.Trash()
 	clockIcon         = lucide.Clock()
 	backIcon          = lucide.ArrowLeft()

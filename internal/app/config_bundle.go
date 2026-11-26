@@ -91,6 +91,7 @@ func (a *app) currentSettings() settings {
 		CaptureFocus:         a.workbench.captureFocus,
 		DiffSplit:            a.diffSplit,
 		SidebarHidden:        a.workbench.sidebarHidden,
+		ShowJSONPath:         a.showJSONPath,
 		SidebarClosed:        a.closedRegions(),
 		SidebarPaneHeights:   a.paneHeightValues(),
 		Columns:              savedLayout(a.columns),
@@ -512,6 +513,7 @@ func (a *app) applySettingsPrepared(s settings, prepared *upstream.Config) error
 	a.workbench.captureSplit, a.workbench.captureFocus = s.CaptureSplit, s.CaptureFocus
 	a.workbench.captureGroups = slices.Clone(s.CaptureGroups)
 	a.workbench.sidebarHidden = s.SidebarHidden
+	a.showJSONPath = s.ShowJSONPath
 	a.regions, a.shutRegions = nil, slices.Clone(s.SidebarClosed)
 	a.paneHeights, a.savedHeights = nil, maps.Clone(s.SidebarPaneHeights)
 	if s.SideTablePercent > 0 {

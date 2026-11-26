@@ -116,16 +116,18 @@ func (a *app) jsonPathTrack(crumbs *jsonBreadcrumbs, key string, view *editor.St
 	return path
 }
 
-// jsonPathBar draws a VS Code style breadcrumb above a JSON text viewer. Each
-// segment jumps to its node when clicked; its arrow opens the sibling keys or
-// indices at that level.
+// jsonPathBar draws a VS Code style breadcrumb above a JSON text viewer when
+// the View menu's Show JSON path is on. Each segment jumps to its node when
+// clicked; its arrow opens the sibling keys or indices at that level. The
+// path itself is tracked whether or not the bar draws, so the body menu and
+// Copy JSONPath keep working at the caret.
 func (a *app) jsonPathBar(c *ui.Context, crumbs *jsonBreadcrumbs, key string, view *editor.State, focus func(), provided jsonCrumbSource) {
 	path := a.jsonPathTrack(crumbs, key, view, provided)
 	// The slot stays even when there is no path: adding it on the frame a
 	// body first parses as JSON must not move the editor among its siblings
 	// and take the keyboard focus away from it.
 	bar := ui.Box(c).Key("json-path-bar")
-	if len(path.Segments) == 0 {
+	if !a.showJSONPath || len(path.Segments) == 0 {
 		return
 	}
 	t := c.Theme()
@@ -170,10 +172,6 @@ func (a *app) jsonPathBar(c *ui.Context, crumbs *jsonBreadcrumbs, key string, vi
 				}
 				uikit.LinkButton(c, "▾").Label(locales.JsonBreadcrumbSiblingFor(crumb.Label)).
 					PopoverMenuButton(menu, uikit.MenuButtonOptions(c))
-			}
-			ui.Box(c).Grow(1)
-			if copy := uikit.CompactButton(c, locales.JsonBreadcrumbCopyPath()); copy.Clicked() {
-				a.copyJSONPath(c, path.JSONPath)
 			}
 		})
 	})

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strconv"
 	"time"
+	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
@@ -253,43 +254,52 @@ func (a *app) closeNotifications() {
 	a.invalidate()
 }
 
-// notificationList is the list itself: newest first, each entry a disclosure
-// with its detail and action, and one command to clear the whole history.
+// notificationList is the list itself, after VS Code's notification center:
+// a title with icon-only Clear all and Hide, then each notice as a two-line
+// summary with its time, an optional disclosure for the rest and the close
+// mark that appears under the pointer.
 func (a *app) notificationList(c *ui.Context, t *ui.Theme, anchor, panel ui.Element) {
 	items := a.notificationItems()
 	width, height := c.Size()
 	// The bell is at the footer's end, so the list opens above it.
+	panelWidth := min(420, width-32)
 	uikit.PopoverPanel(c, panel).AttachTo(anchor, ui.AnchorTopRight, ui.AnchorBottomRight).
 		Margin(0, 0, t.Space(uikit.SpaceS), 0).Padding(t.Space(uikit.SpaceM)).
-		Width(min(420, width-32)).MaxHeight(min(520, height-80)).
+		Width(panelWidth).MaxHeight(min(520, height-80)).
 		Gap(t.Space(uikit.SpaceXS))
 
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceS)).Children(func() {
 		uikit.BodyStrong(c, locales.Notifications()).Grow(1)
-		uikit.SecondaryButton(c, locales.ClearNotifications()).Disabled(len(items) == 0).OnClick(a.clearNotifications)
+		uikit.RowIconButton(c, locales.ClearAllNotifications(), locales.ClearAllNotifications(), lucide.BrushCleaning()).
+			Disabled(len(items) == 0).OnClick(a.clearNotifications)
+		uikit.RowIconButton(c, locales.HideNotifications(), locales.HideNotifications(), lucide.ChevronDown()).
+			OnClick(a.closeNotifications)
 	})
 	center := a.noticeCenter()
 	if len(items) == 0 {
-		uikit.EmptyState(c, locales.NoNotifications(), "", func() {
-			uikit.SecondaryButton(c, locales.Close()).OnClick(a.closeNotifications)
-		})
+		uikit.Hint(c, locales.NoNewNotifications()).FillWidth().Padding(t.Space(uikit.SpaceM), 0)
 		return
 	}
+	// The width a summary has for its message, once the level icon, the time,
+	// the chevron slot and the close mark have theirs.
+	textWidth := panelWidth - 2*t.Space(uikit.SpaceM) - uikit.IconInline -
+		3*t.Space(uikit.SpaceXS) - 44 - uikit.IconInline - uikit.HeightRowAction
 	ui.Scroll(c).FillWidth().MinHeight(0).MaxHeight(min(440, height-160)).Children(func() {
 		ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceXS)).Children(func() {
 			for i := len(items) - 1; i >= 0; i-- {
 				n := items[i]
-				ui.Column(c.Key("notification-" + strconv.FormatUint(n.id, 10))).FillWidth().Children(func() {
-					a.noticeRow(c, t, center, n)
-				})
+				a.noticeRow(c, t, center, n, textWidth)
 			}
 		})
 	})
 }
 
-// noticeRow draws one notice. The trigger is the one-line summary; its panel
-// holds the detail, the action and the dismiss control.
-func (a *app) noticeRow(c *ui.Context, t *ui.Theme, center *noticeCenter, n notice) {
+// noticeRow draws one notice. Its summary is the message, clamped to two
+// lines, with the time on the first; a chevron opens the rest when there is
+// more to read, and the close mark waits at the top-right for the pointer or
+// the keyboard. Actions stay under the message, as VS Code keeps them, so
+// they never hide behind an expansion.
+func (a *app) noticeRow(c *ui.Context, t *ui.Theme, center *noticeCenter, n notice, textWidth float32) {
 	if center.expanded == nil {
 		center.expanded = make(map[uint64]*bool)
 	}
@@ -310,35 +320,98 @@ func (a *app) noticeRow(c *ui.Context, t *ui.Theme, center *noticeCenter, n noti
 		expanded = new(false)
 		center.expanded[n.id] = expanded
 	}
-	col := ui.CollapsibleBase(c, expanded)
-	col.Trigger.FillWidth().MinWidth(0).AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+	detail := noticeDetail(n, textWidth)
+	summary := func(chevron float32) {
 		ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline).TextColor(ink).Shrink(0)
-		uikit.Body(c, n.text).Grow(1).MinWidth(0)
-		uikit.DataMeta(c, noticeTime(n.at)).Shrink(0)
-		ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline).
-			TextColor(p.Faint).Rotate(180 * col.Progress()).Shrink(0)
-	})
-	col.Panel(func() {
-		ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceXS)).Padding(0, 0, t.Space(uikit.SpaceS), uikit.IconInline+t.Space(uikit.SpaceXS)).Children(func() {
-			if n.detail != "" {
-				uikit.Body(c, n.detail).FillWidth().MinWidth(0).Selectable()
-			}
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
-				if n.action != "" && (n.run != nil || n.openURL != "") && !n.spent && (n.valid == nil || n.valid()) {
-					uikit.SecondaryButton(c, n.action).OnClick(func() { a.notificationAction(c, n.id) })
-				}
-				if n.alternate != "" && n.alternateRun != nil && !n.spent && (n.valid == nil || n.valid()) {
-					uikit.SecondaryButton(c, n.alternate).OnClick(func() { a.notificationAlternate(n.id) })
-				}
-				if n.neverShowAgain != "" {
-					uikit.SecondaryButton(c, locales.DontShowAgain()).OnClick(func() { a.suppressNotice(n.id) })
-				}
-				ui.Spacer(c)
-				uikit.RowIconButton(c, locales.DismissNotification(), locales.DismissNotification(), closeIcon).
-					OnClick(func() { a.dismissNotice(n.id) })
+		uikit.Body(c, n.text).Grow(1).MinWidth(0).MaxLines(2)
+		uikit.Meta(c, noticeTime(n.at)).Shrink(0).SingleLine()
+		// The chevron keeps its slot whether or not this notice opens one,
+		// so every timestamp ends at the same x.
+		if chevron >= 0 {
+			ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline).
+				TextColor(p.Faint).Rotate(chevron).Shrink(0)
+			return
+		}
+		ui.Box(c).Size(uikit.IconInline, uikit.IconInline).Shrink(0)
+	}
+	row := ui.Column(c.Key("notification-" + strconv.FormatUint(n.id, 10))).FillWidth()
+	row.Children(func() {
+		slot := uikit.HeightRowAction + t.Space(uikit.SpaceXS)
+		// The message column starts after the level icon. The detail and the
+		// actions use the same inset, so they line up under the message.
+		inset := uikit.IconInline + t.Space(uikit.SpaceXS)
+		if detail != "" {
+			col := ui.CollapsibleBase(c, expanded)
+			col.Trigger.FillWidth().MinWidth(0).PaddingEnd(slot).
+				Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
+				summary(180 * col.Progress())
 			})
-		})
+			col.Panel(func() {
+				ui.Column(c).FillWidth().Padding(0, slot, t.Space(uikit.SpaceS), inset).Children(func() {
+					uikit.Body(c, detail).FillWidth().MinWidth(0).Selectable()
+				})
+			})
+		} else {
+			ui.Row(c).FillWidth().MinWidth(0).PaddingEnd(slot).
+				Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
+				summary(-1)
+			})
+		}
+		a.noticeActions(c, t, n)
+		// The close mark is an overlay, so the row keeps one height whether
+		// or not the pointer is on it.
+		dismiss := uikit.RowIconButton(c, locales.DismissNotification(), locales.DismissNotification(), closeIcon)
+		dismiss.Absolute().Top(0).Right(0)
+		if !row.Hovered() && !row.FocusWithin() {
+			dismiss.Opacity(0)
+		}
+		dismiss.OnClick(func() { a.dismissNotice(n.id) })
 	})
+}
+
+// noticeActions draws the notice's choices under its message, without making
+// the reader open an expansion for them. A notice with none draws no row.
+func (a *app) noticeActions(c *ui.Context, t *ui.Theme, n notice) {
+	hasAction := n.action != "" && (n.run != nil || n.openURL != "") && !n.spent && (n.valid == nil || n.valid())
+	hasAlternate := n.alternate != "" && n.alternateRun != nil && !n.spent && (n.valid == nil || n.valid())
+	if !hasAction && !hasAlternate && n.neverShowAgain == "" {
+		return
+	}
+	ui.Row(c).FillWidth().Padding(t.Space(uikit.SpaceXS), 0, t.Space(uikit.SpaceXS), uikit.IconInline+t.Space(uikit.SpaceXS)).
+		AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
+		// The button's box starts under the message, and no inner left
+		// padding pushes its label past the message's own inset.
+		button := func(label string) ui.Element {
+			return uikit.SecondaryButton(c, label).PaddingStart(0)
+		}
+		if hasAction {
+			button(n.action).OnClick(func() { a.notificationAction(c, n.id) })
+		}
+		if hasAlternate {
+			button(n.alternate).OnClick(func() { a.notificationAlternate(n.id) })
+		}
+		if n.neverShowAgain != "" {
+			button(locales.DontShowAgain()).OnClick(func() { a.suppressNotice(n.id) })
+		}
+	})
+}
+
+// noticeDetail is what a notice's disclosure shows, or "" when its two-line
+// summary already says everything. A message is measured at the width the row
+// gives it, so a chevron appears only when expanding shows more than the
+// clamped text; an empty row never opens.
+func noticeDetail(n notice, textWidth float32) string {
+	if n.detail != "" {
+		return n.detail
+	}
+	if textWidth <= 0 || utf8.RuneCountInString(n.text) < 40 {
+		return ""
+	}
+	font := ui.Font{Family: uikit.FontUI, Size: uikit.Scaled(uikit.TextBody), LineHeight: uikit.LineBody}
+	if len(ui.ShapeText(n.text, font, textWidth).Lines()) > 2 {
+		return n.text
+	}
+	return ""
 }
 
 // noticeTime is the timestamp beside a notice: a clock time today, and the

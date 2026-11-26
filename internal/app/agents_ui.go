@@ -44,6 +44,9 @@ type agentsPanel struct {
 	skill        agentSkillStatus
 	// skillHome overrides the user home in tests; empty means os.UserHomeDir.
 	skillHome string
+	// The two code blocks' Copy buttons show their check from these.
+	mcpFlash uikit.CopyFlash
+	cliFlash uikit.CopyFlash
 }
 
 // mcpClientKind is one tab of the MCP client picker.
@@ -148,7 +151,7 @@ func (a *app) agentsMCPSettings(c *ui.Context, t *ui.Theme) {
 				uikit.Tip(c, uikit.Mono(c, path).Selectable().MaxLines(2), path)
 			} else {
 				uikit.Hint(c, locales.McpExecutableMissing())
-				uikit.CodeBlock(c, "go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp", nil)
+				uikit.CodeBlock(c, "go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp", nil, nil)
 			}
 			if !found {
 				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
@@ -188,11 +191,9 @@ func (a *app) agentsMCPSettings(c *ui.Context, t *ui.Theme) {
 			snippet := mcpClientSnippet(mcpClientKind(a.agents.client), snippetPath, a.agents.allowWrite, a.agents.allowSensitive, runtime.GOOS == "windows")
 			uikit.Hint(c, agentsSnippetHint(mcpClientKind(a.agents.client)))
 			uikit.CodeBlock(c, snippet, func() {
-				if uikit.SecondaryButton(c, locales.Copy()).Clicked() {
-					c.Services().WriteClipboard(snippet)
-					a.done(locales.CopiedAgentSetup())
-				}
-			})
+				c.Services().WriteClipboard(snippet)
+				a.done(locales.CopiedAgentSetup())
+			}, &a.agents.mcpFlash)
 		})
 		a.agentSkillSettings(c)
 	})
@@ -273,7 +274,7 @@ func (a *app) agentsTerminalSettings(c *ui.Context, t *ui.Theme) {
 		uikit.SettingsCardBlock(c, "", locales.CaptureAgentCommandsHint(), func() {
 			if !found {
 				uikit.Hint(c, locales.CliExecutableMissing())
-				uikit.CodeBlock(c, "go build -o bin/vscroxy-cli ./cmd/vscroxy-cli", nil)
+				uikit.CodeBlock(c, "go build -o bin/vscroxy-cli ./cmd/vscroxy-cli", nil, nil)
 				ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 					if uikit.LinkButton(c, locales.CheckAgain()).Clicked() {
 						a.agents.cliChecked = false
@@ -287,11 +288,9 @@ func (a *app) agentsTerminalSettings(c *ui.Context, t *ui.Theme) {
 			commands := cliCommands(path, windows)
 			uikit.Hint(c, locales.CaptureAgentCommandsShellHint())
 			uikit.CodeBlock(c, commands, func() {
-				if uikit.SecondaryButton(c, locales.Copy()).Clicked() {
-					c.Services().WriteClipboard(commands)
-					a.done(locales.CopiedAgentSetup())
-				}
-			})
+				c.Services().WriteClipboard(commands)
+				a.done(locales.CopiedAgentSetup())
+			}, &a.agents.cliFlash)
 		})
 	})
 }

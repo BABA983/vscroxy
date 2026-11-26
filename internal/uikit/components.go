@@ -1059,6 +1059,12 @@ func MenuButtonOptions(c *ui.Context) ui.PopoverMenuButtonOptions {
 	return ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { MenuPanel(c, panel) }}
 }
 
+// MenuOptions gives a PopoverMenu the kit's menu face, so a right-click menu
+// and the app's menu buttons look alike.
+func MenuOptions(c *ui.Context) ui.PopoverMenuOptions {
+	return ui.PopoverMenuOptions{Panel: func(panel ui.Element) { MenuPanel(c, panel) }}
+}
+
 // StatusPill prints a status in its signal color. It uses the quiet filter
 // pill: clear face, 28 points tall, 4×6 inset, 11-point type and a
 // full-pill corner. Status and method colors never fill a background here.

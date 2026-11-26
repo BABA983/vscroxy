@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/locales"
@@ -163,13 +162,6 @@ func TestPasteAsTextActionExpiresWhenTheDraftChanges(t *testing.T) {
 
 	dismissToasts(t, tt)
 	a.openNotifications()
-	tt.Frame()
-	row, ok := tt.AccessByRole(ui.RoleDisclosure, "")
-	if !ok {
-		t.Fatalf("the notice is not in the center: %v", tt.Texts())
-	}
-	tt.ClickAt(row.Bounds.X+row.Bounds.W-20, row.Bounds.Y+row.Bounds.H/2)
-	tt.Advance(300 * time.Millisecond)
 	tt.Frame()
 	if _, offered := tt.AccessByRole(ui.RoleButton, locales.CurlPasteAsTextAction()); offered {
 		t.Errorf("the notification center still offers an expired action: %v", tt.Texts())

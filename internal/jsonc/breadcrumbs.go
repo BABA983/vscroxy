@@ -38,10 +38,14 @@ type BreadcrumbSegment struct {
 }
 
 // BreadcrumbPath is the path at a position and the JSONPath naming the same
-// node. An empty path means the text is not an object or an array.
+// node. An empty path means the text is not an object or an array. Key and
+// Value are the property the caret names, as a body menu copies them: Key is
+// empty outside an object property, and Value is the raw text of the node.
 type BreadcrumbPath struct {
 	Segments []BreadcrumbSegment
 	JSONPath string
+	Key      string
+	Value    string
 }
 
 // BreadcrumbsAt parses text and reports the container path at offset. It is
@@ -84,6 +88,7 @@ func BreadcrumbsIn(root *Node, text string, offset int) BreadcrumbPath {
 	}
 	path := BreadcrumbPath{JSONPath: "$"}
 	path.Segments = append(path.Segments, BreadcrumbSegment{Label: "$", Start: 0, End: 0})
+	path.Key, path.Value = breadcrumbCopyTarget(target, text)
 
 	type step struct {
 		node   *Node
@@ -172,6 +177,25 @@ func breadcrumbKey(property *Node) string {
 	}
 	key, _ := property.Children[0].Value.(string)
 	return key
+}
+
+// breadcrumbCopyTarget is the key and value a menu at target copies. A caret
+// in a key names its property's value, as the breadcrumb's last segment does;
+// a caret on a container copies the container.
+func breadcrumbCopyTarget(target *Node, text string) (key, value string) {
+	if target == nil {
+		return "", ""
+	}
+	if target.Type == NodeTypeProperty {
+		key = breadcrumbKey(target)
+		if len(target.Children) > 1 {
+			target = target.Children[1]
+		}
+	} else if target.Parent != nil && target.Parent.Type == NodeTypeProperty {
+		key = breadcrumbKey(target.Parent)
+	}
+	start, end := breadcrumbSpan(target, len(text))
+	return key, text[start:end]
 }
 
 // breadcrumbSiblings lists a segment's peers, keeping their jump spans and

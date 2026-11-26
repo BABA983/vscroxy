@@ -108,6 +108,56 @@ func TestTabCloseAsksBeforeDiscarding(t *testing.T) {
 	}
 }
 
+// TestTabContextMenuClosesOthers checks the strip's right-click menu: a tab
+// offers VS Code's closes, and Close Others keeps the tab it opened on while
+// skipping pinned and fixed tabs.
+func TestTabContextMenuClosesOthers(t *testing.T) {
+	a := workspaceApp()
+	openCleanTab(a, "First", "https://example.test/first")
+	keep := openCleanTab(a, "Keep", "https://example.test/keep")
+	openCleanTab(a, "Last", "https://example.test/last")
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.SetLocale("en-US")
+	tt.Frame()
+	tab, ok := tt.AccessByRole(ui.RoleButton, "Keep")
+	if !ok {
+		t.Fatalf("the Keep tab is not drawn: %v", tt.Texts())
+	}
+	tt.RightClickAt(tab.Bounds.X+20, tab.Bounds.Y+tab.Bounds.H/2)
+	tt.Frame()
+	menu := tt.Menu()
+	for _, want := range []string{locales.Close(), locales.CloseOtherTabs(), locales.CloseTabsToTheRight(), locales.CloseAllTabs(), locales.PinTab(), locales.CopyUrl(), locales.RevealInSidebar()} {
+		if !slices.Contains(menu, want) {
+			t.Fatalf("tab menu lacks %q: %v", want, menu)
+		}
+	}
+	if err := tt.ChooseMenuItem(locales.CloseOtherTabs()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !slices.Equal(a.documents, []*requestDocument{keep}) {
+		t.Fatalf("tabs after Close Others: %v", a.documents)
+	}
+	if a.requestDocument != keep {
+		t.Fatal("Close Others did not keep the tab it opened on active")
+	}
+	// Live is fixed: its menu keeps the closes that can run and offers no
+	// Close or Pin of its own.
+	liveTab, ok := tt.AccessByRole(ui.RoleButton, locales.Live())
+	if !ok {
+		t.Fatal("the fixed Live tab is not drawn")
+	}
+	tt.RightClickAt(liveTab.Bounds.X+20, liveTab.Bounds.Y+liveTab.Bounds.H/2)
+	tt.Frame()
+	live := tt.Menu()
+	if slices.Contains(live, locales.Close()) || slices.Contains(live, locales.PinTab()) {
+		t.Fatalf("the fixed Live tab offers Close or Pin: %v", live)
+	}
+	if !slices.Contains(live, locales.CloseAllTabs()) {
+		t.Fatalf("the fixed Live tab lost Close All: %v", live)
+	}
+}
+
 // TestPreviewReplacementForgetsTheOldDocument checks that the single preview
 // slot is truly one document: the next frame must not adopt the replaced
 // preview as a background tab.

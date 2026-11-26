@@ -2840,10 +2840,10 @@ func TestActivityStripWaitsForTheFirstRequest(t *testing.T) {
 	}
 }
 
-// The count of traffic that arrived while the list was paused is its own run
-// beside the label, in the muted color: glued to it, the button read
-// "Auto-follow6 new".
-func TestFooterKeepsTheNewCountApartFromTheLabel(t *testing.T) {
+// Auto-select is an icon toggle with the accessible name Auto-select. Paused
+// arrivals are described in its tip, not as another always-visible label on
+// the toolbar.
+func TestFooterAutoSelectIsAnIconToggle(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1280, 800)
 	tt.Frame()
@@ -2855,29 +2855,13 @@ func TestFooterKeepsTheNewCountApartFromTheLabel(t *testing.T) {
 	tt.Frame()
 	button, ok := tt.Find("Auto-select")
 	if !ok {
-		t.Fatalf("no Auto-select button with a count: %q", tt.Texts())
+		t.Fatalf("no Auto-select button with paused arrivals: %q", tt.Texts())
 	}
-	count, ok := tt.Find("6 new")
-	if !ok {
-		t.Fatalf("the count is not its own run: %q", tt.Texts())
+	if button.W != plain.W || button.H != plain.H {
+		t.Fatalf("the paused count changed the icon button from %.0fx%.0f to %.0fx%.0f", plain.W, plain.H, button.W, button.H)
 	}
-	// The button grew by the count and the space before it, so the space is
-	// what the growth leaves after the text itself.
-	if gap := button.W - plain.W - count.W; gap < 3 {
-		t.Fatalf("the count sits %.1f DIP after the label, want a gap", gap)
-	}
-	// Muted, not the label's ink: the count is a state, not part of the name.
-	im := tt.Image()
-	darkest := uint8(255)
-	for y := int(count.Y); y < int(count.Y+count.H); y++ {
-		for x := int(count.X); x < int(count.X+count.W); x++ {
-			if p := im.RGBAAt(x, y); p.R < darkest {
-				darkest = p.R
-			}
-		}
-	}
-	if darkest < 0x30 {
-		t.Fatalf("the count is drawn in the label's ink (%#x), want the muted color", darkest)
+	if tt.HasText("6 new") {
+		t.Fatal("the paused count is still an always-visible run")
 	}
 }
 

@@ -66,7 +66,7 @@ func expandNotice(t *testing.T, tt *ui.Tester) {
 		t.Fatalf("no notice to expand: %q", tt.Texts())
 	}
 	box := row.Bounds
-	tt.ClickAt(box.X+box.W-20, box.Y+box.H/2)
+	tt.ClickAt(box.X+box.W/2, box.Y+box.H/2)
 	// The center opens above the footer's bell, so the notice grows upward
 	// while its disclosure animates: wait for it to settle, as a reader does.
 	tt.Advance(300 * time.Millisecond)

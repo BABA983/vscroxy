@@ -41,6 +41,33 @@ func (a *app) decoderMenu(reader *editor.State) {
 	}
 }
 
+// bodyMenu adds the body reader's own commands: the JSON node under the caret,
+// copied as its path, value or key, and Decode selection. The breadcrumb cache
+// is read here, so opening the menu walks a tree the frame already parsed
+// rather than parsing the body again.
+func (a *app) bodyMenu(c *ui.Context, reader *editor.State, crumbs *jsonBreadcrumbs, key string, provided jsonCrumbSource) {
+	reader.ContextMenu = func(m *ui.Menu) {
+		path := a.jsonPathTrack(crumbs, key, reader, provided)
+		if len(path.Segments) > 0 {
+			if m.Item(locales.CopyJsonPath()).Chosen() {
+				a.copyJSONPath(c, path.JSONPath)
+			}
+			if m.Item(locales.CopyJsonValue()).Disabled(path.Value == "").Chosen() {
+				c.Services().WriteClipboard(path.Value)
+				a.done(locales.JsonValueCopied())
+			}
+			if m.Item(locales.CopyJsonKey()).Disabled(path.Key == "").Chosen() {
+				c.Services().WriteClipboard(path.Key)
+				a.done(locales.JsonKeyCopied())
+			}
+			m.Separator()
+		}
+		if m.Item(locales.DecodeSelection()).Disabled(reader.SelectedText() == "").Chosen() {
+			a.openDecoder(reader, "")
+		}
+	}
+}
+
 func (a *app) decoderModal(c *ui.Context) {
 	u := &a.decoder
 	if !u.open {

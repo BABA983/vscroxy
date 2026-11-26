@@ -386,6 +386,9 @@ type app struct {
 	// while neither the caret nor the reader's text version changes.
 	jsonCrumbs     [2]jsonBreadcrumbs
 	activeJSONPath activeJSONPath
+	// showJSONPath draws the breadcrumb bar above a JSON body. The path and
+	// the body menu work whether or not it is on.
+	showJSONPath bool
 	// responseCrumbs caches the tree the sent response's Outline reads; its
 	// breadcrumb bar is not drawn, but the parse belongs to this one editor.
 	responseCrumbs jsonBreadcrumbs
@@ -1098,6 +1101,7 @@ func newApp() *app {
 		a.workbench.captureSplit, a.workbench.captureFocus = saved.CaptureSplit, saved.CaptureFocus
 		a.workbench.captureGroups = slices.Clone(saved.CaptureGroups)
 		a.workbench.sidebarHidden = saved.SidebarHidden
+		a.showJSONPath = saved.ShowJSONPath
 		a.regions, a.shutRegions = nil, slices.Clone(saved.SidebarClosed)
 		a.paneHeights, a.savedHeights = nil, maps.Clone(saved.SidebarPaneHeights)
 		if saved.SideTablePercent > 0 {

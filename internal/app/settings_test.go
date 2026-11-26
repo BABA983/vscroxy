@@ -31,6 +31,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 		SideTablePercent: 61,
 		DiffSplit:        58,
 		SidebarHidden:    true,
+		ShowJSONPath:     true,
 		Columns:          columnLayout{Order: []string{"status", "url"}, Widths: map[string]float32{"url": 320}},
 		CustomColumns:    []customColumn{{Source: sourceQuery, Name: "Page"}, {Source: sourceResponseJSON, Name: "/data/ID"}, {Source: sourceRequestJSON, Name: "/id"}, graphqlColumn},
 		HiddenColumns:    []string{"client"},
@@ -325,6 +326,7 @@ func TestSameSettingsSeesColumnChanges(t *testing.T) {
 		{SideTablePercent: 61, Columns: base.Columns},
 		{DiffSplit: 61, Columns: base.Columns},
 		{SidebarHidden: true, Columns: base.Columns},
+		{ShowJSONPath: true, Columns: base.Columns},
 		// A column taken out, put in, or added stays a change to save.
 		{HiddenColumns: []string{"host"}, Columns: base.Columns},
 		{ShownColumns: []string{"latency"}, Columns: base.Columns},

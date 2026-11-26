@@ -3306,6 +3306,16 @@ func (msgs Messages) HideCookieValues() string {
 	return Catalog.Format(msgs.locale, "hideCookieValues", nil)
 }
 
+// HideNotifications says "Hide"
+// in the language the app shows.
+func HideNotifications() string { return In(i18n.Locale()).HideNotifications() }
+
+// HideNotifications says "Hide"
+// in the language of msgs.
+func (msgs Messages) HideNotifications() string {
+	return Catalog.Format(msgs.locale, "hideNotifications", nil)
+}
+
 // HideCredentials says "Hide credentials"
 // in the language the app shows.
 func HideCredentials() string { return In(i18n.Locale()).HideCredentials() }
@@ -3934,6 +3944,16 @@ func (msgs Messages) JsonLineRecord(line int) string {
 	return Catalog.Format(msgs.locale, "jsonLineRecord", map[string]any{"line": line})
 }
 
+// JsonKeyCopied says "Key copied"
+// in the language the app shows.
+func JsonKeyCopied() string { return In(i18n.Locale()).JsonKeyCopied() }
+
+// JsonKeyCopied says "Key copied"
+// in the language of msgs.
+func (msgs Messages) JsonKeyCopied() string {
+	return Catalog.Format(msgs.locale, "jsonKeyCopied", nil)
+}
+
 // JsonPathCopied says "JSON path copied"
 // in the language the app shows.
 func JsonPathCopied() string { return In(i18n.Locale()).JsonPathCopied() }
@@ -3942,6 +3962,16 @@ func JsonPathCopied() string { return In(i18n.Locale()).JsonPathCopied() }
 // in the language of msgs.
 func (msgs Messages) JsonPathCopied() string {
 	return Catalog.Format(msgs.locale, "jsonPathCopied", nil)
+}
+
+// JsonValueCopied says "Value copied"
+// in the language the app shows.
+func JsonValueCopied() string { return In(i18n.Locale()).JsonValueCopied() }
+
+// JsonValueCopied says "Value copied"
+// in the language of msgs.
+func (msgs Messages) JsonValueCopied() string {
+	return Catalog.Format(msgs.locale, "jsonValueCopied", nil)
 }
 
 // JsonPathSegments says "JSON path segments: {path}"
@@ -5128,6 +5158,16 @@ func (msgs Messages) NoInputHistoryToClear() string {
 	return Catalog.Format(msgs.locale, "noInputHistoryToClear", nil)
 }
 
+// NoNewNotifications says "No new notifications"
+// in the language the app shows.
+func NoNewNotifications() string { return In(i18n.Locale()).NoNewNotifications() }
+
+// NoNewNotifications says "No new notifications"
+// in the language of msgs.
+func (msgs Messages) NoNewNotifications() string {
+	return Catalog.Format(msgs.locale, "noNewNotifications", nil)
+}
+
 // NoNotifications says "No notifications"
 // in the language the app shows.
 func NoNotifications() string { return In(i18n.Locale()).NoNotifications() }
@@ -5596,6 +5636,16 @@ func Pin() string { return In(i18n.Locale()).Pin() }
 // in the language of msgs.
 func (msgs Messages) Pin() string {
 	return Catalog.Format(msgs.locale, "pin", nil)
+}
+
+// PinTab says "Pin"
+// in the language the app shows.
+func PinTab() string { return In(i18n.Locale()).PinTab() }
+
+// PinTab says "Pin"
+// in the language of msgs.
+func (msgs Messages) PinTab() string {
+	return Catalog.Format(msgs.locale, "pinTab", nil)
 }
 
 // PinToTheTop says "Pin to the top"
@@ -6412,6 +6462,16 @@ func Reveal() string { return In(i18n.Locale()).Reveal() }
 // in the language of msgs.
 func (msgs Messages) Reveal() string {
 	return Catalog.Format(msgs.locale, "reveal", nil)
+}
+
+// RevealInSidebar says "Reveal in Sidebar"
+// in the language the app shows.
+func RevealInSidebar() string { return In(i18n.Locale()).RevealInSidebar() }
+
+// RevealInSidebar says "Reveal in Sidebar"
+// in the language of msgs.
+func (msgs Messages) RevealInSidebar() string {
+	return Catalog.Format(msgs.locale, "revealInSidebar", nil)
 }
 
 // RevealCookieValues says "Reveal cookie values"
@@ -8420,6 +8480,16 @@ func Unpin() string { return In(i18n.Locale()).Unpin() }
 // in the language of msgs.
 func (msgs Messages) Unpin() string {
 	return Catalog.Format(msgs.locale, "unpin", nil)
+}
+
+// UnpinTab says "Unpin"
+// in the language the app shows.
+func UnpinTab() string { return In(i18n.Locale()).UnpinTab() }
+
+// UnpinTab says "Unpin"
+// in the language of msgs.
+func (msgs Messages) UnpinTab() string {
+	return Catalog.Format(msgs.locale, "unpinTab", nil)
 }
 
 // UnresolvedReviewVariables says "unresolved (review variables)"
@@ -12384,6 +12454,16 @@ func (msgs Messages) ClearAllCookies() string {
 	return Catalog.Format(msgs.locale, "clearAllCookies", nil)
 }
 
+// ClearAllNotifications says "Clear all"
+// in the language the app shows.
+func ClearAllNotifications() string { return In(i18n.Locale()).ClearAllNotifications() }
+
+// ClearAllNotifications says "Clear all"
+// in the language of msgs.
+func (msgs Messages) ClearAllNotifications() string {
+	return Catalog.Format(msgs.locale, "clearAllNotifications", nil)
+}
+
 // ClearCapturedRequests says "Clear captured requests?"
 // in the language the app shows.
 func ClearCapturedRequests() string { return In(i18n.Locale()).ClearCapturedRequests() }
@@ -12656,6 +12736,36 @@ func Close() string { return In(i18n.Locale()).Close() }
 // in the language of msgs.
 func (msgs Messages) Close() string {
 	return Catalog.Format(msgs.locale, "close", nil)
+}
+
+// CloseAllTabs says "Close All"
+// in the language the app shows.
+func CloseAllTabs() string { return In(i18n.Locale()).CloseAllTabs() }
+
+// CloseAllTabs says "Close All"
+// in the language of msgs.
+func (msgs Messages) CloseAllTabs() string {
+	return Catalog.Format(msgs.locale, "closeAllTabs", nil)
+}
+
+// CloseOtherTabs says "Close Others"
+// in the language the app shows.
+func CloseOtherTabs() string { return In(i18n.Locale()).CloseOtherTabs() }
+
+// CloseOtherTabs says "Close Others"
+// in the language of msgs.
+func (msgs Messages) CloseOtherTabs() string {
+	return Catalog.Format(msgs.locale, "closeOtherTabs", nil)
+}
+
+// CloseTabsToTheRight says "Close to the Right"
+// in the language the app shows.
+func CloseTabsToTheRight() string { return In(i18n.Locale()).CloseTabsToTheRight() }
+
+// CloseTabsToTheRight says "Close to the Right"
+// in the language of msgs.
+func (msgs Messages) CloseTabsToTheRight() string {
+	return Catalog.Format(msgs.locale, "closeTabsToTheRight", nil)
 }
 
 // CloseBodySearch says "Close body search"
@@ -14210,6 +14320,46 @@ func Copy() string { return In(i18n.Locale()).Copy() }
 // in the language of msgs.
 func (msgs Messages) Copy() string {
 	return Catalog.Format(msgs.locale, "copy", nil)
+}
+
+// CopyJsonKey says "Copy key"
+// in the language the app shows.
+func CopyJsonKey() string { return In(i18n.Locale()).CopyJsonKey() }
+
+// CopyJsonKey says "Copy key"
+// in the language of msgs.
+func (msgs Messages) CopyJsonKey() string {
+	return Catalog.Format(msgs.locale, "copyJsonKey", nil)
+}
+
+// CopyJsonPath says "Copy JSONPath"
+// in the language the app shows.
+func CopyJsonPath() string { return In(i18n.Locale()).CopyJsonPath() }
+
+// CopyJsonPath says "Copy JSONPath"
+// in the language of msgs.
+func (msgs Messages) CopyJsonPath() string {
+	return Catalog.Format(msgs.locale, "copyJsonPath", nil)
+}
+
+// CopyJsonValue says "Copy value"
+// in the language the app shows.
+func CopyJsonValue() string { return In(i18n.Locale()).CopyJsonValue() }
+
+// CopyJsonValue says "Copy value"
+// in the language of msgs.
+func (msgs Messages) CopyJsonValue() string {
+	return Catalog.Format(msgs.locale, "copyJsonValue", nil)
+}
+
+// CopyUrl says "Copy URL"
+// in the language the app shows.
+func CopyUrl() string { return In(i18n.Locale()).CopyUrl() }
+
+// CopyUrl says "Copy URL"
+// in the language of msgs.
+func (msgs Messages) CopyUrl() string {
+	return Catalog.Format(msgs.locale, "copyUrl", nil)
 }
 
 // CopyAProcessScopedProxy says "Copy a process-scoped proxy and CA example"
@@ -31416,6 +31566,16 @@ func ShowLatestResponse() string { return In(i18n.Locale()).ShowLatestResponse()
 // in the language of msgs.
 func (msgs Messages) ShowLatestResponse() string {
 	return Catalog.Format(msgs.locale, "showLatestResponse", nil)
+}
+
+// ShowJsonPath says "Show JSON path"
+// in the language the app shows.
+func ShowJsonPath() string { return In(i18n.Locale()).ShowJsonPath() }
+
+// ShowJsonPath says "Show JSON path"
+// in the language of msgs.
+func (msgs Messages) ShowJsonPath() string {
+	return Catalog.Format(msgs.locale, "showJsonPath", nil)
 }
 
 // ShowNotifications says "Show notifications"

@@ -578,6 +578,9 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("view.sidebar", locales.ToggleSidebar(), func(x *commandContext) {
 		x.a.workbench.sidebarHidden = !x.a.workbench.sidebarHidden
 	}).keys(ui.Cmd, ui.KeyB)
+	r.add("view.json-path", locales.ShowJsonPath(), func(x *commandContext) {
+		x.a.showJSONPath = !x.a.showJSONPath
+	}).mark(func(x *commandContext) check { return checkbox(x.a.showJSONPath) })
 	// Undo and Redo are the two owners of the history keys. The keys stay
 	// with a focused text field or editor (handled where shortcuts are
 	// subscribed), but the commands stay available in menus and the palette.

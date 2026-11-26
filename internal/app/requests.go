@@ -1771,7 +1771,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				buf := editor.NewBuffer(body)
 				d.responseEditor = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.ResponseBody()}
 			}
-			a.decoderMenu(d.responseEditor)
+			a.bodyMenu(c, d.responseEditor, outline.crumbs, outline.key, jsonCrumbSource{})
 			a.outlineEditor(c, d.responseEditor, outline, func() {
 				editor.View(c, d.responseEditor).Bind(&responseFocus).FillWidth().Grow(1)
 			})
@@ -1790,7 +1790,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 				d.responseEditor = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, Label: locales.ResponseBody()}
 			}
-			a.decoderMenu(d.responseEditor)
+			a.bodyMenu(c, d.responseEditor, outline.crumbs, outline.key, jsonCrumbSource{})
 			d.responseEditor.Theme = uikit.EditorTheme(t)
 			a.outlineEditor(c, d.responseEditor, outline, func() {
 				editor.View(c, d.responseEditor).Bind(&responseFocus).FillWidth().Grow(1)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -63,7 +64,7 @@ func TestNotificationsActionRunsFromTheCenter(t *testing.T) {
 		t.Fatalf("notice not listed: %v", tt.Texts())
 	}
 	box := row.Bounds
-	tt.ClickAt(box.X+box.W-20, box.Y+box.H/2) // expand the detail and action
+	tt.ClickAt(box.X+box.W/2, box.Y+box.H/2) // expand the detail and action
 	tt.Advance(300 * time.Millisecond)
 	tt.Frame()
 	if _, ok := tt.AccessByRole(ui.RoleButton, locales.DismissNotification()); !ok {
@@ -122,16 +123,29 @@ func TestStaleDeleteUndoIsRefusedUntilItIsNewestAgain(t *testing.T) {
 	}
 	a.openNotifications()
 	tt := notificationTester(t, a, false)
-	row, ok := tt.AccessByRole(ui.RoleDisclosure, "")
-	if !ok {
-		t.Fatalf("deletion notice not listed: %v", tt.Texts())
-	}
-	box := row.Bounds
-	tt.ClickAt(box.X+box.W-20, box.Y+box.H/2)
-	tt.Advance(300 * time.Millisecond)
-	tt.Frame()
 	if tt.HasText(locales.Undo()) {
 		t.Errorf("a stale session undo is still offered: %v", tt.Texts())
+	}
+}
+
+// A disclosure appears only when expanding shows more: a detail string or a
+// message that the two-line summary cuts. A short notice with neither has no
+// chevron, so nothing opens an empty row.
+func TestNotificationCenterChevronOnlyWhenThereIsMore(t *testing.T) {
+	a := &app{}
+	a.inform("Saved the collection")
+	a.notify(notice{level: noticeError, text: "Import failed", detail: "unsupported export format"})
+	a.warn(strings.Repeat("A long message about a task that cannot finish. ", 4))
+	a.openNotifications()
+	tt := notificationTester(t, a, false)
+	disclosures := 0
+	for _, info := range tt.AccessAll() {
+		if info.Role == ui.RoleDisclosure {
+			disclosures++
+		}
+	}
+	if disclosures != 2 {
+		t.Fatalf("disclosures = %d, want the detail and the truncated message only: %v", disclosures, tt.Texts())
 	}
 }
 
@@ -144,7 +158,7 @@ func TestClearNotificationsEmptiesTheCenter(t *testing.T) {
 	if !tt.HasText("Import") || !tt.HasText("Project changed on disk") {
 		t.Fatalf("notices missing before clear: %v", tt.Texts())
 	}
-	if err := tt.Click(locales.ClearNotifications()); err != nil {
+	if err := tt.Click(locales.ClearAllNotifications()); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -154,7 +168,7 @@ func TestClearNotificationsEmptiesTheCenter(t *testing.T) {
 	if errs, warns := a.noticeUnread(); errs != 0 || warns != 0 {
 		t.Errorf("unread after clear = %d errors, %d warnings; want none", errs, warns)
 	}
-	if !tt.HasText(locales.NoNotifications()) {
+	if !tt.HasText(locales.NoNewNotifications()) {
 		t.Errorf("empty state not shown: %v", tt.Texts())
 	}
 }

@@ -188,6 +188,42 @@ func (a *app) promoteTab(id tabID) {
 	}
 }
 
+// toggleTabPin pins a tab to the front of the scrolling tabs, or unpins it.
+// Live is fixed and takes no pin.
+func (a *app) toggleTabPin(id tabID) {
+	g := a.tabsGroup()
+	if g.isFixed(id) {
+		return
+	}
+	if g.isPinned(id) {
+		g.unpin(id)
+	} else {
+		g.pin(id)
+	}
+	a.applyActiveTab()
+}
+
+// revealDocumentInSidebar shows the request in Collections without changing
+// the active tab: its folder opens, the sidebar comes back and any tree
+// search that would hide it clears.
+func (a *app) revealDocumentInSidebar(d *requestDocument) {
+	if d == nil {
+		return
+	}
+	a.workbench.sidebarHidden = false
+	a.sidebarMode = sidebarCollections
+	*a.regionOpen("collections") = true
+	a.requestQuery = ""
+	if d.savedKey != "" {
+		for _, prefix := range pathPrefixes(d.composeCollection) {
+			*a.collectionShown(prefix) = true
+		}
+		a.requestChoice = d.savedKey
+		return
+	}
+	*a.collectionShown(unsavedGroup) = true
+}
+
 // showRequestWorkspace brings COLLECTIONS to the front: its most recently
 // used request tab, or the empty workspace when no request is open. The empty
 // workspace is a placeholder tab, so page and strip still agree.

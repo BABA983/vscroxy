@@ -1018,13 +1018,13 @@ func (a *app) prettyBody(c *ui.Context, crumbs *jsonBreadcrumbs, key, body strin
 			RenderFindBar: func(c *ui.Context, bar ui.Element, find *editor.FindBar) { a.bodyFindBar(c, bar, find, side) }}
 		a.bodyText[side] = view
 	}
-	a.decoderMenu(view)
 	view.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
 	view.Theme = uikit.EditorTheme(c.Theme())
 	var provided jsonCrumbSource
 	if json != nil && json.ready && json.result.crumbRoot != nil {
 		provided = jsonCrumbSource{root: json.result.crumbRoot, text: json.result.crumbText}
 	}
+	a.bodyMenu(c, view, crumbs, key, provided)
 	a.jsonPathBar(c, crumbs, key, view, func() { a.bodyReader[side].Focus(c) }, provided)
 	a.outlineEditor(c, view, outlineTarget{key: key, kind: outlineJSON,
 		crumbs: crumbs, crumb: provided, focus: func() { a.bodyReader[side].Focus(c) }}, func() {

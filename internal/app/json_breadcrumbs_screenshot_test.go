@@ -13,9 +13,9 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// TestBreadcrumbScreenshots exports the breadcrumb bar at 2x in both themes,
-// with and without a sibling menu open. Set the environment variable to an
-// output directory to keep the images.
+// TestBreadcrumbScreenshots exports the opt-in JSON path bar at 2x in both
+// themes, with and without a sibling menu open. Set the environment variable
+// to an output directory to keep the images.
 func TestBreadcrumbScreenshots(t *testing.T) {
 	dir := os.Getenv("VSCROXY_BREADCRUMB_SCREENSHOTS")
 	if dir == "" {
@@ -37,6 +37,7 @@ func TestBreadcrumbScreenshots(t *testing.T) {
 			}
 			t.Run(name+"-"+appearance, func(t *testing.T) {
 				a := snapshotApp()
+				a.showJSONPath = true
 				a.flows[0].resBody, a.flows[0].bytes = body, len(body)
 				a.flows[0].respHeader = http.Header{"Content-Type": {"application/json"}}
 				a.syncDetail()

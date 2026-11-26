@@ -1577,6 +1577,7 @@
   "hiddenInTheVault": "hidden in the Vault",
   "hiddenValue": "(hidden)",
   "hideCookieValues": "Hide cookie values",
+  "hideNotifications": "Hide",
   "hideCredentials": "Hide credentials",
   "@hideRow": {
     "placeholders": {
@@ -1894,7 +1895,9 @@
   "jsonBreadcrumbNoSiblings": "No siblings at this level",
   "jsonBreadcrumbSiblingFor": "Sibling keys and indices: {segment}",
   "jsonLineRecord": "Line {line}",
+  "jsonKeyCopied": "Key copied",
   "jsonPathCopied": "JSON path copied",
+  "jsonValueCopied": "Value copied",
   "jsonPathSegments": "JSON path segments: {path}",
   "@jsonParsingStopped": {
     "placeholders": {
@@ -2380,6 +2383,7 @@
   "nothingToImport": "{what}: nothing to import; {warnings}",
   "nothingToUndo": "Nothing to undo",
   "noInputHistoryToClear": "No input history to clear",
+  "noNewNotifications": "No new notifications",
   "noNotifications": "No notifications",
   "notification": "Notification",
   "notifications": "Notifications",
@@ -2574,6 +2578,7 @@
   "persistCurrentAsInitialWrites": "Persist current as initial: writes it to the shared file and exports",
   "persistentSessionNote": " · persistent session",
   "pin": "Pin",
+  "pinTab": "Pin",
   "pinToTheTop": "Pin to the top",
   "pointsAtAnotherProxy": "Points at another proxy",
   "pointsAtThisAppBut": "Points at this app, but capture is stopped",
@@ -2924,6 +2929,7 @@
   },
   "returnToOriginalTab": "Return to the original editable tab without overwriting its current edits: {name}",
   "reveal": "Reveal",
+  "revealInSidebar": "Reveal in Sidebar",
   "revealCookieValues": "Reveal cookie values",
   "@reverseProxyOnPort": {
     "placeholders": {
@@ -4496,6 +4502,7 @@
   "unknownStage": "unknown stage",
   "unknownType": "unknown type",
   "unpin": "Unpin",
+  "unpinTab": "Unpin",
   "unresolvedReviewVariables": "unresolved (review variables)",
   "unsavedDraft": "Unsaved draft",
   "unsubscribeFailed": "Unsubscribe failed",
@@ -5134,6 +5141,7 @@
   "clear": "Clear",
   "clearActivityRange": "Clear activity range",
   "clearAllCookies": "Clear all cookies",
+  "clearAllNotifications": "Clear all",
   "clearCapturedRequests": "Clear captured requests?",
   "clearChoice": "Clear choice",
   "@clearCookiesForDomain": {
@@ -5168,6 +5176,9 @@
   "clientSetup": "Client setup",
   "clientToken": "Client token",
   "close": "Close",
+  "closeAllTabs": "Close All",
+  "closeOtherTabs": "Close Others",
+  "closeTabsToTheRight": "Close to the Right",
   "closeBodySearch": "Close body search",
   "closeKeepsRunningQuitCancels": "Close keeps running; Quit cancels and waits.",
   "closeOtherRequests": "Close other requests",
@@ -5348,6 +5359,10 @@
   "copiesTheJdkSCacerts": "Copies the JDK's cacerts into this app's own truststore, then adds the public CA. No JDK files change.",
   "copiesValuesLaterPresetEdits": "Copies values. Later preset edits do not change this rule.",
   "copy": "Copy",
+  "copyJsonKey": "Copy key",
+  "copyJsonPath": "Copy JSONPath",
+  "copyJsonValue": "Copy value",
+  "copyUrl": "Copy URL",
   "copyAProcessScopedProxy": "Copy a process-scoped proxy and CA example",
   "copyActiveConditions": "Copy active conditions",
   "copyAs": "Copy as…",
@@ -7206,6 +7221,7 @@
   "openTabsNotRestored": "Open tabs were not restored",
   "showHistory": "Show History",
   "showLatestResponse": "Show latest response",
+  "showJsonPath": "Show JSON path",
   "showNotifications": "Show notifications",
   "showOnlyTheHostsAnd": "Show only the hosts and apps below. Everything else is still proxied, just not recorded.",
   "showSetupGuide": "Show setup guide",

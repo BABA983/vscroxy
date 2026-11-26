@@ -29,6 +29,7 @@ func (a *app) tabBar(c *ui.Context, t *ui.Theme) {
 			Active:   id == active,
 			Fixed:    e.fixed,
 			Closable: !e.fixed,
+			Pinned:   e.pinned,
 			Reveal:   id == active && id != a.tabShown,
 		}
 		if id.kind == pageRequest {
@@ -55,6 +56,7 @@ func (a *app) tabBar(c *ui.Context, t *ui.Theme) {
 		OnPin:      func(i int) { a.promoteTab(ids[i]) },
 		OnNew:      a.openCompose,
 		OnOverflow: a.openTabsMenu,
+		TabMenu:    func(i int) func(*ui.Menu) { return a.tabContextMenu(c, ids[i]) },
 	}
 	// The environment belongs to the request being edited, so it appears
 	// with a request tab and steps aside for Live, a session or a contract.
@@ -165,5 +167,64 @@ func (a *app) openTabsMenu(m *ui.Menu) {
 		if item.Chosen() {
 			a.activateTab(id)
 		}
+	}
+}
+
+// tabContextMenu is a tab's own right-click menu, as VS Code's editor tab
+// menu: closes, the pin, and the request's address and place in the sidebar.
+// Fixed tabs such as Live get only the closes that keep them.
+func (a *app) tabContextMenu(c *ui.Context, id tabID) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		g := a.tabsGroup()
+		e, ok := g.find(id)
+		if !ok {
+			return
+		}
+		entries := g.tabs()
+		at := g.indexOf(id)
+		closable, right := 0, 0
+		for i, other := range entries {
+			if other.id() == id || other.fixed || other.pinned {
+				continue
+			}
+			closable++
+			if i > at {
+				right++
+			}
+		}
+		var items []action
+		if !e.fixed {
+			items = append(items, do("tab.close", locales.Close(), func() { a.closeTab(id, false) }).
+				keys(ui.Cmd, ui.KeyW).in("close"))
+		}
+		items = append(items,
+			do("tab.close-others", locales.CloseOtherTabs(), func() { a.closeOtherTabs(id) }).
+				when(closable > 0, "").in("close"),
+			do("tab.close-right", locales.CloseTabsToTheRight(), func() { a.closeTabsToRight(id) }).
+				when(right > 0, "").in("close"),
+			do("tab.close-all", locales.CloseAllTabs(), a.closeAllDocuments).
+				when(closable > 0, "").in("close"),
+		)
+		if !e.fixed {
+			label := locales.PinTab()
+			if e.pinned {
+				label = locales.UnpinTab()
+			}
+			items = append(items, do("tab.pin", label, func() { a.toggleTabPin(id) }).in("pin"))
+		}
+		if id.kind == pageRequest {
+			if d := a.documentForTab(id); d != nil {
+				if d.composeURL != "" {
+					items = append(items, do("tab.copy-url", locales.CopyUrl(), func() {
+						c.Services().WriteClipboard(d.composeURL)
+						a.done(locales.CopiedUrl())
+					}).in("nav"))
+				}
+				items = append(items, do("tab.reveal", locales.RevealInSidebar(), func() {
+					a.revealDocumentInSidebar(d)
+				}).in("nav"))
+			}
+		}
+		actionMenu(m, items)
 	}
 }

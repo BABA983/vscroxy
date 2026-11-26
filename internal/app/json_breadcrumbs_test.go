@@ -2,6 +2,7 @@ package app
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,6 +18,7 @@ import (
 func breadcrumbScene(t *testing.T, body string) (*app, *ui.Tester, string) {
 	t.Helper()
 	a := workspaceApp()
+	a.showJSONPath = true
 	a.flows[0].resBody, a.flows[0].bytes = body, len(body)
 	a.flows[0].respHeader = http.Header{"Content-Type": {"application/json"}}
 	a.syncDetail()
@@ -53,15 +55,8 @@ func TestBreadcrumbBarSegmentsAndClipboard(t *testing.T) {
 	if path.JSONPath != "$.data.items[0].id" {
 		t.Fatalf("JSONPath = %q", path.JSONPath)
 	}
-	if !tt.HasText("Copy path") || !tt.HasText("data") || !tt.HasText("[0]") {
+	if !tt.HasText("data") || !tt.HasText("[0]") {
 		t.Fatalf("bar did not render: %v", tt.Texts())
-	}
-
-	if err := tt.Click("Copy path"); err != nil {
-		t.Fatal(err)
-	}
-	if got := tt.Clipboard(); got != path.JSONPath {
-		t.Fatalf("clipboard = %q, want %q", got, path.JSONPath)
 	}
 
 	found := false
@@ -238,31 +233,108 @@ func TestBreadcrumbReusesReaderTreeForShownText(t *testing.T) {
 	}
 }
 
-// The request body keeps no path bar: its tool row and text are all that sits
-// above the editor. The response body still has its bar, and Copy path still
-// knows the request body's node under the caret.
-func TestRequestBodyHasNoJSONPathBar(t *testing.T) {
+// The JSON path bar is off by default, as Postman has no such row. The View
+// menu's Show JSON path brings it back; both bodies keep tracking their caret
+// either way, so the body menu can copy the node.
+func TestJSONPathBarIsHiddenUntilShown(t *testing.T) {
 	a := snapshotApp()
 	a.addDocument(savedRequest{Request: request.Request{Name: "Create project", Method: "POST",
 		URL: "https://api.example.com/projects", Body: `{"data":{"id":3}}`}}, "")
 	a.composeTab = composeTabBody
+	// The request body never draws the bar, even with Show JSON path on.
+	a.showJSONPath = true
 	tt := ui.NewTester(a.view, 1280, 800)
 	tt.Frame()
-	if tt.HasText(locales.JsonBreadcrumbCopyPath()) {
+	if tt.HasText(locales.JsonBreadcrumbBar()) {
 		t.Fatal("the request body drew a JSON path bar")
 	}
 	if a.activeJSONPath.path == "" {
 		t.Fatal("the request body stopped tracking the path under its caret")
 	}
+	a.showJSONPath = false
 	a.activateDocument(nil)
 	tt.Frame()
-	if !tt.HasText(locales.JsonBreadcrumbCopyPath()) {
-		t.Fatal("the response body lost its JSON path bar")
+	if tt.HasText(locales.JsonBreadcrumbBar()) {
+		t.Fatal("the response body drew a JSON path bar by default")
+	}
+	if a.activeJSONPath.path == "" {
+		t.Fatal("the response body stopped tracking the path under its caret")
+	}
+	toggle := pick(a.actions(nil), "view.json-path")
+	if toggle.id == "" || !toggle.enabled {
+		t.Fatal("the View menu has no Show JSON path")
+	}
+	toggle.run()
+	tt.Frame()
+	if !a.showJSONPath || !tt.HasText(locales.JsonBreadcrumbBar()) {
+		t.Fatalf("Show JSON path did not bring the bar back: %v", tt.Texts())
+	}
+}
+
+// openBodyMenuAtCaret opens the body reader's right-click menu inside the
+// long id value, where a point well to the right still lands in the value.
+func openBodyMenuAtCaret(t *testing.T, a *app, tt *ui.Tester, side int) {
+	t.Helper()
+	view := a.bodyText[side]
+	text := view.Buffer.String()
+	at := strings.Index(text, `"id": "`)
+	if at < 0 {
+		t.Fatalf("the shown body has no id: %q", text)
+	}
+	view.Select(at+len(`"id": "`)+10, at+len(`"id": "`)+10)
+	tt.Frame()
+	box, ok := tt.Find(locales.BodyText())
+	if !ok {
+		t.Fatalf("the body editor is not drawn: %v", tt.Texts())
+	}
+	line := view.CursorPos().Line
+	top, next := view.LineTop(line), view.LineTop(line+1)
+	height := float32(next - top)
+	if height <= 0 {
+		t.Fatal("the body editor has no line height")
+	}
+	y := box.Y + float32(top-view.ScrollY()) + height/2
+	tt.RightClickAt(box.X+500, y)
+	tt.Frame()
+}
+
+// The body's own menu copies the node at the caret as its JSONPath, value and
+// key, without a path bar on screen.
+func TestBodyMenuCopiesJSONAtCaret(t *testing.T) {
+	const id = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+	a, tt, _ := breadcrumbScene(t, `{"data":{"items":[{"id":"`+id+`"}]},"ok":true}`)
+	openBodyMenuAtCaret(t, a, tt, 0)
+	menu := tt.Menu()
+	for _, want := range []string{locales.CopyJsonPath(), locales.CopyJsonValue(), locales.CopyJsonKey()} {
+		if !slices.Contains(menu, want) {
+			t.Fatalf("body menu lacks %q: %v", want, menu)
+		}
+	}
+	if err := tt.ChooseMenuItem(locales.CopyJsonPath()); err != nil {
+		t.Fatal(err)
+	}
+	if got := tt.Clipboard(); got != "$.data.items[0].id" {
+		t.Fatalf("Copy JSONPath = %q", got)
+	}
+	openBodyMenuAtCaret(t, a, tt, 0)
+	if err := tt.ChooseMenuItem(locales.CopyJsonValue()); err != nil {
+		t.Fatal(err)
+	}
+	if got := tt.Clipboard(); got != `"`+id+`"` {
+		t.Fatalf("Copy value = %q, want the id", got)
+	}
+	openBodyMenuAtCaret(t, a, tt, 0)
+	if err := tt.ChooseMenuItem(locales.CopyJsonKey()); err != nil {
+		t.Fatal(err)
+	}
+	if got := tt.Clipboard(); got != "id" {
+		t.Fatalf("Copy key = %q, want id", got)
 	}
 }
 
 func TestBreadcrumbLargeBodyHasNoBar(t *testing.T) {
 	a := workspaceApp()
+	a.showJSONPath = true
 	body := `{"big":"` + strings.Repeat("x", jsonBreadcrumbScanLimit+1) + `"}`
 	a.flows[0].resBody, a.flows[0].bytes = body, len(body)
 	a.flows[0].respHeader = http.Header{"Content-Type": {"application/json"}}

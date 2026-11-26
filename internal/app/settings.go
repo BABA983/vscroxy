@@ -49,6 +49,10 @@ type settings struct {
 	// zero is half.
 	DiffSplit     float32 `json:"diffSplit,omitzero"`
 	SidebarHidden bool    `json:"sidebarHidden,omitzero"`
+	// ShowJSONPath draws the JSON breadcrumb above a response or request
+	// body. Off by default, as Postman keeps no such row; the body menu
+	// still copies the path under the caret.
+	ShowJSONPath bool `json:"showJSONPath,omitempty"`
 	// SidebarClosed names the sidebar's regions folded away, by the id its
 	// heading toggles, and SidebarPaneHeights the body heights its middle
 	// regions took, by the same ids.
@@ -283,6 +287,7 @@ func sameSettings(x, y settings) bool {
 		x.CaptureFocus == y.CaptureFocus &&
 		x.DiffSplit == y.DiffSplit &&
 		x.SidebarHidden == y.SidebarHidden &&
+		x.ShowJSONPath == y.ShowJSONPath &&
 		slices.Equal(x.SidebarClosed, y.SidebarClosed) &&
 		maps.Equal(x.SidebarPaneHeights, y.SidebarPaneHeights) &&
 		slices.Equal(x.CustomColumns, y.CustomColumns) &&

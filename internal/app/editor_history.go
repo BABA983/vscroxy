@@ -220,6 +220,33 @@ func (a *app) closeOtherDocuments(keep *requestDocument) {
 	a.nextDocumentClose()
 }
 
+// closeOtherTabs keeps one tab of any kind, for the strip's own menu. The
+// close path is the same as Close Others for documents: clean tabs close now
+// and dirty requests queue the Save changes? prompt.
+func (a *app) closeOtherTabs(keep tabID) {
+	a.syncTabs()
+	g := a.tabsGroup()
+	if g.indexOf(keep) < 0 {
+		return
+	}
+	a.closingReturnTo = a.documentForTab(keep)
+	a.applyCloseResult(g.closeOthers(keep))
+	a.nextDocumentClose()
+}
+
+// closeTabsToRight closes every closable tab after of, leaving the tab the
+// menu opened on in place when it was active.
+func (a *app) closeTabsToRight(of tabID) {
+	a.syncTabs()
+	g := a.tabsGroup()
+	if g.indexOf(of) < 0 {
+		return
+	}
+	a.closingReturnTo = a.documentForTab(of)
+	a.applyCloseResult(g.closeToRight(of))
+	a.nextDocumentClose()
+}
+
 // closeSavedDocuments closes saved tabs with no edits. Unsaved drafts and
 // dirty requests stay open, as Close Saved Requests always has.
 func (a *app) closeSavedDocuments() {

@@ -735,7 +735,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 		do("api.generate", locales.GenerateOpenapi(), a.openAPIGeneration).
 			when(len(a.requests) > 0, locales.SaveARequestToA()).in("api"),
 	}
-	view := a.pickActions(c, "view.focus-inspector", "view.layout-right", "view.layout-bottom", "view.sidebar")
+	view := a.pickActions(c, "view.focus-inspector", "view.layout-right", "view.layout-bottom", "view.sidebar", "view.json-path")
 	view = append(view, pick(global, "capture.filter").as(locales.Filter()).in("filter"))
 	if a.filtersActive() {
 		view = append(view, do("capture.clear-filters", locales.ClearFilters(), a.clearFilters).in("filter"))
