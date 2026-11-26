@@ -2138,6 +2138,26 @@ func (msgs Messages) DraftUnsavedChanges(title string) string {
 	return Catalog.Format(msgs.locale, "draftUnsavedChanges", map[string]any{"title": title})
 }
 
+// DraftUnsavedDetail says "Your changes will be lost if you don't save them."
+// in the language the app shows.
+func DraftUnsavedDetail() string { return In(i18n.Locale()).DraftUnsavedDetail() }
+
+// DraftUnsavedDetail says "Your changes will be lost if you don't save them."
+// in the language of msgs.
+func (msgs Messages) DraftUnsavedDetail() string {
+	return Catalog.Format(msgs.locale, "draftUnsavedDetail", nil)
+}
+
+// DraftUnsavedTitle says "Do you want to save the changes you made to {name}?"
+// in the language the app shows.
+func DraftUnsavedTitle(name string) string { return In(i18n.Locale()).DraftUnsavedTitle(name) }
+
+// DraftUnsavedTitle says "Do you want to save the changes you made to {name}?"
+// in the language of msgs.
+func (msgs Messages) DraftUnsavedTitle(name string) string {
+	return Catalog.Format(msgs.locale, "draftUnsavedTitle", map[string]any{"name": name})
+}
+
 // DropMessage says "Drop message"
 // in the language the app shows.
 func DropMessage() string { return In(i18n.Locale()).DropMessage() }
@@ -15598,6 +15618,16 @@ func (msgs Messages) DeleteAddon() string {
 	return Catalog.Format(msgs.locale, "deleteAddon", nil)
 }
 
+// DeleteAddonMessage says "Scripts that require it fail until it is back."
+// in the language the app shows.
+func DeleteAddonMessage() string { return In(i18n.Locale()).DeleteAddonMessage() }
+
+// DeleteAddonMessage says "Scripts that require it fail until it is back."
+// in the language of msgs.
+func (msgs Messages) DeleteAddonMessage() string {
+	return Catalog.Format(msgs.locale, "deleteAddonMessage", nil)
+}
+
 // DeleteAllSecretsAndStart says "Delete all secrets and start over"
 // in the language the app shows.
 func DeleteAllSecretsAndStart() string { return In(i18n.Locale()).DeleteAllSecretsAndStart() }
@@ -15702,6 +15732,46 @@ func (msgs Messages) DeleteRule() string {
 	return Catalog.Format(msgs.locale, "deleteRule", nil)
 }
 
+// DeleteRuleMessage says "New requests will no longer use this rule. Local response files are kept for reuse."
+// in the language the app shows.
+func DeleteRuleMessage() string { return In(i18n.Locale()).DeleteRuleMessage() }
+
+// DeleteRuleMessage says "New requests will no longer use this rule. Local response files are kept for reuse."
+// in the language of msgs.
+func (msgs Messages) DeleteRuleMessage() string {
+	return Catalog.Format(msgs.locale, "deleteRuleMessage", nil)
+}
+
+// DeleteRuleTitle says "Delete rule?"
+// in the language the app shows.
+func DeleteRuleTitle() string { return In(i18n.Locale()).DeleteRuleTitle() }
+
+// DeleteRuleTitle says "Delete rule?"
+// in the language of msgs.
+func (msgs Messages) DeleteRuleTitle() string {
+	return Catalog.Format(msgs.locale, "deleteRuleTitle", nil)
+}
+
+// DeleteScenarioMessage says "Its rules are deleted too, with the mock files only they answer from."
+// in the language the app shows.
+func DeleteScenarioMessage() string { return In(i18n.Locale()).DeleteScenarioMessage() }
+
+// DeleteScenarioMessage says "Its rules are deleted too, with the mock files only they answer from."
+// in the language of msgs.
+func (msgs Messages) DeleteScenarioMessage() string {
+	return Catalog.Format(msgs.locale, "deleteScenarioMessage", nil)
+}
+
+// DeleteScenarioTitle says "Delete scenario?"
+// in the language the app shows.
+func DeleteScenarioTitle() string { return In(i18n.Locale()).DeleteScenarioTitle() }
+
+// DeleteScenarioTitle says "Delete scenario?"
+// in the language of msgs.
+func (msgs Messages) DeleteScenarioTitle() string {
+	return Catalog.Format(msgs.locale, "deleteScenarioTitle", nil)
+}
+
 // DeleteScript says "Delete script?"
 // in the language the app shows.
 func DeleteScript() string { return In(i18n.Locale()).DeleteScript() }
@@ -15710,6 +15780,16 @@ func DeleteScript() string { return In(i18n.Locale()).DeleteScript() }
 // in the language of msgs.
 func (msgs Messages) DeleteScript() string {
 	return Catalog.Format(msgs.locale, "deleteScript", nil)
+}
+
+// DeleteScriptMessage says "Rules remain: Script rules skip it; Code Mocks return a local 502 until another script is selected."
+// in the language the app shows.
+func DeleteScriptMessage() string { return In(i18n.Locale()).DeleteScriptMessage() }
+
+// DeleteScriptMessage says "Rules remain: Script rules skip it; Code Mocks return a local 502 until another script is selected."
+// in the language of msgs.
+func (msgs Messages) DeleteScriptMessage() string {
+	return Catalog.Format(msgs.locale, "deleteScriptMessage", nil)
 }
 
 // DeleteSession says "Delete session…"
@@ -34408,6 +34488,16 @@ func WorkspaceTrustPromptDetail(project string) string {
 // in the language of msgs.
 func (msgs Messages) WorkspaceTrustPromptDetail(project string) string {
 	return Catalog.Format(msgs.locale, "workspaceTrustPromptDetail", map[string]any{"project": project})
+}
+
+// DontSave says "Don't Save"
+// in the language the app shows.
+func DontSave() string { return In(i18n.Locale()).DontSave() }
+
+// DontSave says "Don't Save"
+// in the language of msgs.
+func (msgs Messages) DontSave() string {
+	return Catalog.Format(msgs.locale, "dontSave", nil)
 }
 
 // DontTrust says "Don't trust"

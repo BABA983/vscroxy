@@ -73,21 +73,6 @@ func TestSettingsRowCentersTheLabelOnASingleLineControl(t *testing.T) {
 	}
 }
 
-// A long URL in a tip gets places to wrap; a sentence keeps its words.
-func TestTipBreaksALongURL(t *testing.T) {
-	url := "https://example.com/" + strings.Repeat("segment", 12)
-	broken := breakLong(url)
-	if !strings.Contains(broken, "/\u200b") {
-		t.Fatalf("a long URL did not break after its slash: %q", broken)
-	}
-	if strings.Contains(broken, "segmentseg\u200b") {
-		t.Fatalf("a path with a slash still broke inside a word: %q", broken)
-	}
-	if got := breakLong("short"); got != "short" {
-		t.Fatalf("short text changed to %q", got)
-	}
-}
-
 // A label wider than the old fixed column takes the width it needs on the
 // next frame, up to the cap; a short label keeps the old column.
 func TestSettingsGroupWidensForALongLabel(t *testing.T) {

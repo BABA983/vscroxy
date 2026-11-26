@@ -319,37 +319,34 @@ func (a *app) cancelDocumentCloses() {
 	a.closingDocument, a.closingQueue, a.closingReturnTo = nil, nil, nil
 }
 
-func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
+func (a *app) closeRequestModal(c *ui.Context) {
 	d := a.closingDocument
 	if d == nil {
 		return
 	}
 	open := true
-	uikit.Modal(c, &open, locales.SaveChanges(), func() {
-		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, locales.SaveChanges())
-			uikit.Hint(c, locales.DraftUnsavedChanges(d.title()))
-			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
-					a.cancelDocumentCloses()
-				}
-				if uikit.SecondaryButton(c, locales.Discard()).Clicked() {
-					a.closeDocument(d)
-					a.finishDocumentClose()
-				}
-				if uikit.PrimaryButton(c, locales.SaveClose()).Clicked() {
-					a.activateDocument(d)
-					if a.saveComposed() {
-						a.closeDocument(d)
-						a.finishDocumentClose()
-					}
-				}
-			})
-		})
-	})
-	// The next prompt may have replaced this one in the same pass.
-	if !open && a.closingDocument == d {
+	switch uikit.ConfirmDialog(c, &open, uikit.ConfirmOptions{
+		Title:     locales.DraftUnsavedTitle(d.title()),
+		Message:   locales.DraftUnsavedDetail(),
+		Severity:  uikit.SeverityWarning,
+		Primary:   locales.Save(),
+		Secondary: locales.DontSave(),
+		Cancel:    locales.Cancel(),
+	}) {
+	case uikit.ConfirmCancel:
+		// Cancel ends the whole close, not just this tab.
 		a.cancelDocumentCloses()
+	case uikit.ConfirmSecondary:
+		a.closeDocument(d)
+		a.finishDocumentClose()
+	case uikit.ConfirmPrimary:
+		a.activateDocument(d)
+		if a.saveComposed() {
+			a.closeDocument(d)
+			a.finishDocumentClose()
+		}
+		// A failed save leaves the question up so the reader can retry or
+		// cancel, rather than dropping the prompt with the tab unsaved.
 	}
 }
 

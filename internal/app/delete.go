@@ -111,35 +111,36 @@ func (a *app) deleteModal(c *ui.Context, t *ui.Theme) {
 	if !del.open {
 		return
 	}
-	uikit.Modal(c, &del.open, locales.DeleteConfirm(del.name), func() {
-		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, locales.DeleteConfirm(del.name))
-			hint := locales.DeleteCanBeUndone(del.detail)
-			if del.session != "" {
-				hint = locales.DeleteCannotBeUndone(del.detail)
-			}
-			uikit.Hint(c, hint)
-			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
-					del.open = false
-				}
-				if uikit.DestructiveButton(c, locales.DeleteKind(del.kind)).Clicked() {
-					deleteAll := a.deleteAssets
-					if del.session != "" {
-						deleteAll = func(del deletion) (*undo.Handle, error) {
-							return nil, a.sessions.remove(del.session)
-						}
-					}
-					if handle, err := deleteAll(*del); err != nil {
-						a.fail(locales.Delete(), err)
-					} else if del.session == "" {
-						a.undoNotice(locales.DeletedQuoted(del.name), handle)
-					} else {
-						a.done(locales.DeletedQuoted(del.name))
-					}
-					del.open = false
-				}
-			})
-		})
+	hint := locales.DeleteCanBeUndone(del.detail)
+	if del.session != "" {
+		hint = locales.DeleteCannotBeUndone(del.detail)
+	}
+	result := uikit.ConfirmDialog(c, &del.open, uikit.ConfirmOptions{
+		Title:         locales.DeleteConfirm(del.name),
+		Message:       hint,
+		Severity:      uikit.SeverityDanger,
+		Primary:       locales.DeleteKind(del.kind),
+		Cancel:        locales.Cancel(),
+		PrimaryDanger: true,
 	})
+	if result == uikit.ConfirmNone {
+		return
+	}
+	del.open = false
+	if result != uikit.ConfirmPrimary {
+		return
+	}
+	deleteAll := a.deleteAssets
+	if del.session != "" {
+		deleteAll = func(del deletion) (*undo.Handle, error) {
+			return nil, a.sessions.remove(del.session)
+		}
+	}
+	if handle, err := deleteAll(*del); err != nil {
+		a.fail(locales.Delete(), err)
+	} else if del.session == "" {
+		a.undoNotice(locales.DeletedQuoted(del.name), handle)
+	} else {
+		a.done(locales.DeletedQuoted(del.name))
+	}
 }

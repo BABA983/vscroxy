@@ -108,6 +108,7 @@ func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variable
 		return // a code-action menu must not sit behind a value preview
 	}
 	t := c.Theme()
+	// Bare: the tip is a custom list of variable references, which uikit.TipSurface styles but no uikit tip wrapper builds.
 	ui.TooltipBase(c, anchor, func(tip ui.Element) {
 		uikit.TipSurface(c, tip)
 		tip.Width(360).Children(func() {

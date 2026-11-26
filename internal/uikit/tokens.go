@@ -133,6 +133,9 @@ const (
 	DialogSmall    = 480
 	DialogMedium   = 640
 	DialogLarge    = 840
+	// DialogConfirm is a confirmation's narrower panel: a question, a few
+	// lines about it and the buttons that answer it, not a form.
+	DialogConfirm = 400
 	// The floating scale. The workspace keeps its 24-point rows and 28/22
 	// controls; menus, popovers, dialogs, toasts and Settings use these.
 	MenuRowHeight     = 28

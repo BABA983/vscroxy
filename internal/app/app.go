@@ -2300,23 +2300,19 @@ func (a *app) view(c *ui.Context) {
 	// Dialogs keep their input and actions above background notifications.
 	uikit.Toasts(c)
 	a.commandPalette(c)
-	uikit.Modal(c, &a.clearOpen, locales.ClearCapturedRequests(), func() {
-		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, locales.ClearCapturedRequests())
-			ui.Scroll(c).MinHeight(0).Children(func() {
-				uikit.Prose(c, locales.UnpinnedRequestsWillBeRemoved())
-			})
-			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
-					a.clearOpen = false
-				}
-				if uikit.DestructiveButton(c, locales.ClearUnpinnedRequests()).Clicked() {
-					a.clearCaptured()
-					a.clearOpen = false
-				}
-			})
-		})
-	})
+	if result := uikit.ConfirmDialog(c, &a.clearOpen, uikit.ConfirmOptions{
+		Title:         locales.ClearCapturedRequests(),
+		Message:       locales.UnpinnedRequestsWillBeRemoved(),
+		Severity:      uikit.SeverityDanger,
+		Primary:       locales.ClearUnpinnedRequests(),
+		Cancel:        locales.Cancel(),
+		PrimaryDanger: true,
+	}); result != uikit.ConfirmNone {
+		a.clearOpen = false
+		if result == uikit.ConfirmPrimary {
+			a.clearCaptured()
+		}
+	}
 	a.settingsModal(c, t)
 	a.workspaceTrustModal(c, t)
 	a.logLevelModal(c)
@@ -2365,7 +2361,7 @@ func (a *app) view(c *ui.Context) {
 	a.networkModal(c, t)
 	a.keyLogModal(c, t)
 	a.reverseProxyModal(c, t)
-	a.closeRequestModal(c, t)
+	a.closeRequestModal(c)
 	a.apiGenerationModal(c, t)
 	a.curlImportModal(c, t)
 	a.urlImportModal(c, t)

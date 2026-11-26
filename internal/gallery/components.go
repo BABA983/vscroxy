@@ -747,20 +747,20 @@ func (k *components) dialogPlate(c *ui.Context) {
 	// components: the light export must not leave the dark one with a
 	// dialog already open.
 	open := ui.Local(c.Root(), "dialog-open", func() bool { return false })
-	stateRow(c, "Modal", func() {
+	stateRow(c, "Confirm", func() {
 		labelled(uikit.SecondaryButton(c, "Open dialog"), "Open dialog").OnClick(func() { *open = true })
-		uikit.Modal(c, open, "Delete 3 requests?", func() {
-			uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-				uikit.DialogTitle(c, "Delete 3 requests?")
-				uikit.Hint(c, "They leave this collection; captured traffic is not touched.")
-				uikit.DialogFooter(c).Children(func() {
-					uikit.SecondaryButton(c, "Cancel")
-					uikit.DestructiveButton(c, "Delete")
-				})
-			})
-		})
+		if uikit.ConfirmDialog(c, open, uikit.ConfirmOptions{
+			Title:     "Save changes to Draft A?",
+			Message:   "Your changes will be lost if you don't save them.",
+			Severity:  uikit.SeverityWarning,
+			Primary:   "Save",
+			Secondary: "Don't Save",
+			Cancel:    "Cancel",
+		}) != uikit.ConfirmNone {
+			*open = false
+		}
 	})
-	caption(c, "A destructive confirmation is the only place DestructiveButton appears: solid danger, one primary action, Cancel beside it.")
+	caption(c, "ConfirmDialog asks one question: a severity icon, a body-strong title, the message and an optional muted detail. The primary is filled, a secondary is outlined and Cancel is quiet; Escape cancels.")
 }
 
 func (k *components) commandPalettePlate(c *ui.Context) {

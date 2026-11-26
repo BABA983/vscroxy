@@ -40,14 +40,14 @@ func TestReopenDiscardedDraftRestoresExactDraftAtItsPosition(t *testing.T) {
 	}
 	a.requestClose(draft)
 	tt.Frame()
-	if !tt.HasText(locales.SaveChanges()) {
+	if !tt.HasText(locales.DraftUnsavedTitle(draft.title())) {
 		t.Fatalf("closing a dirty draft did not ask: %v", tt.Texts())
 	}
 	// With the prompt up, the tab still holds the draft Discard is about to
 	// close; compare the reopened document against that value.
 	want := draft.value()
 	wantKey, wantBaseline := draft.savedKey, draft.baseline
-	if err := tt.Click(locales.Discard()); err != nil {
+	if err := tt.Click(locales.DontSave()); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -96,10 +96,10 @@ func TestTabCloseAsksBeforeDiscarding(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.closingDocument != draft || !tt.HasText(locales.SaveChanges()) {
+	if a.closingDocument != draft || !tt.HasText(locales.DraftUnsavedTitle(draft.title())) {
 		t.Fatalf("tab close did not ask: %v", tt.Texts())
 	}
-	if err := tt.Click(locales.Discard()); err != nil {
+	if err := tt.Click(locales.DontSave()); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -254,17 +254,17 @@ func TestCloseOthersPromptsEachDirtyTabAndKeepsTheActiveOne(t *testing.T) {
 	tt.Frame()
 	a.closeOtherDocuments(keep)
 	tt.Frame()
-	if a.closingDocument != first || !tt.HasText(locales.DraftUnsavedChanges(first.title())) {
+	if a.closingDocument != first || !tt.HasText(locales.DraftUnsavedTitle(first.title())) {
 		t.Fatalf("first prompt was for %v: %v", a.closingDocument, tt.Texts())
 	}
-	if err := tt.Click(locales.Discard()); err != nil {
+	if err := tt.Click(locales.DontSave()); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.closingDocument != second || !tt.HasText(locales.DraftUnsavedChanges(second.title())) {
+	if a.closingDocument != second || !tt.HasText(locales.DraftUnsavedTitle(second.title())) {
 		t.Fatalf("second prompt was for %v: %v", a.closingDocument, tt.Texts())
 	}
-	if err := tt.Click(locales.Discard()); err != nil {
+	if err := tt.Click(locales.DontSave()); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()

@@ -99,6 +99,7 @@ func (a *app) unicodeMarker(c *ui.Context, key, raw string, masked bool) bool {
 func (a *app) unicodeTip(c *ui.Context, marker ui.Element, raw string, highlights []unicodechars.Highlight, masked bool) {
 	t := c.Theme()
 	details := unicodeTipDetails(raw, highlights, masked)
+	// Bare: the tip reveals the masked characters as rich text, which uikit.TipSurface styles but no uikit tip wrapper builds.
 	ui.TooltipBase(c, marker, func(tip ui.Element) {
 		uikit.TipSurface(c, tip)
 		tip.Children(func() {

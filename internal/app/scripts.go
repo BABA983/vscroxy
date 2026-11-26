@@ -647,16 +647,25 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 		}
 		a.scriptEditor(c, t, s, s.choice)
 	})
-	message := "Rules remain: Script rules skip it; Code Mocks return a local 502 until another script is selected."
-	if s.addon {
-		message = "Scripts that require it fail until it is back."
-	}
+	message := locales.DeleteScriptMessage()
 	deleteTitle := locales.DeleteScript()
 	if s.addon {
+		message = locales.DeleteAddonMessage()
 		deleteTitle = locales.DeleteAddon()
 	}
-	if ui.AlertDialog(c, &s.deleting, deleteTitle, message, locales.Cancel(), locales.Delete()) == 1 {
+	switch uikit.ConfirmDialog(c, &s.deleting, uikit.ConfirmOptions{
+		Title:         deleteTitle,
+		Message:       message,
+		Severity:      uikit.SeverityDanger,
+		Primary:       locales.Delete(),
+		Cancel:        locales.Cancel(),
+		PrimaryDanger: true,
+	}) {
+	case uikit.ConfirmPrimary:
+		s.deleting = false
 		a.dropScript(s, s.choice)
+	case uikit.ConfirmCancel:
+		s.deleting = false
 	}
 }
 

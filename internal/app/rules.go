@@ -552,7 +552,16 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 		}
 		a.ruleDetail(c, t)
 	})
-	if ui.AlertDialog(c, &e.deleting, "Delete rule?", "New requests will no longer use this rule. Local response files are kept for reuse.", "Cancel", "Delete") == 1 {
+	switch uikit.ConfirmDialog(c, &e.deleting, uikit.ConfirmOptions{
+		Title:         locales.DeleteRuleTitle(),
+		Message:       locales.DeleteRuleMessage(),
+		Severity:      uikit.SeverityDanger,
+		Primary:       locales.Delete(),
+		Cancel:        locales.Cancel(),
+		PrimaryDanger: true,
+	}) {
+	case uikit.ConfirmPrimary:
+		e.deleting = false
 		next := slices.Delete(slices.Clone(a.rules), e.index, e.index+1)
 		if a.applyRuleChanges(next) {
 			e.open = false
@@ -562,6 +571,8 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 				a.editRule(i, next[i])
 			}
 		}
+	case uikit.ConfirmCancel:
+		e.deleting = false
 	}
 }
 

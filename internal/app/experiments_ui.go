@@ -474,28 +474,26 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 			})
 		})
 	})
-	uikit.Modal(c, &s.clearing, locales.ClearHistory2(), func() {
-		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, locales.ClearHistory2())
-			uikit.Hint(c, locales.ThisRemovesTheRetainedRuns())
-			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
-					s.clearing = false
-				}
-				if uikit.DestructiveButton(c, locales.ClearRecords()).Clicked() {
-					s.log.clearSpill()
-					s.log.Records = nil
-					s.log.Baseline = 0
-					s.picked = 0
-					s.left = 0
-					s.reader = nil
-					if a.compare.selected.kind == "run" {
-						a.compare.selected = compareTarget{}
-					}
-					s.clearing = false
-					s.persist()
-				}
-			})
-		})
-	})
+	if result := uikit.ConfirmDialog(c, &s.clearing, uikit.ConfirmOptions{
+		Title:         locales.ClearHistory2(),
+		Message:       locales.ThisRemovesTheRetainedRuns(),
+		Severity:      uikit.SeverityDanger,
+		Primary:       locales.ClearRecords(),
+		Cancel:        locales.Cancel(),
+		PrimaryDanger: true,
+	}); result != uikit.ConfirmNone {
+		s.clearing = false
+		if result == uikit.ConfirmPrimary {
+			s.log.clearSpill()
+			s.log.Records = nil
+			s.log.Baseline = 0
+			s.picked = 0
+			s.left = 0
+			s.reader = nil
+			if a.compare.selected.kind == "run" {
+				a.compare.selected = compareTarget{}
+			}
+			s.persist()
+		}
+	}
 }

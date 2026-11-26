@@ -3719,7 +3719,7 @@ func TestOpenRequestsKeepDraftsAndConfirmClose(t *testing.T) {
 		t.Fatal("switching requests lost Draft A's body or editor selection")
 	}
 	click("Close tab: Draft A")
-	if !tt.HasText("Save changes?") {
+	if !tt.HasText(locales.DraftUnsavedTitle("Draft A")) {
 		t.Fatal("dirty request closed without confirmation")
 	}
 	click("Cancel")
@@ -3730,12 +3730,12 @@ func TestOpenRequestsKeepDraftsAndConfirmClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.library.root = filepath.Join(blocked, "collections")
-	click("Save & close")
-	if !tt.HasText("Save changes?") {
+	tt.Key(0, ui.KeyEnter)
+	if !tt.HasText(locales.DraftUnsavedTitle("Draft A")) {
 		t.Fatal("failed save discarded the draft")
 	}
 	a.library.root = filepath.Join(t.TempDir(), "collections")
-	click("Save & close")
+	tt.Key(0, ui.KeyEnter)
 	list, err := loadLibraryRequests(a.library.root)
 	if err != nil {
 		t.Fatal(err)
@@ -3751,7 +3751,7 @@ func TestOpenRequestsKeepDraftsAndConfirmClose(t *testing.T) {
 	}
 	click("Unsaved: Draft B")
 	click("Close tab: Draft B")
-	click("Discard")
+	click(locales.DontSave())
 	if !tt.HasText("Captured requests") || tt.HasText("Unsaved requests") {
 		t.Fatal("closing the last request did not return to LIVE")
 	}
@@ -6118,14 +6118,14 @@ func TestNativeCommandsRespectModalScopeAndDraftCloseProtection(t *testing.T) {
 	choose("request.new")
 	tt.Type("https://draft.example.com")
 	choose("request.close")
-	if !tt.HasText("Save changes?") {
+	if !tt.HasText(locales.DontSave()) {
 		t.Fatal("native close bypassed unsaved draft protection")
 	}
 	// A native callback queued before the focus changed must be rejected too.
 	item := menu.ItemByID("request.new")
 	item.Click(item, nil)
 	tt.Frame()
-	if len(a.documents) != 2 || !tt.HasText("Save changes?") {
+	if len(a.documents) != 2 || !tt.HasText(locales.DontSave()) {
 		t.Fatal("native command escaped the modal scope")
 	}
 	tt.Key(0, ui.KeyEscape)

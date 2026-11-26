@@ -996,6 +996,15 @@
     }
   },
   "draftUnsavedChanges": "{title} has unsaved changes. Closing it without saving will discard this draft.",
+  "draftUnsavedDetail": "Your changes will be lost if you don't save them.",
+  "@draftUnsavedTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "draftUnsavedTitle": "Do you want to save the changes you made to {name}?",
   "dropMessage": "Drop message",
   "@droppedConnections": {
     "placeholders": {
@@ -5498,6 +5507,7 @@
   "delete": "Delete",
   "delete2": "Delete…",
   "deleteAddon": "Delete addon?",
+  "deleteAddonMessage": "Scripts that require it fail until it is back.",
   "deleteAllSecretsAndStart": "Delete all secrets and start over",
   "deleteCannotBeUndone": "{detail} This cannot be undone.",
   "deleteConfirm": "Delete {name}?",
@@ -5518,7 +5528,12 @@
   "deleteNamed": "Delete {name}",
   "deleteRequest": "Delete request…",
   "deleteRule": "Delete rule…",
+  "deleteRuleMessage": "New requests will no longer use this rule. Local response files are kept for reuse.",
+  "deleteRuleTitle": "Delete rule?",
+  "deleteScenarioMessage": "Its rules are deleted too, with the mock files only they answer from.",
+  "deleteScenarioTitle": "Delete scenario?",
   "deleteScript": "Delete script?",
+  "deleteScriptMessage": "Rules remain: Script rules skip it; Code Mocks return a local 502 until another script is selected.",
   "deleteSession": "Delete session…",
   "deleteWithItsRules": "Delete with its rules…",
   "deletedCaptureFilter": "Deleted capture filter {name}",
@@ -7516,6 +7531,7 @@
   "workspaceTrust": "Workspace Trust",
   "workspaceTrustPrompt": "Trust scripts in this project?",
   "workspaceTrustPromptDetail": "Scripts in {project} can send requests and read environment variables. Trust only projects you recognize.",
+  "dontSave": "Don't Save",
   "dontTrust": "Don't trust",
   "scriptsSkippedRestrictedMode": "Scripts skipped · restricted mode",
   "workspaceTrustHint": "Each project folder keeps its own answer. Collections in the user library always run their scripts.",

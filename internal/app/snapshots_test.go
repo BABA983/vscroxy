@@ -32,6 +32,7 @@ import (
 	"github.com/baba983/vscroxy/internal/runner"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/baba983/vscroxy/internal/upstream"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/gorilla/websocket"
@@ -1956,7 +1957,7 @@ func snapshotStates(t *testing.T) []snapshot {
 			tt.Press(box.X+box.W/2, box.Y+box.H/2)
 		}, want: "Save"},
 		{name: "dialog-delete", setup: func(a *app) { a.confirmDeleteFolder("Workspace") }, want: "Delete collection"},
-		{name: "dialog-close-unsaved", setup: func(a *app) { draft(a); a.closingDocument = a.requestDocument }, want: "Save changes?"},
+		{name: "dialog-close-unsaved", setup: func(a *app) { draft(a); a.closingDocument = a.requestDocument }, want: locales.DraftUnsavedDetail()},
 		{name: "dialog-rename", setup: func(a *app) { draft(a); a.renameOpen = true }, want: "Rename request"},
 		{name: "dialog-header-warning", setup: func(a *app) { draft(a); a.requestDocument.headerWarn = true }, want: "Bulk edit shows credentials"},
 		{name: "commands", setup: func(a *app) { a.workbench.openPalette() }, want: "Find command"},

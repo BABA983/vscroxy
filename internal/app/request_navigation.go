@@ -138,6 +138,7 @@ func (a *app) commitFolderRename(path string) {
 func (a *app) folderName(c *ui.Context, path, name string, matches []fuzzy.Match) {
 	t := c.Theme()
 	if a.folderRename.path == path {
+		// Bare: the inline rename is the tree row itself, at row height and with the accent edge, not the kit's field face.
 		input := ui.TextInput(c, &a.folderRename.name).
 			Label(locales.RenameNamed(name)).
 			Height(uikit.HeightRow).Grow(1).MinWidth(0).

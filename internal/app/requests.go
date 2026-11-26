@@ -584,6 +584,7 @@ func (a *app) commitRequestRename() {
 // stays put while the name changes.
 func (a *app) requestTitle(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	if a.titleEdit.id == d.id {
+		// Bare: the inline rename is the breadcrumb itself, at row height and with the accent edge, not the kit's field face.
 		input := ui.TextInput(c, &a.titleEdit.name).
 			Label(locales.RenameRequest()).
 			Height(uikit.HeightSecondary).Grow(1).MinWidth(uikit.WidthField).
@@ -761,22 +762,19 @@ func (a *app) headerWarnModal(c *ui.Context, t *ui.Theme) {
 	if d == nil || !d.headerWarn {
 		return
 	}
-	uikit.Modal(c, &d.headerWarn, locales.BulkEditShowsCredentials(), func() {
-		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, locales.BulkEditShowsCredentials())
-			uikit.Hint(c, locales.TheKeyValueBlockWrites())
-			uikit.Hint(c, locales.SwitchingModesDoesNotSend())
-			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
-					d.headerWarn = false
-				}
-				if uikit.PrimaryButton(c, locales.ShowValues()).Clicked() {
-					d.headerWarn = false
-					toggleHeaderMode(d)
-				}
-			})
-		})
-	})
+	if result := uikit.ConfirmDialog(c, &d.headerWarn, uikit.ConfirmOptions{
+		Title:    locales.BulkEditShowsCredentials(),
+		Message:  locales.TheKeyValueBlockWrites(),
+		Detail:   locales.SwitchingModesDoesNotSend(),
+		Severity: uikit.SeverityWarning,
+		Primary:  locales.ShowValues(),
+		Cancel:   locales.Cancel(),
+	}); result != uikit.ConfirmNone {
+		d.headerWarn = false
+		if result == uikit.ConfirmPrimary {
+			toggleHeaderMode(d)
+		}
+	}
 }
 
 // requestRenameModal edits the document's name and collection, so neither

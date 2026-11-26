@@ -149,8 +149,19 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 		}
 		a.scenarioDetail(c, t, s.choice, current)
 	})
-	if ui.AlertDialog(c, &s.deleting, "Delete scenario?", "Its rules are deleted too, with the mock files only they answer from.", "Cancel", "Delete") == 1 {
+	switch uikit.ConfirmDialog(c, &s.deleting, uikit.ConfirmOptions{
+		Title:         locales.DeleteScenarioTitle(),
+		Message:       locales.DeleteScenarioMessage(),
+		Severity:      uikit.SeverityDanger,
+		Primary:       locales.Delete(),
+		Cancel:        locales.Cancel(),
+		PrimaryDanger: true,
+	}) {
+	case uikit.ConfirmPrimary:
+		s.deleting = false
 		a.deleteScenario(s.choice)
+	case uikit.ConfirmCancel:
+		s.deleting = false
 	}
 }
 

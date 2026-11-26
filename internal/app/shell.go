@@ -176,15 +176,9 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	case running:
 		state, dot = locales.RecordingState(), t.Success
 	}
-	b := ui.ButtonBase(c).Label(locales.ProxyStatus()).Height(uikit.HeightControlSmall).
-		Padding(0, uikit.Scaled(uikit.ControlPaddingXSmall)).Gap(t.Space(uikit.SpaceS)).
-		Radius(uikit.RadiusInner).AlignItems(ui.Center)
-	switch {
-	case b.Pressed():
-		b.Background(pal.MutedPressed)
-	case b.Hovered():
-		b.Background(pal.MutedHover)
-	}
+	b := uikit.ToolbarButton(c, locales.ProxyStatus(), "", false).
+		Height(uikit.HeightControlSmall).Padding(0, uikit.Scaled(uikit.ControlPaddingXSmall)).
+		Gap(t.Space(uikit.SpaceS)).Radius(uikit.RadiusInner)
 	card := uikit.HoverCard{Title: state, Meta: locales.ProxyTipOff()}
 	if running {
 		card.Meta = locales.ProxyTipOn()
