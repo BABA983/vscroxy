@@ -2484,7 +2484,6 @@
     }
   },
   "openSessionWith": "Open session: {error}",
-  "openTabsMostRecentlyUsed": "Open tabs, most recently used first",
   "openedProxiedChrome": "Opened proxied Chrome",
   "openedProxiedFirefox": "Opened proxied Firefox",
   "openedProxiedTerminal": "Opened proxied terminal",
@@ -4746,7 +4745,15 @@
   "algorithm": "Algorithm",
   "all": "All",
   "allAnd": "All (AND)",
+  "@allOpenTabsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "allOpenTabs": "All open tabs",
+  "allOpenTabsCount": "All open tabs ({count})",
   "allRequests": "All requests",
   "allSources": "All sources",
   "allStatuses": "All statuses",
@@ -4936,6 +4943,8 @@
   "breakpointHeaders": "Breakpoint headers",
   "breakpointTemplate": "Breakpoint template",
   "breakpoints": "Breakpoints",
+  "breakpointsOffTip": "Breakpoints are off. Click to pause each matching request or response.",
+  "breakpointsOnTip": "Breakpoints are on. Click to stop pausing requests.",
   "broker": "Broker",
   "brokerAssignsOne": "Broker assigns one",
   "browse": "Browse…",
@@ -7377,6 +7386,7 @@
   "testDiffNamed": "{name} · assertion diff",
   "testGetHttpsApiExample": "Test: GET https://api.example.com @ App; Header: value",
   "testGraphqlBody": "Test GraphQL body",
+  "testUrlPlaceholder": "Test a URL…",
   "text": "Text",
   "textHexBytesOrPadded": "Text, hex bytes or padded base64",
   "textPreviewLimitedTo4": "Text preview limited to 4 KiB",

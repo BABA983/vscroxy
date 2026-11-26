@@ -362,7 +362,15 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 		if uikit.IconButton(c, locales.Clear(), locales.ClearRecords(), clearIcon).Disabled(len(a.flows) == 0).Clicked() {
 			a.clearOpen = true
 		}
-		breakButton := uikit.IconButton(c, locales.Breakpoints(), locales.PauseEachMatchingRequestOr(), breakIcon)
+		breakTip := locales.BreakpointsOffTip()
+		if a.breakOn {
+			breakTip = locales.BreakpointsOnTip()
+		}
+		breakButton := uikit.ToolbarButton(c, locales.Breakpoints(), breakTip, a.breakOn).
+			Size(uikit.HeightControl, uikit.HeightControl).Padding(0).Justify(ui.Center)
+		breakButton.Children(func() {
+			ui.Icon(c, breakIcon).Size(uikit.IconInline, uikit.IconInline)
+		})
 		if breakButton.Clicked() && a.srv != nil {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
@@ -382,8 +390,14 @@ func (a *app) followButton(c *ui.Context, t *ui.Theme) {
 		tip = locales.AutoSelectOffTip()
 	}
 	b := uikit.ToolbarButton(c, locales.AutoSelect(), tip, on).Gap(t.Space(uikit.SpaceXS)).Padding(0, t.Space(uikit.SpaceS))
+	if on && !b.Hovered() && !b.Pressed() {
+		// On is the selected face, stronger than the pointer's wash, so a
+		// reader can tell the toggle is following without hovering it.
+		p := uikit.Colors(t)
+		b.Background(p.MutedPressed).InsetShadow(0, 0, 0, uikit.HairlineWidth, p.Border)
+	}
 	b.Children(func() {
-		ui.Icon(c, followIcon).Size(uikit.IconInline, uikit.IconInline)
+		uikit.Body(c, locales.AutoSelect()).SingleLine()
 		if n := a.newRows; n > 0 {
 			uikit.Meta(c, locales.AutoSelectCount(n)).FontFeatures("tnum").SingleLine()
 		}

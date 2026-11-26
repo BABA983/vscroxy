@@ -2882,7 +2882,7 @@ func TestFooterKeepsTheNewCountApartFromTheLabel(t *testing.T) {
 }
 
 // Auto-select at rest, under the pointer and on are three faces: on is the
-// toolbar's active tint, which does not read as hover.
+// toggle's selected face, which does not read as hover.
 func TestAutoSelectFacesAreDistinct(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1280, 800)
@@ -2911,6 +2911,32 @@ func TestAutoSelectFacesAreDistinct(t *testing.T) {
 	hoverR, hoverG, hoverB := face()
 	if restR == onR && restG == onG && restB == onB || restR == hoverR && restG == hoverG && restB == hoverB || onR == hoverR && onG == hoverG && onB == hoverB {
 		t.Fatalf("faces read alike: rest (%d,%d,%d), on (%d,%d,%d), hover (%d,%d,%d)", restR, restG, restB, onR, onG, onB, hoverR, hoverG, hoverB)
+	}
+}
+
+// Breakpoints is a switch on the toolbar: while it is on its icon sits on the
+// selected face, not the bare toolbar the off state shows.
+func TestBreakpointsToolbarShowsItsOnFace(t *testing.T) {
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	face := func() (r, g, b uint8) {
+		t.Helper()
+		button, ok := tt.Find(locales.Breakpoints())
+		if !ok {
+			t.Fatalf("no Breakpoints button: %q", tt.Texts())
+		}
+		c := tt.Image().RGBAAt(int(button.X)+3, int(button.Y+button.H/2))
+		return c.R, c.G, c.B
+	}
+	offR, offG, offB := face()
+	a.breakOn = true
+	a.srv.SetBreak(true)
+	tt.Frame()
+	onR, onG, onB := face()
+	if offR == onR && offG == onG && offB == onB {
+		t.Fatalf("Breakpoints on looks like off: (%d,%d,%d)", onR, onG, onB)
 	}
 }
 
@@ -5720,6 +5746,60 @@ func TestSplitDoubleClickRestoresInspectorSplitters(t *testing.T) {
 	}
 }
 
+// The stacked inspector keeps its draggable divider, but the request side
+// stops at the height its tab row, header line and one row need.
+func TestStackedInspectorSplitStopsAtTheRequestMinimum(t *testing.T) {
+	a := workspaceApp()
+	a.picked = 0
+	tt := ui.NewTester(a.view, 960, 760)
+	tt.Frame()
+	tt.Frame()
+	divider := func() ui.AccessInfo {
+		t.Helper()
+		var found ui.AccessInfo
+		for _, info := range tt.AccessAll() {
+			if info.Role == ui.RoleSplitter && info.Bounds.W > 400 && info.Bounds.H == 1 && info.Bounds.Y > found.Bounds.Y {
+				found = info
+			}
+		}
+		if found.Bounds.H == 0 {
+			t.Fatalf("the stacked inspector has no divider: %v", tt.Texts())
+		}
+		return found
+	}
+	height := func() float32 {
+		t.Helper()
+		pane, ok := tt.Find(locales.RequestPaneName())
+		if !ok {
+			t.Fatalf("no request pane: %v", tt.Texts())
+		}
+		return divider().Bounds.Y - pane.Y
+	}
+	if got := height(); got < 129 || got > 132 {
+		t.Fatalf("request side starts at %.0f, want the 130 pt minimum", got)
+	}
+	// Give the request more room, then drag the divider past its minimum.
+	d := divider()
+	x := d.Bounds.X + d.Bounds.W/2
+	tt.Press(x, d.Bounds.Y)
+	tt.Move(x, d.Bounds.Y+80)
+	tt.Release(x, d.Bounds.Y+80)
+	tt.Frame()
+	tt.Frame()
+	if got := height(); got <= 132 {
+		t.Fatalf("dragging down left the request at %.0f, want it taller", got)
+	}
+	d = divider()
+	tt.Press(x, d.Bounds.Y)
+	tt.Move(x, d.Bounds.Y-400)
+	tt.Release(x, d.Bounds.Y-400)
+	tt.Frame()
+	tt.Frame()
+	if got := height(); got < 129 || got > 132 {
+		t.Fatalf("dragging past the minimum left the request at %.0f, want 130", got)
+	}
+}
+
 func TestCaptureSelectionMarkerFollowsListAndWindowFocus(t *testing.T) {
 	// Expected colors are the design's Light/Dark values, not read from
 	// uikit: accent tint fill and accent marker while the list has the
@@ -5806,7 +5886,7 @@ func TestCommandPaletteKeyboardAndDisabledActions(t *testing.T) {
 	// Check the visible effect on a wide window, not the command's storage.
 	tt.SetSize(1440, 860)
 	method, _ := tt.Find("Method")
-	title, _ := tt.Find("GET https://api.example.com/projects")
+	title, _ := tt.Find("Matches: List projects")
 	if title.Y <= method.Y+100 {
 		t.Fatalf("arrow navigation did not choose Layout: Stacked: layout %q, command %d, method %v, title %v", a.workbench.layout, a.workbench.command, method, title)
 	}

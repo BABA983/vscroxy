@@ -161,34 +161,38 @@ func settingsFind(a *app, input string) []settingsSearchHit {
 	return hits
 }
 
-// settingsSearchBar sits above both Settings shells, so Cmd/Ctrl+, can focus
-// the same field whether Settings is a window or a dialog.
+// settingsSearchBar is the dialog's search row. The window keeps the same
+// field in its title bar instead, so Cmd/Ctrl+, can focus one field in either
+// shell.
 func (a *app) settingsSearchBar(c *ui.Context, t *ui.Theme) {
-	// The field is the app's own search field, not a text field with a
-	// magnifier beside it: Settings is one more list to find something in.
-	// The bar keeps a margin under the field, so it does not sit on the
-	// categories it opens.
 	ui.Row(c.Key("settings-search")).FillWidth().Height(uikit.HeightBar+t.Space(uikit.SpaceM)).AlignItems(ui.Center).
 		Padding(0, t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceS)).Children(func() {
-		field, input := uikit.SearchFieldInput(c, &a.settingsQuery, locales.SettingsSearchLabel(), locales.SettingsSearchPlaceholder(), false)
-		field.Grow(1).MinWidth(240)
-		input.Bind(&a.settingsSearchHandle)
-		input.FocusBind(&a.settingsFocusSearch, a.settingsFocusSearch)
-		// Escape clears a query; on an empty field it is left to the
-		// window, so it closes Settings as it closed Tools.
-		if a.settingsQuery != "" {
-			input.OnShortcut(0, ui.KeyEscape, func() {
-				a.settingsQuery = ""
-				a.settingsFocusSearch = 0
-			})
-		}
-		if a.settingsQuery != "" && uikit.SecondaryButton(c, locales.Clear()).KeepFocus().Clicked() {
-			a.settingsQuery = ""
-		}
-		// A window narrow enough for Settings keeps the field's room and
-		// shortens the hint, whose tooltip still says the whole sentence.
-		uikit.Tip(c, uikit.Meta(c, locales.SettingsSearchHint()).SingleLine().Shrink(1), locales.SettingsSearchHint())
+		a.settingsSearchField(c)
 	})
+}
+
+// settingsSearchField adds Settings' search field, and its Clear action when
+// there is a query, to the row being built. The hint is the field's tooltip:
+// a second run beside it crowded the title bar and the categories alike.
+func (a *app) settingsSearchField(c *ui.Context) {
+	// The field is the app's own search field, not a text field with a
+	// magnifier beside it: Settings is one more list to find something in.
+	field, input := uikit.SearchFieldInput(c, &a.settingsQuery, locales.SettingsSearchLabel(), locales.SettingsSearchPlaceholder(), false)
+	field.Grow(1).MinWidth(240)
+	input.Bind(&a.settingsSearchHandle)
+	input.FocusBind(&a.settingsFocusSearch, a.settingsFocusSearch)
+	// Escape clears a query; on an empty field it is left to the window, so
+	// it closes Settings as it closed Tools.
+	if a.settingsQuery != "" {
+		input.OnShortcut(0, ui.KeyEscape, func() {
+			a.settingsQuery = ""
+			a.settingsFocusSearch = 0
+		})
+	}
+	uikit.Tip(c, field, locales.SettingsSearchHint())
+	if a.settingsQuery != "" && uikit.SecondaryButton(c, locales.Clear()).KeepFocus().Clicked() {
+		a.settingsQuery = ""
+	}
 }
 
 // settingsSearchResults draws ranked hits grouped by Settings section. The

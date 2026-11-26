@@ -1,6 +1,7 @@
 package uikit
 
 import (
+	"slices"
 	"strconv"
 
 	"github.com/baba983/vscroxy/locales"
@@ -36,7 +37,6 @@ type DocumentTabsOptions struct {
 	Tabs          []DocumentTab
 	NewLabel      string
 	OverflowLabel string
-	OverflowTip   string
 	// Trailing draws a control that belongs to the open document rather than
 	// to the window, such as the environment a request sends in. It keeps its
 	// place while the tabs scroll.
@@ -81,7 +81,8 @@ func DocumentTabs(c *ui.Context, o DocumentTabsOptions) ui.Element {
 				}
 			})
 		}).Grow(1).FillHeight()
-		if o.OnOverflow != nil {
+		// With only the fixed Live tab open, the list would repeat the strip.
+		if o.OnOverflow != nil && slices.ContainsFunc(o.Tabs, func(tab DocumentTab) bool { return !tab.Fixed }) {
 			overflowTabs(c, o)
 		}
 		if o.Trailing != nil {
@@ -209,26 +210,22 @@ func newDocumentTab(c *ui.Context, o DocumentTabsOptions) {
 
 func overflowTabs(c *ui.Context, o DocumentTabsOptions) {
 	t := c.Theme()
-	label := o.OverflowLabel
-	if label == "" {
-		label = locales.AllOpenTabs()
+	tip := locales.AllOpenTabsCount(len(o.Tabs))
+	if o.OverflowLabel != "" {
+		tip = o.OverflowLabel + " (" + strconv.Itoa(len(o.Tabs)) + ")"
 	}
 	var button ui.Element
 	MenuFace(c, func() {
-		button = ui.ButtonBase(c).Label(label+" ("+strconv.Itoa(len(o.Tabs))+")").
+		button = ui.ButtonBase(c).Label(tip).
 			PopoverMenuButton(o.OnOverflow, MenuButtonOptions(c))
 	})
-	button.Height(HeightControlSmall).MarginY((HeightTabs-HeightControlSmall)/2).
-		Padding(0, t.Space(SpaceS)).Gap(t.Space(SpaceXS)).
-		Radius(RadiusControl).Shrink(0).AlignItems(ui.Center)
+	button.Size(HeightControlSmall, HeightControlSmall).MarginY((HeightTabs - HeightControlSmall) / 2).
+		Padding(0).Radius(RadiusControl).Shrink(0).AlignItems(ui.Center).Justify(ui.Center)
 	if button.Hovered() {
 		button.Background(t.Border)
 	}
 	button.Children(func() {
 		ui.Icon(c, chevronIcon).Size(IconLarge, IconLarge).TextColor(t.TextMuted)
-		Meta(c, strconv.Itoa(len(o.Tabs)))
 	})
-	if o.OverflowTip != "" {
-		Tip(c, button, o.OverflowTip)
-	}
+	Tip(c, button, tip)
 }

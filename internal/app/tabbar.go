@@ -44,7 +44,6 @@ func (a *app) tabBar(c *ui.Context, t *ui.Theme) {
 		Tabs:          items,
 		NewLabel:      locales.NewRequest(),
 		OverflowLabel: locales.AllOpenTabs(),
-		OverflowTip:   locales.OpenTabsMostRecentlyUsed(),
 		OnActivate: func(i int) {
 			// Choosing Live is choosing the traffic; Live after a close is not.
 			if ids[i].kind == pageLive {

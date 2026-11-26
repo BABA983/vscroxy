@@ -28,8 +28,7 @@ var (
 	pinIcon           = lucide.Pin()
 	filterIcon        = lucide.Funnel()
 	breakIcon         = lucide.CirclePause()
-	clearIcon         = lucide.Eraser()
-	followIcon        = lucide.ArrowDownToLine()
+	clearIcon         = lucide.Trash()
 	clockIcon         = lucide.Clock()
 	backIcon          = lucide.ArrowLeft()
 	searchIcon        = lucide.Search()
@@ -37,6 +36,7 @@ var (
 	sidebarCloseIcon  = lucide.PanelLeftClose()
 	monitorIcon       = lucide.Monitor()
 	layersIcon        = lucide.Layers()
+	layersPlusIcon    = lucide.LayersPlus()
 	closeIcon         = lucide.X()
 	sendHistoryIcon   = lucide.RotateCcwClock()
 	sendIcon          = lucide.Send()
@@ -88,7 +88,7 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 						a.settingsOpen = false
 					}
 				})
-			})
+			}, true)
 		})
 	})
 	if !a.settingsOpen && a.toolsOpen {
@@ -191,7 +191,7 @@ func (a *app) settingsView(c *ui.Context) {
 	}
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		a.settingsTitleBar(c, t)
-		a.settingsContent(c, t, a.settingsFocused, nil)
+		a.settingsContent(c, t, a.settingsFocused, nil, false)
 	})
 	uikit.Toasts(c)
 	a.systemProxy.shown = !a.toolsOpen && a.settingsTab == 1
@@ -201,8 +201,9 @@ func (a *app) settingsView(c *ui.Context) {
 }
 
 // settingsTitleBar is the Settings window's own title bar: the traffic lights
-// sit on it and the row drags the window, as the main window's brand bar does,
-// so Settings is the same material as the rest of the app.
+// sit on it, then the heading and the search field, and what is neither drags
+// the window, as the main window's brand bar does, so Settings is the same
+// material as the rest of the app.
 func (a *app) settingsTitleBar(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
 	start := t.Space(uikit.SpaceXL)
@@ -210,8 +211,9 @@ func (a *app) settingsTitleBar(c *ui.Context, t *ui.Theme) {
 		start += bar.Left
 	}
 	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).PaddingEnd(t.Space(uikit.SpaceXL)).
-		AlignItems(ui.Center).DragWindow().Children(func() {
-		uikit.Heading(c, locales.Settings()).TextColor(t.Text).SingleLine()
+		Gap(t.Space(uikit.SpaceXL)).AlignItems(ui.Center).DragWindow().Children(func() {
+		uikit.Heading(c, locales.Settings()).TextColor(t.Text).SingleLine().Shrink(0)
+		a.settingsSearchField(c)
 	})
 }
 
@@ -239,13 +241,17 @@ func (a *app) chooseSettingsCategory(id string) {
 
 // settingsContent is Settings itself: categories on the left, the chosen
 // one on the right. active draws the chosen category as in a window in
-// front. The editors it opens own their values and persistence.
-func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool, footer func()) {
+// front; search says whether the search bar is drawn here, as in the dialog,
+// or in the window's title bar. The editors it opens own their values and
+// persistence.
+func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool, footer func(), search bool) {
 	if a.settingsQuery != "" {
 		c.OnShortcut(0, ui.KeyEscape, func() { a.settingsQuery = "" })
 	}
 	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
-		a.settingsSearchBar(c, t)
+		if search {
+			a.settingsSearchBar(c, t)
+		}
 		if a.settingsQuery != "" {
 			ui.Scroll(c).Grow(1).MinHeight(0).MinWidth(0).Padding(0, t.Space(uikit.Space2XL)).Children(func() {
 				a.settingsSearchResults(c, t)

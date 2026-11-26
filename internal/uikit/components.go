@@ -1789,13 +1789,13 @@ func SettingsPage(c *ui.Context, title, about string, groups func()) ui.Element 
 	})
 }
 
-// SettingsCardPage is the looser Settings skeleton: a page 620 points wide,
-// a title and one sentence, then groups of SettingsCards. It is for the
-// settings, first-run and wizard surfaces; the workspace keeps its own
-// density.
+// SettingsCardPage is the looser Settings skeleton: a page 760 points wide
+// and left-aligned, a title and one sentence, then groups of SettingsCards.
+// It is for the settings, first-run and wizard surfaces; the workspace keeps
+// its own density.
 func SettingsCardPage(c *ui.Context, title, about string, groups func()) ui.Element {
 	t := c.Theme()
-	return ui.Column(c).FillWidth().MaxWidth(SettingsWidth).Gap(t.Space(SpaceXL)).Children(func() {
+	return ui.Column(c).FillWidth().MaxWidth(SettingsPageWidth).Gap(t.Space(SpaceXL)).Children(func() {
 		ui.Column(c).Gap(t.Space(SpaceXS)).Children(func() {
 			Display(c, title)
 			if about != "" {
@@ -1846,13 +1846,14 @@ func SettingsCardRowWithReset(c *ui.Context, title, description string, modified
 		if len(tip) > 0 && tip[0] != "" {
 			Tip(c, head, tip[0])
 		}
+		if modified {
+			// The reset menu sits before the control, so the control keeps the
+			// card's inner edge whether or not the row is modified. An empty
+			// slot after it left every other row short of that edge.
+			MoreMenu(c, locales.SettingsSettingActions(title), menu)
+		}
 		if control != nil {
 			control()
-		}
-		if modified {
-			MoreMenu(c, locales.SettingsSettingActions(title), menu)
-		} else {
-			ui.Box(c).Size(HeightRowAction, HeightRowAction).Shrink(0)
 		}
 	})
 	return row

@@ -2907,7 +2907,7 @@ func (a *app) sidebarModeSwitch(c *ui.Context, t *ui.Theme) {
 		if uikit.RowIconButton(c, locales.SearchEverywhere(), locales.SearchEverywhere(), searchIcon).Clicked() {
 			a.goTo("search")
 		}
-		if uikit.RowIconButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon).Clicked() {
+		if uikit.RowIconButton(c, locales.NewView(), locales.NewView(), layersPlusIcon).Clicked() {
 			a.views.capture(a)
 			a.views.newView(a)
 		}

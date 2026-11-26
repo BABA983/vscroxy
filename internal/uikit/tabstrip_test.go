@@ -7,6 +7,31 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// The list of open tabs is an icon-only button with its count in the tip, and
+// it steps aside while the fixed Live tab is all there is to list.
+func TestTabStripOverflowIsAnIconUntilThereAreTabs(t *testing.T) {
+	strip := func(tabs []DocumentTab) *ui.Tester {
+		tt := ui.NewTester(func(c *ui.Context) {
+			DocumentTabs(c, DocumentTabsOptions{Tabs: tabs, OnOverflow: func(*ui.Menu) {}})
+		}, 400, 32)
+		tt.Frame()
+		return tt
+	}
+	live := strip([]DocumentTab{{Title: "Live", Fixed: true}})
+	if _, ok := live.Find("All open tabs (1)"); ok {
+		t.Fatalf("the overflow button lists only Live: %q", live.Texts())
+	}
+	open := strip([]DocumentTab{{Title: "Live", Fixed: true}, {Title: "Request", Closable: true}})
+	if _, ok := open.Find("All open tabs (2)"); !ok {
+		t.Fatalf("the overflow button has no count in its tip: %q", open.Texts())
+	}
+	for _, text := range open.Texts() {
+		if text == "2" {
+			t.Fatalf("the overflow button still draws its count: %q", open.Texts())
+		}
+	}
+}
+
 // A tab strip is one row, so a mouse wheel's vertical notch moves it
 // sideways rather than doing nothing.
 func TestTabStripWheelMovesSideways(t *testing.T) {

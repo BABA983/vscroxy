@@ -38,6 +38,16 @@ type inspectorState struct {
 // side: the design's 5:6, so the response gets the wider half.
 const splitShare = 45
 
+// requestPaneMinHeight is the least the request side takes when the inspector
+// is stacked: its tab row, the row naming what it shows, and the headers
+// table's header and one row. Below it the response's header cut the table
+// off at its top edge.
+const requestPaneMinHeight = uikit.HeightTabs + uikit.HeightControl + uikit.HeightControlSmall + 2*uikit.HeightRow
+
+// responsePaneMinHeight is the least the response keeps when stacked: its tab
+// row and one row of the table or body beneath it.
+const responsePaneMinHeight = uikit.HeightTabs + uikit.HeightRow
+
 const (
 	inspectorSplit = iota
 	inspectorDiff
@@ -292,10 +302,52 @@ func (a *app) splitInspector(c *ui.Context, f flow) {
 		percent, reset = &a.inspect.protobufPercent, 25
 	}
 	if a.sidesStacked(c) {
-		uikit.SplitVerticalPercent(c.Key("inspector-sides"+a.detailKeySuffix), percent, request, response).SplitReset(reset).Grow(1).MinHeight(0)
+		a.stackedSplit(c, percent, reset, &a.inspectorReqPane, &a.inspectorRespPane, request, response)
 		return
 	}
 	uikit.SplitPercent(c.Key("inspector-sides"+a.detailKeySuffix), percent, request, response).SplitReset(reset).Grow(1).MinHeight(0)
+}
+
+// stackedSplit draws the request above the response with the same draggable
+// divider as a side-by-side split, but never lets the request fall below its
+// tab row, header line and one row, nor the response below its tab row and
+// one row. The visible share is clamped each frame; only a change made on the
+// divider writes the new share back, so the stored percent stays where the
+// reader put it.
+func (a *app) stackedSplit(c *ui.Context, percent *float32, reset float32, req, resp *ui.Handle, request, response func()) {
+	share, known := a.stackedShare(c, *percent, req, resp)
+	split := uikit.SplitVerticalPercent(c.Key("inspector-sides"+a.detailKeySuffix), &share, request, response).
+		SplitReset(reset).Grow(1).MinHeight(0)
+	if split.Changed() {
+		if known {
+			share, _ = a.stackedShare(c, share, req, resp)
+		}
+		*percent = share
+	}
+}
+
+// stackedShare converts a stored share to the one a stacked split shows for
+// the room the panes had last frame. known is false until both panes have
+// bounds from a stacked frame; a window too short for both minimums splits
+// the room in half instead.
+func (a *app) stackedShare(c *ui.Context, stored float32, req, resp *ui.Handle) (share float32, known bool) {
+	reqR, respR := req.Bounds(c), resp.Bounds(c)
+	// Equal widths say the last frame was stacked too; a side-by-side frame
+	// has each pane's full height, not the share it will take here.
+	if reqR.H <= 0 || respR.H <= 0 || reqR.W < respR.W {
+		return stored, false
+	}
+	room := reqR.H + respR.H
+	if room <= 0 {
+		return stored, false
+	}
+	points := stored / 100 * room
+	if room < requestPaneMinHeight+responsePaneMinHeight {
+		points = room / 2
+	} else {
+		points = min(max(points, float32(requestPaneMinHeight)), room-float32(responsePaneMinHeight))
+	}
+	return points / room * 100, true
 }
 
 // requestPane is the request of a capture the editor cannot take: its parts

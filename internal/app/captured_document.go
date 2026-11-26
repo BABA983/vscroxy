@@ -159,19 +159,23 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 		if f.process != "" {
 			source += " · " + f.process
 		}
-		// The capture's line carries the whole exchange in its card: the
-		// table's columns cut a long URL, and this one does not.
-		title := f.method + " " + cmp.Or(f.url, f.scheme+"://"+f.host+f.path)
-		// The header cuts the source line to its width, so the card repeats it
-		// in full at the top of its facts.
-		card := captureCard(f)
-		if card.Meta != "" {
-			card.Meta = source + " · " + card.Meta
-		} else {
-			card.Meta = source
+		// A saved request that matches is the header's title, and the capture
+		// it came from is kept in that title's card: two runs in one row were
+		// cut to ellipses before either said what it held.
+		if !a.capturedRequestMatch(c, t, f, source) {
+			// No saved request matches, so the capture's own line is the
+			// title. Its card carries the whole exchange: the table's columns
+			// cut a long URL, and this one does not.
+			title := f.method + " " + cmp.Or(f.url, f.scheme+"://"+f.host+f.path)
+			// The card repeats the source in full at the top of its facts.
+			card := captureCard(f)
+			if card.Meta != "" {
+				card.Meta = source + " · " + card.Meta
+			} else {
+				card.Meta = source
+			}
+			uikit.CardTip(c, uikit.Meta(c, source).Label(title).FontFeatures("tnum").SingleLine().MinWidth(0), card)
 		}
-		uikit.CardTip(c, uikit.Meta(c, source).Label(title).FontFeatures("tnum").SingleLine().MinWidth(0), card)
-		a.capturedRequestMatch(c, t, f)
 		if d == nil {
 			// Streams and tunnels read as they were; the path names them.
 			uikit.Tip(c, uikit.Mono(c, f.method+" "+cmp.Or(f.path, "/")).SingleLine().MinWidth(48), f.url)
@@ -253,10 +257,11 @@ func (a *app) capturedDocument(c *ui.Context, t *ui.Theme, f flow, d *requestDoc
 	// The capture's panes keep their own tab: moving to another request and
 	// back should land where the reader was.
 	request := func() { a.requestEditor(c, t, d, f, &a.inspect.tab[0]) }
+	sent := d.sentSet || d.composeWaiting || d.response != nil
 	response := func() {
 		// Sent, the document's response is what it got back; until then it
 		// is what the capture got.
-		if d.sentSet || d.composeWaiting || d.response != nil {
+		if sent {
 			a.requestResponse(c, t, d)
 			return
 		}
@@ -272,7 +277,11 @@ func (a *app) capturedDocument(c *ui.Context, t *ui.Theme, f flow, d *requestDoc
 		percent, reset = &a.inspect.protobufPercent, 25
 	}
 	if a.sidesStacked(c) {
-		uikit.SplitVerticalPercent(c.Key("inspector-sides"+a.detailKeySuffix), percent, request, response).SplitReset(reset).Grow(1).MinHeight(0)
+		resp := &a.inspectorRespPane
+		if sent {
+			resp = &a.editorRespPane
+		}
+		a.stackedSplit(c, percent, reset, &a.editorReqPane, resp, request, response)
 		return
 	}
 	uikit.SplitPercent(c.Key("inspector-sides"+a.detailKeySuffix), percent, request, response).SplitReset(reset).Grow(1).MinHeight(0)

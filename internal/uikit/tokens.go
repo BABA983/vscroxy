@@ -137,6 +137,7 @@ const (
 	DialogPadding     = 24
 	DialogGap         = 16
 	SettingsWidth     = 620
+	SettingsPageWidth = 760 // a settings page's readable column, left-aligned
 	SettingsRowHeight = 48
 	// WindowMargin is the space a modal, a toast or a popover keeps from the
 	// window's edge, on each side.

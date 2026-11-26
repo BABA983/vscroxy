@@ -1,6 +1,8 @@
 package app
 
 import (
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,7 +28,11 @@ func TestCaptureCellsShowTheRowCard(t *testing.T) {
 	if !tt.HasText("URL") {
 		t.Fatalf("the method cell showed no card: %v", tt.Texts())
 	}
-	if !tt.HasText("https://api.example.com/projects") {
+	// A URL in a tip carries zero-width breaks after its slashes, so it can
+	// wrap; take them out before checking that the card has the whole URL.
+	if !slices.ContainsFunc(tt.Texts(), func(s string) bool {
+		return strings.Contains(strings.ReplaceAll(s, "\u200b", ""), "https://api.example.com/projects")
+	}) {
 		t.Fatalf("the card does not carry the full URL: %v", tt.Texts())
 	}
 }

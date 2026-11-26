@@ -138,23 +138,32 @@ func matchPath(template, actual string) bool {
 	return true
 }
 
-func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
+// capturedRequestMatch makes the saved request a capture matched the header's
+// title and returns whether it did. The capture's source travels in the title's
+// card, leaving the link the row's room.
+func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow, source string) bool {
 	if a.matchUI.forID != f.id {
 		a.matchUI = requestMatchState{forID: f.id}
 	}
 	matches := a.matchingRequests(f)
 	if len(matches) == 0 {
 		a.matchUI.open = false
-		return
+		return false
 	}
 	label := locales.MatchesPrefix(matches[0].Name)
 	if len(matches) > 1 {
 		label = locales.MatchesCount(len(matches))
 	}
+	card := uikit.HoverCard{Title: label, Meta: source, Rows: []uikit.HoverCardRow{{Key: "URL", Value: f.url}}}
+	if m := matches[0]; m.URL != "" {
+		card.Rows = append(card.Rows,
+			uikit.HoverCardRow{Key: locales.Request(), Value: cmp.Or(m.Method, "GET") + " " + m.URL},
+			uikit.HoverCardRow{Key: locales.FolderName(), Value: cmp.Or(m.Collection, locales.Unfiled())},
+		)
+	}
 	// Bare: a text link that runs an action inside a tip, not a button, so the kit's LinkButton does not fit.
-	// The tip repeats the label in full: the link cuts it to the header's width.
-	anchor := uikit.Tip(c, ui.Link(c.Key("captured-request-match"), label, "").
-		Bind(&a.matchUI.anchor).SingleLine().MinWidth(0), label+"\n"+locales.SavedRequestsMatchingThisMethod())
+	anchor := uikit.CardTip(c, ui.Link(c.Key("captured-request-match"), label, "").
+		Bind(&a.matchUI.anchor).SingleLine().MinWidth(0), card)
 	anchor.OnClick(func() {
 		a.matchUI.open = !a.matchUI.open
 		a.matchUI.gap = t.Space(uikit.SpaceXS)
@@ -200,6 +209,7 @@ func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
 			})
 		})
 	})
+	return true
 }
 
 // saveCapturedExample never edits/sends the captured draft. It attaches the

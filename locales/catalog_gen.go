@@ -5384,16 +5384,6 @@ func (msgs Messages) OpenSessionWith(error string) string {
 	return Catalog.Format(msgs.locale, "openSessionWith", map[string]any{"error": error})
 }
 
-// OpenTabsMostRecentlyUsed says "Open tabs, most recently used first"
-// in the language the app shows.
-func OpenTabsMostRecentlyUsed() string { return In(i18n.Locale()).OpenTabsMostRecentlyUsed() }
-
-// OpenTabsMostRecentlyUsed says "Open tabs, most recently used first"
-// in the language of msgs.
-func (msgs Messages) OpenTabsMostRecentlyUsed() string {
-	return Catalog.Format(msgs.locale, "openTabsMostRecentlyUsed", nil)
-}
-
 // OpenedProxiedChrome says "Opened proxied Chrome"
 // in the language the app shows.
 func OpenedProxiedChrome() string { return In(i18n.Locale()).OpenedProxiedChrome() }
@@ -9494,6 +9484,16 @@ func (msgs Messages) AllOpenTabs() string {
 	return Catalog.Format(msgs.locale, "allOpenTabs", nil)
 }
 
+// AllOpenTabsCount says "All open tabs ({count})"
+// in the language the app shows.
+func AllOpenTabsCount(count int) string { return In(i18n.Locale()).AllOpenTabsCount(count) }
+
+// AllOpenTabsCount says "All open tabs ({count})"
+// in the language of msgs.
+func (msgs Messages) AllOpenTabsCount(count int) string {
+	return Catalog.Format(msgs.locale, "allOpenTabsCount", map[string]any{"count": count})
+}
+
 // AllRequests says "All requests"
 // in the language the app shows.
 func AllRequests() string { return In(i18n.Locale()).AllRequests() }
@@ -10920,6 +10920,26 @@ func Breakpoints() string { return In(i18n.Locale()).Breakpoints() }
 // in the language of msgs.
 func (msgs Messages) Breakpoints() string {
 	return Catalog.Format(msgs.locale, "breakpoints", nil)
+}
+
+// BreakpointsOffTip says "Breakpoints are off. Click to pause each matching request or response."
+// in the language the app shows.
+func BreakpointsOffTip() string { return In(i18n.Locale()).BreakpointsOffTip() }
+
+// BreakpointsOffTip says "Breakpoints are off. Click to pause each matching request or response."
+// in the language of msgs.
+func (msgs Messages) BreakpointsOffTip() string {
+	return Catalog.Format(msgs.locale, "breakpointsOffTip", nil)
+}
+
+// BreakpointsOnTip says "Breakpoints are on. Click to stop pausing requests."
+// in the language the app shows.
+func BreakpointsOnTip() string { return In(i18n.Locale()).BreakpointsOnTip() }
+
+// BreakpointsOnTip says "Breakpoints are on. Click to stop pausing requests."
+// in the language of msgs.
+func (msgs Messages) BreakpointsOnTip() string {
+	return Catalog.Format(msgs.locale, "breakpointsOnTip", nil)
 }
 
 // Broker says "Broker"
@@ -33146,6 +33166,16 @@ func TestGraphqlBody() string { return In(i18n.Locale()).TestGraphqlBody() }
 // in the language of msgs.
 func (msgs Messages) TestGraphqlBody() string {
 	return Catalog.Format(msgs.locale, "testGraphqlBody", nil)
+}
+
+// TestUrlPlaceholder says "Test a URL…"
+// in the language the app shows.
+func TestUrlPlaceholder() string { return In(i18n.Locale()).TestUrlPlaceholder() }
+
+// TestUrlPlaceholder says "Test a URL…"
+// in the language of msgs.
+func (msgs Messages) TestUrlPlaceholder() string {
+	return Catalog.Format(msgs.locale, "testUrlPlaceholder", nil)
 }
 
 // Text says "Text"

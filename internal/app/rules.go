@@ -502,7 +502,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 				a.editRule(-1, capture.Rule{Type: kind})
 			}
 		})
-		uikit.Tip(c, uikit.Input(c, &e.test).Label(locales.TestARequest()).Placeholder(locales.TestGetHttpsApiExample()), locales.MethodUrlAppHeaderValue()).Font(uikit.FontMono).FillWidth()
+		uikit.Tip(c, uikit.Input(c, &e.test).Label(locales.TestARequest()).Placeholder(locales.TestUrlPlaceholder()), locales.MethodUrlAppHeaderValue()+"\n"+locales.TestGetHttpsApiExample()).Font(uikit.FontMono).FillWidth()
 		if e.draft.Operation != "" || slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Operation != "" }) {
 			uikit.TextArea(c, &e.testBody).Label(locales.TestGraphqlBody()).Placeholder(`{"query":"query Search { items { id } }"}`).Height(80).FillWidth().Font(uikit.FontMono).
 				Tooltip(locales.PostUsesJsonByDefault())
@@ -970,8 +970,8 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 			uikit.FormRow(c, locales.GraphqlOperation(), locales.ExactSelectedOperationNameCase(), "", func() {
 				uikit.Input(c, &e.draft.Operation).Label(locales.MatchGraphqlOperation()).Placeholder(locales.Any()).Font(uikit.FontMono).FillWidth()
 			})
-			uikit.FormRow(c, locales.FolderNoun(), locales.FolderHelp(), "", func() {
-				uikit.Input(c, &e.draft.Folder).Label(locales.FolderNoun()).Placeholder(locales.FolderPlaceholder()).Width(260)
+			uikit.FormRow(c, locales.FolderName(), locales.FolderHelp(), "", func() {
+				uikit.Input(c, &e.draft.Folder).Label(locales.FolderName()).Placeholder(locales.FolderPlaceholder()).Width(260)
 			})
 		})
 	})

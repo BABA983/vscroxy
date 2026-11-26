@@ -453,7 +453,10 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 						if busy {
 							uikit.Spinner(c, locales.SystemProxy())
 						}
-						if uikit.SecondaryButtonBusy(c, locales.CheckAgain(), busy).Clicked() {
+						// The status keeps the one spinner while a check
+						// runs; a busy button would turn a second one beside
+						// an empty label.
+						if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(busy).Clicked() {
 							a.checkSystemProxy(true)
 						}
 					})
