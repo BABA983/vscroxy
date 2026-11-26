@@ -113,6 +113,8 @@ func (a *app) openSettings(tab int) {
 		a.systemProxy.shown = false
 	case 2:
 		a.checkCertificate(false)
+	case 7:
+		a.resetAgentSkill()
 	}
 	a.showSettings()
 }
@@ -217,7 +219,7 @@ func (a *app) settingsTitleBar(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// chooseSettingsCategory shows a settings category ("0" to "6") or a tool's
+// chooseSettingsCategory shows a settings category ("0" to "7") or a tool's
 // page by its id. Leaving a tool forgets its unsaved new-rule draft, as
 // closing Tools did.
 func (a *app) chooseSettingsCategory(id string) {
@@ -227,8 +229,11 @@ func (a *app) chooseSettingsCategory(id string) {
 			a.closeTools()
 		}
 		a.settingsTab = tab
-		if tab == 2 {
+		switch tab {
+		case 2:
 			a.checkCertificate(false)
+		case 7:
+			a.resetAgentSkill()
 		}
 		return
 	}

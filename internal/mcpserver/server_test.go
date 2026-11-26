@@ -21,7 +21,7 @@ import (
 )
 
 var queries = []string{"breakpoints.list", "certificates.get", "collection-recording.get", "collections.list", "flows.export-har", "flows.get", "flows.list", "mock.get", "requests.get", "requests.list", "rules.list", "runs.get", "sessions.list", "settings.get", "settings.list", "ssl.get", "status", "system-proxy.get", "token-links.analyze", "token-links.get", "token-links.prepare"}
-var writes = []string{"breakpoints.resolve", "capture.recording", "collection-recording.start", "collection-recording.stop", "collection.load", "collection.run", "flows.annotate", "flows.clear", "mock.start", "mock.stop", "request.run", "rules.create", "rules.delete", "rules.import", "rules.set-enabled", "rules.update", "runs.cancel", "sessions.close", "sessions.open", "sessions.save", "settings.set", "ssl.update", "system-proxy.set-enabled", "token-links.apply"}
+var writes = []string{"breakpoints.resolve", "capture.recording", "collection-recording.start", "collection-recording.stop", "collection.load", "collection.run", "flows.annotate", "flows.clear", "flows.replay", "mock.start", "mock.stop", "request.run", "requests.save", "rules.create", "rules.delete", "rules.import", "rules.set-enabled", "rules.update", "runs.cancel", "sessions.close", "sessions.open", "sessions.save", "settings.set", "ssl.update", "system-proxy.set-enabled", "token-links.apply"}
 
 func endpoint(t *testing.T, dispatch control.Dispatch) string {
 	t.Helper()
@@ -154,7 +154,7 @@ func TestCatalogAndAnnotations(t *testing.T) {
 				for _, tool := range listed.Tools {
 					names = append(names, tool.Name)
 					readOnly := slices.Contains(queries, tool.Name)
-					openWorld := tool.Name == "request.run" || tool.Name == "collection.run" || tool.Name == "collection.load"
+					openWorld := tool.Name == "request.run" || tool.Name == "collection.run" || tool.Name == "collection.load" || tool.Name == "flows.replay"
 					a := tool.Annotations
 					if a == nil || a.ReadOnlyHint != readOnly || a.DestructiveHint == nil || *a.DestructiveHint == readOnly || a.OpenWorldHint == nil || *a.OpenWorldHint != openWorld {
 						t.Errorf("incorrect annotations for %s: %+v", tool.Name, a)
@@ -197,6 +197,32 @@ func TestCatalogAndAnnotations(t *testing.T) {
 						for _, warning := range []string{"sensitive query/body values", "not --allow-sensitive", "Never sends requests or changes the OS proxy", "OR within each list, AND across"} {
 							if !strings.Contains(tool.Description, warning) {
 								t.Errorf("missing recording warning %q", warning)
+							}
+						}
+					}
+					if tool.Name == "flows.replay" {
+						if len(props) != 6 || !slices.Equal(schema["required"].([]any), []any{"id"}) || a.IdempotentHint || !*a.OpenWorldHint {
+							t.Errorf("incorrect replay parameters/annotations: %+v, %+v", schema, a)
+						}
+						if props["timeoutSeconds"].(map[string]any)["default"] != float64(30) || props["timeoutSeconds"].(map[string]any)["maximum"] != float64(60) {
+							t.Errorf("incorrect replay timeout constraints: %+v", props["timeoutSeconds"])
+						}
+						for _, warning := range []string{"real request", "side effects", "poll with runs.get", "must not be retried blindly"} {
+							if !strings.Contains(tool.Description, warning) {
+								t.Errorf("missing replay warning %q", warning)
+							}
+						}
+					}
+					if tool.Name == "requests.save" {
+						if len(props) != 3 || !slices.Equal(schema["required"].([]any), []any{"flowId"}) || a.IdempotentHint || *a.OpenWorldHint {
+							t.Errorf("incorrect save parameters/annotations: %+v, %+v", schema, a)
+						}
+						if props["flowId"].(map[string]any)["minimum"] != float64(1) {
+							t.Errorf("incorrect save flowId constraint: %+v", props["flowId"])
+						}
+						for _, warning := range []string{"credentials", "request.run", "requests.get"} {
+							if !strings.Contains(tool.Description, warning) {
+								t.Errorf("missing save warning %q", warning)
 							}
 						}
 					}

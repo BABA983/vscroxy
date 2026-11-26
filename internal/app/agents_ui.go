@@ -18,6 +18,7 @@ import (
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/internal/update"
 	"github.com/baba983/vscroxy/locales"
+	"github.com/baba983/vscroxy/skills"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -36,6 +37,13 @@ type agentsPanel struct {
 	cliPath    string
 	cliFound   bool
 	cliChecked bool
+	// The installed skill is read once per page visit, client switch or
+	// install action, never on every frame.
+	skillChecked bool
+	skillPath    string
+	skill        agentSkillStatus
+	// skillHome overrides the user home in tests; empty means os.UserHomeDir.
+	skillHome string
 }
 
 // mcpClientKind is one tab of the MCP client picker.
@@ -171,6 +179,7 @@ func (a *app) agentsMCPSettings(c *ui.Context, t *ui.Theme) {
 			uikit.Segmented(c, &selected, labels...).Label(locales.McpClient())
 			if selected != a.agents.client {
 				a.agents.client = selected
+				a.resetAgentSkill()
 			}
 			snippetPath := path
 			if !found {
@@ -185,6 +194,7 @@ func (a *app) agentsMCPSettings(c *ui.Context, t *ui.Theme) {
 				}
 			})
 		})
+		a.agentSkillSettings(c)
 	})
 }
 
@@ -196,6 +206,64 @@ func agentsSnippetHint(kind mcpClientKind) string {
 		return locales.AgentOtherSnippetHint()
 	}
 	return locales.AgentCommandSnippetHint()
+}
+
+// agentSkillSettings installs the bundled skill for the selected client, or
+// copies it when there is no confirmed user skills directory.
+func (a *app) agentSkillSettings(c *ui.Context) {
+	status, installable := a.currentAgentSkill()
+	copySkill := func() {
+		c.Services().WriteClipboard(skills.Text())
+		a.done(locales.AgentSkillCopied())
+	}
+	install := func() {
+		if err := installAgentSkill(status.path); err != nil {
+			a.fail(locales.AgentSkill(), err)
+			return
+		}
+		a.resetAgentSkill()
+		a.done(locales.AgentSkillInstalledNotice())
+	}
+	if !installable {
+		uikit.SettingsCardRow(c, locales.AgentSkill(), "", func() {
+			if uikit.SecondaryButton(c, locales.Copy()).Clicked() {
+				copySkill()
+			}
+		})
+		return
+	}
+	switch status.state {
+	case skillMissing:
+		uikit.SettingsCardRow(c, locales.AgentSkill(), "", func() {
+			if uikit.SecondaryButton(c, locales.AgentSkillInstall()).Clicked() {
+				install()
+			}
+		})
+	case skillCurrent:
+		uikit.SettingsCardRow(c, locales.AgentSkill(), locales.AgentSkillInstalled(shortenHome(status.path)), func() {
+			if uikit.LinkButton(c, locales.Copy()).Clicked() {
+				copySkill()
+			}
+		})
+	case skillOlder:
+		uikit.SettingsCardRow(c, locales.AgentSkill(), locales.AgentSkillOlder(), func() {
+			if uikit.SecondaryButton(c, locales.AgentSkillUpdate()).Clicked() {
+				install()
+			}
+		})
+	case skillModified:
+		uikit.SettingsCardRow(c, locales.AgentSkill(), locales.AgentSkillModified(), func() {
+			if uikit.SecondaryButton(c, locales.AgentSkillReplace()).Clicked() {
+				install()
+			}
+		})
+	default:
+		uikit.SettingsCardRow(c, locales.AgentSkill(), locales.AgentSkillUnreadable(), func() {
+			if uikit.LinkButton(c, locales.Copy()).Clicked() {
+				copySkill()
+			}
+		})
+	}
 }
 
 func (a *app) agentsTerminalSettings(c *ui.Context, t *ui.Theme) {

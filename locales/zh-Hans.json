@@ -4291,6 +4291,23 @@
   "agentCommandSnippetHint": "在终端运行，然后重启客户端。",
   "agentCursorSnippetHint": "保存为 ~/.cursor/mcp.json，然后重启 Cursor。",
   "agentOtherSnippetHint": "添加到你的 MCP 客户端配置，然后重启它。",
+  "agentSkill": "智能体技能",
+  "agentSkillCopied": "技能已复制",
+  "agentSkillInstall": "安装技能",
+  "@agentSkillInstalled": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "agentSkillInstalled": "已安装 · {path}",
+  "agentSkillInstalledNotice": "智能体技能已安装",
+  "agentSkillModified": "此文件没有 vscroxy 版本信息。替换会覆盖你的修改。",
+  "agentSkillOlder": "已安装的技能来自较旧版本",
+  "agentSkillReplace": "替换",
+  "agentSkillUnreadable": "无法读取已安装的技能文件。",
+  "agentSkillUpdate": "更新",
   "agentSnippetRestartHint": "这些选项只影响生成的片段。添加或修改服务器后请重启客户端。",
   "aiAgents": "AI 智能体",
   "aiAgentsHint": "把 Claude Code、Codex、Cursor 和其他智能体连接到正在运行的抓包代理及其工具。",

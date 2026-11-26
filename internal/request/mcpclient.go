@@ -22,6 +22,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/system"
+	"github.com/baba983/vscroxy/internal/version"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -168,7 +169,7 @@ func DialMCP(ctx context.Context, plan MCPPlan, handlers MCPHandlers) (*MCPClien
 	default:
 		return nil, fmt.Errorf("unsupported MCP transport %q", plan.Transport)
 	}
-	client := mcp.NewClient(&mcp.Implementation{Name: "vscroxy", Version: "0.1.0"}, &mcp.ClientOptions{
+	client := mcp.NewClient(&mcp.Implementation{Name: "vscroxy", Version: version.Number}, &mcp.ClientOptions{
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		// Behave like an ordinary client: do not advertise roots, sampling or
 		// elicitation. A server that sends one anyway still reaches the

@@ -437,8 +437,10 @@ the [mock server](#mock-server) section.
 | `collections.list` | Runnable saved collection/folder names |
 | `requests.list` | Optional `collection` (descendants included; explicit empty selects unfiled requests) |
 | `requests.get` | Saved `id`; optional `details` |
+| `requests.save` | Required live HTTP `flowId`; optional `name` (default: unique `METHOD host/path`), `collection` (existing path from `collections.list`; empty saves at the root); returns `id`, `name`, `collection` |
 | `flows.list` | Optional `limit` (default 50, max 200), exclusive `before` ID cursor, and filters `host` (host or host:port, case-insensitive), `method`, `status` (100–999), `since`/`until` (RFC 3339, inclusive); `nextBefore:0` ends paging |
 | `flows.get` | Live capture `id`; optional `details` |
+| `flows.replay` | Required live HTTP flow `id`; optional `method`, `url` (absolute http/https), `headers` (object; a value sets the header, an empty string removes it), `body` (replaces the request body), `timeoutSeconds` (1–60, default 30); returns a job ID |
 | `flows.export-har` | Required `ids` (1–200 unique live HTTP IDs, in export order); optional `details`; returns a HAR 1.2 document |
 | `rules.list` | Index, fingerprint `key`, name, type and enabled state |
 | `request.run` | Saved `id`, optional `environment`, `iterations` (1–1000), `bail`; returns job ID |
@@ -498,6 +500,17 @@ including script jumps; loads use their separately bounded options. The most rec
 are retained **in memory only**, not desktop History. Polling/canceling requests
 does not implicitly cancel the job; use `runs.cancel` or Quit. A deliberate
 `setNextRequest(null)` is success; unknown targets/budget exhaustion are incomplete.
+
+`flows.replay` sends one live HTTP flow again through the capture proxy. It runs
+as a job, so `runs.get` reports `kind:"replay"`, `sourceId`, `flowId` (the new
+captured flow when it is already in the table, else 0), `status`, `durationMs`
+and `error`; headers and bodies are never returned, and are read with
+`flows.get`. Overrides apply to a copy of the captured request. An overridden
+`url` drops the captured `Host` header unless the call also sets one, and an
+overridden `body` drops the captured `Content-Length`. `requests.save` converts
+one live HTTP flow with the desktop's own Save as request path and returns only
+`id`, `name` and `collection`; an unknown collection is refused rather than
+created.
 
 ```sh copy Copy Desktop Load
 bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
@@ -809,6 +822,18 @@ printed or passed to the child. They exit 2 when the desktop is unreachable or
 capture is not running, so a setup step can fail instead of quietly running
 without capture.
 
+The app bundles an Agent Skill from
+[`skills/vscroxy/SKILL.md`](../skills/vscroxy/SKILL.md). It teaches an agent the
+capture, inspect, replay and save workflow using the tool names and parameters
+below, and states the safety rules for captured data. `vscroxy-mcp` serves the
+same bytes as the `vscroxy://skill` resource, so the workflows always match the
+installed build. Settings → AI agents installs it for Claude Code
+(`~/.claude/skills/vscroxy/SKILL.md`), Codex
+(`~/.agents/skills/vscroxy/SKILL.md`) or Cursor
+(`~/.cursor/skills/vscroxy/SKILL.md`); other clients offer Copy. Install writes
+atomically. A file with no vscroxy version metadata is treated as user-modified
+and is only replaced by an explicit **Replace**.
+
 ## MCP stdio server
 
 Build `go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp`, or use the copy shipped in
@@ -834,6 +859,12 @@ the placeholder; shell `$HOME` expansion is not assumed):
 A custom data root adds `"--control-file", "/absolute/path/to/control.json"` to
 `args`.
 
+The server also exposes `vscroxy://skill`, the bundled Agent Skill, as a
+`text/markdown` resource. It is available without `--allow-write` and when the
+desktop is not running, so a client can read the workflows before its first
+tool call. Settings → AI agents can install the same bytes into a client's
+user skills directory.
+
 The default catalog contains twenty-one read-only tools, named like desktop actions:
 `status`, `certificates.get`, `collection-recording.get`, `collections.list`,
 `flows.export-har`, `flows.get`, `flows.list`, `mock.get`, `requests.get`, `requests.list`, `rules.list`,
@@ -850,13 +881,13 @@ MCP `isError`; a run job's acceptance still requires polling its final report.
 
 Two **independent startup capabilities**, never tool parameters, widen access:
 
-- `--allow-write` registers `request.run`, `collection.run`, `collection.load`, `runs.cancel`,
+- `--allow-write` registers `request.run`, `collection.run`, `collection.load`, `flows.replay`, `runs.cancel`,
   `capture.recording`, `rules.set-enabled`, `rules.import`, `rules.create`, `rules.update`, `rules.delete`,
   `system-proxy.set-enabled`, `collection-recording.start`, `collection-recording.stop`, `token-links.apply`,
-  `flows.clear`, `flows.annotate`, `breakpoints.resolve`, `ssl.update`, `sessions.save`, `sessions.open`,
+  `flows.clear`, `flows.annotate`, `requests.save`, `breakpoints.resolve`, `ssl.update`, `sessions.save`, `sessions.open`,
   `sessions.close`, `settings.set`, `mock.start`, and `mock.stop`
-  (45 tools in total with the read-only set). It explicitly authorizes those tools to supply the desktop's
-  confirmation. Clearing, annotating, resolving breakpoints, changing HTTPS inspection domains and rules
+  (47 tools in total with the read-only set). It explicitly authorizes those tools to supply the desktop's
+  confirmation. Clearing, annotating, replaying, saving a captured request, resolving breakpoints, changing HTTPS inspection domains and rules
   change what the desktop captures or sends; `sessions.save` writes captured bodies to a local file. Request execution can affect real
   external systems; enable it only for a trusted client and trusted collections.
   Collection recording persists captured content locally, potentially including

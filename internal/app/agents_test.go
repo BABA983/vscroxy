@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/baba983/vscroxy/internal/version"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -16,6 +17,7 @@ import (
 // by the same words it used in General.
 func TestAgentsSettingsOwnsLocalControl(t *testing.T) {
 	a := settingsTestApp()
+	a.agents.skillHome = t.TempDir()
 	a.settingsOpen = true
 	hits := settingsFind(a, "local automation")
 	if len(hits) == 0 || hits[0].entry.spec.id != "general.localControl" || hits[0].entry.spec.section != settingsAgents {
@@ -42,6 +44,7 @@ func TestAgentsSettingsOwnsLocalControl(t *testing.T) {
 // saved settings.
 func TestAgentsSettingsControlsShapeTheSnippet(t *testing.T) {
 	a := settingsTestApp()
+	a.agents.skillHome = t.TempDir()
 	a.settingsOpen, a.settingsTab, a.settingsChoice = true, 7, "7"
 	tt := ui.NewTester(a.settingsView, 1080, 1000)
 	tt.Frame()
@@ -278,5 +281,62 @@ func TestMCPBinaryCandidates(t *testing.T) {
 	}
 	if name := cliExecutableName("windows"); name != "vscroxy-cli.exe" {
 		t.Fatalf("Windows CLI = %q", name)
+	}
+}
+
+// The installed file is re-read when the page is shown, and installing from
+// the row refreshes the state without another visit.
+func TestAgentSkillRowInstallsAndRefreshes(t *testing.T) {
+	home := t.TempDir()
+	a := settingsTestApp()
+	a.agents.skillHome = home
+	a.settingsOpen, a.settingsTab, a.settingsChoice = true, 7, "7"
+	path, ok := agentSkillPath(mcpClaudeCode, home)
+	if !ok {
+		t.Fatal("Claude Code has no install path")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(skillDocument("0.0.1")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tt := ui.NewTester(a.settingsView, 1080, 680)
+	tt.SetLocale("en-US")
+	tt.Frame()
+	tt.Frame()
+	visible := false
+	for i := 0; i < 30; i++ {
+		if r, ok := tt.Find(locales.AgentSkillUpdate()); ok && r.Y >= 0 && r.Y+r.H <= 620 {
+			visible = true
+			break
+		}
+		tt.Scroll(540, 340, 0, 200)
+		tt.Frame()
+	}
+	if !visible {
+		t.Fatalf("Update is not visible: %v", tt.Texts())
+	}
+	if err := tt.Click(locales.AgentSkillUpdate()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Frame()
+	if status := readAgentSkill(path, version.Number); status.state != skillCurrent {
+		t.Fatalf("installed state = %+v; want current", status)
+	}
+	if !tt.HasText(locales.AgentSkillInstalled("")) {
+		t.Fatalf("installed row did not refresh: %v", tt.Texts())
+	}
+
+	// A file changed outside the app is picked up when the page is shown again.
+	if err := os.WriteFile(path, []byte(skillDocument("9.9.9")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a.openSettings(7)
+	tt.Frame()
+	tt.Frame()
+	if !tt.HasText(locales.AgentSkillOlder()) {
+		t.Fatalf("reopened page kept the old skill state: %v", tt.Texts())
 	}
 }

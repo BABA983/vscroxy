@@ -8528,6 +8528,23 @@
   "agentCommandSnippetHint": "Run this in a terminal, then restart the client.",
   "agentCursorSnippetHint": "Save as ~/.cursor/mcp.json, then restart Cursor.",
   "agentOtherSnippetHint": "Add this to your MCP client's configuration, then restart it.",
+  "agentSkill": "Agent skill",
+  "agentSkillCopied": "Skill copied",
+  "agentSkillInstall": "Install skill",
+  "@agentSkillInstalled": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "agentSkillInstalled": "Installed · {path}",
+  "agentSkillInstalledNotice": "Agent skill installed",
+  "agentSkillModified": "This file has no vscroxy version. Replace overwrites your changes.",
+  "agentSkillOlder": "The installed skill is from an older version",
+  "agentSkillReplace": "Replace",
+  "agentSkillUnreadable": "Could not read the installed skill file.",
+  "agentSkillUpdate": "Update",
   "agentSnippetRestartHint": "These options only change the snippet. Restart the client after adding or changing the server.",
   "aiAgents": "AI agents",
   "aiAgentsHint": "Connect Claude Code, Codex, Cursor and other agents to the running capture proxy and its tools.",

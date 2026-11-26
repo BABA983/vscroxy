@@ -91,7 +91,10 @@ environment/data files, exit codes, JSON/JUnit CI reports and opt-in authenticat
 control of a running desktop.
 For external AI tools, open **Settings → AI agents** for the MCP server snippet,
 or build `go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp` and use the
-[MCP stdio configuration](docs/automation.md#mcp-stdio-server).
+[MCP stdio configuration](docs/automation.md#mcp-stdio-server). The app bundles
+the [vscroxy skill](skills/vscroxy/SKILL.md); `vscroxy-mcp` serves it as
+`vscroxy://skill`, and Settings → AI agents installs it for Claude Code, Codex
+or Cursor.
 
 ### Headless load runs
 

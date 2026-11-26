@@ -120,7 +120,7 @@ func TestStdioProcess(t *testing.T) {
 			}
 			want := 21
 			if tc.write {
-				want = 45
+				want = 47
 			}
 			if len(listed.Tools) != want {
 				t.Errorf("%d tools; want %d", len(listed.Tools), want)
@@ -236,7 +236,7 @@ func TestWorkflowStdioProcess(t *testing.T) {
 					}
 					wantCount := 21
 					if write {
-						wantCount = 45
+						wantCount = 47
 					}
 					if len(listed.Tools) != wantCount {
 						t.Fatalf("%d tools; want %d", len(listed.Tools), wantCount)
@@ -250,10 +250,12 @@ func TestWorkflowStdioProcess(t *testing.T) {
 						{"token-links.prepare", map[string]any{"id": "analysis-id", "index": float64(0), "collection": "", "environment": "local", "variable": "accessToken"}},
 						{"token-links.apply", map[string]any{"key": "proposal-id"}},
 						{"collection.load", map[string]any{"collection": "", "users": float64(3), "durationSeconds": float64(1), "requestTimeoutSeconds": float64(30), "maxAttempts": float64(100000), "bail": true}},
+						{"flows.replay", map[string]any{"id": float64(7), "method": "POST", "url": "http://upstream.test/changed", "headers": map[string]any{"X-Keep": "", "X-New": "value"}, "body": "changed", "timeoutSeconds": float64(5)}},
+						{"requests.save", map[string]any{"flowId": float64(7), "name": "Login", "collection": "Shop"}},
 					} {
 						before := calls.Load()
 						result, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: tc.name, Arguments: tc.args})
-						mutation := tc.name == "token-links.apply" || tc.name == "collection.load"
+						mutation := tc.name == "token-links.apply" || tc.name == "collection.load" || tc.name == "flows.replay" || tc.name == "requests.save"
 						if mutation && !write {
 							if err == nil && !result.IsError || calls.Load() != before {
 								t.Fatalf("%s reached desktop without --allow-write", tc.name)

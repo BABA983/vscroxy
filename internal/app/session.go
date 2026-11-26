@@ -19,6 +19,7 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/internal/version"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -169,7 +170,7 @@ func harFromFlows(flows []flow) harFile {
 	}
 	return harFile{Log: harLog{
 		Version: "1.2",
-		Creator: harCreator{Name: "vscroxy", Version: "0.1.0"},
+		Creator: harCreator{Name: "vscroxy", Version: version.Number},
 		Entries: entries,
 	}}
 }

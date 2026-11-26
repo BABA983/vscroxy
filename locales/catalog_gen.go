@@ -40288,6 +40288,106 @@ func (msgs Messages) AgentOtherSnippetHint() string {
 	return Catalog.Format(msgs.locale, "agentOtherSnippetHint", nil)
 }
 
+// AgentSkill says "Agent skill"
+// in the language the app shows.
+func AgentSkill() string { return In(i18n.Locale()).AgentSkill() }
+
+// AgentSkill says "Agent skill"
+// in the language of msgs.
+func (msgs Messages) AgentSkill() string {
+	return Catalog.Format(msgs.locale, "agentSkill", nil)
+}
+
+// AgentSkillCopied says "Skill copied"
+// in the language the app shows.
+func AgentSkillCopied() string { return In(i18n.Locale()).AgentSkillCopied() }
+
+// AgentSkillCopied says "Skill copied"
+// in the language of msgs.
+func (msgs Messages) AgentSkillCopied() string {
+	return Catalog.Format(msgs.locale, "agentSkillCopied", nil)
+}
+
+// AgentSkillInstall says "Install skill"
+// in the language the app shows.
+func AgentSkillInstall() string { return In(i18n.Locale()).AgentSkillInstall() }
+
+// AgentSkillInstall says "Install skill"
+// in the language of msgs.
+func (msgs Messages) AgentSkillInstall() string {
+	return Catalog.Format(msgs.locale, "agentSkillInstall", nil)
+}
+
+// AgentSkillInstalled says "Installed · {path}"
+// in the language the app shows.
+func AgentSkillInstalled(path string) string { return In(i18n.Locale()).AgentSkillInstalled(path) }
+
+// AgentSkillInstalled says "Installed · {path}"
+// in the language of msgs.
+func (msgs Messages) AgentSkillInstalled(path string) string {
+	return Catalog.Format(msgs.locale, "agentSkillInstalled", map[string]any{"path": path})
+}
+
+// AgentSkillInstalledNotice says "Agent skill installed"
+// in the language the app shows.
+func AgentSkillInstalledNotice() string { return In(i18n.Locale()).AgentSkillInstalledNotice() }
+
+// AgentSkillInstalledNotice says "Agent skill installed"
+// in the language of msgs.
+func (msgs Messages) AgentSkillInstalledNotice() string {
+	return Catalog.Format(msgs.locale, "agentSkillInstalledNotice", nil)
+}
+
+// AgentSkillModified says "This file has no vscroxy version. Replace overwrites your changes."
+// in the language the app shows.
+func AgentSkillModified() string { return In(i18n.Locale()).AgentSkillModified() }
+
+// AgentSkillModified says "This file has no vscroxy version. Replace overwrites your changes."
+// in the language of msgs.
+func (msgs Messages) AgentSkillModified() string {
+	return Catalog.Format(msgs.locale, "agentSkillModified", nil)
+}
+
+// AgentSkillOlder says "The installed skill is from an older version"
+// in the language the app shows.
+func AgentSkillOlder() string { return In(i18n.Locale()).AgentSkillOlder() }
+
+// AgentSkillOlder says "The installed skill is from an older version"
+// in the language of msgs.
+func (msgs Messages) AgentSkillOlder() string {
+	return Catalog.Format(msgs.locale, "agentSkillOlder", nil)
+}
+
+// AgentSkillReplace says "Replace"
+// in the language the app shows.
+func AgentSkillReplace() string { return In(i18n.Locale()).AgentSkillReplace() }
+
+// AgentSkillReplace says "Replace"
+// in the language of msgs.
+func (msgs Messages) AgentSkillReplace() string {
+	return Catalog.Format(msgs.locale, "agentSkillReplace", nil)
+}
+
+// AgentSkillUnreadable says "Could not read the installed skill file."
+// in the language the app shows.
+func AgentSkillUnreadable() string { return In(i18n.Locale()).AgentSkillUnreadable() }
+
+// AgentSkillUnreadable says "Could not read the installed skill file."
+// in the language of msgs.
+func (msgs Messages) AgentSkillUnreadable() string {
+	return Catalog.Format(msgs.locale, "agentSkillUnreadable", nil)
+}
+
+// AgentSkillUpdate says "Update"
+// in the language the app shows.
+func AgentSkillUpdate() string { return In(i18n.Locale()).AgentSkillUpdate() }
+
+// AgentSkillUpdate says "Update"
+// in the language of msgs.
+func (msgs Messages) AgentSkillUpdate() string {
+	return Catalog.Format(msgs.locale, "agentSkillUpdate", nil)
+}
+
 // AgentSnippetRestartHint says "These options only change the snippet. Restart the client after adding or changing the server."
 // in the language the app shows.
 func AgentSnippetRestartHint() string { return In(i18n.Locale()).AgentSnippetRestartHint() }

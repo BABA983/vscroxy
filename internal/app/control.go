@@ -41,6 +41,7 @@ type controlJob struct {
 	cancel context.CancelFunc
 	report runner.Report
 	load   *runner.LoadReport
+	replay *replayJobState
 }
 
 func (a *app) startControl(path string) error {
@@ -241,6 +242,8 @@ func (a *app) controlValue(command control.Command) (any, error) {
 			}
 		}
 		return nil, errors.New("request not found")
+	case "requests.save":
+		return a.controlSaveRequest(command)
 	case "flows.list", "flows.get":
 		p, err := controlParams[struct {
 			ID      int    `json:"id"`
@@ -379,6 +382,8 @@ func (a *app) controlValue(command control.Command) (any, error) {
 		return map[string]int{"imported": len(imported), "total": len(next)}, nil
 	case "request.run", "collection.run":
 		return a.startControlRun(command)
+	case "flows.replay":
+		return a.startControlReplay(command)
 	case "collection.load":
 		return a.startControlLoad(command)
 	case "runs.get", "runs.cancel":
@@ -395,6 +400,9 @@ func (a *app) controlValue(command control.Command) (any, error) {
 				return nil, errors.New("confirm:true is required")
 			}
 			job.cancel()
+		}
+		if job.replay != nil {
+			return a.controlReplayState(job)
 		}
 		job.mu.Lock()
 		defer job.mu.Unlock()
