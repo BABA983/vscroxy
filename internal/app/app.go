@@ -802,11 +802,16 @@ type app struct {
 	cookiesPath       string
 	cookiePersistence bool
 	// localControl is the saved choice to run the local automation endpoint;
-	// controlPath is its discovery file in the data root.
-	localControl bool
-	controlPath  string
-	cookieUI     cookieEditor
-	exportUI     exportReview
+	// controlPath is its discovery file in the data root. controlLastUsed is
+	// the last authenticated command, in memory only.
+	localControl    bool
+	controlPath     string
+	controlLastUsed time.Time
+	// agents is the AI agents page's snippet choices; they shape one
+	// generated snippet and are never persisted.
+	agents   agentsPanel
+	cookieUI cookieEditor
+	exportUI exportReview
 
 	// envs are the variables a request uses as {{name}}, one set in use.
 	envsPath       string

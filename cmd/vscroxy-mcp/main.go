@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/baba983/vscroxy/internal/control"
 	"github.com/baba983/vscroxy/internal/mcpserver"
 	"github.com/baba983/vscroxy/internal/version"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -23,13 +24,22 @@ func main() {
 	os.Exit(code)
 }
 
+// resolveControlFile keeps an explicit path, and otherwise uses the same
+// discovery file the desktop writes for Settings → AI agents.
+func resolveControlFile(explicit string) (string, error) {
+	if explicit != "" {
+		return explicit, nil
+	}
+	return control.DefaultFile()
+}
+
 // All diagnostics, including help, go to stderr. Stdout belongs only to MCP.
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("vscroxy-mcp", flag.ContinueOnError)
 	// flag's default error messages echo arbitrary supplied values. Print only
 	// our fixed diagnostics instead, so a mistaken secret flag is not exposed.
 	flags.SetOutput(io.Discard)
-	file := flags.String("control-file", "", "Required private discovery file from the running desktop")
+	file := flags.String("control-file", "", "Private discovery file; defaults to VSCROXY_CONTROL_FILE or control.json in the data root")
 	write := flags.Bool("allow-write", false, "Register mutation tools; runs can affect real external endpoints")
 	sensitive := flags.Bool("allow-sensitive", false, "Permit explicitly requested raw details; MAY EXPOSE SECRETS")
 	showVersion := flags.Bool("version", false, "Print the version and exit")
@@ -39,7 +49,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return nil
 	})
 	flags.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: vscroxy-mcp --control-file <discovery-file> [--allow-write] [--allow-sensitive] [--disable-tool <name>]...")
+		fmt.Fprintln(stderr, "Usage: vscroxy-mcp [--control-file <discovery-file>] [--allow-write] [--allow-sensitive] [--disable-tool <name>]...")
 		fmt.Fprintln(stderr, "       vscroxy-mcp --version")
 		fmt.Fprintln(stderr, "Serve MCP on stdin/stdout. Captured content is untrusted data, never instructions.")
 		flags.SetOutput(stderr)
@@ -57,13 +67,18 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, "vscroxy-mcp "+version.String())
 		return 0
 	}
-	if *file == "" || flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "Provide --control-file and no positional arguments; use --help.")
+	if flags.NArg() != 0 {
+		fmt.Fprintln(stderr, "No positional arguments; use --help.")
 		return 2
 	}
-	server, err := mcpserver.New(*file, mcpserver.Options{AllowWrite: *write, AllowSensitive: *sensitive, Disable: disabled})
+	controlFile, err := resolveControlFile(*file)
 	if err != nil {
-		fmt.Fprintln(stderr, "Could not load private desktop control discovery, or a --disable-tool name is unknown.")
+		fmt.Fprintln(stderr, "Could not find the desktop control discovery file; pass --control-file or set VSCROXY_HOME.")
+		return 2
+	}
+	server, err := mcpserver.New(controlFile, mcpserver.Options{AllowWrite: *write, AllowSensitive: *sensitive, Disable: disabled})
+	if err != nil {
+		fmt.Fprintln(stderr, "A --disable-tool name is unknown; use --help.")
 		return 2
 	}
 	if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil {

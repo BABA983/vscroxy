@@ -546,6 +546,51 @@ func TestDesktopControlBreakpointsSSLAndSessions(t *testing.T) {
 	}
 }
 
+// status gives the terminal wrapper the live capture address and the public
+// certificate paths, never the bearer token.
+func TestControlStatusReportsCaptureAddressAndCACertificate(t *testing.T) {
+	dir := t.TempDir()
+	srv, err := capture.New("127.0.0.1:0", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+	a := workspaceApp()
+	a.srv = srv
+	a.caPath = filepath.Join(dir, "vscroxy-ca-cert.pem")
+	a.settingsPath = filepath.Join(dir, "settings.json")
+	a.localControl = true
+	client := desktopClient(t, a)
+	value := desktopCall(t, client, "status", nil)
+	var status struct {
+		ProxyRunning bool   `json:"proxyRunning"`
+		ProxyAddr    string `json:"proxyAddr"`
+		CAPath       string `json:"caPath"`
+		BundlePath   string `json:"bundlePath"`
+	}
+	if err := json.Unmarshal(value, &status); err != nil {
+		t.Fatal(err)
+	}
+	if !status.ProxyRunning || status.ProxyAddr != srv.Addr() {
+		t.Fatalf("status capture = %+v, want %q", status, srv.Addr())
+	}
+	if status.CAPath != a.caPath {
+		t.Fatalf("status caPath = %q, want %q", status.CAPath, a.caPath)
+	}
+	if want := filepath.Join(dir, "client-ca-bundle.pem"); status.BundlePath != want {
+		t.Fatalf("status bundlePath = %q, want %q", status.BundlePath, want)
+	}
+	if strings.Contains(string(value), "token") {
+		t.Fatalf("status leaked a token field: %s", value)
+	}
+	if a.controlLastUsed.IsZero() {
+		t.Fatal("an authenticated status call did not record its time")
+	}
+}
+
 func TestLocalControlSettingStartsAndStopsEndpoint(t *testing.T) {
 	dir := t.TempDir()
 	a := &app{controlPath: filepath.Join(dir, "control.json"), settingsPath: filepath.Join(dir, "settings.json")}

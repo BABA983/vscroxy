@@ -33,6 +33,9 @@ const (
 	settingsCapture
 	settingsDevices
 	settingsCertificates
+	// settingsAgents follows the General category in the list but keeps its
+	// id after the older sections, so saved choices keep their meaning.
+	settingsAgents
 )
 
 func (s settingsSection) title() string {
@@ -51,6 +54,8 @@ func (s settingsSection) title() string {
 		return locales.Devices()
 	case settingsCertificates:
 		return locales.Certificates()
+	case settingsAgents:
+		return locales.AiAgents()
 	}
 	return ""
 }
@@ -71,6 +76,8 @@ func (s settingsSection) id() string {
 		return "5"
 	case settingsCertificates:
 		return "6"
+	case settingsAgents:
+		return "7"
 	}
 	return ""
 }
@@ -143,8 +150,8 @@ var settingsRegistry = []settingSpec{
 			set: func(a *app, _ any) { a.trustedLinkHosts = nil }},
 	},
 	{
-		id: "general.localControl", section: settingsGeneral,
-		title: locales.EnableLocalAutomation, description: locales.LocalAutomationAbout,
+		id: "general.localControl", section: settingsAgents,
+		title: locales.AllowAgentsToControl, description: locales.AllowAgentsToControlHint,
 		value: settingValue{get: func(a *app) any { return a.localControl }, def: false,
 			set: func(a *app, v any) { a.setLocalControl(v.(bool)) }},
 	},

@@ -134,3 +134,8 @@ RPC
 # Requires requests: python -m pip install requests\nimport requests\ns = requests.Session()\ns.trust_env = False\nr = s.get(%q, proxies={"http": %q, "https": %q}, verify=%q, timeout=30)\nprint(r.status_code, r.text)
 // npm install https-proxy-agent\nimport https from 'node:https';\nimport {readFileSync} from 'node:fs';\nimport {HttpsProxyAgent} from 'https-proxy-agent';\nhttps.get(%q, {agent: new HttpsProxyAgent(%q), ca: readFileSync(%q)}, res => {\n  console.log(res.statusCode);\n  res.pipe(process.stdout);\n}).on('error', console.error);
 package main\nimport ("crypto/tls"; "crypto/x509"; "fmt"; "io"; "net/http"; "net/url"; "os"; "time")\nfunc main() {\n  pem, err := os.ReadFile(%q); if err != nil { panic(err) }\n  roots, err := x509.SystemCertPool(); if err != nil { roots = x509.NewCertPool() }\n  if !roots.AppendCertsFromPEM(pem) { panic("invalid CA file") }\n  proxy, err := url.Parse(%q); if err != nil { panic(err) }\n  client := &http.Client{Timeout: 30*time.Second, Transport: &http.Transport{Proxy: http.ProxyURL(proxy), TLSClientConfig: &tls.Config{RootCAs: roots}}}\n  res, err := client.Get(%q); if err != nil { panic(err) }; defer res.Body.Close()\n  fmt.Println(res.Status); io.Copy(os.Stdout, res.Body)\n}
+go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp
+claude mcp add vscroxy --transport stdio --scope user --
+codex mcp add vscroxy --
+eval "$(vscroxy-cli env)"\nvscroxy-cli exec -- npm test
+go build -o bin/vscroxy-cli ./cmd/vscroxy-cli

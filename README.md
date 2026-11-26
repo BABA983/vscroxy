@@ -89,8 +89,9 @@ For collection regression runs without a window, build
 See [headless automation](docs/automation.md) for native/Postman inputs,
 environment/data files, exit codes, JSON/JUnit CI reports and opt-in authenticated
 control of a running desktop.
-For external AI tools, build `go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp` and
-use the [MCP stdio configuration](docs/automation.md#mcp-stdio-server).
+For external AI tools, open **Settings → AI agents** for the MCP server snippet,
+or build `go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp` and use the
+[MCP stdio configuration](docs/automation.md#mcp-stdio-server).
 
 ### Headless load runs
 

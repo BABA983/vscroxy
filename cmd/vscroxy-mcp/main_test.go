@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/control"
+	"github.com/baba983/vscroxy/internal/datadir"
 	"github.com/baba983/vscroxy/internal/version"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -28,11 +29,9 @@ func TestFlags(t *testing.T) {
 	}{
 		{"help", []string{"--help"}, 0, "--allow-sensitive"},
 		{"version", []string{"--version"}, 0, "vscroxy-mcp " + version.Number},
-		{"required", nil, 2, "Provide --control-file"},
-		{"positional", []string{"--control-file", "missing", "unexpected"}, 2, "no positional arguments"},
+		{"positional", []string{"--control-file", "missing", "unexpected"}, 2, "No positional arguments"},
 		{"unknown", []string{"--secret-token=do-not-echo-this"}, 2, "Invalid flags"},
 		{"invalid-bool", []string{"--allow-write=do-not-echo-this"}, 2, "Invalid flags"},
-		{"bad-discovery", []string{"--control-file", "do-not-echo-this"}, 2, "Could not load"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var stderr bytes.Buffer
@@ -50,6 +49,29 @@ func TestFlags(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// An omitted --control-file uses the desktop's own discovery path, so a client
+// configuration needs only the executable.
+func TestDefaultControlFile(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("VSCROXY_HOME", root)
+	t.Setenv("VSCROXY_CONTROL_FILE", "")
+	datadir.Reset()
+	t.Cleanup(datadir.Reset)
+	got, err := resolveControlFile("")
+	if err != nil || got != filepath.Join(root, "control.json") {
+		t.Fatalf("default control file = %q, %v; want %q", got, err, filepath.Join(root, "control.json"))
+	}
+	explicit := filepath.Join(t.TempDir(), "explicit.json")
+	if got, err := resolveControlFile(explicit); err != nil || got != explicit {
+		t.Fatalf("explicit control file = %q, %v; want %q", got, err, explicit)
+	}
+	fromEnv := filepath.Join(t.TempDir(), "from-env.json")
+	t.Setenv("VSCROXY_CONTROL_FILE", fromEnv)
+	if got, err := resolveControlFile(""); err != nil || got != fromEnv {
+		t.Fatalf("VSCROXY_CONTROL_FILE control file = %q, %v; want %q", got, err, fromEnv)
 	}
 }
 

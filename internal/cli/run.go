@@ -54,7 +54,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
-		fmt.Fprintln(stdout, "Usage: vscroxy-cli run [options] <collections-root | postman.json>\n       vscroxy-cli load [options] <collections-root | postman.json>\n       vscroxy-cli ab [options] <collections-root | postman.json | session.json>\n       vscroxy-cli mock [options] <collections-root | postman.json>\n       vscroxy-cli openapi lint [options] <spec>\n       vscroxy-cli control --file <discovery> [options] <action>\n       vscroxy-cli settings --file <discovery> [options] list|get|set\n       vscroxy-cli sessions --file <discovery> [--confirm] list|save|open|close\n       vscroxy-cli certificates --file <discovery> status\n       vscroxy-cli mocks --file <discovery> [--confirm] list|start|stop\nPrefix a command with --user-data-dir <path> (or --user-data-dir=<path>) to use another data folder.\nUse '<command> --help' for options.")
+		fmt.Fprintln(stdout, "Usage: vscroxy-cli run [options] <collections-root | postman.json>\n       vscroxy-cli load [options] <collections-root | postman.json>\n       vscroxy-cli ab [options] <collections-root | postman.json | session.json>\n       vscroxy-cli mock [options] <collections-root | postman.json>\n       vscroxy-cli openapi lint [options] <spec>\n       vscroxy-cli control --file <discovery> [options] <action>\n       vscroxy-cli settings --file <discovery> [options] list|get|set\n       vscroxy-cli sessions --file <discovery> [--confirm] list|save|open|close\n       vscroxy-cli certificates --file <discovery> status\n       vscroxy-cli mocks --file <discovery> [--confirm] list|start|stop\n       vscroxy-cli env [--control-file <discovery>] [--shell sh|fish|powershell|cmd]\n       vscroxy-cli exec [--control-file <discovery>] -- <command> [args...]\nPrefix a command with --user-data-dir <path> (or --user-data-dir=<path>) to use another data folder.\nUse '<command> --help' for options.")
 		return 0
 	}
 	if args[0] == "control" {
@@ -77,6 +77,12 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	if args[0] == "mocks" {
 		return mocksCommand(ctx, args[1:], stdout, stderr)
+	}
+	if args[0] == "env" {
+		return envCommand(ctx, args[1:], stdout, stderr)
+	}
+	if args[0] == "exec" {
+		return execCommand(ctx, args[1:], stdout, stderr)
 	}
 	if args[0] == "load" {
 		return loadCommand(ctx, args[1:], stdout, stderr)

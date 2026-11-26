@@ -52,6 +52,24 @@ jobs:
       - name: Install NSIS, for the Windows installers
         if: matrix.name == 'Windows'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq nsis
+      # MyGo merges resources/<os>-<arch> into each app's resources, so the
+      # CLI and MCP server ship inside the app (and are signed with it).
+      - name: Build the CLI and MCP server into the app resources
+        env:
+          PLATFORMS: ${{ matrix.platforms }}
+        run: |
+          for target in ${PLATFORMS//,/ }; do
+            os=${target%/*}
+            arch=${target#*/}
+            ext=""
+            if [ "$os" = windows ]; then ext=".exe"; fi
+            dir="resources/$os-$arch/bin"
+            mkdir -p "$dir"
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath \
+              -o "$dir/vscroxy-cli$ext" ./cmd/vscroxy-cli
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath \
+              -o "$dir/vscroxy-mcp$ext" ./cmd/vscroxy-mcp
+          done
       - name: Build the app packages
         run: go tool mygo build -platform "${{ matrix.platforms }}" -o dist
       - name: Build the CLI and MCP binaries

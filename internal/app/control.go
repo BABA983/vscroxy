@@ -126,6 +126,9 @@ func (a *app) dispatchControl(ctx context.Context, command control.Command, upda
 		if ctx.Err() != nil {
 			return // a timed-out queued mutation must never run later
 		}
+		// The server authenticated this command before dispatch. Keep only
+		// the time in memory, for the AI agents page.
+		a.controlLastUsed = time.Now()
 		value, err := a.controlValue(command)
 		if work, ok := value.(controlWork); ok && err == nil {
 			reply <- work
@@ -185,7 +188,19 @@ func (a *app) controlValue(command control.Command) (any, error) {
 		}
 		switch command.Action {
 		case "status":
-			return map[string]any{"proxyRunning": a.srv != nil && a.srv.Running(), "recording": !a.recordingPaused, "environment": a.activeEnv, "requests": len(a.requests), "flows": len(a.flows)}, nil
+			value := map[string]any{"proxyRunning": a.srv != nil && a.srv.Running(), "recording": !a.recordingPaused, "environment": a.activeEnv, "requests": len(a.requests), "flows": len(a.flows)}
+			// The capture address and public certificate paths are not
+			// secrets; the bearer token never enters a result.
+			if a.srv != nil && a.srv.Running() {
+				value["proxyAddr"] = a.srv.Addr()
+			}
+			if a.caPath != "" {
+				value["caPath"] = a.caPath
+			}
+			if bundle := a.clientBundlePath(); bundle != "" {
+				value["bundlePath"] = bundle
+			}
+			return value, nil
 		case "collections.list":
 			return runnableCollections(a.requests), nil
 		default:

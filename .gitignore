@@ -17,6 +17,8 @@
 # MyGo development and packaged builds
 /.mygo/
 /dist/
+# Helper binaries the release workflow builds into app resources
+/resources/*/bin/
 
 # Amp orb artifacts and portals
 .amp/in/

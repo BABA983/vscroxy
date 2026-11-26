@@ -206,21 +206,6 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}, locales.DismissedNoticesHint())
 		})
-		uikit.SettingsCard(c, locales.LocalAutomation(), func() {
-			a.settingRow(c, "general.localControl", locales.EnableLocalAutomation(), func() ui.Element {
-				on := a.controlRunning()
-				toggle := uikit.SettingsSwitch(c, &on, locales.EnableLocalAutomation())
-				if toggle.Changed() {
-					a.setLocalControl(on)
-				}
-				return toggle
-			}, locales.LocalAutomationAbout())
-			if a.controlRunning() {
-				settingsCardRow(c, locales.DiscoveryFile(), func() ui.Element {
-					return uikit.Mono(c, shortenHome(a.controlPath)).Selectable()
-				}, "")
-			}
-		})
 		uikit.SettingsCard(c, locales.Help(), func() {
 			a.settingRow(c, "general.setupGuide", locales.SetupGuide(), func() ui.Element {
 				return ui.Row(c).Children(func() {

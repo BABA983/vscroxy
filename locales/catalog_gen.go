@@ -40257,3 +40257,343 @@ func CipherSuitesHint() string { return In(i18n.Locale()).CipherSuitesHint() }
 func (msgs Messages) CipherSuitesHint() string {
 	return Catalog.Format(msgs.locale, "cipherSuitesHint", nil)
 }
+
+// AgentCommandSnippetHint says "Run this in a terminal, then restart the client."
+// in the language the app shows.
+func AgentCommandSnippetHint() string { return In(i18n.Locale()).AgentCommandSnippetHint() }
+
+// AgentCommandSnippetHint says "Run this in a terminal, then restart the client."
+// in the language of msgs.
+func (msgs Messages) AgentCommandSnippetHint() string {
+	return Catalog.Format(msgs.locale, "agentCommandSnippetHint", nil)
+}
+
+// AgentCursorSnippetHint says "Save as ~/.cursor/mcp.json, then restart Cursor."
+// in the language the app shows.
+func AgentCursorSnippetHint() string { return In(i18n.Locale()).AgentCursorSnippetHint() }
+
+// AgentCursorSnippetHint says "Save as ~/.cursor/mcp.json, then restart Cursor."
+// in the language of msgs.
+func (msgs Messages) AgentCursorSnippetHint() string {
+	return Catalog.Format(msgs.locale, "agentCursorSnippetHint", nil)
+}
+
+// AgentOtherSnippetHint says "Add this to your MCP client's configuration, then restart it."
+// in the language the app shows.
+func AgentOtherSnippetHint() string { return In(i18n.Locale()).AgentOtherSnippetHint() }
+
+// AgentOtherSnippetHint says "Add this to your MCP client's configuration, then restart it."
+// in the language of msgs.
+func (msgs Messages) AgentOtherSnippetHint() string {
+	return Catalog.Format(msgs.locale, "agentOtherSnippetHint", nil)
+}
+
+// AgentSnippetRestartHint says "These options only change the snippet. Restart the client after adding or changing the server."
+// in the language the app shows.
+func AgentSnippetRestartHint() string { return In(i18n.Locale()).AgentSnippetRestartHint() }
+
+// AgentSnippetRestartHint says "These options only change the snippet. Restart the client after adding or changing the server."
+// in the language of msgs.
+func (msgs Messages) AgentSnippetRestartHint() string {
+	return Catalog.Format(msgs.locale, "agentSnippetRestartHint", nil)
+}
+
+// AiAgents says "AI agents"
+// in the language the app shows.
+func AiAgents() string { return In(i18n.Locale()).AiAgents() }
+
+// AiAgents says "AI agents"
+// in the language of msgs.
+func (msgs Messages) AiAgents() string {
+	return Catalog.Format(msgs.locale, "aiAgents", nil)
+}
+
+// AiAgentsHint says "Connect Claude Code, Codex, Cursor and other agents to the running capture proxy and its tools."
+// in the language the app shows.
+func AiAgentsHint() string { return In(i18n.Locale()).AiAgentsHint() }
+
+// AiAgentsHint says "Connect Claude Code, Codex, Cursor and other agents to the running capture proxy and its tools."
+// in the language of msgs.
+func (msgs Messages) AiAgentsHint() string {
+	return Catalog.Format(msgs.locale, "aiAgentsHint", nil)
+}
+
+// AllowAgentsToControl says "Allow AI agents and scripts to control vscroxy"
+// in the language the app shows.
+func AllowAgentsToControl() string { return In(i18n.Locale()).AllowAgentsToControl() }
+
+// AllowAgentsToControl says "Allow AI agents and scripts to control vscroxy"
+// in the language of msgs.
+func (msgs Messages) AllowAgentsToControl() string {
+	return Catalog.Format(msgs.locale, "allowAgentsToControl", nil)
+}
+
+// AllowAgentsToControlHint says "Runs a loopback-only, token-protected endpoint for local automation by MCP clients and the CLI. The token stays in a …"
+// in the language the app shows.
+func AllowAgentsToControlHint() string { return In(i18n.Locale()).AllowAgentsToControlHint() }
+
+// AllowAgentsToControlHint says "Runs a loopback-only, token-protected endpoint for local automation by MCP clients and the CLI. The token stays in a …"
+// in the language of msgs.
+func (msgs Messages) AllowAgentsToControlHint() string {
+	return Catalog.Format(msgs.locale, "allowAgentsToControlHint", nil)
+}
+
+// AllowChanges says "Allow changes"
+// in the language the app shows.
+func AllowChanges() string { return In(i18n.Locale()).AllowChanges() }
+
+// AllowChanges says "Allow changes"
+// in the language of msgs.
+func (msgs Messages) AllowChanges() string {
+	return Catalog.Format(msgs.locale, "allowChanges", nil)
+}
+
+// AllowChangesHint says "Agents can run requests, change rules and settings, and change the system proxy. Enable it only for trusted agents an…"
+// in the language the app shows.
+func AllowChangesHint() string { return In(i18n.Locale()).AllowChangesHint() }
+
+// AllowChangesHint says "Agents can run requests, change rules and settings, and change the system proxy. Enable it only for trusted agents an…"
+// in the language of msgs.
+func (msgs Messages) AllowChangesHint() string {
+	return Catalog.Format(msgs.locale, "allowChangesHint", nil)
+}
+
+// AllowRawAgentData says "Allow raw request and response data"
+// in the language the app shows.
+func AllowRawAgentData() string { return In(i18n.Locale()).AllowRawAgentData() }
+
+// AllowRawAgentData says "Allow raw request and response data"
+// in the language of msgs.
+func (msgs Messages) AllowRawAgentData() string {
+	return Catalog.Format(msgs.locale, "allowRawAgentData", nil)
+}
+
+// AllowRawAgentDataHint says "Raw headers, bodies and scripts may contain credentials or private data sent to the agent's model provider."
+// in the language the app shows.
+func AllowRawAgentDataHint() string { return In(i18n.Locale()).AllowRawAgentDataHint() }
+
+// AllowRawAgentDataHint says "Raw headers, bodies and scripts may contain credentials or private data sent to the agent's model provider."
+// in the language of msgs.
+func (msgs Messages) AllowRawAgentDataHint() string {
+	return Catalog.Format(msgs.locale, "allowRawAgentDataHint", nil)
+}
+
+// CaptureAgentCommands says "Capture commands your agent runs"
+// in the language the app shows.
+func CaptureAgentCommands() string { return In(i18n.Locale()).CaptureAgentCommands() }
+
+// CaptureAgentCommands says "Capture commands your agent runs"
+// in the language of msgs.
+func (msgs Messages) CaptureAgentCommands() string {
+	return Catalog.Format(msgs.locale, "captureAgentCommands", nil)
+}
+
+// CaptureAgentCommandsHint says "Point a terminal at the running capture proxy and CA without changing system settings. Capture must be running."
+// in the language the app shows.
+func CaptureAgentCommandsHint() string { return In(i18n.Locale()).CaptureAgentCommandsHint() }
+
+// CaptureAgentCommandsHint says "Point a terminal at the running capture proxy and CA without changing system settings. Capture must be running."
+// in the language of msgs.
+func (msgs Messages) CaptureAgentCommandsHint() string {
+	return Catalog.Format(msgs.locale, "captureAgentCommandsHint", nil)
+}
+
+// CaptureAgentCommandsShellHint says "env prints exports for sh/zsh, fish, PowerShell or cmd; exec runs one command with them and returns its exit code."
+// in the language the app shows.
+func CaptureAgentCommandsShellHint() string { return In(i18n.Locale()).CaptureAgentCommandsShellHint() }
+
+// CaptureAgentCommandsShellHint says "env prints exports for sh/zsh, fish, PowerShell or cmd; exec runs one command with them and returns its exit code."
+// in the language of msgs.
+func (msgs Messages) CaptureAgentCommandsShellHint() string {
+	return Catalog.Format(msgs.locale, "captureAgentCommandsShellHint", nil)
+}
+
+// ClaudeCode says "Claude Code"
+// in the language the app shows.
+func ClaudeCode() string { return In(i18n.Locale()).ClaudeCode() }
+
+// ClaudeCode says "Claude Code"
+// in the language of msgs.
+func (msgs Messages) ClaudeCode() string {
+	return Catalog.Format(msgs.locale, "claudeCode", nil)
+}
+
+// Codex says "Codex"
+// in the language the app shows.
+func Codex() string { return In(i18n.Locale()).Codex() }
+
+// Codex says "Codex"
+// in the language of msgs.
+func (msgs Messages) Codex() string {
+	return Catalog.Format(msgs.locale, "codex", nil)
+}
+
+// ControlEndpointOff says "Control endpoint off"
+// in the language the app shows.
+func ControlEndpointOff() string { return In(i18n.Locale()).ControlEndpointOff() }
+
+// ControlEndpointOff says "Control endpoint off"
+// in the language of msgs.
+func (msgs Messages) ControlEndpointOff() string {
+	return Catalog.Format(msgs.locale, "controlEndpointOff", nil)
+}
+
+// ControlEndpointOn says "Control endpoint on"
+// in the language the app shows.
+func ControlEndpointOn() string { return In(i18n.Locale()).ControlEndpointOn() }
+
+// ControlEndpointOn says "Control endpoint on"
+// in the language of msgs.
+func (msgs Messages) ControlEndpointOn() string {
+	return Catalog.Format(msgs.locale, "controlEndpointOn", nil)
+}
+
+// ControlStatus says "Status"
+// in the language the app shows.
+func ControlStatus() string { return In(i18n.Locale()).ControlStatus() }
+
+// ControlStatus says "Status"
+// in the language of msgs.
+func (msgs Messages) ControlStatus() string {
+	return Catalog.Format(msgs.locale, "controlStatus", nil)
+}
+
+// CopiedAgentSetup says "Copied the agent setup"
+// in the language the app shows.
+func CopiedAgentSetup() string { return In(i18n.Locale()).CopiedAgentSetup() }
+
+// CopiedAgentSetup says "Copied the agent setup"
+// in the language of msgs.
+func (msgs Messages) CopiedAgentSetup() string {
+	return Catalog.Format(msgs.locale, "copiedAgentSetup", nil)
+}
+
+// Cursor says "Cursor"
+// in the language the app shows.
+func Cursor() string { return In(i18n.Locale()).Cursor() }
+
+// Cursor says "Cursor"
+// in the language of msgs.
+func (msgs Messages) Cursor() string {
+	return Catalog.Format(msgs.locale, "cursor", nil)
+}
+
+// DownloadRelease says "Download a release"
+// in the language the app shows.
+func DownloadRelease() string { return In(i18n.Locale()).DownloadRelease() }
+
+// DownloadRelease says "Download a release"
+// in the language of msgs.
+func (msgs Messages) DownloadRelease() string {
+	return Catalog.Format(msgs.locale, "downloadRelease", nil)
+}
+
+// LastUsedDays says "Last used {count} days ago"
+// in the language the app shows.
+func LastUsedDays(count int) string { return In(i18n.Locale()).LastUsedDays(count) }
+
+// LastUsedDays says "Last used {count} days ago"
+// in the language of msgs.
+func (msgs Messages) LastUsedDays(count int) string {
+	return Catalog.Format(msgs.locale, "lastUsedDays", map[string]any{"count": count})
+}
+
+// LastUsedHours says "Last used {count} h ago"
+// in the language the app shows.
+func LastUsedHours(count int) string { return In(i18n.Locale()).LastUsedHours(count) }
+
+// LastUsedHours says "Last used {count} h ago"
+// in the language of msgs.
+func (msgs Messages) LastUsedHours(count int) string {
+	return Catalog.Format(msgs.locale, "lastUsedHours", map[string]any{"count": count})
+}
+
+// LastUsedJustNow says "Last used just now"
+// in the language the app shows.
+func LastUsedJustNow() string { return In(i18n.Locale()).LastUsedJustNow() }
+
+// LastUsedJustNow says "Last used just now"
+// in the language of msgs.
+func (msgs Messages) LastUsedJustNow() string {
+	return Catalog.Format(msgs.locale, "lastUsedJustNow", nil)
+}
+
+// LastUsedMinutes says "Last used {count} min ago"
+// in the language the app shows.
+func LastUsedMinutes(count int) string { return In(i18n.Locale()).LastUsedMinutes(count) }
+
+// LastUsedMinutes says "Last used {count} min ago"
+// in the language of msgs.
+func (msgs Messages) LastUsedMinutes(count int) string {
+	return Catalog.Format(msgs.locale, "lastUsedMinutes", map[string]any{"count": count})
+}
+
+// LearnMore says "Learn more"
+// in the language the app shows.
+func LearnMore() string { return In(i18n.Locale()).LearnMore() }
+
+// LearnMore says "Learn more"
+// in the language of msgs.
+func (msgs Messages) LearnMore() string {
+	return Catalog.Format(msgs.locale, "learnMore", nil)
+}
+
+// McpClient says "MCP client"
+// in the language the app shows.
+func McpClient() string { return In(i18n.Locale()).McpClient() }
+
+// McpClient says "MCP client"
+// in the language of msgs.
+func (msgs Messages) McpClient() string {
+	return Catalog.Format(msgs.locale, "mcpClient", nil)
+}
+
+// McpExecutable says "MCP executable"
+// in the language the app shows.
+func McpExecutable() string { return In(i18n.Locale()).McpExecutable() }
+
+// McpExecutable says "MCP executable"
+// in the language of msgs.
+func (msgs Messages) McpExecutable() string {
+	return Catalog.Format(msgs.locale, "mcpExecutable", nil)
+}
+
+// McpExecutableMissing says "vscroxy-mcp was not found beside vscroxy or on PATH. Build it, or copy a release binary there:"
+// in the language the app shows.
+func McpExecutableMissing() string { return In(i18n.Locale()).McpExecutableMissing() }
+
+// McpExecutableMissing says "vscroxy-mcp was not found beside vscroxy or on PATH. Build it, or copy a release binary there:"
+// in the language of msgs.
+func (msgs Messages) McpExecutableMissing() string {
+	return Catalog.Format(msgs.locale, "mcpExecutableMissing", nil)
+}
+
+// CliExecutableMissing says "vscroxy-cli was not found beside vscroxy or on PATH. Build it, or copy a release binary there:"
+// in the language the app shows.
+func CliExecutableMissing() string { return In(i18n.Locale()).CliExecutableMissing() }
+
+// CliExecutableMissing says "vscroxy-cli was not found beside vscroxy or on PATH. Build it, or copy a release binary there:"
+// in the language of msgs.
+func (msgs Messages) CliExecutableMissing() string {
+	return Catalog.Format(msgs.locale, "cliExecutableMissing", nil)
+}
+
+// NotUsedYet says "Not used yet"
+// in the language the app shows.
+func NotUsedYet() string { return In(i18n.Locale()).NotUsedYet() }
+
+// NotUsedYet says "Not used yet"
+// in the language of msgs.
+func (msgs Messages) NotUsedYet() string {
+	return Catalog.Format(msgs.locale, "notUsedYet", nil)
+}
+
+// OtherMcpClient says "Other"
+// in the language the app shows.
+func OtherMcpClient() string { return In(i18n.Locale()).OtherMcpClient() }
+
+// OtherMcpClient says "Other"
+// in the language of msgs.
+func (msgs Messages) OtherMcpClient() string {
+	return Catalog.Format(msgs.locale, "otherMcpClient", nil)
+}

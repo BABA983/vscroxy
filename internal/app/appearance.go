@@ -270,6 +270,7 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool, footer fu
 					label string
 				}{
 					{"0", settingsIcon, locales.General()},
+					{"7", lucide.Bot(), locales.AiAgents()},
 					{"3", lucide.SunMoon(), locales.Appearance()},
 					{"1", upstreamIcon, locales.Proxy()},
 					{"2", lockIcon, locales.HttpsDecryption()},
@@ -326,6 +327,8 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool, footer fu
 						a.deviceSettings(c, t)
 					case 6:
 						a.certificateSettings(c, t)
+					case 7:
+						a.agentsSettings(c, t)
 					}
 				})
 				if a.settingsTab == 6 {

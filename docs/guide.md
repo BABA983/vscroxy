@@ -4280,10 +4280,12 @@ The window's position and size are
 MyGo's own, kept in `window-state.json` under the app's config directory and
 restored when they would still show on a connected display.
 
-**Settings → General → Local automation** lets the command-line and MCP clients
-control this running app. It is off by default; the switch stays on across
-launches and is never exported. See [automation](automation.md#control-a-running-desktop)
-for what the clients can do and the security model.
+**Settings → AI agents** lets the command-line and MCP clients control this
+running app. It is off by default; the switch stays on across launches and is
+never exported. The page also copies MCP client snippets and the terminal
+commands that capture an agent's own traffic. See
+[automation](automation.md#connect-an-ai-agent) for what the clients can do and
+the security model.
 
 **Settings → General → Updates** asks GitHub once per launch for the latest
 release number and shows a notice when a newer version exists; turn it off

@@ -662,6 +662,25 @@ func TestInvalidArgumentsNeverReachDesktop(t *testing.T) {
 	}
 }
 
+// Without a discovery file the server still starts; every tool explains how
+// to turn desktop control on instead of the MCP connection failing.
+func TestMissingDesktopExplainsHowToEnableControl(t *testing.T) {
+	cs := connect(t, filepath.Join(t.TempDir(), "missing.json"), mcpserver.Options{}, "2025-11-25")
+	result := call(t, cs, "status", nil)
+	if !result.IsError {
+		t.Fatalf("status succeeded without a desktop: %+v", result)
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"AI agents", "Allow AI agents and scripts to control vscroxy"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("error does not mention %q: %s", want, data)
+		}
+	}
+}
+
 func TestSanitizedBackendFailure(t *testing.T) {
 	path := endpoint(t, func(context.Context, control.Command) (any, error) {
 		return nil, errors.New("private-backend-exception-and-token")
@@ -724,12 +743,6 @@ func TestCancellationReachesControl(t *testing.T) {
 				t.Fatal("MCP cancellation did not reach authenticated control dispatch")
 			}
 		})
-	}
-}
-
-func TestDiscoveryRequired(t *testing.T) {
-	if _, err := mcpserver.New(filepath.Join(t.TempDir(), "missing"), mcpserver.Options{}); err == nil {
-		t.Fatal("missing discovery accepted")
 	}
 }
 

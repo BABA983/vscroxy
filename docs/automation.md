@@ -335,10 +335,11 @@ ID) and `openapi.sync` (dry-run diff by default; `write:true` with
 
 ## Control a running desktop
 
-Desktop control is **off by default**. Turn on **Settings → General → Local
-automation** to run the endpoint at `~/.vscroxy/control.json`. The switch is kept
-across launches, is not part of an exported configuration, and turning it off
-stops the endpoint and removes the discovery file.
+Desktop control is **off by default**. Turn on **Settings → AI agents → Allow AI
+agents and scripts to control vscroxy** to run the endpoint at
+`~/.vscroxy/control.json`. The switch is kept across launches, is not part of an
+exported configuration, and turning it off stops the endpoint and removes the
+discovery file.
 
 For a custom path or a scripted launch, explicitly set `VSCROXY_CONTROL_FILE` to
 a nonexistent file in an existing, private directory when launching the app. That
@@ -430,7 +431,7 @@ the [mock server](#mock-server) section.
 
 | Action | Parameters / result |
 | --- | --- |
-| `status` | Proxy, recording, active environment and counts |
+| `status` | Proxy running, recording, active environment and counts; `proxyAddr`, `caPath` and `bundlePath` when available (not secrets; the token is never returned) |
 | `system-proxy.get` | Poll OS-read snapshot; optional `refresh` starts a new read-only check |
 | `system-proxy.set-enabled` | Required boolean `enabled`; returns `accepted:true` and snapshot, then poll `system-proxy.get` |
 | `collections.list` | Runnable saved collection/folder names |
@@ -741,27 +742,97 @@ the desktop process; Map Remote changes where future requests are sent, and
 breakpoints may pause them. No new mock files are created by import, and no
 additional filesystem/network sandbox is implied by `--allow-write`.
 
+## Connect an AI agent
+
+**Settings → AI agents** collects the connection in one place. Turn on **Allow AI
+agents and scripts to control vscroxy** — the same loopback-only, token-protected
+endpoint described above — then copy the snippet for Claude Code, Codex, Cursor
+or another MCP client. The page looks for `vscroxy-mcp` beside the app, in the
+macOS bundle's `Contents/Resources`, and on `PATH`; release builds ship it in the
+app's resources. If it is missing, build it with
+`go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp` or copy a release binary next to
+the app.
+
+The two snippet switches are not settings. **Allow changes** adds `--allow-write`
+and **Allow raw request and response data** adds `--allow-sensitive`; they grant
+the same startup capabilities described under [MCP](#mcp-stdio-server). Leave
+both off for a read-only connection.
+
+Claude Code and Codex register the stdio server themselves (quote the path for
+your shell; Windows uses double quotes):
+
+```sh copy Copy Agent MCP Commands
+claude mcp add vscroxy --transport stdio --scope user -- "/absolute/path/to/vscroxy-mcp"
+codex mcp add vscroxy -- "/absolute/path/to/vscroxy-mcp"
+```
+
+Cursor and other clients take JSON; Cursor reads `~/.cursor/mcp.json`:
+
+```json copy Copy Agent MCP Configuration
+{"mcpServers":{"vscroxy":{"type":"stdio","command":"/absolute/path/to/vscroxy-mcp","args":[]}}}
+```
+
+`--control-file` remains available for a custom data root, but it is optional: the
+MCP server defaults to `VSCROXY_CONTROL_FILE` when set, else `control.json` in
+the data root (`VSCROXY_HOME` or `~/.vscroxy`). Each tool call reloads that file,
+so the server may start before vscroxy; if the desktop is stopped or control is
+off, the tool returns an error that says to open vscroxy and enable the switch.
+Do not put the discovery token in client configuration.
+
+### Capture commands an agent runs
+
+An agent's `curl`, `npm test` or build command does not use the capture proxy
+unless its environment says so. `vscroxy-cli env` asks the running desktop for the
+capture address and CA, then prints shell assignments:
+
+```sh copy Copy Agent Proxy Environment
+eval "$(vscroxy-cli env)"          # sh, bash or zsh; the default follows $SHELL
+vscroxy-cli env --shell fish
+vscroxy-cli env --shell powershell
+vscroxy-cli env --shell cmd
+```
+
+`exec` runs one command with those variables added to the current environment,
+passing stdin/stdout/stderr and returning the child's exit code:
+
+```sh copy Copy Agent Exec
+vscroxy-cli exec -- npm test
+```
+
+The AI agents page copies these commands with the located CLI's absolute path.
+In a plain shell, a release app ships `vscroxy-cli` in its resources; add that
+directory to `PATH`, or call the binary by its absolute path.
+
+Both commands read only the authenticated `status` result. The capture address,
+public CA and CA bundle paths are not secrets; the discovery token is never
+printed or passed to the child. They exit 2 when the desktop is unreachable or
+capture is not running, so a setup step can fail instead of quietly running
+without capture.
+
 ## MCP stdio server
 
-Build `go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp`. This separate executable
-uses the official Model Context Protocol Go SDK and the authenticated control
-client, with no MyGo, display or proxy-engine dependency. It does not implement a
-second runner, access desktop files directly, launch the app, or expose HTTP MCP.
-First enable desktop control as above; the desktop must be running.
+Build `go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp`, or use the copy shipped in
+a release app's resources. This separate executable uses the official Model
+Context Protocol Go SDK and the authenticated control client, with no MyGo,
+display or proxy-engine dependency. It does not implement a second runner, access
+desktop files directly, launch the app, or expose HTTP MCP. Enable desktop control
+as above; the desktop may be started after the MCP client.
 
-Configure a stdio-capable MCP client with absolute executable and discovery-file
-paths (replace both placeholders; shell `$HOME` expansion is not assumed):
+Configure a stdio-capable MCP client with the absolute executable path (replace
+the placeholder; shell `$HOME` expansion is not assumed):
 
 ```json copy Copy MCP Client Configuration
 {
   "mcpServers": {
     "vscroxy": {
-      "command": "/absolute/path/to/vscroxy-mcp",
-      "args": ["--control-file", "/absolute/path/to/control.json"]
+      "command": "/absolute/path/to/vscroxy-mcp"
     }
   }
 }
 ```
+
+A custom data root adds `"--control-file", "/absolute/path/to/control.json"` to
+`args`.
 
 The default catalog contains twenty-one read-only tools, named like desktop actions:
 `status`, `certificates.get`, `collection-recording.get`, `collections.list`,
@@ -811,7 +882,8 @@ instructions from network responses or offer arbitrary actions/filesystem paths.
 
 All protocol traffic uses stdin/stdout; help/errors use stderr with controlled
 messages. Cancellation propagates to the pending desktop command, but canceling
-an accepted asynchronous run requires `runs.cancel`. After restarting the
-desktop, restart its MCP connection to reload the new address/token. Do not put
-the token itself in client configuration. Tested protocol versions include
-2025-11-25 and 2026-07-28; client-specific configuration wrappers may differ.
+an accepted asynchronous run requires `runs.cancel`. Each call reloads the
+discovery file, so a restarted desktop's new address and token are picked up
+without reconnecting the MCP client. Do not put the token itself in client
+configuration. Tested protocol versions include 2025-11-25 and 2026-07-28;
+client-specific configuration wrappers may differ.

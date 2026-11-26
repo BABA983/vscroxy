@@ -21,8 +21,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/datadir"
 	"github.com/baba983/vscroxy/internal/errorsx"
 )
+
+// DefaultFile is where the desktop publishes its discovery file when no path
+// was chosen: VSCROXY_CONTROL_FILE wins, as it does in the desktop, then
+// control.json in the data root (VSCROXY_HOME or ~/.vscroxy).
+func DefaultFile() (string, error) {
+	if path := os.Getenv("VSCROXY_CONTROL_FILE"); path != "" {
+		return path, nil
+	}
+	return datadir.Path("control.json")
+}
 
 const (
 	maxRequestBytes  = 64 << 10
