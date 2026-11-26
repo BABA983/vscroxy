@@ -239,7 +239,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 			})
 			uikit.Hint(c, locales.SameWiFiLanOnly())
 			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.Space2XL)).AlignItems(ui.Stretch).Children(func() {
-				ui.Scroll(c).BasisPercent(44).Grow(1).MinWidth(0).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceM), 0, t.Space(uikit.SpaceXS)).Children(func() {
+				ui.Scroll(c).BasisPercent(44).Grow(1).MinHeight(0).MinWidth(0).Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceM), 0, t.Space(uikit.SpaceXS)).Children(func() {
 					if d.gateway == nil {
 						uikit.Body(c, locales.N1ChooseANetworkAddress()).FontWeight(500)
 						ui.Form(c, func() {

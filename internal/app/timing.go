@@ -29,7 +29,7 @@ func (a *app) timingView(c *ui.Context, f flow) {
 	dns := uikit.Colors(t).MethodPatch
 	wait := uikit.Colors(t).Info
 	download := uikit.Colors(t).Socket
-	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceXL)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(uikit.SpaceM)).Padding(t.Space(uikit.SpaceXL)).Children(func() {
 		uikit.Hint(c, locales.AggregateTimingOnlyNoRequest())
 		if f.conn.dnsFresh && f.conn.resolved != "" {
 			waterfallRow(c, t, locales.TimingDNSLookup(), fmt.Sprintf("%s → %s", hostOnly(f.host), f.conn.resolved),
@@ -124,7 +124,7 @@ func timingWaterfall(c *ui.Context, timing *capture.Timing) {
 		uikit.Hint(c, locales.InvalidTimingDataRecordedOffsets()).Padding(t.Space(uikit.SpaceXL))
 		return
 	}
-	ui.Scroll(c).Grow(1).FillWidth().Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			uikit.Body(c, locales.TimingWaterfall()).Grow(1)
 			uikit.Meta(c, timingDuration(timing.TotalNS)).Font(uikit.FontMono).FontFeatures("tnum")

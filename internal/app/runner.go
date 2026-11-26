@@ -532,7 +532,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 					uikit.Label(c, locales.ExecutionOrder()).Height(uikit.HeightTabs).Padding(t.Space(uikit.SpaceM)).
 						Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					move, delta := -1, 0
-					ui.Scroll(c).Grow(1).Children(func() {
+					ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 						if len(r.steps) == 0 {
 							uikit.EmptyState(c, locales.NoSavedRequests(), locales.ChooseACollectionWithSaved(), nil)
 						}

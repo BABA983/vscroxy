@@ -829,7 +829,7 @@ func (a *app) scriptConsole(c *ui.Context, t *ui.Theme, name string) {
 			}
 		})
 		ui.Divider(c)
-		ui.Scroll(c.Key("script-console-"+name)).Grow(1).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+		ui.Scroll(c.Key("script-console-"+name)).Grow(1).MinHeight(0).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 			if len(lines) == 0 {
 				uikit.Hint(c, locales.ConsoleLogAndErrorsShow())
 			}

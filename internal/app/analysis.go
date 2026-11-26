@@ -138,7 +138,7 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 			a.diffPool(c, selected)
 			return
 		}
-		ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceL)).Children(func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceL)).Children(func() {
 			var bytes, duration int64
 			errors, incomplete := 0, 0
 			times := make([]int, 0, len(selected))

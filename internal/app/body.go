@@ -916,7 +916,7 @@ func (a *app) imagePreview(c *ui.Context, key, body string, side int) {
 		return
 	}
 	w, h := a.imageBmp[side].Size()
-	ui.Scroll(c).Grow(1).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 		ui.Column(c).Padding(t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			uikit.Meta(c, fmt.Sprintf("%d × %d px", w, h)).FontFeatures("tnum")
 			ui.Image(c, a.imageBmp[side]).MaxWidthPercent(100)

@@ -11,7 +11,7 @@ import (
 )
 
 func (a *app) checksEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
-	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 		ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceL)).Children(func() {
 			uikit.PropertyRow(c, locales.ExpectedStatus(), locales.EmptyNoStatusAssertion(), func() {
 				uikit.Input(c, &d.checks.Status).Width(90).Label(locales.ExpectedStatus()).Placeholder("200")

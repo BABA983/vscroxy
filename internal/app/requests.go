@@ -667,7 +667,7 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 	if a.draftShowsProtobuf(d) {
 		a.protoOwner = 1
 	}
-	ui.Column(c.Key(d.id)).Fill().Children(func() {
+	ui.Column(c.Key(d.id)).Grow(1).FillWidth().MinHeight(0).Children(func() {
 		a.requestBar(c, t, d, nil, true)
 		a.requestVariablesPanel(c, t, d)
 		if d.comparing {
@@ -924,7 +924,7 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 func (a *app) variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool, target func(request.ResolvedVariable) *variableTarget) {
 	t := c.Theme()
 	uikit.Checkbox(c, reveal, locales.RevealPlaintextValues())
-	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(uikit.SpaceM)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(uikit.SpaceM)).Children(func() {
 		if len(rows) == 0 {
 			uikit.Meta(c, locales.NoReferencedVariablesInThis())
 		}
@@ -1036,7 +1036,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 		height = uikit.HeightBar
 	}
 	ui.Row(c).Height(height).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-		field := ui.Row(c).Grow(1).Height(uikit.HeightControl).AlignItems(ui.Center)
+		field := ui.Row(c).Grow(1).Height(uikit.HeightControl).AlignItems(ui.Center).MinWidth(0)
 		field.Disabled(d.protocol != "" && d.composeWaiting)
 		uikit.FieldFace(c, field, field.FocusWithin()).Children(func() {
 			if !a.page.capture() {
@@ -1060,7 +1060,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			}
 			a.takeURLPaste(d)
 			// Bare: the URL bar is one face with the method and Send beside it, which the kit's field face does not cover.
-			input := uikit.TextInset(ui.TextInputBase(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(uikit.HeightRow).Label(locales.Url()).
+			input := uikit.TextInset(ui.TextInputBase(c, &d.composeURL).Bind(&d.urlInput).Grow(1).MinWidth(0).Height(uikit.HeightRow).Label(locales.Url()).
 				Placeholder(placeholder).Font(uikit.FontMono).OnPaste(func(text string) bool {
 				return a.pasteURLImport(d, text)
 			}), t.Space(uikit.SpaceM))
@@ -1124,7 +1124,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			sendWidth, cancelWidth = 64, 76
 		}
 		if !narrow || !d.composeWaiting {
-			a.primaryActionButton(c, "request.send", sendLabel).Width(sendWidth)
+			a.primaryActionButton(c, "request.send", sendLabel).Width(sendWidth).Shrink(0)
 		}
 		if d.composeWaiting {
 			label := locales.Cancel()
@@ -1134,7 +1134,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			if d.sendCancelling && !narrow {
 				label = locales.Cancelling()
 			}
-			a.actionButton(c, "request.cancel-send", label).Label(locales.CancelSend()).Width(cancelWidth).
+			a.actionButton(c, "request.cancel-send", label).Label(locales.CancelSend()).Width(cancelWidth).Shrink(0).
 				Tooltip(locales.StopWaitingCancellingDoesNot())
 		}
 		if more != nil {
@@ -1422,12 +1422,12 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 			})
 		})
 	}
-	ui.Column(c).Fill().Bind(&a.editorReqPane).Children(func() {
+	ui.Column(c).Fill().MinHeight(0).Bind(&a.editorReqPane).Children(func() {
 		a.requestPaneHeader(c, t, selected, d, f, paneTools{format: -1, width: width})
 		if *selected == composeTabBody && !request.IsWebSocket(d.composeURL) {
 			ui.Column(c).FillWidth().Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(bodyTools)
 		}
-		ui.Column(c).Grow(1).FillWidth().Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
+		ui.Column(c).Grow(1).MinHeight(0).FillWidth().Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			switch *selected {
 			case composeTabParams:
 				a.paramsEditor(c, d, t)
@@ -1714,7 +1714,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		return
 	}
 	if d.response == nil && len(d.composeReplies) == 0 {
-		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
 			ui.Column(c).Fill().Center().Padding(t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 				if d.composeWaiting {
 					uikit.Spinner(c, locales.WaitingForRequestResult())
@@ -1803,7 +1803,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		}
 		a.contractView(c, t, fmt.Sprintf("send:%d:%s:%d", d.response.ID, d.response.URL, d.response.Status), a.captureExchange(d.response))
 	case resViewHeaders:
-		ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
 			if d.response != nil {
 				block := request.HeaderBlock(d.response.ResponseHeader)
 				ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
@@ -1844,7 +1844,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 			})
 		}
-		ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			if len(d.composeTests) == 0 {
 				uikit.Hint(c, locales.NoAssertionsAddResponseChecks())
 			}
@@ -1900,7 +1900,7 @@ func testResultRow(c *ui.Context, result request.TestResult, showDiff func(reque
 
 func runConsole(c *ui.Context, entries []request.ConsoleMessage) {
 	t := c.Theme()
-	ui.Scroll(c).Grow(1).FillWidth().Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		if len(entries) == 0 {
 			uikit.Hint(c, locales.NoOutputCallConsoleLog())
 		}

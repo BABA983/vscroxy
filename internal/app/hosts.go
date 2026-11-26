@@ -323,13 +323,31 @@ func (a *app) profileConflicts() map[string]int {
 }
 
 // hostProfileLabel spells where a flow's mapping came from, "Staging, line
-// 2", from the engine's "Staging:2".
+// 2", from the engine's "Staging:2". A profile that still carries the
+// placeholder a new one starts with has no name to report: the mapping is
+// what the row says instead.
 func hostProfileLabel(source string) string {
 	name, line, ok := strings.CutLast(source, ":")
 	if !ok {
-		return source
+		name = source
+	}
+	if hostProfileName(name) == "" {
+		return ""
+	}
+	if !ok {
+		return name
 	}
 	return name + locales.CommaLine(line)
+}
+
+// hostProfileName is the name in the engine's "Staging:2", or "" for a place
+// holder such as a profile that was never named.
+func hostProfileName(source string) string {
+	name, _, _ := strings.CutLast(source, ":")
+	if name == "" || name == "Untitled" || name == locales.Untitled() {
+		return ""
+	}
+	return name
 }
 
 // newProfile adds a profile below the others, saves its file, and shows it

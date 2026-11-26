@@ -2098,6 +2098,7 @@
   "mappedHost": "已在方案 {profile} 中将 {host} 映射到 {address}；对新连接生效",
   "mappedRule": "→ {ip} · {profile} 第 {line} 行",
   "mappedTo": "映射自 {profile} → {ip}",
+  "mappedToTarget": "映射 → {ip}",
   "mark": "标记…",
   "markTheRequest": "标记请求",
   "markdownShownInTheCollection": "MARKDOWN · 显示在集合的文档视图中",

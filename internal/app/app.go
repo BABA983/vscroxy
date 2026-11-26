@@ -3463,6 +3463,15 @@ func (a *app) table(c *ui.Context) {
 		}
 		a.columnsMenu(m, id)
 	}
+	// The whole cell, padding included, opens the row's menu: the text of a
+	// few columns used to be the only place that took a right-click, so every
+	// other column and the space beside the text opened nothing.
+	state.CellMenu = func(m *ui.Menu, row, col int) {
+		if row < 0 || row >= len(rows) {
+			return
+		}
+		actionMenu(m, a.flowActions(c, a.flows[rows[row]]))
+	}
 	state.HeaderCell = func(cell ui.Element, col int) {
 		cell.DrawOver(func(p *ui.Painter, r ui.Rect) {
 			p.Fill(ui.Rect{X: r.X, Y: r.Y + r.H - 1, W: r.W, H: 1}, t.Border, 0)
@@ -3528,9 +3537,9 @@ func (a *app) table(c *ui.Context) {
 				ink = t.TextMuted
 			}
 			uikit.CardTip(c, uikit.Small(c, f.method).FontWeight(500).Height(15).FixedLineHeight(15).
-				TextColor(ink).SingleLine(), captureCard(f)).PopoverMenu(a.rowMenu(c, f))
+				TextColor(ink).SingleLine(), captureCard(f))
 		case "host":
-			uikit.CardTip(c, plain(f.host), captureCard(f)).PopoverMenu(a.rowMenu(c, f))
+			uikit.CardTip(c, plain(f.host), captureCard(f))
 		case "remote":
 			a.remoteCell(c, t, f, quiet)
 		case "url":
@@ -3561,7 +3570,7 @@ func (a *app) table(c *ui.Context) {
 					// profile sent the request elsewhere.
 					accent := uikit.Colors(t).Primary
 					uikit.Tip(c, ui.Box(c).Height(15).Padding(0, t.Space(uikit.SpaceXS)).Radius(uikit.RadiusControl).Background(accent.Alpha(0.12)).Center().MarginEnd(t.Space(uikit.SpaceXS)).
-						Label(locales.MappedBy(hostProfileLabel(f.hostProfile))), mappedBy(f)).Children(func() {
+						Label(mappedBadgeLabel(f)), mappedBy(f)).Children(func() {
 						uikit.Caption(c, locales.Hosts()).FontWeight(500).TextColor(accent)
 					})
 				}
@@ -3569,11 +3578,11 @@ func (a *app) table(c *ui.Context) {
 				if f.strike {
 					label = label.Strikethrough()
 				}
-				uikit.CardTip(c, label, captureCard(f)).PopoverMenu(a.rowMenu(c, f))
+				uikit.CardTip(c, label, captureCard(f))
 			})
 		case "status":
 			if f.conn.error != "" {
-				uikit.CardTip(c, text(locales.Failed()).TextColor(t.Danger), captureCard(f)).PopoverMenu(a.rowMenu(c, f))
+				uikit.CardTip(c, text(locales.Failed()).TextColor(t.Danger), captureCard(f))
 			} else if f.kind == "connect" && f.status < 400 {
 				// A tunnel that opened has no status of its own: the lock
 				// says what the row is, and the card says how the setup
@@ -3581,7 +3590,7 @@ func (a *app) table(c *ui.Context) {
 				// tunnel does not read as a working one.
 				uikit.CardTip(c, ui.Row(c).Grow(1).AlignItems(ui.Center).Children(func() {
 					uikit.Glyph(c, lockIcon)
-				}), captureCard(f)).Label(locales.TunnelTooltip(f.status)).PopoverMenu(a.rowMenu(c, f))
+				}), captureCard(f)).Label(locales.TunnelTooltip(f.status))
 			} else {
 				// Only a client or server error is colored: a normal answer is
 				// its number in the secondary ink, with nothing beside it.
@@ -3589,7 +3598,7 @@ func (a *app) table(c *ui.Context) {
 				if f.status >= 400 {
 					ink = uikit.StatusColor(f.status, t)
 				}
-				uikit.CardTip(c, text(fmt.Sprint(f.status)).TextColor(ink), captureCard(f)).PopoverMenu(a.rowMenu(c, f))
+				uikit.CardTip(c, text(fmt.Sprint(f.status)).TextColor(ink), captureCard(f))
 			}
 		case "client":
 			if src, ok := a.clientIcon(f.process, f.processPath); ok {
@@ -3597,7 +3606,7 @@ func (a *app) table(c *ui.Context) {
 			} else {
 				clientBadge(c, f.process)
 			}
-			plain(f.process).Padding(0, 0, 0, t.Space(uikit.SpaceM)).PopoverMenu(a.rowMenu(c, f))
+			plain(f.process).Padding(0, 0, 0, t.Space(uikit.SpaceM))
 		case "duration":
 			durationCell(c, t, f.millis, quiet)
 		case "latency":
@@ -3720,7 +3729,7 @@ func securityNote(f flow) string {
 // is in the accent color, and says which profile and line did it.
 func (a *app) remoteCell(c *ui.Context, t *ui.Theme, f flow, quiet func(string) ui.Element) {
 	if f.dns == "" {
-		quiet(cmp.Or(f.conn.remote, "—")).PopoverMenu(a.rowMenu(c, f))
+		quiet(cmp.Or(f.conn.remote, "—"))
 		return
 	}
 	accent := uikit.Colors(t).Primary
@@ -3728,18 +3737,45 @@ func (a *app) remoteCell(c *ui.Context, t *ui.Theme, f flow, quiet func(string) 
 	if _, mapped, ok := strings.Cut(f.dns, " → "); ok && ip == "" {
 		ip = mapped
 	}
-	uikit.Tip(c, ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center), mappedBy(f)).Label(locales.MappedBy(hostProfileLabel(f.hostProfile))).Children(func() {
-		quiet(ip).TextColor(accent).PopoverMenu(a.rowMenu(c, f))
+	uikit.Tip(c, ui.Row(c).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center), mappedBy(f)).Label(mappedBadgeLabel(f)).Children(func() {
+		quiet(ip).TextColor(accent)
 		ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(accent)
 	})
 }
 
 // mappedBy says which Host profile sent a request elsewhere.
 func mappedBy(f flow) string {
-	if f.hostProfile == "" {
+	profile := hostProfileLabel(f.hostProfile)
+	if profile == "" {
 		return f.dns
 	}
-	return f.dns + " · " + hostProfileLabel(f.hostProfile)
+	return f.dns + " · " + profile
+}
+
+// mappedToLabel names where a mapping sent a request, and the profile that
+// made it when that profile has a name.
+func mappedToLabel(f flow) string {
+	_, ip, _ := strings.Cut(f.dns, " → ")
+	if ip == "" {
+		ip = f.dns
+	}
+	if name := hostProfileName(f.hostProfile); name != "" {
+		return locales.MappedTo(name, ip)
+	}
+	return locales.MappedToTarget(ip)
+}
+
+// mappedBadgeLabel is the table badge's name for a mapping: its profile and
+// line, or the target alone when the profile was never named.
+func mappedBadgeLabel(f flow) string {
+	if profile := hostProfileLabel(f.hostProfile); profile != "" {
+		return locales.MappedBy(profile)
+	}
+	_, ip, _ := strings.Cut(f.dns, " → ")
+	if ip == "" {
+		ip = f.dns
+	}
+	return locales.MappedToTarget(ip)
 }
 
 // slowMillis is where a request's duration turns amber in the table.
@@ -3967,7 +4003,7 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 	if title == "Response" {
 		side = 1
 	}
-	ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).FillWidth().Children(func() {
+	ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).MinHeight(0).FillWidth().Children(func() {
 		for i, block := range []http.Header{headers, trailers} {
 			if i == 1 && len(block) > 0 {
 				uikit.Label(c, locales.Trailers()).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL), t.Space(uikit.SpaceM)).FillWidth().Background(uikit.Colors(t).Window)
@@ -4342,10 +4378,6 @@ func clientBadge(c *ui.Context, name string) {
 		label = locales.UnknownClient()
 	}
 	uikit.LetterSquare(c, name, uikit.IconInline, uikit.Colors(c.Theme()).MutedForeground).Label(label)
-}
-
-func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
-	return func(m *ui.Menu) { actionMenu(m, a.flowActions(c, f)) }
 }
 
 // flowActions are what a captured request is worth once it leaves the table.

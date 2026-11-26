@@ -152,7 +152,7 @@ func (a *app) contractView(c *ui.Context, t *ui.Theme, key string, ex openapi.Ex
 		return
 	}
 	result := a.contractCheck(key, ex)
-	ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
 		ui.Column(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			if result.Checked > 0 {
 				uikit.Meta(c, locales.ContractChecked(result.Checked))

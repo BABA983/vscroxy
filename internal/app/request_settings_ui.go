@@ -66,7 +66,7 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 			uikit.Meta(c, word)
 		})
 	}
-	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(uikit.SpaceL)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(uikit.SpaceL)).PaddingEnd(uikit.ScrollbarInset(t)).Children(func() {
 		uikit.Label(c, locales.Transport())
 		if request.IsWebSocket(d.composeURL) {
 			uikit.Hint(c, locales.WebsocketSendsUseTheirOwn())
@@ -324,7 +324,7 @@ func (d *requestDocument) resetSettings(a *app) {
 // or collection inherit. Unset fields keep inheriting from above.
 func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) {
 	effective := a.ancestorInheritance(f.draft.Path).InheritSettings(f.settings)
-	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceL)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceL)).PaddingEnd(uikit.ScrollbarInset(t)).Children(func() {
 		uikit.Meta(c, locales.RequestsUnderItInheritThese())
 		ui.Form(c, func() {
 			ui.Field(c, locales.Timeout(), func() {

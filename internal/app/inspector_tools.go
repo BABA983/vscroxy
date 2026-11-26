@@ -190,7 +190,7 @@ func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool,
 		if invalid > 0 {
 			uikit.Caption(c, locales.InvalidCookies(invalid)).TextColor(t.Warning).Padding(0, t.Space(uikit.SpaceL))
 		}
-		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
 			if len(cookies) == 0 {
 				uikit.Hint(c, locales.NoCookiesRecordedOnThis()).Padding(t.Space(uikit.SpaceL))
 			}

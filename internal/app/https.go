@@ -343,7 +343,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 		// than a sliver of configuration scrolling inside it. A detail panel
 		// reads in a column of a comfortable measure, not the full width of a
 		// wide window.
-		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
 			ui.Column(c).MaxWidth(880).Padding(padding, t.Space(uikit.SpaceXL)).Gap(gap).Children(func() {
 				// One line says what this row is, and the button beside it
 				// is the way out: everything else about why the tunnel is

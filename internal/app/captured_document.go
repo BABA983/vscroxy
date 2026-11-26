@@ -3,7 +3,6 @@ package app
 import (
 	"cmp"
 	"slices"
-	"strings"
 
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
@@ -186,9 +185,7 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 		}
 		if f.dns != "" {
 			// Which Host profile sent it elsewhere, as the Remote IP says.
-			profile, _, _ := strings.CutLast(f.hostProfile, ":")
-			_, ip, _ := strings.Cut(f.dns, " → ")
-			uikit.Tip(c, uikit.Caption(c, locales.MappedTo(profile, ip)).TextColor(uikit.Colors(t).Primary).
+			uikit.Tip(c, uikit.Caption(c, mappedToLabel(f)).TextColor(uikit.Colors(t).Primary).
 				SingleLine().MinWidth(0), mappedBy(f))
 		}
 		ui.Spacer(c)
@@ -214,6 +211,7 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 				uikit.Body(c, locales.CopyAs())
 			}
 		})
+		copy.Shrink(0)
 		info := uikit.IconButton(c, locales.ConnectionDetails(), locales.ConnectionAddressesDnsAndTls(), infoIcon)
 		info.OnClick(func() { a.connOpen = !a.connOpen })
 		ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
@@ -240,6 +238,7 @@ func (a *app) capturedDocument(c *ui.Context, t *ui.Theme, f flow, d *requestDoc
 			save = uikit.SecondaryButton(c, locales.SaveToCollection()).
 				Tooltip(locales.SaveThisRequestToA())
 		}
+		save.Shrink(0)
 		if save.Clicked() {
 			// A capture has no name or collection yet: ask for both.
 			d.composeName = cmp.Or(d.composeName, d.composeMethod+" "+f.path)

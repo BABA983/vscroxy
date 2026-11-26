@@ -299,7 +299,7 @@ func (a *app) mcpEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 }
 
 func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument, s mcpSnapshot) {
-	ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceM)).Padding(0, t.Space(uikit.SpaceXS)).Disabled(d.composeWaiting).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Padding(0, t.Space(uikit.SpaceXS)).Disabled(d.composeWaiting).Children(func() {
 		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 			uikit.Select(c, &d.mcpConfig.Transport, []string{request.MCPTransportStreamableHTTP, request.MCPTransportSSE, request.MCPTransportStdio}).
 				Label(locales.McpTransport()).Width(190)
@@ -633,7 +633,7 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 		uikit.Meta(c, locales.ResultSize(int(result.Bytes), len(result.Content))).SingleLine()
 		uikit.SecondaryButton(c, locales.CopyResult()).OnClick(func() { c.Services().WriteClipboard(result.Text) })
 	})
-	ui.Scroll(c).Grow(1).Padding(0, t.Space(uikit.SpaceL)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, t.Space(uikit.SpaceL)).Children(func() {
 		ui.Column(c).Selectable().Gap(t.Space(uikit.SpaceM)).Children(func() {
 			if result.Description != "" {
 				uikit.Meta(c, locales.Description()).Padding(0, 0, t.Space(uikit.SpaceXS), 0)
@@ -874,7 +874,7 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 
 func (a *app) mcpSessionPane(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapshot) {
 	info := s.connection
-	ui.Scroll(c).Grow(1).Padding(0, t.Space(uikit.SpaceL)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, t.Space(uikit.SpaceL)).Children(func() {
 		ui.Column(c).Selectable().Gap(t.Space(uikit.SpaceM)).Children(func() {
 			server := cmp.Or(s.server.Title, s.server.Name, locales.McpServer())
 			uikit.Body(c, server+" "+s.server.Version).FontWeight(500)

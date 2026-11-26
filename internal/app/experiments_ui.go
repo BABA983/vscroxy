@@ -285,7 +285,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 	width, height := c.Size()
 	panel := ui.Column(c).Gap(t.Space(uikit.SpaceM))
 	if inline {
-		panel.Fill().Padding(t.Space(uikit.SpaceL))
+		panel.Grow(1).FillWidth().MinHeight(0).Padding(t.Space(uikit.SpaceL))
 	} else {
 		panel.Width(min(1200, width-80)).Height(height - 100)
 	}
@@ -332,7 +332,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 		s.records.Key = func(i int) any { return visible[i].ID }
 		s.records.Label = func(i int) string { return locales.ExperimentNumber(visible[i].ID) }
 		ui.Row(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).AlignItems(ui.Stretch).Children(func() {
-			ui.Scroll(c).Width(220).Padding(t.Space(uikit.SpaceXS)).Gap(t.Space(uikit.SpaceS)).Children(func() {
+			ui.Scroll(c).Width(220).MinHeight(0).Padding(t.Space(uikit.SpaceXS)).Gap(t.Space(uikit.SpaceS)).Children(func() {
 				a.debugDrafts(c)
 				if len(visible) == 0 {
 					uikit.Hint(c, locales.SendARequestToRecord())

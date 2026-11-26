@@ -100,7 +100,7 @@ func (a *app) detailWith(c *ui.Context, detached bool) {
 	if detached {
 		escape = func() { a.closeInspectorWindow() }
 	}
-	col.OnShortcut(0, ui.KeyEscape, escape).Fill().Background(t.Background).Children(func() {
+	col.OnShortcut(0, ui.KeyEscape, escape).Grow(1).FillWidth().MinHeight(0).Background(t.Background).Children(func() {
 		if selected := a.selectedFlows(); len(selected) > 1 {
 			a.analysisDetail(c, selected)
 			return
@@ -500,15 +500,6 @@ func paneMonoWidth(c *ui.Context, text string) float32 {
 	return w
 }
 
-// paneMetaWidth is the room a response's duration and size take.
-func paneMetaWidth(c *ui.Context, sum responseSummary) float32 {
-	w := paneMonoWidth(c, sum.duration)
-	if sum.detail != "" {
-		w += paneMonoWidth(c, " · "+sum.detail)
-	}
-	return w
-}
-
 // paneFormatWidth is the room a body's format menu takes: its label, the
 // control's padding and its chevron.
 func (a *app) paneFormatWidth(c *ui.Context, side int) float32 {
@@ -903,19 +894,17 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 	}
 	// The tabs and the status keep the row; what else it reports is measured
 	// against the room that is left, in the order the row gives it up: the
-	// numbers first, then the caller's own controls (which give up Decode
-	// before the format menu and the actions), then the body's format menu.
-	// Whatever does not fit goes to the pane's menu.
+	// body's format menu first, because it names a choice, then the numbers
+	// from the smallest: the size, then the time. Whatever does not fit goes
+	// to the pane's menu.
 	width := tools.width
 	if width <= 0 {
 		width = a.paneWidth(c)
 	}
 	room := paneRoomFor(c, width, sum.title, true, labels, nil, paneMenuWidth)
-	showNumbers := sum.duration != "" && room.fits(paneMetaWidth(c, sum))
-	// The caller's controls take their room as the row builds them; the
-	// format menu is the inspector's own, and the editor never has both.
-	afterNumbers := room
-	showFormat := tools.format >= 0 && afterNumbers.fits(a.paneFormatWidth(c, tools.format))
+	showFormat := tools.format >= 0 && room.fits(a.paneFormatWidth(c, tools.format))
+	showDuration := sum.duration != "" && room.fits(paneMonoWidth(c, sum.duration))
+	showDetail := showDuration && sum.detail != "" && room.fits(paneMonoWidth(c, " · "+sum.detail))
 	uikit.PaneHeader(c, func() {
 		uikit.TabStrip(c, func() {
 			uikit.CountedTabs(c, &shown, locales.ResponsePaneName(), labels, nil)
@@ -925,7 +914,7 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 		// status sits at the row's end, beside the numbers it belongs with.
 		if sum.title != "" {
 			status := ui.Row(c).Gap(t.Space(uikit.SpaceS)).Shrink(0).AlignItems(ui.Center).Label(locales.ResponsePaneName())
-			if !showNumbers && sum.duration != "" {
+			if (!showDuration || !showDetail) && sum.duration != "" {
 				// What the row has no room for, the status says on hover.
 				uikit.Tip(c, status, sum.title+" · "+strings.TrimSpace(sum.duration+" · "+sum.detail))
 			}
@@ -938,8 +927,12 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 				uikit.Caption(c, sum.title).TextColor(ink).SingleLine()
 			})
 		}
-		if showNumbers {
-			uikit.ResponseMeta(c, sum.duration, sum.detail, sum.timing)
+		if showDuration {
+			detail := ""
+			if showDetail {
+				detail = sum.detail
+			}
+			uikit.ResponseMeta(c, sum.duration, detail, sum.timing)
 		}
 		if tools.draw != nil {
 			tools.draw(&room)
@@ -949,7 +942,7 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 		}
 		items := more
 		var head []action
-		if !showNumbers && sum.duration != "" {
+		if !showDuration && sum.duration != "" {
 			head = append(head, note(strings.TrimSpace(sum.duration+" · "+sum.detail)))
 		}
 		if tools.format >= 0 && !showFormat {
@@ -1197,7 +1190,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				}
 			}
 		})
-		ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).FillWidth().Children(func() {
+		ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).MinHeight(0).FillWidth().Children(func() {
 			if len(headers) == 0 {
 				if raw == "" {
 					uikit.Hint(c, locales.NoHeadersRecorded()).Padding(t.Space(uikit.SpaceL))
@@ -1283,7 +1276,7 @@ func (a *app) paramsSide(c *ui.Context, f flow) {
 		uikit.Hint(c, locales.NoQueryParametersInThis()).Padding(t.Space(uikit.SpaceXL))
 		return
 	}
-	ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
 		for _, key := range slices.Sorted(maps.Keys(parsed.Query())) {
 			for i, value := range parsed.Query()[key] {
 				uikit.KVRow(c, func() {

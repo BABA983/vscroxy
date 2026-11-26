@@ -138,6 +138,44 @@ func TestCollectionFolderRenamesInline(t *testing.T) {
 	}
 }
 
+// A cell that shows no text of its own still opens the row's menu: a
+// right-click anywhere on the row, here its Duration cell, names the same
+// exchange actions as the path did, and chooses the row under the pointer.
+func TestTableRowMenuOpensFromADurationCell(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1440, 800)
+	tt.SetLocale("en-US")
+	tt.Frame()
+	var rows []ui.Rect
+	for _, info := range tt.AccessAll() {
+		if info.Name == "0 ms" {
+			rows = append(rows, info.Bounds)
+		}
+	}
+	if len(rows) < 2 {
+		t.Fatalf("the two rows' durations are not drawn: %v", tt.Texts())
+	}
+	// The second row, whose duration cell holds no menu of its own.
+	target := rows[1]
+	tt.RightClickAt(target.X+target.W/2, target.Y+target.H/2)
+	tt.Frame()
+	menu := tt.Menu()
+	if !slices.Contains(menu, locales.Replay()) {
+		t.Fatalf("right-clicking Duration opened %q, want the row menu", menu)
+	}
+	if a.pickedID != 2 {
+		t.Fatalf("right-clicking the second row chose id %d, want 2", a.pickedID)
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	// The empty part of the cell, beside its text, opens it too.
+	tt.RightClickAt(target.X-16, target.Y+target.H/2)
+	tt.Frame()
+	if menu := tt.Menu(); !slices.Contains(menu, locales.Replay()) {
+		t.Fatalf("right-clicking beside the Duration text opened %q, want the row menu", menu)
+	}
+}
+
 // The table row's menu is the exchange menu the inspector offers: the
 // inspector adds its own pane choices, but every row action is there in the
 // same order.

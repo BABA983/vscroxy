@@ -592,7 +592,7 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	if inherited {
 		shown, typeName = &resolved, optionLabel(resolved.Type)
 	}
-	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(uikit.SpaceL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 		columns := ui.Row(c).FillWidth().Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Start)
 		if a.editorPaneWidthAt(c, &a.editorReqPane, draftPercent) < 460 {
 			columns = ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceL))

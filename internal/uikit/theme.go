@@ -169,6 +169,14 @@ func Colors(t *ui.Theme) *Palette {
 	return &Light
 }
 
+// ScrollbarInset is the room an overlay scroll bar takes at the end of a
+// scrolling pane: the width of its track and hit area, as the theme resolves
+// it. A form pane pads its end by this so a control or footnote at the row's
+// end never sits under the bar.
+func ScrollbarInset(t *ui.Theme) float32 {
+	return ui.ScrollbarStyle{}.Resolve(t).TrackWidth
+}
+
 // MethodColor is the ink an HTTP method is printed in.
 func MethodColor(method string, t *ui.Theme) ui.Color {
 	p := Colors(t)

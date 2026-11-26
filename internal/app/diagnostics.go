@@ -318,7 +318,7 @@ func (a *app) trafficCheck(target *url.URL, https bool) diagnosticCheck {
 
 func (a *app) diagnosticsView(c *ui.Context, t *ui.Theme) {
 	d := &a.diagnostics
-	ui.Scroll(c).Fill().Padding(t.Space(uikit.Space2XL)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.Space2XL)).Children(func() {
 		ui.Column(c).FillWidth().MaxWidth(uikit.SettingsWidth).Gap(t.Space(uikit.SpaceXL)).Children(func() {
 			ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 				uikit.Display(c, locales.ConnectionDiagnostics())

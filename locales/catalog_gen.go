@@ -21810,6 +21810,16 @@ func (msgs Messages) MappedTo(profile string, ip string) string {
 	return Catalog.Format(msgs.locale, "mappedTo", map[string]any{"profile": profile, "ip": ip})
 }
 
+// MappedToTarget says "Mapped → {ip}"
+// in the language the app shows.
+func MappedToTarget(ip string) string { return In(i18n.Locale()).MappedToTarget(ip) }
+
+// MappedToTarget says "Mapped → {ip}"
+// in the language of msgs.
+func (msgs Messages) MappedToTarget(ip string) string {
+	return Catalog.Format(msgs.locale, "mappedToTarget", map[string]any{"ip": ip})
+}
+
 // Mark says "Mark…"
 // in the language the app shows.
 func Mark() string { return In(i18n.Locale()).Mark() }

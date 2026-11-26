@@ -447,7 +447,7 @@ func (m messageView) textView(c *ui.Context, payload string) {
 		}
 		text = cut + "\n\n" + locales.ShowingFirstOf(humanBytes(maxMessageText), humanBytes(len(text)))
 	}
-	ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceL)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceL)).Children(func() {
 		uikit.DataBody(c, text).TextColor(t.Text)
 	})
 }

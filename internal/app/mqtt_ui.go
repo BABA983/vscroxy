@@ -298,7 +298,7 @@ func (a *app) mqttEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 
 func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *mqttDocument) {
 	c1 := &d.mqttConfig
-	ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 		uikit.SettingsGroup(c, locales.Broker(), func() {
 			uikit.SettingsRow(c, locales.Protocol(), func() ui.Element {
 				sel := uikit.Select(c, &u.version, []string{"MQTT 3.1.1", "MQTT 5.0"}).Label(locales.Protocol()).Width(uikit.WidthField)
@@ -417,7 +417,7 @@ func (a *app) mqttSubscriptionsTab(c *ui.Context, t *ui.Theme, d *requestDocumen
 		a.actionButton(c, "request.mqtt-unsubscribe", locales.UnsubscribeAll())
 		uikit.Meta(c, locales.ActiveSubscriptions(len(s.subscriptions))).Grow(1)
 	})
-	ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceM)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
 		if len(c1.Topics) == 0 {
 			uikit.Meta(c, locales.NoTopicFiltersYet())
 		}
@@ -497,7 +497,7 @@ func (a *app) mqttPublishTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 		ui.Spacer(c)
 		a.actionButton(c, "request.mqtt-publish", locales.Publish())
 	})
-	ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 		uikit.SettingsGroup(c, locales.Message(), func() {
 			uikit.SettingsRow(c, locales.Name(), func() ui.Element {
 				return uikit.Input(c, &u.publish.message.Name).Placeholder(locales.SavedMessageName()).Label(locales.MessageName())
@@ -563,7 +563,7 @@ func (a *app) mqttPublishPropertiesEditor(c *ui.Context, t *ui.Theme, u *mqttDoc
 
 func (a *app) mqttWillTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *mqttDocument) {
 	c1 := &d.mqttConfig
-	ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceXL)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 		uikit.Checkbox(c, &c1.Will.Enabled, locales.PublishLastWill())
 		ui.Column(c).Disabled(!c1.Will.Enabled).Gap(t.Space(uikit.SpaceXL)).Children(func() {
 			uikit.SettingsGroup(c, locales.LastWill(), func() {

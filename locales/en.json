@@ -6200,6 +6200,7 @@
   "mappedHost": "Mapped {host} to {address} in {profile}; applies to new connections",
   "mappedRule": "→ {ip} · {profile} line {line}",
   "mappedTo": "Mapped by {profile} → {ip}",
+  "mappedToTarget": "Mapped → {ip}",
   "mark": "Mark…",
   "markTheRequest": "Mark the request",
   "markdownShownInTheCollection": "MARKDOWN · shown in the collection’s documentation view",

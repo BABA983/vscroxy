@@ -169,7 +169,7 @@ func (a *app) overviewView(c *ui.Context, t *ui.Theme) {
 	flows := a.overviewFlows()
 	stats := a.cachedOverview()
 	p := uikit.Colors(t)
-	ui.Column(c).Fill().Children(func() {
+	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 		ui.Row(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Wrap().Children(func() {
 			uikit.Heading(c, locales.Overview()).NoWrap()
 			uikit.Segmented(c, (*int)(&a.overviewScope), locales.Session(), locales.Selection())
@@ -188,7 +188,7 @@ func (a *app) overviewView(c *ui.Context, t *ui.Theme) {
 			uikit.Hint(c, locales.OverviewEmpty()).Padding(t.Space(uikit.SpaceXL))
 			return
 		}
-		ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceXL)).Children(func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceXL)).Children(func() {
 			uikit.Meta(c, a.overviewScopeLine(len(flows))).FontFeatures("tnum")
 			ui.Row(c).Gap(t.Space(uikit.SpaceL)).Wrap().Children(func() {
 				overviewStat(c, t, locales.Captures(), fmt.Sprint(stats.captures))

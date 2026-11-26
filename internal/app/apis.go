@@ -193,7 +193,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 	}
 	current := d.code.Buffer.String() == d.checked
 	valid := current && d.parsed != nil
-	ui.Column(c.Key(d.spec.ID)).Fill().Children(func() {
+	ui.Column(c.Key(d.spec.ID)).Grow(1).FillWidth().MinHeight(0).Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			uikit.Body(c, d.title()).FontWeight(500).Grow(1).MinWidth(0).SingleLine()
 			if uikit.SecondaryButton(c, locales.Validate()).Clicked() {
@@ -274,7 +274,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 				requestCodeEditor(c, d.code)
 			})
 		case 2:
-			ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceXL)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceXL)).Gap(t.Space(uikit.SpaceXL)).Children(func() {
 				uikit.Heading(c, locales.ReviewBeforePublishing())
 				uikit.Hint(c, locales.ValidationChecksOpenapiStructureNot())
 				for _, note := range d.spec.Notes {

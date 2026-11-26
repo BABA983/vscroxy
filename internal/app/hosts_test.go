@@ -13,8 +13,38 @@ import (
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/hosts"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
+
+// A profile that was never named says where the request went instead of
+// reporting its placeholder name; a named one keeps its name.
+func TestMappedLabelKeepsOnlyARealProfileName(t *testing.T) {
+	f := flow{dns: "api.example.com → 221.228.33.54", hostProfile: "Untitled:3"}
+	if got, want := mappedToLabel(f), locales.MappedToTarget("221.228.33.54"); got != want {
+		t.Fatalf("unnamed header label = %q, want %q", got, want)
+	}
+	if got, want := mappedBadgeLabel(f), locales.MappedToTarget("221.228.33.54"); got != want {
+		t.Fatalf("unnamed badge label = %q, want %q", got, want)
+	}
+	if got := mappedBy(f); got != f.dns {
+		t.Fatalf("unnamed tooltip = %q, want %q", got, f.dns)
+	}
+	f.hostProfile = "Staging:2"
+	if got, want := mappedToLabel(f), locales.MappedTo("Staging", "221.228.33.54"); got != want {
+		t.Fatalf("named header label = %q, want %q", got, want)
+	}
+	if got, want := mappedBadgeLabel(f), locales.MappedBy(hostProfileLabel(f.hostProfile)); got != want {
+		t.Fatalf("named badge label = %q, want %q", got, want)
+	}
+	if got, want := mappedBy(f), f.dns+" · "+hostProfileLabel(f.hostProfile); got != want {
+		t.Fatalf("named tooltip = %q, want %q", got, want)
+	}
+	f.hostProfile = ""
+	if got, want := mappedToLabel(f), locales.MappedToTarget("221.228.33.54"); got != want {
+		t.Fatalf("empty profile header label = %q, want %q", got, want)
+	}
+}
 
 // getThrough asks the proxy for target and returns the status, 0 for a
 // failed request.

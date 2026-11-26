@@ -16,7 +16,7 @@ import (
 func (a *app) searchView(c *ui.Context, t *ui.Theme) {
 	s := &a.searchAll
 	a.syncSearchQuery() // an Alt+C/W/R toggle changes the query too
-	ui.Column(c).Fill().Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).
+	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).
 		Gap(t.Space(uikit.SpaceS)).Children(func() {
 		ui.Row(c).Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Children(func() {
 			uikit.Heading(c, locales.SearchEverywhere()).Grow(1)

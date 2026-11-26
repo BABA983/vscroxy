@@ -106,7 +106,7 @@ func (a *app) desktopContent(c *ui.Context) {
 		case pageAPI:
 			a.apiView(c, c.Theme())
 		case pageRequest:
-			ui.Column(c).Fill().Children(func() {
+			ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 				a.documentHeader(c, c.Theme())
 				a.composeView(c, c.Theme())
 			})
@@ -119,7 +119,7 @@ func (a *app) desktopContent(c *ui.Context) {
 		case pageSearch:
 			a.searchView(c, c.Theme())
 		default:
-			ui.Column(c).Fill().Children(func() {
+			ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 				if w.focused && !a.inspectorDetached {
 					ui.Row(c).Height(uikit.HeightControl).Padding(0, c.Theme().Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
 						a.actionButton(c, "view.focus-inspector", locales.BackToList())

@@ -326,7 +326,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			case 2:
 				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.authEditor(c, d, t) })
 			case 3:
-				ui.Scroll(c).Grow(1).Gap(t.Space(uikit.SpaceM)).Disabled(d.composeWaiting).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
+				ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Disabled(d.composeWaiting).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 					uikit.Meta(c, locales.ImportProtoDescriptorSetOr())
 					uikit.SettingsGroup(c, locales.Schema2(), func() {
 						uikit.SettingsRow(c, locales.SchemaFile(), func() ui.Element {
@@ -408,7 +408,7 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			if g.responseTab == 1 {
 				text = locales.GrpcMetadataSections(grpcMetadataText(s.header), grpcMetadataText(s.trailer))
 			}
-			ui.Scroll(c).Grow(1).Padding(t.Space(uikit.SpaceL)).Children(func() { uikit.DataBody(c, text) })
+			ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceL)).Children(func() { uikit.DataBody(c, text) })
 			return
 		}
 		if s.problem != "" {

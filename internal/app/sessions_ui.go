@@ -19,7 +19,7 @@ import (
 func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 	s := &a.sessions
 	item := s.current()
-	ui.Column(c).Fill().Children(func() {
+	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 		ui.ScrollHorizontal(c).Height(uikit.HeightTabs).FillWidth().Children(func() {
 			ui.Row(c).FillHeight().AlignItems(ui.Center).Children(func() {
 				for _, doc := range s.items {
