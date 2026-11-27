@@ -127,6 +127,9 @@ type ConnContext struct {
 	// defaults.
 	TLSVersions     []uint16 `json:"-"`
 	TLSCipherSuites []uint16 `json:"-"`
+	// StrictHTTP rejects an upstream response whose header names or values
+	// are not valid HTTP, as a CONNECT's HeaderStrictHTTP asks.
+	StrictHTTP bool `json:"-"`
 	// upstreamTLSFailure is set when an intercepted upstream handshake fails
 	// before the client handshake. The client handshake still completes with
 	// our certificate so the request can be answered with the reason.

@@ -9,6 +9,7 @@ import (
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
+	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
 // searchView is the Search view of the desktop: a query with the shared find
@@ -28,24 +29,24 @@ func (a *app) searchView(c *ui.Context, t *ui.Theme) {
 
 		ui.Row(c.Key("global-search-bar")).Gap(t.Space(uikit.SpaceS)).
 			AlignItems(ui.Center).Children(func() {
-			query := uikit.Input(c, &s.input).Label(locales.SearchEverywhere()).
-				Placeholder(locales.SearchAcrossAssets()).Grow(1).MinWidth(0)
+			queryField, query := uikit.FindField(c, &s.input, locales.SearchEverywhere(),
+				locales.SearchAcrossAssets(), findToggles(s)...)
+			queryField.Grow(1).MinWidth(0)
 			query.Bind(&s.handle)
 			bindFindOptionKeys(query, s)
-			findOptionToggles(c, s)
-			toggleMark := "▸"
+			replaceIcon := lucide.ChevronRight()
 			if s.replace.open {
-				toggleMark = "▾"
+				replaceIcon = lucide.ChevronDown()
 			}
-			if uikit.Tip(c, uikit.SecondaryButton(c, toggleMark).Label(locales.ToggleReplace()),
+			if uikit.Tip(c, uikit.IconButton(c, locales.ToggleReplace(), locales.ToggleReplaceTip(), replaceIcon),
 				locales.ToggleReplaceTip()).KeepFocus().Clicked() {
 				s.replace.open = !s.replace.open
 			}
-			if uikit.Tip(c, uikit.SecondaryButton(c, "↑").Label(locales.PreviousSearchMatch()),
+			if uikit.Tip(c, uikit.IconButton(c, locales.PreviousSearchMatch(), locales.PreviousMatchShiftEnter(), lucide.ArrowUp()),
 				locales.PreviousMatchShiftEnter()).KeepFocus().Clicked() {
 				s.step(-1)
 			}
-			if uikit.Tip(c, uikit.SecondaryButton(c, "↓").Label(locales.NextSearchMatch()),
+			if uikit.Tip(c, uikit.IconButton(c, locales.NextSearchMatch(), locales.NextMatchEnter(), lucide.ArrowDown()),
 				locales.NextMatchEnter()).KeepFocus().Clicked() {
 				s.step(1)
 			}
@@ -68,7 +69,12 @@ func (a *app) searchView(c *ui.Context, t *ui.Theme) {
 
 		ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
 			if s.input == "" {
-				uikit.Hint(c, locales.SearchAcrossAssets()).Padding(t.Space(uikit.SpaceM), 0)
+				ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Padding(t.Space(uikit.SpaceM), 0).Children(func() {
+					uikit.Small(c, locales.SearchTips()).TextColor(t.Text)
+					uikit.Hint(c, locales.SearchTipScope())
+					uikit.Hint(c, locales.SearchTipOptions())
+					uikit.Hint(c, locales.SearchTipReplace())
+				})
 				return
 			}
 			if s.problem != "" {

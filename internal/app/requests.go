@@ -369,7 +369,7 @@ const (
 // composeTabFor opens the tab a request is usually edited in: its body when
 // it has one, its headers otherwise.
 func composeTabFor(r savedRequest) int {
-	if r.Body != "" || r.BodyMode != "" && r.BodyMode != "Raw" {
+	if r.Body != "" || r.BodyMode != "" && r.BodyMode != "Raw" && r.BodyMode != "None" {
 		return composeTabBody
 	}
 	return composeTabHeaders
@@ -1402,22 +1402,26 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 				}
 			})
 		}
-		if width >= 560 {
+		if width >= 700 {
 			ui.Row(c).FillWidth().Height(uikit.HeightControl).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				typeRow()
-				reader()
-				ui.Spacer(c)
-				format()
+				if d.bodyMode != "None" {
+					reader()
+					ui.Spacer(c)
+					format()
+				}
 			})
 			return
 		}
 		ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceM)).Children(func() {
 			typeRow()
-			ui.Row(c).FillWidth().Height(uikit.HeightControl).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-				reader()
-				ui.Spacer(c)
-				format()
-			})
+			if d.bodyMode != "None" {
+				ui.Row(c).FillWidth().Height(uikit.HeightControl).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+					reader()
+					ui.Spacer(c)
+					format()
+				})
+			}
 		})
 	}
 	ui.Column(c).Fill().MinHeight(0).Bind(&a.editorReqPane).Children(func() {
@@ -1444,14 +1448,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 				case composeTabBody:
 					a.requestBodyEditor(c, d, t)
 				case composeTabScripts:
-					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-						uikit.SubTabs(c, &d.scriptTab, locales.Scripts(), locales.PreRequest(), locales.PostResponse())
-						ui.Spacer(c)
-						if st := map[bool]*editor.State{false: d.preEditor, true: d.postEditor}[d.scriptTab == 1]; st != nil {
-							snippetMenu(c, st, "request")
-						}
-					})
-					a.requestScriptText(c, d)
+					a.requestScriptsEditor(c, d, t)
 				case composeTabChecks:
 					a.checksEditor(c, d, t)
 				case composeTabExamples:
@@ -1735,10 +1732,34 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					uikit.Body(c, d.composeResult).TextColor(t.Text).Selectable().FillWidth()
 					uikit.Meta(c, locales.EditTheDraftAndSend())
 				} else {
-					// What a response needs is the key that sends for it,
-					// not a sentence about what a send would do.
+					// The response is empty because no send has run: offer
+					// the next steps a person actually takes from here.
 					ui.Icon(c, sendIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(uikit.Colors(t).Faint)
-					uikit.Hint(c, sendShortcut()+"  "+locales.Send())
+					uikit.Small(c, locales.NoResponseYet()).TextColor(t.Text)
+					uikit.Hint(c, locales.ResponseEmptyHint())
+					nextStep := func(label string, icon *ui.SVG, run func()) {
+						step := uikit.ToolbarButton(c, label, label, false).Height(uikit.HeightControlSmall).TextColor(t.TextMuted)
+						step.Children(func() {
+							ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline)
+							uikit.Small(c, label)
+						})
+						if step.Clicked() {
+							run()
+							c.Invalidate()
+						}
+					}
+					ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Padding(t.Space(uikit.SpaceM), 0, 0, 0).Children(func() {
+						nextStep(locales.ResponseEmptySend(), sendIcon, a.sendComposed)
+						nextStep(locales.ResponseEmptySendCheck(), checkIcon, func() {
+							a.sendComposed()
+							if doc := a.requestDocument; doc != nil {
+								doc.composeTab = composeTabChecks
+							}
+						})
+						nextStep(locales.ResponseEmptyCapture(), captureIcon, func() {
+							a.openPageTab(pageLive, tabOpen{})
+						})
+					})
 				}
 				if d.composeWaiting || d.sendOutcome == "Timed out" {
 					uikit.Meta(c, locales.CancellingDoesNotUndoServer())

@@ -236,6 +236,8 @@ func (r Request) Variables() []string {
 	}
 	if r.Protocol == "Socket.IO" || r.BodyMode == "" || r.BodyMode == "Raw" {
 		texts = append(texts, r.Body)
+	} else if r.BodyMode == "None" {
+		// No body is sent.
 	} else if r.BodyMode == "Binary" {
 		texts = append(texts, r.BodyFile)
 	} else if r.BodyMode == "GraphQL" {

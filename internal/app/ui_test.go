@@ -3042,7 +3042,7 @@ func TestRequestBodyToolsLayout(t *testing.T) {
 		name  string
 		width int
 		one   bool
-	}{{"wide", 1600, true}, {"narrow", 1280, false}} {
+	}{{"wide", 1800, true}, {"narrow", 1280, false}} {
 		t.Run(tc.name, func(t *testing.T) {
 			a := snapshotApp()
 			a.addDocument(savedRequest{Request: request.Request{Name: "Create project", Method: "POST", URL: "https://api.example.com/projects", Body: `{"name":"Demo project"}`}}, "")
@@ -3646,8 +3646,8 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 		t.Fatal("reading a run changed the draft or its response")
 	}
 	click("Show latest response")
-	// The empty response says the one thing it can do: send.
-	if !tt.HasText(sendShortcut() + "  " + locales.Send()) {
+	// The empty response offers the next step: send.
+	if !tt.HasText(locales.ResponseEmptySend()) {
 		t.Fatalf("the request's own response did not come back: %q", tt.Texts())
 	}
 	click("Run #3")
@@ -4300,8 +4300,12 @@ func TestHeaderCellsLineUpWithRows(t *testing.T) {
 			t.Errorf("the %s title ends %vpx from its cell's right edge", title, d)
 		}
 	}
-	if d := header.X + header.W - cell.X - cell.W; d < -1 || d > 1 {
-		t.Fatalf("the Key title ends %vpx from the first cell's right edge", d)
+	// The title and the cell end at the same column line. The header keeps
+	// the cell's own text inset, so its label ends GridCellPadding short of
+	// the line, exactly where the cell's text stops.
+	pad := float32(uikit.GridCellPadding * uikit.SpaceGrid)
+	if d := header.X + header.W - (cell.X + cell.W - pad); d < -1 || d > 1 {
+		t.Fatalf("the Key title ends %vpx from the first cell's text edge", d)
 	}
 
 	a.envs = []environment{{Name: "Local", Vars: map[string]string{"baseUrl": "https://api.example.com"}}}

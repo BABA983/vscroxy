@@ -3019,7 +3019,7 @@ func (a *app) collectionsPane(c *ui.Context, t *ui.Theme) {
 			for _, hit := range hits {
 				d := a.apis[hit.index]
 				menu := func(m *ui.Menu) { actionMenu(m, a.apiActions(d)) }
-				uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label(locales.ApiTitle(d.title())).PopoverMenu(menu).Children(func() {
+				uikit.ContextMenu(c, uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label(locales.ApiTitle(d.title())), menu).Children(func() {
 					if d.dirty() {
 						ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label(locales.UnsavedApi())
 					}
@@ -3035,8 +3035,8 @@ func (a *app) collectionsPane(c *ui.Context, t *ui.Theme) {
 func (a *app) sessionsRows(c *ui.Context, t *ui.Theme) {
 	for _, s := range a.sessions.items {
 		id := "session:" + s.key
-		uikit.SidebarItem(c, id, clockIcon, s.data.Title, a.sidebarChoice == id, !a.windowBehind).
-			PopoverMenu(func(m *ui.Menu) {
+		uikit.ContextMenu(c, uikit.SidebarItem(c, id, clockIcon, s.data.Title, a.sidebarChoice == id, !a.windowBehind),
+			func(m *ui.Menu) {
 				actionMenu(m, []action{do("session.delete", locales.DeleteSession()+"…", func() { a.confirmDeleteSession(s) }).in("danger")})
 			}).Children(func() {
 			uikit.Meta(c, fmt.Sprint(s.count)).FontFeatures("tnum")
@@ -3114,7 +3114,7 @@ func (a *app) sourcesRows(c *ui.Context, t *ui.Theme) {
 // hostRow is one host of the capture: a click narrows the traffic to it, and
 // its menu makes a collection, a recording or a DNS mapping from it.
 func (a *app) hostRow(c *ui.Context, d domain) {
-	uikit.SidebarItemLetter(c, "host:"+d.name, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind).PopoverMenu(func(m *ui.Menu) {
+	uikit.ContextMenu(c, uikit.SidebarItemLetter(c, "host:"+d.name, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind), func(m *ui.Menu) {
 		actionMenu(m, []action{
 			do("collection.from-host", locales.CreateCollection(), func() { a.openCollectionWizard(a.collectionScope(d.name, "")) }).in("edit"),
 			do("collection.record-host", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", d.name, "") }).in("edit"),
@@ -3156,7 +3156,7 @@ func (a *app) clientRow(c *ui.Context, d domain) {
 	if !row.Valid() {
 		row = uikit.SidebarItem(c, id, nil, d.name, active, !a.windowBehind)
 	}
-	row.PopoverMenu(func(m *ui.Menu) { actionMenu(m, a.clientActions(d.name, apps)) }).
+	uikit.ContextMenu(c, row, func(m *ui.Menu) { actionMenu(m, a.clientActions(d.name, apps)) }).
 		Children(func() {
 			if a.filterTriage.Client == textToken(d.name) {
 				uikit.Tip(c, uikit.Caption(c, "✓").TextColor(t.Accent), locales.AppFilterIsActiveRemove())
@@ -3683,7 +3683,7 @@ func (a *app) table(c *ui.Context) {
 			}
 			cell := uikit.Tip(c, text(value).TextColor(t.Text), value)
 			if cc.header() {
-				cell.PopoverMenu(a.headerFilterMenu(c, cc.Name, []string{value}))
+				uikit.ContextMenu(c, cell, a.headerFilterMenu(c, cc.Name, []string{value}))
 			}
 		}
 		// MyGo's table measures its list without the header, so a clipped table

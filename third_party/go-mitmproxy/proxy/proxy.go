@@ -77,6 +77,11 @@ const (
 	HeaderTLSCipherSuites = "X-Vscroxy-TLS-Cipher-Suites"
 )
 
+// HeaderStrictHTTP asks the proxy to reject an upstream response whose header
+// names or values are not valid HTTP, as an authored request's strict parser
+// setting does. It is a proxy signal, never forwarded.
+const HeaderStrictHTTP = "X-Vscroxy-Strict-HTTP"
+
 // HeaderProxyError marks a response the proxy generated because an exchange
 // failed before an origin answered. Replay clients turn it back into a
 // transport error; capture removes it before publishing the flow.

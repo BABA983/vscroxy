@@ -1,6 +1,7 @@
 package request
 
 import (
+	"bufio"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/leakcheck"
+	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
 
 // TestMain trusts httptest's localhost certificate, whose IP SANs make it a
@@ -471,6 +473,134 @@ func TestFolderSettingsInheritance(t *testing.T) {
 	got = in.InheritSettings(Settings{VerifyTLS: &ownVerify, MaxRedirects: &ownMax})
 	if !got.Verifies() || got.Follows() || got.RedirectLimit() != 4 || got.Timeout() != 7*time.Second {
 		t.Fatalf("request overrides = %+v, want verification, four redirects and the folder's 7s", got)
+	}
+}
+
+// Strict HTTP parsing rejects a response whose header name is not valid HTTP;
+// the same response stays readable when the setting is off. The setting
+// inherits through a folder like the other switches.
+func TestStrictHTTPRejectsInvalidResponseHeaders(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { listener.Close() })
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go func(conn net.Conn) {
+				defer conn.Close()
+				request, err := http.ReadRequest(bufio.NewReader(conn))
+				if err != nil {
+					return
+				}
+				request.Body.Close()
+				_, _ = io.WriteString(conn, "HTTP/1.1 200 OK\r\nBad Header: value\r\nContent-Length: 2\r\n\r\nok")
+			}(conn)
+		}
+	}()
+	srv := testProxy(t)
+	target := "http://" + listener.Addr().String() + "/"
+
+	loose := (Request{Method: "GET", URL: target}).Execute(t.Context(), srv, Context{}, nil, nil)
+	if loose.Err != nil || loose.Response == nil || loose.Response.ResponseBody != "ok" {
+		t.Fatalf("lenient response = %+v, want the invalid header accepted", loose)
+	}
+
+	strict := true
+	got := (Request{Method: "GET", URL: target, Settings: Settings{StrictHTTP: &strict}}).
+		Execute(t.Context(), srv, Context{}, nil, nil)
+	if got.Err == nil || !strings.Contains(got.Err.Error(), "strict HTTP parser") || !strings.Contains(got.Err.Error(), "Bad Header") {
+		t.Fatalf("strict response = %+v, want an invalid header error", got)
+	}
+	if got.Response != nil {
+		t.Fatalf("strict response kept a response: %+v", got.Response)
+	}
+
+	inherited := Context{Folders: []Folder{{Path: "Shop", Settings: Settings{StrictHTTP: &strict}}}}
+	settings := inherited.InheritSettings(Settings{})
+	if settings.StrictHTTP == nil || !*settings.StrictHTTP {
+		t.Fatalf("inherited strict parser = %+v, want on", settings)
+	}
+	policy, err := settings.Transfer()
+	if err != nil || !policy.StrictHTTP {
+		t.Fatalf("transfer strict parser = %+v, %v, want on", policy, err)
+	}
+	off := false
+	settings = inherited.InheritSettings(Settings{StrictHTTP: &off})
+	if settings.StrictHTTP == nil || *settings.StrictHTTP {
+		t.Fatalf("request override = %+v, want off", settings)
+	}
+}
+
+func TestStrictHTTPDoesNotLeakToKeepAliveRequests(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { listener.Close() })
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go func(conn net.Conn) {
+				defer conn.Close()
+				reader := bufio.NewReader(conn)
+				for {
+					request, err := http.ReadRequest(reader)
+					if err != nil {
+						return
+					}
+					request.Body.Close()
+					_, _ = io.WriteString(conn, "HTTP/1.1 200 OK\r\nBad Header: value\r\nContent-Length: 2\r\n\r\nok")
+				}
+			}(conn)
+		}
+	}()
+	srv := testProxy(t)
+	target := "http://" + listener.Addr().String() + "/"
+
+	// A strict replay and then a non-strict one share one client connection
+	// to the proxy. The second must clear the first's strict flag, or the
+	// proxy's keep-alive connection keeps rejecting the invalid header.
+	conn, err := net.Dial("tcp", srv.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	reader := bufio.NewReader(conn)
+	send := func(strict bool) (int, string) {
+		t.Helper()
+		request, err := http.NewRequest("GET", target, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprintf(conn, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n", target, listener.Addr().String())
+		if strict {
+			fmt.Fprintf(conn, "%s: 1\r\n", proxy.HeaderStrictHTTP)
+		}
+		fmt.Fprint(conn, "\r\n")
+		response, err := http.ReadResponse(reader, request)
+		if err != nil {
+			t.Fatalf("read response: %v", err)
+		}
+		body, err := io.ReadAll(response.Body)
+		response.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return response.StatusCode, string(body)
+	}
+	if status, body := send(true); status != http.StatusBadGateway || !strings.Contains(body, "strict HTTP parser") {
+		t.Fatalf("strict request = %d %q, want the proxy's strict parse error", status, body)
+	}
+	if status, body := send(false); status != http.StatusOK || body != "ok" {
+		t.Fatalf("non-strict request after strict = %d %q, want 200 ok", status, body)
 	}
 }
 

@@ -317,9 +317,13 @@ func (e *entry) handleConnect(res http.ResponseWriter, req *http.Request) {
 	}
 	connCtx.TLSVersions = parseUint16List(req.Header.Get(HeaderTLSVersions))
 	connCtx.TLSCipherSuites = parseUint16List(req.Header.Get(HeaderTLSCipherSuites))
+	if req.Header.Get(HeaderStrictHTTP) == "1" {
+		connCtx.StrictHTTP = true
+	}
 	req.Header.Del(HeaderVerifyUpstream)
 	req.Header.Del(HeaderTLSVersions)
 	req.Header.Del(HeaderTLSCipherSuites)
+	req.Header.Del(HeaderStrictHTTP)
 	f := newFlow()
 	f.Request = newRequest(req)
 	f.ConnContext = connCtx

@@ -60,9 +60,6 @@ const (
 	// the dividers on each side. A screen that measures a column's content
 	// adds twice it to know the column's width.
 	GridCellPadding = SpaceM
-	// GridCellInset is the text's inset inside a grid cell's input: its
-	// hairline border, with no padding between the border and the text.
-	GridCellInset = HairlineWidth
 
 	// Bar heights, as in Proxyman and Xcode: the title bar, a pane header or
 	// filter bar, and the one-row strip that holds a sidebar heading or the
@@ -82,8 +79,12 @@ const (
 	HeightSecondary    = 26 // the outlined secondary button
 	HeightBadge        = 18 // an h-4.5 status badge
 	HeightRow          = 24
-	HeightSidebarRow   = 32 // a settings row before a subtitle adds a line
-	HeightSearchField  = 32 // the search and scope search field
+	// HeightGridRow is one row of a key/value grid, header included. It sits
+	// between a 24-point list row and a 28-point control, as Postman's dense
+	// Params and Headers tables do.
+	HeightGridRow     = 26
+	HeightSidebarRow  = 32 // a settings row before a subtitle adds a line
+	HeightSearchField = 32 // the search and scope search field
 	// HeightRowAction is an icon action or a ⋯ inside a row, a sidebar
 	// heading or a pane header. It is centered, so it leaves RowActionInset
 	// above and below in a 24-point row; its corner is RadiusInner, which is

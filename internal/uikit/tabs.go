@@ -11,14 +11,29 @@ import (
 // data. The prefix names each tab for assistive technology, so a screen with
 // two tab rows of the same labels can name the one it means.
 func Tabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Element {
-	return tabs(c, selected, prefix, labels, nil, false)
+	return tabs(c, selected, prefix, labels, nil, nil, -1, false)
 }
 
 // CountedTabs is Tabs with a quiet count after each label, as in "Headers 3".
 // A count is presentation, not part of the tab's accessible name; an empty
 // or zero count is left out.
 func CountedTabs(c *ui.Context, selected *int, prefix string, labels, counts []string) ui.Element {
-	return tabs(c, selected, prefix, labels, counts, false)
+	return tabs(c, selected, prefix, labels, counts, nil, -1, false)
+}
+
+// CountedTabsWithDots is CountedTabs with a status dot after a label whose
+// view has content, as Postman marks Params and Scripts. A dot is a signal,
+// not a count, so a tab uses one or the other.
+func CountedTabsWithDots(c *ui.Context, selected *int, prefix string, labels, counts []string, dots []bool) ui.Element {
+	return tabs(c, selected, prefix, labels, counts, dots, -1, false)
+}
+
+// CountedTabsWithDotsAndLink is CountedTabsWithDots with one view left out of
+// the tab row while staying in its order, as Postman keeps Cookies beside its
+// request tabs: the screen draws that view as a link and can still select it
+// by index. link is -1 for none.
+func CountedTabsWithDotsAndLink(c *ui.Context, selected *int, prefix string, labels, counts []string, dots []bool, link int) ui.Element {
+	return tabs(c, selected, prefix, labels, counts, dots, link, false)
 }
 
 // SubTabs is a row of tabs inside what another tab row chose, or at the head
@@ -26,9 +41,9 @@ func CountedTabs(c *ui.Context, selected *int, prefix string, labels, counts []s
 // one is underlined in the primary ink. It has no chip, so a second level never
 // looks like the row that holds it.
 func SubTabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Element {
-	return tabs(c, selected, prefix, labels, nil, true)
+	return tabs(c, selected, prefix, labels, nil, nil, -1, true)
 }
-func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, sub bool) ui.Element {
+func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, dots []bool, link int, sub bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	group := ui.TabsBase(c, selected, len(labels))
 	gap := t.Space(SpaceHair)
@@ -42,6 +57,14 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 	// apart without a visible rule between them.
 	group.List.Gap(gap).Children(func() {
 		for i, label := range labels {
+			if i == link {
+				// Keep the view's place in the tab order without drawing
+				// a chip: the screen draws it as a link. A disabled,
+				// zero-size tab lets the arrows step over it instead of
+				// choosing an index with nothing on screen.
+				group.Tab(i).Disabled(true).Width(0).Height(0).Padding(0).Shrink(0)
+				continue
+			}
 			name := label
 			if prefix != "" {
 				name = prefix + ": " + label
@@ -78,8 +101,11 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 			}
 			tab.Children(func() {
 				ui.Text(c, label).FontSize(Scaled(TextSmall))
+				if i < len(dots) && dots[i] {
+					ui.Box(c).Size(DotSize, DotSize).Radius(DotSize / 2).Background(t.Success).Shrink(0)
+				}
 				if i < len(counts) && counts[i] != "" && counts[i] != "0" {
-					Meta(c, counts[i]).FontFeatures("tnum")
+					Meta(c, counts[i]).FontFeatures("tnum").TextColor(t.TextMuted)
 				}
 				if chosen && sub {
 					// The rule spans the word, not the tab's hit area, so

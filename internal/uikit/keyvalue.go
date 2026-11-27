@@ -12,13 +12,14 @@ import (
 // heading, empty for the narrow leading, reveal, file and action columns.
 // Width fixes a column; Grow shares the rest with the other flexible columns.
 // Cell draws one row's content; line is the row itself, so a cell can reveal
-// its action only while the row is hovered or focused.
+// its action only while the row is hovered or focused, and cell is the grid
+// cell around it, whose outline a focused input lights.
 type KeyValueColumn struct {
 	Title    string
 	Width    float32
 	Grow     float32
 	MinWidth float32
-	Cell     func(row int, line ui.Element)
+	Cell     func(row int, line, cell ui.Element)
 }
 
 // KeyValueTableOptions is the shared grid of key/value rows used by Params,
@@ -30,10 +31,11 @@ type KeyValueTableOptions struct {
 	// unique among the tables on screen.
 	Key     string
 	Caption string
-	// CaptionEnd draws a control at the caption's right end, such as a file
-	// picker for a form table.
-	CaptionEnd func()
-	Columns    []KeyValueColumn
+	// HeaderEnd draws the table's own actions at the end of the last titled
+	// header cell, such as Bulk Edit in Description (or Value when there is
+	// no Description). Data rows keep the full column width.
+	HeaderEnd func()
+	Columns   []KeyValueColumn
 	// Rows is the number of saved rows. OnAdd adds one more: the empty row
 	// that adds a row when its Key or Value is typed into.
 	Rows int
@@ -68,15 +70,9 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 		column.Grow(1).MinHeight(0)
 	}
 	column.Children(func() {
-		if o.Caption != "" || o.CaptionEnd != nil {
+		if o.Caption != "" {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-				if o.Caption != "" {
-					Small(c, o.Caption).TextColor(t.Text)
-				}
-				if o.CaptionEnd != nil {
-					ui.Spacer(c)
-					o.CaptionEnd()
-				}
+				Small(c, o.Caption).TextColor(t.Text)
 			})
 		}
 		// A table without a row to add is read-only: its rows grow with what
@@ -92,6 +88,16 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 			// hairline stays under the scroll bar's viewport when rows scroll
 			// under it. The table's own box, which scrolls away, keeps only its
 			// other three edges.
+			// HeaderEnd belongs to the last titled column's heading, as Postman puts
+			// Bulk edit at the end of Description (or Value when Description does
+			// not fit). It never takes a column of its own, so rows keep their full
+			// width and the grid gains no empty action lane.
+			titleCell := -1
+			for i, col := range o.Columns {
+				if col.Title != "" {
+					titleCell = i
+				}
+			}
 			table := ui.Column(c).Key(o.Key).FillWidth().
 				BorderWidth(0, HairlineWidth, HairlineWidth, HairlineWidth).BorderColor(p.Border).
 				Radius(RadiusControl).Clip()
@@ -99,7 +105,7 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 				table.Bind(o.Measure)
 			}
 			table.Children(func() {
-				header := ui.Row(c).FillWidth().Height(HeightControl).AlignItems(ui.Stretch).
+				header := ui.Row(c).FillWidth().Height(HeightGridRow).AlignItems(ui.Stretch).
 					BorderWidth(HairlineWidth, 0, HairlineWidth, 0).BorderColor(p.Border).
 					Background(t.Background).Sticky().Top(0)
 				header.Children(func() {
@@ -107,7 +113,12 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 						cell := gridCell(c, col, i > 0, p.Border, false)
 						cell.Children(func() {
 							if col.Title != "" {
-								Label(c, col.Title).FillWidth()
+								ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Padding(0, t.Space(GridCellPadding)).Children(func() {
+									Small(c, col.Title).TextColor(t.TextMuted).Grow(1).MinWidth(0).SingleLine()
+									if i == titleCell && o.HeaderEnd != nil {
+										o.HeaderEnd()
+									}
+								})
 							}
 						})
 					}
@@ -116,15 +127,15 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 					line := ui.Row(c).FillWidth().AlignItems(ui.Stretch).
 						BorderWidth(0, 0, HairlineWidth, 0).BorderColor(p.Border)
 					if readOnly {
-						line.MinHeight(HeightControl)
+						line.MinHeight(HeightGridRow)
 					} else {
-						line.Height(HeightControl)
+						line.Height(HeightGridRow)
 					}
 					line.Children(func() {
 						for i, col := range o.Columns {
 							cell := gridCell(c, col, i > 0, p.Border, readOnly)
 							if col.Cell != nil {
-								cell.Children(func() { col.Cell(row, line) })
+								cell.Children(func() { col.Cell(row, line, cell) })
 							}
 						}
 					})
@@ -150,11 +161,10 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 // carries the column's rule, so the grid is drawn by its cells rather than by
 // overlaid lines.
 func gridCell(c *ui.Context, col KeyValueColumn, rule bool, border ui.Color, readOnly bool) ui.Element {
-	// An editable titled column keeps the same inset from the dividers on
-	// both sides, so a key's text stops clear of the rule instead of running
-	// under it. The narrow leading and action columns have no title and stay
-	// centered in their fixed width. MinWidth describes the content, so the
-	// column asks for room for the inset too.
+	// A dense cell's input carries the text inset itself, so the cell has no
+	// side padding and its focus outline lands on the grid lines. The narrow
+	// leading and action columns stay centered in their fixed width. MinWidth
+	// describes the content, so the column asks for room for the inset too.
 	inset := float32(0)
 	if !readOnly && col.Title != "" {
 		inset = c.Theme().Space(GridCellPadding)
@@ -168,12 +178,9 @@ func gridCell(c *ui.Context, col KeyValueColumn, rule bool, border ui.Color, rea
 		cell.Justify(ui.Start).Padding(c.Theme().Space(SpaceXS), c.Theme().Space(SpaceM))
 	} else {
 		cell.Justify(ui.Center)
-		if inset > 0 {
-			cell.Padding(0, inset)
-		}
 	}
 	if col.Width > 0 {
-		cell.Width(col.Width)
+		cell.Width(col.Width).Shrink(0)
 	} else {
 		cell.Basis(0).Grow(col.Grow)
 	}
@@ -190,6 +197,7 @@ type truncatedCut struct {
 	text                 string
 	avail                float32
 	truncated            bool
+	lo                   int
 	prefixW              float32
 	ellipsisW, ellipsisH float32
 }
@@ -204,10 +212,12 @@ const truncateGap = 1.5
 // instead of replacing the input, so the field keeps its focus, caret,
 // selection and place in Tab's order; the visible prefix keeps the field's
 // own colors, variable references included. inset is the field's text inset:
-// its border plus padding. fill and hoverFill are the cell's background under
-// the field and while the pointer is on it; a masked value shows bullets and
-// keeps its text out of the tip.
-func TruncatedCell(c *ui.Context, field ui.Element, value string, masked bool, inset float32, fill, hoverFill ui.Color) ui.Element {
+// its border plus padding. fill is the cell's background at rest, under the
+// field. The suffix is painted in that background, so the next glyph is not
+// left as a sliver, and the patch stops inside the row's hairlines so it
+// never breaks a grid line. A masked value shows bullets and keeps its text
+// out of the tip.
+func TruncatedCell(c *ui.Context, field ui.Element, value string, masked bool, inset float32, fill ui.Color) ui.Element {
 	if value == "" || field.Focused() {
 		return field
 	}
@@ -220,7 +230,7 @@ func TruncatedCell(c *ui.Context, field ui.Element, value string, masked bool, i
 	if masked {
 		text, ink = strings.Repeat("•", utf8.RuneCountInString(value)), t.TextMuted
 	}
-	size := Scaled(TextBody)
+	size := Scaled(TextSmall)
 	cut := ui.Local(field, "truncated-cell", func() truncatedCut { return truncatedCut{} })
 	if cut.text != text || cut.avail != avail {
 		*cut = truncatedCut{text: text, avail: avail}
@@ -244,24 +254,35 @@ func TruncatedCell(c *ui.Context, field ui.Element, value string, masked bool, i
 			for lo > 0 && unicode.IsSpace(runes[lo-1]) {
 				lo--
 			}
+			cut.lo = lo
 			cut.prefixW, _ = c.MeasureText(0, ui.Span{Text: string(runes[:lo]), Size: size})
 		}
 	}
 	if !cut.truncated {
 		return field
 	}
-	if field.Hovered() {
-		// The field paints hoverFill over the cell's background; the patch
-		// covers that same composite, not a second wash of the same color.
-		fill = hoverFill.Over(fill)
+	if !masked {
+		// A password shows no ranges. For every other input, paint the suffix
+		// in the cell's background so the cut rune's next glyph cannot leave
+		// its left ink beside the patch.
+		field.TextRanges(ui.TextRange{Start: cut.lo, End: utf8.RuneCountInString(text), Color: fill})
 	}
 	field.DrawOver(func(p *ui.Painter, r ui.Rect) {
-		x := r.X + inset + cut.prefixW + truncateGap
-		end := r.X + r.W - inset
-		if x < end {
-			p.Fill(ui.Rect{X: x, Y: r.Y + inset, W: end - x, H: r.H - 2*inset}, fill, 0)
+		// Keep truncateGap between the last kept glyph and the patch: a
+		// glyph whose ink overhangs its advance, as a g's tail can, must not
+		// be cut. Masked bullets keep their symmetric advances, so their
+		// patch starts at the cut to hide the next bullet entirely.
+		ellipsisX := r.X + inset + cut.prefixW + truncateGap
+		patchX := ellipsisX
+		if masked {
+			patchX = r.X + inset + cut.prefixW
 		}
-		p.Text(x, r.Y+inset+max((r.H-2*inset-cut.ellipsisH)/2, 0), "…", size, ink)
+		y := r.Y + HairlineWidth
+		h := max(r.H-2*HairlineWidth, 0)
+		if end := r.X + r.W; patchX < end {
+			p.Fill(ui.Rect{X: patchX, Y: y, W: end - patchX, H: h}, fill, 0)
+		}
+		p.Text(ellipsisX, y+max((h-cut.ellipsisH)/2, 0), "…", size, ink)
 	})
 	// The tip is for the pointer: a focused cell already scrolls its text
 	// with the caret, and a tip on focus would cover the row above it.
@@ -277,7 +298,7 @@ func (o KeyValueTableOptions) emptyRow(c *ui.Context, table ui.Element) {
 	t := c.Theme()
 	newKey := ui.Local(table, "new-key", func() string { return "" })
 	newValue := ui.Local(table, "new-value", func() string { return "" })
-	line := ui.Row(c).FillWidth().Height(HeightControl).AlignItems(ui.Stretch)
+	line := ui.Row(c).FillWidth().Height(HeightGridRow).AlignItems(ui.Stretch)
 	var keyInput, valueInput ui.Element
 	haveKey, haveValue := false, false
 	line.Children(func() {
@@ -318,21 +339,18 @@ func (o KeyValueTableOptions) emptyRow(c *ui.Context, table ui.Element) {
 	c.Invalidate()
 }
 
-// emptyGridInput is the placeholder cell of the trailing row. It is a body
-// text input, as the saved rows are, with no face until the pointer or the
-// keyboard reaches it. The cell's own inset keeps it clear of the dividers.
+// emptyGridInput is the placeholder cell of the trailing row. It is the
+// saved rows' face-less input, so the next row looks like the one above it.
 func emptyGridInput(c *ui.Context, value *string, placeholder, label string) ui.Element {
-	return InputControl(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
-		FillHeight().Padding(0, 0).Border(HairlineWidth, ui.Color{})
+	return GridInput(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0)
 }
 
 // emptyGridPlaceholder is the trailing row's read-only cell. It uses the same
-// body type and vertical centering as emptyGridInput, so a Description
+// small type and vertical centering as emptyGridInput, so a Description
 // placeholder lines up with Key and Value without becoming an input that adds
 // a row.
 func emptyGridPlaceholder(c *ui.Context, text string) ui.Element {
-	return ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Children(func() {
-		ui.Text(c, text).FontSize(Scaled(TextBody)).LineHeight(LineBody).
-			TextColor(c.Theme().TextMuted).SingleLine()
+	return ui.Row(c).FillWidth().FillHeight().Padding(0, c.Theme().Space(GridCellPadding)).AlignItems(ui.Center).Children(func() {
+		Small(c, text).TextColor(c.Theme().TextMuted).SingleLine()
 	})
 }

@@ -6382,6 +6382,46 @@ func (msgs Messages) ResponseFromTime(time_ string) string {
 	return Catalog.Format(msgs.locale, "responseFromTime", map[string]any{"time": time_})
 }
 
+// ResponseEmptyHint says "Send the request to see what comes back."
+// in the language the app shows.
+func ResponseEmptyHint() string { return In(i18n.Locale()).ResponseEmptyHint() }
+
+// ResponseEmptyHint says "Send the request to see what comes back."
+// in the language of msgs.
+func (msgs Messages) ResponseEmptyHint() string {
+	return Catalog.Format(msgs.locale, "responseEmptyHint", nil)
+}
+
+// ResponseEmptySend says "Send + Get a response"
+// in the language the app shows.
+func ResponseEmptySend() string { return In(i18n.Locale()).ResponseEmptySend() }
+
+// ResponseEmptySend says "Send + Get a response"
+// in the language of msgs.
+func (msgs Messages) ResponseEmptySend() string {
+	return Catalog.Format(msgs.locale, "responseEmptySend", nil)
+}
+
+// ResponseEmptySendCheck says "Send + Write a check"
+// in the language the app shows.
+func ResponseEmptySendCheck() string { return In(i18n.Locale()).ResponseEmptySendCheck() }
+
+// ResponseEmptySendCheck says "Send + Write a check"
+// in the language of msgs.
+func (msgs Messages) ResponseEmptySendCheck() string {
+	return Catalog.Format(msgs.locale, "responseEmptySendCheck", nil)
+}
+
+// ResponseEmptyCapture says "Pick a captured flow"
+// in the language the app shows.
+func ResponseEmptyCapture() string { return In(i18n.Locale()).ResponseEmptyCapture() }
+
+// ResponseEmptyCapture says "Pick a captured flow"
+// in the language of msgs.
+func (msgs Messages) ResponseEmptyCapture() string {
+	return Catalog.Format(msgs.locale, "responseEmptyCapture", nil)
+}
+
 // ResponseHasNoBody says "The response has no body"
 // in the language the app shows.
 func ResponseHasNoBody() string { return In(i18n.Locale()).ResponseHasNoBody() }
@@ -11672,6 +11712,16 @@ func HashNonFormBody() string { return In(i18n.Locale()).HashNonFormBody() }
 // in the language of msgs.
 func (msgs Messages) HashNonFormBody() string {
 	return Catalog.Format(msgs.locale, "hashNonFormBody", nil)
+}
+
+// HasContent says "Has content"
+// in the language the app shows.
+func HasContent() string { return In(i18n.Locale()).HasContent() }
+
+// HasContent says "Has content"
+// in the language of msgs.
+func (msgs Messages) HasContent() string {
+	return Catalog.Format(msgs.locale, "hasContent", nil)
 }
 
 // IncludeInSignature says "Include in the signature"
@@ -28176,6 +28226,16 @@ func (msgs Messages) RequireUsernameAndPassword() string {
 	return Catalog.Format(msgs.locale, "requireUsernameAndPassword", nil)
 }
 
+// Reset says "Reset"
+// in the language the app shows.
+func Reset() string { return In(i18n.Locale()).Reset() }
+
+// Reset says "Reset"
+// in the language of msgs.
+func (msgs Messages) Reset() string {
+	return Catalog.Format(msgs.locale, "reset", nil)
+}
+
 // ResetAll says "Reset all"
 // in the language the app shows.
 func ResetAll() string { return In(i18n.Locale()).ResetAll() }
@@ -33792,6 +33852,16 @@ func (msgs Messages) ThisRemovesTheRetainedRuns() string {
 	return Catalog.Format(msgs.locale, "thisRemovesTheRetainedRuns", nil)
 }
 
+// ThisRequestDoesNotHaveABody says "This request does not have a body"
+// in the language the app shows.
+func ThisRequestDoesNotHaveABody() string { return In(i18n.Locale()).ThisRequestDoesNotHaveABody() }
+
+// ThisRequestDoesNotHaveABody says "This request does not have a body"
+// in the language of msgs.
+func (msgs Messages) ThisRequestDoesNotHaveABody() string {
+	return Catalog.Format(msgs.locale, "thisRequestDoesNotHaveABody", nil)
+}
+
 // ThisRequestNoLongerMatches says "This request no longer matches the capture"
 // in the language the app shows.
 func ThisRequestNoLongerMatches() string { return In(i18n.Locale()).ThisRequestNoLongerMatches() }
@@ -36902,6 +36972,26 @@ func (msgs Messages) EncodeUrlAutomatically() string {
 	return Catalog.Format(msgs.locale, "encodeUrlAutomatically", nil)
 }
 
+// EnableStrictHttpParser says "Enable strict HTTP parser"
+// in the language the app shows.
+func EnableStrictHttpParser() string { return In(i18n.Locale()).EnableStrictHttpParser() }
+
+// EnableStrictHttpParser says "Enable strict HTTP parser"
+// in the language of msgs.
+func (msgs Messages) EnableStrictHttpParser() string {
+	return Catalog.Format(msgs.locale, "enableStrictHttpParser", nil)
+}
+
+// EnableStrictHttpParserHint says "Reject responses with invalid HTTP headers."
+// in the language the app shows.
+func EnableStrictHttpParserHint() string { return In(i18n.Locale()).EnableStrictHttpParserHint() }
+
+// EnableStrictHttpParserHint says "Reject responses with invalid HTTP headers."
+// in the language of msgs.
+func (msgs Messages) EnableStrictHttpParserHint() string {
+	return Catalog.Format(msgs.locale, "enableStrictHttpParserHint", nil)
+}
+
 // EncodeUrlAutomaticallyHint says "When off, query rows are sent as typed, without escaping."
 // in the language the app shows.
 func EncodeUrlAutomaticallyHint() string { return In(i18n.Locale()).EncodeUrlAutomaticallyHint() }
@@ -38316,6 +38406,46 @@ func SearchNoResults() string { return In(i18n.Locale()).SearchNoResults() }
 // in the language of msgs.
 func (msgs Messages) SearchNoResults() string {
 	return Catalog.Format(msgs.locale, "searchNoResults", nil)
+}
+
+// SearchTips says "Search tips"
+// in the language the app shows.
+func SearchTips() string { return In(i18n.Locale()).SearchTips() }
+
+// SearchTips says "Search tips"
+// in the language of msgs.
+func (msgs Messages) SearchTips() string {
+	return Catalog.Format(msgs.locale, "searchTips", nil)
+}
+
+// SearchTipScope says "Searches request names, URLs, headers, bodies, scripts, variables and captured traffic."
+// in the language the app shows.
+func SearchTipScope() string { return In(i18n.Locale()).SearchTipScope() }
+
+// SearchTipScope says "Searches request names, URLs, headers, bodies, scripts, variables and captured traffic."
+// in the language of msgs.
+func (msgs Messages) SearchTipScope() string {
+	return Catalog.Format(msgs.locale, "searchTipScope", nil)
+}
+
+// SearchTipOptions says "Alt+C matches case, Alt+W whole words, Alt+R treats the query as a regular expression."
+// in the language the app shows.
+func SearchTipOptions() string { return In(i18n.Locale()).SearchTipOptions() }
+
+// SearchTipOptions says "Alt+C matches case, Alt+W whole words, Alt+R treats the query as a regular expression."
+// in the language of msgs.
+func (msgs Messages) SearchTipOptions() string {
+	return Catalog.Format(msgs.locale, "searchTipOptions", nil)
+}
+
+// SearchTipReplace says "Open Replace to rewrite a match in its source."
+// in the language the app shows.
+func SearchTipReplace() string { return In(i18n.Locale()).SearchTipReplace() }
+
+// SearchTipReplace says "Open Replace to rewrite a match in its source."
+// in the language of msgs.
+func (msgs Messages) SearchTipReplace() string {
+	return Catalog.Format(msgs.locale, "searchTipReplace", nil)
 }
 
 // SearchRunning says "Searching…"

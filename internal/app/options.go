@@ -14,7 +14,7 @@ import (
 // The fixed option sets the screens show. Keeping them here lets the tests
 // walk every value: each must have a message or be a known identifier.
 var (
-	bodyTypes       = []string{"Raw", "URL encoded", "Multipart", "Binary", "GraphQL"}
+	bodyTypes       = []string{"None", "Raw", "URL encoded", "Multipart", "Binary", "GraphQL"}
 	responseFormats = []string{"Auto", "Raw", "Hex", "Pretty"}
 	directions      = []string{"All", "In", "Out", "Events"}
 )

@@ -43,6 +43,11 @@ func socketSend(ctx context.Context, f capture.Flow, policy capture.TransferPoli
 		return capture.Flow{}, err
 	}
 	defer resp.Body.Close()
+	if policy.StrictHTTP {
+		if err := capture.ValidateResponseHeader(resp.Header); err != nil {
+			return capture.Flow{}, err
+		}
+	}
 	if policy.HTTPVersion == "2" && resp.ProtoMajor != 2 {
 		return capture.Flow{}, fmt.Errorf("HTTP/2 was required, but the server answered %s", resp.Proto)
 	}
@@ -53,6 +58,11 @@ func socketSend(ctx context.Context, f capture.Flow, policy capture.TransferPoli
 	rest, err := io.Copy(io.Discard, resp.Body)
 	if err != nil {
 		return capture.Flow{}, err
+	}
+	if policy.StrictHTTP {
+		if err := capture.ValidateResponseHeader(resp.Trailer); err != nil {
+			return capture.Flow{}, err
+		}
 	}
 	rawURL := f.URL
 	if rawURL == "" {

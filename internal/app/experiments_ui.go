@@ -343,11 +343,11 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					if r.ID == s.log.Baseline {
 						label += " · " + locales.Baseline()
 					}
-					uikit.Tip(c, ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
+					uikit.ContextMenu(c, uikit.Tip(c, ui.Column(c).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceM)).Children(func() {
 						uikit.Caption(c, label).FontFeatures("tnum").SingleLine()
 						uikit.Meta(c, r.Summary).SingleLine()
-					}), r.Draft.Method+" "+r.Draft.URL+"\n"+r.Summary).
-						PopoverMenu(func(m *ui.Menu) { actionMenu(m, a.runCompareActions(runTarget(r))) })
+					}), r.Draft.Method+" "+r.Draft.URL+"\n"+r.Summary),
+						func(m *ui.Menu) { actionMenu(m, a.runCompareActions(runTarget(r))) })
 				}).FillWidth()
 				if selected >= 0 && selected < len(visible) && visible[selected].ID != s.picked {
 					s.pick(visible[selected].ID)

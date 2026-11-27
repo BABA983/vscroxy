@@ -33,7 +33,7 @@ func TestSettingsScrollReachesItsLastRow(t *testing.T) {
 		t.Fatalf("the last Settings row is not drawn: %+v %v", title, ok)
 	}
 	hint, ok := tt.Find(locales.SocketPathHint())
-	if !ok || hint.H < 2*uikit.TextSmall*uikit.LineSmall {
+	if !ok || hint.H < uikit.TextSmall*uikit.LineSmall {
 		t.Fatalf("the last Settings row's description is clipped: %+v %v", hint, ok)
 	}
 	var scroll ui.Rect

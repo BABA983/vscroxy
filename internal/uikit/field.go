@@ -107,6 +107,21 @@ func InputControl(c *ui.Context, value *string) ui.Element {
 	return e
 }
 
+// GridInput is the text input of a dense key/value grid cell: no face, no
+// radius, the grid's row height and the small type. Its own padding keeps the
+// text clear of the cell's dividers, so the table can outline the whole cell
+// on focus instead of drawing a box around the input.
+func GridInput(c *ui.Context, value *string) ui.Element {
+	t := c.Theme()
+	quiet := *t
+	quiet.Accent, quiet.Border, quiet.Text, quiet.Danger = ui.Color{}, ui.Color{}, ui.Color{}, ui.Color{}
+	c.SetTheme(&quiet)
+	e := ui.TextInputBase(c, value).Height(HeightGridRow).FontSize(Scaled(TextSmall)).
+		Padding(0, t.Space(GridCellPadding)).FocusRing(false).Clip()
+	c.SetTheme(t)
+	return e
+}
+
 // TextInset gives a single-line text field inset points at each side. The
 // left one is padding. MyGo clips a field's text to its border box, not its
 // padding, so the right one is a border: its width sets the room the text

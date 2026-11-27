@@ -298,8 +298,8 @@ func (a *app) collectionTree(c *ui.Context) {
 					do("collection.delete", locales.DeletePathEllipsis(path), func() { a.confirmDeleteFolder(path) }).in("danger")))
 			}
 			parts := tree.Item(open)
-			row := treeRow(c, parts, depth).Label(locales.CollectionPath(path)).
-				Drag(folderDrag).PopoverMenu(menu)
+			row := uikit.ContextMenu(c, treeRow(c, parts, depth).Label(locales.CollectionPath(path)).
+				Drag(folderDrag), menu)
 			if row.Dragging() {
 				row.Opacity(0.5)
 			}
@@ -353,8 +353,8 @@ func (a *app) collectionTree(c *ui.Context) {
 			if r.Collection != "" {
 				card.Meta = method + " · " + r.Collection
 			}
-			row := uikit.CardTipBeside(c, base, card).
-				OnClick(func() { a.previewSaved(r.key()) }).PopoverMenu(menu)
+			row := uikit.ContextMenu(c, uikit.CardTipBeside(c, base, card).
+				OnClick(func() { a.previewSaved(r.key()) }), menu)
 			// A single click browses in the preview tab; a double click pins
 			// it, as opening the request from its menu does.
 			if row.DoubleClicked() {

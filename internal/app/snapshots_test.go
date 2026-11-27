@@ -896,7 +896,7 @@ func snapshotStates(t *testing.T) []snapshot {
 			a.flows[0].wait, a.flows[0].download = 0, 0
 		}, want: "No timing for this flow"},
 		{name: "requests-empty", setup: func(a *app) { a.page = pageRequest }, want: "Open a saved request or create a new one"},
-		{name: "requests-editing", setup: draft, want: sendShortcut() + "  Send"},
+		{name: "requests-editing", setup: draft, want: locales.ResponseEmptySend()},
 		{name: "requests-header-masked", setup: func(a *app) {
 			draft(a)
 			a.composeHeaders += "\nAuthorization: Bearer snapshot-only"

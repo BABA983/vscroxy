@@ -325,6 +325,8 @@ func (s variableFieldSource) fields() []variableField {
 		}
 	}
 	switch s.value.BodyMode {
+	case "None":
+		// No body is sent.
 	case "", "Raw":
 		add(problemFieldBody, locales.RequestBody(), false)
 	case "GraphQL":

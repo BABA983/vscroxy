@@ -152,7 +152,7 @@ func documentTab(c *ui.Context, item DocumentTab, index int, o DocumentTabsOptio
 
 	if o.TabMenu != nil {
 		if build := o.TabMenu(index); build != nil {
-			tab.PopoverMenu(build, MenuOptions(c))
+			ContextMenu(c, tab, build)
 		}
 	}
 

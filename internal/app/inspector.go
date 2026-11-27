@@ -412,6 +412,10 @@ type paneView struct {
 	view  int
 	label string
 	count string
+	// dot lights the tab with Success: the view has content, as Postman
+	// marks Params and Scripts. A count says how much; a dot only says there
+	// is something to read.
+	dot bool
 }
 
 // paneTools are what a pane's row offers past its tabs: the controls the
@@ -461,8 +465,8 @@ func paneTitleWidth(c *ui.Context, title string, dot bool) float32 {
 }
 
 // paneTabsWidth is the room the tabs take, as uikit lays them out: each chip's
-// padding, its label, its count and the gaps between them.
-func paneTabsWidth(c *ui.Context, labels, counts []string) float32 {
+// padding, its label, its dot or count and the gaps between them.
+func paneTabsWidth(c *ui.Context, labels, counts []string, dots []bool) float32 {
 	t := c.Theme()
 	var w float32
 	for i, label := range labels {
@@ -470,6 +474,9 @@ func paneTabsWidth(c *ui.Context, labels, counts []string) float32 {
 			w += t.Space(uikit.SpaceHair)
 		}
 		w += 2*t.Space(uikit.SpaceS) + paneTextWidth(c, label, uikit.TextSmall, 400)
+		if i < len(dots) && dots[i] {
+			w += t.Space(uikit.SpaceXS) + uikit.DotSize
+		}
 		if i < len(counts) && counts[i] != "" && counts[i] != "0" {
 			w += t.Space(uikit.SpaceXS) + paneTextWidth(c, counts[i], uikit.TextMeta, 400)
 		}
@@ -477,11 +484,11 @@ func paneTabsWidth(c *ui.Context, labels, counts []string) float32 {
 	return w
 }
 
-// paneRoomFor is what a row has left once its title, its tabs and its menu
-// have theirs.
-func paneRoomFor(c *ui.Context, width float32, title string, dot bool, labels, counts []string, menu float32) paneRoom {
+// paneRoomFor is what a row has left once its title, its tabs, its trailing
+// link and its menu have theirs.
+func paneRoomFor(c *ui.Context, width float32, title string, dot bool, labels, counts []string, dots []bool, menu float32) paneRoom {
 	t := c.Theme()
-	return paneRoom{left: width - 2*t.Space(uikit.SpaceL) - paneTitleWidth(c, title, dot) - paneTabsWidth(c, labels, counts) - 2*t.Space(uikit.SpaceM) - menu}
+	return paneRoom{left: width - 2*t.Space(uikit.SpaceL) - paneTitleWidth(c, title, dot) - paneTabsWidth(c, labels, counts, dots) - 2*t.Space(uikit.SpaceM) - menu}
 }
 
 // paneMoreWidth is the room the request pane's More tab takes: it is a word
@@ -513,15 +520,37 @@ func (a *app) paneFormatWidth(c *ui.Context, side int) float32 {
 // requestPaneTabs are the views the request pane's row starts with: Params
 // first, as Postman's request editor has it, then Headers, Body and Auth.
 func requestPaneTabs(d *requestDocument, f flow) []paneView {
+	params := requestParamCount(d, f)
 	views := []paneView{
-		{composeTabParams, locales.Params(), requestParamCount(d, f)},
-		{composeTabHeaders, locales.RequestHeadersLabel(), requestHeaderCount(d, f)},
-		{composeTabBody, locales.Body(), ""},
+		{composeTabParams, locales.Params(), "", params != ""},
+		{composeTabHeaders, locales.RequestHeadersLabel(), requestHeaderCount(d, f), false},
+		{composeTabBody, locales.Body(), "", requestBodyHasContent(d)},
 	}
 	if d != nil {
-		views = append(views, paneView{composeTabAuth, locales.Auth(), ""})
+		views = append(views, paneView{composeTabAuth, locales.Auth(), "", d.auth.Type != "" && d.auth.Type != "None" && d.auth.Type != request.AuthInherit})
 	}
 	return views
+}
+
+// requestBodyHasContent reports whether the Body tab has anything to show.
+func requestBodyHasContent(d *requestDocument) bool {
+	if d == nil {
+		return false
+	}
+	switch d.bodyMode {
+	case "URL encoded", "Multipart":
+		return slices.ContainsFunc(d.formFields, func(f request.Field) bool {
+			return !f.Disabled && (f.Name != "" || f.Value != "")
+		})
+	case "None":
+		return false
+	case "Binary":
+		return d.bodyFile != ""
+	case "GraphQL":
+		return strings.TrimSpace(d.graphql.Query) != ""
+	default:
+		return strings.TrimSpace(d.composeBody) != ""
+	}
 }
 
 // requestPaneViews is the full row order: the start above, then Scripts and
@@ -532,12 +561,12 @@ func (a *app) requestPaneViews(d *requestDocument, f flow) []paneView {
 	return append(views, a.requestMoreViews(d, f)...)
 }
 
-func paneLabelsAndCounts(views []paneView) ([]string, []string) {
-	labels, counts := make([]string, len(views)), make([]string, len(views))
+func paneLabelsAndCounts(views []paneView) ([]string, []string, []bool) {
+	labels, counts, dots := make([]string, len(views)), make([]string, len(views)), make([]bool, len(views))
 	for i, v := range views {
-		labels[i], counts[i] = v.label, v.count
+		labels[i], counts[i], dots[i] = v.label, v.count, v.dot
 	}
-	return labels, counts
+	return labels, counts, dots
 }
 
 // requestTabsFit reports whether a request pane of this width shows every view
@@ -555,8 +584,8 @@ func (a *app) requestTabsFit(c *ui.Context, d *requestDocument, width float32) b
 		}
 		width = width * share / 100
 	}
-	labels, counts := paneLabelsAndCounts(a.requestPaneViews(d, flow{}))
-	need := 2*t.Space(uikit.SpaceL) + paneTabsWidth(c, labels, counts) + 2*t.Space(uikit.SpaceM)
+	labels, counts, dots := paneLabelsAndCounts(a.requestPaneViews(d, flow{}))
+	need := 2*t.Space(uikit.SpaceL) + paneTabsWidth(c, labels, counts, dots) + 2*t.Space(uikit.SpaceM)
 	return width >= need
 }
 
@@ -568,7 +597,7 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 	before := *selected
 	all := a.requestPaneViews(d, f)
 	var baseExtra []action
-	if before == composeTabBody {
+	if before == composeTabBody && (d == nil || d.bodyMode != "None") {
 		baseExtra = a.bodyPaneActions(c, 1)
 	}
 	width := tools.width
@@ -579,8 +608,8 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 	if tools.format >= 0 {
 		formatWidth = a.paneFormatWidth(c, tools.format)
 	}
-	labels, counts := paneLabelsAndCounts(all)
-	room := paneRoomFor(c, width, "", false, labels, counts, 0)
+	labels, counts, dots := paneLabelsAndCounts(all)
+	room := paneRoomFor(c, width, "", false, labels, counts, dots, 0)
 	showFormat := tools.format >= 0 && room.fits(formatWidth)
 	extra := baseExtra
 	if !showFormat && tools.format >= 0 {
@@ -596,14 +625,14 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 		menu := paneMoreWidth(c)
 		views = slices.Clone(all)
 		for len(views) > 1 {
-			labels, counts = paneLabelsAndCounts(views)
-			room = paneRoomFor(c, width, "", false, labels, counts, menu)
+			labels, counts, dots = paneLabelsAndCounts(views)
+			room = paneRoomFor(c, width, "", false, labels, counts, dots, menu)
 			if room.left >= 0 {
 				break
 			}
 			at := -1
 			for i := len(views) - 1; i >= 0; i-- {
-				if views[i].view != before {
+				if views[i].view != before && views[i].view != composeTabCookies {
 					at = i
 					break
 				}
@@ -616,21 +645,33 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 		more = slices.DeleteFunc(slices.Clone(all), func(v paneView) bool {
 			return slices.Contains(views, v)
 		})
-		labels, counts = paneLabelsAndCounts(views)
-		room = paneRoomFor(c, width, "", false, labels, counts, menu)
+		labels, counts, dots = paneLabelsAndCounts(views)
+		room = paneRoomFor(c, width, "", false, labels, counts, dots, menu)
 		showFormat = tools.format >= 0 && room.fits(formatWidth)
 		extra = baseExtra
 		if !showFormat && tools.format >= 0 {
 			extra = append([]action{submenu(bodyFormatLabel(tools.format), a.bodyFormatActions(tools.format)...)}, extra...)
 		}
 	}
-	shown := max(0, slices.IndexFunc(views, func(v paneView) bool { return v.view == before }))
+	shown := slices.IndexFunc(views, func(v paneView) bool { return v.view == before })
+	link := slices.IndexFunc(views, func(v paneView) bool { return v.view == composeTabCookies })
 	uikit.PaneHeader(c, func() {
 		// The tabs are the pane's name: a "Request" before them repeated
-		// what they say and took the room they need.
-		uikit.TabStrip(c, func() {
-			uikit.CountedTabs(c, &shown, locales.RequestPaneName(), labels, counts)
-		}).Grow(1).FillHeight().Label(locales.RequestPaneName()).OnClick(func() { a.inspect.focus = 1 })
+		// what they say and took the room they need. Cookies is a link at
+		// the row's end, outside the tabs but still one of the views.
+		ui.Row(c).Grow(1).FillHeight().Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+			uikit.TabStrip(c, func() {
+				uikit.CountedTabsWithDotsAndLink(c, &shown, locales.RequestPaneName(), labels, counts, dots, link)
+			}).Grow(1).FillHeight().Label(locales.RequestPaneName()).OnClick(func() { a.inspect.focus = 1 })
+			cookies := uikit.LinkButton(c, locales.Cookies2()).Label(locales.RequestPaneName() + ": " + locales.Cookies2())
+			if *selected == composeTabCookies {
+				cookies.TextColor(t.Text)
+			}
+			if cookies.Clicked() {
+				*selected = composeTabCookies
+				a.inspect.focus = 1
+			}
+		})
 	}, func() {
 		if showMore {
 			a.requestMoreMenu(c, selected, more, extra)
@@ -647,11 +688,13 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 
 // settleView maps the tab strip's index back to a view. A view chosen from
 // More during the same build wins: the menu moved the selection, so the row's
-// old index says nothing about it.
+// old index says nothing about it. A view outside the row, such as Cookies,
+// keeps no tab lit but a click on one still chooses it.
 func settleView(selected *int, views []paneView, shown, before int) {
-	switch {
-	case *selected != before:
-	case shown >= 0 && shown < len(views):
+	if *selected != before {
+		return
+	}
+	if shown >= 0 && shown < len(views) {
 		*selected = views[shown].view
 	}
 }
@@ -668,11 +711,11 @@ func protocolTabRow(c *ui.Context, selected *int, prefix string, labels []string
 	}
 	kept := slices.Clone(views)
 	room := width - 2*t.Space(uikit.SpaceL)
-	if paneTabsWidth(c, paneLabels(kept), nil) > room {
+	if paneTabsWidth(c, paneLabels(kept), nil, nil) > room {
 		// More is needed: reserve its word and the gap before it, then drop
 		// whole tabs from the right until the rest fit.
 		room -= paneMoreWidth(c) + t.Space(uikit.SpaceM)
-		for len(kept) > 1 && paneTabsWidth(c, paneLabels(kept), nil) > room {
+		for len(kept) > 1 && paneTabsWidth(c, paneLabels(kept), nil, nil) > room {
 			at := -1
 			for i := len(kept) - 1; i >= 0; i-- {
 				if kept[i].view != *selected {
@@ -718,26 +761,26 @@ func paneLabels(views []paneView) []string {
 // time, and the capture a draft came from.
 func (a *app) requestMoreViews(d *requestDocument, f flow) []paneView {
 	if d == nil {
-		return []paneView{{composeTabRaw, locales.Raw(), ""}, {composeTabCookies, locales.Cookies2(), ""}}
+		return []paneView{{composeTabRaw, locales.Raw(), "", false}, {composeTabCookies, locales.Cookies2(), "", false}}
 	}
 	examples := ""
 	if n := len(d.examples); n > 0 {
 		examples = strconv.Itoa(n)
 	}
 	more := []paneView{
-		{composeTabScripts, locales.Scripts(), ""},
-		{composeTabSettings, locales.Settings(), ""},
-		{composeTabChecks, locales.Checks(), checkCount(d)},
-		{composeTabExamples, locales.Examples(), examples},
-		{composeTabDocs, locales.Docs(), ""},
+		{composeTabScripts, locales.Scripts(), "", strings.TrimSpace(d.composePre) != "" || strings.TrimSpace(d.composePost) != ""},
+		{composeTabSettings, locales.Settings(), "", !d.settings.IsZero()},
+		{composeTabChecks, locales.Checks(), checkCount(d), false},
+		{composeTabExamples, locales.Examples(), examples, false},
+		{composeTabDocs, locales.Docs(), "", strings.TrimSpace(d.description) != ""},
 	}
 	// The capture is only somewhere else to go once the draft differs from
 	// it: until then the tabs are the capture.
-	more = append(more, paneView{composeTabCookies, locales.Cookies2(), ""})
 	if a.edited(f.id) {
-		more = append(more, paneView{composeTabOriginal, locales.OriginalTab(), ""})
+		more = append(more, paneView{composeTabOriginal, locales.OriginalTab(), "", false})
 	}
-	return more
+	// Cookies is a link at the row's end, never one of the chips.
+	return append(more, paneView{composeTabCookies, locales.Cookies2(), "", false})
 }
 
 // requestHeaderCount is how many headers the request sends, as its tab says.
@@ -869,19 +912,19 @@ func sentSummaryOf(t *ui.Theme, r *capture.Flow, outcome string) responseSummary
 // views of it, and how long it took and how much it carried.
 func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum responseSummary, more []action, tools paneTools) {
 	views := []paneView{
-		{resViewBody, locales.Body(), ""},
-		{resViewHeaders, locales.ResponseHeadersLabel(), ""},
-		{resViewCookies, locales.Cookies2(), ""},
-		{resViewTiming, locales.TimingTab(), ""},
+		{resViewBody, locales.Body(), "", false},
+		{resViewHeaders, locales.ResponseHeadersLabel(), "", false},
+		{resViewCookies, locales.Cookies2(), "", false},
+		{resViewTiming, locales.TimingTab(), "", false},
 	}
 	if sum.stream {
-		views = append(views, paneView{resViewMessages, locales.MessagesTab(), ""})
+		views = append(views, paneView{resViewMessages, locales.MessagesTab(), "", false})
 	}
 	extras := []paneView{
-		{resViewRaw, locales.Raw(), ""},
-		{resViewTests, locales.Checks(), ""},
-		{resViewConsole, locales.Console(), ""},
-		{resViewContract, locales.Contract(), ""},
+		{resViewRaw, locales.Raw(), "", false},
+		{resViewTests, locales.Checks(), "", false},
+		{resViewConsole, locales.Console(), "", false},
+		{resViewContract, locales.Contract(), "", false},
 	}
 	if i := slices.IndexFunc(extras, func(v paneView) bool { return v.view == *selected }); i >= 0 {
 		views = append(views, extras[i])
@@ -901,7 +944,7 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 	if width <= 0 {
 		width = a.paneWidth(c)
 	}
-	room := paneRoomFor(c, width, sum.title, true, labels, nil, paneMenuWidth)
+	room := paneRoomFor(c, width, sum.title, true, labels, nil, nil, paneMenuWidth)
 	showFormat := tools.format >= 0 && room.fits(a.paneFormatWidth(c, tools.format))
 	showDuration := sum.duration != "" && room.fits(paneMonoWidth(c, sum.duration))
 	showDetail := showDuration && sum.detail != "" && room.fits(paneMonoWidth(c, " · "+sum.detail))
@@ -1224,22 +1267,23 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 					Columns: []uikit.KeyValueColumn{
 						{
 							Title: locales.Key(), Width: 124,
-							Cell: func(row int, _ ui.Element) {
+							Cell: func(row int, _, _ ui.Element) {
 								r := rows[row]
 								ui.Row(c).FillWidth().Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
 									key := uikit.Body(c, r.key).TextColor(t.Text).SingleLine().Shrink(1)
-									uikit.Tip(c, key, strings.TrimSpace(r.key+"\n"+headerDoc(r.key))).
-										PopoverMenu(a.headerFilterMenu(c, r.key, headers[r.key]))
+									uikit.ContextMenu(c, uikit.Tip(c, key, strings.TrimSpace(r.key+"\n"+headerDoc(r.key))),
+										a.headerFilterMenu(c, r.key, headers[r.key]))
 									a.unicodeMarker(c, fmt.Sprintf("header-%d-key-%s", side, r.key), r.key, false)
 								})
 							},
 						},
 						{
 							Title: locales.Value(), Grow: 1, MinWidth: uikit.WidthNarrow,
-							Cell: func(row int, _ ui.Element) {
+							Cell: func(row int, _, _ ui.Element) {
 								r := rows[row]
 								ui.Row(c).FillWidth().MinWidth(0).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Start).Children(func() {
-									uikit.Body(c, r.value).TextColor(t.Text).Grow(1).MinWidth(0).Selectable().PopoverMenu(a.headerFilterMenu(c, r.key, headers[r.key]))
+									uikit.ContextMenu(c, uikit.Body(c, r.value).TextColor(t.Text).Grow(1).MinWidth(0).Selectable(),
+										a.headerFilterMenu(c, r.key, headers[r.key]))
 									a.unicodeMarker(c, fmt.Sprintf("header-%d-value-%s", side, r.key), r.raw, r.masked)
 								})
 							},

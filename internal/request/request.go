@@ -289,6 +289,9 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 		return nil, fmt.Errorf("unsupported auth type %q", r.Auth.Type)
 	}
 	switch r.BodyMode {
+	case "None":
+		// None keeps the authored body in the document but sends nothing.
+		req.Body = ""
 	case "", "Raw":
 		// The document keeps the authored JSONC. Only the bytes sent to the
 		// server drop comments and trailing commas; invalid JSONC is left

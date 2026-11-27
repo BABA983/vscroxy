@@ -132,7 +132,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 							ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).Background(uikit.Colors(t).MutedHover)
 						}
 						field := requestGridInput(c, &r.Name, "name", locales.VariableName(i+1))
-						cellBorder(t, field, false, false)
+						cellBorder(t, field, field, false, false)
 						if field.Changed() {
 							changed = true
 						}
@@ -156,7 +156,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 						if secret && !r.Revealed {
 							field.Password()
 						}
-						cellBorder(t, field, secret && !r.Revealed, secret && r.Revealed)
+						cellBorder(t, field, field, secret && !r.Revealed, secret && r.Revealed)
 						if field.Changed() {
 							r.HasInitial, changed = true, true
 						}
@@ -166,7 +166,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 						if secret && !r.Revealed {
 							field.Password()
 						}
-						cellBorder(t, field, secret && !r.Revealed, secret && r.Revealed)
+						cellBorder(t, field, field, secret && !r.Revealed, secret && r.Revealed)
 						if field.Changed() {
 							r.HasCurrent, changed = true, true
 						}

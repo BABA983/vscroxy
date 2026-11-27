@@ -581,9 +581,9 @@ func scriptSnippets(kind string) [][2]string {
 	}, shared...)
 }
 
-// snippetMenu inserts a snippet at the caret of st.
-func snippetMenu(c *ui.Context, st *editor.State, kind string) {
-	uikit.MenuSelect(c, locales.InsertSnippet(), func(m *ui.Menu) {
+// scriptSnippetMenu fills m with the snippets a request script can insert.
+func scriptSnippetMenu(st *editor.State, kind string) func(*ui.Menu) {
+	return func(m *ui.Menu) {
 		for _, s := range scriptSnippets(kind) {
 			if m.Item(s[0]).Chosen() {
 				// The templates are parsed once at the click: a bad one
@@ -593,7 +593,12 @@ func snippetMenu(c *ui.Context, st *editor.State, kind string) {
 				}
 			}
 		}
-	}).Label(locales.InsertSnippet(
+	}
+}
+
+// snippetMenu inserts a snippet at the caret of st.
+func snippetMenu(c *ui.Context, st *editor.State, kind string) {
+	uikit.MenuSelect(c, locales.InsertSnippet(), scriptSnippetMenu(st, kind)).Label(locales.InsertSnippet(
 
 	// scriptsPage is the rule scripts or the addons beside the chosen one's
 	// editor, and for a rule script its Console.

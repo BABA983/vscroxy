@@ -34,24 +34,23 @@ func ToolbarButton(c *ui.Context, label, tip string, active bool, keys ...string
 	return b
 }
 
-// FooterButton is one action in the footer bar: 20 points high, at rest text
-// with no face of its own. The pointer brings a face, and being on brings the
-// same raised face a chosen segment has, so "on" and "under the pointer"
-// never read alike.
+// FooterButton is one action in the footer bar: 22 points high, at rest
+// 12-point muted text with no face of its own. The pointer brings a face, and
+// an item that is on keeps its ink so a toggle still reads as on without
+// carrying a second background down the bar.
 func FooterButton(c *ui.Context, label, tip string, on bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	b := Tip(c, ui.ButtonBase(c).Label(label), tip).Height(HeightControlSmall).
-		Padding(0, Scaled(ControlPaddingXSmall)).Radius(RadiusInner).AlignItems(ui.Center).FontSize(Scaled(TextMeta)).
-		TextColor(t.Text)
-	b.Children(func() { ui.Text(c, label).FontSize(Scaled(TextMeta)) })
+		Padding(0, Scaled(ControlPaddingXSmall)).Radius(RadiusInner).AlignItems(ui.Center).FontSize(Scaled(TextSmall)).
+		TextColor(t.TextMuted)
+	b.Children(func() { ui.Text(c, label).FontSize(Scaled(TextSmall)) })
 	switch {
 	case b.Pressed():
-		b.Background(p.MutedPressed)
+		b.Background(p.MutedPressed).TextColor(t.Text)
 	case b.Hovered():
-		b.Background(p.MutedHover)
+		b.Background(p.MutedHover).TextColor(t.Text)
 	case on:
-		// The selected segment's face: raised canvas with its hairline.
-		b.Background(p.Background).InsetShadow(0, 0, 0, HairlineWidth, p.Border)
+		b.TextColor(t.Text)
 	}
 	return b
 }

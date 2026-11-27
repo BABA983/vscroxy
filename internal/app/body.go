@@ -21,6 +21,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/richtext"
+	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
 // nodeID is a node's place in its tree. Its parent pointer and child index
@@ -1040,20 +1041,19 @@ func (a *app) bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar, s
 	t := c.Theme()
 	bar.Row().Gap(t.Space(uikit.SpaceS)).Padding(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Background(uikit.Colors(t).Window).Border(1, t.Border).Radius(uikit.RadiusControl)
 	bar.Children(func() {
-		// The three option toggles share the inspector's width with the query.
-		queryWidth := float32(uikit.WidthPicker - 40)
-		query := uikit.Input(c, find.Query()).Label(locales.SearchBody()).Placeholder(locales.FindInBody()).Width(queryWidth).Shrink(1)
+		// The query and its three options share one field, as in VS Code.
+		queryField, query := uikit.FindField(c, find.Query(), locales.SearchBody(), locales.FindInBody(), findToggles(state)...)
+		queryField.Width(uikit.WidthWide).Shrink(1)
 		bindFindOptionKeys(query, state)
 		find.QueryInput(query)
 		uikit.Meta(c, find.Status()).FontFeatures("tnum").MinWidth(40).Role(ui.RoleStatus)
-		findOptionToggles(c, state)
-		if uikit.Tip(c, uikit.SecondaryButton(c, "↑").Label(locales.PreviousBodyMatch()), locales.PreviousMatchShiftEnter()).KeepFocus().Clicked() {
+		if uikit.Tip(c, uikit.IconButton(c, locales.PreviousBodyMatch(), locales.PreviousMatchShiftEnter(), lucide.ArrowUp()), locales.PreviousMatchShiftEnter()).KeepFocus().Clicked() {
 			find.Previous()
 		}
-		if uikit.Tip(c, uikit.SecondaryButton(c, "↓").Label(locales.NextBodyMatch()), locales.NextMatchEnter()).KeepFocus().Clicked() {
+		if uikit.Tip(c, uikit.IconButton(c, locales.NextBodyMatch(), locales.NextMatchEnter(), lucide.ArrowDown()), locales.NextMatchEnter()).KeepFocus().Clicked() {
 			find.Next()
 		}
-		if uikit.Tip(c, uikit.SecondaryButton(c, "×").Label(locales.CloseBodySearch()), locales.CloseSearchEsc()).KeepFocus().Clicked() {
+		if uikit.Tip(c, uikit.IconButton(c, locales.CloseBodySearch(), locales.CloseSearchEsc(), lucide.X()), locales.CloseSearchEsc()).KeepFocus().Clicked() {
 			find.Close()
 		}
 		if err := find.Err(); err != nil {

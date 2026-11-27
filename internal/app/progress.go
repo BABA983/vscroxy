@@ -369,12 +369,12 @@ func (a *app) progressStatus(c *ui.Context, t *ui.Theme) {
 			fraction = -1
 		}
 		uikit.ProgressBar(c, fraction, p.text).Width(120)
-		uikit.Caption(c, p.text).SingleLine()
+		uikit.Small(c, p.text).TextColor(t.TextMuted).SingleLine()
 		if p.percentage >= 0 {
-			uikit.Caption(c, locales.ProgressPercent(p.percentage)).FontFeatures("tnum").SingleLine()
+			uikit.Small(c, locales.ProgressPercent(p.percentage)).TextColor(t.TextMuted).FontFeatures("tnum").SingleLine()
 		}
 		if p.cancellable {
-			if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
+			if uikit.FooterButton(c, locales.Cancel(), locales.Cancel(), false).Clicked() {
 				a.cancelProgress(p.id)
 			}
 		}

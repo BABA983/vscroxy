@@ -178,7 +178,8 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	}
 	b := uikit.ToolbarButton(c, locales.ProxyStatus(), "", false).
 		Height(uikit.HeightControlSmall).Padding(0, uikit.Scaled(uikit.ControlPaddingXSmall)).
-		Gap(t.Space(uikit.SpaceS)).Radius(uikit.RadiusInner)
+		Gap(t.Space(uikit.SpaceS)).Radius(uikit.RadiusInner).FontSize(uikit.Scaled(uikit.TextSmall)).
+		TextColor(t.TextMuted)
 	card := uikit.HoverCard{Title: state, Meta: locales.ProxyTipOff()}
 	if running {
 		card.Meta = locales.ProxyTipOn()
@@ -195,7 +196,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 		// that animates with p.AnimationFrameRate also lowers the display's
 		// own refresh rate on macOS, which paced every scroll at 30 fps.
 		ui.Box(c).Size(7, 7).Radius(uikit.RadiusControl).Background(dot).Shrink(0)
-		uikit.Meta(c, state).TextColor(t.Text).SingleLine()
+		uikit.Small(c, state).TextColor(t.TextMuted).SingleLine()
 	})
 	uikit.MenuFace(c, func() {
 		b.PopoverMenuButton(func(m *ui.Menu) {
@@ -325,16 +326,16 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		a.progressStatus(c, t)
 		ui.Row(c).Shrink(1).MinWidth(0).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			if text := a.footerCountsText(); text != "" {
-				counts := uikit.Meta(c, text).FontFeatures("tnum").SingleLine()
+				counts := uikit.Small(c, text).TextColor(t.TextMuted).FontFeatures("tnum").SingleLine()
 				if a.page == pageDiagnostics {
 					uikit.Tip(c, counts, locales.EvidenceFromThisLiveSession())
 				}
 			}
 			if a.dropped > 0 {
-				uikit.Caption(c, locales.DroppedCount(int(a.dropped))).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
+				uikit.Small(c, locales.DroppedCount(int(a.dropped))).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 			}
 			if a.scriptErrs > 0 {
-				uikit.Caption(c, locales.ScriptErrors(int(a.scriptErrs))).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
+				uikit.Small(c, locales.ScriptErrors(int(a.scriptErrs))).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 			}
 		})
 		a.notificationButton(c, t)
@@ -594,7 +595,7 @@ func (a *app) footerTools(c *ui.Context, t *ui.Theme) {
 func (a *app) footerRoom(c *ui.Context, t *ui.Theme) float32 {
 	padding, gap := 2*t.Space(uikit.SpaceL), t.Space(uikit.SpaceM)
 	room := a.windowWidth - padding - 4*gap
-	room -= paneTextWidth(c, a.footerCountsText(), uikit.TextMeta, 400)
+	room -= paneTextWidth(c, a.footerCountsText(), uikit.TextSmall, 400)
 	// The proxy state and its pause switch at the start, the notifications
 	// at the end.
 	room -= uikit.WidthPicker + uikit.HeightRowAction + uikit.HeightControl + 2*gap
@@ -604,38 +605,44 @@ func (a *app) footerRoom(c *ui.Context, t *ui.Theme) float32 {
 // footerChipWidth is how wide one tool chip is: its icon, its label, the
 // button that turns it off and the chip's own padding.
 func footerChipWidth(c *ui.Context, chip footerChip) float32 {
-	return 2*c.Theme().Space(uikit.SpaceS) + uikit.IconInline + c.Theme().Space(uikit.SpaceXS) + paneTextWidth(c, chip.label, uikit.TextMeta, 400) + 20
+	return 2*c.Theme().Space(uikit.SpaceS) + uikit.IconInline + c.Theme().Space(uikit.SpaceXS) + paneTextWidth(c, chip.label, uikit.TextSmall, 400) + 20
 }
 
 // footerMoreWidth is how wide the count of folded tools is.
 func footerMoreWidth(c *ui.Context, n int) float32 {
-	return paneTextWidth(c, footerMoreLabel(n), uikit.TextMeta, 400) + 2*c.Theme().Space(uikit.SpaceM)
+	return paneTextWidth(c, footerMoreLabel(n), uikit.TextSmall, 400) + 2*c.Theme().Space(uikit.SpaceM)
 }
 
 func footerMoreLabel(n int) string { return fmt.Sprintf("+%d", n) }
 
 // footerChipRow draws one tool that is on: its label opens the editor that
-// changes it, and the close button turns it off.
+// changes it, and the close button turns it off. The bar stays quiet until the
+// pointer reaches the chip.
 func footerChipRow(c *ui.Context, t *ui.Theme, chip footerChip) {
 	p := uikit.Colors(t)
-	background, ink := p.Muted, t.Text
+	ink := t.TextMuted
 	if chip.danger {
-		background, ink = t.Danger.Alpha(0.12), t.Danger
+		ink = t.Danger
 	}
-	ui.Row(c.Key(chip.id)).Height(uikit.HeightControlSmall).AlignItems(ui.Center).Background(background).
-		Radius(uikit.RadiusInner).Children(func() {
+	row := ui.Row(c.Key(chip.id)).Height(uikit.HeightControlSmall).AlignItems(ui.Center).
+		Radius(uikit.RadiusInner)
+	if row.Hovered() {
+		row.Background(p.MutedHover)
+	}
+	row.Children(func() {
 		open := chip.openLabel
 		if open == "" {
 			open = locales.ActiveTool(chip.label)
 		}
 		label := uikit.ToolbarButton(c, open, chip.tip, false, chip.keys...).Height(uikit.HeightControlSmall).
-			PaddingStart(t.Space(uikit.SpaceS)).PaddingEnd(t.Space(uikit.SpaceHair)).Children(func() {
-			ui.Icon(c, chip.icon).Size(uikit.IconInline, uikit.IconInline)
-			uikit.Caption(c, chip.label).MaxWidth(180).SingleLine()
-			if chip.panel != nil {
-				ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline)
-			}
-		})
+			PaddingStart(t.Space(uikit.SpaceS)).PaddingEnd(t.Space(uikit.SpaceHair)).FontSize(uikit.Scaled(uikit.TextSmall)).
+			Children(func() {
+				ui.Icon(c, chip.icon).Size(uikit.IconInline, uikit.IconInline)
+				uikit.Small(c, chip.label).MaxWidth(180).SingleLine()
+				if chip.panel != nil {
+					ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline)
+				}
+			})
 		label.TextColor(ink)
 		if chip.panel != nil {
 			if chip.open != nil {
@@ -781,14 +788,6 @@ func (a *app) syncSections() {
 	if a.sidebarChoice != cmpOr(a.filter, "all") {
 		a.sidebarChoice = cmpOr(a.filter, "all")
 	}
-}
-
-// sendShortcut spells the Send shortcut for the response's empty state.
-func sendShortcut() string {
-	if runtime.GOOS == "darwin" {
-		return "⌘ Enter"
-	}
-	return "Ctrl Enter"
 }
 
 func cmpOr(value, fallback string) string {

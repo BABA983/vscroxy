@@ -114,8 +114,8 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if f := r.Exchange; f != nil {
 					status, millis = f.Status, f.Millis
 				}
-				row := uikit.Tip(c, uikit.RowButton(c.Key(strconv.Itoa(r.ID)), locales.RunNumberLabel(r.ID)), r.Summary).
-					PopoverMenu(func(m *ui.Menu) { actionMenu(m, a.runCompareActions(runTarget(r))) })
+				row := uikit.ContextMenu(c, uikit.Tip(c, uikit.RowButton(c.Key(strconv.Itoa(r.ID)), locales.RunNumberLabel(r.ID)), r.Summary),
+					func(m *ui.Menu) { actionMenu(m, a.runCompareActions(runTarget(r))) })
 				if r.ID == d.historyPick {
 					uikit.Selected(c, row, !a.windowBehind)
 				}

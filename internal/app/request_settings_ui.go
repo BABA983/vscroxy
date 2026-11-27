@@ -36,23 +36,28 @@ func (a *app) requestDocsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 
 // requestSettingsEditor edits the request's transport choices. Unset fields
 // follow the collection and folder defaults, which each row names under its
-// control.
+// control; a request's own value offers Reset for that one field.
 func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	inheritance := a.inheritance(d.composeCollection)
 	effective := inheritance.InheritSettings(d.settings)
-	defaultFor := func(set func(request.Settings) bool) string {
-		if set(d.settings) {
-			return ""
-		}
+	type settingDefault struct {
+		scope      string
+		overridden bool
+		reset      func()
+	}
+	defaultFor := func(set func(request.Settings) bool, clear func()) settingDefault {
+		out := settingDefault{scope: locales.DefaultSettings(), reset: clear}
 		for i := len(inheritance.Folders) - 1; i >= 0; i-- {
 			if set(inheritance.Folders[i].Settings) {
+				out.scope = locales.DefaultFolder()
 				if i == 0 {
-					return locales.DefaultCollection()
+					out.scope = locales.DefaultCollection()
 				}
-				return locales.DefaultFolder()
+				break
 			}
 		}
-		return locales.DefaultSettings()
+		out.overridden = set(d.settings)
+		return out
 	}
 	switchRow := func(label string, value bool, set func(bool)) {
 		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
@@ -66,69 +71,86 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 			uikit.Meta(c, word)
 		})
 	}
+	settingRow := func(title, description string, control func(), inherited settingDefault) {
+		uikit.SettingRow(c, uikit.SettingRowOptions{
+			Title: title, Description: description, Control: control,
+			Default: inherited.scope, Overridden: inherited.overridden, OnReset: inherited.reset,
+		})
+	}
+	refreshNumbers := func() {
+		next := inheritance.InheritSettings(d.settings)
+		d.timeout, d.maxRedirects = next.Timeout().Seconds(), float64(next.RedirectLimit())
+	}
 	ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(uikit.SpaceL)).
 		Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).PaddingEnd(uikit.ScrollbarInset(t) + t.Space(uikit.SpaceM)).Children(func() {
-		uikit.Label(c, locales.Transport())
 		if request.IsWebSocket(d.composeURL) {
 			uikit.Hint(c, locales.WebsocketSendsUseTheirOwn())
 		}
-		ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceL)).Children(func() {
-			uikit.PropertyRow(c, locales.HttpVersion(), locales.HttpVersionAutoHint(), func() {
-				choice := httpVersionChoice(effective.HTTPVersion)
-				if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).Width(uikit.WidthField).Changed() {
-					d.settings.HTTPVersion = httpVersionFromChoice(choice)
-				}
-			}, defaultFor(func(s request.Settings) bool { return s.HTTPVersion != "" }))
-			uikit.PropertyRow(c, locales.TlsVerification(), locales.UsesTheSystemRootsAnd(), func() {
-				switchRow(locales.VerifyTlsCertificate(), effective.Verifies(), d.setVerify)
-			}, defaultFor(func(s request.Settings) bool { return s.VerifyTLS != nil }))
-			uikit.PropertyRow(c, locales.Redirects(), locales.N3xxResponsesAreFollowedUnless(), func() {
-				switchRow(locales.FollowRedirects(), effective.Follows(), d.setFollow)
-			}, defaultFor(func(s request.Settings) bool { return s.FollowRedirects != nil }))
-			uikit.PropertyRow(c, locales.FollowOriginalMethod(), locales.FollowOriginalMethodHint(), func() {
-				switchRow(locales.FollowOriginalMethod(), effective.FollowsOriginalMethod(), d.setFollowOriginalMethod)
-			}, defaultFor(func(s request.Settings) bool { return s.FollowOriginalMethod != nil }))
-			uikit.PropertyRow(c, locales.KeepAuthorizationOnRedirect(), locales.KeepAuthorizationOnRedirectHint(), func() {
-				switchRow(locales.KeepAuthorizationOnRedirect(), effective.KeepsAuthorization(), d.setKeepAuthorization)
-			}, defaultFor(func(s request.Settings) bool { return s.KeepAuthorization != nil }))
-			uikit.PropertyRow(c, locales.RemoveRefererOnRedirect(), locales.RemoveRefererOnRedirectHint(), func() {
-				switchRow(locales.RemoveRefererOnRedirect(), effective.RemovesReferer(), d.setRemoveReferer)
-			}, defaultFor(func(s request.Settings) bool { return s.RemoveReferer != nil }))
-			uikit.PropertyRow(c, locales.EncodeUrlAutomatically(), locales.EncodeUrlAutomaticallyHint(), func() {
-				switchRow(locales.EncodeUrlAutomatically(), effective.EncodesURL(), d.setURLEncoding)
-			}, defaultFor(func(s request.Settings) bool { return s.DisableURLEncoding != nil }))
-			uikit.PropertyRow(c, locales.SendCookiesFromTheJar(), locales.SendCookiesFromTheJarHint(), func() {
-				switchRow(locales.SendCookiesFromTheJar(), effective.UsesCookies(), d.setCookies)
-			}, defaultFor(func(s request.Settings) bool { return s.DisableCookies != nil }))
-			if effective.Follows() {
-				uikit.PropertyRow(c, locales.MaximumRedirects(), locales.HttpSHops(), func() {
-					// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-					if ui.NumberInput(c, &d.maxRedirects, 1, 50, 1).Label(locales.MaximumRedirects()).Changed() {
-						value := int(d.maxRedirects)
-						d.settings.MaxRedirects = &value
-					}
-				}, defaultFor(func(s request.Settings) bool { return s.MaxRedirects != nil }))
+		settingRow(locales.HttpVersion(), locales.HttpVersionAutoHint(), func() {
+			choice := httpVersionChoice(effective.HTTPVersion)
+			if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).Width(uikit.WidthField).Changed() {
+				d.settings.HTTPVersion = httpVersionFromChoice(choice)
 			}
-			uikit.PropertyRow(c, locales.TlsProtocols(), locales.TlsProtocolsHint(), func() {
-				uikit.MenuSelect(c, tlsProtocolsLabel(effective), tlsProtocolsMenu(&d.settings, effective)).Label(locales.ChooseTlsProtocols())
-			}, defaultFor(func(s request.Settings) bool { return s.DisabledTLSVersions != nil }))
-			uikit.PropertyRow(c, locales.CipherSuites(), locales.CipherSuitesHint(), func() {
-				uikit.MenuSelect(c, cipherSuitesLabel(effective), cipherSuitesMenu(&d.settings, effective)).Label(locales.ChooseCipherSuites())
-			}, defaultFor(func(s request.Settings) bool { return s.CipherSuites != nil }))
-			uikit.PropertyRow(c, locales.Timeout(), locales.Seconds0WaitsWithNo(), func() {
+		}, defaultFor(func(s request.Settings) bool { return s.HTTPVersion != "" }, func() { d.settings.HTTPVersion = "" }))
+		settingRow(locales.TlsVerification(), locales.UsesTheSystemRootsAnd(), func() {
+			switchRow(locales.VerifyTlsCertificate(), effective.Verifies(), d.setVerify)
+		}, defaultFor(func(s request.Settings) bool { return s.VerifyTLS != nil }, func() { d.settings.VerifyTLS = nil }))
+		settingRow(locales.Redirects(), locales.N3xxResponsesAreFollowedUnless(), func() {
+			switchRow(locales.FollowRedirects(), effective.Follows(), d.setFollow)
+		}, defaultFor(func(s request.Settings) bool { return s.FollowRedirects != nil }, func() { d.settings.FollowRedirects = nil }))
+		settingRow(locales.FollowOriginalMethod(), locales.FollowOriginalMethodHint(), func() {
+			switchRow(locales.FollowOriginalMethod(), effective.FollowsOriginalMethod(), d.setFollowOriginalMethod)
+		}, defaultFor(func(s request.Settings) bool { return s.FollowOriginalMethod != nil }, func() { d.settings.FollowOriginalMethod = nil }))
+		settingRow(locales.KeepAuthorizationOnRedirect(), locales.KeepAuthorizationOnRedirectHint(), func() {
+			switchRow(locales.KeepAuthorizationOnRedirect(), effective.KeepsAuthorization(), d.setKeepAuthorization)
+		}, defaultFor(func(s request.Settings) bool { return s.KeepAuthorization != nil }, func() { d.settings.KeepAuthorization = nil }))
+		settingRow(locales.RemoveRefererOnRedirect(), locales.RemoveRefererOnRedirectHint(), func() {
+			switchRow(locales.RemoveRefererOnRedirect(), effective.RemovesReferer(), d.setRemoveReferer)
+		}, defaultFor(func(s request.Settings) bool { return s.RemoveReferer != nil }, func() { d.settings.RemoveReferer = nil }))
+		strict := effective.StrictHTTP != nil && *effective.StrictHTTP
+		settingRow(locales.EnableStrictHttpParser(), locales.EnableStrictHttpParserHint(), func() {
+			switchRow(locales.EnableStrictHttpParser(), strict, d.setStrictHTTP)
+		}, defaultFor(func(s request.Settings) bool { return s.StrictHTTP != nil }, func() { d.settings.StrictHTTP = nil }))
+		settingRow(locales.EncodeUrlAutomatically(), locales.EncodeUrlAutomaticallyHint(), func() {
+			switchRow(locales.EncodeUrlAutomatically(), effective.EncodesURL(), d.setURLEncoding)
+		}, defaultFor(func(s request.Settings) bool { return s.DisableURLEncoding != nil }, func() { d.settings.DisableURLEncoding = nil }))
+		settingRow(locales.SendCookiesFromTheJar(), locales.SendCookiesFromTheJarHint(), func() {
+			switchRow(locales.SendCookiesFromTheJar(), effective.UsesCookies(), d.setCookies)
+		}, defaultFor(func(s request.Settings) bool { return s.DisableCookies != nil }, func() { d.settings.DisableCookies = nil }))
+		if effective.Follows() {
+			settingRow(locales.MaximumRedirects(), locales.HttpSHops(), func() {
 				// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-				if ui.NumberInput(c, &d.timeout, 0, 3600, 1).Label(locales.RequestTimeoutInSeconds()).Changed() {
-					seconds := int(d.timeout)
-					d.settings.TimeoutSeconds = &seconds
+				if ui.NumberInput(c, &d.maxRedirects, 1, 50, 1).Label(locales.MaximumRedirects()).Changed() {
+					value := int(d.maxRedirects)
+					d.settings.MaxRedirects = &value
 				}
-			}, defaultFor(func(s request.Settings) bool { return s.TimeoutSeconds != nil }))
-			uikit.PropertyRow(c, locales.SocketPath(), locales.SocketPathHint(), func() {
-				socket := effective.SocketPath
-				if uikit.Input(c, &socket).Label(locales.SocketPath()).Placeholder("/var/run/app.sock").Width(uikit.WidthFieldWide).Changed() {
-					d.settings.SocketPath = strings.TrimSpace(socket)
-				}
-			}, defaultFor(func(s request.Settings) bool { return s.SocketPath != "" }))
-		})
+			}, defaultFor(func(s request.Settings) bool { return s.MaxRedirects != nil }, func() {
+				d.settings.MaxRedirects = nil
+				refreshNumbers()
+			}))
+		}
+		settingRow(locales.TlsProtocols(), locales.TlsProtocolsHint(), func() {
+			uikit.MenuSelect(c, tlsProtocolsLabel(effective), tlsProtocolsMenu(&d.settings, effective)).Label(locales.ChooseTlsProtocols())
+		}, defaultFor(func(s request.Settings) bool { return s.DisabledTLSVersions != nil }, func() { d.settings.DisabledTLSVersions = nil }))
+		settingRow(locales.CipherSuites(), locales.CipherSuitesHint(), func() {
+			uikit.MenuSelect(c, cipherSuitesLabel(effective), cipherSuitesMenu(&d.settings, effective)).Label(locales.ChooseCipherSuites())
+		}, defaultFor(func(s request.Settings) bool { return s.CipherSuites != nil }, func() { d.settings.CipherSuites = nil }))
+		settingRow(locales.Timeout(), locales.Seconds0WaitsWithNo(), func() {
+			// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
+			if ui.NumberInput(c, &d.timeout, 0, 3600, 1).Label(locales.RequestTimeoutInSeconds()).Changed() {
+				seconds := int(d.timeout)
+				d.settings.TimeoutSeconds = &seconds
+			}
+		}, defaultFor(func(s request.Settings) bool { return s.TimeoutSeconds != nil }, func() {
+			d.settings.TimeoutSeconds = nil
+			refreshNumbers()
+		}))
+		settingRow(locales.SocketPath(), locales.SocketPathHint(), func() {
+			socket := effective.SocketPath
+			if uikit.Input(c, &socket).Label(locales.SocketPath()).Placeholder("/var/run/app.sock").Width(uikit.WidthField).Changed() {
+				d.settings.SocketPath = strings.TrimSpace(socket)
+			}
+		}, defaultFor(func(s request.Settings) bool { return s.SocketPath != "" }, func() { d.settings.SocketPath = "" }))
 		if !effective.Verifies() {
 			ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).
 				Background(t.Warning.Alpha(0.12)).AlignItems(ui.Start).Children(func() {
@@ -138,13 +160,18 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 		}
 		if !d.settings.IsZero() {
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-				uikit.Meta(c, locales.SomeValuesOverrideTheCollection())
-				if uikit.SecondaryButton(c, locales.UseCollectionDefaults()).Clicked() {
+				if uikit.LinkButton(c, locales.UseCollectionDefaults()).Clicked() {
 					d.resetSettings(a)
 				}
 			})
 		}
 	})
+}
+
+// setStrictHTTP pins whether the request's responses take a strict HTTP
+// header parse.
+func (d *requestDocument) setStrictHTTP(strict bool) {
+	d.settings.StrictHTTP = &strict
 }
 
 // setFollow pins the request's redirect behavior; a cURL import keeps its
@@ -324,100 +351,127 @@ func (d *requestDocument) resetSettings(a *app) {
 // folderSettingsEditor edits the transport defaults requests under a folder
 // or collection inherit. Unset fields keep inheriting from above.
 func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) {
-	effective := a.ancestorInheritance(f.draft.Path).InheritSettings(f.settings)
-	ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).PaddingEnd(uikit.ScrollbarInset(t) + t.Space(uikit.SpaceM)).Children(func() {
-		uikit.Meta(c, locales.RequestsUnderItInheritThese())
-		ui.Form(c, func() {
-			ui.Field(c, locales.Timeout(), func() {
-				ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
-					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-						// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-						if ui.NumberInput(c, &f.timeout, 0, 3600, 1).Label(locales.FolderTimeoutInSeconds()).Changed() {
-							seconds := int(f.timeout)
-							f.settings.TimeoutSeconds = &seconds
-						}
-					})
-					uikit.Meta(c, locales.Seconds0WaitsWithNo())
-				})
-			})
-			ui.Field(c, locales.Redirects(), func() {
-				follow := effective.Follows()
-				if uikit.Switch(c, &follow).Label(locales.FollowRedirects()).Changed() {
-					f.setFollow(follow)
+	ancestors := a.ancestorInheritance(f.draft.Path)
+	effective := ancestors.InheritSettings(f.settings)
+	type settingDefault struct {
+		scope      string
+		overridden bool
+		reset      func()
+	}
+	defaultFor := func(set func(request.Settings) bool, clear func()) settingDefault {
+		out := settingDefault{scope: locales.DefaultSettings(), reset: clear}
+		for i := len(ancestors.Folders) - 1; i >= 0; i-- {
+			if set(ancestors.Folders[i].Settings) {
+				out.scope = locales.DefaultFolder()
+				if i == 0 {
+					out.scope = locales.DefaultCollection()
 				}
-			})
-			if effective.Follows() {
-				ui.Field(c, locales.MaximumRedirects(), func() {
-					ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-						// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-						if ui.NumberInput(c, &f.maxRedirects, 1, 50, 1).Label(locales.FolderMaximumRedirects()).Changed() {
-							value := int(f.maxRedirects)
-							f.settings.MaxRedirects = &value
-						}
-						uikit.Meta(c, locales.HttpSHops())
-					})
-				})
+				break
 			}
-			ui.Field(c, locales.Tls(), func() {
-				verify := effective.Verifies()
-				if uikit.Switch(c, &verify).Label(locales.VerifyTlsCertificate()).Changed() {
-					value := verify
-					f.settings.VerifyTLS = &value
-				}
-			})
-			ui.Field(c, locales.HttpVersion(), func() {
-				choice := httpVersionChoice(effective.HTTPVersion)
-				if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).Width(uikit.WidthField).Changed() {
-					f.settings.HTTPVersion = httpVersionFromChoice(choice)
-				}
-				uikit.Meta(c, locales.HttpVersionAutoHint())
-			})
-			ui.Field(c, locales.EncodeUrlAutomatically(), func() {
-				encode := effective.EncodesURL()
-				if uikit.Switch(c, &encode).Label(locales.EncodeUrlAutomatically()).Changed() {
-					value := !encode
-					f.settings.DisableURLEncoding = &value
-				}
-				uikit.Meta(c, locales.EncodeUrlAutomaticallyHint())
-			})
-			ui.Field(c, locales.SendCookiesFromTheJar(), func() {
-				use := effective.UsesCookies()
-				if uikit.Switch(c, &use).Label(locales.SendCookiesFromTheJar()).Changed() {
-					value := !use
-					f.settings.DisableCookies = &value
-				}
-				uikit.Meta(c, locales.SendCookiesFromTheJarHint())
-			})
-			ui.Field(c, locales.FollowOriginalMethod(), func() {
-				follow := effective.FollowsOriginalMethod()
-				if uikit.Switch(c, &follow).Label(locales.FollowOriginalMethod()).Changed() {
-					f.settings.FollowOriginalMethod = &follow
-				}
-				uikit.Meta(c, locales.FollowOriginalMethodHint())
-			})
-			ui.Field(c, locales.KeepAuthorizationOnRedirect(), func() {
-				keep := effective.KeepsAuthorization()
-				if uikit.Switch(c, &keep).Label(locales.KeepAuthorizationOnRedirect()).Changed() {
-					f.settings.KeepAuthorization = &keep
-				}
-				uikit.Meta(c, locales.KeepAuthorizationOnRedirectHint())
-			})
-			ui.Field(c, locales.RemoveRefererOnRedirect(), func() {
-				remove := effective.RemovesReferer()
-				if uikit.Switch(c, &remove).Label(locales.RemoveRefererOnRedirect()).Changed() {
-					f.settings.RemoveReferer = &remove
-				}
-				uikit.Meta(c, locales.RemoveRefererOnRedirectHint())
-			})
-			ui.Field(c, locales.TlsProtocols(), func() {
-				uikit.MenuSelect(c, tlsProtocolsLabel(effective), tlsProtocolsMenu(&f.settings, effective)).Label(locales.ChooseTlsProtocols())
-				uikit.Meta(c, locales.TlsProtocolsHint())
-			})
-			ui.Field(c, locales.CipherSuites(), func() {
-				uikit.MenuSelect(c, cipherSuitesLabel(effective), cipherSuitesMenu(&f.settings, effective)).Label(locales.ChooseCipherSuites())
-				uikit.Meta(c, locales.CipherSuitesHint())
-			})
+		}
+		out.overridden = set(f.settings)
+		return out
+	}
+	switchRow := func(label string, value bool, set func(bool)) {
+		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+			on := value
+			if uikit.Switch(c, &on).Label(label).Changed() {
+				set(on)
+			}
+			word := locales.SwitchOff()
+			if value {
+				word = locales.SwitchOn()
+			}
+			uikit.Meta(c, word)
 		})
+	}
+	settingRow := func(title, description string, control func(), inherited settingDefault) {
+		uikit.SettingRow(c, uikit.SettingRowOptions{
+			Title: title, Description: description, Control: control,
+			Default: inherited.scope, Overridden: inherited.overridden, OnReset: inherited.reset,
+		})
+	}
+	refreshNumbers := func() {
+		next := ancestors.InheritSettings(f.settings)
+		f.timeout, f.maxRedirects = next.Timeout().Seconds(), float64(next.RedirectLimit())
+	}
+	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceL)).
+		Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).PaddingEnd(uikit.ScrollbarInset(t) + t.Space(uikit.SpaceM)).Children(func() {
+		uikit.Meta(c, locales.RequestsUnderItInheritThese())
+		settingRow(locales.HttpVersion(), locales.HttpVersionAutoHint(), func() {
+			choice := httpVersionChoice(effective.HTTPVersion)
+			if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).Width(uikit.WidthField).Changed() {
+				f.settings.HTTPVersion = httpVersionFromChoice(choice)
+			}
+		}, defaultFor(func(s request.Settings) bool { return s.HTTPVersion != "" }, func() { f.settings.HTTPVersion = "" }))
+		settingRow(locales.TlsVerification(), locales.UsesTheSystemRootsAnd(), func() {
+			switchRow(locales.VerifyTlsCertificate(), effective.Verifies(), func(verify bool) {
+				f.settings.VerifyTLS = &verify
+			})
+		}, defaultFor(func(s request.Settings) bool { return s.VerifyTLS != nil }, func() { f.settings.VerifyTLS = nil }))
+		settingRow(locales.Redirects(), locales.N3xxResponsesAreFollowedUnless(), func() {
+			switchRow(locales.FollowRedirects(), effective.Follows(), f.setFollow)
+		}, defaultFor(func(s request.Settings) bool { return s.FollowRedirects != nil }, func() { f.settings.FollowRedirects = nil }))
+		settingRow(locales.FollowOriginalMethod(), locales.FollowOriginalMethodHint(), func() {
+			switchRow(locales.FollowOriginalMethod(), effective.FollowsOriginalMethod(), func(follow bool) {
+				f.settings.FollowOriginalMethod = &follow
+			})
+		}, defaultFor(func(s request.Settings) bool { return s.FollowOriginalMethod != nil }, func() { f.settings.FollowOriginalMethod = nil }))
+		settingRow(locales.KeepAuthorizationOnRedirect(), locales.KeepAuthorizationOnRedirectHint(), func() {
+			switchRow(locales.KeepAuthorizationOnRedirect(), effective.KeepsAuthorization(), func(keep bool) {
+				f.settings.KeepAuthorization = &keep
+			})
+		}, defaultFor(func(s request.Settings) bool { return s.KeepAuthorization != nil }, func() { f.settings.KeepAuthorization = nil }))
+		settingRow(locales.RemoveRefererOnRedirect(), locales.RemoveRefererOnRedirectHint(), func() {
+			switchRow(locales.RemoveRefererOnRedirect(), effective.RemovesReferer(), func(remove bool) {
+				f.settings.RemoveReferer = &remove
+			})
+		}, defaultFor(func(s request.Settings) bool { return s.RemoveReferer != nil }, func() { f.settings.RemoveReferer = nil }))
+		settingRow(locales.EnableStrictHttpParser(), locales.EnableStrictHttpParserHint(), func() {
+			switchRow(locales.EnableStrictHttpParser(), effective.StrictHTTP != nil && *effective.StrictHTTP, func(strict bool) {
+				f.settings.StrictHTTP = &strict
+			})
+		}, defaultFor(func(s request.Settings) bool { return s.StrictHTTP != nil }, func() { f.settings.StrictHTTP = nil }))
+		settingRow(locales.EncodeUrlAutomatically(), locales.EncodeUrlAutomaticallyHint(), func() {
+			switchRow(locales.EncodeUrlAutomatically(), effective.EncodesURL(), func(encode bool) {
+				value := !encode
+				f.settings.DisableURLEncoding = &value
+			})
+		}, defaultFor(func(s request.Settings) bool { return s.DisableURLEncoding != nil }, func() { f.settings.DisableURLEncoding = nil }))
+		settingRow(locales.SendCookiesFromTheJar(), locales.SendCookiesFromTheJarHint(), func() {
+			switchRow(locales.SendCookiesFromTheJar(), effective.UsesCookies(), func(use bool) {
+				value := !use
+				f.settings.DisableCookies = &value
+			})
+		}, defaultFor(func(s request.Settings) bool { return s.DisableCookies != nil }, func() { f.settings.DisableCookies = nil }))
+		if effective.Follows() {
+			settingRow(locales.MaximumRedirects(), locales.HttpSHops(), func() {
+				// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
+				if ui.NumberInput(c, &f.maxRedirects, 1, 50, 1).Label(locales.FolderMaximumRedirects()).Changed() {
+					value := int(f.maxRedirects)
+					f.settings.MaxRedirects = &value
+				}
+			}, defaultFor(func(s request.Settings) bool { return s.MaxRedirects != nil }, func() {
+				f.settings.MaxRedirects = nil
+				refreshNumbers()
+			}))
+		}
+		settingRow(locales.TlsProtocols(), locales.TlsProtocolsHint(), func() {
+			uikit.MenuSelect(c, tlsProtocolsLabel(effective), tlsProtocolsMenu(&f.settings, effective)).Label(locales.ChooseTlsProtocols())
+		}, defaultFor(func(s request.Settings) bool { return s.DisabledTLSVersions != nil }, func() { f.settings.DisabledTLSVersions = nil }))
+		settingRow(locales.CipherSuites(), locales.CipherSuitesHint(), func() {
+			uikit.MenuSelect(c, cipherSuitesLabel(effective), cipherSuitesMenu(&f.settings, effective)).Label(locales.ChooseCipherSuites())
+		}, defaultFor(func(s request.Settings) bool { return s.CipherSuites != nil }, func() { f.settings.CipherSuites = nil }))
+		settingRow(locales.Timeout(), locales.Seconds0WaitsWithNo(), func() {
+			// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
+			if ui.NumberInput(c, &f.timeout, 0, 3600, 1).Label(locales.FolderTimeoutInSeconds()).Changed() {
+				seconds := int(f.timeout)
+				f.settings.TimeoutSeconds = &seconds
+			}
+		}, defaultFor(func(s request.Settings) bool { return s.TimeoutSeconds != nil }, func() {
+			f.settings.TimeoutSeconds = nil
+			refreshNumbers()
+		}))
 		if !effective.Verifies() {
 			ui.Row(c).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Radius(uikit.RadiusControl).
 				Background(t.Warning.Alpha(0.12)).AlignItems(ui.Start).Children(func() {
@@ -426,13 +480,10 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 			})
 		}
 		if !f.settings.IsZero() {
-			ui.Row(c).Children(func() {
-				if uikit.SecondaryButton(c, locales.ClearRequestDefaults()).Clicked() {
-					f.settings = request.Settings{}
-					effective := a.ancestorInheritance(f.draft.Path).InheritSettings(f.settings)
-					f.timeout, f.maxRedirects = effective.Timeout().Seconds(), float64(effective.RedirectLimit())
-				}
-			})
+			if uikit.LinkButton(c, locales.ClearRequestDefaults()).Clicked() {
+				f.settings = request.Settings{}
+				refreshNumbers()
+			}
 		}
 	})
 }

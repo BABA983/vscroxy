@@ -105,6 +105,16 @@ func MenuOptions(c *ui.Context) ui.PopoverMenuOptions {
 	return ui.PopoverMenuOptions{Panel: func(panel ui.Element) { MenuPanel(c, panel) }}
 }
 
+// ContextMenu gives el a right-click menu with the kit's item face. MyGo
+// reads a drawn menu's highlight, radius and type from the theme active while
+// PopoverMenu is called, so the scope has to cover that call: without it a
+// menu built under the base theme highlights in the primary ink instead of
+// the menu's 7% wash.
+func ContextMenu(c *ui.Context, el ui.Element, build func(*ui.Menu)) ui.Element {
+	menuTheme(c, func() { el.PopoverMenu(build, MenuOptions(c)) })
+	return el
+}
+
 // MoreButton is the toolbar's "⋯": an IconButton with the menu on it and no
 // chevron, since the three dots already say one opens. The title bar uses it.
 func MoreButton(c *ui.Context, label, tip string, menu func(*ui.Menu)) ui.Element {

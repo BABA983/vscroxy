@@ -546,6 +546,16 @@ after the handshake and before any HTTP request. TLS 1.3 cipher suites remain
 Go's fixed set. Both headers are removed on CONNECT like the verification
 signal.
 
+`HeaderStrictHTTP` (`X-Vscroxy-Strict-HTTP: 1`) asks for a strict response
+header parse. The flag is refreshed from each request's mark and removed before
+the flow is captured or forwarded, so a plain-HTTP keep-alive connection never
+carries a previous request's strictness into the next one. When the upstream
+response arrives, `Responseheaders` checks every header name and value and
+replaces an invalid response with a 502 and the proxy's error token, so the
+replay client reports the reason instead of publishing a malformed exchange.
+The same header works on a plain HTTP replay request, where the addon removes
+it before rules or the origin see it.
+
 An IP target sends no SNI. `attacker.serverTlsHandshake` verifies against the
 CONNECT host when `ClientHelloInfo.ServerName` is empty, so a certificate's IP
 SAN is checked instead of failing with "either ServerName or

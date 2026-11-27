@@ -86,6 +86,13 @@ func TestScreensCallUikitNotMyGoWidgets(t *testing.T) {
 				t.Errorf("%s:%d: .Tooltip() bypasses uikit; use uikit.Tip, or put // Bare: <reason> on the line above",
 					at.Filename, at.Line)
 			}
+			// A drawn menu takes its highlight from the theme active at the
+			// PopoverMenu call, so screens go through uikit.ContextMenu,
+			// which applies the menu face around it.
+			if sel.Sel.Name == "PopoverMenu" && !allowed(call.Pos()) {
+				t.Errorf("%s:%d: .PopoverMenu() bypasses uikit; use uikit.ContextMenu, or put // Bare: <reason> on the line above",
+					at.Filename, at.Line)
+			}
 			return true
 		})
 	}

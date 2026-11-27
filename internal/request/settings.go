@@ -49,6 +49,9 @@ type Settings struct {
 	KeepAuthorization *bool `json:"keepAuthorization,omitempty"`
 	// RemoveReferer stops the automatic Referer header on a redirect.
 	RemoveReferer *bool `json:"removeReferer,omitempty"`
+	// StrictHTTP rejects a response whose header names or values are not
+	// valid HTTP, instead of reading it leniently. nil accepts it.
+	StrictHTTP *bool `json:"strictHttp,omitempty"`
 	// DisabledTLSVersions are the TLS versions the handshake may not use. nil
 	// keeps Go's defaults; an empty list explicitly enables every supported
 	// version. The transport can only express a contiguous range for the
@@ -68,7 +71,7 @@ func (s Settings) IsZero() bool {
 		s.RedirectMode == "" && !s.KeepMethod && !s.DropContentType &&
 		s.VerifyTLS == nil && s.HTTPVersion == "" && s.DisableURLEncoding == nil &&
 		s.DisableCookies == nil && s.SocketPath == "" && s.FollowOriginalMethod == nil &&
-		s.KeepAuthorization == nil && s.RemoveReferer == nil &&
+		s.KeepAuthorization == nil && s.RemoveReferer == nil && s.StrictHTTP == nil &&
 		s.DisabledTLSVersions == nil && s.CipherSuites == nil
 }
 
@@ -98,6 +101,10 @@ func (s Settings) Clone() Settings {
 	if s.DisableCookies != nil {
 		value := *s.DisableCookies
 		out.DisableCookies = &value
+	}
+	if s.StrictHTTP != nil {
+		value := *s.StrictHTTP
+		out.StrictHTTP = &value
 	}
 	cloneList := func(list *[]string) *[]string {
 		if list == nil {
@@ -290,6 +297,7 @@ func (s Settings) Transfer() (capture.TransferPolicy, error) {
 	}
 	p.Redirects.KeepAuthorization = s.KeepsAuthorization()
 	p.Redirects.RemoveReferer = s.RemovesReferer()
+	p.StrictHTTP = s.StrictHTTP != nil && *s.StrictHTTP
 	versions, err := s.TLSVersions()
 	if err != nil {
 		return p, err
@@ -354,6 +362,10 @@ func (c Context) InheritSettings(s Settings) Settings {
 		if v.RemoveReferer != nil {
 			value := *v.RemoveReferer
 			out.RemoveReferer = &value
+		}
+		if v.StrictHTTP != nil {
+			value := *v.StrictHTTP
+			out.StrictHTTP = &value
 		}
 		if v.DisabledTLSVersions != nil {
 			value := slices.Clone(*v.DisabledTLSVersions)

@@ -33,6 +33,7 @@ import (
 	mitmcert "github.com/lqqyt2423/go-mitmproxy/cert"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/http/httpguts"
 
 	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/certs"
@@ -1965,6 +1966,10 @@ type TransferPolicy struct {
 	// TLSCipherSuites are the enabled TLS 1.0–1.2 cipher suites. Empty keeps
 	// Go's defaults; TLS 1.3 suites cannot be configured.
 	TLSCipherSuites []uint16
+	// StrictHTTP rejects a response whose header names or values are not
+	// valid HTTP, as Postman's strict parser does, instead of reading it
+	// leniently.
+	StrictHTTP bool
 }
 
 const (
@@ -1972,6 +1977,24 @@ const (
 	TLSVerify   = "verify"
 	TLSInsecure = "insecure"
 )
+
+// ValidateResponseHeader rejects a response whose header names or values are
+// not valid HTTP. Go's client accepts an invalid name such as "Bad Header" at
+// the parser's edge; the strict setting turns that into an error before the
+// response reaches Checks or scripts.
+func ValidateResponseHeader(h http.Header) error {
+	for name, values := range h {
+		if !httpguts.ValidHeaderFieldName(name) {
+			return fmt.Errorf("strict HTTP parser: invalid response header name %q", name)
+		}
+		for _, value := range values {
+			if !httpguts.ValidHeaderFieldValue(value) {
+				return fmt.Errorf("strict HTTP parser: invalid value for response header %q", name)
+			}
+		}
+	}
+	return nil
+}
 
 // joinUint16 writes a wire-value list for a proxy CONNECT header.
 func joinUint16(values []uint16) string {
@@ -2042,6 +2065,9 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 	if err != nil {
 		return Flow{}, err
 	}
+	if policy.StrictHTTP {
+		req.Header.Set(proxy.HeaderStrictHTTP, "1")
+	}
 	rawURL := flowURL(f)
 
 	proxyURL := &url.URL{Scheme: "http", Host: s.Addr()}
@@ -2075,6 +2101,9 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 			header := http.Header{}
 			if policy.TLS == TLSVerify {
 				header.Set(proxy.HeaderVerifyUpstream, "1")
+			}
+			if policy.StrictHTTP {
+				header.Set(proxy.HeaderStrictHTTP, "1")
 			}
 			if len(policy.TLSVersions) > 0 {
 				header.Set(proxy.HeaderTLSVersions, joinUint16(policy.TLSVersions))
@@ -2128,6 +2157,12 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 	if err != nil {
 		return Flow{}, err
 	}
+	if policy.StrictHTTP {
+		if err := ValidateResponseHeader(resp.Header); err != nil {
+			resp.Body.Close()
+			return Flow{}, err
+		}
+	}
 	if token := s.proxyErrorToken(); token != "" && resp.Header.Get(proxy.HeaderProxyError) == token {
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 		resp.Body.Close()
@@ -2148,6 +2183,11 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 	rest, err := io.Copy(io.Discard, resp.Body)
 	if err != nil {
 		return Flow{}, err
+	}
+	if policy.StrictHTTP {
+		if err := ValidateResponseHeader(resp.Trailer); err != nil {
+			return Flow{}, err
+		}
 	}
 	return Flow{
 		Method: req.Method, URL: rawURL, Status: resp.StatusCode,
@@ -2179,6 +2219,13 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	if f.Request == nil {
 		return
 	}
+	// A replay that asks for a strict HTTP parse marks its request; the mark
+	// never reaches the origin. Set the flag on every request: a plain-HTTP
+	// keep-alive connection can carry a later, non-strict replay.
+	if f.ConnContext != nil {
+		f.ConnContext.StrictHTTP = f.Request.Header.Get(proxy.HeaderStrictHTTP) == "1"
+	}
+	f.Request.Header.Del(proxy.HeaderStrictHTTP)
 	// A reverse proxy names the remote in the request so the engine dials
 	// and records it, and carries the local client's Host beside it when the
 	// entry keeps that Host. Restore it before rules, scripts or the table
@@ -2256,6 +2303,17 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 
 // Responseheaders notes when the response started, the end of the wait.
 func (a *addon) Responseheaders(f *proxy.Flow) {
+	if f.ConnContext != nil && f.ConnContext.StrictHTTP && f.Response != nil {
+		if err := ValidateResponseHeader(f.Response.Header); err != nil {
+			f.Response.StatusCode = http.StatusBadGateway
+			f.Response.Header = http.Header{"Content-Type": {"text/plain; charset=utf-8"}}
+			if token := a.server.proxyErrorToken(); token != "" {
+				f.Response.Header.Set(proxy.HeaderProxyError, token)
+			}
+			f.Response.Body = []byte("vscroxy: " + err.Error())
+			f.Response.Trailer = nil
+		}
+	}
 	noCacheResponse(f)
 	a.server.mu.Lock()
 	a.server.firstByte[f.Id] = time.Now()

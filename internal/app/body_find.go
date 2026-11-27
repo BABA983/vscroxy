@@ -7,6 +7,7 @@ import (
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
+	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
 // findTarget is one set of find options: the three toggles the body's find
@@ -65,15 +66,14 @@ func bindFindOptionKeys(query ui.Element, target findTarget) {
 	})
 }
 
-// findOptionToggles draws the bar's three compact switches from the app's
-// catalog, with the same registry commands behind their shortcuts.
-func findOptionToggles(c *ui.Context, target findTarget) {
-	caseToggle := ui.Toggle(c, target.caseOption(), locales.FindCaseMark()).KeepFocus().KeyShortcuts(ui.Alt, ui.KeyC)
-	uikit.Tip(c, caseToggle.Label(locales.FindMatchCase()), locales.FindMatchCaseTip())
-	wordToggle := ui.Toggle(c, target.wordOption(), locales.FindWordMark()).KeepFocus().KeyShortcuts(ui.Alt, ui.KeyW)
-	uikit.Tip(c, wordToggle.Label(locales.FindMatchWholeWord()), locales.FindMatchWholeWordTip())
-	regexToggle := ui.Toggle(c, target.regexpOption(), locales.FindRegexpMark()).KeepFocus().KeyShortcuts(ui.Alt, ui.KeyR)
-	uikit.Tip(c, regexToggle.Label(locales.FindUseRegexp()), locales.FindUseRegexpTip())
+// findToggles are the three compact switches the body's find bar and the
+// Search view share, with the same registry commands behind their shortcuts.
+func findToggles(target findTarget) []uikit.FindToggle {
+	return []uikit.FindToggle{
+		{On: target.caseOption(), Label: locales.FindMatchCase(), Tip: locales.FindMatchCaseTip(), Icon: lucide.CaseSensitive(), Key: ui.KeyC, Shortcut: "C"},
+		{On: target.wordOption(), Label: locales.FindMatchWholeWord(), Tip: locales.FindMatchWholeWordTip(), Icon: lucide.WholeWord(), Key: ui.KeyW, Shortcut: "W"},
+		{On: target.regexpOption(), Label: locales.FindUseRegexp(), Tip: locales.FindUseRegexpTip(), Icon: lucide.Regex(), Key: ui.KeyR, Shortcut: "R"},
+	}
 }
 
 // bodyFindState is the find bar of one body pane, kept across builds so the

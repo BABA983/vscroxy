@@ -225,7 +225,7 @@ func (a *app) notificationButton(c *ui.Context, t *ui.Theme) {
 	if errors > 0 {
 		ink = uikit.Colors(t).Danger
 	}
-	b := uikit.ToolbarButton(c, locales.Notifications(), locales.Notifications(), open).
+	b := uikit.ToolbarButton(c, locales.Notifications(), locales.Notifications(), false).
 		Gap(t.Space(uikit.SpaceXS)).Padding(0, t.Space(uikit.SpaceS))
 	b.Children(func() {
 		ui.Icon(c, notificationIcon).Size(uikit.IconInline, uikit.IconInline)

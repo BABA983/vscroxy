@@ -196,9 +196,9 @@ type fieldsOptions struct {
 	collection  string
 	// caption names the table above its grid, as "Query Params" or "Headers".
 	caption string
-	// captionEnd draws a control at the caption's right end, such as a form's
-	// file picker.
-	captionEnd func()
+	// headerEnd draws the table's own actions at the end of the last titled
+	// header cell, as Postman puts Bulk Edit there instead of on a toolbar.
+	headerEnd func()
 	// key is the locale-independent name used for row focus handles and the
 	// table's own empty-row state.
 	key string
@@ -274,7 +274,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 	columns := []uikit.KeyValueColumn{
 		{
 			Width: uikit.HeightControl,
-			Cell: func(row int, _ ui.Element) {
+			Cell: func(row int, _, _ ui.Element) {
 				r := &(*rows)[row]
 				enabled := !r.Disabled
 				ui.Box(c).FillWidth().FillHeight().Center().Children(func() {
@@ -286,21 +286,21 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 		},
 		{
 			Title: locales.Key(), Grow: keyGrow, MinWidth: keyMin,
-			Cell: func(row int, _ ui.Element) {
+			Cell: func(row int, _ ui.Element, cell ui.Element) {
 				r := &(*rows)[row]
 				ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					keyName := fieldsKey(opts, noun, "key", row+1)
 					field := a.variableGridInput(c, keyName, &r.Name, locales.Key(), locales.KeyOfRow(noun, row+1), opts.collection, false, false).
-						Padding(0, 0).Grow(1).MinWidth(0)
+						Grow(1).MinWidth(0)
 					if opts.focus != nil {
 						field.Bind(opts.focus(keyName))
 					}
-					cellBorder(t, field, false, false)
-					field = uikit.TruncatedCell(c, field, r.Name, false, uikit.GridCellInset, t.Background, t.SurfaceHover)
+					field = uikit.TruncatedCell(c, field, r.Name, false, t.Space(uikit.GridCellPadding), t.Background)
+					cellBorder(t, cell, field, false, false)
 					if values, ok := opts.filters[r.Name]; ok {
 						// The capture's own values are what a filter can
 						// search for, as the reader offers them.
-						field.PopoverMenu(a.headerFilterMenu(c, r.Name, values))
+						uikit.ContextMenu(c, field, a.headerFilterMenu(c, r.Name, values))
 					}
 					a.unicodeMarker(c, fmt.Sprintf("%s-key-hint-%d", noun, row+1), r.Name, false)
 					if field.Changed() {
@@ -311,7 +311,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 		},
 		{
 			Title: locales.Value(), Grow: valueGrow, MinWidth: valueMin,
-			Cell: func(row int, line ui.Element) {
+			Cell: func(row int, line, cell ui.Element) {
 				r := &(*rows)[row]
 				// Masked until the reader reveals this row with its eye: the
 				// keyboard alone never shows a credential, so tabbing
@@ -321,24 +321,24 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 				ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					valueKey := fieldsKey(opts, noun, "value", row+1)
 					value := a.variableGridInput(c, valueKey, &r.Value, locales.Value(), locales.ValueOfRow(noun, row+1), opts.collection, masked, false).
-						Padding(0, 0).Grow(1).MinWidth(0)
+						Grow(1).MinWidth(0)
 					if opts.focus != nil {
 						value.Bind(opts.focus(valueKey))
 					}
 					if masked {
 						value.Password()
 					}
-					cellBorder(t, value, masked, secret && r.Revealed)
-					fill, hoverFill := t.Background, t.SurfaceHover
+					fill := t.Background
 					if secret && r.Revealed {
-						// cellBorder paints a revealed credential over the
-						// cell; the ellipsis patch must cover the same tint.
+						// The cell tint is composited the same way under the
+						// ellipsis patch, so the cut leaves no seam.
 						fill = t.Accent.Alpha(0.06).Over(t.Background)
-						hoverFill = fill
+						value.Background(t.Accent.Alpha(0.06))
 					}
 					// A long value reads in full on hover, without the click
 					// that would move the keyboard into it.
-					value = uikit.TruncatedCell(c, value, r.Value, masked, uikit.GridCellInset, fill, hoverFill)
+					value = uikit.TruncatedCell(c, value, r.Value, masked, t.Space(uikit.GridCellPadding), fill)
+					cellBorder(t, cell, value, masked, secret && r.Revealed)
 					// Scan the raw value even when masked; the hint then names
 					// only code points, kinds and positions.
 					a.unicodeMarker(c, fmt.Sprintf("%s-value-hint-%d", noun, row+1), r.Value, masked)
@@ -387,17 +387,17 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 		descriptionColumn = len(columns)
 		columns = append(columns, uikit.KeyValueColumn{
 			Title: locales.Description(), Grow: descriptionGrow, MinWidth: descriptionMin,
-			Cell: func(row int, _ ui.Element) {
+			Cell: func(row int, _ ui.Element, cell ui.Element) {
 				r := &(*rows)[row]
 				ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 					field := a.variableGridInput(c, fieldsKey(opts, noun, "description", row+1), &r.Description,
 						locales.Description(), locales.DescriptionOfRow(noun, row+1), opts.collection, false, false).
-						Padding(0, 0).Grow(1).MinWidth(0)
+						Grow(1).MinWidth(0)
 					if opts.focus != nil {
 						field.Bind(opts.focus(fieldsKey(opts, noun, "description", row+1)))
 					}
-					cellBorder(t, field, false, false)
-					field = uikit.TruncatedCell(c, field, r.Description, false, uikit.GridCellInset, t.Background, t.SurfaceHover)
+					field = uikit.TruncatedCell(c, field, r.Description, false, t.Space(uikit.GridCellPadding), t.Background)
+					cellBorder(t, cell, field, false, false)
 					a.unicodeMarker(c, fmt.Sprintf("%s-description-hint-%d", noun, row+1), r.Description, false)
 					if field.Changed() {
 						changed = true
@@ -413,7 +413,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 	uikit.KeyValueTable(c, uikit.KeyValueTableOptions{
 		Key:              "kv:" + cmp.Or(opts.key, noun),
 		Caption:          opts.caption,
-		CaptionEnd:       opts.captionEnd,
+		HeaderEnd:        opts.headerEnd,
 		Columns:          columns,
 		Rows:             len(*rows),
 		KeyColumn:        1,
@@ -453,18 +453,19 @@ func requestGridInput(c *ui.Context, value *string, placeholder, label string) u
 		Border(1, ui.Color{})
 }
 
-// cellBorder keeps a cell quiet until the pointer or the keyboard is on it, as
-// a spreadsheet does. A revealed credential is the one cell that says so.
-func cellBorder(t *ui.Theme, field ui.Element, masked, revealed bool) {
+// cellBorder lights the grid cell around a focused input, so the outline
+// lands on the table's own lines instead of around an inset field. A revealed
+// credential is the one cell that says so with a tint; at rest a cell is only
+// its text.
+func cellBorder(t *ui.Theme, cell, field ui.Element, masked, revealed bool) {
 	switch {
 	case revealed:
-		field.Border(uikit.GridCellInset, t.Accent.Alpha(0.6)).Background(t.Accent.Alpha(0.06))
+		field.Background(t.Accent.Alpha(0.06))
 	case field.Focused():
-		field.Border(uikit.GridCellInset, t.Accent)
-	case field.Hovered():
-		field.Border(uikit.GridCellInset, t.Border).Background(t.SurfaceHover)
-	default:
-		field.Border(uikit.GridCellInset, ui.Color{})
+		// A border on the cell, not a stroke over it: the cell's own box is
+		// the grid's line, row actions included.
+		cell.BorderWidth(uikit.HairlineWidth, uikit.HairlineWidth, uikit.HairlineWidth, uikit.HairlineWidth).
+			BorderColor(t.Accent)
 	}
 	if masked {
 		field.TextColor(t.TextMuted)
@@ -575,7 +576,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		return
 	}
 	if a.requestFieldsEditor(c, &d.headerRows, fieldsOptions{secret: true, description: true, collection: d.composeCollection,
-		measure: &d.fieldTablePane, seen: &d.fieldTableWidth, caption: locales.Headers(), captionEnd: func() {
+		measure: &d.fieldTablePane, seen: &d.fieldTableWidth, caption: locales.Headers(), headerEnd: func() {
 			if uikit.LinkButton(c, locales.BulkEdit()).Clicked() {
 				a.toggleHeaderBulk(d)
 			}
@@ -888,6 +889,12 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		a.webSocketMessagesEditor(c, d, t)
 		return
 	}
+	if d.bodyMode == "None" {
+		ui.Column(c).Grow(1).FillWidth().Center().Children(func() {
+			uikit.Hint(c, locales.ThisRequestDoesNotHaveABody())
+		})
+		return
+	}
 	// The body type and JSON formatting sit on the editor's tab row, which
 	// already names the Body tab they belong to.
 	if d.bodyMode == "Raw" {
@@ -975,7 +982,7 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 			measure: &d.fieldTablePane, seen: &d.fieldTableWidth, caption: caption, key: "field", focus: d.unicodeHandle}
 		if d.bodyMode == "Multipart" {
 			opts.caption = locales.FormData()
-			opts.captionEnd = func() {
+			opts.headerEnd = func() {
 				if uikit.ToolbarButton(c, locales.AttachFile(), locales.AddAFilePartOnly(), false).Children(func() {
 					ui.Icon(c, fileInputIcon).Size(uikit.IconInline, uikit.IconInline)
 					uikit.Body(c, locales.AttachFile())
@@ -1127,6 +1134,59 @@ func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
 		}
 		a.prettyBody(c, &a.jsonCrumbs[1], "draft", body, 1, a.jsonReaderFor(c, 1, "draft", body, ct))
 	}
+}
+
+// requestScriptsEditor is the request's Scripts tab: a narrow list of the two
+// scripts beside the chosen one's editor, with the snippet menu floating at
+// the editor's bottom-right corner as Postman puts it.
+func (a *app) requestScriptsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
+	p := uikit.Colors(t)
+	ui.Row(c).Grow(1).FillWidth().FillHeight().MinHeight(0).Gap(0).AlignItems(ui.Start).Children(func() {
+		ui.Column(c).Width(160).Shrink(0).MinHeight(0).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
+			for i, item := range []struct {
+				label   string
+				content string
+			}{
+				{locales.PreRequest(), d.composePre},
+				{locales.PostResponse(), d.composePost},
+			} {
+				row := uikit.RowButton(c, item.label).Height(uikit.HeightGridRow).FontSize(uikit.Scaled(uikit.TextSmall)).
+					Padding(0, t.Space(uikit.SpaceM)).Justify(ui.Start).TextColor(t.TextMuted)
+				switch {
+				case d.scriptTab == i:
+					row.Background(p.Accent).TextColor(t.Text)
+				case row.Hovered():
+					row.Background(p.MutedHover)
+				}
+				row.Children(func() {
+					ui.Text(c, item.label).FontSize(uikit.Scaled(uikit.TextSmall)).SingleLine()
+					if strings.TrimSpace(item.content) != "" {
+						ui.Box(c).Size(uikit.DotSize, uikit.DotSize).Radius(uikit.DotSize / 2).
+							Background(t.Success).Shrink(0).Label(locales.HasContent())
+					}
+				})
+				if row.Clicked() {
+					d.scriptTab = i
+					c.Invalidate()
+				}
+			}
+		})
+		ui.Box(c).Width(uikit.HairlineWidth).FillHeight().Shrink(0).Background(t.Border)
+		ui.Box(c).Grow(1).MinWidth(0).MinHeight(0).FillHeight().Children(func() {
+			a.requestScriptText(c, d)
+			st := d.preEditor
+			if d.scriptTab == 1 {
+				st = d.postEditor
+			}
+			if st != nil {
+				ui.Box(c).Absolute().Right(t.Space(uikit.SpaceL)).Bottom(t.Space(uikit.SpaceL)).
+					Background(t.Background).Border(uikit.HairlineWidth, t.Border).Radius(uikit.RadiusControl).
+					Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
+					uikit.ToolbarSelect(c, locales.InsertSnippet(), scriptSnippetMenu(st, "request")).Label(locales.InsertSnippet())
+				})
+			}
+		})
+	})
 }
 
 // requestScriptText edits the pre-request or post-response script in the same

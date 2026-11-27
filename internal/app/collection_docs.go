@@ -103,6 +103,9 @@ func docEntries(requests []savedRequest, root string) []docsEntry {
 
 // docsBody is the request body as authored, with a note for non-text bodies.
 func docsBody(r savedRequest) (string, string) {
+	if r.BodyMode == "None" {
+		return "", ""
+	}
 	if r.BodyMode == "Binary" {
 		return "", cmp.Or(locales.BinaryBodyFrom(r.BodyFile), locales.BinaryBody())
 	}
