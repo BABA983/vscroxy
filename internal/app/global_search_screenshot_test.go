@@ -13,22 +13,28 @@ import (
 // source, so both themes show the groups, resources and highlighted runs
 // rather than a long list the window has to scroll.
 func searchScreenshotResults(a *app) []searchResult {
-	match := func(text, resource string, source searchSource, key, field string, kind searchFieldKind, flowID, side int) searchResult {
+	match := func(text, resource, location string, source searchSource, key, field string, kind searchFieldKind, flowID, side int) searchResult {
 		at := strings.Index(strings.ToLower(text), "findme")
-		return searchResult{source: source, key: key, resource: resource, field: field, kind: kind, text: text,
+		return searchResult{source: source, key: key, resource: resource, location: location, field: field, kind: kind, text: text,
 			start: at, end: at + len("findme"), line: 1, flowID: flowID, side: side}
 	}
-	const request = "Workspace/Orders / Findme Request"
-	const flow = "GET https://api.example.com/findme-flow"
+	const request = "Findme Request"
+	const flow = "GET /findme-flow"
+	withTarget := func(r searchResult, target searchTarget, env, variable string) searchResult {
+		r.target, r.env, r.variable = target, env, variable
+		return r
+	}
 	return []searchResult{
-		{source: searchCollections, key: "saved:find-1", resource: request, field: locales.Name(), kind: searchFieldOther,
+		{source: searchCollections, key: "saved:find-1", resource: request, location: "Workspace/Orders", method: "POST", field: locales.Name(), kind: searchFieldOther,
 			text: "Findme Request", start: strings.Index(strings.ToLower("Findme Request"), "findme"), end: strings.Index(strings.ToLower("Findme Request"), "findme") + len("findme"), line: 1,
 			target: searchTarget{owner: searchValueEnvCurrent, key: "Findme Local", valueKind: searchValueEnvCurrent}},
-		match("https://api.example.com/findme", request, searchCollections, "saved:find-1", locales.Url(), searchFieldOther, 0, -1),
-		match("findme_var = findme-value", "Findme Local", searchEnvironments, "Findme Local", locales.Initial(), searchFieldOther, 0, -1),
-		match("findme_global = global-value", locales.GlobalVariable(), searchEnvironments, "", locales.GlobalVariable(), searchFieldOther, 0, -1),
-		match("https://api.example.com/findme-flow", flow, searchFlows, "1", locales.Url(), searchFieldOther, 1, -1),
-		match(`{"findme":2}`, flow, searchFlows, "1", locales.ResponseBody(), searchFieldFlowBody, 1, 1),
+		match("https://api.example.com/findme", request, "Workspace/Orders", searchCollections, "saved:find-1", locales.Url(), searchFieldOther, 0, -1),
+		withTarget(match("findme_var = findme-value", "findme_var", "Findme Local", searchEnvironments, "Findme Local", locales.Initial(), searchFieldOther, 0, -1),
+			searchTarget{owner: searchValueEnvInitial, key: "Findme Local", code: "findme_var", valueKind: searchValueEnvInitial}, "Findme Local", "findme_var"),
+		withTarget(match("findme_global = global-value", "findme_global", locales.ScopeGlobal(), searchEnvironments, "", locales.GlobalVariable(), searchFieldOther, 0, -1),
+			searchTarget{owner: searchValueGlobalInitial, key: "", code: "findme_global", valueKind: searchValueGlobalInitial}, "", "findme_global"),
+		match("https://api.example.com/findme-flow", flow, "api.example.com", searchFlows, "1", locales.Url(), searchFieldOther, 1, -1),
+		match(`{"findme":2}`, flow, "api.example.com", searchFlows, "1", locales.ResponseBody(), searchFieldFlowBody, 1, 1),
 	}
 }
 
@@ -43,11 +49,12 @@ func searchScreenshotApp() *app {
 
 func TestGlobalSearchViewGroupsResults(t *testing.T) {
 	a := searchScreenshotApp()
+	a.sidebarWidth = 360 // wide enough for resource names and their locations
 	tt := ui.NewTester(func(c *ui.Context) { a.view(c) }, 1100, 800)
 	tt.Frame()
 	for _, text := range []string{
 		locales.SearchSourceRequests(), locales.Variables(), locales.Traffic(),
-		"Workspace/Orders / Findme Request", locales.OpenSearchResult("Findme Local"),
+		"Findme Request", "Workspace/Orders", locales.OpenSearchResult("findme_var"),
 		locales.SearchResultsInResources(len(a.searchAll.results), searchResourceCount(a.searchAll.results)),
 	} {
 		if !tt.HasText(text) {
@@ -66,27 +73,27 @@ func TestGlobalSearchTreeCollapsesSourcesAndResources(t *testing.T) {
 	t.Cleanup(a.stopSearch)
 	tt := ui.NewTester(func(c *ui.Context) { a.view(c) }, 1100, 800)
 	tt.Frame()
-	const request = "Workspace/Orders / Findme Request"
-	echo := locales.OpenSearchResult("Findme Local")
+	const request = "Findme Request"
+	echo := locales.OpenSearchResult("findme_var")
 	if !tt.HasText(request) || !tt.HasText(echo) {
 		t.Fatalf("the tree is not open at first: %v", tt.Texts())
 	}
-	if err := tt.Click(locales.SearchSourceRequests()); err != nil {
+	if err := tt.Click(locales.SearchSourceResults(locales.SearchSourceRequests())); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
 	if tt.HasText(request) {
 		t.Fatal("collapsing the Requests source kept its resources")
 	}
-	if err := tt.Click(locales.SearchSourceRequests()); err != nil {
+	if err := tt.Click(locales.SearchSourceResults(locales.SearchSourceRequests())); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if err := tt.Click("Findme Local"); err != nil {
+	if err := tt.Click("findme_var"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if tt.HasText(echo) || !tt.HasText("Findme Local") {
+	if tt.HasText(echo) || !tt.HasText("findme_var") {
 		t.Fatalf("collapsing a resource did not keep its row and hide its matches: %v", tt.Texts())
 	}
 	// A new query searches new rows, so the folded branch opens again.

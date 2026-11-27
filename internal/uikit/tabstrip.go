@@ -48,7 +48,9 @@ type DocumentTabsOptions struct {
 	OnClose    func(index int)
 	OnPin      func(index int)
 	OnNew      func()
-	OnOverflow func(*ui.Menu)
+	// OnOverflow draws the strip's list button and hands it to the screen; the
+	// screen anchors a searchable quick pick to it.
+	OnOverflow func(anchor ui.Element)
 	// TabMenu builds a tab's own menu when it is right-clicked, or nil for
 	// none. The strip stays generic: the screen offers only the actions that
 	// tab supports, in its own words.
@@ -227,11 +229,7 @@ func overflowTabs(c *ui.Context, o DocumentTabsOptions) {
 	if o.OverflowLabel != "" {
 		tip = o.OverflowLabel + " (" + strconv.Itoa(len(o.Tabs)) + ")"
 	}
-	var button ui.Element
-	MenuFace(c, func() {
-		button = ui.ButtonBase(c).Label(tip).
-			PopoverMenuButton(o.OnOverflow, MenuButtonOptions(c))
-	})
+	button := ui.ButtonBase(c).Label(tip)
 	button.Size(HeightControlSmall, HeightControlSmall).MarginY((HeightTabs - HeightControlSmall) / 2).
 		Padding(0).Radius(RadiusControl).Shrink(0).AlignItems(ui.Center).Justify(ui.Center)
 	if button.Hovered() {
@@ -241,4 +239,5 @@ func overflowTabs(c *ui.Context, o DocumentTabsOptions) {
 		ui.Icon(c, chevronIcon).Size(IconLarge, IconLarge).TextColor(t.TextMuted)
 	})
 	Tip(c, button, tip)
+	o.OnOverflow(button)
 }

@@ -72,19 +72,33 @@ func (a *app) savedSourceStillThere(entry closedDocument) bool {
 	})
 }
 
-// reopenClosedDocument restores the model's last closed tab and, for a request
-// tab, its document copy. The model restores the tab clean; the document says
-// whether it is still dirty, and setDirty records that.
+// reopenClosedDocument restores the model's last closed tab.
 func (a *app) reopenClosedDocument() bool {
-	g := a.tabsGroup()
-	next, ok := g.nextClosed()
+	next, ok := a.tabsGroup().nextClosed()
 	if !ok {
 		return false
 	}
-	id := next.tab.id()
+	return a.reopenClosedDocumentID(next.tab.id())
+}
+
+// reopenClosedDocumentID restores one closed tab and, for a request tab, its
+// document copy. The model restores the tab clean; the document says whether
+// it is still dirty, and setDirty records that.
+func (a *app) reopenClosedDocumentID(id tabID) bool {
+	g := a.tabsGroup()
+	next, ok := g.find(id)
+	if !ok {
+		// A closed tab is not in the group; its descriptor lives on the
+		// reopen stack, which is what the picker names.
+		at := slices.IndexFunc(g.closed, func(c closedTab) bool { return c.tab.id() == id })
+		if at < 0 {
+			return false
+		}
+		next = tabEntry{tab: g.closed[at].tab}
+	}
 	entry, has := a.closedDocs[id]
 	alreadyOpen := g.indexOf(id) >= 0
-	if !g.reopen() {
+	if !g.reopenID(id) {
 		return false
 	}
 	if id.kind == pageSession {

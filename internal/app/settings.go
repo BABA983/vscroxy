@@ -26,10 +26,14 @@ type settings struct {
 	// flag overrides it for one run without changing what is saved here.
 	LogLevel string `json:"logLevel,omitempty"`
 	// Language is "en" or "zh-Hans"; empty follows the computer's languages.
-	Language     string       `json:"language,omitempty"`
-	SidebarWidth float32      `json:"sidebarWidth,omitempty"`
-	TablePercent float32      `json:"tablePercent,omitempty"`
-	Columns      columnLayout `json:"columns,omitempty"`
+	Language     string  `json:"language,omitempty"`
+	SidebarWidth float32 `json:"sidebarWidth,omitempty"`
+	TablePercent float32 `json:"tablePercent,omitempty"`
+	// RightSidebar opens the request workspace's third column, and
+	// RightSidebarWidth is its width when open.
+	RightSidebar      bool         `json:"rightSidebar,omitempty"`
+	RightSidebarWidth float32      `json:"rightSidebarWidth,omitempty"`
+	Columns           columnLayout `json:"columns,omitempty"`
 	// InspectorLayout is "right" (side by side, the default) or "bottom"
 	// (stacked); each keeps its own divider.
 	InspectorLayout  string  `json:"inspectorLayout,omitempty"`
@@ -278,6 +282,8 @@ func sameSettings(x, y settings) bool {
 		x.Language == y.Language &&
 		x.SidebarWidth == y.SidebarWidth &&
 		x.TablePercent == y.TablePercent &&
+		x.RightSidebar == y.RightSidebar &&
+		x.RightSidebarWidth == y.RightSidebarWidth &&
 		x.InspectorLayout == y.InspectorLayout &&
 		x.SideTablePercent == y.SideTablePercent &&
 		sameRestoreChoice(x.RestoreLastSession, y.RestoreLastSession) &&

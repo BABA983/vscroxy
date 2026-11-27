@@ -46,7 +46,7 @@ func TestCatalogsMatch(t *testing.T) {
 		"addedUpdated": true, "android": true, "authBasic": true, "authNtlm": true, "bearer": true, "contentTypeApplicationJson": true,
 		"cookieUrl": true, "eventLineKind": true, "eventLineSize": true, "grpcEventLine": true,
 		// Find's compact option marks are VS Code's glyphs in every language.
-		"findCaseMark": true, "findRegexpMark": true, "findWordMark": true,
+		"findCaseMark": true, "findRegexpMark": true, "findWordMark": true, "preserveCaseBadge": true,
 		"git": true, "har": true, "https": true, "ios": true, "iterationName": true, "json": true,
 		"kindPath": true, "kindWithSize": true, "millis": true, "mqttEventLine": true,
 		"mqttTopicExample": true, "mcpVersion": true, "multipart": true, "nonce": true,

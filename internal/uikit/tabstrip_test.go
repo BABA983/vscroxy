@@ -12,7 +12,7 @@ import (
 func TestTabStripOverflowIsAnIconUntilThereAreTabs(t *testing.T) {
 	strip := func(tabs []DocumentTab) *ui.Tester {
 		tt := ui.NewTester(func(c *ui.Context) {
-			DocumentTabs(c, DocumentTabsOptions{Tabs: tabs, OnOverflow: func(*ui.Menu) {}})
+			DocumentTabs(c, DocumentTabsOptions{Tabs: tabs, OnOverflow: func(ui.Element) {}})
 		}, 400, 32)
 		tt.Frame()
 		return tt

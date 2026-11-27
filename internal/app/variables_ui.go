@@ -78,6 +78,9 @@ func (a *app) folderVariableRows(path string) []variableRow {
 
 type variableTableOptions struct {
 	enable bool
+	// focus names the row whose Initial value takes the keyboard when the
+	// table opens, as Add from the request sidebar asks.
+	focus string
 	// scope enables Rename and Find All References on this row. It is the
 	// scope the table edits, not a guess from the row's effective value.
 	scope  variableScope
@@ -153,6 +156,9 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 					secret := r.secret()
 					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 						field := requestGridInput(c, &r.Initial, locales.SharedValue(), locales.VariableInitialValue(i+1))
+						if opts.focus != "" && r.Name == opts.focus {
+							field.AutoFocus()
+						}
 						if secret && !r.Revealed {
 							field.Password()
 						}

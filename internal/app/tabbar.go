@@ -3,6 +3,8 @@ package app
 import (
 	"cmp"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
@@ -44,7 +46,7 @@ func (a *app) tabBar(c *ui.Context, t *ui.Theme) {
 	opts := uikit.DocumentTabsOptions{
 		Tabs:          items,
 		NewLabel:      locales.NewRequest(),
-		OverflowLabel: locales.AllOpenTabs(),
+		OverflowLabel: locales.SearchOpenTabs(),
 		OnActivate: func(i int) {
 			// Choosing Live is choosing the traffic; Live after a close is not.
 			if ids[i].kind == pageLive {
@@ -55,7 +57,7 @@ func (a *app) tabBar(c *ui.Context, t *ui.Theme) {
 		OnClose:    func(i int) { a.closeTab(ids[i], false) },
 		OnPin:      func(i int) { a.promoteTab(ids[i]) },
 		OnNew:      a.openCompose,
-		OnOverflow: a.openTabsMenu,
+		OnOverflow: func(anchor ui.Element) { a.openTabsPicker(c, t, anchor) },
 		TabMenu:    func(i int) func(*ui.Menu) { return a.tabContextMenu(c, ids[i]) },
 	}
 	// The environment belongs to the request being edited, so it appears
@@ -140,32 +142,126 @@ func tabIcon(kind page) *ui.SVG {
 	}
 }
 
-// openTabsMenu lists every open tab in recency order, as the overflow button
-// promises. A checked row is the active tab; a subtitle marks unsaved work.
-func (a *app) openTabsMenu(m *ui.Menu) {
+// tabPickerState is the strip's searchable list: its popover, query and
+// highlighted row. It is small, in-memory state, like the palette's.
+type tabPickerState struct {
+	open  bool
+	state uikit.QuickPickState
+}
+
+// tabPickPrefix tells the two groups' ids apart: an open tab is activated,
+// a closed one is restored.
+const (
+	tabPickOpen   = "open:"
+	tabPickClosed = "closed:"
+)
+
+func tabPickID(prefix string, id tabID) string {
+	return prefix + strconv.Itoa(int(id.kind)) + "\x00" + id.key
+}
+
+func parseTabPickID(value string) (tabID, bool) {
+	prefix, rest, ok := strings.Cut(value, ":")
+	if !ok || prefix != "open" && prefix != "closed" {
+		return tabID{}, false
+	}
+	kind, key, ok := strings.Cut(rest, "\x00")
+	if !ok {
+		return tabID{}, false
+	}
+	n, err := strconv.Atoi(kind)
+	if err != nil {
+		return tabID{}, false
+	}
+	return tabID{kind: page(n), key: key}, true
+}
+
+// openTabsPicker is the strip's ⌄: a searchable list of the open tabs in
+// recency order and the tabs closed before, as VS Code's open-editor quick
+// pick. The popover is anchored to the strip's own button.
+func (a *app) openTabsPicker(c *ui.Context, t *ui.Theme, anchor ui.Element) {
+	s := &a.tabPicker
+	uikit.QuickPick(c, anchor, uikit.QuickPickOptions{
+		Open:        &s.open,
+		State:       &s.state,
+		Placeholder: locales.SearchTabs(),
+		Empty:       locales.NoMatchingTabs(),
+		Groups:      a.tabPickGroups,
+		OnActivate: func(value string) {
+			id, ok := parseTabPickID(value)
+			if !ok {
+				return
+			}
+			if strings.HasPrefix(value, tabPickClosed) {
+				a.reopenClosedDocumentID(id)
+				return
+			}
+			if id.kind == pageLive {
+				a.sidebarMode = sidebarTraffic
+			}
+			a.activateTab(id)
+		},
+		OnClose: func(value string) {
+			if id, ok := parseTabPickID(value); ok && strings.HasPrefix(value, tabPickOpen) {
+				a.closeTab(id, false)
+			}
+		},
+	})
+}
+
+// tabPickGroups lists all open tabs by recency, then the closed tabs newest
+// first. A request row carries its method, unsaved mark and collection; the
+// picker highlights the query on the title.
+func (a *app) tabPickGroups() []uikit.QuickPickGroup {
 	g := a.tabsGroup()
 	entries := g.tabs()
-	active := g.active()
+	open := uikit.QuickPickGroup{Title: locales.OpenTabsGroup()}
 	for _, id := range g.mru() {
 		at := slices.IndexFunc(entries, func(e tabEntry) bool { return e.id() == id })
 		if at < 0 {
 			continue
 		}
 		e := entries[at]
-		label := e.title
-		if id.kind == pageRequest {
-			if d := a.documentForTab(id); d != nil {
-				label = cmp.Or(d.protocol, d.composeMethod) + "  " + e.title
-			}
+		item := uikit.QuickPickItem{
+			ID: tabPickID(tabPickOpen, id), Label: cmp.Or(e.title, locales.UntitledRequest()),
+			Dirty: e.dirty, Closable: !e.fixed,
 		}
-		item := m.Item(label).Checked(id == active)
-		if e.dirty {
-			item.Subtitle(locales.UnsavedChanges())
+		a.fillTabPickItem(&item, id, e.tab)
+		open.Items = append(open.Items, item)
+	}
+	groups := []uikit.QuickPickGroup{open}
+	closed := uikit.QuickPickGroup{Title: locales.RecentlyClosedGroup()}
+	for _, c := range g.recentlyClosed() {
+		id := c.tab.id()
+		item := uikit.QuickPickItem{ID: tabPickID(tabPickClosed, id), Label: cmp.Or(c.tab.title, locales.UntitledRequest())}
+		a.fillTabPickItem(&item, id, c.tab)
+		closed.Items = append(closed.Items, item)
+	}
+	if len(closed.Items) > 0 {
+		groups = append(groups, closed)
+	}
+	return slices.DeleteFunc(groups, func(group uikit.QuickPickGroup) bool { return len(group.Items) == 0 })
+}
+
+// fillTabPickItem gives a row its method or icon and the facts its document
+// carries: the URL the query matches and the collection path at its end.
+func (a *app) fillTabPickItem(item *uikit.QuickPickItem, id tabID, e tab) {
+	if id.kind == pageRequest {
+		if d := a.documentForTab(id); d != nil {
+			item.Method = cmp.Or(d.protocol, d.composeMethod)
+			item.Search = d.composeURL
+			item.Detail = d.composeCollection
+			return
 		}
-		if item.Chosen() {
-			a.activateTab(id)
+		if entry, ok := a.closedDocs[id]; ok && entry.doc != nil {
+			d := entry.doc
+			item.Method = cmp.Or(d.protocol, d.composeMethod)
+			item.Search = d.composeURL
+			item.Detail = d.composeCollection
+			return
 		}
 	}
+	item.Icon = tabIcon(id.kind)
 }
 
 // tabContextMenu is a tab's own right-click menu, as VS Code's editor tab

@@ -1,8 +1,10 @@
 package app
 
 import (
+	"fmt"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
@@ -14,8 +16,10 @@ import (
 // state adds only the replacement template and its input handle.
 type searchReplaceState struct {
 	bulkPreviewState
-	input  string
-	handle ui.Handle
+	input       string
+	handle      ui.Handle
+	preserve    bool
+	confirmOpen bool
 }
 
 // searchChanges builds one checked change per replaceable result. Regexp
@@ -41,6 +45,9 @@ func (a *app) searchChanges(indices ...int) []variableMatch {
 		}
 		from, to := r.start, r.end
 		replacement := s.query.expand(r.text, from, to, s.replace.input)
+		if s.replace.preserve {
+			replacement = preserveCase(r.match(), replacement)
+		}
 		m := variableMatch{
 			Owner: r.target.owner, Key: r.target.key, Code: r.target.code,
 			Collection: r.target.collection, Resource: r.resource, Field: r.field,
@@ -73,9 +80,23 @@ func (a *app) replaceableSearchCount() int {
 	return n
 }
 
-// openSearchReplace is the Replace All command: prepare the changes, then
-// show #44's preview with every change checked.
+// openSearchReplace asks before writing every replaceable match. The
+// confirmation names the count, the resources and the replacement, as a
+// bulk edit that leaves the window does.
 func (a *app) openSearchReplace() {
+	if a.replaceableSearchCount() == 0 {
+		a.warn(locales.NoSearchMatchesToReplace())
+		return
+	}
+	a.searchAll.replace.open = true
+	a.searchAll.replace.confirmOpen = true
+	a.invalidate()
+}
+
+// openSearchPreview prepares the shared bulk-edit dialog with every change
+// checked. It is the preview the bulk editor already used; Replace All now
+// confirms in the sidebar first and writes directly.
+func (a *app) openSearchPreview() {
 	s := &a.searchAll
 	changes := a.searchChanges()
 	if len(changes) == 0 {
@@ -86,6 +107,67 @@ func (a *app) openSearchReplace() {
 	s.replace.problem, s.replace.warning = "", ""
 	s.replace.changes, s.replace.current = changes, 0
 	a.invalidate()
+}
+
+// searchReplaceableResources counts the resources the replaceable matches
+// belong to, for the confirmation.
+func searchReplaceableResources(results []searchResult) int {
+	seen := map[searchSource]map[string]bool{}
+	for _, result := range results {
+		if !result.replaceable() {
+			continue
+		}
+		bySource := seen[result.source]
+		if bySource == nil {
+			bySource = map[string]bool{}
+			seen[result.source] = bySource
+		}
+		bySource[result.resource] = true
+	}
+	n := 0
+	for _, resources := range seen {
+		n += len(resources)
+	}
+	return n
+}
+
+// preserveCase copies the case of a match onto the replacement, as VS Code's
+// Preserve Case does: an all-uppercase or all-lowercase match makes the whole
+// replacement follow it, and a title-cased one takes a capital first letter.
+// A mixed-case match leaves the replacement alone.
+func preserveCase(match, replacement string) string {
+	letters := 0
+	upper, lower := 0, 0
+	firstUpper := false
+	for _, r := range match {
+		if !unicode.IsLetter(r) {
+			continue
+		}
+		if letters == 0 {
+			firstUpper = unicode.IsUpper(r)
+		}
+		letters++
+		if unicode.IsUpper(r) {
+			upper++
+		} else if unicode.IsLower(r) {
+			lower++
+		}
+	}
+	switch {
+	case letters == 0:
+		return replacement
+	case upper == letters:
+		return strings.ToUpper(replacement)
+	case lower == letters:
+		return strings.ToLower(replacement)
+	case firstUpper && upper == 1 && lower == letters-1:
+		runes := []rune(replacement)
+		if len(runes) > 0 {
+			runes[0] = unicode.ToUpper(runes[0])
+		}
+		return string(runes)
+	}
+	return replacement
 }
 
 // applySearchReplace writes the checked changes of the preview, or just one
@@ -122,7 +204,7 @@ func (a *app) applySearchReplace(indices ...int) bool {
 		},
 	})
 	if accepted {
-		s.replace.open, s.replace.preview = false, false
+		s.replace.open, s.replace.preview, s.replace.confirmOpen = false, false, false
 		s.replace.changes = nil
 	}
 	return accepted
@@ -296,6 +378,27 @@ func (a *app) searchPreviewModal(c *ui.Context, t *ui.Theme) {
 	})
 }
 
+// searchReplaceConfirm asks before Replace All writes. The same command
+// button, the footer's icon and the palette all land here.
+func (a *app) searchReplaceConfirm(c *ui.Context) {
+	s := &a.searchAll.replace
+	if !s.confirmOpen {
+		return
+	}
+	result := uikit.ConfirmDialog(c, &s.confirmOpen, uikit.ConfirmOptions{
+		Title:    locales.ReplaceAll(),
+		Message:  locales.ReplaceSearchConfirm(fmt.Sprint(a.replaceableSearchCount()), fmt.Sprint(searchReplaceableResources(a.searchAll.results)), s.input),
+		Severity: uikit.SeverityWarning,
+		Primary:  locales.Replace(),
+		Cancel:   locales.Cancel(),
+	})
+	if result == uikit.ConfirmPrimary {
+		if !a.applySearchReplace() {
+			s.confirmOpen = false
+		}
+	}
+}
+
 // replaceOneSearchMatch is a row's Replace command: one match, the same path
 // and the same plan as Replace All.
 func (a *app) replaceOneSearchMatch(at int) bool {
@@ -307,8 +410,33 @@ func (a *app) replaceOneSearchMatch(at int) bool {
 }
 
 // scrubSearchReplace drops queued changes when a new query replaces the
-// result list they were built from.
+// result list they were built from. The Replace field itself stays open: the
+// reader keeps it open while refining the query, as in VS Code.
 func (a *app) scrubSearchReplace() {
 	s := &a.searchAll.replace
-	s.open, s.preview, s.changes = false, false, nil
+	s.preview, s.confirmOpen, s.changes = false, false, nil
+}
+
+// dismissSearchMatch hides one result until the query or scope changes.
+func (a *app) dismissSearchMatch(at int) {
+	s := &a.searchAll
+	if at < 0 || at >= len(s.results) {
+		return
+	}
+	s.results = slices.Delete(s.results, at, at+1)
+	if s.current >= len(s.results) {
+		s.current = max(0, len(s.results)-1)
+	}
+}
+
+// dismissSearchResource hides every result of one resource until the query
+// or scope changes.
+func (a *app) dismissSearchResource(source searchSource, resource string) {
+	s := &a.searchAll
+	s.results = slices.DeleteFunc(s.results, func(r searchResult) bool {
+		return r.source == source && r.resource == resource
+	})
+	if s.current >= len(s.results) {
+		s.current = max(0, len(s.results)-1)
+	}
 }

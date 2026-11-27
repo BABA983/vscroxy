@@ -509,6 +509,13 @@ func (g *tabGroup) closedIDs() []tabID {
 	return ids
 }
 
+// recentlyClosed lists the reopen stack newest first, for the tab picker.
+func (g *tabGroup) recentlyClosed() []closedTab {
+	out := slices.Clone(g.closed)
+	slices.Reverse(out)
+	return out
+}
+
 // nextClosed is the tab Reopen Closed Editor would restore.
 func (g *tabGroup) nextClosed() (closedTab, bool) {
 	if len(g.closed) == 0 {
@@ -517,28 +524,35 @@ func (g *tabGroup) nextClosed() (closedTab, bool) {
 	return g.closed[len(g.closed)-1], true
 }
 
-// reopen restores the most recently closed tab as a normal tab at its old
-// index, pinned if it was pinned, and makes it active. A tab already open
-// again is only activated. Reopened tabs are never previews.
+// reopen restores the most recently closed tab. A tab already open again is
+// only activated. Reopened tabs are never previews.
 func (g *tabGroup) reopen() bool {
 	if len(g.closed) == 0 {
 		return false
 	}
-	last := len(g.closed) - 1
-	c := g.closed[last]
-	g.closed = g.closed[:last]
-	id := c.tab.id()
+	return g.reopenID(g.closed[len(g.closed)-1].tab.id())
+}
+
+// reopenID restores one closed tab from the reopen stack, wherever it sits:
+// the quick pick lists them all, not only the last. Its old place is kept.
+func (g *tabGroup) reopenID(id tabID) bool {
+	at := slices.IndexFunc(g.closed, func(c closedTab) bool { return c.tab.id() == id })
+	if at < 0 {
+		return false
+	}
+	c := g.closed[at]
+	g.closed = slices.Delete(g.closed, at, at+1)
 	if g.indexOf(id) >= 0 {
 		g.activate(id)
 		return true
 	}
-	at := min(max(c.index, g.fixedCount()), len(g.entries))
+	index := min(max(c.index, g.fixedCount()), len(g.entries))
 	if c.pinned {
-		at = min(max(at, g.fixedCount()), g.pinnedEnd())
+		index = min(max(index, g.fixedCount()), g.pinnedEnd())
 	} else {
-		at = max(at, g.pinnedEnd())
+		index = max(index, g.pinnedEnd())
 	}
-	g.entries = slices.Insert(g.entries, at, tabEntry{
+	g.entries = slices.Insert(g.entries, index, tabEntry{
 		kind: c.tab.kind, key: c.tab.key, title: c.tab.title, saved: c.tab.saved,
 		pinned: c.pinned,
 	})

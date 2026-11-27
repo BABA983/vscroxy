@@ -129,7 +129,7 @@ func TestSearchReplaceUncheckedChangeIsNotApplied(t *testing.T) {
 	if len(results) != 2 {
 		t.Fatalf("matches = %d, want 2", len(results))
 	}
-	a.openSearchReplace()
+	a.openSearchPreview()
 	if !a.searchAll.replace.preview || len(a.searchAll.replace.changes) != 2 {
 		t.Fatalf("preview not prepared: %+v", a.searchAll.replace)
 	}
@@ -430,11 +430,11 @@ func TestSearchReplaceCommandsAreRegistered(t *testing.T) {
 		}
 	}
 	pick(a.actions(c), "search.action.replaceAll").run()
-	if !a.searchAll.replace.preview || len(a.searchAll.replace.changes) != 2 {
-		t.Fatalf("Replace All did not open the preview: %+v", a.searchAll.replace)
+	if !a.searchAll.replace.confirmOpen || a.searchAll.replace.preview {
+		t.Fatalf("Replace All did not ask first: %+v", a.searchAll.replace)
 	}
 	tt.Frame()
-	if !tt.HasText(locales.ApplyRename()) && !tt.HasText(locales.ReplaceAll()) {
-		t.Errorf("preview is not a bulk edit: %v", tt.Texts())
+	if !tt.HasText(locales.ReplaceSearchConfirm("2", "1", "scope")) && !tt.HasText(locales.ReplaceAll()) {
+		t.Errorf("confirmation is not drawn: %v", tt.Texts())
 	}
 }

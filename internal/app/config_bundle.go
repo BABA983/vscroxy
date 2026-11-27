@@ -82,6 +82,8 @@ func (a *app) currentSettings() settings {
 		Language:             a.language,
 		SidebarWidth:         a.sidebarWidth,
 		TablePercent:         a.tablePercent,
+		RightSidebar:         a.rightSidebar.open,
+		RightSidebarWidth:    a.rightSidebar.width,
 		InspectorLayout:      a.workbench.layout,
 		SideTablePercent:     a.workbench.sidePercent,
 		RestoreLastSession:   new(a.restoreLastSession),
@@ -505,6 +507,11 @@ func (a *app) applySettingsPrepared(s settings, prepared *upstream.Config) error
 	a.appearance = s.Appearance
 	if s.SidebarWidth > 0 {
 		a.sidebarWidth = s.SidebarWidth
+	}
+	a.rightSidebar.open = s.RightSidebar
+	a.rightSidebar.splitReady = false
+	if s.RightSidebarWidth > 0 {
+		a.rightSidebar.width = clampRightSidebar(s.RightSidebarWidth)
 	}
 	if s.TablePercent > 0 {
 		a.tablePercent = s.TablePercent

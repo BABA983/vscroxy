@@ -85,12 +85,12 @@ func TestBatchGScreenshots(t *testing.T) {
 			results := searchScreenshotApp()
 			t.Cleanup(results.stopSearch)
 			tt, c = tester(results, 1400, 900)
-			if err := tt.Click("Findme Local"); err != nil {
+			if err := tt.Click("findme_var"); err != nil {
 				t.Fatal(err)
 			}
 			tt.Frame()
 			write("search-results", tt.Image(), sidebar)
-			if !tt.HasText("Findme Local") {
+			if !tt.HasText("findme_var") {
 				t.Fatalf("the collapsed resource is not shown: %v", tt.Texts())
 			}
 
@@ -98,9 +98,9 @@ func TestBatchGScreenshots(t *testing.T) {
 			t.Cleanup(replace.stopSearch)
 			replace.searchAll.replace.open = true
 			replace.searchAll.replace.input = "found"
-			replace.searchAll.collapsedResources = map[string]bool{searchResultKey(searchEnvironments, "Findme Local"): true}
+			replace.searchAll.collapsedResources = map[string]bool{searchResultKey(searchEnvironments, "findme_var"): true}
 			tt, _ = tester(replace, 1400, 900)
-			if row, ok := tt.Find(locales.OpenSearchResult("Workspace/Orders / Findme Request")); ok {
+			if row, ok := tt.Find(locales.OpenSearchResult("Findme Request")); ok {
 				tt.Move(row.X+row.W/2, row.Y+row.H/2)
 			}
 			tt.Frame()

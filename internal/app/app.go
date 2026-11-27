@@ -276,6 +276,10 @@ type app struct {
 	detailKeySuffix    string
 	captureSidePercent float32
 	workbench          desktopWorkbench
+	// tabPicker is the document strip's searchable open-tab list.
+	tabPicker tabPickerState
+	// rightSidebar is the request workspace's third column.
+	rightSidebar rightSidebarState
 
 	totalBytes int64
 
@@ -821,8 +825,11 @@ type app struct {
 	exportUI exportReview
 
 	// envs are the variables a request uses as {{name}}, one set in use.
-	envsPath       string
-	envsProblem    string
+	envsPath    string
+	envsProblem string
+	// varsFocus names the variable row the Variables dialog should focus
+	// after the sidebar added it.
+	varsFocus      string
 	envs           []environment
 	activeEnv      string
 	globals        map[string]string
@@ -911,6 +918,7 @@ func newApp() *app {
 		icons:          make(map[string]ui.ImageSource),
 		sidebarWidth:   220,
 		tablePercent:   44,
+		rightSidebar:   rightSidebarState{width: 280},
 		collectionOpen: make(map[string]*bool),
 		// A flow is numbered when it starts and arrives when it ends, so
 		// arrival order puts 6 above 5. The number is the start order: the
@@ -1105,6 +1113,10 @@ func newApp() *app {
 		a.workbench.captureSplit, a.workbench.captureFocus = saved.CaptureSplit, saved.CaptureFocus
 		a.workbench.captureGroups = slices.Clone(saved.CaptureGroups)
 		a.workbench.sidebarHidden = saved.SidebarHidden
+		a.rightSidebar.open = saved.RightSidebar
+		if saved.RightSidebarWidth > 0 {
+			a.rightSidebar.width = clampRightSidebar(saved.RightSidebarWidth)
+		}
 		a.showJSONPath = saved.ShowJSONPath
 		a.regions, a.shutRegions = nil, slices.Clone(saved.SidebarClosed)
 		a.paneHeights, a.savedHeights = nil, maps.Clone(saved.SidebarPaneHeights)
@@ -2282,11 +2294,23 @@ func (a *app) view(c *ui.Context) {
 			ui.Row(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 				ui.Column(c).Width(a.sidebarWidth).Shrink(0).FillHeight().Children(func() { a.sidebar(c) })
 				a.sidebarGutter(c)
-				ui.Column(c).Grow(1).MinWidth(0).FillHeight().Children(main)
+				ui.Column(c).Grow(1).MinWidth(0).FillHeight().Children(func() {
+					if a.rightSidebarShown() {
+						a.rightSidebarSplit(c, main)
+						return
+					}
+					main()
+				})
 				a.sidebarGrip(c, t)
 			})
 		} else {
-			ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(main)
+			ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+				if a.rightSidebarShown() {
+					a.rightSidebarSplit(c, main)
+					return
+				}
+				main()
+			})
 		}
 		a.footer(c.Key("workspace-footer"), t)
 	})
@@ -2319,6 +2343,7 @@ func (a *app) view(c *ui.Context) {
 			a.clearCaptured()
 		}
 	}
+	a.searchReplaceConfirm(c)
 	a.settingsModal(c, t)
 	a.workspaceTrustModal(c, t)
 	a.logLevelModal(c)
@@ -2486,7 +2511,10 @@ func (a *app) panel(c *ui.Context, t *ui.Theme) {
 		// gone and the shell runs down its left side too.
 		radii := [4]float32{uikit.RadiusPanel, 0, 0, uikit.RadiusPanel}
 		if !a.sidebarShown() {
-			radii = [4]float32{uikit.RadiusPanel, uikit.RadiusPanel, uikit.RadiusPanel, uikit.RadiusPanel}
+			radii[0], radii[3] = uikit.RadiusPanel, uikit.RadiusPanel
+		}
+		if a.rightSidebarShown() {
+			radii[1], radii[2] = uikit.RadiusPanel, uikit.RadiusPanel
 		}
 		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Background(p.Background).
 			Radius(radii[0], radii[1], radii[2], radii[3]).Clip().Children(func() {
@@ -4670,8 +4698,9 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 			tableHeight := min(float32(320), uikit.HeightRow*float32(len(a.varsRows)+2)+2)
 			ui.Column(c).Height(tableHeight).Disabled(a.envsProblem != "").Children(func() {
 				a.variableTable(c, &a.varsRows, variableTableOptions{
-					scope: varsEditorScope(a), reveal: a.variableRefs.reveal.name,
+					scope: varsEditorScope(a), reveal: a.variableRefs.reveal.name, focus: a.varsFocus,
 				})
+				a.varsFocus = ""
 			})
 			if a.varsProblem != "" {
 				uikit.ErrorText(c, a.varsProblem)

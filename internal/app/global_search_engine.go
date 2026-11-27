@@ -42,6 +42,34 @@ type globalSearch struct {
 	// so it starts with everything open.
 	collapsedSources   map[searchSource]bool
 	collapsedResources map[string]bool
+	// scopeOff leaves a source out of the scan; nil is every source on.
+	scopeOff map[searchSource]bool
+}
+
+// searchScopes is the set of sources a query searches, as a comparable
+// value the request comparison can see.
+type searchScopes uint8
+
+const (
+	searchScopeRequests searchScopes = 1 << iota
+	searchScopeVariables
+	searchScopeTraffic
+	searchScopeAll = searchScopeRequests | searchScopeVariables | searchScopeTraffic
+)
+
+func (s *globalSearch) scopes() searchScopes {
+	if len(s.scopeOff) == 0 {
+		return searchScopeAll
+	}
+	mask := searchScopeAll
+	for source := range s.scopeOff {
+		mask &^= 1 << source
+	}
+	return mask
+}
+
+func (s *globalSearch) searches(source searchSource) bool {
+	return s.scopes()&(1<<source) != 0
 }
 
 type searchRequest struct {
@@ -49,6 +77,7 @@ type searchRequest struct {
 	matchCase   bool
 	wholeWord   bool
 	regexpQuery bool
+	scopes      searchScopes
 }
 
 func (s *globalSearch) caseOption() *bool   { return &s.matchCase }
@@ -56,7 +85,7 @@ func (s *globalSearch) wordOption() *bool   { return &s.wholeWord }
 func (s *globalSearch) regexpOption() *bool { return &s.regexpQuery }
 
 func (s *globalSearch) request() searchRequest {
-	return searchRequest{s.input, s.matchCase, s.wholeWord, s.regexpQuery}
+	return searchRequest{s.input, s.matchCase, s.wholeWord, s.regexpQuery, s.scopes()}
 }
 
 // step moves the selected result. The next and previous commands are in the
@@ -177,7 +206,7 @@ func (a *app) syncSearchQuery() {
 	if req == s.armed {
 		return
 	}
-	if req.input != s.armed.input {
+	if req.input != s.armed.input || req.scopes != s.armed.scopes {
 		s.collapsedSources, s.collapsedResources = nil, nil
 	}
 	s.armed = req
@@ -188,6 +217,10 @@ func (a *app) syncSearchQuery() {
 	s.reveal = searchReveal{}
 	if req.input == "" {
 		s.running, s.query = false, searchQuery{}
+		return
+	}
+	if req.scopes == 0 {
+		s.running, s.query, s.problem = false, searchQuery{}, locales.NoScopeSelected()
 		return
 	}
 	q, err := compileSearchQuery(req.input, s)
@@ -207,7 +240,7 @@ func (a *app) drainSearch() {
 	select {
 	case gen := <-runner.starts:
 		if ctx := runner.contextFor(gen); ctx != nil {
-			snapshot := a.searchSnapshot(s.query)
+			snapshot := a.searchSnapshot(s.query, s.armed.scopes)
 			go guarded(func() { scanSearch(ctx, snapshot, gen, runner.batches, runner.notify) })
 		}
 	default:

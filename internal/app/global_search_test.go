@@ -82,7 +82,7 @@ func scanQuery(t *testing.T, a *app, query string) searchRun {
 	if err != nil {
 		t.Fatalf("compile %q: %v", query, err)
 	}
-	return runSearch(t, a.searchSnapshot(q))
+	return runSearch(t, a.searchSnapshot(q, searchScopeAll))
 }
 
 func TestGlobalSearchFindsEverySourceAndField(t *testing.T) {
@@ -223,7 +223,7 @@ func TestGlobalSearchCapsResultsAndReportsIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := a.searchSnapshot(q)
+	s := a.searchSnapshot(q, searchScopeAll)
 	s.limit, s.batch = 7, 3
 	got := runSearch(t, s)
 	if len(got.results) != s.limit || !got.limited {

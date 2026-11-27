@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"maps"
+	"net/url"
 	"regexp"
 	"slices"
 	"strconv"
@@ -87,6 +88,10 @@ type searchResult struct {
 	source   searchSource
 	key      string // saved request key, environment name or flow id
 	resource string
+	// method and location are the resource row's type mark and the muted
+	// place after its name.
+	method   string
+	location string
 	field    string // catalog label for display
 	kind     searchFieldKind
 	text     string
@@ -290,6 +295,7 @@ func (f searchSecrets) key(value string) string {
 // while a frame is being built.
 type searchSnapshot struct {
 	query          searchQuery
+	scopes         searchScopes
 	secrets        searchSecrets
 	sources        []searchSourceSnapshot
 	envs           []environment
@@ -307,6 +313,7 @@ type searchSnapshot struct {
 // ranges the worker is reading.
 type searchSourceSnapshot struct {
 	owner, key, resource, collection string
+	method                           string
 	fields                           []searchField
 }
 
@@ -317,7 +324,7 @@ type searchField struct {
 	text  string
 }
 
-func (a *app) searchSnapshot(query searchQuery) searchSnapshot {
+func (a *app) searchSnapshot(query searchQuery, scopes searchScopes) searchSnapshot {
 	flows := slices.Clone(a.flows)
 	for i := range flows {
 		flows[i].columnData = nil
@@ -333,7 +340,7 @@ func (a *app) searchSnapshot(query searchQuery) searchSnapshot {
 			fields = append(fields, searchField{f.field, searchCodeKind(f.code), f.code, f.text})
 		}
 		sources = append(sources, searchSourceSnapshot{owner: source.owner, key: source.key,
-			resource: source.resource, collection: source.collection, fields: fields})
+			resource: source.resource, collection: source.collection, method: source.value.Method, fields: fields})
 	}
 	for _, folder := range a.folders {
 		fields := make([]searchField, 0, len(folder.Variables)+3)
@@ -356,6 +363,7 @@ func (a *app) searchSnapshot(query searchQuery) searchSnapshot {
 	}
 	return searchSnapshot{
 		query:          query,
+		scopes:         scopes,
 		secrets:        newSearchSecrets(values),
 		sources:        sources,
 		envs:           slices.Clone(a.envs),
@@ -392,6 +400,9 @@ func searchCodeKind(code string) searchFieldKind {
 func scanSearch(ctx context.Context, s searchSnapshot, gen uint64, sink chan<- searchBatch, notify func()) {
 	if s.limit <= 0 {
 		s.limit = globalSearchLimit
+	}
+	if s.scopes == 0 {
+		s.scopes = searchScopeAll
 	}
 	if s.batch <= 0 {
 		s.batch = globalSearchBatchSize
@@ -439,13 +450,22 @@ func scanSearch(ctx context.Context, s searchSnapshot, gen uint64, sink chan<- s
 		return true
 	}
 
-	for _, scan := range []func(context.Context, searchSnapshot, func(searchResult) bool) bool{
-		scanAuthoredSources, scanEnvironments, scanFlows,
-	} {
+	scans := []struct {
+		scope searchScopes
+		scan  func(context.Context, searchSnapshot, func(searchResult) bool) bool
+	}{
+		{searchScopeRequests, scanAuthoredSources},
+		{searchScopeVariables, scanEnvironments},
+		{searchScopeTraffic, scanFlows},
+	}
+	for _, entry := range scans {
 		if ctx.Err() != nil {
 			return
 		}
-		if limited || !scan(ctx, s, add) {
+		if s.scopes&entry.scope == 0 {
+			continue
+		}
+		if limited || !entry.scan(ctx, s, add) {
 			break
 		}
 	}
@@ -472,6 +492,7 @@ func scanAuthoredSources(ctx context.Context, s searchSnapshot, add func(searchR
 			label, kind, code := field.label, field.kind, field.code
 			if !scanField(ctx, s, func(line string, number, base, from, to int) searchResult {
 				r := searchResult{source: searchCollections, key: key, resource: resource,
+					method: source.method, location: source.collection,
 					field: label, kind: kind, text: line, start: from, end: to, line: number,
 					fieldText: field.text}
 				r.target = searchTarget{owner: source.owner, key: source.key, code: code,
@@ -557,10 +578,14 @@ func scanVariable(ctx context.Context, s searchSnapshot, add func(searchResult) 
 		text += " = " + value
 		valueAt += 3
 	}
-	key, resource := s.secrets.key(env), s.secrets.resource(cmp.Or(env, locales.GlobalVariable()))
+	key, resource := s.secrets.key(env), s.secrets.resource(name)
+	location := env
+	if location == "" {
+		location = locales.ScopeGlobal()
+	}
 	return scanField(ctx, s, func(line string, number, base, from, to int) searchResult {
 		r := searchResult{source: searchEnvironments, key: key, resource: resource,
-			field: field, text: line, start: from, end: to, line: number, env: env, variable: name}
+			location: location, field: field, text: line, start: from, end: to, line: number, env: env, variable: name}
 		if from >= valueAt {
 			r.target = searchTarget{owner: owner, key: env, code: name, valueKind: owner,
 				start: from - valueAt, end: to - valueAt, index: 0}
@@ -583,7 +608,7 @@ func scanFlows(ctx context.Context, s searchSnapshot, add func(searchResult) boo
 		if ctx.Err() != nil {
 			return false
 		}
-		resource := s.secrets.resource(cmp.Or(f.method, "GET") + " " + f.url)
+		resource := s.secrets.resource(cmp.Or(f.method, "GET") + " " + requestPath(f.url))
 		key := s.secrets.key(strconv.Itoa(f.id))
 		fields := []struct {
 			label string
@@ -612,6 +637,7 @@ func scanFlows(ctx context.Context, s searchSnapshot, add func(searchResult) boo
 			side, label, kind := field.side, field.label, field.kind
 			if !scanField(ctx, s, func(line string, number, base, from, to int) searchResult {
 				return searchResult{source: searchFlows, key: key, resource: resource,
+					method: f.method, location: flowHost(f.url),
 					field: label, kind: kind, text: line, start: from, end: to, line: number,
 					flowID: f.id, side: side}
 			}, add, field.text) {
@@ -653,4 +679,14 @@ func scanField(ctx context.Context, s searchSnapshot, result func(string, int, i
 		}
 	}
 	return true
+}
+
+// flowHost is a traffic row's muted place: the request's host, without its
+// query or userinfo.
+func flowHost(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Hostname() == "" {
+		return raw
+	}
+	return u.Host
 }

@@ -485,6 +485,15 @@ func registerGlobalCommands() *commandRegistry {
 	// Ctrl/Cmd+Tab belongs to VS Code's MRU quick switch instead.
 	r.add("request.next-tab", locales.NextOpenRequest(), func(x *commandContext) { x.a.cycleDocument(1) }).
 		when(func(x *commandContext) bool { return len(x.a.documents) > 0 }, locales.OpenARequestFirst())
+	// The strip's searchable list: the same picker its ⌄ opens, from the
+	// keyboard as VS Code's Open Editor.
+	r.add("tabs.search", locales.SearchOpenTabs(), func(x *commandContext) {
+		x.a.tabPicker.open = true
+		x.a.tabPicker.state.Query, x.a.tabPicker.state.Selected = "", 0
+		x.a.invalidate()
+	}).when(func(x *commandContext) bool {
+		return slices.ContainsFunc(x.a.tabsGroup().tabs(), func(e tabEntry) bool { return !e.fixed })
+	}, locales.OpenARequestFirst()).keys(ui.Cmd|ui.Shift, ui.KeyA)
 	r.add("request.previous-tab", locales.PreviousOpenRequest(), func(x *commandContext) { x.a.cycleDocument(-1) }).
 		when(func(x *commandContext) bool { return len(x.a.documents) > 0 }, locales.OpenARequestFirst())
 	r.add("request.switch-mru-next", locales.NextRecentlyUsedRequest(), func(x *commandContext) { x.a.cycleDocumentMRU(1) }).
@@ -582,6 +591,10 @@ func registerGlobalCommands() *commandRegistry {
 	r.add("view.sidebar", locales.ToggleSidebar(), func(x *commandContext) {
 		x.a.workbench.sidebarHidden = !x.a.workbench.sidebarHidden
 	}).keys(ui.Cmd, ui.KeyB)
+	r.add("view.right-sidebar", locales.ToggleRightSidebar(), func(x *commandContext) {
+		x.a.toggleRightSidebar()
+	}).mark(func(x *commandContext) check { return checkbox(x.a.rightSidebar.open) }).
+		keys(ui.Cmd|ui.Alt, ui.KeyB)
 	r.add("view.json-path", locales.ShowJsonPath(), func(x *commandContext) {
 		x.a.showJSONPath = !x.a.showJSONPath
 	}).mark(func(x *commandContext) check { return checkbox(x.a.showJSONPath) })

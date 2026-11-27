@@ -36,6 +36,8 @@ var (
 	collectionsIcon   = lucide.Library()
 	sidebarOpenIcon   = lucide.PanelLeftOpen()
 	sidebarCloseIcon  = lucide.PanelLeftClose()
+	rightOpenIcon     = lucide.PanelRightOpen()
+	rightCloseIcon    = lucide.PanelRightClose()
 	monitorIcon       = lucide.Monitor()
 	layersIcon        = lucide.Layers()
 	layersPlusIcon    = lucide.LayersPlus()

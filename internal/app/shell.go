@@ -30,7 +30,9 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 		ui.Spacer(c)
 		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceHair)).AlignItems(ui.Center).PaddingEnd(max(bar.Right, t.Space(uikit.SpaceL))).Children(func() {
 			// The layout switches pair across the bar: the sidebar's at the
-			// start, the screen's split here, as VS Code keeps them.
+			// start, the request workspace's third column and the screen's
+			// split here, as VS Code keeps them.
+			a.rightSidebarToggle(c)
 			a.layoutToggle(c)
 			// One gear, as VS Code's Manage: Settings and the debugging
 			// tools share a window, and everything else is one menu.
@@ -122,6 +124,24 @@ func (a *app) sidebarToggle(c *ui.Context) {
 	if b.Clicked() {
 		a.workbench.sidebarHidden = !a.workbench.sidebarHidden
 	}
+}
+
+// rightSidebarToggle opens or closes the request workspace's third column.
+// It keeps its place on every screen; the column itself belongs to requests.
+func (a *app) rightSidebarToggle(c *ui.Context) {
+	label, icon := locales.ShowRightSidebar(), rightOpenIcon
+	if a.rightSidebar.open {
+		label, icon = locales.HideRightSidebar(), rightCloseIcon
+	}
+	b := uikit.IconButton(c, label, label, icon)
+	if b.Clicked() {
+		a.toggleRightSidebar()
+	}
+}
+
+func (a *app) toggleRightSidebar() {
+	a.rightSidebar.open = !a.rightSidebar.open
+	a.rightSidebar.splitReady = false
 }
 
 // layoutToggle switches the current screen's split: the inspector beside the

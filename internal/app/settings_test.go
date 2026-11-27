@@ -24,20 +24,22 @@ import (
 func TestSettingsRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	want := settings{
-		Appearance:       "dark",
-		SidebarWidth:     264,
-		TablePercent:     55,
-		InspectorLayout:  "right",
-		SideTablePercent: 61,
-		DiffSplit:        58,
-		SidebarHidden:    true,
-		ShowJSONPath:     true,
-		Columns:          columnLayout{Order: []string{"status", "url"}, Widths: map[string]float32{"url": 320}},
-		CustomColumns:    []customColumn{{Source: sourceQuery, Name: "Page"}, {Source: sourceResponseJSON, Name: "/data/ID"}, {Source: sourceRequestJSON, Name: "/id"}, graphqlColumn},
-		HiddenColumns:    []string{"client"},
-		ShownColumns:     []string{"latency", "comment"},
-		KeyLogPath:       "/tmp/keys.log",
-		ProxyPort:        9091,
+		Appearance:        "dark",
+		SidebarWidth:      264,
+		TablePercent:      55,
+		InspectorLayout:   "right",
+		SideTablePercent:  61,
+		DiffSplit:         58,
+		SidebarHidden:     true,
+		RightSidebar:      true,
+		RightSidebarWidth: 300,
+		ShowJSONPath:      true,
+		Columns:           columnLayout{Order: []string{"status", "url"}, Widths: map[string]float32{"url": 320}},
+		CustomColumns:     []customColumn{{Source: sourceQuery, Name: "Page"}, {Source: sourceResponseJSON, Name: "/data/ID"}, {Source: sourceRequestJSON, Name: "/id"}, graphqlColumn},
+		HiddenColumns:     []string{"client"},
+		ShownColumns:      []string{"latency", "comment"},
+		KeyLogPath:        "/tmp/keys.log",
+		ProxyPort:         9091,
 		Certificates: certs.Settings{
 			Clients:          []certs.Client{{ID: "one", Host: "api.example.com", Format: certs.FormatPEM, CertFile: "/tmp/client.pem", KeyFile: "/tmp/client.key"}},
 			RootCAs:          []string{"/tmp/root.pem"},
@@ -61,6 +63,27 @@ func TestSettingsRoundTrip(t *testing.T) {
 	changed.Certificates.RootCAs = []string{"/tmp/other.pem"}
 	if sameSettings(want, changed) {
 		t.Fatal("a changed certificate root did not change the settings")
+	}
+}
+
+// TestOldSettingsWithoutRightSidebarLoad covers the additive layout fields:
+// a file written before the third column existed still loads, with the column
+// closed and its width left for the default.
+func TestOldSettingsWithoutRightSidebarLoad(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	old := []byte("{\"appearance\":\"light\",\"sidebarWidth\":240}\n")
+	if err := store.WriteFileVersioned(path, store.Settings, old, ""); err != nil {
+		t.Fatal(err)
+	}
+	s, err := loadSettings(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.RightSidebar || s.RightSidebarWidth != 0 {
+		t.Fatalf("old settings invented a right sidebar: %+v", s)
+	}
+	if s.Appearance != "light" || s.SidebarWidth != 240 {
+		t.Fatalf("old settings did not load: %+v", s)
 	}
 }
 

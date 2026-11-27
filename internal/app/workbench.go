@@ -61,14 +61,25 @@ func (w *desktopWorkbench) openPalette() {
 	w.commands.ScrollTo(0, ui.Start)
 }
 
-// contentWidth is the room the main pane has beside the sidebar.
-func (a *app) contentWidth(c *ui.Context) float32 {
+// workspaceWidth is the room the main column has beside the sidebar, before
+// the request workspace's own right sidebar takes its share.
+func (a *app) workspaceWidth(c *ui.Context) float32 {
 	width, _ := c.Size()
 	if a.inspectorInWindow {
 		return width
 	}
 	if a.sidebarShown() {
 		width -= a.sidebarWidth + 6
+	}
+	return width
+}
+
+// contentWidth is the room the request editor itself has: the main column
+// less the right sidebar when it is open.
+func (a *app) contentWidth(c *ui.Context) float32 {
+	width := a.workspaceWidth(c)
+	if a.rightSidebarShown() {
+		width -= clampRightSidebar(cmp.Or(a.rightSidebar.width, 280)) + 1
 	}
 	return width
 }

@@ -41239,3 +41239,391 @@ func OtherMcpClient() string { return In(i18n.Locale()).OtherMcpClient() }
 func (msgs Messages) OtherMcpClient() string {
 	return Catalog.Format(msgs.locale, "otherMcpClient", nil)
 }
+
+// SearchTabs says "Search tabs"
+// in the language the app shows.
+func SearchTabs() string { return In(i18n.Locale()).SearchTabs() }
+
+// SearchTabs says "Search tabs"
+// in the language of msgs.
+func (msgs Messages) SearchTabs() string {
+	return Catalog.Format(msgs.locale, "searchTabs", nil)
+}
+
+// NoMatchingTabs says "No tabs match"
+// in the language the app shows.
+func NoMatchingTabs() string { return In(i18n.Locale()).NoMatchingTabs() }
+
+// NoMatchingTabs says "No tabs match"
+// in the language of msgs.
+func (msgs Messages) NoMatchingTabs() string {
+	return Catalog.Format(msgs.locale, "noMatchingTabs", nil)
+}
+
+// SelectHint says "Select"
+// in the language the app shows.
+func SelectHint() string { return In(i18n.Locale()).SelectHint() }
+
+// SelectHint says "Select"
+// in the language of msgs.
+func (msgs Messages) SelectHint() string {
+	return Catalog.Format(msgs.locale, "selectHint", nil)
+}
+
+// CloseTab says "Close tab"
+// in the language the app shows.
+func CloseTab() string { return In(i18n.Locale()).CloseTab() }
+
+// CloseTab says "Close tab"
+// in the language of msgs.
+func (msgs Messages) CloseTab() string {
+	return Catalog.Format(msgs.locale, "closeTab", nil)
+}
+
+// SearchOpenTabs says "Search open tabs"
+// in the language the app shows.
+func SearchOpenTabs() string { return In(i18n.Locale()).SearchOpenTabs() }
+
+// SearchOpenTabs says "Search open tabs"
+// in the language of msgs.
+func (msgs Messages) SearchOpenTabs() string {
+	return Catalog.Format(msgs.locale, "searchOpenTabs", nil)
+}
+
+// OpenTabsGroup says "Open"
+// in the language the app shows.
+func OpenTabsGroup() string { return In(i18n.Locale()).OpenTabsGroup() }
+
+// OpenTabsGroup says "Open"
+// in the language of msgs.
+func (msgs Messages) OpenTabsGroup() string {
+	return Catalog.Format(msgs.locale, "openTabsGroup", nil)
+}
+
+// RecentlyClosedGroup says "Recently closed"
+// in the language the app shows.
+func RecentlyClosedGroup() string { return In(i18n.Locale()).RecentlyClosedGroup() }
+
+// RecentlyClosedGroup says "Recently closed"
+// in the language of msgs.
+func (msgs Messages) RecentlyClosedGroup() string {
+	return Catalog.Format(msgs.locale, "recentlyClosedGroup", nil)
+}
+
+// ToggleRightSidebar says "Toggle right sidebar"
+// in the language the app shows.
+func ToggleRightSidebar() string { return In(i18n.Locale()).ToggleRightSidebar() }
+
+// ToggleRightSidebar says "Toggle right sidebar"
+// in the language of msgs.
+func (msgs Messages) ToggleRightSidebar() string {
+	return Catalog.Format(msgs.locale, "toggleRightSidebar", nil)
+}
+
+// HideRightSidebar says "Hide right sidebar"
+// in the language the app shows.
+func HideRightSidebar() string { return In(i18n.Locale()).HideRightSidebar() }
+
+// HideRightSidebar says "Hide right sidebar"
+// in the language of msgs.
+func (msgs Messages) HideRightSidebar() string {
+	return Catalog.Format(msgs.locale, "hideRightSidebar", nil)
+}
+
+// ShowRightSidebar says "Show right sidebar"
+// in the language the app shows.
+func ShowRightSidebar() string { return In(i18n.Locale()).ShowRightSidebar() }
+
+// ShowRightSidebar says "Show right sidebar"
+// in the language of msgs.
+func (msgs Messages) ShowRightSidebar() string {
+	return Catalog.Format(msgs.locale, "showRightSidebar", nil)
+}
+
+// VariablesInRequest says "Variables in request"
+// in the language the app shows.
+func VariablesInRequest() string { return In(i18n.Locale()).VariablesInRequest() }
+
+// VariablesInRequest says "Variables in request"
+// in the language of msgs.
+func (msgs Messages) VariablesInRequest() string {
+	return Catalog.Format(msgs.locale, "variablesInRequest", nil)
+}
+
+// AllVariables says "All variables"
+// in the language the app shows.
+func AllVariables() string { return In(i18n.Locale()).AllVariables() }
+
+// AllVariables says "All variables"
+// in the language of msgs.
+func (msgs Messages) AllVariables() string {
+	return Catalog.Format(msgs.locale, "allVariables", nil)
+}
+
+// NotDefinedInAnyScope says "Not defined in any scope"
+// in the language the app shows.
+func NotDefinedInAnyScope() string { return In(i18n.Locale()).NotDefinedInAnyScope() }
+
+// NotDefinedInAnyScope says "Not defined in any scope"
+// in the language of msgs.
+func (msgs Messages) NotDefinedInAnyScope() string {
+	return Catalog.Format(msgs.locale, "notDefinedInAnyScope", nil)
+}
+
+// EditScope says "Edit"
+// in the language the app shows.
+func EditScope() string { return In(i18n.Locale()).EditScope() }
+
+// EditScope says "Edit"
+// in the language of msgs.
+func (msgs Messages) EditScope() string {
+	return Catalog.Format(msgs.locale, "editScope", nil)
+}
+
+// KeepVariables says "Keep '{{variables}}'"
+// in the language the app shows.
+func KeepVariables() string { return In(i18n.Locale()).KeepVariables() }
+
+// KeepVariables says "Keep '{{variables}}'"
+// in the language of msgs.
+func (msgs Messages) KeepVariables() string {
+	return Catalog.Format(msgs.locale, "keepVariables", nil)
+}
+
+// CodeSnippetCaption says "Variables resolved with {environment}. Secrets stay masked until you copy."
+// in the language the app shows.
+func CodeSnippetCaption(environment string) string {
+	return In(i18n.Locale()).CodeSnippetCaption(environment)
+}
+
+// CodeSnippetCaption says "Variables resolved with {environment}. Secrets stay masked until you copy."
+// in the language of msgs.
+func (msgs Messages) CodeSnippetCaption(environment string) string {
+	return Catalog.Format(msgs.locale, "codeSnippetCaption", map[string]any{"environment": environment})
+}
+
+// Details says "Details"
+// in the language the app shows.
+func Details() string { return In(i18n.Locale()).Details() }
+
+// Details says "Details"
+// in the language of msgs.
+func (msgs Messages) Details() string {
+	return Catalog.Format(msgs.locale, "details", nil)
+}
+
+// LastSent says "Last sent"
+// in the language the app shows.
+func LastSent() string { return In(i18n.Locale()).LastSent() }
+
+// LastSent says "Last sent"
+// in the language of msgs.
+func (msgs Messages) LastSent() string {
+	return Catalog.Format(msgs.locale, "lastSent", nil)
+}
+
+// RequestId says "ID"
+// in the language the app shows.
+func RequestId() string { return In(i18n.Locale()).RequestId() }
+
+// RequestId says "ID"
+// in the language of msgs.
+func (msgs Messages) RequestId() string {
+	return Catalog.Format(msgs.locale, "requestId", nil)
+}
+
+// ReplaceSearchResultsInResources says "Replace {matches} results in {resources} resources"
+// in the language the app shows.
+func ReplaceSearchResultsInResources(matches string, resources string) string {
+	return In(i18n.Locale()).ReplaceSearchResultsInResources(matches, resources)
+}
+
+// ReplaceSearchResultsInResources says "Replace {matches} results in {resources} resources"
+// in the language of msgs.
+func (msgs Messages) ReplaceSearchResultsInResources(matches string, resources string) string {
+	return Catalog.Format(msgs.locale, "replaceSearchResultsInResources", map[string]any{"matches": matches, "resources": resources})
+}
+
+// PreserveCase says "Preserve Case"
+// in the language the app shows.
+func PreserveCase() string { return In(i18n.Locale()).PreserveCase() }
+
+// PreserveCase says "Preserve Case"
+// in the language of msgs.
+func (msgs Messages) PreserveCase() string {
+	return Catalog.Format(msgs.locale, "preserveCase", nil)
+}
+
+// ReplaceAllInThisResource says "Replace All in this Resource"
+// in the language the app shows.
+func ReplaceAllInThisResource() string { return In(i18n.Locale()).ReplaceAllInThisResource() }
+
+// ReplaceAllInThisResource says "Replace All in this Resource"
+// in the language of msgs.
+func (msgs Messages) ReplaceAllInThisResource() string {
+	return Catalog.Format(msgs.locale, "replaceAllInThisResource", nil)
+}
+
+// DismissResult says "Dismiss"
+// in the language the app shows.
+func DismissResult() string { return In(i18n.Locale()).DismissResult() }
+
+// DismissResult says "Dismiss"
+// in the language of msgs.
+func (msgs Messages) DismissResult() string {
+	return Catalog.Format(msgs.locale, "dismissResult", nil)
+}
+
+// CollapseAll says "Collapse All"
+// in the language the app shows.
+func CollapseAll() string { return In(i18n.Locale()).CollapseAll() }
+
+// CollapseAll says "Collapse All"
+// in the language of msgs.
+func (msgs Messages) CollapseAll() string {
+	return Catalog.Format(msgs.locale, "collapseAll", nil)
+}
+
+// SearchScope says "Search in"
+// in the language the app shows.
+func SearchScope() string { return In(i18n.Locale()).SearchScope() }
+
+// SearchScope says "Search in"
+// in the language of msgs.
+func (msgs Messages) SearchScope() string {
+	return Catalog.Format(msgs.locale, "searchScope", nil)
+}
+
+// SearchScopeRequests says "Requests"
+// in the language the app shows.
+func SearchScopeRequests() string { return In(i18n.Locale()).SearchScopeRequests() }
+
+// SearchScopeRequests says "Requests"
+// in the language of msgs.
+func (msgs Messages) SearchScopeRequests() string {
+	return Catalog.Format(msgs.locale, "searchScopeRequests", nil)
+}
+
+// SearchScopeVariables says "Variables"
+// in the language the app shows.
+func SearchScopeVariables() string { return In(i18n.Locale()).SearchScopeVariables() }
+
+// SearchScopeVariables says "Variables"
+// in the language of msgs.
+func (msgs Messages) SearchScopeVariables() string {
+	return Catalog.Format(msgs.locale, "searchScopeVariables", nil)
+}
+
+// SearchScopeTraffic says "Traffic"
+// in the language the app shows.
+func SearchScopeTraffic() string { return In(i18n.Locale()).SearchScopeTraffic() }
+
+// SearchScopeTraffic says "Traffic"
+// in the language of msgs.
+func (msgs Messages) SearchScopeTraffic() string {
+	return Catalog.Format(msgs.locale, "searchScopeTraffic", nil)
+}
+
+// ReplaceSearchConfirm says "Replace {matches} occurrences across {resources} resources with “{replacement}”?"
+// in the language the app shows.
+func ReplaceSearchConfirm(matches string, resources string, replacement string) string {
+	return In(i18n.Locale()).ReplaceSearchConfirm(matches, resources, replacement)
+}
+
+// ReplaceSearchConfirm says "Replace {matches} occurrences across {resources} resources with “{replacement}”?"
+// in the language of msgs.
+func (msgs Messages) ReplaceSearchConfirm(matches string, resources string, replacement string) string {
+	return Catalog.Format(msgs.locale, "replaceSearchConfirm", map[string]any{"matches": matches, "resources": resources, "replacement": replacement})
+}
+
+// NoScopeSelected says "Choose at least one source to search."
+// in the language the app shows.
+func NoScopeSelected() string { return In(i18n.Locale()).NoScopeSelected() }
+
+// NoScopeSelected says "Choose at least one source to search."
+// in the language of msgs.
+func (msgs Messages) NoScopeSelected() string {
+	return Catalog.Format(msgs.locale, "noScopeSelected", nil)
+}
+
+// Info says "Info"
+// in the language the app shows.
+func Info() string { return In(i18n.Locale()).Info() }
+
+// Info says "Info"
+// in the language of msgs.
+func (msgs Messages) Info() string {
+	return Catalog.Format(msgs.locale, "info", nil)
+}
+
+// Add says "Add"
+// in the language the app shows.
+func Add() string { return In(i18n.Locale()).Add() }
+
+// Add says "Add"
+// in the language of msgs.
+func (msgs Messages) Add() string {
+	return Catalog.Format(msgs.locale, "add", nil)
+}
+
+// CodeKeepCaption says "'{{variables}}' stay as written."
+// in the language the app shows.
+func CodeKeepCaption() string { return In(i18n.Locale()).CodeKeepCaption() }
+
+// CodeKeepCaption says "'{{variables}}' stay as written."
+// in the language of msgs.
+func (msgs Messages) CodeKeepCaption() string {
+	return Catalog.Format(msgs.locale, "codeKeepCaption", nil)
+}
+
+// CodeCopyResolvedCaption says "Variables resolved with {environment}. Secrets stay masked; Copy uses the real values."
+// in the language the app shows.
+func CodeCopyResolvedCaption(environment string) string {
+	return In(i18n.Locale()).CodeCopyResolvedCaption(environment)
+}
+
+// CodeCopyResolvedCaption says "Variables resolved with {environment}. Secrets stay masked; Copy uses the real values."
+// in the language of msgs.
+func (msgs Messages) CodeCopyResolvedCaption(environment string) string {
+	return Catalog.Format(msgs.locale, "codeCopyResolvedCaption", map[string]any{"environment": environment})
+}
+
+// CopiedRequestId says "Copied request ID"
+// in the language the app shows.
+func CopiedRequestId() string { return In(i18n.Locale()).CopiedRequestId() }
+
+// CopiedRequestId says "Copied request ID"
+// in the language of msgs.
+func (msgs Messages) CopiedRequestId() string {
+	return Catalog.Format(msgs.locale, "copiedRequestId", nil)
+}
+
+// SearchInSource says "Search {source}"
+// in the language the app shows.
+func SearchInSource(source string) string { return In(i18n.Locale()).SearchInSource(source) }
+
+// SearchInSource says "Search {source}"
+// in the language of msgs.
+func (msgs Messages) SearchInSource(source string) string {
+	return Catalog.Format(msgs.locale, "searchInSource", map[string]any{"source": source})
+}
+
+// SearchSourceResults says "{source} results"
+// in the language the app shows.
+func SearchSourceResults(source string) string { return In(i18n.Locale()).SearchSourceResults(source) }
+
+// SearchSourceResults says "{source} results"
+// in the language of msgs.
+func (msgs Messages) SearchSourceResults(source string) string {
+	return Catalog.Format(msgs.locale, "searchSourceResults", map[string]any{"source": source})
+}
+
+// PreserveCaseBadge says "AB"
+// in the language the app shows.
+func PreserveCaseBadge() string { return In(i18n.Locale()).PreserveCaseBadge() }
+
+// PreserveCaseBadge says "AB"
+// in the language of msgs.
+func (msgs Messages) PreserveCaseBadge() string {
+	return Catalog.Format(msgs.locale, "preserveCaseBadge", nil)
+}

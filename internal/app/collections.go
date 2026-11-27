@@ -30,6 +30,8 @@ type folderEditor struct {
 	pre, post       *editor.State
 	preFor, postFor string
 	problem         string
+	// focus names the variable row to focus after the sidebar added it.
+	focus string
 	// settings are the request defaults this level sets; timeout and
 	// maxRedirects are their inputs, seeded from the effective values.
 	settings     request.Settings
@@ -413,8 +415,9 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 					uikit.Meta(c, locales.EnvironmentValuesOverrideTheseA())
 					uikit.Hint(c, locales.InitialValuesAreSharedAnd2())
 					a.variableTable(c, &f.variables, variableTableOptions{
-						enable: true, scope: folderScope(f.draft.Path), reveal: a.variableRefs.reveal.name,
+						enable: true, scope: folderScope(f.draft.Path), reveal: a.variableRefs.reveal.name, focus: f.focus,
 					})
+					f.focus = ""
 				case 3:
 					uikit.TextArea(c, &f.draft.Description).Label(locales.Description()).Placeholder(locales.WhatTheseRequestsAreFor()).Font(uikit.FontMono).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)
 				case 4:

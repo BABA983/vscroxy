@@ -280,3 +280,25 @@ func SwatchButton(c *ui.Context, label string, color ui.Color, chosen bool) ui.E
 		}
 	})
 }
+
+// FilterChip is a small multi-select chip: a filled wash with ink text while
+// on, a hairline with muted text while off, and the hover wash either way.
+// The caller reads Clicked and flips its own state.
+func FilterChip(c *ui.Context, label string, on bool) ui.Element {
+	t, p := c.Theme(), Colors(c.Theme())
+	b := ui.ButtonBase(c).Label(label).Height(18).Padding(0, Scaled(SpaceS)+2).
+		Radius(9).AlignItems(ui.Center).Gap(t.Space(SpaceXS))
+	ink := t.TextMuted
+	if on {
+		b.Background(p.Muted)
+		ink = t.Text
+	} else {
+		b.InsetShadow(0, 0, 0, HairlineWidth, p.Border)
+	}
+	if b.Hovered() || b.Pressed() {
+		b.Background(p.MutedHover)
+	}
+	b.TextColor(ink)
+	b.Children(func() { ui.Text(c, label).FontSize(Scaled(TextMeta)).LineHeight(LineMeta).AccessHidden(true) })
+	return b
+}
