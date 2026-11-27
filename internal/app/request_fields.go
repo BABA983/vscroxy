@@ -19,6 +19,15 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 )
 
+// numberText seeds a number field's text from its value the first time the
+// field is drawn. A caller that resets the value from elsewhere resets the
+// text with it.
+func numberText(text *string, value float64) {
+	if *text == "" {
+		*text = strconv.Itoa(int(value))
+	}
+}
+
 // pathEditor edits the values of the URL's :name path segments. The names come
 // from the URL, so there are no rows to add or remove; a blank value is sent as
 // {{name}}.
@@ -624,7 +633,7 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				})
 				if inherited {
 					ui.Column(c).Disabled(true).Children(func() {
-						ui.Form(c, func() { a.authFieldRows(c, shown, d.composeCollection, d.unicodeHandle) })
+						ui.Form(c, func() { a.authFieldRows(c, shown, d.composeCollection, &d.asapExpiryText, d.unicodeHandle) })
 					})
 					text := locales.NoAuthSet()
 					if from != "" {
@@ -637,7 +646,7 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 						}
 					})
 				} else {
-					ui.Form(c, func() { a.authFieldRows(c, shown, d.composeCollection, d.unicodeHandle) })
+					ui.Form(c, func() { a.authFieldRows(c, shown, d.composeCollection, &d.asapExpiryText, d.unicodeHandle) })
 				}
 			})
 		})
@@ -653,7 +662,7 @@ var authTypes = []string{"None", "Bearer", "Basic", "API key", request.AuthOAuth
 
 // authFields edits one Auth in a Form: its type, then the fields that type
 // uses. The request tab puts the type beside the fields instead.
-func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, collection string, focus ...func(string) *ui.Handle) {
+func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, collection string, asapExpiryText *string, focus ...func(string) *ui.Handle) {
 	t := c.Theme()
 	if auth.Type != request.AuthInherit {
 		uikit.Meta(c, locales.PreferVariablesOrVaultName())
@@ -662,13 +671,13 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 		ui.Field(c, locales.TypeText(), func() {
 			uikit.Select(c, &auth.Type, types).Label(locales.AuthorizationType()).Width(uikit.WidthWide)
 		})
-		a.authFieldRows(c, auth, collection, focus...)
+		a.authFieldRows(c, auth, collection, asapExpiryText, focus...)
 	}).Gap(t.Space(uikit.SpaceL))
 }
 
 // authFieldRows draws the fields the chosen type uses, inside a Form so their
 // labels line up with the control beside them.
-func (a *app) authFieldRows(c *ui.Context, auth *request.Auth, collection string, focus ...func(string) *ui.Handle) {
+func (a *app) authFieldRows(c *ui.Context, auth *request.Auth, collection string, asapExpiryText *string, focus ...func(string) *ui.Handle) {
 	bind := func(element ui.Element, label string) ui.Element {
 		if len(focus) > 0 && focus[0] != nil {
 			if handle := focus[0]("auth-" + label); handle != nil {
@@ -860,10 +869,10 @@ func (a *app) authFieldRows(c *ui.Context, auth *request.Auth, collection string
 		})
 		ui.Field(c, locales.Expiry(), func() {
 			expiry := float64(cmp.Or(s.Expiry, 3600))
-			// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-			if ui.NumberInput(c, &expiry, 1, 86400, 1).Label(locales.Expiry()).Changed() {
+			numberText(asapExpiryText, expiry)
+			uikit.NumberField(c, asapExpiryText, &expiry, 1, 86400, 1, "s", locales.Expiry(), "", func() {
 				s.Expiry = int(expiry)
-			}
+			})
 			uikit.Meta(c, locales.AsapExpiryHint())
 		})
 	case request.AuthEdgeGrid:
@@ -932,10 +941,10 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 				}
 				if d.graphql.Transport != "" {
 					wait := float64(cmp.Or(d.graphql.WaitMS, 5000))
-					// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-					if ui.NumberInput(c, &wait, 100, 60000, 100).Label(locales.WaitMilliseconds()).Width(uikit.WidthPicker).Changed() {
+					numberText(&d.graphqlWaitText, wait)
+					uikit.NumberField(c, &d.graphqlWaitText, &wait, 100, 60000, 100, "ms", locales.WaitMilliseconds(), "", func() {
 						d.graphql.WaitMS = int(wait)
-					}
+					})
 				}
 			})
 			if d.graphql.Transport != "" {
@@ -1007,8 +1016,8 @@ func (a *app) webSocketMessagesEditor(c *ui.Context, d *requestDocument, t *ui.T
 	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Wrap().AlignItems(ui.Center).Children(func() {
 			uikit.Meta(c, locales.WebSocketMessagesHelp()).Grow(1).MinWidth(uikit.WidthFieldWide)
-			// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-			ui.NumberInput(c, &d.wsWait, 0, 60000, 100).Label(locales.WebSocketReplyWindowMs()).Width(uikit.WidthField)
+			numberText(&d.wsWaitText, d.wsWait)
+			uikit.NumberField(c, &d.wsWaitText, &d.wsWait, 0, 60000, 100, "ms", locales.WebSocketReplyWindowMs(), "", nil)
 		})
 		ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Children(func() {
 			for i := range d.wsMessages {
@@ -1123,7 +1132,7 @@ func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
 		}
 		a.protobufReader(c, draftFlow(d), 1)
 	case formats[view] == inspect.BodyFormat(ct):
-		a.structured[1].view(c, a, inspectionBody{text: body}, ct)
+		a.structured[1].view(c, a, inspectionBody{text: body}, ct, !a.bodyNoWrap[1])
 	case formats[view] == locales.Preview():
 		a.previewBody(c, draftFlow(d), body, 1)
 	case formats[view] == locales.Hex():

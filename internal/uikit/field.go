@@ -19,18 +19,34 @@ func numberInvalid(text string, lo, hi float64) bool {
 	return err != nil || v < lo || v > hi
 }
 
+// numberTip says why an invalid number field is red: its allowed range, after
+// any caller explanation. A valid field keeps the caller's tip alone.
+func numberTip(tip string, invalid bool, lo, hi float64) string {
+	if !invalid {
+		return tip
+	}
+	allowed := strconv.FormatFloat(lo, 'f', -1, 64) + "–" + strconv.FormatFloat(hi, 'f', -1, 64)
+	if tip == "" {
+		return allowed
+	}
+	return tip + " · " + allowed
+}
+
 // NumberField edits a whole number with its unit beside it, as [60] s. The
 // text holds the value across builds so a half-typed number is not replaced
-// under the caret. It is the protocol editors' number control.
-func NumberField(c *ui.Context, text *string, value *float64, lo, hi float64, unit, label, tip string, changed func()) ui.Element {
+// under the caret. Up and Down step it by step, clamped to lo and hi, as
+// MyGo's number input does without its buttons. It is the protocol editors'
+// number control.
+func NumberField(c *ui.Context, text *string, value *float64, lo, hi, step float64, unit, label, tip string, changed func()) ui.Element {
 	t := c.Theme()
 	row := ui.Row(c).Gap(t.Space(SpaceXS)).AlignItems(ui.Center)
 	row.Children(func() {
-		in := InputState(c, text, numberInvalid(*text, lo, hi)).Label(label).Width(WidthNumber).Font(FontMono)
-		if tip != "" {
+		invalid := numberInvalid(*text, lo, hi)
+		in := InputState(c, text, invalid).Label(label).Width(WidthNumber).Font(FontMono)
+		if tip := numberTip(tip, invalid, lo, hi); tip != "" {
 			in = Tip(c, in, tip)
 		}
-		valid := true
+		valid := !invalid
 		if in.Changed() {
 			v, err := strconv.ParseFloat(strings.TrimSpace(*text), 64)
 			valid = err == nil && v >= lo && v <= hi
@@ -40,6 +56,28 @@ func NumberField(c *ui.Context, text *string, value *float64, lo, hi float64, un
 					changed()
 				}
 			}
+		}
+		// Up and Down keep the keyboard in the field and step the value, as
+		// the buttons an input may draw beside it would. A step from an
+		// out-of-range draft replaces the draft with the stepped value.
+		delta := float64(0)
+		if step > 0 && in.Focused() {
+			switch {
+			case in.Shortcut(0, ui.KeyUp):
+				delta = step
+			case in.Shortcut(0, ui.KeyDown):
+				delta = -step
+			}
+		}
+		if delta != 0 {
+			next := min(hi, max(lo, *value+delta))
+			if next != *value {
+				*value = next
+				if changed != nil {
+					changed()
+				}
+			}
+			*text, valid = strconv.Itoa(int(next)), true
 		}
 		// A half-typed or out-of-range number stays as typed, so the person
 		// can fix it; only a valid value is normalized back into the field.

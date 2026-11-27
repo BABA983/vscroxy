@@ -33,6 +33,7 @@ var (
 	clockIcon         = lucide.Clock()
 	backIcon          = lucide.ArrowLeft()
 	searchIcon        = lucide.Search()
+	collectionsIcon   = lucide.Library()
 	sidebarOpenIcon   = lucide.PanelLeftOpen()
 	sidebarCloseIcon  = lucide.PanelLeftClose()
 	monitorIcon       = lucide.Monitor()

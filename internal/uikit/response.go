@@ -29,7 +29,7 @@ type Timing struct {
 func ResponseMeta(c *ui.Context, duration, detail string, timing Timing) ui.Element {
 	t := c.Theme()
 	return ui.Row(c).MinWidth(0).Shrink(1).AlignItems(ui.Center).Label(locales.ResponseResult()).Children(func() {
-		d := Tip(c, Meta(c, duration).Font(FontMono).FixedLineHeight(responseMetaLine).Shrink(0), duration)
+		d := Tip(c, Meta(c, duration).FontFeatures("tnum").FixedLineHeight(responseMetaLine).Shrink(0), duration)
 		if len(timing.Phases) > 0 {
 			d.Description(locales.TimingHoverHelp())
 			ui.TooltipBase(c, d, func(tip ui.Element) {
@@ -38,7 +38,7 @@ func ResponseMeta(c *ui.Context, duration, detail string, timing Timing) ui.Elem
 			})
 		}
 		if detail != "" {
-			Tip(c, Meta(c, " · "+detail).Font(FontMono).FixedLineHeight(responseMetaLine).
+			Tip(c, Meta(c, " · "+detail).FontFeatures("tnum").FixedLineHeight(responseMetaLine).
 				SingleLine().Shrink(1).MinWidth(0), detail)
 		}
 	})

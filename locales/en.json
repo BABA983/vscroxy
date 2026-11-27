@@ -5315,6 +5315,19 @@
   "connectionLog": "Connection log",
   "connectionLogSnapshotAtCapture": "Connection log · snapshot at capture time",
   "console": "Console",
+  "toggleConsoleTip": "Show sent requests, script messages and errors",
+  "allLogs": "All logs",
+  "logLevelLog": "Log",
+  "consoleLevelFilter": "Console log level",
+  "copyAllLogs": "Copy all",
+  "consoleCopied": "Console copied",
+  "consoleEmpty": "Requests you send and what their scripts print show here.",
+  "consoleNoLevelEntries": "No entries at this level.",
+  "consoleRequestDetails": "Show request details",
+  "consoleRequestHeaders": "Request headers",
+  "consoleResponseHeaders": "Response headers",
+  "consoleResponseSize": "Response size",
+  "wrapBodyLines": "Wrap lines",
   "consoleLogAndErrorsShow": "console.log(...) and errors show here as its rules run.",
   "consumerKey": "Consumer key",
   "consumerRequestsLabel": "Consumer requests: {list}",
@@ -6003,7 +6016,8 @@
   "httpAuth": "HTTP auth",
   "httpInspectedHttpsAndSse": "HTTP, inspected HTTPS, SSE and WebSocket messages; not opaque CONNECT. Conditions apply to new exchanges and new WebSocket connections.",
   "httpInspectedHttpsAndSse2": "HTTP, inspected HTTPS, SSE and WebSocket messages; not opaque CONNECT. Failure disconnects HTTP requests and drops WebSocket messages, not TCP packets. Streamed bodies cannot match a POST GraphQL operation.",
-  "httpSHops": "HTTP(S) hops",
+  "httpSHops": "Applies to HTTP(S) requests",
+  "hops": "hops",
   "https": "HTTPS",
   "httpsDecryption": "HTTPS decryption",
   "httpsAppRuleUnavailableA": "HTTPS decryption app rule unavailable: a local executable path is required",
@@ -7149,7 +7163,7 @@
   "searchingBodiesTitle": "Searching captured bodies…",
   "seconds0DisablesKeepAlive": "0 disables keep-alive",
   "seconds0EndsTheSession": "0 ends the session when the connection closes",
-  "seconds0WaitsWithNo": "seconds · 0 waits with no request limit",
+  "seconds0WaitsWithNo": "0 waits with no request limit",
   "secret": "Secret",
   "secretKey": "Secret key",
   "secretName": "Secret name {index}",
@@ -8094,6 +8108,18 @@
     }
   },
   "searchResultsLimited": "Results limited to {count} matches",
+  "@searchResultsInResources": {
+    "placeholders": {
+      "matches": {
+        "type": "int"
+      },
+      "resources": {
+        "type": "int"
+      }
+    }
+  },
+  "searchResultsInResources": "{matches} results in {resources} resources",
+  "searchSourceRequests": "Requests",
   "searchNoResults": "No results in requests, variables or traffic",
   "searchTips": "Search tips",
   "searchTipScope": "Searches request names, URLs, headers, bodies, scripts, variables and captured traffic.",

@@ -183,7 +183,7 @@ func TestInspectorJSONQueryReadsCompleteSideAndKeepsSource(t *testing.T) {
 			tt := ui.NewTester(a.view, 1280, 800)
 			menu := side + " pane options"
 			if side == "Sent" {
-				menu = "Response format"
+				menu = "Response body format"
 			}
 			if err := tt.Click(menu); err != nil {
 				t.Fatal(err)

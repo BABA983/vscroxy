@@ -801,7 +801,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL)).FillWidth(), notice)
 	}
 	if modes[mode] == inspect.BodyFormat(f.bodyContentType(side == 0)) {
-		a.structured[side].view(c, a, capturedInspectionBody(f, side), f.bodyContentType(side == 0))
+		a.structured[side].view(c, a, capturedInspectionBody(f, side), f.bodyContentType(side == 0), !a.bodyNoWrap[side])
 		return
 	}
 	if modes[mode] == "Protobuf" {
@@ -1020,6 +1020,7 @@ func (a *app) prettyBody(c *ui.Context, crumbs *jsonBreadcrumbs, key, body strin
 		a.bodyText[side] = view
 	}
 	view.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
+	view.SoftWrap = !a.bodyNoWrap[side]
 	view.Theme = uikit.EditorTheme(c.Theme())
 	var provided jsonCrumbSource
 	if json != nil && json.ready && json.result.crumbRoot != nil {

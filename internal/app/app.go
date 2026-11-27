@@ -62,7 +62,6 @@ const (
 	pageRuns                    // the run records, which take the window
 	pageDiagnostics             // connection diagnostics
 	pageOverview                // session or selection overview
-	pageSearch                  // one query across requests, variables and traffic
 )
 
 // capture reports whether the page reads captured traffic.
@@ -114,7 +113,10 @@ type app struct {
 	// searchAll is the Search view: one query over saved requests,
 	// environments and captured flows. Its worker never holds a UI element.
 	searchAll globalSearch
-	clearOpen bool
+	// requestConsole is the bottom Console of the request workspace: sent
+	// requests and the lines their scripts printed. It is memory only.
+	requestConsole consolePanel
+	clearOpen      bool
 
 	// Capture filters and the request library have independent selections.
 	// Each workspace has two sections, chosen in its sidebar: live traffic or
@@ -381,7 +383,10 @@ type app struct {
 	// bytes never show in an older reader.
 	bodyPrettyFor [2]string
 	bodyReader    [2]ui.Handle
-	bodyFind      [2]bodyFindState
+	// bodyFind is each body pane's find bar; bodyNoWrap turns off soft wrap
+	// for a response body, which starts wrapped.
+	bodyFind   [2]bodyFindState
+	bodyNoWrap [2]bool
 	// jsonCrumbs holds the path at each pane's caret. The answer is reused
 	// while neither the caret nor the reader's text version changes.
 	jsonCrumbs     [2]jsonBreadcrumbs
@@ -1618,6 +1623,7 @@ func (a *app) drain() {
 		d.composeReplies = result.replies
 		d.composeExchanges = result.exchanges
 		d.console = result.console
+		a.consoleSend(d, result)
 		if result.grpc != nil {
 			g := d.grpcState()
 			g.session, g.unary = result.grpc, false
@@ -2709,11 +2715,6 @@ func (a *app) goTo(choice string) {
 		a.openOverview()
 		return
 	}
-	if choice == "search" {
-		a.openPageTab(pageSearch, tabOpen{})
-		a.sidebarChoice = "search"
-		return
-	}
 	a.openPageTab(pageLive, tabOpen{})
 	if host, ok := strings.CutPrefix(choice, "host:"); ok {
 		a.filterTriage.Host = host
@@ -2848,7 +2849,12 @@ func (a *app) sidebar(c *ui.Context) {
 	a.followActiveTab()
 	ui.Column(c).Fill().Background(panel).Children(func() {
 		a.sidebarModeSwitch(c, t)
-		if a.sidebarMode == sidebarCollections {
+		switch a.sidebarMode {
+		case sidebarSearch:
+			// Search has the sidebar to itself: its results are the tree.
+			ui.Column(c).Grow(1).MinHeight(0).Children(func() { a.searchView(c, t) })
+			return
+		case sidebarCollections:
 			// Collections has the sidebar to itself: no heading repeats the
 			// switch, and the tree takes the whole height.
 			ui.Column(c).Grow(1).MinHeight(0).Children(func() { a.collectionsPane(c, t) })
@@ -2860,10 +2866,11 @@ func (a *app) sidebar(c *ui.Context) {
 	c.SetTheme(t)
 }
 
-// The sidebar's two halves, in the order its switch reads.
+// The sidebar's halves, in the order its switch reads.
 const (
 	sidebarTraffic = iota
 	sidebarCollections
+	sidebarSearch
 )
 
 // sidebarModeFor is the half that lists what a tab of this kind shows, and
@@ -2892,29 +2899,24 @@ func (a *app) followActiveTab() {
 	}
 }
 
-// sidebarModeSwitch is the sidebar's top: Traffic or Collections, with the
-// half's own actions beside it, so no heading below repeats the switch. It
-// only changes the list; the open tabs stay.
+// sidebarModeSwitch is the sidebar's top: Traffic, Collections or Search,
+// with the half's own actions beside it, so no heading below repeats the
+// switch. It only changes the list; the open tabs stay.
 func (a *app) sidebarModeSwitch(c *ui.Context, t *ui.Theme) {
 	// The row is as tall as the tab strip beside it, so the switch and the
 	// tabs share one line across the window.
 	ui.Row(c).Shrink(0).Height(uikit.HeightTabs).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).
 		Padding(0, t.Space(uikit.SpaceM), 0, t.Space(uikit.SpaceL)).Children(func() {
-		uikit.SegmentedFill(c, &a.sidebarMode, locales.Traffic(), locales.Collections()).
-			Label(locales.SidebarShows()).Grow(1).MinWidth(0)
-		if a.sidebarMode == sidebarCollections {
-			a.collectionsHeadingActions(c)
-			return
-		}
-		// Search sits beside the switch, like an activity-bar entry: it
-		// must not take a row from the scopes and views below it.
-		if uikit.RowIconButton(c, locales.SearchEverywhere(), locales.SearchEverywhere(), searchIcon).Clicked() {
-			a.goTo("search")
-		}
-		if uikit.RowIconButton(c, locales.NewView(), locales.NewView(), layersPlusIcon).Clicked() {
-			a.views.capture(a)
-			a.views.newView(a)
-		}
+		// Icons, as Postman's sidebar and VS Code's activity bar switch
+		// places: three words would fill a narrow sidebar on their own. Each
+		// tip names the place and the shortcut that goes there.
+		actions := a.actions(c)
+		keys := func(id string) []string { _, k := pick(actions, id).tip(); return k }
+		uikit.ModeSwitch(c, &a.sidebarMode,
+			uikit.ModeItem{Icon: captureIcon, Label: locales.Traffic(), Keys: keys("go.live")},
+			uikit.ModeItem{Icon: collectionsIcon, Label: locales.Collections(), Keys: keys("go.collections")},
+			uikit.ModeItem{Icon: searchIcon, Label: locales.Search2(), Keys: keys("search.focus")},
+		).Label(locales.SidebarShows())
 	})
 }
 
@@ -3006,10 +3008,14 @@ func (a *app) collectionsHeadingActions(c *ui.Context) {
 // the region has, which is all of the middle once the two above it fold.
 func (a *app) collectionsPane(c *ui.Context, t *ui.Theme) {
 	uikit.SidebarList(c, "collections-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
-		// The search stays above the tree: what is typed is not scrolled
-		// away with the rows it narrows.
-		uikit.SearchField(c, &a.requestQuery, locales.SearchCollections(), locales.Search(), true).
-			Margin(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
+		// The search and the tree's own actions share one row above the
+		// tree, so a three-way sidebar switch keeps its whole labels and
+		// what is typed still is not scrolled away with the rows.
+		ui.Row(c).AlignItems(ui.Center).Gap(t.Space(uikit.SpaceXS)).
+			Margin(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL), t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
+			uikit.SearchField(c, &a.requestQuery, locales.SearchCollections(), locales.Search(), true).Grow(1).MinWidth(0)
+			a.collectionsHeadingActions(c)
+		})
 		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 			a.collectionTree(c)
 			query := strings.TrimSpace(a.requestQuery)

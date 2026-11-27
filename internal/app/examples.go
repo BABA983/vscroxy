@@ -163,10 +163,10 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Wrap().Children(func() {
 				// The status is typed; NumberField keeps values outside 100 to 599 out.
 				status := float64(e.Status)
-				uikit.NumberField(c, &d.exampleStatusText, &status, 100, 599, "", locales.Status(), "", nil)
+				uikit.NumberField(c, &d.exampleStatusText, &status, 100, 599, 1, "", locales.Status(), "", nil)
 				e.Status = int(status)
 				delay := float64(e.DelayMS)
-				uikit.NumberField(c, &d.exampleDelayText, &delay, 0, 60000, "", locales.Delay(), "", nil)
+				uikit.NumberField(c, &d.exampleDelayText, &delay, 0, 60000, 100, "", locales.Delay(), "", nil)
 				uikit.Meta(c, locales.DelayMs()).FontFeatures("tnum")
 				e.DelayMS = int(delay)
 				uikit.Meta(c, http.StatusText(e.Status))

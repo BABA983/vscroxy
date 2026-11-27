@@ -29,7 +29,7 @@ func TestSearchReplaceScreenshots(t *testing.T) {
 			t.Run(appearance+"-"+view, func(t *testing.T) {
 				a, _ := searchReplaceFixture(t)
 				a.appearance = appearance
-				a.page, a.sidebarChoice = pageSearch, "search"
+				a.sidebarMode = sidebarSearch
 				a.flows = []flow{{id: 9, method: "GET", url: "https://api.test/token", reqBody: "token"}}
 				prepareSearch(t, a, "token", "scope")
 				a.searchAll.replace.open = true

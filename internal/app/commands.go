@@ -112,7 +112,7 @@ func commandSnapshot(a *app, c *ui.Context, target *requestDocument) *commandCon
 			}
 		}
 	}
-	if x.find == nil && c != nil && a.page == pageSearch &&
+	if x.find == nil && c != nil && a.sidebarMode == sidebarSearch &&
 		(a.searchAll.handle.FocusWithin(c) || a.searchAll.replace.handle.FocusWithin(c)) {
 		x.find = &a.searchAll
 	}
@@ -366,8 +366,12 @@ func registerGlobalCommands() *commandRegistry {
 		when(func(x *commandContext) bool { return x.capturing }, "").keys(ui.Cmd, ui.KeyF)
 	r.add("search.focus", locales.SearchEverywhere(), func(x *commandContext) { x.focusSearch() }).
 		keys(ui.Cmd|ui.Shift, ui.KeyF)
-	r.add("search.next-match", locales.NextSearchMatch(), func(x *commandContext) { x.a.searchAll.step(1) })
-	r.add("search.previous-match", locales.PreviousSearchMatch(), func(x *commandContext) { x.a.searchAll.step(-1) })
+	r.add("view.console", locales.Console(), func(x *commandContext) { x.a.toggleConsole() }).
+		keys(ui.Cmd|ui.Shift, ui.KeyJ)
+	r.add("search.next-match", locales.NextSearchMatch(), func(x *commandContext) { x.a.searchAll.step(1) }).
+		keys(0, ui.KeyF4)
+	r.add("search.previous-match", locales.PreviousSearchMatch(), func(x *commandContext) { x.a.searchAll.step(-1) }).
+		keys(ui.Shift, ui.KeyF4)
 	// Replace uses the same registry as every other command, so the palette
 	// shows it beside Next/Previous match and the key has one owner.
 	r.add("search.action.toggleReplace", locales.ToggleReplace(), func(x *commandContext) {

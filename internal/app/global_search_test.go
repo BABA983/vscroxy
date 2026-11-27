@@ -159,7 +159,7 @@ func TestGlobalSearchOptionsChangeMatches(t *testing.T) {
 	if a.searchAll.problem == "" {
 		t.Fatal("the Search view did not keep the invalid regexp error")
 	}
-	a.page, a.sidebarChoice = pageSearch, "search"
+	a.sidebarMode = sidebarSearch
 	var c *ui.Context
 	tt := ui.NewTester(func(ctx *ui.Context) { c = ctx; a.view(ctx) }, 1000, 720)
 	tt.Frame()
@@ -281,6 +281,9 @@ func TestGlobalSearchDebouncesAndCancelsOldQuery(t *testing.T) {
 
 func TestGlobalSearchCommandsAreRegistered(t *testing.T) {
 	a := globalSearchTestApp()
+	t.Cleanup(a.stopSearch)
+	a.searchAll.input = "findme"
+	a.workbench.sidebarHidden = true
 	var c *ui.Context
 	tt := ui.NewTester(func(ctx *ui.Context) { c = ctx; a.view(ctx) }, 1100, 760)
 	tt.Frame()
@@ -289,8 +292,8 @@ func TestGlobalSearchCommandsAreRegistered(t *testing.T) {
 		key       shortcut
 	}{
 		{"search.focus", locales.SearchEverywhere(), shortcut{ui.Cmd | ui.Shift, ui.KeyF}},
-		{"search.next-match", locales.NextSearchMatch(), shortcut{}},
-		{"search.previous-match", locales.PreviousSearchMatch(), shortcut{}},
+		{"search.next-match", locales.NextSearchMatch(), shortcut{0, ui.KeyF4}},
+		{"search.previous-match", locales.PreviousSearchMatch(), shortcut{ui.Shift, ui.KeyF4}},
 	} {
 		action := pick(a.actions(c), want.id)
 		if action.id != want.id || action.label != want.label || !action.enabled || action.shortcut != want.key {
@@ -298,10 +301,15 @@ func TestGlobalSearchCommandsAreRegistered(t *testing.T) {
 		}
 	}
 	pick(a.actions(c), "search.focus").run()
-	if a.page != pageSearch || a.sidebarChoice != "search" {
-		t.Fatalf("search.focus opened page %v choice %q", a.page, a.sidebarChoice)
+	if a.sidebarMode != sidebarSearch || a.workbench.sidebarHidden {
+		t.Fatalf("search.focus left sidebar mode %d hidden %t", a.sidebarMode, a.workbench.sidebarHidden)
 	}
 	tt.Frame()
+	tt.Type("x")
+	tt.Frame()
+	if a.searchAll.input != "x" {
+		t.Fatalf("typing after search.focus left the query %q, want the selected text replaced", a.searchAll.input)
+	}
 	tt.Key(ui.Alt, ui.KeyC)
 	tt.Frame()
 	if !a.searchAll.matchCase {
@@ -322,7 +330,7 @@ func TestGlobalSearchCommandsAreRegistered(t *testing.T) {
 
 func TestGlobalSearchClickOpensResult(t *testing.T) {
 	a := globalSearchTestApp()
-	a.page, a.sidebarChoice = pageSearch, "search"
+	a.sidebarMode = sidebarSearch
 	a.searchAll.input = "findme"
 	a.searchAll.armed = a.searchAll.request()
 	a.searchAll.results = []searchResult{
@@ -341,7 +349,7 @@ func TestGlobalSearchClickOpensResult(t *testing.T) {
 		t.Fatalf("request result opened page %v document %+v", a.page, a.requestDocument)
 	}
 
-	a.page, a.sidebarChoice = pageSearch, "search"
+	a.sidebarMode = sidebarSearch
 	tt.Frame()
 	if err := tt.Click(locales.OpenSearchResult(a.searchAll.results[1].resource)); err != nil {
 		t.Fatal(err)
@@ -362,4 +370,25 @@ func TestGlobalSearchClickOpensResult(t *testing.T) {
 		}
 	}
 	_ = c
+}
+
+func TestSearchLinePartsKeepTheMatchVisible(t *testing.T) {
+	const long = "https://api.example.com/findme"
+	start := strings.Index(long, "findme")
+	lead, match, tail := searchLineParts(long, start, start+len("findme"))
+	if match != "findme" || tail != "" {
+		t.Fatalf("parts = lead %q match %q tail %q", lead, match, tail)
+	}
+	if !strings.HasPrefix(lead, "…") || !strings.HasSuffix(lead, "ample.com/") {
+		t.Fatalf("lead = %q, want the ellipsis and the last %d runes", lead, searchMatchLead)
+	}
+	if got := len([]rune(lead)); got > searchMatchLead+1 {
+		t.Fatalf("lead = %d runes, want at most %d plus the ellipsis", got, searchMatchLead)
+	}
+
+	const short = `{"findme":2}`
+	lead, match, tail = searchLineParts(short, 2, 8)
+	if lead != `{"` || match != "findme" || tail != `":2}` {
+		t.Fatalf("short parts = %q %q %q", lead, match, tail)
+	}
 }

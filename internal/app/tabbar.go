@@ -133,8 +133,6 @@ func tabIcon(kind page) *ui.SVG {
 		return lucide.ShieldCheck()
 	case pageOverview:
 		return overviewIcon
-	case pageSearch:
-		return searchIcon
 	case pageAPI:
 		return apiIcon
 	default:

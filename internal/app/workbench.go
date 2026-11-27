@@ -116,8 +116,6 @@ func (a *app) desktopContent(c *ui.Context) {
 			a.diagnosticsView(c, c.Theme())
 		case pageOverview:
 			a.overviewView(c, c.Theme())
-		case pageSearch:
-			a.searchView(c, c.Theme())
 		default:
 			ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 				if w.focused && !a.inspectorDetached {

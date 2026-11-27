@@ -38,7 +38,6 @@ func TestWindowTitleNamesEachPage(t *testing.T) {
 		{pageRuns, "Runs — vscroxy"},
 		{pageDiagnostics, "Diagnostics — vscroxy"},
 		{pageOverview, "Overview — vscroxy"},
-		{pageSearch, "Search — vscroxy"},
 	}
 	for _, tc := range cases {
 		a.page = tc.page

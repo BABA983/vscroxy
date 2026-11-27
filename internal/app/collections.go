@@ -6,6 +6,7 @@ import (
 	"github.com/baba983/vscroxy/internal/uikit"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/library"
@@ -34,6 +35,10 @@ type folderEditor struct {
 	settings     request.Settings
 	timeout      float64
 	maxRedirects float64
+	// timeoutText and maxRedirectsText are the defaults as typed.
+	timeoutText      string
+	maxRedirectsText string
+	asapExpiryText   string
 }
 
 // inheritance is what a request filed under path takes from its collection,
@@ -111,6 +116,7 @@ func (a *app) openFolder(path string) {
 	f.settings = f.draft.Settings.Clone()
 	effective := a.ancestorInheritance(path).InheritSettings(f.settings)
 	f.timeout, f.maxRedirects = effective.Timeout().Seconds(), float64(effective.RedirectLimit())
+	f.timeoutText, f.maxRedirectsText = strconv.Itoa(int(f.timeout)), strconv.Itoa(int(f.maxRedirects))
 }
 
 // applyWrites saves what scripts changed beyond the environment: globals,
@@ -392,7 +398,7 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 				switch f.tab {
 				case 0:
 					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceM)).Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
-						a.authFields(c, &f.draft.Auth, a.folderAuthTypes(f.draft.Path), f.draft.Path)
+						a.authFields(c, &f.draft.Auth, a.folderAuthTypes(f.draft.Path), f.draft.Path, &f.asapExpiryText)
 					})
 					uikit.Meta(c, locales.RequestsWhoseAuthIsInherit())
 				case 1:

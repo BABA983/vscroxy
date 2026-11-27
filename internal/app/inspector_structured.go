@@ -27,7 +27,7 @@ func (s *structuredInspector) stop() {
 	s.ready = false
 }
 
-func (s *structuredInspector) view(c *ui.Context, a *app, source inspectionBody, contentType string) {
+func (s *structuredInspector) view(c *ui.Context, a *app, source inspectionBody, contentType string, softWrap bool) {
 	if !s.ready || s.source != source || s.contentType != contentType {
 		s.source, s.contentType, s.ready, s.list = source, contentType, true, ui.ListState{}
 		s.job.start(c.Services(), func(ctx context.Context) inspectionResult {
@@ -119,6 +119,7 @@ func (s *structuredInspector) view(c *ui.Context, a *app, source inspectionBody,
 			ui.Divider(c)
 		}).Label(locales.MultipartParts()).Grow(1).MinHeight(0).FillWidth()
 	default:
+		s.job.result.SoftWrap = softWrap
 		requestCodeEditor(c, s.job.result)
 	}
 }

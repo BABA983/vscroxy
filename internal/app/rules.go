@@ -928,7 +928,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 					})
 				}
 				uikit.FormRow(c, locales.Status(), "", "", func() {
-					uikit.NumberField(c, &e.status, &e.statusValue, 200, 599, "", locales.ResponseStatus(), "", nil)
+					uikit.NumberField(c, &e.status, &e.statusValue, 200, 599, 1, "", locales.ResponseStatus(), "", nil)
 				})
 				uikit.FormRow(c, locales.RequestHeadersLabel(), locales.ConnectionHeadersAreRemovedThe(), "", func() {
 					uikit.TextArea(c, &e.headers).Height(76).FillWidth().Font(uikit.FontMono).Radius(uikit.RadiusControl).Label(locales.ResponseHeaders()).Placeholder("Content-Type: application/json")

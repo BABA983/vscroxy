@@ -92,6 +92,7 @@ func (a *app) menu() *mygo.Menu {
 		mygo.Separator(),
 		command("app.palette", locales.Commands()),
 		command("search.focus", locales.SearchEverywhere()),
+		command("view.console", locales.Console()),
 		command("view.search", locales.FindSearchTraffic()),
 		command("view.primary", locales.FocusRequestListUrl()),
 		command("view.focus-inspector", locales.FocusInspectorBackToList()),

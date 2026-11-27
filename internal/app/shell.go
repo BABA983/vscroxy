@@ -320,6 +320,9 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		// The tools that are on follow the window, not one screen: a
 		// breakpoint or a throttle is on everywhere.
 		a.footerTools(c, t)
+		if uikit.FooterButton(c, locales.Console(), locales.ToggleConsoleTip(), a.requestConsole.open).Clicked() {
+			a.toggleConsole()
+		}
 		ui.Spacer(c)
 		// A Window progress task takes its place in the status bar, before
 		// the counts, so its Cancel stays reachable.
@@ -349,8 +352,6 @@ func (a *app) footerCountsText() string {
 		return locales.ConnectionDiagnosticsReadOnly()
 	case pageOverview:
 		return locales.CapturesOverview(len(a.flows))
-	case pageSearch:
-		return locales.SearchResultCount(len(a.searchAll.results))
 	case pageSession:
 		return locales.SavedSessionsEvidence(len(a.sessions.items))
 	case pageRequest:
@@ -759,10 +760,6 @@ func (a *app) syncSections() {
 	}
 	if a.page == pageOverview {
 		a.sidebarChoice = "overview"
-		return
-	}
-	if a.page == pageSearch {
-		a.sidebarChoice = "search"
 		return
 	}
 	if !a.page.capture() {

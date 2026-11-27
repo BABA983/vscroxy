@@ -13,10 +13,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/inspect"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
+	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
 // inspectorState is what the inspector itself remembers: the tab of each
@@ -384,7 +386,8 @@ func (a *app) responsePane(c *ui.Context, f flow) {
 		tools := paneTools{format: -1, width: width}
 		if a.inspect.tab[1] == resViewBody {
 			more = append(more, a.bodyPaneActions(c, 0)...)
-			tools.format = 0
+			tools.view = func(compact bool) { a.bodyFormatView(c, t, 0, compact) }
+			tools.body = func() { a.capturedResponseBodyTools(c, f) }
 		}
 		a.responsePaneHeader(c, t, &a.inspect.tab[1], responseSummaryOf(t, f), more, tools)
 		switch a.inspect.tab[1] {
@@ -420,8 +423,9 @@ type paneView struct {
 
 // paneTools are what a pane's row offers past its tabs: the controls the
 // caller draws at the row's end, the body side whose format menu the row
-// holds, and what the row leaves out when it runs out of room. The tabs and
-// the status always keep their room; everything else yields, numbers first.
+// holds, what the row leaves out when it runs out of room, and the response's
+// own body view switcher and tools. The tabs and the status always keep their
+// room; everything else yields, numbers first.
 type paneTools struct {
 	// width is how wide the pane was laid out, from the last frame. Zero
 	// falls back to the pane's share of the window.
@@ -429,8 +433,14 @@ type paneTools struct {
 	// draw paints the caller's own controls in the room the row has left
 	// for them. What it does not draw it adds through overflow.
 	draw func(room *paneRoom)
-	// format is the body side whose format menu the row holds.
+	// format is the body side whose format menu the request pane's row holds.
 	format int
+	// view draws the response body's view switcher in its own row under the
+	// tabs: its current representation with its icon, and the menu that
+	// changes it. compact drops the label and keeps the icon when narrow.
+	view func(compact bool)
+	// body draws the response body's compact tools at that row's end.
+	body func()
 	// overflow adds to the pane's menu what the row left out.
 	overflow func([]action) []action
 }
@@ -864,15 +874,13 @@ func (a *app) requestMoreMenu(c *ui.Context, selected *int, more []paneView, ext
 // responseSummary is what a response pane's header says about what it shows.
 type responseSummary struct {
 	title, duration, detail string
-	dot, ink                ui.Color // the status light, and the title's ink when it carries a signal
+	status                  int
 	timing                  uikit.Timing
 	stream                  bool // the messages are a view of their own
 }
 
-// responseSummaryOf reads a capture's result. A normal response is quiet: its
-// title stays in the body color and only the light carries the status.
+// responseSummaryOf reads a capture's result.
 func responseSummaryOf(t *ui.Theme, f flow) responseSummary {
-	p := uikit.Colors(t)
 	title := locales.NoResponse()
 	if f.status != 0 {
 		title = strings.TrimSpace(strconv.Itoa(f.status) + " " + http.StatusText(f.status))
@@ -880,27 +888,28 @@ func responseSummaryOf(t *ui.Theme, f flow) responseSummary {
 	if f.conn.error != "" {
 		title = locales.Failed()
 	}
-	sum := responseSummary{title: title, dot: p.MutedForeground, duration: fmt.Sprintf("%d ms", f.millis), detail: humanBytes(f.bytes),
+	return responseSummary{title: title, status: f.status, duration: responseDuration(f.millis), detail: humanBytes(f.bytes),
 		timing: headlineTiming(t, f), stream: f.kind == "ws" || f.kind == "sse"}
-	if f.conn.error != "" || f.status >= 300 {
-		sum.dot, sum.ink = f.statusColor(t), f.statusColor(t)
+}
+
+// responseDuration prints a response's time the way the bar reads it: whole
+// milliseconds under a second, then seconds with two decimals.
+func responseDuration(millis int) string {
+	if millis >= 1000 {
+		return fmt.Sprintf("%.2f s", float64(millis)/1000)
 	}
-	return sum
+	return fmt.Sprintf("%d ms", millis)
 }
 
 // sentSummaryOf reads what the last send got back.
 func sentSummaryOf(t *ui.Theme, r *capture.Flow, outcome string) responseSummary {
-	p := uikit.Colors(t)
-	sum := responseSummary{title: locales.NoResponse(), dot: p.MutedForeground, duration: fmt.Sprintf("%d ms", r.Millis), detail: humanBytes(r.Bytes)}
+	sum := responseSummary{title: locales.NoResponse(), status: r.Status,
+		duration: responseDuration(r.Millis), detail: humanBytes(r.Bytes)}
 	if r.Status != 0 {
 		sum.title = strings.TrimSpace(strconv.Itoa(r.Status) + " " + http.StatusText(r.Status))
 	}
-	switch {
-	case outcome == "Network error":
+	if outcome == "Network error" {
 		sum.title = locales.ProxyResponseNumbered(r.Status)
-		sum.dot, sum.ink = t.Danger, t.Danger
-	case r.Status >= 300:
-		sum.dot, sum.ink = uikit.StatusColor(r.Status, t), uikit.StatusColor(r.Status, t)
 	}
 	sum.timing = headlineTiming(t, flow{wait: r.Wait, download: r.Download, conn: conn{
 		resolved: r.Conn.Resolved, lookupMs: r.Conn.LookupMs, dnsFresh: r.Conn.DNSFresh, flows: r.Conn.Flows, tls: r.Conn.TLS,
@@ -908,8 +917,27 @@ func sentSummaryOf(t *ui.Theme, r *capture.Flow, outcome string) responseSummary
 	return sum
 }
 
-// responsePaneHeader draws the response pane's one row: what came back, the
-// views of it, and how long it took and how much it carried.
+// responseStatusInk colors a status by its class, as a response bar reads it:
+// success for 2xx, warning for 3xx and 4xx, danger for 5xx and failures.
+func responseStatusInk(sum responseSummary, t *ui.Theme) ui.Color {
+	switch {
+	case sum.status >= 200 && sum.status < 300:
+		return t.Success
+	case sum.status >= 300 && sum.status < 500:
+		return t.Warning
+	case sum.status >= 500:
+		return t.Danger
+	case sum.title == locales.Failed():
+		return t.Danger
+	default:
+		return uikit.Colors(t).MutedForeground
+	}
+}
+
+// responsePaneHeader draws the response pane's top bar: the body's view
+// switcher and the response tabs, then the status, duration and size, the
+// history action and the pane's ⋯. The body's own tools sit on a compact row
+// under it when the Body view is showing.
 func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum responseSummary, more []action, tools paneTools) {
 	views := []paneView{
 		{resViewBody, locales.Body(), "", false},
@@ -920,14 +948,16 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 	if sum.stream {
 		views = append(views, paneView{resViewMessages, locales.MessagesTab(), "", false})
 	}
-	extras := []paneView{
-		{resViewRaw, locales.Raw(), "", false},
-		{resViewTests, locales.Checks(), "", false},
-		{resViewConsole, locales.Console(), "", false},
-		{resViewContract, locales.Contract(), "", false},
-	}
-	if i := slices.IndexFunc(extras, func(v paneView) bool { return v.view == *selected }); i >= 0 {
-		views = append(views, extras[i])
+	if !slices.ContainsFunc(views, func(v paneView) bool { return v.view == *selected }) {
+		extras := []paneView{
+			{resViewRaw, locales.Raw(), "", false},
+			{resViewTests, locales.Checks(), "", false},
+			{resViewConsole, locales.Console(), "", false},
+			{resViewContract, locales.Contract(), "", false},
+		}
+		if i := slices.IndexFunc(extras, func(v paneView) bool { return v.view == *selected }); i >= 0 {
+			views = append(views, extras[i])
+		}
 	}
 	before := *selected
 	shown := max(0, slices.IndexFunc(views, func(v paneView) bool { return v.view == before }))
@@ -935,61 +965,57 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 	for i, v := range views {
 		labels[i] = v.label
 	}
-	// The tabs and the status keep the row; what else it reports is measured
-	// against the room that is left, in the order the row gives it up: the
-	// body's format menu first, because it names a choice, then the numbers
-	// from the smallest: the size, then the time. Whatever does not fit goes
-	// to the pane's menu.
 	width := tools.width
 	if width <= 0 {
 		width = a.paneWidth(c)
 	}
+	compactView := width < 560
+	showDuration := width >= 440
+	showDetail := width >= 560
 	room := paneRoomFor(c, width, sum.title, true, labels, nil, nil, paneMenuWidth)
-	showFormat := tools.format >= 0 && room.fits(a.paneFormatWidth(c, tools.format))
-	showDuration := sum.duration != "" && room.fits(paneMonoWidth(c, sum.duration))
-	showDetail := showDuration && sum.detail != "" && room.fits(paneMonoWidth(c, " · "+sum.detail))
 	uikit.PaneHeader(c, func() {
 		uikit.TabStrip(c, func() {
-			uikit.CountedTabs(c, &shown, locales.ResponsePaneName(), labels, nil)
+			uikit.SubTabs(c, &shown, locales.ResponsePaneName(), labels...)
 		}).Grow(1).FillHeight().Label(locales.ResponsePaneName()).OnClick(func() { a.inspect.focus = 0 })
 	}, func() {
-		// What came back is a fact about the row, not a title before it: the
-		// status sits at the row's end, beside the numbers it belongs with.
 		if sum.title != "" {
-			status := ui.Row(c).Gap(t.Space(uikit.SpaceS)).Shrink(0).AlignItems(ui.Center).Label(locales.ResponsePaneName())
-			if (!showDuration || !showDetail) && sum.duration != "" {
-				// What the row has no room for, the status says on hover.
-				uikit.Tip(c, status, sum.title+" · "+strings.TrimSpace(sum.duration+" · "+sum.detail))
-			}
-			status.Children(func() {
-				ui.Box(c).Size(7, 7).Shrink(0).Radius(uikit.RadiusControl).Background(sum.dot)
-				ink := t.Text
-				if sum.ink != (ui.Color{}) {
-					ink = sum.ink
+			status := ui.Row(c).Gap(t.Space(uikit.SpaceXS)).Shrink(1).MinWidth(0).AlignItems(ui.Center)
+			statusTip := cmp.Or(statusDoc(sum.status), sum.title)
+			if !showDuration || !showDetail {
+				hidden := []string{}
+				if statusTip != sum.title {
+					hidden = append(hidden, sum.title)
 				}
-				uikit.Caption(c, sum.title).TextColor(ink).SingleLine()
+				if !showDuration && sum.duration != "" {
+					hidden = append(hidden, sum.duration)
+				}
+				if sum.detail != "" {
+					hidden = append(hidden, sum.detail)
+				}
+				if len(hidden) > 0 {
+					statusTip = strings.TrimSpace(statusTip) + " · " + strings.Join(hidden, " · ")
+				}
+			}
+			uikit.Tip(c, status, statusTip).Children(func() {
+				uikit.Caption(c, sum.title).TextColor(responseStatusInk(sum, t)).SingleLine().
+					FontWeight(uikit.WeightMedium).FontFeatures("tnum")
 			})
 		}
-		if showDuration {
+		if showDuration && sum.duration != "" {
+			ui.Text(c, "·").TextColor(t.Border).Shrink(0)
 			detail := ""
 			if showDetail {
 				detail = sum.detail
 			}
-			uikit.ResponseMeta(c, sum.duration, detail, sum.timing)
+			uikit.ResponseMeta(c, sum.duration, detail, sum.timing).Shrink(1).MinWidth(0).MaxWidth(260)
 		}
 		if tools.draw != nil {
 			tools.draw(&room)
-		}
-		if showFormat {
-			a.bodyFormatMenu(c, t, tools.format)
 		}
 		items := more
 		var head []action
 		if !showDuration && sum.duration != "" {
 			head = append(head, note(strings.TrimSpace(sum.duration+" · "+sum.detail)))
-		}
-		if tools.format >= 0 && !showFormat {
-			head = append(head, submenu(bodyFormatLabel(tools.format), a.bodyFormatActions(tools.format)...))
 		}
 		if tools.overflow != nil {
 			head = tools.overflow(head)
@@ -1004,6 +1030,19 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 	// pane owns at a time act on.
 	if *selected != before {
 		a.inspect.focus = 0
+	}
+	if *selected == resViewBody && (tools.view != nil || tools.body != nil) {
+		ui.Row(c).Height(uikit.HeightRow+t.Space(uikit.SpaceXS)).Shrink(0).FillWidth().
+			Padding(0, t.Space(uikit.SpaceL), 0, t.Space(uikit.SpaceS)).
+			Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Children(func() {
+			if tools.view != nil {
+				tools.view(compactView)
+			}
+			ui.Spacer(c)
+			if tools.body != nil {
+				tools.body()
+			}
+		})
 	}
 }
 
@@ -1039,6 +1078,110 @@ func (a *app) responseViews(selected *int, raw bool, checks string, console bool
 	items = append(items, do("response.view", locales.Contract(), func() { *selected = resViewContract }).
 		checked(checkbox(*selected == resViewContract)).in("views"))
 	return items
+}
+
+// bodyToolsRow are the five actions a response body's own row offers. A
+// caller supplies only what its body can do; a nil one leaves its button out.
+type bodyToolsRow struct {
+	find, filter, copy, save func()
+}
+
+// responseBodyTools draws the response body's tools at the end of its row:
+// wrap, filter, find, copy and save, as borderless 22-point icons. A tool
+// whose closure is nil stays in place, disabled, so the row keeps its shape.
+func (a *app) responseBodyTools(c *ui.Context, tools bodyToolsRow) {
+	bodyToolButton(c, locales.WrapBodyLines(), locales.WrapBodyLines(), lucide.TextWrap(), !a.bodyNoWrap[0], false, func() {
+		a.bodyNoWrap[0] = !a.bodyNoWrap[0]
+	})
+	bodyToolButton(c, locales.QueryJson(), locales.QueryJson(), lucide.ListFilter(), false, tools.filter == nil, tools.filter)
+	bodyToolButton(c, locales.FindInText(), locales.FindInText(), searchIcon, false, tools.find == nil, tools.find)
+	bodyToolButton(c, locales.CopyShownBody(), locales.CopyShownBody(), copyIcon, false, tools.copy == nil, tools.copy)
+	bodyToolButton(c, locales.SaveBody(), locales.SaveBody(), saveIcon, false, tools.save == nil, tools.save)
+}
+
+// bodyToolButton is one 22-point icon in the response body's tool row. An
+// active toggle keeps a quiet wash; the rest show a face only under the
+// pointer, as every toolbar button does.
+func bodyToolButton(c *ui.Context, label, tip string, icon *ui.SVG, active, disabled bool, run func()) {
+	b := uikit.ToolbarButton(c, label, tip, active).Size(uikit.HeightControlSmall, uikit.HeightControlSmall).
+		Padding(0).Radius(uikit.RadiusInner).Justify(ui.Center).AlignItems(ui.Center).Shrink(0)
+	if disabled {
+		b.Disabled(true)
+	}
+	b.Children(func() {
+		ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline)
+	})
+	if b.Clicked() && !disabled && run != nil {
+		run()
+	}
+}
+
+// capturedResponseBodyTools are the body tools of a captured response.
+func (a *app) capturedResponseBodyTools(c *ui.Context, f flow) {
+	body := a.body
+	tools := bodyToolsRow{filter: func() { a.openJSONQuery(capturedInspectionBody(f, 0)) }}
+	if a.bodyText[0] != nil {
+		tools.find = func() { a.bodyText[0].Run(editor.Find) }
+	}
+	if utf8.ValidString(body) && !strings.ContainsRune(body, 0) {
+		tools.copy = func() { a.copyPaneBody(c, 0) }
+	}
+	if f.status != 0 {
+		tools.save = func() {
+			a.saveResponseBody(capture.Flow{Status: f.status, ResponseBody: f.resBody,
+				ResponseBodyFile: f.resFile, ResponseBodySize: f.resSize, ResponseBodyError: f.resError})
+		}
+	}
+	a.responseBodyTools(c, tools)
+}
+
+// responseViewMenu is the editor response's view switcher: the format its body
+// is read as, with the menu that changes it and opens Query JSON.
+func (a *app) responseViewMenu(c *ui.Context, d *requestDocument, compact bool) {
+	formats, detected := responseFormatsOf(d)
+	shown := formats[min(max(d.responseView, 0), len(formats)-1)]
+	if d.responseView == 0 {
+		shown = cmp.Or(detected, locales.Pretty())
+	}
+	current := shown
+	if compact {
+		current = ""
+	}
+	uikit.ToolbarSelectIcon(c, current, bodyViewIcon(shown), func(m *ui.Menu) {
+		actionMenu(m, a.responseFormatActions(d))
+	}).Label(locales.ResponseBodyFormatLabel())
+}
+
+// editorResponseBodyTools are the body tools of a request's last response.
+func (a *app) editorResponseBodyTools(c *ui.Context, d *requestDocument) {
+	r := d.response
+	if r == nil {
+		return
+	}
+	tools := bodyToolsRow{
+		filter: func() {
+			a.openJSONQuery(inspectionBody{r.ResponseBody, r.ResponseBodyFile, r.ResponseBodyError, r.ResponseBodySize})
+		},
+	}
+	if d.responseEditor != nil {
+		tools.find = func() { d.responseEditor.Run(editor.Find) }
+	} else if (d.responseView == 0 || d.responseView == 4) &&
+		inspect.BodyFormat(r.ResponseHeader.Get("Content-Type")) != "" && d.structured.job.result != nil {
+		// Auto and the detected format read the body in the structured
+		// viewer, which is also a findable editor.
+		state := d.structured.job.result
+		tools.find = func() { state.Run(editor.Find) }
+	}
+	if utf8.ValidString(r.ResponseBody) && !strings.ContainsRune(r.ResponseBody, 0) {
+		tools.copy = func() {
+			c.Services().WriteClipboard(r.ResponseBody)
+			a.done(locales.CopiedShownBodyReviewCredentials())
+		}
+	}
+	if r.Status != 0 {
+		tools.save = func() { a.saveResponseBody(*r) }
+	}
+	a.responseBodyTools(c, tools)
 }
 
 // bodyPaneActions are what a pane offers about the body it is showing: find,
@@ -1102,12 +1245,41 @@ func (a *app) bodyFormatShown(side int) (string, bool) {
 
 // bodyFormatMenu shows and chooses the representation of one side's body.
 func (a *app) bodyFormatMenu(c *ui.Context, t *ui.Theme, side int) {
+	a.bodyFormatView(c, t, side, false)
+}
+
+// bodyFormatView is the body's view switcher. Compact keeps only its icon and
+// chevron, for a narrow row where the label would push the tabs off.
+func (a *app) bodyFormatView(c *ui.Context, t *ui.Theme, side int, compact bool) {
 	shown, ok := a.bodyFormatShown(side)
 	if !ok {
 		return
 	}
-	uikit.ToolbarSelect(c, shown, func(m *ui.Menu) { actionMenu(m, a.bodyFormatActions(side)) }).
+	current := shown
+	if compact {
+		current = ""
+	}
+	uikit.ToolbarSelectIcon(c, current, bodyViewIcon(shown), func(m *ui.Menu) { actionMenu(m, a.bodyFormatActions(side)) }).
 		Label(bodyFormatLabel(side))
+}
+
+// bodyViewIcon marks a body's representation in its view switcher: the shape
+// of the content rather than a generic icon for every choice.
+func bodyViewIcon(label string) *ui.SVG {
+	switch {
+	case strings.Contains(label, "JSON"), label == locales.Pretty(), label == locales.Auto():
+		return lucide.Braces()
+	case label == locales.Preview(), label == "HTML":
+		return lucide.Eye()
+	case strings.Contains(label, "Hex"):
+		return lucide.Binary()
+	case strings.Contains(label, "Markdown"):
+		return lucide.FileText()
+	case strings.Contains(label, "JavaScript"), label == "CSS", strings.Contains(label, "GraphQL"):
+		return lucide.FileCode()
+	default:
+		return lucide.Code()
+	}
 }
 
 // bodyFormatActions are the representations one side's body can take, with the

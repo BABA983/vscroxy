@@ -13,9 +13,10 @@ func Segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 
 // SegmentedFill is Segmented stretched across its row, each segment an equal
 // share with its label centered: a switch between two halves of a place, as
-// the sidebar's Traffic and Collections are.
+// the sidebar's Traffic and Collections are. Its type is one step smaller so
+// three words still read whole in a narrow sidebar.
 func SegmentedFill(c *ui.Context, selected *int, labels ...string) ui.Element {
-	return segmented(c, selected, HeightControl, SpaceHair, RadiusControl, RadiusInner, TextMeta, false, true, labels...)
+	return segmented(c, selected, HeightControl, SpaceHair, RadiusControl, RadiusInner, TextMeta-1, false, true, labels...)
 }
 
 // SegmentedLarge is the settings scope tabs: a 38-point Muted track, a
@@ -37,11 +38,15 @@ func segmented(c *ui.Context, selected *int, height, inset, trackRadius, segment
 			if raised {
 				padX = t.Space(SpaceL)
 			}
-			s := parts.Segment(i).Label(label).Padding(padY, padX).Radius(segmentRadius).
+			s := parts.Segment(i).Label(label).Radius(segmentRadius).
 				AlignItems(ui.Center).FontSize(Scaled(textSize)).TextColor(t.TextMuted)
 			if fill {
 				// Room left over is shared out; a longer label keeps its width.
-				s.Grow(1).Justify(ui.Center).Padding(padY, t.Space(SpaceS))
+				// A three-way switch in a narrow sidebar needs every point,
+				// so its segments carry no side padding of their own.
+				s.Grow(1).Justify(ui.Center).Padding(padY, 0)
+			} else {
+				s.Padding(padY, padX)
 			}
 			if raised {
 				s.FontWeight(WeightMedium)
@@ -110,4 +115,48 @@ func Switch(c *ui.Context, on *bool) ui.Element {
 // SettingsSwitch is the 36-by-20 switch of the looser Settings skeleton.
 func SettingsSwitch(c *ui.Context, on *bool, label string) ui.Element {
 	return Switch(c, on).Label(label)
+}
+
+// ModeItem is one place a ModeSwitch shows: its icon, the name assistive
+// technology and tests read, and the shortcut its tip names.
+type ModeItem struct {
+	Icon  *ui.SVG
+	Label string
+	Keys  []string
+}
+
+// ModeSwitch chooses which place a sidebar shows with a row of icons, as
+// Postman's sidebar and VS Code's activity bar do. The chosen icon sits on
+// the menu tint in ink; the others are muted until hovered. Each tip names
+// the place and its shortcut, since the icon is the only thing drawn.
+func ModeSwitch(c *ui.Context, selected *int, items ...ModeItem) ui.Element {
+	t, p := c.Theme(), Colors(c.Theme())
+	row := ui.Row(c).Shrink(0).Gap(t.Space(SpaceXS)).AlignItems(ui.Center)
+	row.Children(func() {
+		for i, item := range items {
+			on := *selected == i
+			b := ui.ButtonBase(c).Label(item.Label).Size(HeightControl, HeightControl).
+				Padding(0).Shrink(0).Justify(ui.Center).AlignItems(ui.Center).Radius(RadiusControl).
+				Role(ui.RoleTab).Selected(on)
+			ink := t.TextMuted
+			switch {
+			case on:
+				b.Background(p.Accent)
+				ink = t.Text
+			case b.Pressed():
+				b.Background(p.MutedPressed)
+				ink = t.Text
+			case b.Hovered():
+				b.Background(p.MutedHover)
+				ink = t.Text
+			}
+			b.Children(func() { ui.Icon(c, item.Icon).Size(IconInline, IconInline).TextColor(ink) })
+			if b.Clicked() && !on {
+				*selected = i
+				c.Invalidate()
+			}
+			TipKeys(c, b, item.Label, item.Keys...)
+		}
+	})
+	return row
 }

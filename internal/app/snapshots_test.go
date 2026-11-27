@@ -940,7 +940,7 @@ func snapshotStates(t *testing.T) []snapshot {
 			response(a)
 			a.response.ResponseBody = "\x00\xff\r\n{{token}}"
 			a.responseView = 2
-		}, want: "Save response body"},
+		}, want: "Save body…"},
 		{name: "capture-response-save", act: click("Response pane options"), menu: "Save body…"},
 		{name: "requests-history", setup: snapshotHistory, want: "Rename request"},
 		// One request on screen; an unsaved draft waits in the sidebar and

@@ -165,8 +165,6 @@ func (a *app) pageTab(kind page) tab {
 		return tab{kind: pageDiagnostics, key: "diagnostics", title: locales.Diagnostics(), saved: true}
 	case pageOverview:
 		return tab{kind: pageOverview, key: "overview", title: locales.Overview(), saved: true}
-	case pageSearch:
-		return tab{kind: pageSearch, key: "search", title: locales.Search2(), saved: true}
 	default:
 		return tab{kind: kind, key: strconv.Itoa(int(kind)), title: "", saved: true}
 	}

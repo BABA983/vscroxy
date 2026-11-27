@@ -13868,6 +13868,136 @@ func (msgs Messages) Console() string {
 	return Catalog.Format(msgs.locale, "console", nil)
 }
 
+// ToggleConsoleTip says "Show sent requests, script messages and errors"
+// in the language the app shows.
+func ToggleConsoleTip() string { return In(i18n.Locale()).ToggleConsoleTip() }
+
+// ToggleConsoleTip says "Show sent requests, script messages and errors"
+// in the language of msgs.
+func (msgs Messages) ToggleConsoleTip() string {
+	return Catalog.Format(msgs.locale, "toggleConsoleTip", nil)
+}
+
+// AllLogs says "All logs"
+// in the language the app shows.
+func AllLogs() string { return In(i18n.Locale()).AllLogs() }
+
+// AllLogs says "All logs"
+// in the language of msgs.
+func (msgs Messages) AllLogs() string {
+	return Catalog.Format(msgs.locale, "allLogs", nil)
+}
+
+// LogLevelLog says "Log"
+// in the language the app shows.
+func LogLevelLog() string { return In(i18n.Locale()).LogLevelLog() }
+
+// LogLevelLog says "Log"
+// in the language of msgs.
+func (msgs Messages) LogLevelLog() string {
+	return Catalog.Format(msgs.locale, "logLevelLog", nil)
+}
+
+// ConsoleLevelFilter says "Console log level"
+// in the language the app shows.
+func ConsoleLevelFilter() string { return In(i18n.Locale()).ConsoleLevelFilter() }
+
+// ConsoleLevelFilter says "Console log level"
+// in the language of msgs.
+func (msgs Messages) ConsoleLevelFilter() string {
+	return Catalog.Format(msgs.locale, "consoleLevelFilter", nil)
+}
+
+// CopyAllLogs says "Copy all"
+// in the language the app shows.
+func CopyAllLogs() string { return In(i18n.Locale()).CopyAllLogs() }
+
+// CopyAllLogs says "Copy all"
+// in the language of msgs.
+func (msgs Messages) CopyAllLogs() string {
+	return Catalog.Format(msgs.locale, "copyAllLogs", nil)
+}
+
+// ConsoleCopied says "Console copied"
+// in the language the app shows.
+func ConsoleCopied() string { return In(i18n.Locale()).ConsoleCopied() }
+
+// ConsoleCopied says "Console copied"
+// in the language of msgs.
+func (msgs Messages) ConsoleCopied() string {
+	return Catalog.Format(msgs.locale, "consoleCopied", nil)
+}
+
+// ConsoleEmpty says "Requests you send and what their scripts print show here."
+// in the language the app shows.
+func ConsoleEmpty() string { return In(i18n.Locale()).ConsoleEmpty() }
+
+// ConsoleEmpty says "Requests you send and what their scripts print show here."
+// in the language of msgs.
+func (msgs Messages) ConsoleEmpty() string {
+	return Catalog.Format(msgs.locale, "consoleEmpty", nil)
+}
+
+// ConsoleNoLevelEntries says "No entries at this level."
+// in the language the app shows.
+func ConsoleNoLevelEntries() string { return In(i18n.Locale()).ConsoleNoLevelEntries() }
+
+// ConsoleNoLevelEntries says "No entries at this level."
+// in the language of msgs.
+func (msgs Messages) ConsoleNoLevelEntries() string {
+	return Catalog.Format(msgs.locale, "consoleNoLevelEntries", nil)
+}
+
+// ConsoleRequestDetails says "Show request details"
+// in the language the app shows.
+func ConsoleRequestDetails() string { return In(i18n.Locale()).ConsoleRequestDetails() }
+
+// ConsoleRequestDetails says "Show request details"
+// in the language of msgs.
+func (msgs Messages) ConsoleRequestDetails() string {
+	return Catalog.Format(msgs.locale, "consoleRequestDetails", nil)
+}
+
+// ConsoleRequestHeaders says "Request headers"
+// in the language the app shows.
+func ConsoleRequestHeaders() string { return In(i18n.Locale()).ConsoleRequestHeaders() }
+
+// ConsoleRequestHeaders says "Request headers"
+// in the language of msgs.
+func (msgs Messages) ConsoleRequestHeaders() string {
+	return Catalog.Format(msgs.locale, "consoleRequestHeaders", nil)
+}
+
+// ConsoleResponseHeaders says "Response headers"
+// in the language the app shows.
+func ConsoleResponseHeaders() string { return In(i18n.Locale()).ConsoleResponseHeaders() }
+
+// ConsoleResponseHeaders says "Response headers"
+// in the language of msgs.
+func (msgs Messages) ConsoleResponseHeaders() string {
+	return Catalog.Format(msgs.locale, "consoleResponseHeaders", nil)
+}
+
+// ConsoleResponseSize says "Response size"
+// in the language the app shows.
+func ConsoleResponseSize() string { return In(i18n.Locale()).ConsoleResponseSize() }
+
+// ConsoleResponseSize says "Response size"
+// in the language of msgs.
+func (msgs Messages) ConsoleResponseSize() string {
+	return Catalog.Format(msgs.locale, "consoleResponseSize", nil)
+}
+
+// WrapBodyLines says "Wrap lines"
+// in the language the app shows.
+func WrapBodyLines() string { return In(i18n.Locale()).WrapBodyLines() }
+
+// WrapBodyLines says "Wrap lines"
+// in the language of msgs.
+func (msgs Messages) WrapBodyLines() string {
+	return Catalog.Format(msgs.locale, "wrapBodyLines", nil)
+}
+
 // ConsoleLogAndErrorsShow says "console.log(...) and errors show here as its rules run."
 // in the language the app shows.
 func ConsoleLogAndErrorsShow() string { return In(i18n.Locale()).ConsoleLogAndErrorsShow() }
@@ -19854,14 +19984,24 @@ func (msgs Messages) HttpInspectedHttpsAndSse2() string {
 	return Catalog.Format(msgs.locale, "httpInspectedHttpsAndSse2", nil)
 }
 
-// HttpSHops says "HTTP(S) hops"
+// HttpSHops says "Applies to HTTP(S) requests"
 // in the language the app shows.
 func HttpSHops() string { return In(i18n.Locale()).HttpSHops() }
 
-// HttpSHops says "HTTP(S) hops"
+// HttpSHops says "Applies to HTTP(S) requests"
 // in the language of msgs.
 func (msgs Messages) HttpSHops() string {
 	return Catalog.Format(msgs.locale, "httpSHops", nil)
+}
+
+// Hops says "hops"
+// in the language the app shows.
+func Hops() string { return In(i18n.Locale()).Hops() }
+
+// Hops says "hops"
+// in the language of msgs.
+func (msgs Messages) Hops() string {
+	return Catalog.Format(msgs.locale, "hops", nil)
 }
 
 // Https says "HTTPS"
@@ -30842,11 +30982,11 @@ func (msgs Messages) Seconds0EndsTheSession() string {
 	return Catalog.Format(msgs.locale, "seconds0EndsTheSession", nil)
 }
 
-// Seconds0WaitsWithNo says "seconds · 0 waits with no request limit"
+// Seconds0WaitsWithNo says "0 waits with no request limit"
 // in the language the app shows.
 func Seconds0WaitsWithNo() string { return In(i18n.Locale()).Seconds0WaitsWithNo() }
 
-// Seconds0WaitsWithNo says "seconds · 0 waits with no request limit"
+// Seconds0WaitsWithNo says "0 waits with no request limit"
 // in the language of msgs.
 func (msgs Messages) Seconds0WaitsWithNo() string {
 	return Catalog.Format(msgs.locale, "seconds0WaitsWithNo", nil)
@@ -38396,6 +38536,28 @@ func SearchResultsLimited(count int) string { return In(i18n.Locale()).SearchRes
 // in the language of msgs.
 func (msgs Messages) SearchResultsLimited(count int) string {
 	return Catalog.Format(msgs.locale, "searchResultsLimited", map[string]any{"count": count})
+}
+
+// SearchResultsInResources says "{matches} results in {resources} resources"
+// in the language the app shows.
+func SearchResultsInResources(matches int, resources int) string {
+	return In(i18n.Locale()).SearchResultsInResources(matches, resources)
+}
+
+// SearchResultsInResources says "{matches} results in {resources} resources"
+// in the language of msgs.
+func (msgs Messages) SearchResultsInResources(matches int, resources int) string {
+	return Catalog.Format(msgs.locale, "searchResultsInResources", map[string]any{"matches": matches, "resources": resources})
+}
+
+// SearchSourceRequests says "Requests"
+// in the language the app shows.
+func SearchSourceRequests() string { return In(i18n.Locale()).SearchSourceRequests() }
+
+// SearchSourceRequests says "Requests"
+// in the language of msgs.
+func (msgs Messages) SearchSourceRequests() string {
+	return Catalog.Format(msgs.locale, "searchSourceRequests", nil)
 }
 
 // SearchNoResults says "No results in requests, variables or traffic"

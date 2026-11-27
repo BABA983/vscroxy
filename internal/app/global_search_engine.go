@@ -37,6 +37,11 @@ type globalSearch struct {
 	reveal      searchReveal
 	runner      *globalSearchRunner
 	replace     searchReplaceState
+	// collapsedSources and collapsedResources keep the result tree's folded
+	// branches while the query is unchanged. A new query searches new rows,
+	// so it starts with everything open.
+	collapsedSources   map[searchSource]bool
+	collapsedResources map[string]bool
 }
 
 type searchRequest struct {
@@ -172,6 +177,9 @@ func (a *app) syncSearchQuery() {
 	if req == s.armed {
 		return
 	}
+	if req.input != s.armed.input {
+		s.collapsedSources, s.collapsedResources = nil, nil
+	}
 	s.armed = req
 	runner := a.searchRunner()
 	runner.change()
@@ -243,14 +251,14 @@ func (s *globalSearch) armedGen() uint64 {
 	return s.runner.gen
 }
 
-// focusSearch opens the Search view and hands the keyboard to its query.
+// focusSearch switches the sidebar to Search, brings it back if hidden, and
+// hands the keyboard to the query with its text selected, as VS Code does.
 func (a *app) focusSearch(c *ui.Context) {
-	a.openPageTab(pageSearch, tabOpen{})
-	a.sidebarChoice = "search"
+	a.sidebarMode = sidebarSearch
 	a.workbench.sidebarHidden = false
 	a.invalidate()
 	if c != nil {
-		a.searchAll.handle.Focus(c)
+		a.searchAll.handle.SelectAll(c)
 	}
 }
 
@@ -284,7 +292,7 @@ func (a *app) openSearchResult(r searchResult) {
 			a.openEnvironment(r.env)
 		}
 	case searchFlows:
-		a.page, a.sidebarChoice, a.filter, a.query = pageLive, "search", "all", ""
+		a.page, a.sidebarChoice, a.filter, a.query = pageLive, "all", "all", ""
 		a.applyFilter()
 		a.pickedID = r.flowID
 		a.restoreSelection()
@@ -293,6 +301,11 @@ func (a *app) openSearchResult(r searchResult) {
 			a.bodyMode[r.side] = 0 // the raw text the search scanned
 		}
 	}
+	// The sidebar stays in Search while its result opens: following the new
+	// tab would replace the results with Collections and lose the reader's
+	// place. A later tab change follows as usual.
+	a.sidebarMode = sidebarSearch
+	a.sidebarFollows = a.tabsGroup().active()
 }
 
 // revealSearchMatch puts the caret on the match once the editor for the

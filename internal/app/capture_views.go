@@ -1186,6 +1186,10 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 			}
 		}
 	}
+	if row := uikit.SidebarButton(c, locales.NewView(), locales.ANewViewWithIts(), layersPlusIcon, false); row.Clicked() {
+		v.capture(a)
+		v.newView(a)
+	}
 	if note, failure := v.status(); note != "" {
 		color := t.TextMuted
 		if failure {

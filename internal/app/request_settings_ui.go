@@ -2,6 +2,7 @@ package app
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/request"
@@ -80,6 +81,7 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 	refreshNumbers := func() {
 		next := inheritance.InheritSettings(d.settings)
 		d.timeout, d.maxRedirects = next.Timeout().Seconds(), float64(next.RedirectLimit())
+		d.timeoutText, d.maxRedirectsText = strconv.Itoa(int(d.timeout)), strconv.Itoa(int(d.maxRedirects))
 	}
 	ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(uikit.SpaceL)).
 		Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).PaddingEnd(uikit.ScrollbarInset(t) + t.Space(uikit.SpaceM)).Children(func() {
@@ -119,11 +121,11 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 		}, defaultFor(func(s request.Settings) bool { return s.DisableCookies != nil }, func() { d.settings.DisableCookies = nil }))
 		if effective.Follows() {
 			settingRow(locales.MaximumRedirects(), locales.HttpSHops(), func() {
-				// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-				if ui.NumberInput(c, &d.maxRedirects, 1, 50, 1).Label(locales.MaximumRedirects()).Changed() {
+				numberText(&d.maxRedirectsText, d.maxRedirects)
+				uikit.NumberField(c, &d.maxRedirectsText, &d.maxRedirects, 1, 50, 1, locales.Hops(), locales.MaximumRedirects(), "", func() {
 					value := int(d.maxRedirects)
 					d.settings.MaxRedirects = &value
-				}
+				})
 			}, defaultFor(func(s request.Settings) bool { return s.MaxRedirects != nil }, func() {
 				d.settings.MaxRedirects = nil
 				refreshNumbers()
@@ -136,11 +138,11 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 			uikit.MenuSelect(c, cipherSuitesLabel(effective), cipherSuitesMenu(&d.settings, effective)).Label(locales.ChooseCipherSuites())
 		}, defaultFor(func(s request.Settings) bool { return s.CipherSuites != nil }, func() { d.settings.CipherSuites = nil }))
 		settingRow(locales.Timeout(), locales.Seconds0WaitsWithNo(), func() {
-			// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-			if ui.NumberInput(c, &d.timeout, 0, 3600, 1).Label(locales.RequestTimeoutInSeconds()).Changed() {
+			numberText(&d.timeoutText, d.timeout)
+			uikit.NumberField(c, &d.timeoutText, &d.timeout, 0, 3600, 1, "s", locales.RequestTimeoutInSeconds(), "", func() {
 				seconds := int(d.timeout)
 				d.settings.TimeoutSeconds = &seconds
-			}
+			})
 		}, defaultFor(func(s request.Settings) bool { return s.TimeoutSeconds != nil }, func() {
 			d.settings.TimeoutSeconds = nil
 			refreshNumbers()
@@ -394,6 +396,7 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 	refreshNumbers := func() {
 		next := ancestors.InheritSettings(f.settings)
 		f.timeout, f.maxRedirects = next.Timeout().Seconds(), float64(next.RedirectLimit())
+		f.timeoutText, f.maxRedirectsText = strconv.Itoa(int(f.timeout)), strconv.Itoa(int(f.maxRedirects))
 	}
 	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(uikit.SpaceL)).
 		Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).PaddingEnd(uikit.ScrollbarInset(t) + t.Space(uikit.SpaceM)).Children(func() {
@@ -446,11 +449,11 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 		}, defaultFor(func(s request.Settings) bool { return s.DisableCookies != nil }, func() { f.settings.DisableCookies = nil }))
 		if effective.Follows() {
 			settingRow(locales.MaximumRedirects(), locales.HttpSHops(), func() {
-				// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-				if ui.NumberInput(c, &f.maxRedirects, 1, 50, 1).Label(locales.FolderMaximumRedirects()).Changed() {
+				numberText(&f.maxRedirectsText, f.maxRedirects)
+				uikit.NumberField(c, &f.maxRedirectsText, &f.maxRedirects, 1, 50, 1, locales.Hops(), locales.FolderMaximumRedirects(), "", func() {
 					value := int(f.maxRedirects)
 					f.settings.MaxRedirects = &value
-				}
+				})
 			}, defaultFor(func(s request.Settings) bool { return s.MaxRedirects != nil }, func() {
 				f.settings.MaxRedirects = nil
 				refreshNumbers()
@@ -463,11 +466,11 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 			uikit.MenuSelect(c, cipherSuitesLabel(effective), cipherSuitesMenu(&f.settings, effective)).Label(locales.ChooseCipherSuites())
 		}, defaultFor(func(s request.Settings) bool { return s.CipherSuites != nil }, func() { f.settings.CipherSuites = nil }))
 		settingRow(locales.Timeout(), locales.Seconds0WaitsWithNo(), func() {
-			// Bare: MyGo's NumberInput steps with its arrows and buttons, which uikit.NumberField does not draw.
-			if ui.NumberInput(c, &f.timeout, 0, 3600, 1).Label(locales.FolderTimeoutInSeconds()).Changed() {
+			numberText(&f.timeoutText, f.timeout)
+			uikit.NumberField(c, &f.timeoutText, &f.timeout, 0, 3600, 1, "s", locales.FolderTimeoutInSeconds(), "", func() {
 				seconds := int(f.timeout)
 				f.settings.TimeoutSeconds = &seconds
-			}
+			})
 		}, defaultFor(func(s request.Settings) bool { return s.TimeoutSeconds != nil }, func() {
 			f.settings.TimeoutSeconds = nil
 			refreshNumbers()

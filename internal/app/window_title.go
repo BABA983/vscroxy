@@ -39,8 +39,6 @@ func windowName(a *app) string {
 		return locales.Diagnostics()
 	case pageOverview:
 		return locales.Overview()
-	case pageSearch:
-		return locales.Search2()
 	default:
 		return "vscroxy"
 	}

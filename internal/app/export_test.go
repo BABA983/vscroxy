@@ -94,7 +94,7 @@ func TestResponseBodySaveAvailability(t *testing.T) {
 	a := snapshotApp()
 	openDraft(a, a.flows[0])
 	tt := ui.NewTester(a.view, 960, 800)
-	if _, ok := tt.Find("Save response body"); ok {
+	if save, ok := tt.AccessByRole(ui.RoleButton, "Save body…"); ok && !save.Disabled {
 		t.Fatal("save is available without a response")
 	}
 	d := a.requestDocument
@@ -102,13 +102,13 @@ func TestResponseBodySaveAvailability(t *testing.T) {
 	for _, format := range []int{0, 1, 2} {
 		d.responseView = format
 		tt.Frame()
-		if _, ok := tt.Find("Save response body"); !ok {
-			t.Fatalf("save is missing in response format %d", format)
+		if save, ok := tt.AccessByRole(ui.RoleButton, "Save body…"); !ok || save.Disabled {
+			t.Fatalf("save is missing or disabled in response format %d", format)
 		}
 	}
 	d.composeWaiting = true
 	tt.Frame()
-	if _, ok := tt.Find("Save response body"); ok {
+	if _, ok := tt.Find("Save body…"); ok {
 		t.Fatal("save is available while a response is pending")
 	}
 	a = snapshotApp()

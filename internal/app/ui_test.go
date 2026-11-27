@@ -2117,7 +2117,7 @@ func TestResponseHeaderShowsTheExchangeWithoutInventingAStatus(t *testing.T) {
 			a.flows[0].status, a.flows[0].conn.error = tc.status, tc.failure
 			a.flows[0].millis, a.flows[0].bytes = 1242, 1843
 			tt := ui.NewTester(a.view, 960, 800)
-			if _, ok := tt.Find("Response result"); !ok || !tt.HasText(tc.title) || !tt.HasText("1242 ms") || !tt.HasText(" · 1.8 KB") {
+			if _, ok := tt.Find("Response result"); !ok || !tt.HasText(tc.title) || !tt.HasText("1.24 s") || !tt.HasText(" · 1.8 KB") {
 				t.Fatalf("missing response header: %q", tt.Texts())
 			}
 			if tc.failure != "" {
@@ -2442,38 +2442,40 @@ func TestSidebarRegionsScrollApart(t *testing.T) {
 	}
 }
 
-func TestNarrowResponsePaneKeepsItsTabsAndReportsTheNumbersInItsMenu(t *testing.T) {
+func TestNarrowResponsePaneKeepsItsTabsAndNumbers(t *testing.T) {
 	a := workspaceApp()
 	a.flows[0].millis, a.flows[0].bytes = 1242, 1843
-	// The inspector beside the list is narrow: the tabs keep the row, and the
-	// numbers and the body's format menu move into the pane's menu.
+	// The inspector beside the list is narrow: the body view switcher and
+	// the tabs still fit, and the status, duration and size stay on the row.
 	tt := ui.NewTester(a.view, 1280, 800)
-	// The format menu is as wide as two tabs, so it goes while the tabs stay.
 	if err := tt.Click("Response pane: Body"); err != nil {
 		t.Fatalf("Body tab is not wholly visible: %v", err)
 	}
 	tt.Frame()
-	if tt.HasText("Response body format") {
-		t.Fatalf("the body format menu took the tabs' room: %q", tt.Texts())
+	if !tt.HasText("Response body format") {
+		t.Fatalf("the body view switcher is missing: %q", tt.Texts())
 	}
 	for _, tab := range []string{"Headers", "Cookies", "Timing", "Body"} {
 		if err := tt.Click("Response pane: " + tab); err != nil {
 			t.Fatalf("%s tab is not wholly visible: %v", tab, err)
 		}
 		tt.Frame()
+		if tab == "Body" && !tt.HasText("Response body format") {
+			t.Fatalf("the Body tab lost its view switcher: %q", tt.Texts())
+		}
+		if tab != "Body" && tt.HasText("Response body format") {
+			t.Fatalf("the %s tab kept the Body view's second row: %q", tab, tt.Texts())
+		}
 	}
-	if tt.HasText("Response result") {
-		t.Fatal("the duration and size took the tabs' room")
+	if !tt.HasText("200 OK") {
+		t.Fatalf("the response bar lost its status: %q", tt.Texts())
 	}
 	if err := tt.Click("Response pane options"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !tt.HasText("1242 ms · 1.8 KB") {
+	if !tt.HasText("1.24 s · 1.8 KB") {
 		t.Fatalf("the pane's menu does not report the numbers: %q", tt.Texts())
-	}
-	if !tt.HasText("Response body format") {
-		t.Fatalf("the pane's menu does not offer the body's formats: %q", tt.Texts())
 	}
 }
 
@@ -2495,10 +2497,9 @@ func openEditorResponse(t *testing.T, tt *ui.Tester, a *app) {
 	tt.Frame()
 }
 
-// The editor's response pane carries the body's format menu, Decode and the
-// response's own actions beside its tabs. At half of a 1280 window it is
-// narrower than the inspector's pane, so the numbers give way first and every
-// tab still shows whole.
+// The editor's response pane carries the body's view switcher and its five
+// compact body tools beside its tabs; the numbers stay on the row, and the
+// rarer actions are in the pane's menu.
 func TestEditorResponsePaneKeepsItsTabsBesideTheRequest(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1280, 800)
@@ -2513,10 +2514,11 @@ func TestEditorResponsePaneKeepsItsTabsBesideTheRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	// The row keeps what came back, and gives up what it cannot fit: the
-	// body's format menu and Decode are in the pane's menu instead.
-	if !tt.HasText("1242 ms") || !tt.HasText(" · 1.8 KB") {
+	if !tt.HasText("1.24 s") || !tt.HasText(" · 1.8 KB") {
 		t.Fatalf("the response lost its duration and size: %q", tt.Texts())
+	}
+	if !tt.HasText("Response body format") {
+		t.Fatalf("the body view switcher is missing: %q", tt.Texts())
 	}
 	if tt.HasText("Decode…") {
 		t.Fatalf("Decode took the tabs' room: %q", tt.Texts())
@@ -2525,10 +2527,8 @@ func TestEditorResponsePaneKeepsItsTabsBesideTheRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	for _, item := range []string{"Decode…", "Response format"} {
-		if !tt.HasText(item) {
-			t.Fatalf("the pane's menu does not offer %q: %q", item, tt.Texts())
-		}
+	if !tt.HasText("Decode…") {
+		t.Fatalf("the pane's menu does not offer Decode: %q", tt.Texts())
 	}
 }
 
@@ -3812,6 +3812,13 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 		tt.Key(ui.Cmd, ui.KeyC)
 		return tt.Clipboard()
 	}
+	compareWithSource := func() {
+		t.Helper()
+		click("Response pane options")
+		if err := chooseMenu(tt, "Compare with source"); err != nil {
+			t.Fatal(err)
+		}
+	}
 	waitForResponse := func() {
 		t.Helper()
 		// The capture's own result says 200 OK too: wait for the send.
@@ -3828,7 +3835,7 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	waitForResponse()
 	// Later edits must not change what the last send actually compared.
 	edit("URL", upstream.URL+"/items?variant=not-sent")
-	click("Compare with source")
+	compareWithSource()
 	if got := copyText("Old text"); got != "original response" {
 		t.Fatalf("source baseline = %q", got)
 	}
@@ -3860,7 +3867,7 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	}
 	click("Send")
 	waitForResponse()
-	click("Compare with source")
+	compareWithSource()
 	click("Compare content")
 	click("Response body")
 	if got := copyText("New text"); got != "variant=not-sent; marker=from-script; body=sent-body" {
@@ -7771,7 +7778,7 @@ func TestSessionsLiveWithTheTraffic(t *testing.T) {
 // An empty Collections tree offers a request rather than a sentence about
 // where one would go, and the header does not offer the same thing twice: with
 // nothing saved the row in the tree is the way in, and a saved request puts the
-// header's button back.
+// search row's button back.
 func TestEmptyCollectionsOfferARequestRow(t *testing.T) {
 	a := workspaceApp()
 	a.requests, a.folders, a.documents = nil, nil, nil
@@ -7798,8 +7805,8 @@ func TestEmptyCollectionsOfferARequestRow(t *testing.T) {
 	tt.Frame()
 	row, ok = tt.Find("New request")
 	search, _ = tt.Find("Search collections")
-	if !ok || row.Y >= search.Y {
-		t.Fatalf("with a collection saved, New request is at %v, not in the header above %v", row.Y, search.Y)
+	if !ok || row.Y >= search.Y+search.H || row.Y+row.H <= search.Y {
+		t.Fatalf("with a collection saved, New request is at %v,%v, not beside the search field at %v,%v", row.Y, row.H, search.Y, search.H)
 	}
 }
 

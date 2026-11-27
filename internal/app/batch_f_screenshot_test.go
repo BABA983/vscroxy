@@ -131,7 +131,7 @@ func TestBatchFScreenshots(t *testing.T) {
 			a.folderUI.open = false
 			tt.Frame()
 
-			a.page, a.sidebarChoice = pageSearch, "search"
+			a.sidebarMode = sidebarSearch
 			a.searchAll.input, a.searchAll.results = "", nil
 			a.searchAll.matchCase = true
 			tt.Frame()

@@ -284,10 +284,10 @@ func (k *components) inputPlate(c *ui.Context) {
 		uikit.TextArea(c, &k.notes).Label("Notes").Placeholder("One host per line").Height(64).Width(uikit.WidthWide)
 	})
 	stateRow(c, "Number", func() {
-		uikit.NumberField(c, &k.port, &k.portValue, 1024, 65535, "", "Port", "", nil)
+		uikit.NumberField(c, &k.port, &k.portValue, 1024, 65535, 1, "", "Port", "", nil)
 	})
 	stateRow(c, "Number invalid", func() {
-		uikit.NumberField(c, &k.badPort, &k.badPortValue, 1024, 65535, "", "Port", "", nil)
+		uikit.NumberField(c, &k.badPort, &k.badPortValue, 1024, 65535, 1, "", "Port", "", nil)
 	})
 	stateRow(c, "On chrome", func() {
 		ui.Column(c).Width(280).Padding(c.Theme().Space(uikit.SpaceM)).Radius(uikit.RadiusPanel).

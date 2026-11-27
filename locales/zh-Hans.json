@@ -1204,6 +1204,19 @@
   "connectionLog": "连接日志",
   "connectionLogSnapshotAtCapture": "连接日志 · 抓包时的快照",
   "console": "控制台",
+  "toggleConsoleTip": "显示已发送请求、脚本消息和错误",
+  "allLogs": "全部日志",
+  "logLevelLog": "日志",
+  "consoleLevelFilter": "控制台日志级别",
+  "copyAllLogs": "复制全部",
+  "consoleCopied": "已复制控制台",
+  "consoleEmpty": "这里显示你发送的请求以及脚本的输出。",
+  "consoleNoLevelEntries": "该级别没有记录。",
+  "consoleRequestDetails": "显示请求详情",
+  "consoleRequestHeaders": "请求头",
+  "consoleResponseHeaders": "响应头",
+  "consoleResponseSize": "响应大小",
+  "wrapBodyLines": "自动换行",
   "consoleLogAndErrorsShow": "console.log(...) 和错误会在其规则运行时显示在这里。",
   "consumerKey": "消费者密钥",
   "consumerRequestsLabel": "消费者请求：{list}",
@@ -1908,7 +1921,8 @@
   "httpAuth": "HTTP 认证",
   "httpInspectedHttpsAndSse": "仅 HTTP、已检查的 HTTPS、SSE 和 WebSocket 消息；不含原始 CONNECT。条件对新交互和新建 WebSocket 连接生效。",
   "httpInspectedHttpsAndSse2": "HTTP、已检查的 HTTPS、SSE 和 WebSocket 消息；不含不透明 CONNECT。失败会断开 HTTP 请求、丢弃 WebSocket 消息，而不是 TCP 数据包。流式正文无法匹配 POST GraphQL 操作。",
-  "httpSHops": "HTTP(S) 跳转",
+  "httpSHops": "适用于 HTTP(S) 请求",
+  "hops": "跳",
   "https": "HTTPS",
   "httpsDecryption": "HTTPS 解密",
   "httpsAppRuleUnavailableA": "HTTPS 解密 App 规则不可用：需要本地可执行文件路径",
@@ -3062,7 +3076,7 @@
   "searchingBodiesTitle": "正在搜索抓包正文…",
   "seconds0DisablesKeepAlive": "0 禁用保活",
   "seconds0EndsTheSession": "0 表示连接关闭后结束会话",
-  "seconds0WaitsWithNo": "秒 · 0 表示不限制请求数",
+  "seconds0WaitsWithNo": "0 表示不限制请求时间",
   "secret": "密钥",
   "secretKey": "密钥",
   "secretName": "密钥名称 {index}",
@@ -3915,6 +3929,18 @@
     }
   },
   "searchResultsLimited": "结果已限制为 {count} 条",
+  "@searchResultsInResources": {
+    "placeholders": {
+      "matches": {
+        "type": "int"
+      },
+      "resources": {
+        "type": "int"
+      }
+    }
+  },
+  "searchResultsInResources": "{matches} 个结果，分布在 {resources} 个资源中",
+  "searchSourceRequests": "请求",
   "searchNoResults": "请求、变量和流量中没有结果",
   "searchTips": "搜索提示",
   "searchTipScope": "搜索请求名称、URL、头、请求体、脚本、变量和捕获的流量。",

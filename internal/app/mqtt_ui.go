@@ -353,11 +353,11 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 				})
 			}, "")
 			uikit.SettingsRow(c, locales.KeepAlive(), func() ui.Element {
-				return uikit.NumberField(c, &u.keepAliveText, &u.keepAlive, 0, 65535, "s", locales.KeepAliveInSeconds(), "",
+				return uikit.NumberField(c, &u.keepAliveText, &u.keepAlive, 0, 65535, 1, "s", locales.KeepAliveInSeconds(), "",
 					func() { c1.KeepAlive = int(u.keepAlive) })
 			}, locales.Seconds0DisablesKeepAlive())
 			uikit.SettingsRow(c, locales.ConnectTimeout(), func() ui.Element {
-				return uikit.NumberField(c, &u.connectTimeoutText, &u.connectTimeout, 0, 600000, "ms",
+				return uikit.NumberField(c, &u.connectTimeoutText, &u.connectTimeout, 0, 600000, 100, "ms",
 					locales.ConnectTimeoutInMilliseconds(), locales.MsForTcpTlsWebsocket(),
 					func() { c1.ConnectTimeoutMs = int(u.connectTimeout) })
 			}, "")
@@ -383,17 +383,17 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 func mqttConnectPropertiesEditor(c *ui.Context, t *ui.Theme, u *mqttDocument, c1 *request.MQTTConfig) {
 	uikit.SettingsGroup(c, locales.Mqtt50ConnectProperties(), func() {
 		uikit.SettingsRow(c, locales.SessionExpiry(), func() ui.Element {
-			return uikit.NumberField(c, &u.sessionExpiryText, &u.sessionExpiry, 0, 4294967295, "s",
+			return uikit.NumberField(c, &u.sessionExpiryText, &u.sessionExpiry, 0, 4294967295, 1, "s",
 				locales.MqttSessionExpiryInSeconds(), "",
 				func() { c1.Properties.SessionExpiry = int(u.sessionExpiry) })
 		}, locales.Seconds0EndsTheSession())
 		uikit.SettingsRow(c, locales.ReceiveMaximum(), func() ui.Element {
-			return uikit.NumberField(c, &u.receiveMaximumText, &u.receiveMaximum, 0, 65535, "",
+			return uikit.NumberField(c, &u.receiveMaximumText, &u.receiveMaximum, 0, 65535, 1, "",
 				locales.MqttReceiveMaximum(), locales.N0LeavesTheBrokerS(),
 				func() { c1.Properties.ReceiveMaximum = int(u.receiveMaximum) })
 		}, "")
 		uikit.SettingsRow(c, locales.MaximumPacket(), func() ui.Element {
-			return uikit.NumberField(c, &u.maximumPacketText, &u.maximumPacketSize, 0, 268435455, "B",
+			return uikit.NumberField(c, &u.maximumPacketText, &u.maximumPacketSize, 0, 268435455, 1, "B",
 				locales.MqttMaximumPacketSizeIn(), "",
 				func() { c1.Properties.MaximumPacketSize = int(u.maximumPacketSize) })
 		}, locales.Bytes0Advertises1Mib())
@@ -454,7 +454,7 @@ func (a *app) mqttSubscriptionsTab(c *ui.Context, t *ui.Theme, d *requestDocumen
 				})
 				ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 					uikit.Label(c, locales.SubscriptionId())
-					uikit.NumberField(c, &row.idText, &row.subscriptionID, 0, 268435455, "",
+					uikit.NumberField(c, &row.idText, &row.subscriptionID, 0, 268435455, 1, "",
 						locales.SubscriptionIdentifier(), "", func() { topic.SubscriptionIdentifier = int(row.subscriptionID) })
 				})
 				if c1.Version == request.MQTT5 {
@@ -546,12 +546,12 @@ func (a *app) mqttPublishPropertiesEditor(c *ui.Context, t *ui.Theme, u *mqttDoc
 			return uikit.Input(c, &u.publish.message.Properties.CorrelationData).Placeholder(locales.OpaqueReplyCorrelationValue()).Label(locales.CorrelationData())
 		}, "")
 		uikit.SettingsRow(c, locales.Expiry(), func() ui.Element {
-			return uikit.NumberField(c, &u.publish.expiryText, &u.publish.expiry, 0, 4294967295, "s",
+			return uikit.NumberField(c, &u.publish.expiryText, &u.publish.expiry, 0, 4294967295, 1, "s",
 				locales.MessageExpiryInSeconds(), "",
 				func() { u.publish.message.Properties.MessageExpiry = int(u.publish.expiry) })
 		}, "")
 		uikit.SettingsRow(c, locales.TopicAlias(), func() ui.Element {
-			return uikit.NumberField(c, &u.publish.aliasText, &u.publish.alias, 0, 65535, "",
+			return uikit.NumberField(c, &u.publish.aliasText, &u.publish.alias, 0, 65535, 1, "",
 				locales.TopicAlias(), "",
 				func() { u.publish.message.Properties.TopicAlias = int(u.publish.alias) })
 		}, "")
@@ -604,12 +604,12 @@ func (a *app) mqttWillPropertiesEditor(c *ui.Context, t *ui.Theme, d *requestDoc
 	c1 := &d.mqttConfig
 	uikit.SettingsGroup(c, locales.Mqtt50WillProperties(), func() {
 		uikit.SettingsRow(c, locales.Delay(), func() ui.Element {
-			return uikit.NumberField(c, &u.willDelayText, &u.willDelay, 0, 4294967295, "s",
+			return uikit.NumberField(c, &u.willDelayText, &u.willDelay, 0, 4294967295, 1, "s",
 				locales.WillDelayInSeconds(), "",
 				func() { c1.Will.Properties.WillDelay = int(u.willDelay) })
 		}, "")
 		uikit.SettingsRow(c, locales.Expiry(), func() ui.Element {
-			return uikit.NumberField(c, &u.willExpiryText, &u.willExpiry, 0, 4294967295, "s",
+			return uikit.NumberField(c, &u.willExpiryText, &u.willExpiry, 0, 4294967295, 1, "s",
 				locales.WillMessageExpiryInSeconds(), "",
 				func() { c1.Will.Properties.MessageExpiry = int(u.willExpiry) })
 		}, "")

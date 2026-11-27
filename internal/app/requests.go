@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -124,7 +125,14 @@ type requestDocument struct {
 	settings     request.Settings
 	timeout      float64
 	maxRedirects float64
-	tokenSources []request.TokenSource
+	// timeoutText and maxRedirectsText are those inputs as typed; the rest
+	// hold the request's other narrow number fields the same way.
+	timeoutText      string
+	maxRedirectsText string
+	graphqlWaitText  string
+	wsWaitText       string
+	asapExpiryText   string
+	tokenSources     []request.TokenSource
 	// examples are the draft's kept responses; example is the one shown,
 	// exampleView its Body, Headers or Request view.
 	examples      []request.Example
@@ -313,6 +321,7 @@ func (d *requestDocument) load(a *app, r savedRequest, key string) {
 	d.composeHeaders, d.composeBody = r.Headers, r.Body
 	d.problemBodyGen++
 	d.wsMessages, d.wsWait = slices.Clone(r.WebSocket.Messages), float64(r.WebSocket.Wait().Milliseconds())
+	d.wsWaitText = strconv.Itoa(int(d.wsWait))
 	if len(d.wsMessages) == 0 && r.Body != "" && request.IsWebSocket(r.URL) {
 		// A request saved before the message list existed keeps its one message.
 		d.wsMessages = []request.WebSocketMessage{{Payload: r.Body}}
@@ -322,6 +331,9 @@ func (d *requestDocument) load(a *app, r savedRequest, key string) {
 	d.description, d.settings = r.Description, r.Settings.Clone()
 	effective := a.inheritance(r.Collection).InheritSettings(r.Settings)
 	d.timeout, d.maxRedirects = effective.Timeout().Seconds(), float64(effective.RedirectLimit())
+	d.timeoutText, d.maxRedirectsText = strconv.Itoa(int(d.timeout)), strconv.Itoa(int(d.maxRedirects))
+	d.graphqlWaitText = ""
+	d.asapExpiryText = ""
 	d.tokenSources = slices.Clone(r.TokenSources)
 	d.examples, d.example, d.exampleEditor = slices.Clone(r.Examples), 0, nil
 	d.auth, d.bodyMode, d.formFields = r.Auth, cmp.Or(r.BodyMode, "Raw"), slices.Clone(r.Form)
@@ -671,47 +683,58 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 	ui.Column(c.Key(d.id)).Grow(1).FillWidth().MinHeight(0).Children(func() {
 		a.requestBar(c, t, d, nil, true)
 		a.requestVariablesPanel(c, t, d)
-		if d.comparing {
-			ui.Column(c).Grow(1).Children(func() { a.requestResponse(c, t, d) })
-			return
-		}
-		if d.requestPercent == 0 {
-			d.requestPercent = a.draftShare(c)
-		}
-		// A share the reader set is theirs; the app only moves the divider it
-		// still owns.
-		if d.splitSeen != 0 && d.requestPercent != d.splitSeen {
-			d.splitTouched = true
-		}
-		d.splitSeen = d.requestPercent
-		request := func() { a.requestEditor(c, t, d, flow{}, &d.composeTab) }
-		// A saved request's runs and examples are what came back before, so
-		// they sit at the response's side, under the rule that ends the URL
-		// bar, rather than beside the whole editor.
-		response := func() {
-			ui.Row(c).Fill().AlignItems(ui.Stretch).Bind(&a.editorRespArea).Children(func() {
-				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					if r := a.experiments.record(d.historyPick); r != nil {
-						a.historyResponse(c, t, d, r)
-						return
+		area := func() {
+			if d.comparing {
+				ui.Column(c).Grow(1).Children(func() { a.requestResponse(c, t, d) })
+				return
+			}
+			if d.requestPercent == 0 {
+				d.requestPercent = a.draftShare(c)
+			}
+			// A share the reader set is theirs; the app only moves the divider it
+			// still owns.
+			if d.splitSeen != 0 && d.requestPercent != d.splitSeen {
+				d.splitTouched = true
+			}
+			d.splitSeen = d.requestPercent
+			request := func() { a.requestEditor(c, t, d, flow{}, &d.composeTab) }
+			// A saved request's runs and examples are what came back before, so
+			// they sit at the response's side, under the rule that ends the URL
+			// bar, rather than beside the whole editor.
+			response := func() {
+				ui.Row(c).Fill().AlignItems(ui.Stretch).Bind(&a.editorRespArea).Children(func() {
+					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+						if r := a.experiments.record(d.historyPick); r != nil {
+							a.historyResponse(c, t, d, r)
+							return
+						}
+						a.requestResponse(c, t, d)
+					})
+					if a.historyColumnShown(c, d) {
+						a.historyColumn(c, t, d)
 					}
-					a.requestResponse(c, t, d)
 				})
-				if a.historyColumnShown(c, d) {
-					a.historyColumn(c, t, d)
-				}
-			})
+			}
+			// The same rule as the inspector's panes: side by side while there is
+			// room for both, stacked in a narrow column.
+			if a.requestSidesStacked(c) {
+				uikit.SplitVerticalPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1)
+				return
+			}
+			// Side by side, the divider runs up to a rule under the URL bar, so
+			// it meets a line instead of stopping in the air.
+			uikit.SplitPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1).
+				Border(0, t.Border).BorderWidth(1, 0, 0, 0)
 		}
-		// The same rule as the inspector's panes: side by side while there is
-		// room for both, stacked in a narrow column.
-		if a.requestSidesStacked(c) {
-			uikit.SplitVerticalPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1)
+		if a.requestConsole.open {
+			if a.requestConsole.split == 0 {
+				a.requestConsole.split = 70
+			}
+			uikit.SplitVerticalPercent(c.Key("request-console"), &a.requestConsole.split, area,
+				func() { a.consolePanelView(c, t) }).SplitReset(70).Grow(1).MinHeight(0)
 			return
 		}
-		// Side by side, the divider runs up to a rule under the URL bar, so
-		// it meets a line instead of stopping in the air.
-		uikit.SplitPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1).
-			Border(0, t.Border).BorderWidth(1, 0, 0, 0)
+		area()
 	})
 }
 
@@ -1516,110 +1539,76 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Column(c).Fill().Bind(&a.editorRespPane).Children(func() {
 		// Nothing came back yet, so the row says nothing about a response:
 		// the pane's tabs already name what it would show.
-		sum := responseSummary{dot: uikit.Colors(t).MutedForeground}
+		sum := responseSummary{}
 		if r := d.response; r != nil {
 			sum = sentSummaryOf(t, r, outcome)
 		}
 		if d.composeWaiting {
 			sum.title = locales.Sending()
 		}
-		// The pane's own controls take their room in the order the row gives
-		// it up: the actions first, then the format menu, and Decode last.
-		// What does not fit is in the pane's menu instead, so a tab is never
-		// cut.
+		// The pane's actions that are not among the body's five tools wait
+		// in ⋯; history stays on the bar as its own icon.
 		var leftOut []action
-		tools := func(room *paneRoom) {
-			type control struct {
-				label, tip string
-				icon       *ui.SVG
-				disabled   bool
-				run        func()
+		var history action
+		if d.source != nil && d.response != nil && !d.comparing {
+			leftOut = append(leftOut, do("response.compare", locales.CompareWithSource(), func() { d.comparing = true }))
+		}
+		if d.response != nil && d.response.Status != 0 && !d.composeWaiting {
+			leftOut = append(leftOut, do("response.save", locales.SaveResponseBody(), func() { a.saveResponseBody(*d.response) }))
+		}
+		if d.response != nil && !d.composeWaiting && outcome != "Network error" && d.sentSet {
+			leftOut = append(leftOut, do("response.example", locales.SaveAsExample(), func() { a.saveExample(d) }))
+		}
+		if d.response != nil {
+			leftOut = append(leftOut, do("response.decode", locales.DecodeDialog(), func() {
+				a.openDecoder(d.responseEditor, d.response.ResponseBody)
+			}))
+		}
+		// A saved request's runs are a column of the response while it has
+		// room, which the icon shows and hides; otherwise the icon opens them
+		// on their own page. Without a retained send there is nothing to read
+		// there, so the icon stays disabled rather than opening an empty list.
+		if a.historyColumnFits(c, d) {
+			label := locales.HideRequestRuns()
+			if d.historyHidden {
+				label = locales.ShowRequestRuns()
 			}
-			var actions []control
-			if d.source != nil && d.response != nil && !d.comparing {
-				actions = append(actions, control{locales.CompareWithSource(), locales.CompareThisResponseWithThe(), compareIcon, false, func() { d.comparing = true }})
-			}
-			if d.response != nil && d.response.Status != 0 && !d.composeWaiting {
-				actions = append(actions, control{locales.SaveResponseBody(), locales.SaveBodyCompleteDecodedBytes(), saveIcon, false, func() { a.saveResponseBody(*d.response) }})
-			}
-			if d.response != nil && !d.composeWaiting && outcome != "Network error" && d.sentSet {
-				actions = append(actions, control{locales.SaveAsExample(), locales.KeepThisResponseWithThe(), exampleIcon, false, func() { a.saveExample(d) }})
-			}
-			// A saved request's runs are a column of the response while it
-			// has room, which the icon shows and hides; otherwise the icon
-			// opens them on their own page. Without a retained send there is
-			// nothing to read there, so the entry waits rather than opening
-			// an empty list.
-			if a.historyColumnFits(c, d) {
-				label := locales.HideRequestRuns()
-				if d.historyHidden {
-					label = locales.ShowRequestRuns()
-				}
-				actions = append(actions, control{label, label, sendHistoryIcon, false, func() { d.historyHidden = !d.historyHidden }})
-			} else {
-				actions = append(actions, control{locales.OpenRequestHistory(), locales.HistoryInspectRetainedAttemptsOpening(), sendHistoryIcon, d.origin == nil && d.experimentID == 0, func() { a.openSendHistory(d) }})
-			}
-			// The body's format menu says how the tab you are reading is
-			// read, so it comes before the pane's actions; the actions are
-			// one group, two points apart, so a row of them costs what it
-			// looks like; Decode is the one-off tool and yields first.
-			var shown string
-			showFormat := false
-			if d.responseTab == resViewBody && d.response != nil {
-				formats, detected := responseFormatsOf(d)
-				shown = formats[d.responseView]
-				if d.responseView == 0 {
-					shown = cmp.Or(detected, "Pretty")
-				}
-				showFormat = room.fits(paneTextWidth(c, shown, uikit.TextBody, 400) + 2*t.Space(uikit.SpaceM) + 14)
-			}
-			actionsWidth := float32(len(actions))*uikit.HeightRow + float32(max(len(actions)-1, 0))*2
-			showActions := room.fits(actionsWidth)
-			showDecode := d.responseTab == resViewBody && d.response != nil &&
-				room.fits(paneTextWidth(c, locales.DecodeResponseText(), uikit.TextBody, 400)+20)
-			if d.responseTab == resViewBody && d.response != nil {
-				if showFormat {
-					uikit.Tip(c, uikit.ToolbarSelect(c, shown, func(m *ui.Menu) { actionMenu(m, a.responseFormatActions(d)) }).
-						Label(locales.ResponseFormat()), locales.ResponseBodyFormat())
-				} else {
-					leftOut = append(leftOut, submenu(locales.ResponseFormat(), a.responseFormatActions(d)...))
-				}
-				if showDecode {
-					if uikit.SecondaryButton(c, locales.DecodeDialog()).Label(locales.DecodeResponseText()).Clicked() {
-						a.openDecoder(d.responseEditor, d.response.ResponseBody)
-					}
-				} else {
-					leftOut = append(leftOut, do("response.decode", locales.DecodeDialog(), func() {
-						a.openDecoder(d.responseEditor, d.response.ResponseBody)
-					}))
-				}
-			}
-			if d.composeWaiting {
-				uikit.Hint(c, locales.Sending())
-			}
-			if !showActions {
-				for _, action := range actions {
-					leftOut = append(leftOut, do("response."+action.label, action.label, action.run).when(!action.disabled, locales.NotSentYet()))
-				}
+			history = do("response.history", label, func() { d.historyHidden = !d.historyHidden })
+		} else {
+			history = do("response.history", locales.OpenRequestHistory(), func() { a.openSendHistory(d) }).
+				when(d.origin != nil || d.experimentID != 0, locales.NotSentYet())
+		}
+		drawHistory := func(room *paneRoom) {
+			if !room.fits(uikit.HeightControlSmall) {
+				leftOut = append(leftOut, history)
 				return
 			}
-			ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
-				for _, action := range actions {
-					ui.Row(c).Disabled(action.disabled).Children(func() {
-						if uikit.IconButton(c, action.label, action.tip, action.icon).Clicked() {
-							action.run()
-						}
-					})
-				}
-			})
+			b := uikit.ToolbarButton(c, history.label, history.label, false).
+				Size(uikit.HeightControlSmall, uikit.HeightControlSmall).Padding(0).
+				Radius(uikit.RadiusInner).Justify(ui.Center).AlignItems(ui.Center)
+			if !history.enabled {
+				b.Disabled(true)
+			}
+			b.Children(func() { ui.Icon(c, sendHistoryIcon).Size(uikit.IconInline, uikit.IconInline) })
+			if b.Clicked() && history.enabled {
+				history.run()
+			}
+		}
+		var view func(bool)
+		var body func()
+		if d.responseTab == resViewBody && d.response != nil && !d.composeWaiting {
+			view = func(compact bool) { a.responseViewMenu(c, d, compact) }
+			body = func() { a.editorResponseBodyTools(c, d) }
+		}
+		if d.composeWaiting {
+			uikit.Hint(c, locales.Sending())
 		}
 		tab := d.responseTab
 		a.responsePaneHeader(c, t, &d.responseTab, sum,
 			a.responseViews(&d.responseTab, d.response != nil, checksLabel(d),
 				d.response != nil || len(d.composeReplies) > 0 || len(d.console) > 0),
-			paneTools{format: -1, width: width, draw: tools, overflow: func(items []action) []action {
-				return append(leftOut, items...)
-			}})
+			paneTools{format: -1, width: width, draw: drawHistory, view: view, body: body,
+				overflow: func(items []action) []action { return append(leftOut, items...) }})
 		// Choosing a view leaves the comparison: it belongs to the response,
 		// not to a tab.
 		if d.comparing && d.responseTab != tab {
@@ -1788,8 +1777,11 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 		}
 		if r := d.response; r != nil && (d.responseView == 0 || d.responseView == 4) && inspect.BodyFormat(r.ResponseHeader.Get("Content-Type")) != "" {
-			d.structured.view(c, a, inspectionBody{r.ResponseBody, r.ResponseBodyFile, r.ResponseBodyError, r.ResponseBodySize}, r.ResponseHeader.Get("Content-Type"))
+			d.structured.view(c, a, inspectionBody{r.ResponseBody, r.ResponseBodyFile, r.ResponseBodyError, r.ResponseBodySize}, r.ResponseHeader.Get("Content-Type"), !a.bodyNoWrap[0])
 			return
+		}
+		if d.responseEditor != nil {
+			d.responseEditor.SoftWrap = !a.bodyNoWrap[0]
 		}
 		switch d.responseView {
 		case 1:

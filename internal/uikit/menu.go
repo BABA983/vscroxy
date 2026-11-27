@@ -29,12 +29,25 @@ func MenuSelect(c *ui.Context, current string, menu func(*ui.Menu)) ui.Element {
 // choice that sits among a pane's tabs and tools, where a filled field would
 // be the one heavy thing on a quiet row.
 func ToolbarSelect(c *ui.Context, current string, menu func(*ui.Menu)) ui.Element {
+	return toolbarSelect(c, current, nil, menu)
+}
+
+// ToolbarSelectIcon is ToolbarSelect with an icon that names the choice's
+// kind before its label, as a body view keeps its format's mark.
+func ToolbarSelectIcon(c *ui.Context, current string, icon *ui.SVG, menu func(*ui.Menu)) ui.Element {
+	return toolbarSelect(c, current, icon, menu)
+}
+
+func toolbarSelect(c *ui.Context, current string, icon *ui.SVG, menu func(*ui.Menu)) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	var b ui.Element
 	MenuFace(c, func() {
 		b = ui.ButtonBase(c)
 		b.Label(current).PopoverMenuButton(menu, MenuButtonOptions(c))
 		b.Children(func() {
+			if icon != nil {
+				ui.Icon(c, icon).Size(IconInline, IconInline).TextColor(t.TextMuted)
+			}
 			ui.Text(c, current).FontSize(Scaled(TextBody)).SingleLine()
 			chevron(c)
 		})
