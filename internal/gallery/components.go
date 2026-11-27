@@ -584,7 +584,7 @@ func (k *components) sidebarPlate(c *ui.Context) {
 				uikit.SidebarItem(c, "projects", lucide.LayoutList(), "All requests", k.sidebar == "projects", true).Children(func() { uikit.Meta(c, "1,159") })
 				uikit.SidebarItem(c, "errors", lucide.CircleAlert(), "Errors", k.sidebar == "errors", true).Children(func() { uikit.Meta(c, "73") })
 				uikit.SidebarItem(c, "slow", lucide.Clock(), "Slow", k.sidebar == "slow", true).Children(func() { uikit.Meta(c, "35") })
-				uikit.SidebarItemLetter(c, "api", "api.example.com", k.sidebar == "api", true).Children(func() { uikit.Meta(c, "12") })
+				uikit.SidebarItem(c, "api", lucide.Globe(), "api.example.com", k.sidebar == "api", true).Children(func() { uikit.Meta(c, "12") })
 				uikit.SidebarItemImage(c, "app", k.icon, "Safari", k.sidebar == "app", true)
 				uikit.SidebarHeading(c, "Sources", &open, nil)
 				uikit.SidebarButton(c, "Show all domains", "", lucide.ChevronRight(), false)

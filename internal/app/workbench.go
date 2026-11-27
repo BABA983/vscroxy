@@ -147,25 +147,50 @@ func (a *app) desktopContent(c *ui.Context) {
 					a.captureSplitView(c, available)
 					return
 				}
-				a.captureToolbar(c, c.Theme())
-				a.certificateBanner(c, c.Theme())
 				table := func() { a.captureTableRegion(c) }
+				chrome := func(width float32) {
+					a.captureToolbar(c, c.Theme(), width)
+					a.certificateBanner(c, c.Theme())
+				}
+				empty := len(a.visible) == 0 && !a.activity.active()
 				// Keep the plot and its pointer capture in the same split while
 				// a brush passes through an interval with no matching requests.
-				if len(a.visible) == 0 && !a.activity.active() {
-					a.syncDetail()
-					// The table's own empty state says why; an inspector
-					// with nothing to show would only repeat it.
-					table()
-				} else if a.inspectorDetached {
+				if a.inspectorDetached {
 					// The inspector has its own window; the table takes the
 					// room the split would have given it.
+					chrome(0)
 					table()
 				} else if w.sideBySide {
-					// The room under the toolbar, not the column's whole
-					// height (Fill), which ran past the footer.
-					uikit.SplitPercent(c.Key("right-inspector"), &w.sidePercent, table, func() { a.detail(c) }).SplitReset(64).Grow(1).FillWidth().MinHeight(0)
+					// The toolbar belongs to the list, so it ends at the list's
+					// edge and the inspector's header starts in the same row
+					// instead of under an empty band. The split stays while
+					// the filter leaves no rows: moving the search field out
+					// of it would drop the reader's focus mid-word.
+					listWidth := available * w.sidePercent / 100
+					percent := &w.sidePercent
+					if empty {
+						a.syncDetail()
+						listWidth = available
+						percent = new(float32)
+						*percent = 100
+					}
+					list := func() { chrome(listWidth); table() }
+					detail := func() {
+						if !empty {
+							a.detail(c)
+						}
+					}
+					uikit.SplitPercent(c.Key("right-inspector"), percent, list, detail).SplitReset(64).Grow(1).FillWidth().MinHeight(0)
 				} else {
+					if empty {
+						a.syncDetail()
+						// The table's own empty state says why; an inspector
+						// with nothing to show would only repeat it.
+						chrome(0)
+						table()
+						return
+					}
+					chrome(0)
 					percent, reset := &a.tablePercent, float32(44)
 					if a.bodyMode[0] == 5 {
 						if a.protobufTablePercent == 0 {
@@ -201,7 +226,7 @@ func (a *app) searchPlaceholder(c *ui.Context) string {
 	return placeholder
 }
 
-func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
+func (a *app) captureToolbar(c *ui.Context, t *ui.Theme, listWidth float32) {
 	// Leaving the search field applies what was typed, just as Enter does.
 	// Once the field is gone its text can still hold a filter that nothing
 	// will commit, so remember it at the moment focus leaves.
@@ -211,180 +236,206 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	}
 	a.searchFocused = focused
 	width := a.contentWidth(c)
-	// The protocol tabs are six short labels: they keep enough room to show
-	// them all down to a narrow window, and the search field keeps the rest.
-	// Conditions live inside the field, so while any are set they take that
-	// room first and the tabs give way.
-	protocolWidth := min(302, max(240, width*0.36))
-	if width < 900 && a.conditionsActive() {
-		protocolWidth = 128
+	// The list's own width, not the window's: with the inspector beside the
+	// table, the toolbar ends at the table's edge.
+	rowWidth := width
+	if listWidth > 0 {
+		rowWidth = listWidth - 2*t.Space(uikit.SpaceL)
 	}
+	// The search field keeps enough room for its whole placeholder, and for
+	// the conditions' chips when there are any; the protocol strip takes
+	// what is left and scrolls when that is less than all six labels.
+	reserve := float32(310)
+	if a.conditionsActive() {
+		reserve = 380
+	}
+	protocolWidth := min(302, max(120, rowWidth-136-16-reserve))
+	// Search, the smallest strip of protocols and the table's actions need
+	// about 460 points, and a field holding conditions needs the strip's
+	// room for them. A narrower column, as a split group's list gets, leaves
+	// the protocols to the More menu rather than cutting off the actions
+	// that belong to the table.
+	showChips := rowWidth >= 460 && (!a.conditionsActive() || rowWidth >= 900)
+	a.captureChipsShown = showChips
 	// A filter bar is the pane header's height: 32, with the controls at 24.
-	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).
+	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceL)).AlignItems(ui.Center).
 		Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-		// The field's sides take SearchField's inset, so chips and the
-		// placeholder clear its edge.
-		box := ui.Row(c).Grow(1).MinWidth(uikit.WidthField).Height(uikit.HeightRow).Gap(t.Space(uikit.SpaceXS)).Padding(0, t.Space(uikit.SpaceM)).AlignItems(ui.Center)
-		uikit.FieldFace(c, box, a.search.Focused(c)).Children(func() {
-			// Chips first, then the input: a condition is narrowed one
-			// token at a time and stays where it was put.
-			if a.conditionsActive() {
-				// The strip takes the room its chips need, down to what the
-				// input leaves it; its thumb sits on the field's edge, under
-				// the chips' text rather than over their buttons.
-				ui.ScrollHorizontal(c).Shrink(1).MinWidth(0).FillHeight().ScrollbarInsets(0, 0, -4).Children(func() {
-					a.captureConditions(c)
-				})
-			}
-			placeholder := a.searchPlaceholder(c)
-			// Bare: the query field carries its own tokens and completion popup, which uikit.Combobox does not model.
-			cb := ui.ComboboxBase(c.Key("capture-search"+a.captureSearchKey), &a.query)
-			search := uikit.Tip(c, cb.Input.Bind(&a.search).Label(locales.SearchHostOrPath()).Placeholder(placeholder),
-				cmp.Or(a.queryProblem, a.searchProblem, locales.SearchHostAndPathIncluding())).
-				Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceXS)).Grow(1).MinWidth(min(200, width/5)).FocusRing(false).Border(0, ui.Color{}).
-				OnShortcut(0, ui.KeyEscape, func() { a.clearQuery(c) })
-			if a.queryProblem != "" || a.searchProblem != "" {
-				search.TextColor(t.Danger)
-			}
-			if a.queryCaret != nil {
-				search.SetTextSelection(*a.queryCaret, *a.queryCaret)
-				a.queryCaret = nil
-			}
-			caret, _ := search.TextSelection()
-			// The suggestion list owns Up/Down while it is open. A closed
-			// list leaves them to the field's filter history.
-			searchCaret := [2]int{caret, caret}
-			search.OnTextKey(func(k ui.TextKey) bool {
-				if a.queryOpen {
-					return false
-				}
-				return a.filterHistory.textKey(k, searchCaret)
-			})
-			_, _, prefix := queryTokenAt(a.query, caret)
-			suggestions := a.querySuggestions(prefix, !cb.Filtering())
-			first := false
-			cb.Popup(func(panel ui.Element) {
-				uikit.PopoverPanel(c, panel).Padding(t.Space(uikit.SpaceXS)).Margin(t.Space(uikit.SpaceS), 0, 0, 0)
-				for _, s := range suggestions[:min(len(suggestions), maxQuerySuggestions)] {
-					item := cb.Item(s.text).Label(s.text).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceL)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
-					if item.Highlighted() {
-						item.Background(t.SurfaceHover)
-						first = first || s == suggestions[0]
-					}
-					item.Children(func() {
-						uikit.Mono(c, s.text).TextColor(t.Text).SingleLine().Grow(1)
-						uikit.Meta(c, s.hint).SingleLine()
+		// The bar belongs to the table, not to the window: with the inspector
+		// beside it, its search, protocol filters and actions end at the
+		// table's own edge instead of reaching over the inspector.
+		row := ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center)
+		if listWidth > 0 {
+			row.Width(max(0, listWidth-2*t.Space(uikit.SpaceL))).MinWidth(0)
+		} else {
+			row.Grow(1)
+		}
+		row.Children(func() {
+			// The field's sides take SearchField's inset, so chips and the
+			// placeholder clear its edge.
+			box := ui.Row(c).Grow(1).MinWidth(uikit.WidthField).Height(uikit.HeightRow).Gap(t.Space(uikit.SpaceXS)).Padding(0, t.Space(uikit.SpaceM)).AlignItems(ui.Center)
+			uikit.FieldFace(c, box, a.search.Focused(c)).Children(func() {
+				// Chips first, then the input: a condition is narrowed one
+				// token at a time and stays where it was put.
+				if a.conditionsActive() {
+					// The strip takes the room its chips need, down to what the
+					// input leaves it; its thumb sits on the field's edge, under
+					// the chips' text rather than over their buttons.
+					ui.ScrollHorizontal(c).Shrink(1).MinWidth(0).FillHeight().ScrollbarInsets(0, 0, -4).Children(func() {
+						a.captureConditions(c)
 					})
 				}
-			})
-			_, _, value := strings.Cut(prefix, ":")
-			text, chosen := cb.Chosen()
-			switch {
-			case chosen:
-				q, at := completeQuery(a.query, caret, text)
-				a.query, a.queryCaret = q, new(at)
-				if !a.commitQuery(false) {
+				placeholder := a.searchPlaceholder(c)
+				// Bare: the query field carries its own tokens and completion popup, which uikit.Combobox does not model.
+				cb := ui.ComboboxBase(c.Key("capture-search"+a.captureSearchKey), &a.query)
+				search := uikit.Tip(c, cb.Input.Bind(&a.search).Label(locales.SearchHostOrPath()).Placeholder(placeholder),
+					cmp.Or(a.queryProblem, a.searchProblem, locales.SearchHostAndPathIncluding())).
+					Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceXS)).Grow(1).MinWidth(min(200, width/5)).FocusRing(false).Border(0, ui.Color{}).
+					OnShortcut(0, ui.KeyEscape, func() { a.clearQuery(c) })
+				if a.queryProblem != "" || a.searchProblem != "" {
+					search.TextColor(t.Danger)
+				}
+				if a.queryCaret != nil {
+					search.SetTextSelection(*a.queryCaret, *a.queryCaret)
+					a.queryCaret = nil
+				}
+				caret, _ := search.TextSelection()
+				// The suggestion list owns Up/Down while it is open. A closed
+				// list leaves them to the field's filter history.
+				searchCaret := [2]int{caret, caret}
+				search.OnTextKey(func(k ui.TextKey) bool {
+					if a.queryOpen {
+						return false
+					}
+					return a.filterHistory.textKey(k, searchCaret)
+				})
+				_, _, prefix := queryTokenAt(a.query, caret)
+				suggestions := a.querySuggestions(prefix, !cb.Filtering())
+				first := false
+				cb.Popup(func(panel ui.Element) {
+					uikit.PopoverPanel(c, panel).Padding(t.Space(uikit.SpaceXS)).Margin(t.Space(uikit.SpaceS), 0, 0, 0)
+					for _, s := range suggestions[:min(len(suggestions), maxQuerySuggestions)] {
+						item := cb.Item(s.text).Label(s.text).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceL)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
+						if item.Highlighted() {
+							item.Background(t.SurfaceHover)
+							first = first || s == suggestions[0]
+						}
+						item.Children(func() {
+							uikit.Mono(c, s.text).TextColor(t.Text).SingleLine().Grow(1)
+							uikit.Meta(c, s.hint).SingleLine()
+						})
+					}
+				})
+				_, _, value := strings.Cut(prefix, ":")
+				text, chosen := cb.Chosen()
+				switch {
+				case chosen:
+					q, at := completeQuery(a.query, caret, text)
+					a.query, a.queryCaret = q, new(at)
+					if !a.commitQuery(false) {
+						a.applyFilter()
+					}
+					if strings.HasSuffix(text, ":") {
+						cb.SetOpen(true) // on to the values
+					} else {
+						a.queryCaret = new(utf8.RuneCountInString(a.query))
+					}
+				// Opened by Down, not a click or typing, on its first option or
+				// none: meant for the requests, as before the field suggested
+				// anything. Up opens it on its last option.
+				case cb.Open() && !a.queryOpen && !cb.Filtering() && !search.Clicked() && (first || len(suggestions) == 0):
+					cb.SetOpen(false)
+					a.focusTraffic(c)
+				// Closed rather than open with nothing in it, so that Down
+				// opening it again can be told apart.
+				case cb.Open() && len(suggestions) == 0:
+					cb.SetOpen(false)
+				// Typing highlights the first option for Enter to take. A key
+				// is only highlighted once asked for (Down): Enter after free
+				// text such as "st" searches it, not status:.
+				case !value && cb.Filtering():
+					cb.SetOpen(false)
+					cb.SetOpen(true)
+				}
+				a.queryOpen = cb.Open()
+				if search.Changed() && !a.commitQuery(false) {
 					a.applyFilter()
 				}
-				if strings.HasSuffix(text, ":") {
-					cb.SetOpen(true) // on to the values
-				} else {
-					a.queryCaret = new(utf8.RuneCountInString(a.query))
-				}
-			// Opened by Down, not a click or typing, on its first option or
-			// none: meant for the requests, as before the field suggested
-			// anything. Up opens it on its last option.
-			case cb.Open() && !a.queryOpen && !cb.Filtering() && !search.Clicked() && (first || len(suggestions) == 0):
-				cb.SetOpen(false)
-				a.focusTraffic(c)
-			// Closed rather than open with nothing in it, so that Down
-			// opening it again can be told apart.
-			case cb.Open() && len(suggestions) == 0:
-				cb.SetOpen(false)
-			// Typing highlights the first option for Enter to take. A key
-			// is only highlighted once asked for (Down): Enter after free
-			// text such as "st" searches it, not status:.
-			case !value && cb.Filtering():
-				cb.SetOpen(false)
-				cb.SetOpen(true)
-			}
-			a.queryOpen = cb.Open()
-			if search.Changed() && !a.commitQuery(false) {
-				a.applyFilter()
-			}
-			if search.Submitted() {
-				a.rememberFilterHistory(a.query)
-				a.commitQuery(true)
-				if a.queryProblem == "" && a.searchProblem == "" {
-					a.focusTraffic(c)
-				}
-			}
-			if a.filtersActive() {
-				if uikit.RowIconButton(c, locales.ResetAll(), locales.ResetAllConditions(), closeIcon).Clicked() {
-					a.views.resetFilters(a)
-				}
-			}
-			// The conditions the field cannot spell -- the dialog's own
-			// fields, the time range -- open from the field's end, so the
-			// search is the one way to narrow the list.
-			if uikit.RowIconButton(c, locales.Filters(), locales.StatusHeaderBodyMethodDuration(), filterIcon).Clicked() {
-				a.openFilter()
-			}
-		})
-		ui.ScrollHorizontal(c).Width(protocolWidth).Height(uikit.HeightRow).Children(func() {
-			// Images and HTML live in the menu but remain valid selections.
-			// The kinds read as tabs over the list: the chosen one is the
-			// tabs' tinted chip, with no track behind them.
-			p := uikit.Colors(t)
-			// Bare: each protocol chip has a count and a short label, which uikit.Segmented does not take.
-			segments := ui.SegmentedBase(c, &a.chip, len(captureKinds))
-			segments.Track.Label(locales.ProtocolAndContentTypeLabel()).Height(uikit.HeightRow).Gap(t.Space(uikit.SpaceHair)).Children(func() {
-				for i, name := range captureProtocols {
-					label := optionLabel(name)
-					if name == "WebSocket" {
-						label = "WS"
+				if search.Submitted() {
+					a.rememberFilterHistory(a.query)
+					a.commitQuery(true)
+					if a.queryProblem == "" && a.searchProblem == "" {
+						a.focusTraffic(c)
 					}
-					segment := segments.Segment(i).Label(locales.ProtocolAndContentType(name)).Height(uikit.HeightRow).
-						Padding(0, t.Space(uikit.SpaceS)).Radius(uikit.RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
-					switch {
-					case a.chip == i:
-						// A filter's chosen tab is a neutral face: green is
-						// only for what is selected as data, primary or on.
-						segment.Background(p.Muted).TextColor(t.Text)
-					case segment.Pressed():
-						segment.Background(t.SurfacePressed)
-					case segment.Hovered():
-						segment.Background(t.SurfaceHover)
+				}
+				if a.filtersActive() {
+					if uikit.RowIconButton(c, locales.ResetAll(), locales.ResetAllConditions(), closeIcon).Clicked() {
+						a.views.resetFilters(a)
 					}
-					segment.Children(func() {
-						uikit.Caption(c, label)
-					})
+				}
+				// The conditions the field cannot spell -- the dialog's own
+				// fields, the time range -- open from the field's end, so the
+				// search is the one way to narrow the list.
+				if uikit.RowIconButton(c, locales.Filters(), locales.StatusHeaderBodyMethodDuration(), filterIcon).Clicked() {
+					a.openFilter()
 				}
 			})
-			if segments.Track.Changed() {
-				a.applyFilter()
+			if showChips {
+				ui.ScrollHorizontal(c).Width(protocolWidth).Height(uikit.HeightRow).Children(func() {
+					// Images and HTML live in the menu but remain valid selections.
+					// The kinds read as tabs over the list: the chosen one is the
+					// tabs' tinted chip, with no track behind them.
+					p := uikit.Colors(t)
+					// Bare: each protocol chip has a count and a short label, which uikit.Segmented does not take.
+					segments := ui.SegmentedBase(c, &a.chip, len(captureKinds))
+					segments.Track.Label(locales.ProtocolAndContentTypeLabel()).Height(uikit.HeightRow).Gap(t.Space(uikit.SpaceHair)).Children(func() {
+						for i, name := range captureProtocols {
+							label := optionLabel(name)
+							if name == "WebSocket" {
+								label = "WS"
+							}
+							segment := segments.Segment(i).Label(locales.ProtocolAndContentType(name)).Height(uikit.HeightRow).
+								Padding(0, t.Space(uikit.SpaceS)).Radius(uikit.RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
+							switch {
+							case a.chip == i:
+								// A filter's chosen tab is a neutral face: green is
+								// only for what is selected as data, primary or on.
+								segment.Background(p.Muted).TextColor(t.Text)
+							case segment.Pressed():
+								segment.Background(t.SurfacePressed)
+							case segment.Hovered():
+								segment.Background(t.SurfaceHover)
+							}
+							segment.Children(func() {
+								uikit.Caption(c, label)
+							})
+						}
+					})
+					if segments.Track.Changed() {
+						a.applyFilter()
+					}
+				})
 			}
+			// What the list does with itself sits with the list, as Proxyman's
+			// toolbar keeps it, rather than in the window's status bar.
+			a.followButton(c, t)
+			if uikit.IconButton(c, locales.Clear(), locales.ClearRecords(), clearIcon).Disabled(len(a.flows) == 0).Clicked() {
+				a.clearOpen = true
+			}
+			breakTip := locales.BreakpointsOffTip()
+			if a.breakOn {
+				breakTip = locales.BreakpointsOnTip()
+			}
+			breakButton := uikit.ToolbarButton(c, locales.Breakpoints(), breakTip, a.breakOn).
+				Size(uikit.HeightControl, uikit.HeightControl).Padding(0).Justify(ui.Center)
+			breakButton.Children(func() {
+				ui.Icon(c, breakIcon).Size(uikit.IconInline, uikit.IconInline)
+			})
+			if breakButton.Clicked() && a.srv != nil {
+				a.breakOn = !a.breakOn
+				a.srv.SetBreak(a.breakOn)
+			}
+			uikit.MoreButton(c, locales.MoreCaptureOptions(), locales.MoreCaptureOptions(), func(m *ui.Menu) { actionMenu(m, a.captureActions(c)) })
 		})
-		// What the list does with itself sits with the list, as Proxyman's
-		// toolbar keeps it, rather than in the window's status bar.
-		a.followButton(c, t)
-		if uikit.IconButton(c, locales.Clear(), locales.ClearRecords(), clearIcon).Disabled(len(a.flows) == 0).Clicked() {
-			a.clearOpen = true
-		}
-		breakTip := locales.BreakpointsOffTip()
-		if a.breakOn {
-			breakTip = locales.BreakpointsOnTip()
-		}
-		breakButton := uikit.ToolbarButton(c, locales.Breakpoints(), breakTip, a.breakOn).
-			Size(uikit.HeightControl, uikit.HeightControl).Padding(0).Justify(ui.Center)
-		breakButton.Children(func() {
-			ui.Icon(c, breakIcon).Size(uikit.IconInline, uikit.IconInline)
-		})
-		if breakButton.Clicked() && a.srv != nil {
-			a.breakOn = !a.breakOn
-			a.srv.SetBreak(a.breakOn)
-		}
-		uikit.MoreButton(c, locales.MoreCaptureOptions(), locales.MoreCaptureOptions(), func(m *ui.Menu) { actionMenu(m, a.captureActions(c)) })
 	})
 	ui.Divider(c)
 }
@@ -505,7 +556,13 @@ func (a *app) captureActions(c *ui.Context) []action {
 	} else {
 		actions = append(actions, pick(global, "capture.split-right").as(locales.OpenSecondCaptureView()))
 	}
-	for index := 6; index < len(captureKinds); index++ {
+	// The strip shows the first six kinds; the rest, and all of them while
+	// the strip is folded away in a narrow column, are in this menu.
+	first := 6
+	if !a.captureChipsShown {
+		first = 0
+	}
+	for index := first; index < len(captureKinds); index++ {
 		actions = append(actions, do("capture.kind", optionLabel(captureKinds[index]), func() {
 			a.chip = index
 			a.applyFilter()

@@ -1,6 +1,8 @@
 package uikit
 
 import (
+	"cmp"
+
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -31,22 +33,25 @@ func PropertyRow(c *ui.Context, title, description string, control func(), footn
 }
 
 // SettingRowOptions is one row of a compact settings list, as Postman's
-// request settings are: a title and a one-line description, the control in a
-// fixed column at the right, and the scope the value inherits under it.
+// request settings are: a title and a description, the control in a fixed
+// column at the right, and a Reset for a field that differs from the value it
+// inherits.
 type SettingRowOptions struct {
 	Title, Description string
 	Control            func()
 	// Default names the scope the value inherits from, such as
-	// "Default: Collection".
+	// "Default: Collection". It is the Reset's tooltip, never a line of its
+	// own: a row at its default says nothing.
 	Default string
-	// Overridden turns the footnote into a Reset action for this one field.
+	// Overridden offers Reset for this one field.
 	Overridden bool
 	OnReset    func()
 }
 
 // SettingRow draws one setting without a card or a rule. The control column
-// keeps one width, so switches, selects and fields line up down the list, and
-// the scope under each control says where the inherited value comes from.
+// keeps one width, and every control ends at its right edge, so switches,
+// selects and fields line up down the list. Only a field that differs from the
+// value it inherits offers Reset; the scope it inherits is the link's tip.
 func SettingRow(c *ui.Context, o SettingRowOptions) ui.Element {
 	t := c.Theme()
 	row := ui.Row(c).FillWidth().Gap(t.Space(SpaceXL)).AlignItems(ui.Start)
@@ -55,39 +60,34 @@ func SettingRow(c *ui.Context, o SettingRowOptions) ui.Element {
 		head.Children(func() {
 			Small(c, o.Title).FontWeight(WeightMedium)
 			if o.Description != "" {
-				Small(c, o.Description).TextColor(t.TextMuted).SingleLine()
+				Small(c, o.Description).TextColor(t.TextMuted)
 			}
 		})
-		control := ui.Column(c).Width(WidthField).Shrink(0).AlignItems(ui.Start).Gap(t.Space(SpaceXS))
-		control.Children(func() {
-			if o.Control != nil {
-				o.Control()
+		// Reset sits on the control's line, to its left, so an overridden
+		// field is no taller than the others. Its tip names the scope the
+		// value returns to.
+		line := Scaled(TextMeta) * LineMeta
+		actions := ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(t.Space(SpaceM))
+		actions.Children(func() {
+			if o.Overridden && o.OnReset != nil {
+				reset := ui.ButtonBase(c).Label(locales.Reset()).Height(line).Padding(0).
+					FontSize(Scaled(TextMeta)).LineHeight(LineMeta).TextColor(t.TextMuted)
+				reset.Children(func() {
+					ui.Text(c, locales.Reset()).FontSize(Scaled(TextMeta)).LineHeight(LineMeta)
+				})
+				Tip(c, reset, cmp.Or(o.Default, locales.Reset()))
+				if reset.Hovered() {
+					reset.TextColor(t.Text).Underline()
+				}
+				if reset.Clicked() {
+					o.OnReset()
+					c.Invalidate()
+				}
 			}
-			if o.Default == "" {
-				return
-			}
-			// The scope and Reset share one caption line. Reset is a button
-			// with no control height or inset of its own, so an overridden
-			// row keeps the same left edge and height as every other row.
-			line := Scaled(TextMeta) * LineMeta
-			foot := ui.Row(c).Height(line).Gap(t.Space(SpaceXS)).AlignItems(ui.Center)
-			foot.Children(func() {
-				Caption(c, o.Default).TextColor(t.TextMuted)
-				if o.Overridden && o.OnReset != nil {
-					Caption(c, "·").TextColor(t.TextMuted)
-					reset := ui.ButtonBase(c).Label(locales.Reset()).Height(line).Padding(0).
-						FontSize(Scaled(TextMeta)).LineHeight(LineMeta).TextColor(t.Text)
-					reset.Children(func() {
-						ui.Text(c, locales.Reset()).FontSize(Scaled(TextMeta)).LineHeight(LineMeta)
-					})
-					Tip(c, reset, o.Default)
-					if reset.Hovered() {
-						reset.TextColor(t.Text).Underline()
-					}
-					if reset.Clicked() {
-						o.OnReset()
-						c.Invalidate()
-					}
+			control := ui.Column(c).Width(WidthField).Shrink(0).AlignItems(ui.End)
+			control.Children(func() {
+				if o.Control != nil {
+					o.Control()
 				}
 			})
 		})

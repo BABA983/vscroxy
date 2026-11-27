@@ -169,15 +169,6 @@ func SidebarItemImage(c *ui.Context, id string, src ui.ImageSource, label string
 	})
 }
 
-// SidebarItemLetter is SidebarItem for a row named rather than pictured, as a
-// host is: its first letter stands in a block where a site's icon would, so the
-// column of dots that all meant the same thing is gone.
-func SidebarItemLetter(c *ui.Context, id, label string, chosen, active bool) ui.Element {
-	return sidebarRow(c, id, label, chosen, active, func(ink ui.Color) {
-		LetterSquare(c, label, IconLarge, ink)
-	})
-}
-
 // LetterSquare is a name's first letter in a neutral block, where an icon
 // would sit: the control face, not a color of its own, so an app the system
 // cannot picture and a host without a favicon look alike. size is the block's

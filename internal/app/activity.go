@@ -76,7 +76,10 @@ type activityCache struct {
 	total, selected int
 }
 
-func (a *app) activityStrip(c *ui.Context) {
+// activityStrip draws the timeline when it has something to read: traffic in
+// its window, or a chosen range to show. A row that holds only a timestamp is
+// noise above the table, so it takes no room then.
+func (a *app) activityStrip(c *ui.Context) bool {
 	end := a.activityEnd(time.Now())
 	start, used := a.activityAxis(end)
 	band := a.activity.band(start)
@@ -86,7 +89,11 @@ func (a *app) activityStrip(c *ui.Context) {
 		cache.buckets, cache.total, cache.selected = a.countActivity(start, end, band)
 	}
 	buckets, total, selected := cache.buckets, cache.total, cache.selected
+	if total == 0 && !a.activity.active() {
+		return false
+	}
 	a.drawActivity(c, end, start, used, band, buckets, total, selected)
+	return true
 }
 
 func (a *app) countActivity(start, end time.Time, band uikit.ActivityRange) (buckets [activityBuckets]uikit.ActivityBucket, total, selected int) {

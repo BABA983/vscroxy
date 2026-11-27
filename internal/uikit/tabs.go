@@ -43,6 +43,13 @@ func CountedTabsWithDotsAndLink(c *ui.Context, selected *int, prefix string, lab
 func SubTabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Element {
 	return tabs(c, selected, prefix, labels, nil, nil, -1, true)
 }
+
+// CountedSubTabsWithDotsAndLink is SubTabs with CountedTabsWithDotsAndLink's
+// quiet counts, status dots and one linked view: a pane whose tabs are its
+// name keeps the same words on the underlined row the response pane uses.
+func CountedSubTabsWithDotsAndLink(c *ui.Context, selected *int, prefix string, labels, counts []string, dots []bool, link int) ui.Element {
+	return tabs(c, selected, prefix, labels, counts, dots, link, true)
+}
 func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, dots []bool, link int, sub bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	group := ui.TabsBase(c, selected, len(labels))
@@ -50,8 +57,9 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 	if sub {
 		// A second level reads as words: the words keep a gap that tells
 		// them apart, and the rule below them is the only mark of the
-		// chosen one.
-		gap = t.Space(SpaceM)
+		// chosen one. The gap stays tighter than a control row's, so a
+		// pane's full set of tabs keeps its room.
+		gap = t.Space(SpaceS)
 	}
 	// One row of words; the padding belongs to each tab, so neighbours stay
 	// apart without a visible rule between them.
@@ -75,8 +83,8 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 			radius := float32(RadiusInner)
 			if sub {
 				// A second level is words with an underline, so it keeps the
-				// tighter hit area that fits beside an editor.
-				height, inset, radius = HeightControlSmall, Scaled(ControlPaddingXSmall), 0
+				// tighter hit area and inset that fit beside an editor.
+				height, inset, radius = HeightControlSmall, t.Space(SpaceS), 0
 			}
 			tab := group.Tab(i).Label(name).Height(height).Padding(0, inset).Gap(t.Space(SpaceXS)).
 				Radius(radius).AlignItems(ui.Center).TextColor(t.TextMuted)

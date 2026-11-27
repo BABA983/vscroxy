@@ -76,11 +76,30 @@ func TestBatchFScreenshots(t *testing.T) {
 
 			write("tab-strip", requestPane(36))
 
+			// Params keeps the headings that tell its two tables apart, and
+			// drops "Query params" when it is the only one.
+			d.composeURL = "https://api.example.com/projects/:id?page=1"
+			d.querySource = ""
+			tt.Frame()
+			write("params", requestPane(320))
+			if !tt.HasText(locales.PathParameters()) || !tt.HasText(locales.QueryParams()) {
+				t.Fatalf("Params lost a table heading: %v", tt.Texts())
+			}
+			d.composeURL = "https://api.example.com/projects?type=json&page=1"
+			d.querySource = ""
+			tt.Frame()
+			if tt.HasText(locales.QueryParams()) {
+				t.Fatalf("Params repeats its own name above the only table: %v", tt.Texts())
+			}
+
 			d.composeTab = composeTabSettings
 			tt.Frame()
 			write("settings", requestPane(1000))
 			if !tt.HasText(locales.Reset()) {
 				t.Fatalf("the overridden setting has no Reset: %v", tt.Texts())
+			}
+			if tt.HasText(locales.DefaultSettings()) || tt.HasText(locales.SwitchOn()) || tt.HasText(locales.SwitchOff()) {
+				t.Fatalf("the settings list still prints an inherited default or a switch's word: %v", tt.Texts())
 			}
 
 			d.composeTab = composeTabScripts
@@ -116,6 +135,9 @@ func TestBatchFScreenshots(t *testing.T) {
 			a.folderUI.tab = 4
 			strict := true
 			a.folderUI.settings.StrictHTTP = &strict
+			// The first row is overridden too, so the dialog's top shows the
+			// one Reset the capture can see without scrolling.
+			a.folderUI.settings.HTTPVersion = "2"
 			tt.Frame()
 			write("folder-settings", tt.Image().Bounds())
 			if !tt.HasText(locales.EnableStrictHttpParser()) {
@@ -144,6 +166,22 @@ func TestBatchFScreenshots(t *testing.T) {
 			tt.Frame()
 			write("response-empty", scaled(a.editorRespPane.Bounds(c)))
 
+			// Send while capture is stopped: the primary button keeps its
+			// face, and the toast says why nothing went out and offers the
+			// way to start the capture.
+			if err := tt.Click(locales.Send()); err != nil {
+				t.Fatalf("click Send: %v", err)
+			}
+			tt.Frame()
+			if d.composeWaiting {
+				t.Fatal("Send sent the request without a capture")
+			}
+			write("send-needs-capture", image.Rect(tt.Image().Bounds().Dx()-700*scale, tt.Image().Bounds().Dy()-260*scale,
+				tt.Image().Bounds().Dx(), tt.Image().Bounds().Dy()))
+			if !tt.HasText(locales.StartCapture()) {
+				t.Fatalf("the Send notice does not offer Start capture: %v", tt.Texts())
+			}
+
 			write("footer", image.Rect(0, tt.Image().Bounds().Dy()-uikit.HeightFooter*scale,
 				tt.Image().Bounds().Dx(), tt.Image().Bounds().Dy()))
 			if proxy, ok := tt.Find(locales.ProxyStatus()); ok {
@@ -154,6 +192,14 @@ func TestBatchFScreenshots(t *testing.T) {
 				tt.Move(0, 0)
 				tt.Frame()
 			}
+			// A recording capture is the one state with a live dot; Stopped
+			// keeps a muted one.
+			a.diagnostics.demoRunning = true
+			tt.Frame()
+			write("footer-recording", image.Rect(0, tt.Image().Bounds().Dy()-uikit.HeightFooter*scale,
+				tt.Image().Bounds().Dx(), tt.Image().Bounds().Dy()))
+			a.diagnostics.demoRunning = false
+			tt.Frame()
 
 			// A document tab's menu, with one item under the pointer.
 			openCleanTab(a, "Keep", "https://example.test/keep")

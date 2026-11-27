@@ -531,6 +531,9 @@ func TestBatchHScreenshots(t *testing.T) {
 			write("code-panel-kept-crop", tt.Image(), image.Rect(1170*scale, 40*scale, 1500*scale, 975*scale))
 
 			a.rightSidebar.tab = 2
+			// A long target and file name exercise the Info panel's middle
+			// truncation while its tooltip keeps the whole value.
+			d.composeURL = "https://very-long-production-orders-api.eu-west-1.example.com/v1/orders"
 			d.sent = savedRequest{Method: "GET", URL: d.composeURL}
 			d.sentAt = time.Date(2026, 11, 27, 15, 21, 13, 0, time.Local)
 			d.sentSet = true
@@ -540,6 +543,18 @@ func TestBatchHScreenshots(t *testing.T) {
 			tt, _ = tester(a, 1500, 1000)
 			write("right-info", tt.Image(), tt.Image().Bounds())
 			write("right-info-crop", tt.Image(), image.Rect(1170*scale, 0, 1500*scale, 1000*scale))
+
+			// A response whose draft differs from the attempt and whose body
+			// is a preview: the one provenance row carries both marks.
+			d.composeBody = `{"order":43}`
+			d.response.ResponseBodySize = 9 << 20
+			tt, ctx := tester(a, 1500, 1000)
+			area := a.editorRespArea.Bounds(ctx)
+			write("response-status", tt.Image(), image.Rect(int(area.X)*scale, int(area.Y)*scale,
+				int(area.X+area.W)*scale, int(area.Y+100)*scale))
+			if !tt.HasText(locales.DraftChangedNotSent()) || !tt.HasText(locales.PreviewLimited()) {
+				t.Fatalf("the response status row lacks a mark: %v", tt.Texts())
+			}
 
 			// 3. Search with Replace open: the keyboard-selected match shows
 			// its actions, and a hovered resource shows its own in place of
@@ -578,5 +593,37 @@ func TestBatchHScreenshots(t *testing.T) {
 				t.Fatal("the Variables chip is on in the scope capture")
 			}
 		})
+	}
+}
+
+// The unresolved chip is the one line the request keeps under the URL, and it
+// opens the right sidebar's Variables view; the line itself is gone when every
+// name resolves.
+func TestUnresolvedVariablesChipOpensTheSidebar(t *testing.T) {
+	a, d := rightSidebarApp(t)
+	a.rightSidebar.open = false
+	tt := ui.NewTester(a.view, 1500, 900)
+	tt.SetLocale("en-US")
+	tt.Frame()
+	tt.Frame()
+	chip := locales.VariablesUnresolved(1)
+	if !tt.HasText(chip) {
+		t.Fatalf("the unresolved chip is missing: %v", tt.Texts())
+	}
+	if err := tt.Click(chip); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.rightSidebar.open || a.rightSidebar.tab != 0 {
+		t.Fatalf("the chip opened the sidebar=%t at tab %d", a.rightSidebar.open, a.rightSidebar.tab)
+	}
+	if !tt.HasText(locales.VariablesInRequest()) {
+		t.Fatalf("the sidebar is not on Variables: %v", tt.Texts())
+	}
+	d.composeURL = "https://api.example.com/v1/orders?token=abc"
+	a.rightSidebar.open = false
+	tt.Frame()
+	if tt.HasText(chip) {
+		t.Fatal("the unresolved line stayed after every name resolved")
 	}
 }

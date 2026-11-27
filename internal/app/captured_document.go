@@ -150,7 +150,9 @@ func (a *app) editCapture(f flow) *requestDocument {
 // produced, with the actions that read or copy it.
 func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocument) {
 	compact := a.inspectorWidth(c) < 600
-	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+	// The pane's header row is as tall as the list's toolbar beside it, so
+	// both columns start their content at the same y under the tab bar.
+	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 		source := locales.CapturedAt(f.at.Local().Format("15:04:05"))
 		if f.at.IsZero() {
 			source = locales.CapturedNumber(f.id)

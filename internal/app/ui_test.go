@@ -2385,6 +2385,11 @@ func TestEmptyCaptureOffersTheProxyAndClientSetup(t *testing.T) {
 
 func TestCaptureStartsBelowFourBars(t *testing.T) {
 	a := workspaceApp()
+	// The timeline takes a row only while it has traffic: give the fixture a
+	// request in the live window, as a capture in use has.
+	a.flows[0].at = time.Now()
+	a.recount()
+	a.applyFilter()
 	const height = 800
 	tt := ui.NewTester(a.view, 1280, height)
 	search, ok := tt.Find("Search host or path")
@@ -2812,11 +2817,12 @@ func TestFooterDoesNotRepeatTheSendShortcut(t *testing.T) {
 	}
 }
 
-// The activity strip is this session's timeline: it is not drawn before the
-// first request, and Clear does not take it away, so the table does not jump.
-func TestActivityStripWaitsForTheFirstRequest(t *testing.T) {
+// The activity strip is a timeline of what is in its window: it is not drawn
+// before the first request, and Clear takes the empty row away with the
+// traffic rather than leaving a timestamp above the table.
+func TestActivityStripShowsOnlyATimeline(t *testing.T) {
 	a := workspaceApp()
-	a.flows, a.hadFlows = nil, false
+	a.flows = nil
 	a.recount()
 	a.applyFilter()
 	tt := ui.NewTester(a.view, 1280, 800)
@@ -2835,8 +2841,20 @@ func TestActivityStripWaitsForTheFirstRequest(t *testing.T) {
 	if len(a.flows) != 0 {
 		t.Fatalf("%d flows survived Clear", len(a.flows))
 	}
-	if _, ok := tt.Find("Activity time range"); !ok {
-		t.Fatal("Clear took the strip away; the row must keep its place")
+	if _, ok := tt.Find("Activity time range"); ok {
+		t.Fatal("an empty timeline still takes a row above the table")
+	}
+}
+
+// The capture's clock is the footer count's tip: the timeline row shows it
+// only while there is a timeline to show.
+func TestCaptureTimeLivesInTheFooterCountTip(t *testing.T) {
+	a := workspaceApp()
+	a.flows[0].at = time.Now()
+	a.recount()
+	a.applyFilter()
+	if tip := a.footerCountsTip(); !strings.HasPrefix(tip, "Captured through ") {
+		t.Fatalf("the footer count's tip = %q, want the capture's clock", tip)
 	}
 }
 
@@ -5795,15 +5813,13 @@ func TestStackedInspectorSplitStopsAtTheRequestMinimum(t *testing.T) {
 	}
 }
 
-func TestCaptureSelectionMarkerFollowsListAndWindowFocus(t *testing.T) {
+func TestCaptureSelectionShowsListAndWindowFocus(t *testing.T) {
 	// Expected colors are the design's Light/Dark values, not read from
-	// uikit: accent tint fill and accent marker while the list has the
-	// focus, the neutral control fill and a faint marker otherwise. Text
-	// never turns white.
-	type look struct{ fill, marker [3]int }
-	looks := map[bool][2]look{
-		false: {{[3]int{232, 236, 230}, [3]int{138, 143, 136}}, {[3]int{231, 234, 230}, [3]int{23, 25, 23}}},
-		true:  {{[3]int{32, 38, 34}, [3]int{109, 118, 110}}, {[3]int{32, 38, 34}, [3]int{234, 243, 233}}},
+	// uikit: the selected row is a wash of ink, deeper while the list has
+	// the focus. No bar marks its leading edge.
+	looks := map[bool][2][3]int{
+		false: {{231, 234, 230}, {223, 226, 222}},
+		true:  {{32, 38, 34}, {39, 46, 41}},
 	}
 	for _, dark := range []bool{false, true} {
 		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
@@ -5826,17 +5842,17 @@ func TestCaptureSelectionMarkerFollowsListAndWindowFocus(t *testing.T) {
 				}
 				im := tt.Image()
 				y := int(row.Y + row.H/2)
-				// Sample empty space at the row's end, and the marker at its
-				// leading edge, not font antialiasing.
+				// Sample empty space at the row's end and its leading edge:
+				// the selection is the same wash from edge to edge, not a
+				// caret bar at the left.
 				for _, sample := range []struct {
 					name string
 					x    int
-					want [3]int
-				}{{"fill", int(table.X + table.W - 5), want.fill}, {"marker", int(table.X + 1), want.marker}} {
+				}{{"fill", int(table.X + table.W - 5)}, {"edge", int(table.X + 1)}} {
 					pixel := im.RGBAAt(sample.x, y)
 					for i, got := range [3]int{int(pixel.R), int(pixel.G), int(pixel.B)} {
-						if got < sample.want[i]-2 || got > sample.want[i]+2 {
-							t.Fatalf("focused=%t: %s pixel %v, want RGB %v", focused, sample.name, pixel, sample.want)
+						if got < want[i]-2 || got > want[i]+2 {
+							t.Fatalf("focused=%t: %s pixel %v, want RGB %v", focused, sample.name, pixel, want)
 						}
 					}
 				}
@@ -7810,21 +7826,23 @@ func TestEmptyCollectionsOfferARequestRow(t *testing.T) {
 	}
 }
 
-// A host has no icon of its own, so its row shows the host's first letter in a
-// block where an app shows its icon: a column of identical dots said nothing.
-func TestHostRowsShowTheirFirstLetter(t *testing.T) {
+// A host has no icon of its own, so its row shows a globe where an app shows
+// its icon. A letter block said nothing about the row.
+func TestHostRowsShowAGlobe(t *testing.T) {
 	a := workspaceApp()
 	a.domains = []domain{{name: "api.example.com", n: 2}, {name: "uploads.example.com", n: 1}}
 	a.sourcesApps = false
 	tt := ui.NewTester(a.view, 1280, 800)
 	tt.Frame()
 	for _, letter := range []string{"A", "U"} {
-		if _, ok := tt.Find(letter); !ok {
-			t.Fatalf("no %q block beside the host: %q", letter, tt.Texts())
+		if _, ok := tt.Find(letter); ok {
+			t.Fatalf("a %q letter block still stands beside a host: %q", letter, tt.Texts())
 		}
 	}
-	if _, ok := tt.Find("api.example.com"); !ok {
-		t.Fatal("the host lost its name")
+	for _, name := range []string{"api.example.com", "uploads.example.com"} {
+		if _, ok := tt.Find(name); !ok {
+			t.Fatalf("the host %q lost its name", name)
+		}
 	}
 }
 

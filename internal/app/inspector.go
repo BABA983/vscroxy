@@ -474,16 +474,22 @@ func paneTitleWidth(c *ui.Context, title string, dot bool) float32 {
 	return 6 + c.Theme().Space(uikit.SpaceS) + paneTextWidth(c, title, uikit.TextBody, 500)
 }
 
-// paneTabsWidth is the room the tabs take, as uikit lays them out: each chip's
-// padding, its label, its dot or count and the gaps between them.
-func paneTabsWidth(c *ui.Context, labels, counts []string, dots []bool) float32 {
+// paneTabsWidth is the room the tabs take, as uikit lays them out: each tab's
+// padding, its label, its dot or count and the gaps between them. sub measures
+// the underlined second-level row, whose tabs are inset and spaced wider than
+// the chip row's.
+func paneTabsWidth(c *ui.Context, labels, counts []string, dots []bool, sub bool) float32 {
 	t := c.Theme()
+	gap, inset := t.Space(uikit.SpaceHair), t.Space(uikit.SpaceS)
+	if sub {
+		gap, inset = t.Space(uikit.SpaceS), t.Space(uikit.SpaceS)
+	}
 	var w float32
 	for i, label := range labels {
 		if i > 0 {
-			w += t.Space(uikit.SpaceHair)
+			w += gap
 		}
-		w += 2*t.Space(uikit.SpaceS) + paneTextWidth(c, label, uikit.TextSmall, 400)
+		w += 2*inset + paneTextWidth(c, label, uikit.TextSmall, 400)
 		if i < len(dots) && dots[i] {
 			w += t.Space(uikit.SpaceXS) + uikit.DotSize
 		}
@@ -498,7 +504,7 @@ func paneTabsWidth(c *ui.Context, labels, counts []string, dots []bool) float32 
 // link and its menu have theirs.
 func paneRoomFor(c *ui.Context, width float32, title string, dot bool, labels, counts []string, dots []bool, menu float32) paneRoom {
 	t := c.Theme()
-	return paneRoom{left: width - 2*t.Space(uikit.SpaceL) - paneTitleWidth(c, title, dot) - paneTabsWidth(c, labels, counts, dots) - 2*t.Space(uikit.SpaceM) - menu}
+	return paneRoom{left: width - 2*t.Space(uikit.SpaceL) - paneTitleWidth(c, title, dot) - paneTabsWidth(c, labels, counts, dots, true) - 2*t.Space(uikit.SpaceM) - menu}
 }
 
 // paneMoreWidth is the room the request pane's More tab takes: it is a word
@@ -595,7 +601,7 @@ func (a *app) requestTabsFit(c *ui.Context, d *requestDocument, width float32) b
 		width = width * share / 100
 	}
 	labels, counts, dots := paneLabelsAndCounts(a.requestPaneViews(d, flow{}))
-	need := 2*t.Space(uikit.SpaceL) + paneTabsWidth(c, labels, counts, dots) + 2*t.Space(uikit.SpaceM)
+	need := 2*t.Space(uikit.SpaceL) + paneTabsWidth(c, labels, counts, dots, true) + 2*t.Space(uikit.SpaceM)
 	return width >= need
 }
 
@@ -618,8 +624,23 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 	if tools.format >= 0 {
 		formatWidth = a.paneFormatWidth(c, tools.format)
 	}
+	// Cookies is drawn as a link at the row's end, not as one of the tabs,
+	// so the row must reserve the link where the estimate would otherwise
+	// count a Cookies tab.
+	cookiesLink := paneTextWidth(c, locales.Cookies2(), uikit.TextMeta, 400) + 2*uikit.Scaled(uikit.ControlPaddingXSmall)
+	roomFor := func(views []paneView, menu float32) paneRoom {
+		labels, counts, dots := paneLabelsAndCounts(views)
+		if at := slices.IndexFunc(views, func(v paneView) bool { return v.view == composeTabCookies }); at >= 0 {
+			labels = slices.Delete(labels, at, at+1)
+			counts = slices.Delete(counts, at, at+1)
+			dots = slices.Delete(dots, at, at+1)
+		}
+		room := paneRoomFor(c, width, "", false, labels, counts, dots, menu)
+		room.left -= cookiesLink
+		return room
+	}
 	labels, counts, dots := paneLabelsAndCounts(all)
-	room := paneRoomFor(c, width, "", false, labels, counts, dots, 0)
+	room := roomFor(all, 0)
 	showFormat := tools.format >= 0 && room.fits(formatWidth)
 	extra := baseExtra
 	if !showFormat && tools.format >= 0 {
@@ -636,7 +657,7 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 		views = slices.Clone(all)
 		for len(views) > 1 {
 			labels, counts, dots = paneLabelsAndCounts(views)
-			room = paneRoomFor(c, width, "", false, labels, counts, dots, menu)
+			room = roomFor(views, menu)
 			if room.left >= 0 {
 				break
 			}
@@ -656,7 +677,7 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 			return slices.Contains(views, v)
 		})
 		labels, counts, dots = paneLabelsAndCounts(views)
-		room = paneRoomFor(c, width, "", false, labels, counts, dots, menu)
+		room = roomFor(views, menu)
 		showFormat = tools.format >= 0 && room.fits(formatWidth)
 		extra = baseExtra
 		if !showFormat && tools.format >= 0 {
@@ -671,7 +692,7 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 		// the row's end, outside the tabs but still one of the views.
 		ui.Row(c).Grow(1).FillHeight().Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			uikit.TabStrip(c, func() {
-				uikit.CountedTabsWithDotsAndLink(c, &shown, locales.RequestPaneName(), labels, counts, dots, link)
+				uikit.CountedSubTabsWithDotsAndLink(c, &shown, locales.RequestPaneName(), labels, counts, dots, link)
 			}).Grow(1).FillHeight().Label(locales.RequestPaneName()).OnClick(func() { a.inspect.focus = 1 })
 			cookies := uikit.LinkButton(c, locales.Cookies2()).Label(locales.RequestPaneName() + ": " + locales.Cookies2())
 			if *selected == composeTabCookies {
@@ -721,11 +742,11 @@ func protocolTabRow(c *ui.Context, selected *int, prefix string, labels []string
 	}
 	kept := slices.Clone(views)
 	room := width - 2*t.Space(uikit.SpaceL)
-	if paneTabsWidth(c, paneLabels(kept), nil, nil) > room {
+	if paneTabsWidth(c, paneLabels(kept), nil, nil, false) > room {
 		// More is needed: reserve its word and the gap before it, then drop
 		// whole tabs from the right until the rest fit.
 		room -= paneMoreWidth(c) + t.Space(uikit.SpaceM)
-		for len(kept) > 1 && paneTabsWidth(c, paneLabels(kept), nil, nil) > room {
+		for len(kept) > 1 && paneTabsWidth(c, paneLabels(kept), nil, nil, false) > room {
 			at := -1
 			for i := len(kept) - 1; i >= 0; i-- {
 				if kept[i].view != *selected {

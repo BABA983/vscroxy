@@ -29,6 +29,8 @@ func TestCaptureSplitScreenshots(t *testing.T) {
 		{"single", "", false, false},
 		{"two-filters", "split", true, false},
 		{"narrow", "narrow", true, true},
+		{"bottom", "bottom", false, false},
+		{"sources-apps", "apps", false, false},
 	}
 	for _, scene := range scenes {
 		for _, dark := range []bool{false, true} {
@@ -42,6 +44,16 @@ func TestCaptureSplitScreenshots(t *testing.T) {
 				if scene.split {
 					groupFilter(a, 0, "errors", "")
 					groupFilter(a, 1, "host:other.test", "")
+				} else if scene.filter == "apps" {
+					a.views.closeGroup(a)
+					a.query = ""
+					a.sourcesApps = true
+					a.clients = []domain{{name: "Acme Helper", n: 2}, {name: "Browser", n: 1}}
+				} else if scene.filter == "bottom" {
+					a.views.closeGroup(a)
+					a.workbench.layout = "bottom"
+					a.tablePercent = 56
+					a.query = "api"
 				} else {
 					a.views.closeGroup(a)
 					a.query = "api"

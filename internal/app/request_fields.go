@@ -87,7 +87,13 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	if d.queryError != "" {
 		uikit.ErrorText(c, d.queryError)
 	}
-	if a.requestFieldsEditor(c, &d.queryRows, fieldsOptions{collection: d.composeCollection, caption: locales.QueryParams(),
+	// Query params heads its table only when Path variables stands above it:
+	// on its own, the Params tab already says what the table holds.
+	queryCaption := ""
+	if len(d.pathRows) > 0 {
+		queryCaption = locales.QueryParams()
+	}
+	if a.requestFieldsEditor(c, &d.queryRows, fieldsOptions{collection: d.composeCollection, caption: queryCaption,
 		key: "parameter", focus: d.unicodeHandle, description: true, measure: &d.fieldTablePane, seen: &d.fieldTableWidth}, locales.Parameter()) {
 		u, err := url.Parse(d.composeURL)
 		if err == nil {
@@ -585,7 +591,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		return
 	}
 	if a.requestFieldsEditor(c, &d.headerRows, fieldsOptions{secret: true, description: true, collection: d.composeCollection,
-		measure: &d.fieldTablePane, seen: &d.fieldTableWidth, caption: locales.Headers(), headerEnd: func() {
+		measure: &d.fieldTablePane, seen: &d.fieldTableWidth, headerEnd: func() {
 			if uikit.LinkButton(c, locales.BulkEdit()).Clicked() {
 				a.toggleHeaderBulk(d)
 			}

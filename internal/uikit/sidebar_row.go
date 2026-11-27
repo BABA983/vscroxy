@@ -59,8 +59,10 @@ func SidebarButton(c *ui.Context, label, tip string, icon *ui.SVG, on bool) ui.E
 	if on {
 		ink = t.Accent
 	}
-	return ToolbarButton(c, label, tip, false).TextColor(t.Text).
-		Margin(0, t.Space(SpaceS)).Padding(0, t.Space(SpaceS)).Gap(t.Space(SpaceM)).Children(func() {
+	// An acting row takes a choosing row's height, icon and gap: "New view"
+	// and "Open session" sit in the same column as the rows around them.
+	return ToolbarButton(c, label, tip, false).TextColor(t.Text).Height(HeightRow).
+		Margin(0, t.Space(SpaceS)).Padding(0, t.Space(SpaceS)).Gap(t.Space(SpaceS)).Children(func() {
 		ui.Icon(c, cmp.Or(icon, SidebarDot)).Size(IconLarge, IconLarge).TextColor(ink)
 		Body(c, label).SingleLine().Grow(1)
 	})

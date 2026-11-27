@@ -105,7 +105,7 @@ const (
 	TipPaddingY          = 2
 	ToastPaddingX        = 16
 	ToastPaddingY        = 8
-	ToastWidth           = 360 // a toast is at most this wide
+	ToastWidth           = 480 // a toast is at most this wide
 	CardTipWidth         = 320 // a w-80 hover card
 	CardTipPaddingX      = 10  // a hover card, left and right
 	CardTipPaddingY      = 10  // top; the rows end 8 above the bottom edge

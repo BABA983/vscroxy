@@ -1131,6 +1131,16 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 	if v.activeView() == nil {
 		v.init(a, v.path)
 	}
+	// Views have their own heading, as Sources and Sessions do, with the
+	// one action that adds another at its end. The rows below it choose a
+	// view and take the source rows' height; there is no "New view" row
+	// that reads like a view.
+	uikit.SidebarHeading(c, locales.Views(), nil, func() {
+		if uikit.RowIconButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon).Clicked() {
+			v.capture(a)
+			v.newView(a)
+		}
+	})
 	closing := -1
 	for i, view := range v.views {
 		name := v.label(i)
@@ -1185,10 +1195,6 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 				v.applySaved(a, f.Name)
 			}
 		}
-	}
-	if row := uikit.SidebarButton(c, locales.NewView(), locales.ANewViewWithIts(), layersPlusIcon, false); row.Clicked() {
-		v.capture(a)
-		v.newView(a)
 	}
 	if note, failure := v.status(); note != "" {
 		color := t.TextMuted

@@ -551,9 +551,7 @@ func (v *captureViews) reconcileSelection(a *app) {
 // the group being built at that moment.
 func (a *app) captureTableRegion(c *ui.Context) {
 	ui.Column(c).Fill().Children(func() {
-		if a.hadFlows {
-			a.activityStrip(c)
-		}
+		a.activityStrip(c)
 		if a.chosen.Len() > 1 {
 			ui.Row(c).Height(uikit.HeightControl).Padding(0, c.Theme().Space(uikit.SpaceM)).Gap(c.Theme().Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 				uikit.Caption(c, locales.SelectedCount(a.chosen.Len())).FontWeight(500).Grow(1)
@@ -609,29 +607,65 @@ func (a *app) captureSplitView(c *ui.Context, available float32) {
 		defer func() { a.captureSearchKey, a.detailKeySuffix = "", "" }()
 		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
 			v.groupHeader(c, c.Theme(), a, group, view)
-			a.captureToolbar(c, c.Theme())
-			a.certificateBanner(c, c.Theme())
+			// The list owns the group's width, or its share while the
+			// group's inspector sits beside it.
+			groupWidth := (available - 1) / 2
+			side := wide && groupWidth >= 800
+			listWidth := groupWidth
+			if side {
+				share := view.sidePercent
+				if share == 0 {
+					share = 58
+				}
+				listWidth = groupWidth * share / 100
+			}
 			table := func() { a.captureTableRegion(c) }
+			chrome := func(width float32) {
+				a.captureToolbar(c, c.Theme(), width)
+				a.certificateBanner(c, c.Theme())
+			}
+			empty := len(a.visible) == 0 && !a.activity.active()
 			switch {
-			case len(a.visible) == 0 && !a.activity.active():
-				a.syncDetail()
-				table()
 			case a.inspectorDetached:
+				chrome(0)
 				table()
+			case side:
+				// The toolbar belongs to the list: the group's inspector
+				// header starts in the same row instead of under a band. The
+				// split stays while the filter has no rows, so the search
+				// field keeps its focus.
+				percent := &view.sidePercent
+				if empty {
+					a.syncDetail()
+					listWidth = groupWidth
+					percent = new(float32)
+					*percent = 100
+				}
+				if view.sidePercent == 0 {
+					view.sidePercent = 58
+				}
+				list := func() { chrome(listWidth); table() }
+				detail := func() {
+					if !empty {
+						a.detail(c)
+					}
+				}
+				uikit.SplitPercent(c.Key("capture-group-side"+key), percent, list, detail).
+					SplitReset(58).Grow(1).FillWidth().MinHeight(0)
 			case !wide:
 				// In a narrow window the group keeps the table readable and
 				// its inspector collapses to the exchange it holds.
+				chrome(0)
 				ui.Column(c).Fill().MinHeight(0).Children(func() {
 					table()
 					a.compactCaptureDetail(c)
 				})
-			case available/2 >= 800:
-				if view.sidePercent == 0 {
-					view.sidePercent = 58
-				}
-				uikit.SplitPercent(c.Key("capture-group-side"+key), &view.sidePercent, table, func() { a.detail(c) }).
-					SplitReset(58).Grow(1).FillWidth().MinHeight(0)
+			case empty:
+				a.syncDetail()
+				chrome(0)
+				table()
 			default:
+				chrome(0)
 				if view.tablePercent == 0 {
 					view.tablePercent = 44
 				}

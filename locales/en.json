@@ -2912,8 +2912,8 @@
   },
   "responseFromTime": "Response from {time}",
   "responseEmptyHint": "Send the request to see what comes back.",
-  "responseEmptySend": "Send + Get a response",
-  "responseEmptySendCheck": "Send + Write a check",
+  "responseEmptySend": "Send to get a response",
+  "responseEmptySendCheck": "Send and add a check",
   "responseEmptyCapture": "Pick a captured flow",
   "responseHasNoBody": "The response has no body",
   "responseHeadersFormat": "Response headers must use Name: Value, one per line",
@@ -3431,6 +3431,7 @@
       }
     }
   },
+  "target": "Target",
   "targetAfterVariables": "Target: {target}",
   "@targetBeforeScripts": {
     "placeholders": {
@@ -5004,6 +5005,7 @@
   "captureOneAppOnly": "Capture one app only…",
   "captureStopped": "Capture stopped",
   "captureViewNamed": "Capture view: {name}",
+  "capturedThrough": "Captured through {time}",
   "capturedAt": "Captured · {time}",
   "capturedRequests": "Captured requests",
   "capturedRequestsCount": "{count} captured requests",
@@ -6462,7 +6464,7 @@
   "noPreviousResponseForThis": "No previous response for this method and URL. Replay the request to compare responses.",
   "noProfilesYetMapHosts": "No profiles yet. Map hosts to other addresses without editing the system's hosts file.",
   "noPromptsListed": "No prompts listed",
-  "noProxyRunningStartCapture": "No proxy running. Start capture before sending; previous result kept.",
+  "noProxyRunningStartCapture": "Capture is off, so this request can't be sent.",
   "noProxyRunningStartCapture2": "No proxy running. Start capture before fetching a schema; the saved schema is kept.",
   "noQueryParametersInThis": "No query parameters in this request",
   "noReferencedVariablesInThis": "No referenced variables in this snapshot",
@@ -6660,6 +6662,7 @@
   "presetName": "Preset name",
   "pretty": "Pretty",
   "preview": "Preview",
+  "previewLimited": "Preview limited",
   "previewLimitedTo8Mib": "Preview limited to 8 MiB; the complete body is in Capture.",
   "previousBodyMatch": "Previous body match",
   "previousMatchShiftEnter": "Previous match · Shift+Enter",

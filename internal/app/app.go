@@ -702,14 +702,13 @@ type app struct {
 	filterAny    bool
 	activity     activityRange
 	activityRows []int // matching rows before the time brush, for its full context
-	// hadFlows is sticky for the session: the activity strip is a timeline of
-	// what was captured, so it keeps its place after Clear rather than
-	// appearing and disappearing as rows come and go.
-	hadFlows bool
 	// activityCounts caches the strip's buckets until the rows, its end or
 	// the brush change.
 	activityCounts activityCache
-	views          captureViews
+	// captureChipsShown says the toolbar had room for the protocol strip
+	// this frame; the More menu lists the protocols when it did not.
+	captureChipsShown bool
+	views             captureViews
 	// restoreLastSession is the live "Restore last session" setting. Its
 	// saved pointer is nil when the setting was never written, which means on.
 	restoreLastSession bool
@@ -2163,9 +2162,6 @@ func (a *app) view(c *ui.Context) {
 		a.autoSelect = false
 	}
 	a.lastPicked = a.picked
-	// The activity strip is the session's timeline, not the current rows':
-	// once traffic has been here it keeps its place through Clear.
-	a.hadFlows = a.hadFlows || len(a.flows) > 0
 	a.drainUpstream()
 	a.drainGRPC()
 	a.drainGraphQL()
@@ -3148,7 +3144,7 @@ func (a *app) sourcesRows(c *ui.Context, t *ui.Theme) {
 // hostRow is one host of the capture: a click narrows the traffic to it, and
 // its menu makes a collection, a recording or a DNS mapping from it.
 func (a *app) hostRow(c *ui.Context, d domain) {
-	uikit.ContextMenu(c, uikit.SidebarItemLetter(c, "host:"+d.name, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind), func(m *ui.Menu) {
+	uikit.ContextMenu(c, uikit.SidebarItem(c, "host:"+d.name, globeIcon, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind), func(m *ui.Menu) {
 		actionMenu(m, []action{
 			do("collection.from-host", locales.CreateCollection(), func() { a.openCollectionWizard(a.collectionScope(d.name, "")) }).in("edit"),
 			do("collection.record-host", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", d.name, "") }).in("edit"),
@@ -3188,7 +3184,9 @@ func (a *app) clientRow(c *ui.Context, d domain) {
 		}
 	}
 	if !row.Valid() {
-		row = uikit.SidebarItem(c, id, nil, d.name, active, !a.windowBehind)
+		// An app with no resolvable icon keeps a generic window rather than
+		// an anonymous dot; a dot says nothing about what the row is.
+		row = uikit.SidebarItem(c, id, appIcon, d.name, active, !a.windowBehind)
 	}
 	uikit.ContextMenu(c, row, func(m *ui.Menu) { actionMenu(m, a.clientActions(d.name, apps)) }).
 		Children(func() {
@@ -3413,6 +3411,13 @@ func (a *app) table(c *ui.Context) {
 	if a.workbench.sideBySide {
 		available = available * a.workbench.sidePercent / 100
 	}
+	// The list's own measured width is the truth once it has one: a split
+	// group is narrower than the window's estimate, and a column cut in half
+	// at its edge reads as a broken table rather than as more to scroll.
+	tableHandle := ui.Local(c.Root(), "capture-table"+a.detailKeySuffix, func() ui.Handle { return ui.Handle{} })
+	if r := tableHandle.Bounds(c); r.W > 1 {
+		available = r.W
+	}
 	// A narrow list keeps what identifies a request and what it returned;
 	// the columns that only repeat the inspector's numbers give way.
 	if !fitAt(900) {
@@ -3422,6 +3427,10 @@ func (a *app) table(c *ui.Context) {
 				cols[i].Width = uikit.Scaled(132)
 			case "client":
 				cols[i].Width = uikit.Scaled(100)
+			case "url":
+				// The path shares the room left; in a narrow list it can
+				// give way before the columns beside it are cut.
+				cols[i].MinWidth = uikit.Scaled(120)
 			}
 		}
 		// A column the user put in stays, whatever the width.
@@ -3512,6 +3521,12 @@ func (a *app) table(c *ui.Context) {
 	}
 	focused := state.Handle.Focused(c)
 	selectionTheme := uikit.ListTheme(t, focused)
+	if focused {
+		// The selected row is the list's only mark: a chosen row keeps a
+		// slightly stronger ink wash while the table has the keyboard, and
+		// no bar sits on its leading edge.
+		selectionTheme.Accent = uikit.Colors(t).Foreground.Alpha(0.10)
+	}
 	// Table's built-in row minimum is eight spacing units and its cells pad
 	// 1.5 units around 15px lines. Scope the 3px unit here only: 24px rows
 	// without shrinking the rest of the application. Rows have no hover, as
@@ -3562,11 +3577,6 @@ func (a *app) table(c *ui.Context) {
 	// Bare: the kit has no table; this is MyGo's table of flows, with its own cell edges.
 	table := ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
-		if col == 0 && chosen.Has(f.id) {
-			// The marker sits on the row's first visible cell, whichever
-			// column the user moved there.
-			uikit.RowMarker(c, focused)
-		}
 		switch cols[col].ID {
 		case "id":
 			quiet(strconv.Itoa(f.id))
@@ -3723,7 +3733,7 @@ func (a *app) table(c *ui.Context) {
 		// MyGo's table measures its list without the header, so a clipped table
 		// leaves the last row just below its edge. The bottom room keeps
 		// ScrollToEnd and FollowEnd above the footer.
-	}).Label(locales.CapturedRequests()).Padding(0, 0, t.Space(4.5), 0).Grow(1).MinHeight(0)
+	}).Bind(tableHandle).Label(locales.CapturedRequests()).Padding(0, 0, t.Space(4.5), 0).Grow(1).MinHeight(0)
 	c.SetTheme(t)
 	if table.Submitted() {
 		a.workbench.inspector.Focus(c)
@@ -4820,7 +4830,10 @@ func (a *app) sendComposed() {
 		return
 	}
 	if a.srv == nil || !a.srv.Running() {
-		a.warn(locales.NoProxyRunningStartCapture())
+		// Send is always the screen's primary action; a stopped capture is
+		// answered with the way to start it rather than a disabled button.
+		a.notify(notice{level: noticeWarning, text: locales.NoProxyRunningStartCapture(),
+			action: locales.StartCapture(), run: func() { go guarded(func() { a.startCapture() }) }})
 		return
 	}
 	d.composeTests = nil

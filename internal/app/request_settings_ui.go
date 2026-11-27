@@ -61,16 +61,9 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 		return out
 	}
 	switchRow := func(label string, value bool, set func(bool)) {
-		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-			if uikit.Switch(c, &value).Label(label).Changed() {
-				set(value)
-			}
-			word := locales.SwitchOff()
-			if value {
-				word = locales.SwitchOn()
-			}
-			uikit.Meta(c, word)
-		})
+		if uikit.Switch(c, &value).Label(label).Changed() {
+			set(value)
+		}
 	}
 	settingRow := func(title, description string, control func(), inherited settingDefault) {
 		uikit.SettingRow(c, uikit.SettingRowOptions{
@@ -90,7 +83,7 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 		}
 		settingRow(locales.HttpVersion(), locales.HttpVersionAutoHint(), func() {
 			choice := httpVersionChoice(effective.HTTPVersion)
-			if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).Width(uikit.WidthField).Changed() {
+			if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).FillWidth().Changed() {
 				d.settings.HTTPVersion = httpVersionFromChoice(choice)
 			}
 		}, defaultFor(func(s request.Settings) bool { return s.HTTPVersion != "" }, func() { d.settings.HTTPVersion = "" }))
@@ -125,31 +118,31 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 				uikit.NumberField(c, &d.maxRedirectsText, &d.maxRedirects, 1, 50, 1, locales.Hops(), locales.MaximumRedirects(), "", func() {
 					value := int(d.maxRedirects)
 					d.settings.MaxRedirects = &value
-				})
+				}).Width(uikit.WidthField)
 			}, defaultFor(func(s request.Settings) bool { return s.MaxRedirects != nil }, func() {
 				d.settings.MaxRedirects = nil
 				refreshNumbers()
 			}))
 		}
 		settingRow(locales.TlsProtocols(), locales.TlsProtocolsHint(), func() {
-			uikit.MenuSelect(c, tlsProtocolsLabel(effective), tlsProtocolsMenu(&d.settings, effective)).Label(locales.ChooseTlsProtocols())
+			uikit.MenuSelect(c, tlsProtocolsLabel(effective), tlsProtocolsMenu(&d.settings, effective)).Label(locales.ChooseTlsProtocols()).FillWidth()
 		}, defaultFor(func(s request.Settings) bool { return s.DisabledTLSVersions != nil }, func() { d.settings.DisabledTLSVersions = nil }))
 		settingRow(locales.CipherSuites(), locales.CipherSuitesHint(), func() {
-			uikit.MenuSelect(c, cipherSuitesLabel(effective), cipherSuitesMenu(&d.settings, effective)).Label(locales.ChooseCipherSuites())
+			uikit.MenuSelect(c, cipherSuitesLabel(effective), cipherSuitesMenu(&d.settings, effective)).Label(locales.ChooseCipherSuites()).FillWidth()
 		}, defaultFor(func(s request.Settings) bool { return s.CipherSuites != nil }, func() { d.settings.CipherSuites = nil }))
 		settingRow(locales.Timeout(), locales.Seconds0WaitsWithNo(), func() {
 			numberText(&d.timeoutText, d.timeout)
 			uikit.NumberField(c, &d.timeoutText, &d.timeout, 0, 3600, 1, "s", locales.RequestTimeoutInSeconds(), "", func() {
 				seconds := int(d.timeout)
 				d.settings.TimeoutSeconds = &seconds
-			})
+			}).Width(uikit.WidthField)
 		}, defaultFor(func(s request.Settings) bool { return s.TimeoutSeconds != nil }, func() {
 			d.settings.TimeoutSeconds = nil
 			refreshNumbers()
 		}))
 		settingRow(locales.SocketPath(), locales.SocketPathHint(), func() {
 			socket := effective.SocketPath
-			if uikit.Input(c, &socket).Label(locales.SocketPath()).Placeholder("/var/run/app.sock").Width(uikit.WidthField).Changed() {
+			if uikit.Input(c, &socket).Label(locales.SocketPath()).Placeholder("/var/run/app.sock").FillWidth().Changed() {
 				d.settings.SocketPath = strings.TrimSpace(socket)
 			}
 		}, defaultFor(func(s request.Settings) bool { return s.SocketPath != "" }, func() { d.settings.SocketPath = "" }))
@@ -375,17 +368,10 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 		return out
 	}
 	switchRow := func(label string, value bool, set func(bool)) {
-		ui.Row(c).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-			on := value
-			if uikit.Switch(c, &on).Label(label).Changed() {
-				set(on)
-			}
-			word := locales.SwitchOff()
-			if value {
-				word = locales.SwitchOn()
-			}
-			uikit.Meta(c, word)
-		})
+		on := value
+		if uikit.Switch(c, &on).Label(label).Changed() {
+			set(on)
+		}
 	}
 	settingRow := func(title, description string, control func(), inherited settingDefault) {
 		uikit.SettingRow(c, uikit.SettingRowOptions{
@@ -403,7 +389,7 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 		uikit.Meta(c, locales.RequestsUnderItInheritThese())
 		settingRow(locales.HttpVersion(), locales.HttpVersionAutoHint(), func() {
 			choice := httpVersionChoice(effective.HTTPVersion)
-			if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).Width(uikit.WidthField).Changed() {
+			if uikit.Select(c, &choice, httpVersionChoices()).Label(locales.HttpVersion()).FillWidth().Changed() {
 				f.settings.HTTPVersion = httpVersionFromChoice(choice)
 			}
 		}, defaultFor(func(s request.Settings) bool { return s.HTTPVersion != "" }, func() { f.settings.HTTPVersion = "" }))
@@ -453,24 +439,24 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 				uikit.NumberField(c, &f.maxRedirectsText, &f.maxRedirects, 1, 50, 1, locales.Hops(), locales.FolderMaximumRedirects(), "", func() {
 					value := int(f.maxRedirects)
 					f.settings.MaxRedirects = &value
-				})
+				}).Width(uikit.WidthField)
 			}, defaultFor(func(s request.Settings) bool { return s.MaxRedirects != nil }, func() {
 				f.settings.MaxRedirects = nil
 				refreshNumbers()
 			}))
 		}
 		settingRow(locales.TlsProtocols(), locales.TlsProtocolsHint(), func() {
-			uikit.MenuSelect(c, tlsProtocolsLabel(effective), tlsProtocolsMenu(&f.settings, effective)).Label(locales.ChooseTlsProtocols())
+			uikit.MenuSelect(c, tlsProtocolsLabel(effective), tlsProtocolsMenu(&f.settings, effective)).Label(locales.ChooseTlsProtocols()).FillWidth()
 		}, defaultFor(func(s request.Settings) bool { return s.DisabledTLSVersions != nil }, func() { f.settings.DisabledTLSVersions = nil }))
 		settingRow(locales.CipherSuites(), locales.CipherSuitesHint(), func() {
-			uikit.MenuSelect(c, cipherSuitesLabel(effective), cipherSuitesMenu(&f.settings, effective)).Label(locales.ChooseCipherSuites())
+			uikit.MenuSelect(c, cipherSuitesLabel(effective), cipherSuitesMenu(&f.settings, effective)).Label(locales.ChooseCipherSuites()).FillWidth()
 		}, defaultFor(func(s request.Settings) bool { return s.CipherSuites != nil }, func() { f.settings.CipherSuites = nil }))
 		settingRow(locales.Timeout(), locales.Seconds0WaitsWithNo(), func() {
 			numberText(&f.timeoutText, f.timeout)
 			uikit.NumberField(c, &f.timeoutText, &f.timeout, 0, 3600, 1, "s", locales.FolderTimeoutInSeconds(), "", func() {
 				seconds := int(f.timeout)
 				f.settings.TimeoutSeconds = &seconds
-			})
+			}).Width(uikit.WidthField)
 		}, defaultFor(func(s request.Settings) bool { return s.TimeoutSeconds != nil }, func() {
 			f.settings.TimeoutSeconds = nil
 			refreshNumbers()

@@ -155,8 +155,6 @@ type requestDocument struct {
 	sendOutcome       string
 	sendDetails       bool
 	sentRun           string
-	variablesOpen     bool
-	variablesReveal   bool
 	// bodyEditor is the raw request body's editor. bodyFor is the text it
 	// last held, so an import or a restored draft resets it while typing
 	// never does. The scripts use the same reader, each with its own state.
@@ -627,11 +625,10 @@ func (a *app) requestTitle(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	}
 	button := uikit.ToolbarButton(c, locales.RenameRequest(), locales.RenameRequest(), false).
 		Height(uikit.HeightSecondary).Padding(0, t.Space(uikit.SpaceXS)).MinWidth(0)
+	// The document tab's dot and the sidebar's Unsaved group already say a
+	// draft differs; the breadcrumb names the request alone.
 	button.Children(func() {
 		uikit.Body(c, d.title()).FontWeight(500).SingleLine().MinWidth(0)
-		if d.dirty() {
-			unsavedDot(c)
-		}
 	})
 	if button.Clicked() {
 		a.startRequestRename(d)
@@ -880,7 +877,7 @@ func (a *app) documentActions(c *ui.Context, d *requestDocument) []action {
 		do("request.history", locales.History(), func() { a.openSendHistory(d) }),
 		pick(global, "collection.settings").as(settingsLabel(d.composeCollection)).in("context"),
 		pick(global, "environment.manage").in("context"),
-		do("request.variables", locales.RequestVariables(), func() { d.variablesOpen = !d.variablesOpen }).in("context"),
+		do("request.variables", locales.RequestVariables(), func() { a.showRightSidebarVariables() }).in("context"),
 		pick(global, "editor.action.rename").in("context"),
 		pick(global, "editor.action.goToReferences").in("context"),
 		pick(global, "vault.open").in("context"),
@@ -896,50 +893,31 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 	in := a.inheritance(r.Collection)
 	rows := r.ResolveVariables(in, vars, nil)
 	missing := 0
-	for i := range rows {
-		switch rows[i].Source {
-		case "Missing":
+	for _, row := range rows {
+		if row.Missing || row.Source == "Missing" {
 			missing++
-		case "Run input":
-			rows[i].Source = locales.EnvironmentSourceNamed(cmp.Or(a.activeEnv, locales.NoneLower()))
 		}
 	}
-	if len(rows) == 0 && !d.variablesOpen {
+	// The right sidebar's Variables view already lists what the request uses;
+	// this line repeats only the one fact worth interrupting for. When every
+	// name resolves it takes no room at all.
+	if missing == 0 {
 		return
 	}
-	target := locales.UnresolvedReviewVariables()
-	if r.Protocol == "MCP" && r.MCP.Transport == request.MCPTransportStdio {
-		target = locales.StdioProcess()
-	} else if u, err := url.Parse(request.ExpandVars(d.composeURL, in.Values(vars))); err == nil && u.Hostname() != "" {
-		target = u.Scheme + "://" + u.Host // Do not reveal query tokens or userinfo.
-	}
-	targetLabel := locales.TargetBeforeScripts
-	contextLabel := locales.DraftContextPreScript()
-	if r.Protocol != "" {
-		targetLabel, contextLabel = locales.TargetAfterVariables, locales.DraftContextResolved()
-	}
-	ui.Row(c).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-		if uikit.CompactButton(c, locales.VariablesUnresolved(missing)).Label(locales.RequestVariables()).Clicked() {
-			d.variablesOpen = !d.variablesOpen
+	ui.Row(c).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
+		chip := uikit.CompactButton(c, locales.VariablesUnresolved(missing)).Label(locales.RequestVariables()).
+			TextColor(t.Warning)
+		if chip.Clicked() {
+			a.showRightSidebarVariables()
 		}
-		uikit.Meta(c, targetLabel(target)).SingleLine().Grow(1)
 	})
-	if !d.variablesOpen {
-		return
-	}
-	ui.Column(c).Height(160).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).Background(uikit.Colors(t).Window).Children(func() {
-		ui.Row(c).Gap(t.Space(uikit.SpaceM)).Children(func() {
-			uikit.Meta(c, contextLabel).Grow(1)
-			if uikit.CompactButton(c, locales.EditEnvironments()).Clicked() {
-				a.openVars()
-			}
-		})
-		a.variableRows(c, rows, &d.variablesReveal, func(row request.ResolvedVariable) *variableTarget {
-			t := variablePanelTarget(row, a.activeEnv)
-			return &t
-		})
-	})
-	ui.Divider(c)
+}
+
+// showRightSidebarVariables opens the request's third column on Variables,
+// where an unresolved name can be read and added.
+func (a *app) showRightSidebarVariables() {
+	a.rightSidebar.open, a.rightSidebar.tab = true, 0
+	a.rightSidebar.splitReady = false
 }
 
 func (a *app) variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool, target func(request.ResolvedVariable) *variableTarget) {
@@ -1621,29 +1599,42 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		if !d.composeWaiting && outcome != "" && outcome != "Response received" {
 			uikit.Caption(c, outcome).TextColor(t.Warning).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))
 		}
-		if d.sentSet {
+		// One row says how the response relates to the draft: the last
+		// attempt opens from the left; the draft's state and a truncated body
+		// are short marks at the right, each with the whole sentence in its
+		// tip. Three stacked lines spent the body's room on provenance.
+		previewLimited := d.response != nil && d.response.ResponseBodySize > len(d.response.ResponseBody)
+		if d.sentSet || previewLimited {
 			ui.Row(c).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-				path := d.sent.URL
-				if u, err := url.Parse(path); err == nil && u.Host != "" {
-					path = cmp.Or(u.EscapedPath(), "/")
-				}
-				label := locales.LastAttempt(d.sentAt.Local().Format("15:04:05"), d.sent.Method+" "+path)
-				if uikit.ToolbarButton(c, locales.LastSendDetails(), locales.ShowTheFullDraftUrl(), false).Grow(1).MinWidth(0).
-					Justify(ui.Start).Children(func() {
-					arrow := "›"
-					if d.lastAttemptOpen {
-						arrow = "⌄"
+				if d.sentSet {
+					path := d.sent.URL
+					if u, err := url.Parse(path); err == nil && u.Host != "" {
+						path = cmp.Or(u.EscapedPath(), "/")
 					}
-					uikit.Heading(c, arrow)
-					uikit.Caption(c, label).SingleLine()
-				}).Clicked() {
-					d.lastAttemptOpen = !d.lastAttemptOpen
+					label := locales.LastAttempt(d.sentAt.Local().Format("15:04:05"), d.sent.Method+" "+path)
+					if uikit.ToolbarButton(c, locales.LastSendDetails(), locales.ShowTheFullDraftUrl(), false).Grow(1).MinWidth(0).
+						Justify(ui.Start).Children(func() {
+						arrow := "›"
+						if d.lastAttemptOpen {
+							arrow = "⌄"
+						}
+						uikit.Heading(c, arrow)
+						uikit.Caption(c, label).SingleLine()
+					}).Clicked() {
+						d.lastAttemptOpen = !d.lastAttemptOpen
+					}
+				} else {
+					ui.Spacer(c)
 				}
-				if !reflect.DeepEqual(d.draft(), d.sent) {
+				if d.sentSet && !reflect.DeepEqual(d.draft(), d.sent) {
 					uikit.Caption(c, locales.DraftChangedNotSent()).TextColor(t.Warning)
-				} else if !d.composeWaiting {
+				} else if d.sentSet && !d.composeWaiting {
 					uikit.Tip(c, uikit.Meta(c, locales.DraftMatchesLastAttempt()),
 						locales.TheDraftSnapshotMatchesVariables())
+				}
+				if previewLimited {
+					uikit.Tip(c, uikit.Caption(c, locales.PreviewLimited()).TextColor(t.TextMuted),
+						locales.PreviewLimitedTo8Mib())
 				}
 			})
 			if d.lastAttemptOpen {
@@ -1772,9 +1763,6 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		}
 		if d.response != nil {
 			body = d.response.ResponseBody
-			if d.response.ResponseBodySize > len(d.response.ResponseBody) {
-				uikit.Meta(c, locales.PreviewLimitedTo8Mib()).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))
-			}
 		}
 		if r := d.response; r != nil && (d.responseView == 0 || d.responseView == 4) && inspect.BodyFormat(r.ResponseHeader.Get("Content-Type")) != "" {
 			d.structured.view(c, a, inspectionBody{r.ResponseBody, r.ResponseBodyFile, r.ResponseBodyError, r.ResponseBodySize}, r.ResponseHeader.Get("Content-Type"), !a.bodyNoWrap[0])

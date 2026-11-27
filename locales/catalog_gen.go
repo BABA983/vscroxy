@@ -6392,21 +6392,21 @@ func (msgs Messages) ResponseEmptyHint() string {
 	return Catalog.Format(msgs.locale, "responseEmptyHint", nil)
 }
 
-// ResponseEmptySend says "Send + Get a response"
+// ResponseEmptySend says "Send to get a response"
 // in the language the app shows.
 func ResponseEmptySend() string { return In(i18n.Locale()).ResponseEmptySend() }
 
-// ResponseEmptySend says "Send + Get a response"
+// ResponseEmptySend says "Send to get a response"
 // in the language of msgs.
 func (msgs Messages) ResponseEmptySend() string {
 	return Catalog.Format(msgs.locale, "responseEmptySend", nil)
 }
 
-// ResponseEmptySendCheck says "Send + Write a check"
+// ResponseEmptySendCheck says "Send and add a check"
 // in the language the app shows.
 func ResponseEmptySendCheck() string { return In(i18n.Locale()).ResponseEmptySendCheck() }
 
-// ResponseEmptySendCheck says "Send + Write a check"
+// ResponseEmptySendCheck says "Send and add a check"
 // in the language of msgs.
 func (msgs Messages) ResponseEmptySendCheck() string {
 	return Catalog.Format(msgs.locale, "responseEmptySendCheck", nil)
@@ -7972,6 +7972,16 @@ func TableHasColumn() string { return In(i18n.Locale()).TableHasColumn() }
 // in the language of msgs.
 func (msgs Messages) TableHasColumn() string {
 	return Catalog.Format(msgs.locale, "tableHasColumn", nil)
+}
+
+// Target says "Target"
+// in the language the app shows.
+func Target() string { return In(i18n.Locale()).Target() }
+
+// Target says "Target"
+// in the language of msgs.
+func (msgs Messages) Target() string {
+	return Catalog.Format(msgs.locale, "target", nil)
 }
 
 // TargetAfterVariables says "Target: {target}"
@@ -11466,6 +11476,16 @@ func CaptureViewNamed(name string) string { return In(i18n.Locale()).CaptureView
 // in the language of msgs.
 func (msgs Messages) CaptureViewNamed(name string) string {
 	return Catalog.Format(msgs.locale, "captureViewNamed", map[string]any{"name": name})
+}
+
+// CapturedThrough says "Captured through {time}"
+// in the language the app shows.
+func CapturedThrough(time_ string) string { return In(i18n.Locale()).CapturedThrough(time_) }
+
+// CapturedThrough says "Captured through {time}"
+// in the language of msgs.
+func (msgs Messages) CapturedThrough(time_ string) string {
+	return Catalog.Format(msgs.locale, "capturedThrough", map[string]any{"time": time_})
 }
 
 // CapturedAt says "Captured · {time}"
@@ -24130,11 +24150,11 @@ func (msgs Messages) NoPromptsListed() string {
 	return Catalog.Format(msgs.locale, "noPromptsListed", nil)
 }
 
-// NoProxyRunningStartCapture says "No proxy running. Start capture before sending; previous result kept."
+// NoProxyRunningStartCapture says "Capture is off, so this request can't be sent."
 // in the language the app shows.
 func NoProxyRunningStartCapture() string { return In(i18n.Locale()).NoProxyRunningStartCapture() }
 
-// NoProxyRunningStartCapture says "No proxy running. Start capture before sending; previous result kept."
+// NoProxyRunningStartCapture says "Capture is off, so this request can't be sent."
 // in the language of msgs.
 func (msgs Messages) NoProxyRunningStartCapture() string {
 	return Catalog.Format(msgs.locale, "noProxyRunningStartCapture", nil)
@@ -26066,6 +26086,16 @@ func Preview() string { return In(i18n.Locale()).Preview() }
 // in the language of msgs.
 func (msgs Messages) Preview() string {
 	return Catalog.Format(msgs.locale, "preview", nil)
+}
+
+// PreviewLimited says "Preview limited"
+// in the language the app shows.
+func PreviewLimited() string { return In(i18n.Locale()).PreviewLimited() }
+
+// PreviewLimited says "Preview limited"
+// in the language of msgs.
+func (msgs Messages) PreviewLimited() string {
+	return Catalog.Format(msgs.locale, "previewLimited", nil)
 }
 
 // PreviewLimitedTo8Mib says "Preview limited to 8 MiB; the complete body is in Capture."

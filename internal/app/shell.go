@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/uikit"
@@ -24,11 +25,11 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	// the desktop behind it instead of chrome.
 	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).Background(uikit.Colors(t).Window).
 		AlignItems(ui.Center).DragWindow().Children(func() {
+		// The two ends share the room left by the search equally, so the
+		// search sits on the window's center line, not between the groups.
 		a.barLeading(c, t)
-		ui.Spacer(c)
 		a.commandButton(c, t)
-		ui.Spacer(c)
-		ui.Row(c).Shrink(0).Gap(t.Space(uikit.SpaceHair)).AlignItems(ui.Center).PaddingEnd(max(bar.Right, t.Space(uikit.SpaceL))).Children(func() {
+		ui.Row(c).Grow(1).Basis(0).Justify(ui.End).Gap(t.Space(uikit.SpaceHair)).AlignItems(ui.Center).PaddingEnd(max(bar.Right, t.Space(uikit.SpaceL))).Children(func() {
 			// The layout switches pair across the bar: the sidebar's at the
 			// start, the request workspace's third column and the screen's
 			// split here, as VS Code keeps them.
@@ -54,7 +55,7 @@ func (a *app) barLeading(c *ui.Context, t *ui.Theme) {
 	if bar.Left > 0 {
 		start += bar.Left
 	}
-	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).
+	ui.Row(c).Grow(1).Basis(0).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(uikit.SpaceXS)).AlignItems(ui.Center).
 		DragWindow().Children(func() {
 		a.sidebarToggle(c)
 	})
@@ -189,7 +190,9 @@ func (a *app) layoutToggle(c *ui.Context) {
 func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	pal := uikit.Colors(t)
 	running := a.srv != nil && a.srv.Running() || a.diagnostics.demoRunning
-	state, dot := locales.Stopped(), t.Danger
+	// Red is a signal, not a resting state: a stopped capture keeps a muted
+	// dot, and only a capture that is recording takes a live one.
+	state, dot := locales.Stopped(), pal.Faint
 	switch {
 	case running && a.recordingPaused:
 		state, dot = locales.PausedState(), pal.Faint
@@ -350,8 +353,8 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		ui.Row(c).Shrink(1).MinWidth(0).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			if text := a.footerCountsText(); text != "" {
 				counts := uikit.Small(c, text).TextColor(t.TextMuted).FontFeatures("tnum").SingleLine()
-				if a.page == pageDiagnostics {
-					uikit.Tip(c, counts, locales.EvidenceFromThisLiveSession())
+				if tip := a.footerCountsTip(); tip != "" {
+					uikit.Tip(c, counts, tip)
 				}
 			}
 			if a.dropped > 0 {
@@ -363,6 +366,19 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		})
 		a.notificationButton(c, t)
 	})
+}
+
+// footerCountsTip is what the counts' hover says beyond their number: the
+// evidence a diagnostics session holds, or the capture's clock. The capture
+// clock is the timeline's end, so it needs no row of its own above the table.
+func (a *app) footerCountsTip() string {
+	switch {
+	case a.page == pageDiagnostics:
+		return locales.EvidenceFromThisLiveSession()
+	case a.page.capture():
+		return locales.CapturedThrough(a.activityEnd(time.Now()).Local().Format("15:04:05"))
+	}
+	return ""
 }
 
 // footerCountsText is what the footer says about the screen it is under.

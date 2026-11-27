@@ -409,11 +409,15 @@ func registerGlobalCommands() *commandRegistry {
 		when(func(x *commandContext) bool {
 			return x.capturing && len(x.a.visible) > 0 || x.editing
 		}, "").keys(ui.Cmd, ui.KeyL)
+	// Send looks and acts like the screen's one action whether or not the
+	// capture is listening: a stopped proxy is a reason to start it, not a
+	// reason to take the button away. sendComposed says why a click did not
+	// send and offers to start the capture; only a send already waiting
+	// disables the button.
 	r.add("request.send", locales.SendRequest(), func(x *commandContext) { x.a.sendComposed() }).
 		when(func(x *commandContext) bool {
-			d := x.d
-			return x.editing && !d.composeWaiting && (d.protocol == "gRPC" || d.protocol == "MQTT" || d.protocol == "MCP" || x.proxyReady)
-		}, locales.OpenDraftNeedsCapture()).keys(ui.Cmd, ui.KeyEnter)
+			return x.editing && !x.d.composeWaiting
+		}, "").keys(ui.Cmd, ui.KeyEnter)
 	r.add("request.cancel-send", locales.CancelSend(), func(x *commandContext) { x.d.cancelSend() }).
 		when(func(x *commandContext) bool {
 			d := x.d

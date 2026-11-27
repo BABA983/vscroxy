@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"net/url"
 	"path"
 	"slices"
 	"strings"
@@ -661,8 +662,13 @@ func (a *app) rightSidebarInfo(c *ui.Context, t *ui.Theme) {
 		}
 		if d.savedKey != "" {
 			file := path.Join(dirOf(r.Collection), escapeName(r.Name)+requestFileSuffix)
-			infoRow(c, locales.File(), shortFilePath(file), true)
+			infoRowMiddle(c, locales.File(), file, file, true)
 		}
+		// The draft's target is what the URL resolves to before scripts can
+		// change it; the request panel's line above the editor used to say
+		// it, and the sidebar keeps it out of the editor's way.
+		target, tip := a.draftTarget(d)
+		infoRowMiddle(c, locales.Target(), target, tip, true)
 		if d.sentSet {
 			sent := d.sentAt.Local().Format("15:04:05")
 			if res := d.response; res != nil && res.Status != 0 {
@@ -674,8 +680,8 @@ func (a *app) rightSidebarInfo(c *ui.Context, t *ui.Theme) {
 			infoRow(c, locales.LastSent(), sent, false)
 		}
 		if r.ID != "" {
-			ui.Row(c).FillWidth().AlignItems(ui.Start).Children(func() {
-				uikit.Meta(c, locales.RequestId()).Width(72).Shrink(0)
+			ui.Row(c).FillWidth().Height(uikit.HeightRow).AlignItems(ui.Center).Children(func() {
+				uikit.Meta(c, locales.RequestId()).Width(infoLabelWidth).Shrink(0)
 				uikit.Tip(c, uikit.DataMeta(c, r.ID).Grow(1).MinWidth(0).SingleLine(), r.ID)
 				copy := uikit.RowIconButton(c, locales.Copy(), locales.Copy(), lucide.Copy())
 				if copy.Clicked() {
@@ -687,20 +693,42 @@ func (a *app) rightSidebarInfo(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// shortFilePath keeps the file name readable in the narrow column: a long
-// path keeps its last segments, as the end names the file.
-func shortFilePath(file string) string {
-	runes := []rune(file)
-	if len(runes) <= 30 {
-		return file
+// draftTarget is where the draft would go before its scripts run, in the form
+// the request's own line used to read: the host only, never its query or
+// userinfo, or the unresolved name that stops a target from being known.
+func (a *app) draftTarget(d *requestDocument) (string, string) {
+	r := d.value()
+	in := a.inheritance(r.Collection)
+	target := locales.UnresolvedReviewVariables()
+	tip := locales.TargetBeforeScripts(target)
+	if r.Protocol == "MCP" && r.MCP.Transport == request.MCPTransportStdio {
+		target = locales.StdioProcess()
+		tip = locales.TargetBeforeScripts(target)
+	} else if u, err := url.Parse(request.ExpandVars(d.composeURL, in.Values(a.activeVars()))); err == nil && u.Hostname() != "" {
+		target = u.Scheme + "://" + u.Host // Do not reveal query tokens or userinfo.
+		tip = locales.TargetBeforeScripts(target)
 	}
-	return "…" + string(runes[len(runes)-29:])
+	if r.Protocol != "" {
+		tip = locales.TargetAfterVariables(target)
+	}
+	return target, tip
 }
 
+// infoLabelWidth is the one column every Details label starts in, so the
+// values line up down the panel.
+const infoLabelWidth float32 = 72
+
 func infoRow(c *ui.Context, label, value string, mono bool) {
-	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(0).Children(func() {
-		uikit.Meta(c, label).Width(72).Shrink(0)
-		box := ui.Box(c).Grow(1).MinWidth(0).Clip()
+	infoRowTip(c, label, value, value, mono)
+}
+
+// infoRowTip is infoRow whose tip says more than the value it shows, as a
+// target's sentence explains when it is taken. Each row is one fixed-height
+// line, its label and value centered on the same baseline.
+func infoRowTip(c *ui.Context, label, value, tip string, mono bool) {
+	ui.Row(c).FillWidth().Height(uikit.HeightRow).AlignItems(ui.Center).Gap(0).Children(func() {
+		uikit.Meta(c, label).Width(infoLabelWidth).Shrink(0)
+		box := ui.Row(c).Grow(1).MinWidth(0).Height(uikit.HeightRow).AlignItems(ui.Center).Clip()
 		box.Children(func() {
 			var element ui.Element
 			if mono {
@@ -710,6 +738,26 @@ func infoRow(c *ui.Context, label, value string, mono bool) {
 			}
 			element.SingleLine()
 		})
-		uikit.Tip(c, box, value)
+		uikit.Tip(c, box, tip)
 	})
+}
+
+// infoRowMiddle is infoRowTip for a value that lives at both of its ends, as
+// a file path and a URL do: the middle is cut instead of the end, and the tip
+// still carries the whole value.
+func infoRowMiddle(c *ui.Context, label, value, tip string, mono bool) {
+	infoRowTip(c, label, middleEllipsis(value, 31), tip, mono)
+}
+
+// middleEllipsis cuts s in the middle to max runes, keeping both the start
+// and the end: a path's root and file name, or a URL's scheme and host.
+func middleEllipsis(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max || max < 3 {
+		return s
+	}
+	keep := max - 1
+	head := keep / 2
+	tail := keep - head
+	return string(r[:head]) + "…" + string(r[len(r)-tail:])
 }

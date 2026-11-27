@@ -19,7 +19,7 @@ func TestActivityBrushFiltersWithoutLosingContext(t *testing.T) {
 	}
 	a.flows = append(a.flows, flow{id: 7, at: start.Add(100 * time.Second), host: "other.test"})
 	a.applyFilter()
-	tt := ui.NewTester(a.view, 1440, 800)
+	tt := ui.NewTester(a.view, 1600, 800)
 	if err := tt.Click("Search host or path"); err != nil {
 		t.Fatal(err)
 	}

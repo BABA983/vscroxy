@@ -39,10 +39,22 @@ func numberTip(tip string, invalid bool, lo, hi float64) string {
 // number control.
 func NumberField(c *ui.Context, text *string, value *float64, lo, hi, step float64, unit, label, tip string, changed func()) ui.Element {
 	t := c.Theme()
-	row := ui.Row(c).Gap(t.Space(SpaceXS)).AlignItems(ui.Center)
+	invalid := numberInvalid(*text, lo, hi)
+	// The unit is the field's muted suffix, inside the same face: a settings
+	// column then sizes the whole control, not the text box plus whatever
+	// word follows it.
+	row := ui.Row(c).Height(HeightControl).AlignItems(ui.Center).Gap(t.Space(SpaceXS)).
+		Padding(0, Scaled(ControlPaddingX))
+	var in ui.Element
 	row.Children(func() {
-		invalid := numberInvalid(*text, lo, hi)
-		in := InputState(c, text, invalid).Label(label).Width(WidthNumber).Font(FontMono)
+		quiet := *t
+		quiet.Accent, quiet.Border, quiet.Text, quiet.Danger = ui.Color{}, ui.Color{}, ui.Color{}, ui.Color{}
+		c.SetTheme(&quiet)
+		in = ui.TextInput(c, text).Height(HeightControl).FontSize(Scaled(TextBody)).Radius(RadiusControl).
+			FocusRing(false).Background(ui.Color{}).Border(0, ui.Color{}).Padding(0).
+			Label(label).Grow(1).MinWidth(WidthNumber).Font(FontMono)
+		c.SetTheme(t)
+		in.Invalid(invalid)
 		if tip := numberTip(tip, invalid, lo, hi); tip != "" {
 			in = Tip(c, in, tip)
 		}
@@ -85,10 +97,10 @@ func NumberField(c *ui.Context, text *string, value *float64, lo, hi, step float
 			*text = strconv.Itoa(int(*value))
 		}
 		if unit != "" {
-			Meta(c, unit)
+			Meta(c, unit).TextColor(t.TextMuted).Shrink(0)
 		}
 	})
-	return row
+	return fieldFace(Colors(t), row, in.Focused(), invalid)
 }
 
 // Committed reports that an always-visible name field should be written:

@@ -203,3 +203,33 @@ func TestDisabledSharedCommandsExplainWhy(t *testing.T) {
 		}
 	})
 }
+
+// Send keeps the primary button's face while capture is stopped: a click
+// explains why nothing was sent and offers to start the capture, rather than
+// leaving a disabled button that looks broken. A send already waiting is the
+// one state that disables it.
+func TestSendOffersToStartCaptureWhenStopped(t *testing.T) {
+	a := workspaceApp()
+	d := openTestDraft(a)
+	var c *ui.Context
+	tt := ui.NewTester(func(ctx *ui.Context) { c = ctx; a.view(ctx) }, 1280, 800)
+	tt.SetLocale("en-US")
+	tt.Frame()
+	send := pick(a.actions(c), "request.send")
+	if !send.enabled {
+		t.Fatal("Send is disabled while a draft is editable and the capture is stopped")
+	}
+	send.run()
+	if d.composeWaiting || d.sendOutcome != "" {
+		t.Fatal("Send sent the request without a capture")
+	}
+	notices := a.notificationItems()
+	if len(notices) != 1 || notices[0].action != locales.StartCapture() || notices[0].run == nil {
+		t.Fatalf("Send's notice does not offer Start capture: %+v", notices)
+	}
+	d.composeWaiting = true
+	a.builds++
+	if pick(a.actions(c), "request.send").enabled {
+		t.Fatal("Send stays enabled while a send is already waiting")
+	}
+}
