@@ -41080,11 +41080,11 @@ func (msgs Messages) AiAgents() string {
 	return Catalog.Format(msgs.locale, "aiAgents", nil)
 }
 
-// AiAgentsHint says "Connect Claude Code, Codex, Cursor and other agents to the running capture proxy and its tools."
+// AiAgentsHint says "Connect Claude Code, Codex, Cursor, pi and other agents to the running capture proxy and its tools."
 // in the language the app shows.
 func AiAgentsHint() string { return In(i18n.Locale()).AiAgentsHint() }
 
-// AiAgentsHint says "Connect Claude Code, Codex, Cursor and other agents to the running capture proxy and its tools."
+// AiAgentsHint says "Connect Claude Code, Codex, Cursor, pi and other agents to the running capture proxy and its tools."
 // in the language of msgs.
 func (msgs Messages) AiAgentsHint() string {
 	return Catalog.Format(msgs.locale, "aiAgentsHint", nil)
@@ -41120,11 +41120,11 @@ func (msgs Messages) AllowChanges() string {
 	return Catalog.Format(msgs.locale, "allowChanges", nil)
 }
 
-// AllowChangesHint says "Agents can run requests, change rules and settings, and change the system proxy. Enable it only for trusted agents an…"
+// AllowChangesHint says "Agents can replay and run requests, save captures, record traffic, and create local map rules. This is the recommende…"
 // in the language the app shows.
 func AllowChangesHint() string { return In(i18n.Locale()).AllowChangesHint() }
 
-// AllowChangesHint says "Agents can run requests, change rules and settings, and change the system proxy. Enable it only for trusted agents an…"
+// AllowChangesHint says "Agents can replay and run requests, save captures, record traffic, and create local map rules. This is the recommende…"
 // in the language of msgs.
 func (msgs Messages) AllowChangesHint() string {
 	return Catalog.Format(msgs.locale, "allowChangesHint", nil)
@@ -41150,6 +41150,16 @@ func (msgs Messages) AllowRawAgentDataHint() string {
 	return Catalog.Format(msgs.locale, "allowRawAgentDataHint", nil)
 }
 
+// AgentTextBodiesHint says "Without this, agents still read text request and response bodies, up to 64 KiB each. Header and query values are reda…"
+// in the language the app shows.
+func AgentTextBodiesHint() string { return In(i18n.Locale()).AgentTextBodiesHint() }
+
+// AgentTextBodiesHint says "Without this, agents still read text request and response bodies, up to 64 KiB each. Header and query values are reda…"
+// in the language of msgs.
+func (msgs Messages) AgentTextBodiesHint() string {
+	return Catalog.Format(msgs.locale, "agentTextBodiesHint", nil)
+}
+
 // CaptureAgentCommands says "Capture commands your agent runs"
 // in the language the app shows.
 func CaptureAgentCommands() string { return In(i18n.Locale()).CaptureAgentCommands() }
@@ -41170,11 +41180,11 @@ func (msgs Messages) CaptureAgentCommandsHint() string {
 	return Catalog.Format(msgs.locale, "captureAgentCommandsHint", nil)
 }
 
-// CaptureAgentCommandsShellHint says "env prints exports for sh/zsh, fish, PowerShell or cmd; exec runs one command with them and returns its exit code."
+// CaptureAgentCommandsShellHint says "env prints exports for sh/zsh, fish, PowerShell or cmd; exec runs one command with them and returns its exit code. Ex…"
 // in the language the app shows.
 func CaptureAgentCommandsShellHint() string { return In(i18n.Locale()).CaptureAgentCommandsShellHint() }
 
-// CaptureAgentCommandsShellHint says "env prints exports for sh/zsh, fish, PowerShell or cmd; exec runs one command with them and returns its exit code."
+// CaptureAgentCommandsShellHint says "env prints exports for sh/zsh, fish, PowerShell or cmd; exec runs one command with them and returns its exit code. Ex…"
 // in the language of msgs.
 func (msgs Messages) CaptureAgentCommandsShellHint() string {
 	return Catalog.Format(msgs.locale, "captureAgentCommandsShellHint", nil)
@@ -41756,4 +41766,54 @@ func PreserveCaseBadge() string { return In(i18n.Locale()).PreserveCaseBadge() }
 // in the language of msgs.
 func (msgs Messages) PreserveCaseBadge() string {
 	return Catalog.Format(msgs.locale, "preserveCaseBadge", nil)
+}
+
+// Pi says "pi"
+// in the language the app shows.
+func Pi() string { return In(i18n.Locale()).Pi() }
+
+// Pi says "pi"
+// in the language of msgs.
+func (msgs Messages) Pi() string {
+	return Catalog.Format(msgs.locale, "pi", nil)
+}
+
+// FullAccess says "Full access"
+// in the language the app shows.
+func FullAccess() string { return In(i18n.Locale()).FullAccess() }
+
+// FullAccess says "Full access"
+// in the language of msgs.
+func (msgs Messages) FullAccess() string {
+	return Catalog.Format(msgs.locale, "fullAccess", nil)
+}
+
+// FullAccessHint says "Also lets agents change settings, HTTPS inspection, the system proxy, and import or edit any rule. Use only for trust…"
+// in the language the app shows.
+func FullAccessHint() string { return In(i18n.Locale()).FullAccessHint() }
+
+// FullAccessHint says "Also lets agents change settings, HTTPS inspection, the system proxy, and import or edit any rule. Use only for trust…"
+// in the language of msgs.
+func (msgs Messages) FullAccessHint() string {
+	return Catalog.Format(msgs.locale, "fullAccessHint", nil)
+}
+
+// AgentPiSnippetHint says "Runs pi mcp add at user level; restart pi after. pi discovers skills in ~/.agents/skills."
+// in the language the app shows.
+func AgentPiSnippetHint() string { return In(i18n.Locale()).AgentPiSnippetHint() }
+
+// AgentPiSnippetHint says "Runs pi mcp add at user level; restart pi after. pi discovers skills in ~/.agents/skills."
+// in the language of msgs.
+func (msgs Messages) AgentPiSnippetHint() string {
+	return Catalog.Format(msgs.locale, "agentPiSnippetHint", nil)
+}
+
+// AgentCodexTomlHint says "Or add this table to ~/.codex/config.toml:"
+// in the language the app shows.
+func AgentCodexTomlHint() string { return In(i18n.Locale()).AgentCodexTomlHint() }
+
+// AgentCodexTomlHint says "Or add this table to ~/.codex/config.toml:"
+// in the language of msgs.
+func (msgs Messages) AgentCodexTomlHint() string {
+	return Catalog.Format(msgs.locale, "agentCodexTomlHint", nil)
 }

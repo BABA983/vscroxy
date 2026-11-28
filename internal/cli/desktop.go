@@ -61,6 +61,15 @@ func desktopSplit(args []string) (verb string, flags, positional []string) {
 	return verb, flags, positional
 }
 
+// defaultDesktopFile keeps task-shaped commands on the same discovery default
+// as env/exec: VSCROXY_CONTROL_FILE, then control.json in the data root.
+func defaultDesktopFile(explicit string) (string, error) {
+	if explicit != "" {
+		return explicit, nil
+	}
+	return control.DefaultFile()
+}
+
 func parseDesktopArgs(command string, args []string, stderr io.Writer, extra func(*flag.FlagSet)) (desktopArgs, error) {
 	verb, flags, positional := desktopSplit(args)
 	if verb == "" {
@@ -69,7 +78,7 @@ func parseDesktopArgs(command string, args []string, stderr io.Writer, extra fun
 	parsed := desktopArgs{verb: verb}
 	parsed.flags = flag.NewFlagSet(command, flag.ContinueOnError)
 	parsed.flags.SetOutput(stderr)
-	file := parsed.flags.String("file", "", "Private discovery file from VSCROXY_CONTROL_FILE")
+	file := parsed.flags.String("file", "", "Private discovery file; defaults to VSCROXY_CONTROL_FILE or control.json in the data root")
 	confirm := parsed.flags.Bool("confirm", false, "Explicitly authorize this action's side effects")
 	if extra != nil {
 		extra(parsed.flags)
@@ -77,10 +86,11 @@ func parseDesktopArgs(command string, args []string, stderr io.Writer, extra fun
 	if err := parsed.flags.Parse(append(flags, positional...)); err != nil {
 		return desktopArgs{}, err
 	}
-	if *file == "" {
-		return desktopArgs{}, errors.New("--file is required")
+	path, err := defaultDesktopFile(*file)
+	if err != nil {
+		return desktopArgs{}, errors.New("cannot find the desktop control discovery file")
 	}
-	parsed.file, parsed.confirm = *file, *confirm
+	parsed.file, parsed.confirm = path, *confirm
 	return parsed, nil
 }
 
@@ -95,13 +105,13 @@ func desktopUsage(stderr io.Writer, command string, err error) int {
 func desktopGroupHelp(group string) string {
 	switch group {
 	case "settings":
-		return "Usage: vscroxy-cli settings --file <discovery> [options] list|get|set\n  --id <stable-id>       Setting id from 'settings get' (never a localized label)\n  --value <JSON>         New boolean, integer or JSON array value for set\n  --confirm              Authorize a set (desktop writes are confirmed)"
+		return "Usage: vscroxy-cli settings [--file <discovery>] [options] list|get|set\n  --file <path>          Discovery file; defaults to VSCROXY_CONTROL_FILE or control.json\n  --id <stable-id>       Setting id from 'settings get' (never a localized label)\n  --value <JSON>         New boolean, integer or JSON array value for set\n  --confirm              Authorize a set (desktop writes are confirmed)"
 	case "sessions":
-		return "Usage: vscroxy-cli sessions --file <discovery> [options] list|save|open|close\n  A session key from 'sessions list' follows open or close.\n  --confirm              Authorize save, open or close"
+		return "Usage: vscroxy-cli sessions [--file <discovery>] [options] list|save|open|close\n  A session key from 'sessions list' follows open or close.\n  --confirm              Authorize save, open or close"
 	case "certificates":
-		return "Usage: vscroxy-cli certificates --file <discovery> status\n  Prints CA trust, path, SHA-256 fingerprint and HTTPS inspection hosts."
+		return "Usage: vscroxy-cli certificates [--file <discovery>] status\n  Prints CA trust, path, SHA-256 fingerprint and HTTPS inspection hosts."
 	case "mocks":
-		return "Usage: vscroxy-cli mocks --file <discovery> [options] list|start|stop\n  --collection <path>    Saved collection whose Examples are served\n  --rate-limit N         Requests per second for start (0 for unlimited)\n  --error-rate 0–1       Injected error share for start\n  --error-status N       Injected error status, 400–599\n  --error-body <text>    Optional injected error body\n  --confirm              Authorize start or stop"
+		return "Usage: vscroxy-cli mocks [--file <discovery>] [options] list|start|stop\n  --collection <path>    Saved collection whose Examples are served\n  --rate-limit N         Requests per second for start (0 for unlimited)\n  --error-rate 0–1       Injected error share for start\n  --error-status N       Injected error status, 400–599\n  --error-body <text>    Optional injected error body\n  --confirm              Authorize start or stop"
 	}
 	return ""
 }

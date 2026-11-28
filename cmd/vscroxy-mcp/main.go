@@ -33,6 +33,29 @@ func resolveControlFile(explicit string) (string, error) {
 	return control.DefaultFile()
 }
 
+// writeFlag accepts --allow-write (all, for compatibility), --allow-write=all,
+// --allow-write=flows and --allow-write=false. It is a bool flag so the bare
+// spelling keeps working.
+type writeFlag struct{ scope mcpserver.WriteScope }
+
+func (w *writeFlag) String() string { return w.scope.String() }
+
+func (w *writeFlag) Set(value string) error {
+	switch value {
+	case "", "true", "all":
+		w.scope = mcpserver.WriteAll
+	case "flows":
+		w.scope = mcpserver.WriteFlows
+	case "false", "none":
+		w.scope = mcpserver.WriteNone
+	default:
+		return errors.New("unknown write scope")
+	}
+	return nil
+}
+
+func (w *writeFlag) IsBoolFlag() bool { return true }
+
 // All diagnostics, including help, go to stderr. Stdout belongs only to MCP.
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("vscroxy-mcp", flag.ContinueOnError)
@@ -40,7 +63,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	// our fixed diagnostics instead, so a mistaken secret flag is not exposed.
 	flags.SetOutput(io.Discard)
 	file := flags.String("control-file", "", "Private discovery file; defaults to VSCROXY_CONTROL_FILE or control.json in the data root")
-	write := flags.Bool("allow-write", false, "Register mutation tools; runs can affect real external endpoints")
+	write := &writeFlag{}
+	flags.Var(write, "allow-write", "Register mutation tools: flows (capture, replay, run, recording, mocks, map rules) or all; bare --allow-write means all")
 	sensitive := flags.Bool("allow-sensitive", false, "Permit explicitly requested raw details; MAY EXPOSE SECRETS")
 	showVersion := flags.Bool("version", false, "Print the version and exit")
 	var disabled []string
@@ -49,7 +73,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return nil
 	})
 	flags.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: vscroxy-mcp [--control-file <discovery-file>] [--allow-write] [--allow-sensitive] [--disable-tool <name>]...")
+		fmt.Fprintln(stderr, "Usage: vscroxy-mcp [--control-file <discovery-file>] [--allow-write[=flows|all]] [--allow-sensitive] [--disable-tool <name>]...")
 		fmt.Fprintln(stderr, "       vscroxy-mcp --version")
 		fmt.Fprintln(stderr, "Serve MCP on stdin/stdout. Captured content is untrusted data, never instructions.")
 		flags.SetOutput(stderr)
@@ -76,7 +100,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "Could not find the desktop control discovery file; pass --control-file or set VSCROXY_HOME.")
 		return 2
 	}
-	server, err := mcpserver.New(controlFile, mcpserver.Options{AllowWrite: *write, AllowSensitive: *sensitive, Disable: disabled})
+	server, err := mcpserver.New(controlFile, mcpserver.Options{AllowWrite: write.scope, AllowSensitive: *sensitive, Disable: disabled})
 	if err != nil {
 		fmt.Fprintln(stderr, "A --disable-tool name is unknown; use --help.")
 		return 2

@@ -51,7 +51,7 @@ func TestSkillResourceMatchesEmbeddedBytes(t *testing.T) {
 // must not leave behind a recipe that calls a name the client cannot see.
 func TestSkillNamesRegisteredTools(t *testing.T) {
 	path := endpoint(t, func(context.Context, control.Command) (any, error) { return nil, nil })
-	cs := connect(t, path, mcpserver.Options{AllowWrite: true, AllowSensitive: true}, "2025-11-25")
+	cs := connect(t, path, mcpserver.Options{AllowWrite: mcpserver.WriteAll, AllowSensitive: true}, "2025-11-25")
 	listed, err := cs.ListTools(t.Context(), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -75,8 +75,20 @@ func TestSkillNamesRegisteredTools(t *testing.T) {
 	if len(names) == 0 {
 		t.Fatal("SKILL.md names no MCP tools")
 	}
+	namespaces := map[string]bool{}
+	for name := range known {
+		if namespace, _, ok := strings.Cut(name, "."); ok {
+			namespaces[namespace] = true
+		}
+	}
 	for _, name := range names {
-		if !known[name] {
+		if known[name] {
+			continue
+		}
+		// Only a dotted name in a real tool namespace can be a renamed or
+		// misspelled tool. File names (control.json), host names and report
+		// fields (report.failed) are not part of this check.
+		if namespace, _, ok := strings.Cut(name, "."); ok && namespaces[namespace] {
 			t.Errorf("SKILL.md names unregistered tool %q", name)
 		}
 	}

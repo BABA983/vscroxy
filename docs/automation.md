@@ -376,7 +376,11 @@ bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
   --params '{"id":"JOB-ID"}' runs.get
 ```
 
-Flags precede the action. Output is JSON, suitable for shell redirection. Exit
+Flags precede the action. `--file` is optional for `control`, `settings`,
+`sessions`, `certificates` and `mocks`; it defaults to
+`VSCROXY_CONTROL_FILE` and then `control.json` in the data root, the same rule
+`env`/`exec` use. `control --help` prints the action catalog generated from the
+desktop's own action list. Output is JSON, suitable for shell redirection. Exit
 codes are 0 for a successful command, 1 for an application rejection, 2 for
 configuration/transport/output errors, and 130 for cancellation. A successful
 `*.run` command means **accepted**, not passed: poll `runs.get` until `done`, then
@@ -431,17 +435,17 @@ the [mock server](#mock-server) section.
 
 | Action | Parameters / result |
 | --- | --- |
-| `status` | Proxy running, recording, active environment and counts; `proxyAddr`, `caPath` and `bundlePath` when available (not secrets; the token is never returned) |
+| `status` | Proxy running, recording, active environment and counts; `proxyAddr`, `caPath` and `bundlePath` when available (not secrets; the token is never returned). `cliPath` and `mcpPath` name the absolute bundled CLI and MCP helpers when the app located them |
 | `system-proxy.get` | Poll OS-read snapshot; optional `refresh` starts a new read-only check |
 | `system-proxy.set-enabled` | Required boolean `enabled`; returns `accepted:true` and snapshot, then poll `system-proxy.get` |
 | `collections.list` | Runnable saved collection/folder names |
 | `requests.list` | Optional `collection` (descendants included; explicit empty selects unfiled requests) |
-| `requests.get` | Saved `id`; optional `details` |
+| `requests.get` | Saved `id`; optional `details` (raw saved request; needs `--allow-sensitive` in MCP) |
 | `requests.save` | Required live HTTP `flowId`; optional `name` (default: unique `METHOD host/path`), `collection` (existing path from `collections.list`; empty saves at the root); returns `id`, `name`, `collection` |
-| `flows.list` | Optional `limit` (default 50, max 200), exclusive `before` ID cursor, and filters `host` (host or host:port, case-insensitive), `method`, `status` (100–999), `since`/`until` (RFC 3339, inclusive); `nextBefore:0` ends paging |
-| `flows.get` | Live capture `id`; optional `details` |
+| `flows.list` | Optional `limit` (default 50, max 200), exclusive `before` ID cursor (older, descending), exclusive `after` ID cursor (newer, ascending, returns `nextAfter`), and filters `host` (host or host:port, case-insensitive), `method`, `status` (100–999), `app` (exact sidebar label, case-insensitive), `path` (case-insensitive request-path substring), `since`/`until` (RFC 3339, inclusive). `nextBefore`/`nextAfter` is 0 on the last page, including an exact-limit page; stop when `items` is empty |
+| `flows.get` | Live capture `id`; optional `details` for raw data (needs `--allow-sensitive` in MCP), or `body:"text"` with `maxBytes` (1–65536, default 8192) for decoded text bodies with redacted headers (no `--allow-sensitive`); `details` and `body:"text"` cannot be combined |
 | `flows.replay` | Required live HTTP flow `id`; optional `method`, `url` (absolute http/https), `headers` (object; a value sets the header, an empty string removes it), `body` (replaces the request body), `timeoutSeconds` (1–60, default 30); returns a job ID |
-| `flows.export-har` | Required `ids` (1–200 unique live HTTP IDs, in export order); optional `details`; returns a HAR 1.2 document |
+| `flows.export-har` | Required `ids` (1–200 unique live HTTP IDs, in export order); optional `details` (raw HAR; needs `--allow-sensitive` in MCP); returns a HAR 1.2 document |
 | `rules.list` | Index, fingerprint `key`, name, type and enabled state |
 | `request.run` | Saved `id`, optional `environment`, `iterations` (1–1000), `bail`; returns job ID |
 | `collection.run` | `collection`, same run options; includes descendants |
@@ -530,11 +534,26 @@ completion. Do not blindly retry a start after a transport timeout.
 
 Default flow/request queries omit bodies, headers and auth, redact URL credentials,
 fragments and query values, but retain authored labels, host/path and parameter
-names. This is field redaction, not secret detection. Explicit `details:true`
-discloses raw saved requests or live raw headers/URL and binary-safe base64 body
-previews (at most 64 KiB per side). Previews never open spill files and report
-truncation; they are not a full response download. Session tabs are not queried.
-The API deliberately has no arbitrary filesystem action.
+names. This is field redaction, not secret detection. `flows.list` and the
+summary of `flows.get` also carry `requestContentType` and
+`responseContentType`. `flows.get` with `body:"text"` returns decoded UTF-8 text
+for JSON, XML, `text/*`, form, JavaScript and similar textual types, base64 only
+for binary, and the same field-redacted headers and query values as a safe HAR
+export. It adds `requestBodyBytes`/`responseBodyBytes` (stored total),
+`requestBodyTruncated`/`responseBodyTruncated` and `…Truncated` in text, plus an
+`incomplete` flag when the capture itself lacks bytes. Capture stores bodies after
+Content-Encoding decoding while keeping the original wire headers, so text mode
+does not decompress a `gzip` header a second time. Text mode never needs
+`--allow-sensitive`. Explicit `details:true` discloses raw saved requests or live
+raw headers/URL and binary-safe base64 body previews (at most 64 KiB per side).
+Previews never open spill files and report truncation; they are not a full
+response download. Session tabs are not queried. The API deliberately has no
+arbitrary filesystem action.
+
+Flow parameter and lookup rejections keep the human `error` string and add a
+stable `code` (`invalid-flow-parameter` or `flow-not-found`), the offending
+`field` when there is one, and a `hint` that names the accepted range or the
+next call. Clients should branch on `code`, not parse `error` text.
 
 ### Record live traffic into a collection
 
@@ -642,7 +661,7 @@ ephemeral analysis/proposal shared with the native UI. IDs expire ten minutes
 after analysis starts; replacement, closing the preview, Quit and restart also
 invalidate them. A successful proposal can only be applied once. Do not blindly
 retry staging or apply after a transport failure; inspect current state first.
-MCP exposes analyze/get/prepare by default; apply requires `--allow-write`.
+MCP exposes analyze/get/prepare by default; apply requires `--allow-write=all`.
 None returns token values or requires `--allow-sensitive`.
 
 Preparation requires each capture to match exactly one existing saved request
@@ -676,7 +695,7 @@ another runner.
 ### Control the system proxy
 
 `system-proxy.set-enabled` requires `confirm:true` (CLI `--confirm`, or MCP
-startup `--allow-write`). It uses the existing desktop proxy session: enable
+startup `--allow-write=all`). It uses the existing desktop proxy session: enable
 requires a live capture listener; disable restores the owned previous settings,
 or follows the desktop's explicit Disable behavior without ownership. This may
 change proxy settings used by other applications and may prompt for OS permission.
@@ -753,30 +772,44 @@ an ambiguous timeout, inspect `rules.list` rather than retrying blindly. Only
 import trusted rules. Map Local targets may serve files already accessible to
 the desktop process; Map Remote changes where future requests are sent, and
 breakpoints may pause them. No new mock files are created by import, and no
-additional filesystem/network sandbox is implied by `--allow-write`.
+additional filesystem/network sandbox is implied by `--allow-write=all`.
 
 ## Connect an AI agent
 
 **Settings → AI agents** collects the connection in one place. Turn on **Allow AI
 agents and scripts to control vscroxy** — the same loopback-only, token-protected
-endpoint described above — then copy the snippet for Claude Code, Codex, Cursor
-or another MCP client. The page looks for `vscroxy-mcp` beside the app, in the
+endpoint described above — then copy the snippet for Claude Code, Codex, Cursor,
+pi or another MCP client. The page looks for `vscroxy-mcp` beside the app, in the
 macOS bundle's `Contents/Resources`, and on `PATH`; release builds ship it in the
 app's resources. If it is missing, build it with
 `go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp` or copy a release binary next to
 the app.
 
-The two snippet switches are not settings. **Allow changes** adds `--allow-write`
-and **Allow raw request and response data** adds `--allow-sensitive`; they grant
-the same startup capabilities described under [MCP](#mcp-stdio-server). Leave
-both off for a read-only connection.
+The snippet switches are not settings. **Allow changes** adds
+`--allow-write=flows`, the recommended tier that can replay, run and save
+requests, record traffic, start mocks, and create or delete `map_local` /
+`map_remote` rules. **Full access** (available only when Allow changes is on)
+adds `--allow-write=all` instead, which also reaches settings, HTTPS inspection,
+the system proxy and every rule type. **Allow raw request and response data**
+adds `--allow-sensitive`. Leave all off for a read-only connection. Plain
+`--allow-write` still means all for compatibility.
 
-Claude Code and Codex register the stdio server themselves (quote the path for
-your shell; Windows uses double quotes):
+Claude Code, Codex and pi register the stdio server themselves (quote the path
+for your shell; Windows uses double quotes):
 
 ```sh copy Copy Agent MCP Commands
 claude mcp add vscroxy --transport stdio --scope user -- "/absolute/path/to/vscroxy-mcp"
 codex mcp add vscroxy -- "/absolute/path/to/vscroxy-mcp"
+pi mcp add vscroxy -- "/absolute/path/to/vscroxy-mcp"
+```
+
+Codex also reads a TOML table in `~/.codex/config.toml` (or a trusted project's
+`.codex/config.toml`), which the Settings page offers next to its command:
+
+```toml copy Copy Codex MCP Configuration
+[mcp_servers.vscroxy]
+command = "/absolute/path/to/vscroxy-mcp"
+args = ["--allow-write=flows"]
 ```
 
 Cursor and other clients take JSON; Cursor reads `~/.cursor/mcp.json`:
@@ -814,13 +847,17 @@ vscroxy-cli exec -- npm test
 
 The AI agents page copies these commands with the located CLI's absolute path.
 In a plain shell, a release app ships `vscroxy-cli` in its resources; add that
-directory to `PATH`, or call the binary by its absolute path.
+directory to `PATH`, or call the binary by its absolute path. The MCP `status`
+result also reports `cliPath` and `mcpPath` when the app located them, so an
+agent can use `status.cliPath` instead of guessing.
 
 Both commands read only the authenticated `status` result. The capture address,
 public CA and CA bundle paths are not secrets; the discovery token is never
-printed or passed to the child. They exit 2 when the desktop is unreachable or
-capture is not running, so a setup step can fail instead of quietly running
-without capture.
+printed or passed to the child. They exit **125** when capture or its public CA
+is unavailable, so a setup step fails instead of quietly running without
+capture. Exit 2 means the discovery file or desktop endpoint could not be used,
+and 130 means cancellation. `exec` otherwise returns the child's own exit code,
+including 2.
 
 The app bundles an Agent Skill from
 [`skills/vscroxy/SKILL.md`](../skills/vscroxy/SKILL.md). It teaches an agent the
@@ -828,7 +865,7 @@ capture, inspect, replay and save workflow using the tool names and parameters
 below, and states the safety rules for captured data. `vscroxy-mcp` serves the
 same bytes as the `vscroxy://skill` resource, so the workflows always match the
 installed build. Settings → AI agents installs it for Claude Code
-(`~/.claude/skills/vscroxy/SKILL.md`), Codex
+(`~/.claude/skills/vscroxy/SKILL.md`), Codex and pi
 (`~/.agents/skills/vscroxy/SKILL.md`) or Cursor
 (`~/.cursor/skills/vscroxy/SKILL.md`); other clients offer Copy. Install writes
 atomically. A file with no vscroxy version metadata is treated as user-modified
@@ -860,7 +897,7 @@ A custom data root adds `"--control-file", "/absolute/path/to/control.json"` to
 `args`.
 
 The server also exposes `vscroxy://skill`, the bundled Agent Skill, as a
-`text/markdown` resource. It is available without `--allow-write` and when the
+`text/markdown` resource. It is available without a write tier and when the
 desktop is not running, so a client can read the workflows before its first
 tool call. Settings → AI agents can install the same bytes into a client's
 user skills directory.
@@ -881,28 +918,43 @@ MCP `isError`; a run job's acceptance still requires polling its final report.
 
 Two **independent startup capabilities**, never tool parameters, widen access:
 
-- `--allow-write` registers `request.run`, `collection.run`, `collection.load`, `flows.replay`, `runs.cancel`,
-  `capture.recording`, `rules.set-enabled`, `rules.import`, `rules.create`, `rules.update`, `rules.delete`,
-  `system-proxy.set-enabled`, `collection-recording.start`, `collection-recording.stop`, `token-links.apply`,
-  `flows.clear`, `flows.annotate`, `requests.save`, `breakpoints.resolve`, `ssl.update`, `sessions.save`, `sessions.open`,
-  `sessions.close`, `settings.set`, `mock.start`, and `mock.stop`
-  (47 tools in total with the read-only set). It explicitly authorizes those tools to supply the desktop's
-  confirmation. Clearing, annotating, replaying, saving a captured request, resolving breakpoints, changing HTTPS inspection domains and rules
-  change what the desktop captures or sends; `sessions.save` writes captured bodies to a local file. Request execution can affect real
+- `--allow-write=flows` (recommended) registers the traffic tier:
+  `flows.replay`, `requests.save`, `request.run`, `collection.run`,
+  `collection.load`, `runs.cancel`, `capture.recording`,
+  `collection-recording.start`, `collection-recording.stop`, `flows.annotate`,
+  `breakpoints.resolve`, `mock.start`, `mock.stop`, `rules.create`, and
+  `rules.delete` (36 tools with the read-only set). In this tier `rules.create`
+  accepts only `map_local` and `map_remote`, and `rules.delete` refuses other
+  rule types after looking up the current fingerprint; the error says to use
+  `--allow-write=all`. The server does not track who created a map rule, so
+  delete only the index/key it just created. These tools replay,
+  save, run and record real traffic, annotate or resolve captures, start local
+  mock listeners, and write local map rules. Request execution can affect real
   external systems; enable it only for a trusted client and trusted collections.
   Collection recording persists captured content locally, potentially including
-  sensitive query/body values; `--allow-write` authorizes that persistence without
-  requiring `--allow-sensitive`. Recording results contain only configuration,
-  state and counts, not raw captured values. `settings.set` changes saved
-  non-secret settings; `mock.start`/`mock.stop` change the desktop's local mock
-  listeners, and neither requires `--allow-sensitive`.
+  sensitive query/body values, without requiring `--allow-sensitive`; its
+  results contain only configuration, state and counts.
+- `--allow-write=all` (or plain `--allow-write`, kept for compatibility) adds the
+  remaining desktop/system writes: `system-proxy.set-enabled`, `ssl.update`,
+  `settings.set`, `rules.import`, `rules.set-enabled`, `rules.update` (any rule
+  type), `sessions.save`, `sessions.open`, `sessions.close`, `flows.clear`, and
+  `token-links.apply` (47 tools in total). Clearing, annotating, replaying, saving a captured
+  request, resolving breakpoints, changing HTTPS inspection domains and rules
+  change what the desktop captures or sends; `sessions.save` writes captured
+  bodies to a local file. `settings.set` changes saved non-secret settings;
+  `mock.start`/`mock.stop` change the desktop's local mock listeners. Neither
+  tier requires `--allow-sensitive`.
 - `--allow-sensitive` permits an explicitly requested `details:true` on
   `requests.get` / `flows.get` / `flows.export-har`. It does not register mutations or change the
-  default query response. Raw headers, query values, bodies and saved scripts
-  may contain credentials or private data sent to the client's model provider.
+  default query response, and it is **not** needed for `flows.get` with
+  `body:"text"`, which returns redacted headers and readable text. Raw headers,
+  query values, bodies and saved scripts may contain credentials or private data
+  sent to the client's model provider. Safe `flows.export-har` without
+  `details:true` also needs no `--allow-sensitive`.
 - `--disable-tool <name>` (repeatable, for example `--disable-tool request.run`)
   removes one tool from the catalog a client sees. It only narrows access. An
-  unknown name stops the server at startup.
+  unknown name, including a write tool above the enabled tier, stops the server
+  at startup.
 
 Append the desired capability flags to `args` only after considering that access.
 MCP tool annotations describe effects; they are not authorization. Retain your

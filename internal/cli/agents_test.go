@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -74,7 +75,15 @@ func TestExecChild(t *testing.T) {
 		t.Skip("only runs as a child process")
 	}
 	fmt.Fprint(os.Stdout, os.Getenv("HTTP_PROXY"))
-	os.Exit(7)
+	code := 7
+	if raw := os.Getenv("VSCROXY_EXEC_EXIT"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			os.Exit(9)
+		}
+		code = parsed
+	}
+	os.Exit(code)
 }
 
 // A real authenticated endpoint backs both env and exec, so this covers the
@@ -141,11 +150,54 @@ func TestEnvStopsWhenCaptureIsNotRunning(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = server.Close() })
 	var stdout, stderr bytes.Buffer
-	if code := Run(t.Context(), []string{"env", "--control-file", discovery}, &stdout, &stderr); code != 2 {
-		t.Fatalf("env exit = %d, want 2; stdout: %s", code, stdout.String())
+	if code := Run(t.Context(), []string{"env", "--control-file", discovery}, &stdout, &stderr); code != 125 {
+		t.Fatalf("env exit = %d, want 125; stdout: %s", code, stdout.String())
 	}
 	if !strings.Contains(stderr.String(), "capture is not running") {
 		t.Fatalf("unhelpful message: %s", stderr.String())
+	}
+}
+
+// A child's own exit 2 is passed through, while capture setup failures use
+// 125, so an agent can tell that its command never ran.
+func TestExecExitCodesDistinguishCaptureFromChild(t *testing.T) {
+	dir := t.TempDir()
+	caPath := filepath.Join(dir, "ca.pem")
+	if err := os.WriteFile(caPath, []byte("test CA"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	discovery := filepath.Join(dir, "control.json")
+	server, err := control.Start(discovery, func(_ context.Context, c control.Command) (any, error) {
+		return map[string]any{"proxyRunning": true, "proxyAddr": "127.0.0.1:7890", "caPath": caPath}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = server.Close() })
+
+	t.Setenv("VSCROXY_EXEC_CHILD", "1")
+	t.Setenv("VSCROXY_EXEC_EXIT", "2")
+	var stdout, stderr bytes.Buffer
+	if code := Run(t.Context(), []string{"exec", "--control-file", discovery, "--", os.Args[0], "-test.run=^TestExecChild$"}, &stdout, &stderr); code != 2 {
+		t.Fatalf("child exit 2 = %d; stderr: %s", code, stderr.String())
+	}
+
+	// No capture listener: the command is not started, and 125 says why.
+	stopped := filepath.Join(dir, "stopped.json")
+	stoppedServer, err := control.Start(stopped, func(_ context.Context, c control.Command) (any, error) {
+		return map[string]any{"proxyRunning": false}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = stoppedServer.Close() })
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run(t.Context(), []string{"exec", "--control-file", stopped, "--", os.Args[0], "-test.run=^TestExecChild$"}, &stdout, &stderr); code != 125 {
+		t.Fatalf("capture unavailable exit = %d, want 125; stderr: %s", code, stderr.String())
+	}
+	if stdout.Len() != 0 || !strings.Contains(stderr.String(), "capture is not running") {
+		t.Fatalf("capture failure ran the child or hid the reason: stdout=%q stderr=%q", stdout.String(), stderr.String())
 	}
 }
 

@@ -30,7 +30,7 @@ func TestAgentsSettingsOwnsLocalControl(t *testing.T) {
 	tt := ui.NewTester(a.settingsView, 1080, 680)
 	tt.Frame()
 	tt.Frame()
-	for _, want := range []string{locales.AiAgents(), locales.AllowAgentsToControl(), locales.McpServer(), locales.ClaudeCode(), locales.CaptureAgentCommands()} {
+	for _, want := range []string{locales.AiAgents(), locales.AllowAgentsToControl(), locales.McpServer(), locales.ClaudeCode(), locales.Pi(), locales.CaptureAgentCommands()} {
 		if !tt.HasText(want) {
 			t.Fatalf("AI agents page is missing %q: %v", want, tt.Texts())
 		}
@@ -60,8 +60,15 @@ func TestAgentsSettingsControlsShapeTheSnippet(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !a.agents.allowWrite || !tt.HasText(`"--allow-write"`) {
+	if !a.agents.allowWrite || !tt.HasText(`"--allow-write=flows"`) {
 		t.Fatalf("Allow changes did not reach the snippet: %v", tt.Texts())
+	}
+	if err := tt.Click(locales.FullAccess()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.agents.fullAccess || !tt.HasText(`"--allow-write=all"`) {
+		t.Fatalf("Full access did not reach the snippet: %v", tt.Texts())
 	}
 	if err := tt.Click(locales.AllowRawAgentData()); err != nil {
 		t.Fatal(err)
@@ -73,30 +80,50 @@ func TestAgentsSettingsControlsShapeTheSnippet(t *testing.T) {
 	if a.saved.LocalControl {
 		t.Fatal("a snippet-only choice was persisted")
 	}
+	if err := tt.Click(locales.Codex()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("[mcp_servers.vscroxy]") {
+		t.Fatalf("Codex TOML alternative is missing: %v", tt.Texts())
+	}
+	if err := tt.Click(locales.Pi()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.agents.client != int(mcpPi) || !tt.HasText("pi mcp add vscroxy") {
+		t.Fatalf("pi tab did not select its command: client=%d texts=%v", a.agents.client, tt.Texts())
+	}
 }
 
 // TestMCPClientSnippet pins each client's own registration form, the shell
-// quoting of a path with a space and an apostrophe, and both capability flags.
+// quoting of a path with a space and an apostrophe, the two write tiers, and
+// the sensitive flag. The Codex TOML alternative is pinned separately.
 func TestMCPClientSnippet(t *testing.T) {
 	const unixPath = "/Users/O'Brien/Library/Application Support/vscroxy-mcp"
 	const unixWord = `'/Users/O'\''Brien/Library/Application Support/vscroxy-mcp'`
 	const windowsPath = `C:\Program Files\vscroxy\vscroxy-mcp.exe`
 	for _, tc := range []struct {
-		name      string
-		client    mcpClientKind
-		path      string
-		write     bool
-		sensitive bool
-		windows   bool
-		want      string
+		name       string
+		client     mcpClientKind
+		path       string
+		write      bool
+		fullAccess bool
+		sensitive  bool
+		windows    bool
+		want       string
 	}{
 		{
 			name: "claude/no-flags", client: mcpClaudeCode, path: unixPath,
 			want: "claude mcp add vscroxy --transport stdio --scope user -- " + unixWord,
 		},
 		{
-			name: "claude/write", client: mcpClaudeCode, path: unixPath, write: true,
-			want: "claude mcp add vscroxy --transport stdio --scope user -- " + unixWord + " --allow-write",
+			name: "claude/flows", client: mcpClaudeCode, path: unixPath, write: true,
+			want: "claude mcp add vscroxy --transport stdio --scope user -- " + unixWord + " --allow-write=flows",
+		},
+		{
+			name: "claude/all", client: mcpClaudeCode, path: unixPath, write: true, fullAccess: true,
+			want: "claude mcp add vscroxy --transport stdio --scope user -- " + unixWord + " --allow-write=all",
 		},
 		{
 			name: "claude/sensitive", client: mcpClaudeCode, path: unixPath, sensitive: true,
@@ -104,11 +131,19 @@ func TestMCPClientSnippet(t *testing.T) {
 		},
 		{
 			name: "claude/both", client: mcpClaudeCode, path: unixPath, write: true, sensitive: true,
-			want: "claude mcp add vscroxy --transport stdio --scope user -- " + unixWord + " --allow-write --allow-sensitive",
+			want: "claude mcp add vscroxy --transport stdio --scope user -- " + unixWord + " --allow-write=flows --allow-sensitive",
+		},
+		{
+			name: "codex/flows", client: mcpCodex, path: unixPath, write: true,
+			want: "codex mcp add vscroxy -- " + unixWord + " --allow-write=flows",
 		},
 		{
 			name: "codex/both", client: mcpCodex, path: unixPath, write: true, sensitive: true,
-			want: "codex mcp add vscroxy -- " + unixWord + " --allow-write --allow-sensitive",
+			want: "codex mcp add vscroxy -- " + unixWord + " --allow-write=flows --allow-sensitive",
+		},
+		{
+			name: "pi/flows", client: mcpPi, path: unixPath, write: true, sensitive: true,
+			want: "pi mcp add vscroxy -- " + unixWord + " --allow-write=flows --allow-sensitive",
 		},
 		{
 			name: "cursor/no-flags", client: mcpCursor, path: unixPath,
@@ -123,14 +158,14 @@ func TestMCPClientSnippet(t *testing.T) {
 				"}",
 		},
 		{
-			name: "cursor/both", client: mcpCursor, path: unixPath, write: true, sensitive: true,
+			name: "cursor/all", client: mcpCursor, path: unixPath, write: true, fullAccess: true, sensitive: true,
 			want: "{\n" +
 				`  "mcpServers": {` + "\n" +
 				`    "vscroxy": {` + "\n" +
 				`      "type": "stdio",` + "\n" +
 				`      "command": "/Users/O'Brien/Library/Application Support/vscroxy-mcp",` + "\n" +
 				`      "args": [` + "\n" +
-				`        "--allow-write",` + "\n" +
+				`        "--allow-write=all",` + "\n" +
 				`        "--allow-sensitive"` + "\n" +
 				"      ]\n" +
 				"    }\n" +
@@ -138,13 +173,13 @@ func TestMCPClientSnippet(t *testing.T) {
 				"}",
 		},
 		{
-			name: "other/both", client: mcpOtherClient, path: unixPath, write: true, sensitive: true,
+			name: "other/flows", client: mcpOtherClient, path: unixPath, write: true, sensitive: true,
 			want: "{\n" +
 				`  "mcpServers": {` + "\n" +
 				`    "vscroxy": {` + "\n" +
 				`      "command": "/Users/O'Brien/Library/Application Support/vscroxy-mcp",` + "\n" +
 				`      "args": [` + "\n" +
-				`        "--allow-write",` + "\n" +
+				`        "--allow-write=flows",` + "\n" +
 				`        "--allow-sensitive"` + "\n" +
 				"      ]\n" +
 				"    }\n" +
@@ -152,8 +187,12 @@ func TestMCPClientSnippet(t *testing.T) {
 				"}",
 		},
 		{
-			name: "windows/claude-both", client: mcpClaudeCode, path: windowsPath, write: true, sensitive: true, windows: true,
-			want: `claude mcp add vscroxy --transport stdio --scope user -- "C:\Program Files\vscroxy\vscroxy-mcp.exe" --allow-write --allow-sensitive`,
+			name: "windows/claude-all", client: mcpClaudeCode, path: windowsPath, write: true, fullAccess: true, sensitive: true, windows: true,
+			want: `claude mcp add vscroxy --transport stdio --scope user -- "C:\Program Files\vscroxy\vscroxy-mcp.exe" --allow-write=all --allow-sensitive`,
+		},
+		{
+			name: "windows/pi-flows", client: mcpPi, path: windowsPath, write: true, windows: true,
+			want: `pi mcp add vscroxy -- "C:\Program Files\vscroxy\vscroxy-mcp.exe" --allow-write=flows`,
 		},
 		{
 			name: "windows/cursor-sensitive", client: mcpCursor, path: windowsPath, sensitive: true, windows: true,
@@ -171,10 +210,20 @@ func TestMCPClientSnippet(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := mcpClientSnippet(tc.client, tc.path, tc.write, tc.sensitive, tc.windows); got != tc.want {
+			if got := mcpClientSnippet(tc.client, tc.path, tc.write, tc.fullAccess, tc.sensitive, tc.windows); got != tc.want {
 				t.Fatalf("snippet:\n%s\nwant:\n%s", got, tc.want)
 			}
 		})
+	}
+	if got, want := codexTomlSnippet(unixPath, true, false, true),
+		"[mcp_servers.vscroxy]\ncommand = \"/Users/O'Brien/Library/Application Support/vscroxy-mcp\"\nargs = [\"--allow-write=flows\", \"--allow-sensitive\"]"; got != want {
+		t.Fatalf("codex TOML:\n%s\nwant:\n%s", got, want)
+	}
+	if got, want := codexTomlSnippet(windowsPath, false, false, false),
+		`[mcp_servers.vscroxy]
+command = "C:\\Program Files\\vscroxy\\vscroxy-mcp.exe"
+args = []`; got != want {
+		t.Fatalf("codex TOML without flags:\n%s\nwant:\n%s", got, want)
 	}
 }
 

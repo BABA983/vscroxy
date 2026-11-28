@@ -56,7 +56,7 @@ func TestCatalogsMatch(t *testing.T) {
 		"timeKindSize": true, "timesCount": true, "tls": true, "token": true, "url": true,
 		"websocketUrl": true, "wireshark": true,
 		// Agent product names keep their spelling.
-		"claudeCode": true, "codex": true, "cursor": true,
+		"claudeCode": true, "codex": true, "cursor": true, "pi": true,
 	}
 	for key, text := range en {
 		if zh[key] == text && !sameInChinese[key] {

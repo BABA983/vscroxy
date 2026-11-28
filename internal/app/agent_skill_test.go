@@ -43,6 +43,7 @@ func TestAgentSkillPathsFollowClientDocs(t *testing.T) {
 	}{
 		{mcpClaudeCode, filepath.Join(home, ".claude", "skills", "vscroxy", "SKILL.md")},
 		{mcpCodex, filepath.Join(home, ".agents", "skills", "vscroxy", "SKILL.md")},
+		{mcpPi, filepath.Join(home, ".agents", "skills", "vscroxy", "SKILL.md")},
 		{mcpCursor, filepath.Join(home, ".cursor", "skills", "vscroxy", "SKILL.md")},
 	} {
 		got, ok := agentSkillPath(tc.client, home)

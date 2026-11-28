@@ -16,6 +16,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/control"
 	"github.com/baba983/vscroxy/internal/datadir"
+	"github.com/baba983/vscroxy/internal/mcpserver"
 	"github.com/baba983/vscroxy/internal/version"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -49,6 +50,27 @@ func TestFlags(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestWriteFlagScopes(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		want  mcpserver.WriteScope
+	}{
+		{"true", mcpserver.WriteAll},
+		{"all", mcpserver.WriteAll},
+		{"flows", mcpserver.WriteFlows},
+		{"false", mcpserver.WriteNone},
+		{"none", mcpserver.WriteNone},
+	} {
+		flag := &writeFlag{}
+		if err := flag.Set(tc.value); err != nil || flag.scope != tc.want {
+			t.Errorf("--allow-write=%s = %v, %v; want %v", tc.value, flag.scope, err, tc.want)
+		}
+	}
+	if err := (&writeFlag{}).Set("settings"); err == nil {
+		t.Fatal("unknown write scope was accepted")
 	}
 }
 

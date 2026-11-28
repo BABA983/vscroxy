@@ -1,10 +1,8 @@
 package app
 
 import (
-	"cmp"
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
@@ -108,6 +106,21 @@ func (a *app) stopControl() {
 	}
 }
 
+// controlFault is a rejection with stable metadata for a client. The message
+// stays in "error" for compatibility; code, field and hint are additive.
+type controlFault struct {
+	code    string
+	field   string
+	message string
+	hint    string
+}
+
+func (e *controlFault) Error() string { return e.message }
+
+func controlFaultf(code, field, message, hint string) error {
+	return &controlFault{code: code, field: field, message: message, hint: hint}
+}
+
 // controlWork owns an immutable UI snapshot; its I/O runs on the HTTP worker.
 type controlWork func(context.Context) (any, error)
 
@@ -115,7 +128,18 @@ func (a *app) dispatchControl(ctx context.Context, command control.Command, upda
 	reply := make(chan any, 1)
 	encode := func(value any, err error) jsontext.Value {
 		if err != nil {
-			value = map[string]string{"error": err.Error()}
+			result := map[string]string{"error": err.Error()}
+			var fault *controlFault
+			if errors.As(err, &fault) {
+				result["code"] = fault.code
+				if fault.field != "" {
+					result["field"] = fault.field
+				}
+				if fault.hint != "" {
+					result["hint"] = fault.hint
+				}
+			}
+			value = result
 		}
 		data, err := json.Marshal(value)
 		if err != nil {
@@ -182,6 +206,9 @@ func controlParams[T any](command control.Command) (T, error) {
 }
 
 func (a *app) controlValue(command control.Command) (any, error) {
+	if !control.KnownAction(command.Action) {
+		return nil, errors.New("unknown action")
+	}
 	switch command.Action {
 	case "status", "collections.list", "rules.list":
 		if _, err := controlParams[struct{}](command); err != nil {
@@ -200,6 +227,14 @@ func (a *app) controlValue(command control.Command) (any, error) {
 			}
 			if bundle := a.clientBundlePath(); bundle != "" {
 				value["bundlePath"] = bundle
+			}
+			// Absolute helper paths are not secrets; they save an agent from
+			// guessing where a release puts vscroxy-cli or vscroxy-mcp.
+			if path, found := a.cliExecutable(); found {
+				value["cliPath"] = path
+			}
+			if path, found := a.mcpExecutable(); found {
+				value["mcpPath"] = path
 			}
 			return value, nil
 		case "collections.list":
@@ -245,67 +280,7 @@ func (a *app) controlValue(command control.Command) (any, error) {
 	case "requests.save":
 		return a.controlSaveRequest(command)
 	case "flows.list", "flows.get":
-		p, err := controlParams[struct {
-			ID      int    `json:"id"`
-			Limit   int    `json:"limit"`
-			Before  int    `json:"before"`
-			Details bool   `json:"details"`
-			Host    string `json:"host"`
-			Method  string `json:"method"`
-			Status  int    `json:"status"`
-			Since   string `json:"since"`
-			Until   string `json:"until"`
-		}](command)
-		if err != nil || p.Limit < 0 || p.Limit > 200 || p.Before < 0 || p.Status != 0 && (p.Status < 100 || p.Status > 999) {
-			return nil, errors.New("invalid flow parameters")
-		}
-		// Times are inclusive and compared with each flow's start time.
-		var since, until time.Time
-		if p.Since != "" {
-			if since, err = time.Parse(time.RFC3339Nano, p.Since); err != nil {
-				return nil, errors.New("invalid flow parameters")
-			}
-		}
-		if p.Until != "" {
-			if until, err = time.Parse(time.RFC3339Nano, p.Until); err != nil {
-				return nil, errors.New("invalid flow parameters")
-			}
-		}
-		// Concurrent captures can be delivered out of ID order. Cursor paging
-		// must use ID order, independent of arrival or the table's sort.
-		indices := make([]int, 0, len(a.flows))
-		for i, f := range a.flows {
-			if f.live {
-				indices = append(indices, i)
-			}
-		}
-		slices.SortFunc(indices, func(i, j int) int { return cmp.Compare(a.flows[j].id, a.flows[i].id) })
-		var rows []map[string]any
-		for _, i := range indices {
-			f := a.flows[i]
-			if command.Action == "flows.get" {
-				if p.ID > 0 && f.id == p.ID {
-					return controlFlow(f, p.Details), nil
-				}
-				continue
-			}
-			if p.Before != 0 && f.id >= p.Before {
-				continue
-			}
-			if p.Host != "" && !strings.EqualFold(f.host, p.Host) && !strings.EqualFold(hostOnly(f.host), p.Host) ||
-				p.Method != "" && !strings.EqualFold(f.method, p.Method) || p.Status != 0 && f.status != p.Status ||
-				!since.IsZero() && f.at.Before(since) || !until.IsZero() && f.at.After(until) {
-				continue
-			}
-			rows = append(rows, controlFlow(f, false))
-			if len(rows) == cmp.Or(p.Limit, 50) {
-				return map[string]any{"items": rows, "nextBefore": f.id}, nil
-			}
-		}
-		if command.Action == "flows.get" {
-			return nil, errors.New("live flow not found")
-		}
-		return map[string]any{"items": rows, "nextBefore": 0}, nil
+		return a.controlFlows(command)
 	case "flows.export-har":
 		return a.controlHAR(command)
 	case "flows.clear", "flows.annotate", "breakpoints.list", "breakpoints.resolve", "ssl.get", "ssl.update", "sessions.list", "sessions.save", "sessions.open", "sessions.close":
@@ -420,23 +395,6 @@ func (a *app) controlValue(command control.Command) (any, error) {
 
 func controlRequest(r request.Request) map[string]any {
 	return map[string]any{"id": r.ID, "name": r.Name, "collection": r.Collection, "method": r.Method, "url": redactExportURL(r.URL, safeExportOptions()), "bodyMode": r.BodyMode}
-}
-
-func controlFlow(f flow, details bool) map[string]any {
-	value := map[string]any{"id": f.id, "method": f.method, "url": redactExportURL(f.url, safeExportOptions()), "status": f.status, "bytes": f.bytes, "millis": f.millis, "at": f.at}
-	if details {
-		value["url"] = f.url
-		value["requestHeaders"], value["responseHeaders"] = f.reqHeader.Clone(), f.respHeader.Clone()
-		for _, side := range []struct {
-			name, body, file string
-			size             int
-		}{{"request", f.reqBody, f.reqFile, f.reqSize}, {"response", f.resBody, f.resFile, f.resSize}} {
-			preview := side.body[:min(len(side.body), 64<<10)]
-			value[side.name+"BodyBase64"] = base64.StdEncoding.EncodeToString([]byte(preview))
-			value[side.name+"BodyTruncated"] = side.file != "" || side.size > len(preview)
-		}
-	}
-	return value
 }
 
 func controlRuleKey(rule capture.Rule) string {

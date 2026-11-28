@@ -34,7 +34,8 @@ func agentSkillPath(client mcpClientKind, home string) (string, bool) {
 	switch client {
 	case mcpClaudeCode:
 		dir = ".claude"
-	case mcpCodex:
+	case mcpCodex, mcpPi:
+		// Codex and pi both discover the Agent Skills standard location.
 		dir = ".agents"
 	case mcpCursor:
 		dir = ".cursor"

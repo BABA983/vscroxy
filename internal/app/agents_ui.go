@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 type agentsPanel struct {
 	client         int
 	allowWrite     bool
+	fullAccess     bool
 	allowSensitive bool
 	// The helper lookups are cached so a drawing frame does not stat PATH
 	// again; Check again repeats them.
@@ -44,9 +46,10 @@ type agentsPanel struct {
 	skill        agentSkillStatus
 	// skillHome overrides the user home in tests; empty means os.UserHomeDir.
 	skillHome string
-	// The two code blocks' Copy buttons show their check from these.
-	mcpFlash uikit.CopyFlash
-	cliFlash uikit.CopyFlash
+	// The code blocks' Copy buttons show their check from these.
+	mcpFlash   uikit.CopyFlash
+	codexFlash uikit.CopyFlash
+	cliFlash   uikit.CopyFlash
 }
 
 // mcpClientKind is one tab of the MCP client picker.
@@ -56,6 +59,7 @@ const (
 	mcpClaudeCode mcpClientKind = iota
 	mcpCodex
 	mcpCursor
+	mcpPi
 	mcpOtherClient
 )
 
@@ -170,11 +174,19 @@ func (a *app) agentsMCPSettings(c *ui.Context, t *ui.Theme) {
 			ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 				uikit.Hint(c, locales.AgentSnippetRestartHint())
 				uikit.Checkbox(c, &a.agents.allowWrite, locales.AllowChanges())
+				if !a.agents.allowWrite {
+					a.agents.fullAccess = false
+				}
 				uikit.Hint(c, locales.AllowChangesHint())
+				if a.agents.allowWrite {
+					uikit.Checkbox(c, &a.agents.fullAccess, locales.FullAccess())
+					uikit.Hint(c, locales.FullAccessHint())
+				}
 				uikit.Checkbox(c, &a.agents.allowSensitive, locales.AllowRawAgentData())
 				uikit.Hint(c, locales.AllowRawAgentDataHint())
+				uikit.Hint(c, locales.AgentTextBodiesHint())
 			})
-			labels := []string{locales.ClaudeCode(), locales.Codex(), locales.Cursor(), locales.OtherMcpClient()}
+			labels := []string{locales.ClaudeCode(), locales.Codex(), locales.Cursor(), locales.Pi(), locales.OtherMcpClient()}
 			selected := a.agents.client
 			if selected < 0 || selected >= len(labels) {
 				selected = 0
@@ -188,12 +200,21 @@ func (a *app) agentsMCPSettings(c *ui.Context, t *ui.Theme) {
 			if !found {
 				snippetPath = mcpPlaceholderPath(runtime.GOOS == "windows")
 			}
-			snippet := mcpClientSnippet(mcpClientKind(a.agents.client), snippetPath, a.agents.allowWrite, a.agents.allowSensitive, runtime.GOOS == "windows")
-			uikit.Hint(c, agentsSnippetHint(mcpClientKind(a.agents.client)))
+			kind := mcpClientKind(a.agents.client)
+			snippet := mcpClientSnippet(kind, snippetPath, a.agents.allowWrite, a.agents.fullAccess, a.agents.allowSensitive, runtime.GOOS == "windows")
+			uikit.Hint(c, agentsSnippetHint(kind))
 			uikit.CodeBlock(c, snippet, func() {
 				c.Services().WriteClipboard(snippet)
 				a.done(locales.CopiedAgentSetup())
 			}, &a.agents.mcpFlash)
+			if kind == mcpCodex {
+				toml := codexTomlSnippet(snippetPath, a.agents.allowWrite, a.agents.fullAccess, a.agents.allowSensitive)
+				uikit.Hint(c, locales.AgentCodexTomlHint())
+				uikit.CodeBlock(c, toml, func() {
+					c.Services().WriteClipboard(toml)
+					a.done(locales.CopiedAgentSetup())
+				}, &a.agents.codexFlash)
+			}
 		})
 		a.agentSkillSettings(c)
 	})
@@ -203,6 +224,8 @@ func agentsSnippetHint(kind mcpClientKind) string {
 	switch kind {
 	case mcpCursor:
 		return locales.AgentCursorSnippetHint()
+	case mcpPi:
+		return locales.AgentPiSnippetHint()
 	case mcpOtherClient:
 		return locales.AgentOtherSnippetHint()
 	}
@@ -299,14 +322,8 @@ func (a *app) agentsTerminalSettings(c *ui.Context, t *ui.Theme) {
 // quoted for the platform's shell and JSON is escaped by the encoder; windows
 // selects the command line syntax, not the JSON escaping. It is pure so the
 // tests cover every flag combination on both platforms.
-func mcpClientSnippet(client mcpClientKind, path string, allowWrite, allowSensitive, windows bool) string {
-	flags := make([]string, 0, 2)
-	if allowWrite {
-		flags = append(flags, "--allow-write")
-	}
-	if allowSensitive {
-		flags = append(flags, "--allow-sensitive")
-	}
+func mcpClientSnippet(client mcpClientKind, path string, allowWrite, fullAccess, allowSensitive, windows bool) string {
+	flags := mcpWriteFlags(allowWrite, fullAccess, allowSensitive)
 	quote := clientsetup.POSIXQuote
 	if windows {
 		quote = clientsetup.WindowsQuote
@@ -320,6 +337,8 @@ func mcpClientSnippet(client mcpClientKind, path string, allowWrite, allowSensit
 		return "claude mcp add vscroxy --transport stdio --scope user --" + " " + command
 	case mcpCodex:
 		return "codex mcp add vscroxy --" + " " + command
+	case mcpPi:
+		return "pi mcp add vscroxy --" + " " + command
 	}
 	server := mcpServerConfig{Command: path, Args: flags}
 	if client == mcpCursor {
@@ -334,6 +353,35 @@ func mcpClientSnippet(client mcpClientKind, path string, allowWrite, allowSensit
 		return string(value)
 	}
 	return string(data)
+}
+
+// mcpWriteFlags is the one place the snippet turns the two switches into
+// startup arguments. Plain --allow-write means all for compatibility, but the
+// UI asks for an explicit tier so the copied command says what it grants.
+func mcpWriteFlags(allowWrite, fullAccess, allowSensitive bool) []string {
+	var flags []string
+	if allowWrite {
+		if fullAccess {
+			flags = append(flags, "--allow-write=all")
+		} else {
+			flags = append(flags, "--allow-write=flows")
+		}
+	}
+	if allowSensitive {
+		flags = append(flags, "--allow-sensitive")
+	}
+	return flags
+}
+
+// codexTomlSnippet is the config.toml alternative to `codex mcp add`, which
+// the Codex CLI and IDE extension share.
+func codexTomlSnippet(path string, allowWrite, fullAccess, allowSensitive bool) string {
+	flags := mcpWriteFlags(allowWrite, fullAccess, allowSensitive)
+	quoted := make([]string, len(flags))
+	for i, flag := range flags {
+		quoted[i] = strconv.Quote(flag)
+	}
+	return "[mcp_servers.vscroxy]\ncommand = " + strconv.Quote(path) + "\nargs = [" + strings.Join(quoted, ", ") + "]"
 }
 
 func mcpPlaceholderPath(windows bool) string {
@@ -392,6 +440,9 @@ func locateHelperBinary(goos, name string) (string, bool) {
 		}
 	}
 	if path, err := exec.LookPath(name); err == nil {
+		if absolute, err := filepath.Abs(path); err == nil {
+			path = absolute
+		}
 		return path, true
 	}
 	return "", false

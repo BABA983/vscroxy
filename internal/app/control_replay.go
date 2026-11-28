@@ -47,13 +47,16 @@ func (a *app) startControlReplay(command control.Command) (any, error) {
 		TimeoutSeconds int               `json:"timeoutSeconds"`
 		Confirm        bool              `json:"confirm"`
 	}](command)
-	if err != nil || !p.Confirm || p.ID <= 0 {
-		return nil, errors.New("id and confirm:true are required")
+	if err != nil || p.ID <= 0 {
+		return nil, flowInvalid("id", "id must be a positive flow ID", "list ids with flows.list")
+	}
+	if !p.Confirm {
+		return nil, flowInvalid("confirm", "confirm:true is required", "the MCP write tier supplies it; the CLI uses --confirm")
 	}
 	timeout := 30
 	if p.TimeoutSeconds != 0 {
 		if p.TimeoutSeconds < 1 || p.TimeoutSeconds > 60 {
-			return nil, errors.New("timeoutSeconds must be between 1 and 60")
+			return nil, flowInvalid("timeoutSeconds", "timeoutSeconds must be between 1 and 60", "omit timeoutSeconds for 30")
 		}
 		timeout = p.TimeoutSeconds
 	}
@@ -62,7 +65,8 @@ func (a *app) startControlReplay(command control.Command) (any, error) {
 	}
 	i := slices.IndexFunc(a.flows, func(f flow) bool { return f.live && f.id == p.ID })
 	if i < 0 {
-		return nil, errors.New("live flow not found")
+		return nil, controlFaultf("flow-not-found", "id", "live flow not found",
+			"list ids with flows.list; replay works on live flows only")
 	}
 	f := a.flows[i]
 	if f.kind != "" || f.url == "" {

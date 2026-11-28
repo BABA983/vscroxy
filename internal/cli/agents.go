@@ -23,6 +23,10 @@ import (
 const desktopUnavailableMessage = "vscroxy desktop is not reachable. Open vscroxy and enable Settings → AI agents → Allow AI agents and scripts to control vscroxy."
 const captureNotRunningMessage = "vscroxy capture is not running. Start capture in vscroxy and try again."
 
+// captureUnavailableExit is distinct from a child's own exit code, so an agent
+// can tell that its command never ran. 125 follows env/docker convention.
+const captureUnavailableExit = 125
+
 // controlStatus is the part of the read-only status result this command uses.
 type controlStatus struct {
 	ProxyRunning bool   `json:"proxyRunning"`
@@ -58,15 +62,15 @@ func captureProxy(ctx context.Context, file string, stderr io.Writer) (clientset
 	}
 	if !status.ProxyRunning || status.ProxyAddr == "" {
 		fmt.Fprintln(stderr, captureNotRunningMessage)
-		return p, 2
+		return p, captureUnavailableExit
 	}
 	if status.CAPath == "" {
 		fmt.Fprintln(stderr, captureNotRunningMessage)
-		return p, 2
+		return p, captureUnavailableExit
 	}
 	if _, err := os.Stat(status.CAPath); err != nil {
 		fmt.Fprintln(stderr, "vscroxy: the capture CA file is not available. Start capture again, then retry.")
-		return p, 2
+		return p, captureUnavailableExit
 	}
 	p = clientsetup.Proxy{Addr: status.ProxyAddr, CAPath: status.CAPath, BundlePath: status.BundlePath}
 	if p.BundlePath != "" {
@@ -86,6 +90,11 @@ func envCommand(ctx context.Context, args []string, stdout, stderr io.Writer) in
 	flags.SetOutput(stderr)
 	file := flags.String("control-file", "", "Private discovery file; defaults to VSCROXY_CONTROL_FILE or control.json in the data root")
 	shell := flags.String("shell", "", "Output syntax: sh, fish, powershell or cmd (default from $SHELL or the OS)")
+	flags.Usage = func() {
+		fmt.Fprintln(stderr, "Usage: vscroxy-cli env [--control-file <discovery>] [--shell sh|fish|powershell|cmd]")
+		fmt.Fprintln(stderr, "Exit codes: 125 when capture or its CA is unavailable; 0 on success.")
+		flags.PrintDefaults()
+	}
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -131,6 +140,12 @@ func execCommand(ctx context.Context, args []string, stdout, stderr io.Writer) i
 	flags := flag.NewFlagSet("exec", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	file := flags.String("control-file", "", "Private discovery file; defaults to VSCROXY_CONTROL_FILE or control.json in the data root")
+	flags.Usage = func() {
+		fmt.Fprintln(stderr, "Usage: vscroxy-cli exec [--control-file <discovery>] -- <command> [args...]")
+		fmt.Fprintln(stderr, "Runs the command with the capture proxy and CA in its environment.")
+		fmt.Fprintln(stderr, "Exit codes: 125 when capture or its CA is unavailable (the command did not run); otherwise the command's own exit code; 130 on cancellation.")
+		flags.PrintDefaults()
+	}
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0

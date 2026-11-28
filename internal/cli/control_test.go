@@ -70,6 +70,47 @@ func TestControlCommandUsesAuthenticatedEndpointAndExitCodes(t *testing.T) {
 	}
 }
 
+// Task-shaped commands use the same discovery default as env/exec, so an
+// agent does not have to guess or pass --file.
+func TestDesktopCommandsDefaultToDiscoveryFile(t *testing.T) {
+	path, calls := desktopFixture(t, nil)
+	t.Setenv("VSCROXY_CONTROL_FILE", path)
+	for _, args := range [][]string{
+		{"control", "status"},
+		{"settings", "list"},
+		{"sessions", "list"},
+		{"certificates", "status"},
+		{"mocks", "list"},
+	} {
+		var out, errOut bytes.Buffer
+		if code := cli.Run(t.Context(), args, &out, &errOut); code != 0 {
+			t.Fatalf("%v: exit=%d out=%s err=%s", args, code, out.String(), errOut.String())
+		}
+	}
+	if got := calls(); len(got) != 5 {
+		t.Fatalf("calls = %v", got)
+	}
+}
+
+// control --help is generated from the same action catalog the desktop
+// dispatches, so an agent can discover actions without the docs.
+func TestControlHelpListsActionCatalog(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cli.Run(t.Context(), []string{"control", "--help"}, &out, &errOut); code != 0 {
+		t.Fatalf("help exit=%d stderr=%s", code, errOut.String())
+	}
+	for _, want := range []string{"Actions:", "status", "flows.list", "flows.get", `body:"text"`, "settings.set", "sessions.close"} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("control --help is missing %q:\n%s", want, errOut.String())
+		}
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := cli.Run(t.Context(), []string{"control"}, &out, &errOut); code != 2 || !strings.Contains(errOut.String(), "Actions:") {
+		t.Fatalf("missing-action usage: exit=%d stderr=%s", code, errOut.String())
+	}
+}
+
 func TestControlHARExportOutput(t *testing.T) {
 	for _, details := range []bool{false, true} {
 		for _, destination := range []string{"stdout", "new-file", "replace-file"} {

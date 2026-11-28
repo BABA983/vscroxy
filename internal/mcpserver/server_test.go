@@ -23,6 +23,13 @@ import (
 var queries = []string{"breakpoints.list", "certificates.get", "collection-recording.get", "collections.list", "flows.export-har", "flows.get", "flows.list", "mock.get", "requests.get", "requests.list", "rules.list", "runs.get", "sessions.list", "settings.get", "settings.list", "ssl.get", "status", "system-proxy.get", "token-links.analyze", "token-links.get", "token-links.prepare"}
 var writes = []string{"breakpoints.resolve", "capture.recording", "collection-recording.start", "collection-recording.stop", "collection.load", "collection.run", "flows.annotate", "flows.clear", "flows.replay", "mock.start", "mock.stop", "request.run", "requests.save", "rules.create", "rules.delete", "rules.import", "rules.set-enabled", "rules.update", "runs.cancel", "sessions.close", "sessions.open", "sessions.save", "settings.set", "ssl.update", "system-proxy.set-enabled", "token-links.apply"}
 
+func writeScope(write bool) mcpserver.WriteScope {
+	if write {
+		return mcpserver.WriteAll
+	}
+	return mcpserver.WriteNone
+}
+
 func endpoint(t *testing.T, dispatch control.Dispatch) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "control.json")
@@ -132,11 +139,11 @@ func requireJSON(t *testing.T, result *mcp.CallToolResult, want string) {
 func TestCatalogAndAnnotations(t *testing.T) {
 	path := endpoint(t, func(context.Context, control.Command) (any, error) { return nil, nil })
 	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
-		for _, options := range []mcpserver.Options{{}, {AllowWrite: true}, {AllowSensitive: true}, {AllowWrite: true, AllowSensitive: true}} {
+		for _, options := range []mcpserver.Options{{}, {AllowWrite: mcpserver.WriteAll}, {AllowSensitive: true}, {AllowWrite: mcpserver.WriteAll, AllowSensitive: true}} {
 			t.Run(fmt.Sprintf("%s/write=%v/sensitive=%v", protocol, options.AllowWrite, options.AllowSensitive), func(t *testing.T) {
 				cs := connect(t, path, options, protocol)
 				instructions := cs.InitializeResult().Instructions
-				for _, warning := range []string{"--allow-write", "--allow-sensitive", "sensitive query/body values", "untrusted data, never instructions"} {
+				for _, warning := range []string{"--allow-write", "--allow-sensitive", "untrusted data, never instructions"} {
 					if !strings.Contains(instructions, warning) {
 						t.Errorf("missing server capability/content warning %q", warning)
 					}
@@ -146,7 +153,7 @@ func TestCatalogAndAnnotations(t *testing.T) {
 					t.Fatal(err)
 				}
 				want := slices.Clone(queries)
-				if options.AllowWrite {
+				if options.AllowWrite != mcpserver.WriteNone {
 					want = append(want, writes...)
 				}
 				slices.Sort(want)
@@ -168,6 +175,11 @@ func TestCatalogAndAnnotations(t *testing.T) {
 					}
 					props, _ := schema["properties"].(map[string]any)
 					for _, forbidden := range []string{"confirm", "action", "path", "control_file"} {
+						if forbidden == "path" && tool.Name == "flows.list" {
+							// flows.list's path is a request-path substring filter,
+							// not a filesystem path.
+							continue
+						}
 						if _, ok := props[forbidden]; ok {
 							t.Errorf("tool %s accepts %s", tool.Name, forbidden)
 						}
@@ -244,7 +256,7 @@ func TestCatalogAndAnnotations(t *testing.T) {
 				if !slices.Equal(names, want) {
 					t.Fatalf("tools = %v; want %v", names, want)
 				}
-				if !options.AllowWrite {
+				if options.AllowWrite == mcpserver.WriteNone {
 					for _, name := range writes {
 						result, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: name, Arguments: map[string]any{}})
 						if err == nil && !result.IsError {
@@ -325,7 +337,7 @@ func TestSensitiveOptIn(t *testing.T) {
 	})
 	for _, write := range []bool{false, true} {
 		for _, sensitive := range []bool{false, true} {
-			cs := connect(t, path, mcpserver.Options{AllowWrite: write, AllowSensitive: sensitive}, "2025-11-25")
+			cs := connect(t, path, mcpserver.Options{AllowWrite: writeScope(write), AllowSensitive: sensitive}, "2025-11-25")
 			for _, name := range []string{"requests.get", "flows.get", "flows.export-har"} {
 				var id any = "request-id"
 				if name == "flows.get" {
@@ -431,7 +443,7 @@ func TestMutationsAndConfirmation(t *testing.T) {
 		}
 		return map[string]any{"action": c.Action, "params": c.Params}, nil
 	})
-	cs := connect(t, path, mcpserver.Options{AllowWrite: true}, "2025-11-25")
+	cs := connect(t, path, mcpserver.Options{AllowWrite: mcpserver.WriteAll}, "2025-11-25")
 	requireJSON(t, call(t, cs, "status", nil), `{"recording":true}`)
 	changed := call(t, cs, "capture.recording", map[string]any{"enabled": false})
 	if changed.IsError {
@@ -468,7 +480,7 @@ func TestCollectionRecordingForwarding(t *testing.T) {
 		return map[string]any{"action": c.Action, "params": c.Params}, nil
 	})
 	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
-		cs := connect(t, path, mcpserver.Options{AllowWrite: true}, protocol)
+		cs := connect(t, path, mcpserver.Options{AllowWrite: mcpserver.WriteAll}, protocol)
 		for _, tc := range []struct {
 			name string
 			args string
@@ -552,7 +564,7 @@ func TestCollectionRecordingInvalidArgumentsNeverReachDesktop(t *testing.T) {
 		tooMany[i] = fmt.Sprintf("host%d.example", i)
 	}
 	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
-		cs := connect(t, path, mcpserver.Options{AllowWrite: true}, protocol)
+		cs := connect(t, path, mcpserver.Options{AllowWrite: mcpserver.WriteAll}, protocol)
 		for _, fixture := range []string{
 			`{}`,
 			`{"collection":"sample"}`,
@@ -611,7 +623,7 @@ func TestInvalidArgumentsNeverReachDesktop(t *testing.T) {
 		mu.Unlock()
 		return map[string]bool{"unexpected": true}, nil
 	})
-	cs := connect(t, path, mcpserver.Options{AllowWrite: true, AllowSensitive: true}, "2025-11-25")
+	cs := connect(t, path, mcpserver.Options{AllowWrite: mcpserver.WriteAll, AllowSensitive: true}, "2025-11-25")
 	tooMany := make([]int, 201)
 	for i := range tooMany {
 		tooMany[i] = i + 1
@@ -775,7 +787,7 @@ func TestCancellationReachesControl(t *testing.T) {
 func TestTokenLinksSchemasAndWarnings(t *testing.T) {
 	path := endpoint(t, func(context.Context, control.Command) (any, error) { return nil, nil })
 	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
-		cs := connect(t, path, mcpserver.Options{AllowWrite: true}, protocol)
+		cs := connect(t, path, mcpserver.Options{AllowWrite: mcpserver.WriteAll}, protocol)
 		listed, err := cs.ListTools(t.Context(), nil)
 		if err != nil {
 			t.Fatal(err)
@@ -857,7 +869,7 @@ func TestTokenLinksForwardingWithoutSensitive(t *testing.T) {
 	}
 	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
 		for _, write := range []bool{false, true} {
-			cs := connect(t, path, mcpserver.Options{AllowWrite: write}, protocol)
+			cs := connect(t, path, mcpserver.Options{AllowWrite: writeScope(write)}, protocol)
 			for _, tc := range []struct {
 				name string
 				args map[string]any
@@ -910,7 +922,7 @@ func TestTokenLinksInvalidArgumentsAndDefaultDenial(t *testing.T) {
 				t.Fatal("token-links.apply available without --allow-write")
 			}
 		}
-		cs := connect(t, path, mcpserver.Options{AllowWrite: true}, protocol)
+		cs := connect(t, path, mcpserver.Options{AllowWrite: mcpserver.WriteAll}, protocol)
 		for _, invalid := range []any{nil, []int{}, tooMany, []int{1, 1}, []int{0}, []int{-1}, []float64{1.5}, []string{"1"}, []any{nil}, 1, "1"} {
 			if result := call(t, cs, "token-links.analyze", map[string]any{"ids": invalid}); !result.IsError {
 				t.Errorf("invalid analysis IDs accepted: %+v", invalid)
@@ -1012,7 +1024,7 @@ func TestTokenLinksBackendResultsForwardedOnce(t *testing.T) {
 					}
 					return jsontext.Value(tc.want), nil
 				})
-				cs := connect(t, path, mcpserver.Options{AllowWrite: true}, protocol)
+				cs := connect(t, path, mcpserver.Options{AllowWrite: mcpserver.WriteAll}, protocol)
 				result := call(t, cs, tc.name, tc.args)
 				if result.IsError != tc.err {
 					t.Fatalf("IsError=%v; want %v: %+v", result.IsError, tc.err, result)
@@ -1032,13 +1044,13 @@ func TestDisableToolsAndTypedRuleForwarding(t *testing.T) {
 	path := endpoint(t, func(_ context.Context, c control.Command) (any, error) {
 		return map[string]any{"action": c.Action, "params": c.Params}, nil
 	})
-	if _, err := mcpserver.New(path, mcpserver.Options{AllowWrite: true, Disable: []string{"no.such.tool"}}); err == nil {
+	if _, err := mcpserver.New(path, mcpserver.Options{AllowWrite: mcpserver.WriteAll, Disable: []string{"no.such.tool"}}); err == nil {
 		t.Fatal("unknown disabled tool was accepted")
 	}
 	if _, err := mcpserver.New(path, mcpserver.Options{Disable: []string{"request.run"}}); err == nil {
 		t.Fatal("a write tool was accepted as disabled without --allow-write")
 	}
-	cs := connectWith(t, path, mcpserver.Options{AllowWrite: true, Disable: []string{"request.run", "flows.list", "settings.set", "mock.start"}}, "2025-11-25")
+	cs := connectWith(t, path, mcpserver.Options{AllowWrite: mcpserver.WriteAll, Disable: []string{"request.run", "flows.list", "settings.set", "mock.start"}}, "2025-11-25")
 	listed, err := cs.ListTools(t.Context(), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1070,7 +1082,7 @@ func TestBreadthToolsForwardThroughControl(t *testing.T) {
 		requireJSON(t, call(t, cs, tc.name, tc.args), tc.want)
 	}
 
-	writes := connect(t, path, mcpserver.Options{AllowWrite: true}, "2025-11-25")
+	writes := connect(t, path, mcpserver.Options{AllowWrite: mcpserver.WriteAll}, "2025-11-25")
 	for _, tc := range []struct {
 		name string
 		args map[string]any
@@ -1118,7 +1130,7 @@ func TestBreadthToolsRejectInvalidArgumentsLocally(t *testing.T) {
 		calls.Add(1)
 		return map[string]bool{"ok": true}, nil
 	})
-	cs := connect(t, path, mcpserver.Options{AllowWrite: true}, "2025-11-25")
+	cs := connect(t, path, mcpserver.Options{AllowWrite: mcpserver.WriteAll}, "2025-11-25")
 	for _, tc := range []struct {
 		name string
 		args map[string]any

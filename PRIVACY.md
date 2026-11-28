@@ -40,6 +40,11 @@ this app does not use; its fonts and icons are bundled.
   implicit grant and the browser flow listen on a loopback redirect.
 - The local automation endpoint listens on loopback only. `vscroxy-cli` and
   `vscroxy-mcp` connect to it on this computer.
+  An agent you connect through `vscroxy-mcp` or `vscroxy-cli` can read
+  captured text bodies (`flows.get` with `body: "text"`, up to 64 KiB each)
+  without `--allow-sensitive`. Header and query values are redacted, but body
+  contents are passed as they are, and the agent may send them to its model
+  provider. Raw headers, bodies and scripts still need `--allow-sensitive`.
 - Importing a file is local. OpenAPI external references are not fetched, and
   neither are files a request refers to.
 - **Report issue** (Help menu or command palette) opens a GitHub page in your
