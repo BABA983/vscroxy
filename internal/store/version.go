@@ -189,6 +189,9 @@ func (f *ListFormat) Write(data []byte) ([]byte, error) {
 }
 
 func upgrade(name string, data []byte, version, current int, steps []Step) ([]byte, error) {
+	if version < 1 {
+		return nil, fmt.Errorf("%s: invalid version %d", name, version)
+	}
 	if version > current {
 		return nil, fmt.Errorf("%w: %s is version %d, this app reads up to %d", ErrNewer, name, version, current)
 	}

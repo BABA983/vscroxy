@@ -37032,6 +37032,26 @@ func (msgs Messages) DiagnosticsBundleSaved(file string) string {
 	return Catalog.Format(msgs.locale, "diagnosticsBundleSaved", map[string]any{"file": file})
 }
 
+// QuitUnexpectedly says "vscroxy quit unexpectedly last time"
+// in the language the app shows.
+func QuitUnexpectedly() string { return In(i18n.Locale()).QuitUnexpectedly() }
+
+// QuitUnexpectedly says "vscroxy quit unexpectedly last time"
+// in the language of msgs.
+func (msgs Messages) QuitUnexpectedly() string {
+	return Catalog.Format(msgs.locale, "quitUnexpectedly", nil)
+}
+
+// CrashReportSavedTo says "A crash report was saved to {path}"
+// in the language the app shows.
+func CrashReportSavedTo(path string) string { return In(i18n.Locale()).CrashReportSavedTo(path) }
+
+// CrashReportSavedTo says "A crash report was saved to {path}"
+// in the language of msgs.
+func (msgs Messages) CrashReportSavedTo(path string) string {
+	return Catalog.Format(msgs.locale, "crashReportSavedTo", map[string]any{"path": path})
+}
+
 // Updates says "Updates"
 // in the language the app shows.
 func Updates() string { return In(i18n.Locale()).Updates() }

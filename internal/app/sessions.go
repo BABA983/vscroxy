@@ -85,6 +85,13 @@ func (s *sessionWorkspace) load(dir string) error {
 			problem = errors.Join(problem, err)
 			continue
 		}
+		// The store is the one reader of a session's version: a newer file is
+		// reported, not listed, and never rewritten by the scan.
+		data, err = store.Session.Read(data)
+		if err != nil {
+			problem = errors.Join(problem, fmt.Errorf("%s: %w", entry.Name(), err))
+			continue
+		}
 		// Flows decode as empty structs: their contents are skipped.
 		var header struct {
 			Version int        `json:"version"`
@@ -92,12 +99,12 @@ func (s *sessionWorkspace) load(dir string) error {
 			Created time.Time  `json:"created"`
 			Flows   []struct{} `json:"flows"`
 		}
-		if err := json.Unmarshal(data, &header); err != nil || header.Version != 1 {
-			problem = errors.Join(problem, fmt.Errorf("%s: not a version 1 session", entry.Name()))
+		if err := json.Unmarshal(data, &header); err != nil {
+			problem = errors.Join(problem, fmt.Errorf("%s: %w", entry.Name(), err))
 			continue
 		}
 		s.items = append(s.items, &savedSession{key: entry.Name(), path: path, count: len(header.Flows),
-			data: sessionFile{Version: 1, Title: header.Title, Created: header.Created}})
+			data: sessionFile{Version: header.Version, Title: header.Title, Created: header.Created}})
 	}
 	slices.SortStableFunc(s.items, func(a, b *savedSession) int { return b.data.Created.Compare(a.data.Created) })
 	return problem
@@ -128,7 +135,7 @@ func (item *savedSession) persist(notify func()) {
 			for state := range jobs {
 				data, err := json.Marshal(state)
 				if err == nil {
-					err = store.WriteFile(path, data)
+					err = store.WriteFileVersioned(path, store.Session, data, "")
 				}
 				select {
 				case <-results:

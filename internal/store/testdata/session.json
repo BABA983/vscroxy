@@ -1,0 +1,23 @@
+{
+  "title": "Fixture capture",
+  "created": "2026-01-02T03:04:05Z",
+  "flows": [
+    {
+      "id": 1,
+      "method": "GET",
+      "scheme": "https",
+      "host": "example.test",
+      "path": "/hello",
+      "url": "https://example.test/hello",
+      "status": 200,
+      "bytes": 12,
+      "millis": 9,
+      "reqHeaders": "GET /hello HTTP/1.1\r\nHost: example.test\r\n\r\n",
+      "resHeaders": "HTTP/1.1 200 OK\r\nContent-Length: 12\r\n\r\n",
+      "reqSize": 43,
+      "resSize": 12,
+      "resBody": "hello, world",
+      "at": "2026-01-02T03:04:05Z"
+    }
+  ]
+}

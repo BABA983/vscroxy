@@ -91,13 +91,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Only the files a person downloads: the app bundle and its folders
-          # are not release assets.
+          # MyGo writes each platform's files under dist/<os>-<arch>/. Only
+          # installers are release assets: the bare app executable, such as
+          # dist/windows-amd64/vscroxy.exe, is not.
+          version=$(jq -r .version mygo.json)
           files=()
           while IFS= read -r -d '' file; do files+=("$file"); done < <(
-            find dist -maxdepth 2 -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.tar.gz' \
-              -o -name '*.deb' -o -name '*.rpm' -o -name 'vscroxy-cli-*' -o -name 'vscroxy-mcp-*' \) -print0
+            find dist -maxdepth 2 -type f \
+              \( -name 'vscroxy-*.dmg' -o -name 'vscroxy-setup-*.exe' \
+                 -o -name 'vscroxy-*-linux-*.tar.gz' -o -name '*.deb' -o -name '*.rpm' \
+                 -o -name 'vscroxy-cli-*' -o -name 'vscroxy-mcp-*' \) -print0
           )
+          # Every Linux build writes install.sh next to its archive. Upload each
+          # under a name that says which architecture it installs.
+          for script in dist/linux-*/install.sh; do
+            [ -f "$script" ] || continue
+            target=$(basename "$(dirname "$script")") # linux-amd64
+            named="dist/vscroxy-${version}-${target}-install.sh"
+            cp "$script" "$named"
+            files+=("$named")
+          done
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "no release files under dist/" >&2
+            exit 1
+          fi
           gh release upload "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
       - uses: actions/upload-artifact@v4
         if: always()
@@ -105,3 +122,28 @@ jobs:
           name: release-${{ matrix.name }}
           path: dist/
           if-no-files-found: ignore
+
+  checksums:
+    name: SHA-256 sums
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Collect the uploaded assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p assets
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --dir assets --clobber
+      - name: Write and upload SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The sums cover exactly the assets on the release, under the names
+          # they are uploaded with. SHA256SUMS is not one of them.
+          ( cd assets
+            find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
+              | xargs -0 sha256sum \
+              | sed 's|  \./|  |' | sort -k2
+          ) > SHA256SUMS
+          gh release upload "$GITHUB_REF_NAME" SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber

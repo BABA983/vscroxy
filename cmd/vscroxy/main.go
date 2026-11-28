@@ -33,10 +33,20 @@ func main() {
 		if len(guard) != 3 {
 			log.Fatal("proxy guard needs a journal path, a target and a bypass list")
 		}
+		// The guard writes its own journal; the desktop's crash file is not
+		// part of that mode.
 		if err := system.GuardProxy(guard[0], guard[1], guard[2], os.Stdin, os.Stdout); err != nil {
 			log.Fatal(err)
 		}
 		return
+	}
+	// A fatal panic on the UI thread would otherwise reach only stderr, which a
+	// launched app does not keep. The runtime writes it to the log directory,
+	// and the next launch reports it once.
+	if root, err := datadir.Root(); err != nil {
+		log.Printf("crash output unavailable: %v", err)
+	} else if err := applog.SetCrashOutput(root); err != nil {
+		log.Printf("crash output unavailable: %v", err)
 	}
 	if err := app.Run(); err != nil {
 		log.Fatal(err)

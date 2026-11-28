@@ -487,11 +487,14 @@ func writeSession(path string, flows []flow, frames map[int][]frame) error {
 	if err != nil {
 		return err
 	}
-	return store.WriteFile(path, append(data, '\n'))
+	// No backup copy: a session can be tens of MiB and its annotations change
+	// often. The versioned write still refuses to overwrite a newer file.
+	return store.WriteFileVersioned(path, store.Session, append(data, '\n'), "")
 }
 
-// readSessionFile reads and checks a session file. Files are bounded: a
-// session is opened whole.
+// readSessionFile reads and checks a session file through the store, so a file
+// from a newer vscroxy is refused with store.ErrNewer and left untouched.
+// Files are bounded: a session is opened whole.
 func readSessionFile(path string) (sessionFile, error) {
 	var s sessionFile
 	info, err := os.Stat(path)
@@ -501,15 +504,12 @@ func readSessionFile(path string) (sessionFile, error) {
 	if !info.Mode().IsRegular() || info.Size() > 48<<20 {
 		return s, errors.New("choose a regular session file no larger than 48 MiB")
 	}
-	data, err := os.ReadFile(path)
+	data, err := store.ReadFile(path, store.Session)
 	if err != nil {
-		return s, err
+		return s, fmt.Errorf("%s: %w", filepath.Base(path), err)
 	}
 	if err := json.Unmarshal(data, &s); err != nil {
 		return s, fmt.Errorf("%s: %w", filepath.Base(path), err)
-	}
-	if s.Version != 1 {
-		return s, fmt.Errorf("%s: unknown session version %d", filepath.Base(path), s.Version)
 	}
 	ids := map[int]bool{}
 	for _, f := range s.Flows {

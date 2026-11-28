@@ -4172,6 +4172,7 @@ func Run() error {
 	a := newApp()
 	active = a
 	setUnexpectedErrorHandler(a.fail)
+	a.reportPreviousCrash(root)
 	// Resolve the login shell environment once in the background: spawned
 	// tools get it from ShellEnv, while startup never waits for a login
 	// script that sources a slow profile.

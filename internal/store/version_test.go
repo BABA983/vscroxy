@@ -40,6 +40,7 @@ func testFormats(t *testing.T) map[string]struct {
 		"host profiles":       {HostsProfiles, "profiles.json", "", 0},
 		"cookies":             {Cookies, "cookies.json", "", 0},
 		"android proxy":       {AndroidProxy, "android-proxy.json", "records", 0},
+		"session":             {Session, "session.json", "", 0},
 		"collection request":  {Collection, "collection.request.json", "", 0},
 		"folder":              {Collection, "folder.json", "", 0},
 		"vault":               {Vault, "vault.json", "", 1},
@@ -134,6 +135,13 @@ func testMigrationFormat() *Format {
 		bumpStep(2, func(doc map[string]any) { doc["name"] = strings.ToUpper(doc["name"].(string)) }),
 		bumpStep(3, func(doc map[string]any) { doc["extra"] = true }),
 	}}
+}
+
+func TestVersionZeroIsRefused(t *testing.T) {
+	// A hand-edited or damaged version field must not index the steps.
+	if _, err := Session.Read([]byte(`{"version":0,"flows":[]}`)); err == nil || !strings.Contains(err.Error(), "invalid version 0") {
+		t.Fatalf("version 0 = %v, want an invalid version error", err)
+	}
 }
 
 func TestMigrationsRunInOrderWithTestData(t *testing.T) {

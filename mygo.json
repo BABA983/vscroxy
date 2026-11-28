@@ -10,5 +10,9 @@
   "macos": {
     "icon": "assets/AppIcon.icon"
   },
+  "linux": {
+    "webview": false,
+    "command": "vscroxy"
+  },
   "resources": ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 }

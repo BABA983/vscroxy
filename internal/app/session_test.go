@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -21,7 +22,12 @@ func TestSensitiveCaptureExportsReplacePrivately(t *testing.T) {
 	for _, format := range []string{"HAR", "session"} {
 		t.Run(format, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "export.json")
-			if err := os.WriteFile(path, []byte("old"), 0o644); err != nil {
+			existing := "old"
+			if format == "session" {
+				// A session save replaces a session file, not an arbitrary one.
+				existing = `{"version":1,"flows":[]}`
+			}
+			if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
 				t.Fatal(err)
 			}
 			flows := []flow{{method: "POST", url: "http://example.test", reqBody: "secret", reqHeader: http.Header{"Authorization": {"Bearer private"}}}}
@@ -211,6 +217,72 @@ func TestSessionKeepsFullBodiesAndIncompleteState(t *testing.T) {
 	}
 	if got[3].reqBody != "\xff\x00upload" || got[3].resBody != "\x80\x00download" {
 		t.Fatal("session changed non-UTF-8 body bytes")
+	}
+}
+
+// A saved session is a store.Session file: the fixture the store tests use
+// opens here, and a file from a newer version is refused without a write.
+func TestSavedSessionReadsTheStoreFixture(t *testing.T) {
+	path := filepath.Join("..", "store", "testdata", "session.json")
+	file, err := readSessionFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if file.Version != 1 || file.Title != "Fixture capture" || len(file.Flows) != 1 {
+		t.Fatalf("fixture = version %d, title %q, %d flows", file.Version, file.Title, len(file.Flows))
+	}
+	if got := file.Flows[0].URL; got != "https://example.test/hello" {
+		t.Fatalf("fixture flow URL = %q", got)
+	}
+}
+
+func TestSavedSessionRefusesANewerFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "future.json")
+	newer := []byte("{\"version\":2,\"title\":\"from the future\",\"flows\":[]}\n")
+	if err := os.WriteFile(path, newer, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readSessionFile(path); !errors.Is(err, store.ErrNewer) {
+		t.Fatalf("read = %v, want ErrNewer", err)
+	}
+	if got, _ := os.ReadFile(path); !bytes.Equal(got, newer) {
+		t.Fatalf("a newer file was changed: %s", got)
+	}
+	if err := writeSession(path, []flow{{id: 1, url: "https://example.test/"}}, nil); !errors.Is(err, store.ErrNewer) {
+		t.Fatalf("write = %v, want ErrNewer", err)
+	}
+	if got, _ := os.ReadFile(path); !bytes.Equal(got, newer) {
+		t.Fatalf("a newer file was overwritten: %s", got)
+	}
+}
+
+func TestSessionScanListsValidFilesAndReportsANewerOne(t *testing.T) {
+	valid, err := os.ReadFile(filepath.Join("..", "store", "testdata", "session.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "valid.json"), valid, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	newer := []byte("{\"version\":2,\"title\":\"from the future\",\"flows\":[]}\n")
+	future := filepath.Join(dir, "future.json")
+	if err := os.WriteFile(future, newer, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := &sessionWorkspace{}
+	err = s.load(dir)
+	if !errors.Is(err, store.ErrNewer) {
+		t.Fatalf("scan = %v, want ErrNewer", err)
+	}
+	if !strings.Contains(err.Error(), "future.json") {
+		t.Fatalf("scan error does not name the file: %v", err)
+	}
+	if len(s.items) != 1 || s.items[0].key != "valid.json" {
+		t.Fatalf("listed sessions = %+v, want only valid.json", s.items)
+	}
+	if got, _ := os.ReadFile(future); !bytes.Equal(got, newer) {
+		t.Fatalf("the scan changed a newer file: %s", got)
 	}
 }
 

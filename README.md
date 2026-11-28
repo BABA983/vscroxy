@@ -12,12 +12,15 @@ release carries:
 - macOS: `vscroxy-<version>-arm64.dmg` and `vscroxy-<version>-amd64.dmg`. Open
   the disk image and drag vscroxy to Applications.
 - Windows: `vscroxy-setup-<version>-<arch>.exe`.
-- Linux: `vscroxy-<version>-linux-<arch>.tar.gz` (with `install.sh`), plus
-  `.deb` and `.rpm` packages.
-- `vscroxy-cli-<os>-<arch>` and `vscroxy-mcp-<os>-<arch>`: the headless
-  binaries, separate from the app package.
+- Linux: `vscroxy-<version>-linux-<arch>.tar.gz` and its
+  `vscroxy-<version>-linux-<arch>-install.sh`, plus `.deb` and `.rpm` packages.
+- `vscroxy-cli-<os>-<arch>` and `vscroxy-mcp-<os>-<arch>` (`.exe` on Windows):
+  the headless binaries, separate from the app package.
+- `SHA256SUMS`: the SHA-256 of every other release asset.
 
-The packages are not code signed yet.
+The packages are not code signed yet. Verify a download from the folder holding
+the files with `sha256sum -c --ignore-missing SHA256SUMS` (on macOS,
+`shasum -a 256 -c SHA256SUMS`).
 
 **macOS (Gatekeeper).** The first open is blocked with "cannot be opened
 because Apple cannot check it for malicious software". Open it once from Finder
@@ -33,21 +36,87 @@ xattr -dr com.apple.quarantine /Applications/vscroxy.app
 Choose **More info** → **Run anyway**. A downloaded `.exe` can also be blocked
 by **Properties → Unblock**.
 
-**Linux.** The `.deb` and `.rpm` install the app and its desktop entry; the
-tar.gz's `install.sh` installs it for the current user in `~/.local`.
+**Linux.** The `.deb` and `.rpm` install the app, its desktop entry and the
+`vscroxy` command on `PATH`. The tar.gz's install script does the same for the
+current user under `~/.local`, including `~/.local/bin/vscroxy`; put it beside
+its archive and run `sh vscroxy-<version>-linux-<arch>-install.sh`.
 
 ### First run and the CA
 
-1. Start vscroxy. It listens on `127.0.0.1:7890`, or the port shown in the
-   title bar when that one is taken.
+1. Start vscroxy. It listens on `127.0.0.1:7890`, or the address and port in
+   the footer's proxy status hover card when that one is taken.
 2. Follow the setup guide: it turns on the system proxy, installs the vscroxy
    CA and checks that the first HTTPS request is decrypted.
-3. Or do it by hand: **Settings → HTTPS → Install and trust CA**, then point a
-   client at the proxy. On Linux, add the CA certificate the app exports to the
-   system or browser trust store.
+3. Or do it by hand: **Settings → HTTPS → Install & Trust…**, then point a
+   client at the proxy. On Linux the same button installs the CA into the
+   system trust store through a `pkexec` authorization prompt and refreshes it
+   with `update-ca-certificates` or `update-ca-trust`; if `pkexec` is missing,
+   the app names the file to copy and the command to run. Firefox keeps its own
+   trust store; the guide covers it along with Java, Node.js, phones and
+   simulators.
+
+On an unsigned macOS build, macOS can refuse the CA import before it shows the
+authorization prompt. Import and trust it by hand: open **Keychain Access**,
+select the **System** keychain, choose **File → Import Items…** and pick
+`~/.vscroxy/ca/vscroxy-ca-cert.pem` (under the data folder chosen with
+`--user-data-dir` or `VSCROXY_HOME` when one is set), open **vscroxy CA**,
+expand **Trust**, set **When using this certificate** to **Always Trust**, and
+authenticate.
 
 The CA private key stays on this computer. The [user guide](docs/guide.md)
 covers Firefox, Java, Node.js, phones, simulators and the command line.
+
+## Removing the vscroxy certificate
+
+The app generates a CA named `vscroxy CA` and keeps it in `~/.vscroxy/ca`, or
+in the data folder set with `--user-data-dir` / `VSCROXY_HOME`. Quit vscroxy
+before removing its copies; the next launch generates a new CA that clients
+must trust again. Firefox, Java and phones keep their own trust stores, which
+the [user guide](docs/guide.md) explains.
+
+**macOS.** Remove **vscroxy CA** from the **System** keychain in Keychain
+Access, or run:
+
+```sh
+sudo security delete-certificate -c "vscroxy CA" /Library/Keychains/System.keychain
+```
+
+Remove it from the login keychain too if you imported it there by hand.
+
+**Windows.** The button trusts the CA for the current user in the Root store:
+
+```bat
+certutil -user -delstore Root "vscroxy CA"
+```
+
+In an elevated Command Prompt, `certutil -delstore Root "vscroxy CA"` removes a
+machine-wide copy. Or delete **vscroxy CA** under **Trusted Root Certification
+Authorities → Certificates** in `certmgr.msc` (current user) or `certlm.msc`
+(this computer).
+
+**Linux.** The app installs the CA as `vscroxy.crt` through
+`update-ca-certificates` (Debian, Ubuntu) or `update-ca-trust` (Fedora, RHEL,
+openSUSE, Arch), then refreshes the store. Remove that file and refresh:
+
+```sh
+# Debian, Ubuntu
+sudo rm -f /usr/local/share/ca-certificates/vscroxy.crt
+sudo update-ca-certificates
+# Fedora, RHEL, openSUSE
+sudo rm -f /etc/pki/ca-trust/source/anchors/vscroxy.crt
+sudo update-ca-trust
+# Arch Linux
+sudo rm -f /etc/ca-certificates/trust-source/anchors/vscroxy.crt
+sudo update-ca-trust
+```
+
+**Every platform.** Delete the app's CA files so it cannot keep using them:
+
+```sh
+rm -rf ~/.vscroxy/ca
+```
+
+Use the `ca` folder under your data folder when it is not `~/.vscroxy`.
 
 `vscroxy --version`, `vscroxy-cli --version` and `vscroxy-mcp --version` print
 the version and commit; **Settings → General → About** shows them with the
@@ -72,9 +141,10 @@ go tool mygo dev
 go tool mygo build
 ```
 
-The proxy prefers `127.0.0.1:7890` and shows its actual listening address in the
-window. HTTPS inspection requires configuring the client to trust the generated
-CA. Settings, captures and logs live in `~/.vscroxy`, or in the folder selected
+The proxy prefers `127.0.0.1:7890` and shows its actual listening address in
+the footer's proxy status card. HTTPS inspection requires configuring the
+client to trust the generated CA. Settings, captures and logs live in
+`~/.vscroxy`, or in the folder selected
 with `--user-data-dir <path>` / `--user-data-dir=<path>` or `VSCROXY_HOME` (a
 flag wins over the variable; relative paths are relative to the working
 directory). Settings → General →
