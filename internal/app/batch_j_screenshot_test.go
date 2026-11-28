@@ -132,7 +132,7 @@ func TestBatchJScreenshots(t *testing.T) {
 				{Severity: markers.Info, Message: locales.ProblemScriptFailed("deprecated pm API"), Code: problemFieldPost,
 					Range: &markers.Range{StartLineNumber: 2, StartColumn: 3, EndLineNumber: 2, EndColumn: 18}},
 			})
-					first.response = &capture.Flow{Status: 200, Millis: 32, Bytes: 64, ResponseBody: `{"items":[]}`,
+			first.response = &capture.Flow{Status: 200, Millis: 32, Bytes: 64, ResponseBody: `{"items":[]}`,
 				ResponseHeader: http.Header{"Content-Type": {"application/json"}}}
 			p.consoleSend(first, requestResult{document: first, outcome: "Response received", response: first.response,
 				console: []request.ConsoleMessage{{Phase: "post-response", Kind: "warning", Text: "Deprecated parameter type=json"}}})

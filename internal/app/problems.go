@@ -730,8 +730,8 @@ func (a *app) problemsView(c *ui.Context, t *ui.Theme) {
 			if collapsed {
 				continue
 			}
-			row := ui.Row(c.Key("problem-"+strconv.Itoa(i))).FillWidth().
-				Height(uikit.HeightRow).PaddingStart(t.Space(uikit.SpaceL)+uikit.HeightRowAction+t.Space(uikit.SpaceXL)).
+			row := ui.Row(c.Key("problem-" + strconv.Itoa(i))).FillWidth().
+				Height(uikit.HeightRow).PaddingStart(t.Space(uikit.SpaceL) + uikit.HeightRowAction + t.Space(uikit.SpaceXL)).
 				PaddingEnd(t.Space(uikit.SpaceL)).
 				Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center)
 			if i == a.problems.selection {

@@ -837,7 +837,7 @@ func (a *app) bottomPanelView(c *ui.Context) {
 	height := min(max(windowHeight*0.36, 190), 300)
 	ui.Column(c.Key("bottom-panel")).Height(height).FillWidth().Shrink(0).
 		Border(1, t.Border).BorderWidth(1, 0, 0, 0).Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs + t.Space(uikit.SpaceXS)).Padding(0, t.Space(uikit.SpaceM)).
+		ui.Row(c).Height(uikit.HeightTabs+t.Space(uikit.SpaceXS)).Padding(0, t.Space(uikit.SpaceM)).
 			Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			labels := []string{locales.Problems(), locales.Console()}
 			counts := []string{strconv.Itoa(a.problemCount()), ""}
