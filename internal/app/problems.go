@@ -72,10 +72,11 @@ type variablesResolver func(savedRequest, request.Context, map[string]string) []
 // firing an unchanged marker set every frame: MyGo rebuilds several times for
 // one edit, and Debug variables are read on each pass.
 type problemsState struct {
-	open      bool
 	query     string
 	filter    ui.Handle
+	focusNext bool // the filter field takes the keyboard on the next build
 	show      [4]bool
+	collapsed map[string]bool
 	selection int
 	// signatures holds the last marker set written for resource|owner.
 	signatures map[string]string
@@ -541,16 +542,14 @@ func (a *app) visibleProblems() []markers.Marker {
 }
 
 func (a *app) openProblems() {
-	a.problems.open = true
-}
-
-func (a *app) closeProblems() {
-	a.problems.open = false
+	a.bottom.open, a.bottom.tab = true, bottomProblems
 }
 
 func (a *app) focusProblems() {
 	a.openProblems()
-	a.problems.filter.Focus()
+	// The filter field may not be built yet when the panel was on Console:
+	// the frame that builds it gives it the keyboard.
+	a.problems.focusNext = true
 }
 
 // navigateProblems is the Problems panel's form of VS Code's
@@ -665,102 +664,149 @@ func severityGlyph(severity markers.Severity, t *ui.Theme) (*ui.SVG, ui.Color) {
 	}
 }
 
-// problemsPanel is the workbench's bottom panel. The tab and its count badge
-// read the service, so an event from a send worker changes them on the next
-// frame without the worker touching a widget.
-func (a *app) problemsPanel(c *ui.Context) {
-	if !a.problems.open {
-		return
-	}
-	t, palette := c.Theme(), uikit.Colors(c.Theme())
-	all := a.problemService().Read(markers.Filter{})
-	_, windowHeight := c.Size()
-	height := min(max(windowHeight*0.36, 190), 300)
-	ui.Column(c.Key("problems-panel")).Height(height).FillWidth().Shrink(0).
-		Border(1, t.Border).BorderWidth(1, 0, 0, 0).Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceM)).
-			Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Children(func() {
-			uikit.BodyStrong(c, locales.Problems())
-			uikit.Badge(c, strconv.Itoa(len(all)), palette.MutedForeground)
-			ui.Spacer(c)
-			if uikit.IconButton(c, locales.CloseProblems(), locales.CloseProblems(), closeIcon).Clicked() {
-				a.closeProblems()
+// problemsView is the Problems tab of the bottom panel: its rows grouped by
+// request, each group folding from its heading. The search field and the
+// severity filter sit in the panel's tab row, so the list owns the panel's
+// whole height.
+func (a *app) problemsView(c *ui.Context, t *ui.Theme) {
+	ui.Scroll(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+		list := a.visibleProblems()
+		if len(list) == 0 {
+			message, hint := locales.NoProblems(), locales.NoProblemsHint()
+			if a.problems.query != "" || slices.Contains(a.problems.show[:], false) {
+				message, hint = locales.NoMatchingProblems(), locales.NoProblemsHint()
 			}
-		})
-		ui.Row(c).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceM)).
-			Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-			field := ui.Row(c).Grow(1).MinWidth(uikit.WidthField).Height(uikit.HeightRow).AlignItems(ui.Center)
-			uikit.FieldFace(c, field, a.problems.filter.Focused(c)).Children(func() {
-				uikit.TextInset(ui.TextInputBase(c.Key("problems-filter"), &a.problems.query).
-					Bind(&a.problems.filter).Label(locales.FilterProblems()).
-					Placeholder(locales.FilterProblems()).Grow(1).Height(uikit.HeightRow).
-					OnShortcut(0, ui.KeyEscape, func() { a.problems.query = "" }), t.Space(uikit.SpaceM))
+			ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
+				uikit.Body(c, message)
+				uikit.Hint(c, hint)
 			})
-			for i, severity := range problemSeverities {
-				uikit.Checkbox(c, &a.problems.show[i], severityLabel(severity))
-			}
-		})
-		ui.Scroll(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
-			list := a.visibleProblems()
-			if len(list) == 0 {
-				message, hint := locales.NoProblems(), locales.NoProblemsHint()
-				if a.problems.query != "" || slices.Contains(a.problems.show[:], false) {
-					message, hint = locales.NoMatchingProblems(), locales.NoProblemsHint()
+			return
+		}
+		previous := ""
+		collapsed := false
+		for i, m := range list {
+			label := a.problemResourceLabel(m.Resource)
+			if label != previous {
+				if previous != "" {
+					ui.Divider(c)
 				}
-				ui.Column(c).Gap(t.Space(uikit.SpaceXS)).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL)).Children(func() {
-					uikit.Body(c, message)
-					uikit.Hint(c, hint)
-				})
-				return
-			}
-			previous := ""
-			for i, m := range list {
-				label := a.problemResourceLabel(m.Resource)
-				if label != previous {
-					if previous != "" {
-						ui.Divider(c)
+				previous = label
+				// A group is its heading, its method and its count. The
+				// heading keeps the count of every marker under it, even
+				// while the group is folded.
+				count := 0
+				for _, other := range list[i:] {
+					if a.problemResourceLabel(other.Resource) != label {
+						break
 					}
-					previous = label
-					ui.Row(c.Key("problem-group-"+strconv.Itoa(i))).FillWidth().
-						Padding(0, t.Space(uikit.SpaceL), 0, t.Space(uikit.SpaceL)).
-						Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Children(func() {
-						uikit.Meta(c, label).SingleLine()
-						ui.Spacer(c)
-					})
+					count++
 				}
-				row := ui.Row(c.Key("problem-"+strconv.Itoa(i))).FillWidth().
+				open := !a.problems.collapsed[label]
+				row := ui.Row(c.Key("problem-group-"+strconv.Itoa(i))).FillWidth().
 					Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceL)).
-					Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center)
-				if i == a.problems.selection {
+					Gap(t.Space(uikit.SpaceS)).Radius(uikit.RadiusControl).AlignItems(ui.Center).
+					Label(locales.ProblemGroup(label))
+				if row.Hovered() {
 					row.Background(t.SurfaceHover)
 				}
 				row.Children(func() {
-					icon, ink := severityGlyph(m.Severity, t)
-					ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline).TextColor(ink).Shrink(0)
-					uikit.Badge(c, severityLabel(m.Severity), ink)
-					uikit.Body(c, m.Message).Grow(1).MinWidth(0).SingleLine()
-					if fixes := a.quickFixesForMarker(m); len(fixes) > 0 {
-						rowIndex := i
-						uikit.IconButton(c, locales.QuickFix(), locales.QuickFix(), hintIcon).
-							PopoverMenuButton(func(menu *ui.Menu) {
-								for j := range fixes {
-									fix := fixes[j]
-									if menu.Item(fix.label).Chosen() {
-										a.problems.selection = rowIndex
-										fix.apply()
-									}
-								}
-							}, uikit.MenuButtonOptions(c)).Shrink(0)
+					branchArrow(c, &open)
+					if d := a.documentForProblem(m.Resource); d != nil {
+						if method := cmp.Or(d.protocol, d.composeMethod); method != "" {
+							uikit.MethodLabel(c, method).FontSize(uikit.Scaled(uikit.TextMeta)).Shrink(0)
+						}
 					}
-					if m.Range != nil {
-						uikit.DataMeta(c, strconv.Itoa(m.Range.StartLineNumber)+":"+strconv.Itoa(m.Range.StartColumn)).Shrink(0)
-					}
+					uikit.Body(c, label).Grow(1).MinWidth(0).SingleLine()
+					searchCountBadge(c, count)
 				})
 				if row.Clicked() {
-					a.problems.selection = i
-					a.openProblem(m)
+					open = !open
 				}
+				if open == a.problems.collapsed[label] {
+					setCollapsed(&a.problems.collapsed, label, !open)
+				}
+				collapsed = !open
+			}
+			if collapsed {
+				continue
+			}
+			row := ui.Row(c.Key("problem-"+strconv.Itoa(i))).FillWidth().
+				Height(uikit.HeightRow).PaddingStart(t.Space(uikit.SpaceL)+uikit.HeightRowAction+t.Space(uikit.SpaceXL)).
+				PaddingEnd(t.Space(uikit.SpaceL)).
+				Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center)
+			if i == a.problems.selection {
+				row.Background(t.SurfaceHover)
+			}
+			row.Children(func() {
+				icon, ink := severityGlyph(m.Severity, t)
+				ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline).TextColor(ink).Shrink(0).Label(severityLabel(m.Severity))
+				uikit.Body(c, m.Message).Grow(1).MinWidth(0).SingleLine()
+				if fixes := a.quickFixesForMarker(m); len(fixes) > 0 {
+					rowIndex := i
+					uikit.IconButton(c, locales.QuickFix(), locales.QuickFix(), hintIcon).
+						PopoverMenuButton(func(menu *ui.Menu) {
+							for j := range fixes {
+								fix := fixes[j]
+								if menu.Item(fix.label).Chosen() {
+									a.problems.selection = rowIndex
+									fix.apply()
+								}
+							}
+						}, uikit.MenuButtonOptions(c)).Shrink(0)
+				}
+				if m.Range != nil {
+					uikit.DataMeta(c, strconv.Itoa(m.Range.StartLineNumber)+":"+strconv.Itoa(m.Range.StartColumn)).Shrink(0)
+				}
+			})
+			if row.Clicked() {
+				a.problems.selection = i
+				a.openProblem(m)
+			}
+		}
+	})
+}
+
+// problemCount is every marker the Problems tab holds, including the
+// severities the filter hides: the tab's count says what the panel found.
+func (a *app) problemCount() int {
+	return len(a.problemService().Read(markers.Filter{}))
+}
+
+// problemsPanelActions are the Problems tab's own controls, at the panel tab
+// row's end: the filter field, the severity menu and its dot while a
+// severity is hidden. Closing the panel is the row's shared action.
+func (a *app) problemsPanelActions(c *ui.Context, t *ui.Theme) {
+	field, input := uikit.SearchFieldInput(c, &a.problems.query, locales.FilterProblems(), locales.FilterProblems(), false)
+	field.Width(uikit.WidthFieldWide).Shrink(1).MinWidth(uikit.WidthNarrow)
+	input.Bind(&a.problems.filter)
+	if a.problems.focusNext {
+		input.Focus()
+		a.problems.focusNext = false
+	}
+	input.OnShortcut(0, ui.KeyEscape, func() { a.problems.query = "" })
+	if a.problems.query != "" {
+		field.Children(func() {
+			if uikit.Tip(c, uikit.RowIconButton(c, locales.Clear(), locales.Clear(), closeIcon), locales.Clear()).Clicked() {
+				a.problems.query = ""
+				a.problems.filter.Focus(c)
 			}
 		})
+	}
+	var filter ui.Element
+	uikit.MenuFace(c, func() {
+		filter = uikit.IconButton(c, locales.FilterProblemsBySeverity(), locales.FilterProblemsBySeverity(), filterIcon)
 	})
+	filter.PopoverMenuButton(func(m *ui.Menu) {
+		for i, severity := range problemSeverities {
+			if m.Item(severityLabel(severity)).Checked(a.problems.show[i]).Chosen() {
+				a.problems.show[i] = !a.problems.show[i]
+			}
+		}
+	}, uikit.MenuButtonOptions(c))
+	if slices.Contains(a.problems.show[:], false) {
+		filter.DrawOver(func(p *ui.Painter, r ui.Rect) {
+			p.Fill(ui.Rect{X: r.X + r.W - uikit.DotSize - 3, Y: r.Y + 4, W: uikit.DotSize, H: uikit.DotSize},
+				t.Warning, uikit.DotSize/2)
+		})
+	}
 }

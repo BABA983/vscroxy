@@ -66,7 +66,7 @@ func TestParamsTableScreenshots(t *testing.T) {
 				draw.Draw(out, out.Bounds(), tt.Image(), crop.Min, draw.Src)
 				writeFeatureScreenshot(t, dir, fmt.Sprintf("params-table-%s-%s.png", name, appearance), out)
 			}
-			if !tt.HasText("Query Params") {
+			if !tt.HasText("parameter key 1") {
 				t.Fatalf("the Params table is not shown: %v", tt.Texts())
 			}
 			save("unfocused")

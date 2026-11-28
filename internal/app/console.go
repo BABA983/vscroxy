@@ -36,8 +36,6 @@ type consoleEntry struct {
 // the divider's share and the chosen level last for this run, and the entries
 // are capped so a long session cannot grow without bound.
 type consolePanel struct {
-	open     bool
-	split    float32
 	level    string
 	seq      int
 	entries  []consoleEntry
@@ -65,13 +63,15 @@ func consoleLevelLabel(level string) string {
 	}
 }
 
-// toggleConsole opens or closes the request workspace's Console. The footer
-// item and the view.console command both come here.
+// toggleConsole opens the window's bottom panel on Console, or closes it when
+// Console is already the tab in front. The footer item and the view.console
+// command both come here.
 func (a *app) toggleConsole() {
-	p := &a.requestConsole
-	p.open = !p.open
-	if p.split == 0 {
-		p.split = 70
+	b := &a.bottom
+	if b.open && b.tab == bottomConsole {
+		b.open = false
+	} else {
+		b.open, b.tab = true, bottomConsole
 	}
 	a.invalidate()
 }
@@ -151,53 +151,27 @@ func (a *app) visibleConsoleEntries() []consoleEntry {
 	return out
 }
 
-// consolePanelView is the bottom Console: one compact header and its rows.
-func (a *app) consolePanelView(c *ui.Context, t *ui.Theme) {
+// consoleView is the Console tab's rows. Its level filter, Clear, Copy and
+// the panel's close live in the bottom panel's tab row.
+func (a *app) consoleView(c *ui.Context, t *ui.Theme) {
 	p := &a.requestConsole
 	entries := a.visibleConsoleEntries()
-	ui.Column(c).Fill().FillWidth().MinHeight(0).Background(t.Background).
-		Border(0, t.Border).BorderWidth(1, 0, 0, 0).Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Shrink(0).Padding(0, t.Space(uikit.SpaceL)).
-			Gap(t.Space(uikit.SpaceS)).AlignItems(ui.Center).Children(func() {
-			uikit.BodyStrong(c, locales.Console())
-			ui.Spacer(c)
-			uikit.ToolbarSelect(c, consoleLevelLabel(p.level), func(m *ui.Menu) {
-				for _, level := range consoleLevels {
-					if m.Item(consoleLevelLabel(level)).Checked(level == p.level).Chosen() {
-						p.level = level
-					}
-				}
-			}).Label(locales.ConsoleLevelFilter())
-			if uikit.CompactButton(c, locales.Clear()).Disabled(len(p.entries) == 0).Clicked() {
-				p.entries, p.expanded = nil, nil
+	ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Background(t.Background).Children(func() {
+		if len(entries) == 0 {
+			message := locales.ConsoleEmpty()
+			if p.level != "" {
+				message = locales.ConsoleNoLevelEntries()
 			}
-			copy := uikit.RowIconButton(c, locales.CopyAllLogs(), locales.CopyAllLogs(), lucide.Copy()).
-				Disabled(len(p.entries) == 0)
-			if uikit.Tip(c, copy, locales.CopyAllLogs()).Clicked() {
-				c.Services().WriteClipboard(a.consoleText())
-				a.done(locales.ConsoleCopied())
+			uikit.Hint(c, message).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
+			return
+		}
+		for _, entry := range entries {
+			if entry.request {
+				a.consoleRequestRow(c, t, entry)
+			} else {
+				consoleMessageRow(c, t, entry)
 			}
-			if uikit.Tip(c, uikit.RowIconButton(c, locales.Close(), locales.Close(), lucide.X()), locales.Close()).Clicked() {
-				p.open = false
-			}
-		})
-		ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
-			if len(entries) == 0 {
-				message := locales.ConsoleEmpty()
-				if p.level != "" {
-					message = locales.ConsoleNoLevelEntries()
-				}
-				uikit.Hint(c, message).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceL))
-				return
-			}
-			for _, entry := range entries {
-				if entry.request {
-					a.consoleRequestRow(c, t, entry)
-				} else {
-					consoleMessageRow(c, t, entry)
-				}
-			}
-		})
+		}
 	})
 }
 
@@ -333,4 +307,27 @@ func (a *app) consoleText() string {
 		fmt.Fprintf(&b, "%s [%s] %s\n", stamp, e.kind, e.text)
 	}
 	return b.String()
+}
+
+// consolePanelActions are the Console tab's controls, at the panel tab row's
+// end: the level filter, Clear and Copy all. Closing the panel is the row's
+// shared action.
+func (a *app) consolePanelActions(c *ui.Context) {
+	p := &a.requestConsole
+	uikit.ToolbarSelect(c, consoleLevelLabel(p.level), func(m *ui.Menu) {
+		for _, level := range consoleLevels {
+			if m.Item(consoleLevelLabel(level)).Checked(level == p.level).Chosen() {
+				p.level = level
+			}
+		}
+	}).Label(locales.ConsoleLevelFilter())
+	if uikit.Tip(c, uikit.CompactButton(c, locales.Clear()).Disabled(len(p.entries) == 0), locales.Clear()).Clicked() {
+		p.entries, p.expanded = nil, nil
+	}
+	copy := uikit.RowIconButton(c, locales.CopyAllLogs(), locales.CopyAllLogs(), lucide.Copy()).
+		Disabled(len(p.entries) == 0)
+	if uikit.Tip(c, copy, locales.CopyAllLogs()).Clicked() {
+		c.Services().WriteClipboard(a.consoleText())
+		a.done(locales.ConsoleCopied())
+	}
 }

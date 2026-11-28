@@ -343,7 +343,8 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		// The tools that are on follow the window, not one screen: a
 		// breakpoint or a throttle is on everywhere.
 		a.footerTools(c, t)
-		if uikit.FooterButton(c, locales.Console(), locales.ToggleConsoleTip(), a.requestConsole.open).Clicked() {
+		if uikit.FooterButton(c, locales.Console(), locales.ToggleConsoleTip(),
+			a.bottom.open && a.bottom.tab == bottomConsole).Clicked() {
 			a.toggleConsole()
 		}
 		ui.Spacer(c)

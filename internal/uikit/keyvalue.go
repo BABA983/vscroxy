@@ -151,8 +151,11 @@ func KeyValueTable(c *ui.Context, o KeyValueTableOptions) ui.Element {
 		}
 		// The scroll bar floats over the container's end. Keep the table's
 		// full width for its header and cells and leave the bar's gutter
-		// outside it, so no column's text is ever drawn under the bar.
-		ui.Scroll(c).Grow(1).MinHeight(0).PaddingEnd(ScrollbarInset(t)).Children(draw)
+		// outside it, so no column's text is ever drawn under the bar. The
+		// bar is the kit's thin overlay thumb, not the editor's square block:
+		// a dense row of values keeps its quiet edge.
+		ui.Scroll(c).Grow(1).MinHeight(0).ScrollbarStyle(OverlayScrollbar(t)).
+			PaddingEnd(ScrollbarInset(t)).Children(draw)
 	})
 	return column
 }

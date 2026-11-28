@@ -187,6 +187,22 @@ func ScrollbarInset(t *ui.Theme) float32 {
 	return ui.ScrollbarStyle{}.Resolve(t).TrackWidth
 }
 
+// OverlayScrollbar is the thin, rounded bar of a table that scrolls under the
+// pointer's eye: a six-point thumb with three points of air, its track as wide
+// as the thumb's hit area, and no square block at the pane's edge. It keeps
+// the palette's ink and appears while the pointer is over the rows or they
+// move, as MyGo's scroll containers do by default. A scrolling table uses it
+// instead of the editor's square 14-point bar.
+func OverlayScrollbar(t *ui.Theme) ui.ScrollbarStyle {
+	p := Colors(t)
+	return ui.ScrollbarStyle{
+		TrackWidth: 12, ThumbWidth: 6,
+		Thumb:  p.MutedForeground.Alpha(0.4),
+		Hover:  p.MutedForeground.Alpha(0.7),
+		Active: p.Foreground.Alpha(0.4),
+	}
+}
+
 // MethodColor is the ink an HTTP method is printed in.
 func MethodColor(method string, t *ui.Theme) ui.Color {
 	p := Colors(t)
@@ -222,6 +238,22 @@ func StatusColor(status int, t *ui.Theme) ui.Color {
 	default:
 		return p.Danger
 	}
+}
+
+// EditorThemeFor is EditorTheme with the caret's own marks, the active line
+// and the box around the matching bracket, only while the editor has the
+// keyboard. A code editor the app draws directly uses it; requestCodeEditor
+// does too. A zero color means "the default" to the editor's theme resolver,
+// so the hidden marks are transparent white, whose channels are not zero.
+func EditorThemeFor(t *ui.Theme, focused bool) *editor.Theme {
+	theme := EditorTheme(t)
+	if !focused {
+		hidden := ui.RGBA(255, 255, 255, 0)
+		theme.ActiveLine = hidden
+		theme.ActiveLineNumber = theme.LineNumber
+		theme.MatchingBracket = hidden
+	}
+	return theme
 }
 
 // EditorTheme maps the GitHub token palette that @pierre/diffs emits as

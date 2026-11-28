@@ -1152,10 +1152,14 @@ func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
 }
 
 // requestScriptsEditor is the request's Scripts tab: a narrow list of the two
-// scripts beside the chosen one's editor, with the snippet menu floating at
-// the editor's bottom-right corner as Postman puts it.
+// scripts, the snippet menu under them as Postman keeps its snippets at the
+// side, and the chosen script's editor.
 func (a *app) requestScriptsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	p := uikit.Colors(t)
+	st := d.preEditor
+	if d.scriptTab == 1 {
+		st = d.postEditor
+	}
 	ui.Row(c).Grow(1).FillWidth().FillHeight().MinHeight(0).Gap(0).AlignItems(ui.Start).Children(func() {
 		ui.Column(c).Width(160).Shrink(0).MinHeight(0).Padding(0, t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceXS)).Children(func() {
 			for i, item := range []struct {
@@ -1185,21 +1189,16 @@ func (a *app) requestScriptsEditor(c *ui.Context, d *requestDocument, t *ui.Them
 					c.Invalidate()
 				}
 			}
+			if st != nil {
+				// A quiet control under the list: the snippets belong to the
+				// script the list chose, and the code keeps its full width.
+				uikit.ToolbarSelect(c, locales.InsertSnippet(), scriptSnippetMenu(st, "request")).Label(locales.InsertSnippet()).
+					FillWidth().Justify(ui.Start).Margin(0, 0, t.Space(uikit.SpaceM), 0).TextColor(t.TextMuted)
+			}
 		})
 		ui.Box(c).Width(uikit.HairlineWidth).FillHeight().Shrink(0).Background(t.Border)
 		ui.Box(c).Grow(1).MinWidth(0).MinHeight(0).FillHeight().Children(func() {
 			a.requestScriptText(c, d)
-			st := d.preEditor
-			if d.scriptTab == 1 {
-				st = d.postEditor
-			}
-			if st != nil {
-				ui.Box(c).Absolute().Right(t.Space(uikit.SpaceL)).Bottom(t.Space(uikit.SpaceL)).
-					Background(t.Background).Border(uikit.HairlineWidth, t.Border).Radius(uikit.RadiusControl).
-					Padding(0, t.Space(uikit.SpaceXS)).Children(func() {
-					uikit.ToolbarSelect(c, locales.InsertSnippet(), scriptSnippetMenu(st, "request")).Label(locales.InsertSnippet())
-				})
-			}
 		})
 	})
 }
@@ -1320,7 +1319,9 @@ func (a *app) requestBodyText(c *ui.Context, d *requestDocument) {
 func requestCodeEditor(c *ui.Context, state *editor.State, focus ...*ui.Handle) ui.Element {
 	t := c.Theme()
 	state.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
-	state.Theme = uikit.EditorTheme(t)
+	// The caret's own marks belong to the keyboard; the last frame's focus
+	// is what the options can read, and a focus change paints once more.
+	state.Theme = uikit.EditorThemeFor(t, state.Focused())
 	// The editor sits on the panel itself: an input is a well or a field on
 	// chrome, and this is neither, so it draws no box of its own.
 	return ui.Box(c).Grow(1).MinHeight(0).FillWidth().Children(func() {

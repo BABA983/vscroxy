@@ -38436,6 +38436,56 @@ func (msgs Messages) SavedAt(time_ string) string {
 	return Catalog.Format(msgs.locale, "savedAt", map[string]any{"time": time_})
 }
 
+// DaysAgo says "{count} days ago"
+// in the language the app shows.
+func DaysAgo(count int) string { return In(i18n.Locale()).DaysAgo(count) }
+
+// DaysAgo says "{count} days ago"
+// in the language of msgs.
+func (msgs Messages) DaysAgo(count int) string {
+	return Catalog.Format(msgs.locale, "daysAgo", map[string]any{"count": count})
+}
+
+// HoursAgo says "{count} hours ago"
+// in the language the app shows.
+func HoursAgo(count int) string { return In(i18n.Locale()).HoursAgo(count) }
+
+// HoursAgo says "{count} hours ago"
+// in the language of msgs.
+func (msgs Messages) HoursAgo(count int) string {
+	return Catalog.Format(msgs.locale, "hoursAgo", map[string]any{"count": count})
+}
+
+// JustNow says "just now"
+// in the language the app shows.
+func JustNow() string { return In(i18n.Locale()).JustNow() }
+
+// JustNow says "just now"
+// in the language of msgs.
+func (msgs Messages) JustNow() string {
+	return Catalog.Format(msgs.locale, "justNow", nil)
+}
+
+// MinutesAgo says "{count} min ago"
+// in the language the app shows.
+func MinutesAgo(count int) string { return In(i18n.Locale()).MinutesAgo(count) }
+
+// MinutesAgo says "{count} min ago"
+// in the language of msgs.
+func (msgs Messages) MinutesAgo(count int) string {
+	return Catalog.Format(msgs.locale, "minutesAgo", map[string]any{"count": count})
+}
+
+// Yesterday says "yesterday"
+// in the language the app shows.
+func Yesterday() string { return In(i18n.Locale()).Yesterday() }
+
+// Yesterday says "yesterday"
+// in the language of msgs.
+func (msgs Messages) Yesterday() string {
+	return Catalog.Format(msgs.locale, "yesterday", nil)
+}
+
 // SavedVersions says "Saved versions"
 // in the language the app shows.
 func SavedVersions() string { return In(i18n.Locale()).SavedVersions() }
@@ -38690,6 +38740,16 @@ func (msgs Messages) SearchHiddenResource() string {
 	return Catalog.Format(msgs.locale, "searchHiddenResource", nil)
 }
 
+// BottomPanelName says "Bottom panel"
+// in the language the app shows.
+func BottomPanelName() string { return In(i18n.Locale()).BottomPanelName() }
+
+// BottomPanelName says "Bottom panel"
+// in the language of msgs.
+func (msgs Messages) BottomPanelName() string {
+	return Catalog.Format(msgs.locale, "bottomPanelName", nil)
+}
+
 // Problems says "Problems"
 // in the language the app shows.
 func Problems() string { return In(i18n.Locale()).Problems() }
@@ -38698,6 +38758,16 @@ func Problems() string { return In(i18n.Locale()).Problems() }
 // in the language of msgs.
 func (msgs Messages) Problems() string {
 	return Catalog.Format(msgs.locale, "problems", nil)
+}
+
+// FilterProblemsBySeverity says "Filter problems by severity"
+// in the language the app shows.
+func FilterProblemsBySeverity() string { return In(i18n.Locale()).FilterProblemsBySeverity() }
+
+// FilterProblemsBySeverity says "Filter problems by severity"
+// in the language of msgs.
+func (msgs Messages) FilterProblemsBySeverity() string {
+	return Catalog.Format(msgs.locale, "filterProblemsBySeverity", nil)
 }
 
 // FilterProblems says "Filter problems"
@@ -38748,6 +38818,16 @@ func PreviousProblem() string { return In(i18n.Locale()).PreviousProblem() }
 // in the language of msgs.
 func (msgs Messages) PreviousProblem() string {
 	return Catalog.Format(msgs.locale, "previousProblem", nil)
+}
+
+// ProblemGroup says "Problem group: {name}"
+// in the language the app shows.
+func ProblemGroup(name string) string { return In(i18n.Locale()).ProblemGroup(name) }
+
+// ProblemGroup says "Problem group: {name}"
+// in the language of msgs.
+func (msgs Messages) ProblemGroup(name string) string {
+	return Catalog.Format(msgs.locale, "problemGroup", map[string]any{"name": name})
 }
 
 // ProblemError says "Error"

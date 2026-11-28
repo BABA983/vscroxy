@@ -353,8 +353,17 @@ func (a *app) collectionTree(c *ui.Context) {
 			if r.Collection != "" {
 				card.Meta = method + " · " + r.Collection
 			}
-			row := uikit.ContextMenu(c, uikit.CardTipBeside(c, base, card).
-				OnClick(func() { a.previewSaved(r.key()) }), menu)
+			// A menu acts on the row under the pointer. Marking that row as
+			// the open one as the menu opens keeps it identifiable after the
+			// pointer leaves it for the menu, as VS Code keeps the row it
+			// right-clicked.
+			mark := func() {
+				if a.requestChoice != r.key() {
+					a.previewSaved(r.key())
+				}
+			}
+			row := uikit.ContextMenuOn(c, uikit.CardTipBeside(c, base, card).
+				OnClick(func() { a.previewSaved(r.key()) }), mark, menu)
 			// A single click browses in the preview tab; a double click pins
 			// it, as opening the request from its menu does.
 			if row.DoubleClicked() {

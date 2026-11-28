@@ -248,7 +248,7 @@ func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]str
 	})
 	uikit.Meta(c, locales.ReadOnlyComparisonBodiesLimited()).Padding(t.Space(uikit.SpaceXS), t.Space(uikit.SpaceL))
 	s.diff.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
-	s.diff.Theme = uikit.EditorTheme(t)
+	s.diff.Theme = uikit.EditorThemeFor(t, false)
 	editor.DiffView(c, s.diff).Grow(1).FillWidth()
 	*split = s.diff.SplitPercent
 }

@@ -379,3 +379,22 @@ func TestEditorThemeTokenPalette(t *testing.T) {
 		}
 	}
 }
+
+// An unfocused editor keeps its text but not the caret's own marks: the
+// active line and the bracket outline are transparent, and their colors must
+// stay non-zero so the editor's theme resolver does not bring the defaults
+// back.
+func TestEditorThemeHidesCaretMarksWhenUnfocused(t *testing.T) {
+	t0 := Theme(false)
+	unfocused := EditorThemeFor(t0, false)
+	if unfocused.ActiveLine.A != 0 || unfocused.MatchingBracket.A != 0 {
+		t.Fatalf("unfocused marks = active %v, bracket %v, want transparent", unfocused.ActiveLine, unfocused.MatchingBracket)
+	}
+	if unfocused.ActiveLine == (ui.Color{}) || unfocused.MatchingBracket == (ui.Color{}) {
+		t.Fatal("a zero mark color is read as the default by the editor")
+	}
+	focused := EditorThemeFor(t0, true)
+	if focused.ActiveLine.A == 0 || focused.MatchingBracket.A == 0 {
+		t.Fatalf("focused marks = active %v, bracket %v, want visible", focused.ActiveLine, focused.MatchingBracket)
+	}
+}

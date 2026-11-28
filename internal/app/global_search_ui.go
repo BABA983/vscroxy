@@ -257,7 +257,7 @@ func (a *app) searchResults(c *ui.Context) {
 				open = !open
 			}
 			if open == s.collapsedSources[source] {
-				setSearchCollapsed(&s.collapsedSources, source, !open)
+				setCollapsed(&s.collapsedSources, source, !open)
 			}
 			sourceItem.Group(func() {
 				ui.Box(c).FillWidth().Children(func() {
@@ -302,7 +302,7 @@ func (a *app) searchResults(c *ui.Context) {
 							resourceOpen = !resourceOpen
 						}
 						if resourceOpen == s.collapsedResources[key] {
-							setSearchCollapsed(&s.collapsedResources, key, !resourceOpen)
+							setCollapsed(&s.collapsedResources, key, !resourceOpen)
 						}
 						resourceItem.Group(func() {
 							ui.Box(c).FillWidth().Children(func() {
@@ -449,9 +449,9 @@ func searchGuide(c *ui.Context, x float32) {
 		Background(c.Theme().Border).PassThrough()
 }
 
-// setSearchCollapsed records a tree row's open state, keeping false as the
-// default rather than storing every resource the reader never touched.
-func setSearchCollapsed[K comparable](state *map[K]bool, key K, collapsed bool) {
+// setCollapsed records a tree row's open state, keeping false as the default
+// rather than storing every resource the reader never touched.
+func setCollapsed[K comparable](state *map[K]bool, key K, collapsed bool) {
 	if *state == nil {
 		*state = make(map[K]bool)
 	}

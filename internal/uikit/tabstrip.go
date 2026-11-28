@@ -102,13 +102,17 @@ func DocumentTabs(c *ui.Context, o DocumentTabsOptions) ui.Element {
 
 func documentTab(c *ui.Context, item DocumentTab, index int, o DocumentTabsOptions) {
 	t, p := c.Theme(), Colors(c.Theme())
-	minWidth := float32(110)
+	// A tab is as wide as its name: the strip holds several short documents
+	// side by side instead of one long empty cell each, as VS Code's tabs.
+	// The floor keeps the close mark and the dirty dot in the same place on
+	// every tab; the ceiling cuts a long name with an ellipsis.
+	minWidth := float32(80)
 	if item.Fixed {
 		// Live is one short word with its icon: it takes what it needs.
 		minWidth = 0
 	}
 	tab := ui.ButtonBase(c).Height(HeightTabs-2*t.Space(SpaceXS)).MarginY(t.Space(SpaceXS)).
-		MinWidth(minWidth).MaxWidth(180).Shrink(0).
+		MinWidth(minWidth).MaxWidth(200).Shrink(0).
 		Padding(0, t.Space(SpaceS)).Gap(t.Space(SpaceXS)).AlignItems(ui.Center).Radius(RadiusControl).
 		Border(0, ui.Color{}).Label(item.Title)
 	switch {
@@ -136,12 +140,19 @@ func documentTab(c *ui.Context, item DocumentTab, index int, o DocumentTabsOptio
 		} else if item.Icon != nil {
 			ui.Icon(c, item.Icon).Size(IconInline, IconInline).Shrink(0)
 		}
+		// The name takes its own width and gives way only at the ceiling:
+		// a short name leaves no empty space after it, and a long one ends in
+		// an ellipsis with the whole name in the tab's tip.
 		title := ui.Text(c, item.Title).FontSize(Scaled(TextMeta)).LineHeight(LineSmall).
-			SingleLine().MinWidth(0).Grow(1)
+			SingleLine().MinWidth(0).Shrink(1)
 		if item.Preview {
 			title.Italic()
 		}
 		if item.Closable {
+			// The close mark keeps the tab's end, whatever the name's length:
+			// the spacer takes the room a short name leaves under the min
+			// width, and the dirty dot replaces the mark there.
+			ui.Spacer(c)
 			close = documentTabClose(c, item, tab)
 			// Postman keeps the close mark out of the strip until the tab is
 			// under the pointer or keyboard; a dirty tab's dot stays visible.
@@ -157,6 +168,7 @@ func documentTab(c *ui.Context, item DocumentTab, index int, o DocumentTabsOptio
 			ContextMenu(c, tab, build)
 		}
 	}
+	Tip(c, tab, item.Title)
 
 	if closeSet && close.Clicked() {
 		if o.OnClose != nil {

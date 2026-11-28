@@ -30,7 +30,7 @@ func consoleFixture(t *testing.T) (*app, *ui.Tester, *ui.Context) {
 			{Phase: "post-response", Kind: "log", Text: `"after"`},
 			{Phase: "post-response", Kind: "error", Text: "TypeError: cannot read properties of undefined"},
 		}})
-	a.requestConsole.open = true
+	a.bottom.open, a.bottom.tab = true, bottomConsole
 	var c *ui.Context
 	tt := ui.NewTester(func(ctx *ui.Context) { c = ctx; a.view(ctx) }, 1400, 900)
 	tt.Frame()
@@ -115,7 +115,7 @@ func TestConsoleClearAndBound(t *testing.T) {
 	if a.requestConsole.entries[0].id <= 5 {
 		t.Fatalf("the oldest entries were not dropped: first id %d", a.requestConsole.entries[0].id)
 	}
-	a.requestConsole.open = true
+	a.bottom.open, a.bottom.tab = true, bottomConsole
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if err := tt.Click(locales.Clear()); err != nil {

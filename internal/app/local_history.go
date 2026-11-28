@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
@@ -114,6 +115,36 @@ func historyEntryLabel(entry store.BackupEntry) string {
 	return locales.SavedAt(entry.At.Local().Format("2006-01-02 15:04:05"))
 }
 
+// historyEntryAge says how long ago a version was saved, as the list reads
+// it: "just now", "12 min ago", "2 hours ago", "yesterday", "5 days ago".
+// The list keeps the absolute time in the row's tip; a relative time is what
+// tells one version from the next at a glance.
+func historyEntryAge(at time.Time) string {
+	at, now := at.Local(), time.Now()
+	elapsed := now.Sub(at)
+	switch {
+	case elapsed < time.Minute:
+		return locales.JustNow()
+	case elapsed < 2*time.Hour:
+		// Minutes cover the first two hours: "1 hours ago" reads badly, and
+		// a version saved shortly before midnight is still "40 min ago".
+		return locales.MinutesAgo(int(elapsed.Minutes()))
+	case elapsed < 24*time.Hour:
+		return locales.HoursAgo(int(elapsed.Hours()))
+	case sameDay(at, now.AddDate(0, 0, -1)):
+		return locales.Yesterday()
+	default:
+		days := int(elapsed.Hours() / 24)
+		return locales.DaysAgo(max(days, 2))
+	}
+}
+
+func sameDay(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
+}
+
 // restoreHistory replaces the current file with the chosen version. It
 // backs up the current file first, so the restore is a new history entry and
 // can be undone by restoring the entry it just made.
@@ -205,8 +236,9 @@ func (a *app) historyList(c *ui.Context, t *ui.Theme, v *historyView) {
 			uikit.Selected(c, line, true)
 		}
 		line.Children(func() {
-			uikit.Body(c, historyEntryLabel(entry)).Grow(1).MinWidth(0).SingleLine().FontFeatures("tnum")
+			uikit.Body(c, historyEntryAge(entry.At)).Grow(1).MinWidth(0).SingleLine().FontFeatures("tnum")
 		})
+		uikit.Tip(c, line, historyEntryLabel(entry))
 	})
 	c.SetTheme(t)
 }
@@ -239,7 +271,54 @@ func (a *app) historyDiff(c *ui.Context, t *ui.Theme, v *historyView) {
 		uikit.Caption(c, locales.CurrentVersion()).Grow(1)
 	})
 	v.diff.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
-	v.diff.Theme = uikit.EditorTheme(t)
-	editor.DiffView(c, v.diff).Grow(1).MinHeight(0).FillWidth()
+	// A diff viewer has no focus query of its own in MyGo: its sides stay
+	// quiet as a preview rather than showing caret marks nobody placed.
+	v.diff.Theme = uikit.EditorThemeFor(t, false)
+	// A change keeps one plain bar per side. MyGo's default indicators stripe
+	// a deletion and fill an addition; a version's old and new sides read as
+	// the same kind of mark in the danger and success inks instead.
+	v.diff.Indicators = editor.DiffNoIndicators
+	view := editor.DiffView(c, v.diff).Grow(1).MinHeight(0).FillWidth()
+	diffBars(view, v.diff, t)
 	a.diffSplit = v.diff.SplitPercent
+}
+
+// diffBars draws the solid change bars of a side-by-side history diff over
+// its gutter edges: the deleted lines in danger, the added ones in success.
+// It runs in the diff's own paint, so the bars scroll, wrap and fold with the
+// lines the viewer laid out.
+func diffBars(view ui.Element, d *editor.DiffState, t *ui.Theme) {
+	view.DrawOver(func(p *ui.Painter, r ui.Rect) {
+		scroll := float32(d.ScrollY())
+		bar := func(side editor.DiffSide, start, end int, x float32, ink ui.Color) {
+			if start >= end {
+				return
+			}
+			top := float32(d.LineTop(side, start)) - scroll
+			bottom := float32(d.LineTop(side, end)) - scroll
+			top, bottom = max(top, 0), min(bottom, r.H)
+			if bottom <= top {
+				return
+			}
+			p.Fill(ui.Rect{X: r.X + x, Y: r.Y + top, W: 4, H: bottom - top}, ink, 0)
+		}
+		for _, h := range d.Hunks() {
+			bar(editor.DiffOld, h.OldStart, h.OldEnd, 0, t.Danger)
+			bar(editor.DiffNew, h.NewStart, h.NewEnd, diffNewSideX(d, r.W), t.Success)
+		}
+	})
+}
+
+// diffNewSideX is where the new side's gutter starts in a split diff: the old
+// side's share of the room, then the one-point divider. A unified diff, or
+// one with no share, starts both sides at the same edge.
+func diffNewSideX(d *editor.DiffState, width float32) float32 {
+	if d.Layout == editor.DiffUnified {
+		return 0
+	}
+	share := float32(0.5) // no stored share: the sides take halves
+	if d.SplitPercent > 0 {
+		share = min(d.SplitPercent, 100) / 100
+	}
+	return share*max(width-1, 0) + 1
 }

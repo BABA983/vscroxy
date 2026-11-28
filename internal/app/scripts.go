@@ -797,7 +797,7 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 		st.SetDiagnostics(version, nil)
 	}
 	st.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
-	st.Theme = uikit.EditorTheme(t)
+	st.Theme = uikit.EditorThemeFor(t, st.Focused())
 	ui.Box(c).Grow(1).MinHeight(120).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Clip().Children(func() {
 		editor.View(c, st).Grow(1).FillWidth().FocusRing(true)
 	})

@@ -3,6 +3,7 @@ package app
 import (
 	"cmp"
 	"runtime"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -204,7 +205,7 @@ func (a *app) desktopContent(c *ui.Context) {
 		}
 		// The panel shares this page's column: wrapping the page in another
 		// Column would perturb committed focus between frames.
-		a.problemsPanel(c)
+		a.bottomPanelView(c)
 	}
 	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(content)
 }
@@ -715,12 +716,18 @@ func (a *app) commandPalette(c *ui.Context) {
 			// The highlighted command is a menu highlight: the tint without a
 			// marker, as menus have no selection to keep.
 			c.SetTheme(uikit.ListTheme(t, focused))
-			// Leave room for the overflow caption below the list.
-			visibleRows := 9
+			// The list grows with its results and stops at about half the
+			// window, as VS Code's quick open: a single match is one row, not
+			// a mostly empty panel, and a long list scrolls inside that bound.
+			// The palette's input, footer and dividers take their share of
+			// the half first.
+			chrome := uikit.CommandPaletteInputRow + uikit.CommandPaletteRow + 2*uikit.HairlineWidth + 2*uikit.CommandPaletteRowInset
 			if more > 0 {
-				visibleRows--
+				chrome += uikit.HeightRow // the overflow caption under the list
 			}
-			listHeight := min(float32(visibleRows)*uikit.CommandPaletteRow, max(float32(120), height-190))
+			maxList := max(float32(uikit.CommandPaletteRow), height*0.5-float32(chrome))
+			rows := min(len(matches), 9)
+			listHeight := min(float32(rows)*uikit.CommandPaletteRow+2*uikit.CommandPaletteRowInset, maxList)
 			var list ui.Element
 			if len(matches) > 0 {
 				ui.Column(c).Padding(uikit.CommandPaletteRowInset).Gap(0).Children(func() {
@@ -773,8 +780,6 @@ func (a *app) commandPalette(c *ui.Context) {
 				switch {
 				case !item.enabled:
 					context = item.why
-				case !item.action:
-					context = item.detail
 				case a.page.capture():
 					if a.chosen.Len() > 1 {
 						context = locales.CaptureSelected(a.chosen.Len())
@@ -797,12 +802,61 @@ func (a *app) commandPalette(c *ui.Context) {
 				ui.Spacer(c)
 				uikit.Kbd(c, "↑")
 				uikit.Kbd(c, "↓")
-				uikit.Small(c, locales.ChooseCommand())
+				uikit.Small(c, locales.SelectHint())
 				uikit.Kbd(c, enter)
 				uikit.Small(c, locales.Open())
 				uikit.Kbd(c, "esc")
 				uikit.Small(c, locales.Close())
 			})
 		})
+	})
+}
+
+// bottomPanelState is the window's one bottom panel: Problems and Console are
+// its tabs, and closing it closes both. open and tab are memory only, like
+// the Console's entries.
+type bottomPanelState struct {
+	open bool
+	tab  int
+}
+
+const (
+	bottomProblems = iota
+	bottomConsole
+)
+
+// bottomPanelView is the panel under the workbench's content, as VS Code's
+// panel: one tab row with the view's own actions at its end, then the chosen
+// view. Problems and Console share the room, so only one of them is open.
+func (a *app) bottomPanelView(c *ui.Context) {
+	if !a.bottom.open {
+		return
+	}
+	t := c.Theme()
+	_, windowHeight := c.Size()
+	height := min(max(windowHeight*0.36, 190), 300)
+	ui.Column(c.Key("bottom-panel")).Height(height).FillWidth().Shrink(0).
+		Border(1, t.Border).BorderWidth(1, 0, 0, 0).Children(func() {
+		ui.Row(c).Height(uikit.HeightTabs + t.Space(uikit.SpaceXS)).Padding(0, t.Space(uikit.SpaceM)).
+			Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
+			labels := []string{locales.Problems(), locales.Console()}
+			counts := []string{strconv.Itoa(a.problemCount()), ""}
+			uikit.TabStrip(c, func() {
+				uikit.CountedSubTabsWithDotsAndLink(c, &a.bottom.tab, locales.BottomPanelName(), labels, counts, nil, -1)
+			}).Grow(1).FillHeight()
+			if a.bottom.tab == bottomProblems {
+				a.problemsPanelActions(c, t)
+			} else {
+				a.consolePanelActions(c)
+			}
+			if uikit.Tip(c, uikit.RowIconButton(c, locales.Close(), locales.Close(), closeIcon), locales.Close()).Clicked() {
+				a.bottom.open = false
+			}
+		})
+		if a.bottom.tab == bottomProblems {
+			a.problemsView(c, t)
+			return
+		}
+		a.consoleView(c, t)
 	})
 }

@@ -549,7 +549,7 @@ func TestBatchHScreenshots(t *testing.T) {
 			d.composeBody = `{"order":43}`
 			d.response.ResponseBodySize = 9 << 20
 			tt, ctx := tester(a, 1500, 1000)
-			area := a.editorRespArea.Bounds(ctx)
+			area := a.editorRespPane.Bounds(ctx)
 			write("response-status", tt.Image(), image.Rect(int(area.X)*scale, int(area.Y)*scale,
 				int(area.X+area.W)*scale, int(area.Y+100)*scale))
 			if !tt.HasText(locales.DraftChangedNotSent()) || !tt.HasText(locales.PreviewLimited()) {

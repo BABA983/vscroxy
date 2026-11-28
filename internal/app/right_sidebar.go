@@ -19,12 +19,22 @@ import (
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
+// The right sidebar's panels, in the order its icon row shows them.
+const (
+	rightVariables = iota
+	rightCode
+	rightInfo
+	rightRuns
+	rightExamples
+)
+
 // rightSidebarState is the request workspace's third column: whether it is
-// open, its width, the mode chosen in it and the code view's own state.
+// open, its width, the mode chosen in it and the panels' own state.
 type rightSidebarState struct {
 	open  bool
 	width float32
-	// tab is Variables, Code or Info; it is remembered while the app runs.
+	// tab is Variables, Code, Info, Runs or Examples; it is remembered while
+	// the app runs.
 	tab int
 	// codeFormat is the snippet language chosen in Code, and codeKeep leaves
 	// {{variables}} as written rather than resolving them for display.
@@ -85,22 +95,35 @@ func (a *app) rightSidebarView(c *ui.Context) {
 		{Icon: lucide.Braces(), Label: locales.Variables()},
 		{Icon: lucide.Code(), Label: locales.Code()},
 		{Icon: lucide.Info(), Label: locales.Info()},
+		{Icon: sendHistoryIcon, Label: locales.RequestHistory()},
+		{Icon: exampleIcon, Label: locales.Examples()},
 	}
 	ui.Column(c).FillHeight().Clip().Background(p.Window).BorderWidth(0, 0, 0, 1).BorderColor(p.Border).Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
 			uikit.ModeSwitch(c, &s.tab, items...)
 		})
-		if s.tab == 1 {
+		switch s.tab {
+		case rightCode:
 			a.rightSidebarCode(c, t)
+			return
+		case rightInfo:
+			a.rightSidebarInfo(c, t)
+			return
+		case rightRuns, rightExamples:
+			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Padding(t.Space(uikit.SpaceS), t.Space(uikit.SpaceM)).Children(func() {
+				ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceM)).Children(func() {
+					if s.tab == rightRuns {
+						a.rightSidebarRuns(c, t)
+					} else {
+						a.rightSidebarExamples(c, t)
+					}
+				})
+			})
 			return
 		}
 		ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Padding(t.Space(uikit.SpaceS), t.Space(uikit.SpaceM)).Children(func() {
 			ui.Column(c).FillWidth().Gap(t.Space(uikit.SpaceM)).Children(func() {
-				if s.tab == 2 {
-					a.rightSidebarInfo(c, t)
-				} else {
-					a.rightSidebarVariables(c, t)
-				}
+				a.rightSidebarVariables(c, t)
 			})
 		})
 	})
@@ -443,7 +466,7 @@ func (a *app) rightSidebarCode(c *ui.Context, t *ui.Theme) {
 				buf.SetLanguage(editor.LanguageNamed(language))
 			}
 			s.codeView = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: false,
-				LineNumbers: editor.LineNumbersOff, NoFolding: true, NoActiveLine: true, NoIndentGuides: true, Label: locales.CodeNamed(s.codeFormat)}
+				LineNumbers: editor.LineNumbersOff, NoFolding: true, NoIndentGuides: true, Label: locales.CodeNamed(s.codeFormat)}
 		}
 		requestCodeEditor(c, s.codeView).Grow(1).MinHeight(0)
 		ui.Row(c).FillWidth().Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {

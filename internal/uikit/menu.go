@@ -124,7 +124,23 @@ func MenuOptions(c *ui.Context) ui.PopoverMenuOptions {
 // menu built under the base theme highlights in the primary ink instead of
 // the menu's 7% wash.
 func ContextMenu(c *ui.Context, el ui.Element, build func(*ui.Menu)) ui.Element {
-	menuTheme(c, func() { el.PopoverMenu(build, MenuOptions(c)) })
+	return ContextMenuOn(c, el, nil, build)
+}
+
+// ContextMenuOn is ContextMenu with onOpen called as the menu builds, before
+// its items: a row the menu acts on can mark itself as the chosen one, so it
+// stays identifiable after the pointer leaves it for the menu. The menu
+// builds once as it opens and again after an item is chosen; onOpen should
+// be safe to call both times.
+func ContextMenuOn(c *ui.Context, el ui.Element, onOpen func(), build func(*ui.Menu)) ui.Element {
+	menuTheme(c, func() {
+		el.PopoverMenu(func(m *ui.Menu) {
+			if onOpen != nil {
+				onOpen()
+			}
+			build(m)
+		}, MenuOptions(c))
+	})
 	return el
 }
 

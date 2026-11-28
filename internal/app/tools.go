@@ -279,7 +279,7 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 		})
 	}
 	a.profileDiagnostics(st, i)
-	theme := uikit.EditorTheme(t)
+	theme := uikit.EditorThemeFor(t, st.Focused())
 	pal := uikit.Colors(t)
 	theme.Tokens[editor.TokenNumber] = editor.TokenStyle{Color: pal.Info}
 	theme.Tokens[editor.TokenKeyword] = editor.TokenStyle{Color: pal.MethodPatch}

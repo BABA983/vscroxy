@@ -25,15 +25,22 @@ func DialogFooter(c *ui.Context) ui.Element {
 
 // ModalFlush is a modal with no inset: its content owns the whole panel.
 // It is for a command palette, whose input and rows run to the panel's edge;
-// the title still names the dialog for assistive technology.
+// the panel hangs near the window's top as VS Code's quick open does, rather
+// than sitting in the middle of the window. The title still names the dialog
+// for assistive technology.
 func ModalFlush(c *ui.Context, open *bool, title string, content func()) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
 	width, height := c.Size()
 	dialog := ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
 		backdrop.Background(p.Scrim)
+		// The library centers a dialog's panel. A palette is a search that
+		// opens where the eye starts reading, so its backdrop puts the panel
+		// at the top edge with room to grow down.
+		backdrop.Justify(ui.Start).AlignItems(ui.Center).Padding(max(WindowMargin*2, height*0.08), 0, 0, 0)
 		panel.Label(title).Padding(0).Radius(RadiusCard).Background(p.Background).Clip().
 			InsetShadow(0, 0, 0, HairlineWidth, p.Border).
-			MaxWidth(max(0, width-2*WindowMargin)).MaxHeight(max(0, height-2*WindowMargin))
+			MaxWidth(max(0, width-2*WindowMargin)).MaxHeight(max(0, height-2*WindowMargin)).
+			MaxHeight(max(0, height*0.5))
 		ShadowPopover.Apply(panel, t.Dark)
 		seen := ui.Local(panel, "modal-in", func() bool { return false })
 		if !*seen {

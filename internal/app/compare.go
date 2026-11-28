@@ -498,7 +498,7 @@ func (a *app) compareModal(c *ui.Context, t *ui.Theme) {
 				s.diffKey = key
 			}
 			s.diff.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
-			s.diff.Theme = uikit.EditorTheme(t)
+			s.diff.Theme = uikit.EditorThemeFor(t, false)
 			editor.DiffView(c, s.diff).Grow(1).MinHeight(0).FillWidth()
 			a.diffSplit = s.diff.SplitPercent
 			uikit.Meta(c, locales.CompareReadOnlyNote()).Padding(0, t.Space(uikit.SpaceL))

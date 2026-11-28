@@ -307,7 +307,6 @@ type app struct {
 	// row can decide what fits instead of guessing a share of the window.
 	inspectorReqPane, inspectorRespPane ui.Handle
 	editorReqPane, editorRespPane       ui.Handle
-	editorRespArea                      ui.Handle // the response with its runs column
 	// Captured requests as documents (captured_document.go): the drafts of
 	// edited or sent captures by flow ID, the inspected capture's unchanged
 	// document (or why there is none), and the tab's document to come back
@@ -785,6 +784,9 @@ type app struct {
 	// markers is the VS Code-style MarkerService behind the Problems panel.
 	markers  *markers.Service
 	problems problemsState
+	// bottom is the window's one bottom panel: Problems and Console are its
+	// tabs, and closing it closes them both. The chosen tab is memory only.
+	bottom bottomPanelState
 	// mruPending is the quick switch's current pick, held until Ctrl is
 	// released or something else happens; repeated Ctrl+Tabs then walk the
 	// same order instead of reordering it on every Tab.

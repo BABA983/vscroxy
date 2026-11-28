@@ -161,7 +161,9 @@ func (a *app) saveConflictDiff(c *ui.Context, t *ui.Theme, s *saveConflict) {
 		uikit.Caption(c, locales.YourDraft()).Grow(1)
 	})
 	s.diff.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
-	s.diff.Theme = uikit.EditorTheme(t)
+	// MyGo's DiffState has no focus query, so even this editable merge diff
+	// keeps its caret marks quiet rather than guessing that it has the keys.
+	s.diff.Theme = uikit.EditorThemeFor(t, false)
 	editor.DiffView(c, s.diff).Grow(1).MinHeight(0).FillWidth()
 	a.diffSplit = s.diff.SplitPercent
 }

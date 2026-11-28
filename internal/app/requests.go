@@ -31,11 +31,8 @@ import (
 type requestDocument struct {
 	id       int
 	debugKey string
-	// The History / Examples column of a saved request: which list shows,
-	// the retained run shown read-only in place of the response (0 for the
-	// document's own response), and its reader.
-	historyTab        int
-	historyHidden     bool // the reader put the runs column away
+	// The retained run shown read-only in place of the response (0 for the
+	// document's own response), its reader, and the runs list's filters.
 	historyPick       int
 	historyReader     *editor.State
 	historyStatus     string
@@ -695,22 +692,12 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 			}
 			d.splitSeen = d.requestPercent
 			request := func() { a.requestEditor(c, t, d, flow{}, &d.composeTab) }
-			// A saved request's runs and examples are what came back before, so
-			// they sit at the response's side, under the rule that ends the URL
-			// bar, rather than beside the whole editor.
 			response := func() {
-				ui.Row(c).Fill().AlignItems(ui.Stretch).Bind(&a.editorRespArea).Children(func() {
-					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-						if r := a.experiments.record(d.historyPick); r != nil {
-							a.historyResponse(c, t, d, r)
-							return
-						}
-						a.requestResponse(c, t, d)
-					})
-					if a.historyColumnShown(c, d) {
-						a.historyColumn(c, t, d)
-					}
-				})
+				if r := a.experiments.record(d.historyPick); r != nil {
+					a.historyResponse(c, t, d, r)
+					return
+				}
+				a.requestResponse(c, t, d)
 			}
 			// The same rule as the inspector's panes: side by side while there is
 			// room for both, stacked in a narrow column.
@@ -722,14 +709,6 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 			// it meets a line instead of stopping in the air.
 			uikit.SplitPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1).
 				Border(0, t.Border).BorderWidth(1, 0, 0, 0)
-		}
-		if a.requestConsole.open {
-			if a.requestConsole.split == 0 {
-				a.requestConsole.split = 70
-			}
-			uikit.SplitVerticalPercent(c.Key("request-console"), &a.requestConsole.split, area,
-				func() { a.consolePanelView(c, t) }).SplitReset(70).Grow(1).MinHeight(0)
-			return
 		}
 		area()
 	})
@@ -916,7 +895,14 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 // showRightSidebarVariables opens the request's third column on Variables,
 // where an unresolved name can be read and added.
 func (a *app) showRightSidebarVariables() {
-	a.rightSidebar.open, a.rightSidebar.tab = true, 0
+	a.rightSidebar.open, a.rightSidebar.tab = true, rightVariables
+	a.rightSidebar.splitReady = false
+}
+
+// showRightSidebarRuns opens the same column on the request's runs, where a
+// retained response can be read or compared.
+func (a *app) showRightSidebarRuns() {
+	a.rightSidebar.open, a.rightSidebar.tab = true, rightRuns
 	a.rightSidebar.splitReady = false
 }
 
@@ -1463,30 +1449,9 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 				}
 			})
 		}
-		// A visible response already names the last attempt and draft changes.
-		if d.composeWaiting || d.sentSet && d.response == nil {
-			ui.Row(c).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceL)).AlignItems(ui.Center).Children(func() {
-				a.requestSentState(c, t, d)
-			})
-		}
+		// The response pane's own row says how the draft relates to the last
+		// attempt, so the request pane does not repeat it under the editor.
 	})
-}
-
-// requestSentState says whether the draft on screen is the one that was
-// actually sent, and when.
-func (a *app) requestSentState(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	switch {
-	case d.composeWaiting:
-		uikit.Meta(c, locales.Sending())
-	case !d.sentSet:
-		uikit.Meta(c, locales.NotSentYet())
-	case reflect.DeepEqual(d.draft(), d.sent):
-		uikit.Tip(c, uikit.Meta(c, locales.DraftMatchesAttemptAt(d.sentAt.Local().Format("15:04:05"))),
-			locales.TheDraftSnapshotMatchesVariables())
-	default:
-		uikit.Tip(c, uikit.Caption(c, locales.EditedSinceLastSendNot()).TextColor(t.Warning),
-			locales.TheResponseBelowBelongsTo())
-	}
 }
 
 // requestResponse is what came back: the result first, then the body with
@@ -1527,7 +1492,6 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		// The pane's actions that are not among the body's five tools wait
 		// in ⋯; history stays on the bar as its own icon.
 		var leftOut []action
-		var history action
 		if d.source != nil && d.response != nil && !d.comparing {
 			leftOut = append(leftOut, do("response.compare", locales.CompareWithSource(), func() { d.comparing = true }))
 		}
@@ -1542,20 +1506,12 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				a.openDecoder(d.responseEditor, d.response.ResponseBody)
 			}))
 		}
-		// A saved request's runs are a column of the response while it has
-		// room, which the icon shows and hides; otherwise the icon opens them
-		// on their own page. Without a retained send there is nothing to read
-		// there, so the icon stays disabled rather than opening an empty list.
-		if a.historyColumnFits(c, d) {
-			label := locales.HideRequestRuns()
-			if d.historyHidden {
-				label = locales.ShowRequestRuns()
-			}
-			history = do("response.history", label, func() { d.historyHidden = !d.historyHidden })
-		} else {
-			history = do("response.history", locales.OpenRequestHistory(), func() { a.openSendHistory(d) }).
-				when(d.origin != nil || d.experimentID != 0, locales.NotSentYet())
-		}
+		// A request's runs live in the right sidebar with Variables, Code and
+		// Info, so the response keeps its full width. The icon is the way
+		// there; without a send or a saved request there is nothing to read,
+		// so it stays disabled rather than opening an empty list.
+		history := do("response.history", locales.OpenRequestHistory(), func() { a.showRightSidebarRuns() }).
+			when(d.assetID != "" || d.origin != nil || d.experimentID != 0, locales.NotSentYet())
 		drawHistory := func(room *paneRoom) {
 			if !room.fits(uikit.HeightControlSmall) {
 				leftOut = append(leftOut, history)
@@ -1581,6 +1537,11 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		if d.composeWaiting {
 			uikit.Hint(c, locales.Sending())
 		}
+		// A body past the retained limit is a preview of a larger one. The
+		// last-attempt row below carries the note when there is one; without
+		// a send the header does, beside the status.
+		previewLimited := d.response != nil && d.response.ResponseBodySize > maxBodyView
+		sum.limited = previewLimited && !d.sentSet
 		tab := d.responseTab
 		a.responsePaneHeader(c, t, &d.responseTab, sum,
 			a.responseViews(&d.responseTab, d.response != nil, checksLabel(d),
@@ -1603,32 +1564,27 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		// attempt opens from the left; the draft's state and a truncated body
 		// are short marks at the right, each with the whole sentence in its
 		// tip. Three stacked lines spent the body's room on provenance.
-		previewLimited := d.response != nil && d.response.ResponseBodySize > len(d.response.ResponseBody)
-		if d.sentSet || previewLimited {
+		if d.sentSet {
 			ui.Row(c).Height(uikit.HeightRow).Padding(0, t.Space(uikit.SpaceL)).Gap(t.Space(uikit.SpaceM)).AlignItems(ui.Center).Children(func() {
-				if d.sentSet {
-					path := d.sent.URL
-					if u, err := url.Parse(path); err == nil && u.Host != "" {
-						path = cmp.Or(u.EscapedPath(), "/")
-					}
-					label := locales.LastAttempt(d.sentAt.Local().Format("15:04:05"), d.sent.Method+" "+path)
-					if uikit.ToolbarButton(c, locales.LastSendDetails(), locales.ShowTheFullDraftUrl(), false).Grow(1).MinWidth(0).
-						Justify(ui.Start).Children(func() {
-						arrow := "›"
-						if d.lastAttemptOpen {
-							arrow = "⌄"
-						}
-						uikit.Heading(c, arrow)
-						uikit.Caption(c, label).SingleLine()
-					}).Clicked() {
-						d.lastAttemptOpen = !d.lastAttemptOpen
-					}
-				} else {
-					ui.Spacer(c)
+				path := d.sent.URL
+				if u, err := url.Parse(path); err == nil && u.Host != "" {
+					path = cmp.Or(u.EscapedPath(), "/")
 				}
-				if d.sentSet && !reflect.DeepEqual(d.draft(), d.sent) {
+				label := locales.LastAttempt(d.sentAt.Local().Format("15:04:05"), d.sent.Method+" "+path)
+				if uikit.ToolbarButton(c, locales.LastSendDetails(), locales.ShowTheFullDraftUrl(), false).Grow(1).MinWidth(0).
+					Justify(ui.Start).Children(func() {
+					arrow := "›"
+					if d.lastAttemptOpen {
+						arrow = "⌄"
+					}
+					uikit.Heading(c, arrow)
+					uikit.Caption(c, label).SingleLine()
+				}).Clicked() {
+					d.lastAttemptOpen = !d.lastAttemptOpen
+				}
+				if !reflect.DeepEqual(d.draft(), d.sent) {
 					uikit.Caption(c, locales.DraftChangedNotSent()).TextColor(t.Warning)
-				} else if d.sentSet && !d.composeWaiting {
+				} else if !d.composeWaiting {
 					uikit.Tip(c, uikit.Meta(c, locales.DraftMatchesLastAttempt()),
 						locales.TheDraftSnapshotMatchesVariables())
 				}
@@ -1667,7 +1623,6 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			return
 		}
 		a.responseBody(c, t, d)
-		a.responseProvenance(c, t, d)
 	})
 }
 
@@ -1779,7 +1734,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 			a.bodyMenu(c, d.responseEditor, outline.crumbs, outline.key, jsonCrumbSource{})
 			a.outlineEditor(c, d.responseEditor, outline, func() {
-				editor.View(c, d.responseEditor).Bind(&responseFocus).FillWidth().Grow(1)
+				requestCodeEditor(c, d.responseEditor, &responseFocus)
 			})
 		case 2:
 			a.responseHex(c, d, body)
@@ -1797,9 +1752,8 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				d.responseEditor = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, Label: locales.ResponseBody()}
 			}
 			a.bodyMenu(c, d.responseEditor, outline.crumbs, outline.key, jsonCrumbSource{})
-			d.responseEditor.Theme = uikit.EditorTheme(t)
 			a.outlineEditor(c, d.responseEditor, outline, func() {
-				editor.View(c, d.responseEditor).Bind(&responseFocus).FillWidth().Grow(1)
+				requestCodeEditor(c, d.responseEditor, &responseFocus)
 			})
 		}
 	case resViewContract:

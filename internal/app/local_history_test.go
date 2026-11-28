@@ -43,9 +43,12 @@ func historyFixture(t *testing.T) (*app, string, string) {
 		t.Fatalf("history entries = %v, %v", entries, err)
 	}
 	// Re-stamping takes the two copies a known time apart without changing
-	// the backup format or how the app finds them.
+	// the backup format or how the app finds them: two hours ago and
+	// yesterday, so the list's relative times are what a reader sees.
 	// entries starts newest first: version 1 is the later copy.
-	for i, stamp := range []string{"20260102T090000.000000000", "20260101T090000.000000000"} {
+	now := time.Now()
+	for i, at := range []time.Time{now.Add(-2 * time.Hour), now.Add(-26 * time.Hour)} {
+		stamp := at.UTC().Format("20060102T150405.000000000")
 		dir, name := filepath.Split(entries[i].Path)
 		at := strings.Index(name, requestFileSuffix)
 		if at < 0 {
@@ -183,5 +186,20 @@ func TestRequestAndFolderMenusOfferLocalHistory(t *testing.T) {
 	folderMenu := tt.Menu()
 	if !slices.Contains(folderMenu, locales.LocalHistoryEllipsis()) {
 		t.Fatalf("folder menu has no History: %q", folderMenu)
+	}
+}
+
+// The history list reads relative times, not only absolute stamps: minutes
+// under two hours, then hours, then the calendar.
+func TestHistoryEntryAgeIsRelative(t *testing.T) {
+	now := time.Now()
+	if got, want := historyEntryAge(now.Add(-30*time.Minute)), locales.MinutesAgo(30); got != want {
+		t.Fatalf("30 min ago = %q, want %q", got, want)
+	}
+	if got, want := historyEntryAge(now.Add(-2*time.Hour)), locales.HoursAgo(2); got != want {
+		t.Fatalf("2 hours ago = %q, want %q", got, want)
+	}
+	if got, want := historyEntryAge(now.Add(-20*time.Second)), locales.JustNow(); got != want {
+		t.Fatalf("20 seconds ago = %q, want %q", got, want)
 	}
 }

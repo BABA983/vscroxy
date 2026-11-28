@@ -11,28 +11,6 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 )
 
-// historyWidth is the Runs / Examples column at a saved request's response.
-const historyWidth = 220
-
-// historyResponseMin is the room the response keeps beside the runs column:
-// its four tabs, the status and its numbers, so the column never takes what
-// the response says about itself.
-const historyResponseMin = 480
-
-// historyColumnFits reports whether d's response has room for its runs
-// column; a narrower one opens the runs on their own page instead.
-func (a *app) historyColumnFits(c *ui.Context, d *requestDocument) bool {
-	if d == nil || d.assetID == "" || d.comparing {
-		return false
-	}
-	return a.editorPaneWidthAt(c, &a.editorRespArea, 100-draftPercent) >= historyWidth+historyResponseMin
-}
-
-// historyColumnShown reports whether the runs column is beside d's response.
-func (a *app) historyColumnShown(c *ui.Context, d *requestDocument) bool {
-	return !d.historyHidden && a.historyColumnFits(c, d)
-}
-
 var historyStatuses = []string{"All statuses", "2xx", "3xx", "4xx", "5xx", "No response"}
 var historySources = []string{"All sources", "Capture-linked", "Authored"}
 
@@ -74,76 +52,69 @@ func (a *app) historyRecords(d *requestDocument) []experimentRecord {
 	return records
 }
 
-// historyColumn lists what a saved request has produced: the retained runs
-// it was sent as, or the examples saved with it. Choosing a run shows it
-// read-only in place of the response; choosing an example opens it in the
-// Examples tab.
-func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	// The column is part of the response, not a panel of its own: canvas,
-	// told apart from it by one rule that runs the response's full height,
-	// from the rule under the URL bar to the panel's edge.
-	ui.Column(c).Width(historyWidth).Shrink(0).FillHeight().
-		BorderWidth(0, 0, 0, 1).BorderColor(t.Border).Children(func() {
-		// The same row as the response's own header beside it, so the two
-		// rows share one centre line.
-		uikit.PaneHeader(c, func() {
-			uikit.SubTabs(c, &d.historyTab, locales.RequestHistory(), locales.History(), locales.Examples())
-		}, nil)
-		ui.Scroll(c).Grow(1).MinHeight(0).Padding(t.Space(uikit.SpaceM), t.Space(uikit.SpaceM), t.Space(uikit.SpaceM)).Gap(t.Space(uikit.SpaceHair)).Children(func() {
-			if d.historyTab == 1 {
-				a.historyExamples(c, t, d)
-				return
+// rightSidebarRuns lists what a saved request has produced: the retained runs
+// it was sent as, newest first, with the status and source filters above them.
+// Choosing a run shows it read-only in place of the response.
+func (a *app) rightSidebarRuns(c *ui.Context, t *ui.Theme) {
+	d := a.requestDocument
+	if d == nil {
+		return
+	}
+	uikit.BodyStrong(c, locales.RequestHistory())
+	records := a.historyRecords(d)
+	// The filters are only worth their room once there are runs to narrow,
+	// and they stay while a filter is set: a filter that hides everything
+	// must stay in reach to be undone.
+	if len(records) > 0 || d.historyStatus != "" || d.historySource != "" {
+		ui.Row(c).FillWidth().Gap(t.Space(uikit.SpaceS)).Children(func() {
+			historyFilters(c, &d.historyStatus, &d.historySource)
+		})
+	}
+	if len(records) == 0 {
+		uikit.Hint(c, locales.NotSentYet())
+		return
+	}
+	for _, r := range records {
+		status, millis := 0, 0
+		if f := r.Exchange; f != nil {
+			status, millis = f.Status, f.Millis
+		}
+		row := uikit.ContextMenu(c, uikit.Tip(c, uikit.RowButton(c.Key(strconv.Itoa(r.ID)), locales.RunNumberLabel(r.ID)), r.Summary),
+			func(m *ui.Menu) { actionMenu(m, a.runCompareActions(runTarget(r))) })
+		if r.ID == d.historyPick {
+			uikit.Selected(c, row, !a.windowBehind)
+		}
+		row.Children(func() {
+			shown := "—"
+			if status != 0 {
+				shown = strconv.Itoa(status)
 			}
-			records := a.historyRecords(d)
-			// The filters are only worth their room once there are runs to
-			// narrow, and they stay while a filter is set: a filter that
-			// hides everything must stay in reach to be undone.
-			if len(records) > 0 || d.historyStatus != "" || d.historySource != "" {
-				historyFilters(c, &d.historyStatus, &d.historySource)
+			uikit.DataMeta(c, shown).TextColor(uikit.StatusColor(status, t)).Width(28)
+			uikit.Body(c, runTime(r.At)).FontFeatures("tnum").SingleLine().Grow(1).MinWidth(0)
+			if r.ID == a.experiments.log.Baseline {
+				uikit.Tip(c, uikit.Glyph(c, pinIcon), locales.Baseline())
 			}
-			if len(records) == 0 {
-				// Nothing to narrow yet. The response beside it already says
-				// how to send, so the column only says it is empty.
-				ui.Column(c).FillWidth().Center().Padding(t.Space(uikit.SpaceXL), 0).Children(func() {
-					uikit.Hint(c, locales.NotSentYet())
-				})
-				return
-			}
-			for _, r := range records {
-				status, millis := 0, 0
-				if f := r.Exchange; f != nil {
-					status, millis = f.Status, f.Millis
-				}
-				row := uikit.ContextMenu(c, uikit.Tip(c, uikit.RowButton(c.Key(strconv.Itoa(r.ID)), locales.RunNumberLabel(r.ID)), r.Summary),
-					func(m *ui.Menu) { actionMenu(m, a.runCompareActions(runTarget(r))) })
-				if r.ID == d.historyPick {
-					uikit.Selected(c, row, !a.windowBehind)
-				}
-				row.Children(func() {
-					shown := "—"
-					if status != 0 {
-						shown = strconv.Itoa(status)
-					}
-					uikit.DataMeta(c, shown).TextColor(uikit.StatusColor(status, t)).Width(28)
-					uikit.Body(c, runTime(r.At)).FontFeatures("tnum").SingleLine().Grow(1).MinWidth(0)
-					if r.ID == a.experiments.log.Baseline {
-						uikit.Tip(c, uikit.Glyph(c, pinIcon), locales.Baseline())
-					}
-					if status != 0 {
-						uikit.Meta(c, fmt.Sprintf("%d ms", millis)).FontFeatures("tnum")
-					}
-				})
-				if row.Clicked() {
-					d.historyPick, d.historyReader = r.ID, nil
-				}
+			if status != 0 {
+				uikit.Meta(c, fmt.Sprintf("%d ms", millis)).FontFeatures("tnum")
 			}
 		})
-	})
+		if row.Clicked() {
+			d.historyPick, d.historyReader = r.ID, nil
+		}
+	}
 }
 
-func (a *app) historyExamples(c *ui.Context, t *ui.Theme, d *requestDocument) {
+// rightSidebarExamples lists the examples saved with a request. Choosing one
+// opens it in the request's Examples tab, where it can be edited, mocked or
+// sent.
+func (a *app) rightSidebarExamples(c *ui.Context, t *ui.Theme) {
+	d := a.requestDocument
+	if d == nil {
+		return
+	}
+	uikit.BodyStrong(c, locales.Examples())
 	if len(d.examples) == 0 {
-		uikit.Hint(c, locales.SendTheRequestThenSave()).Padding(t.Space(uikit.SpaceM))
+		uikit.Hint(c, locales.SendTheRequestThenSave())
 		return
 	}
 	for i, e := range d.examples {

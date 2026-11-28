@@ -2981,25 +2981,15 @@ func TestFooterToolChipsFoldIntoACount(t *testing.T) {
 	}
 }
 
-// The runs column sits in the response and steps aside when the response
-// could not keep its tabs and numbers beside it, coming back when the window
-// has room; the request pane's four tabs stay whole either way. It is decided
-// from the measured pane, not a window size.
-func TestHistoryColumnYieldsToTheRequestTabs(t *testing.T) {
-	for _, tc := range []struct {
-		width   int
-		history bool
-	}{{1280, false}, {1600, true}} {
+// A request's runs and examples live in the right sidebar with Variables,
+// Code and Info, not in a column of the response: the response keeps its tabs
+// and numbers at the widths where the old column took half of them.
+func TestRequestRunsOpenInTheRightSidebar(t *testing.T) {
+	for _, width := range []int{1280, 1600} {
 		a := workspaceApp()
 		a.page = pageRequest
 		a.library.root = t.TempDir()
-		need := map[string]float32{}
-		tt := ui.NewTester(func(c *ui.Context) {
-			a.view(c)
-			for _, label := range []string{"Headers", "Params", "Body", "Auth"} {
-				need[label] = paneTextWidth(c, label, uikit.TextSmall, 400) + 2*c.Theme().Space(uikit.SpaceS)
-			}
-		}, tc.width, 800)
+		tt := ui.NewTester(a.view, width, 800)
 		tt.SetLocale("en-US")
 		if err := tt.Click("List projects"); err != nil {
 			t.Fatal(err)
@@ -3009,17 +2999,22 @@ func TestHistoryColumnYieldsToTheRequestTabs(t *testing.T) {
 		d.responseArrived()
 		tt.Frame()
 		tt.Frame()
-		if got := tt.HasText("Request runs"); got != tc.history {
-			t.Fatalf("width %d: history column shown = %t, want %t", tc.width, got, tc.history)
+		if a.rightSidebar.open || tt.HasText("Request runs") {
+			t.Fatalf("width %d: the right sidebar opened without the reader asking", width)
 		}
-		for _, label := range []string{"Headers", "Params", "Body", "Auth"} {
-			r, ok := tt.Find("Request pane: " + label)
-			if !ok {
-				t.Fatalf("width %d: the %s tab left the row: %q", tc.width, label, tt.Texts())
-			}
-			if r.W < need[label]-1 {
-				t.Fatalf("width %d: the %s tab is cut to %.0f of %.0f", tc.width, label, r.W, need[label])
-			}
+		if err := tt.Click("Open request runs"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if !a.rightSidebar.open || a.rightSidebar.tab != rightRuns {
+			t.Fatalf("width %d: Open request runs did not choose the sidebar's Runs panel (open %t, tab %d)",
+				width, a.rightSidebar.open, a.rightSidebar.tab)
+		}
+		if !tt.HasText(locales.NotSentYet()) {
+			t.Fatalf("width %d: the empty Runs panel has no hint: %q", width, tt.Texts())
+		}
+		if _, ok := tt.Find("Response pane: Body"); !ok {
+			t.Fatalf("width %d: the response lost its tabs beside the sidebar: %q", width, tt.Texts())
 		}
 	}
 }
@@ -3619,7 +3614,7 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	tt := ui.NewTester(a.view, 1600, 800) // room for the runs column
+	tt := ui.NewTester(a.view, 1600, 800)
 	showCollections(t, tt)
 	click := func(label string) {
 		t.Helper()
@@ -3628,6 +3623,8 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 		}
 	}
 	click("List projects")
+	a.rightSidebar.open, a.rightSidebar.tab = true, rightRuns
+	tt.Frame()
 	latest, ok3 := tt.Find("Run #3")
 	first, ok1 := tt.Find("Run #1")
 	if _, other := tt.Find("Run #2"); !ok1 || !ok3 || other || latest.Y >= first.Y {
@@ -3674,10 +3671,8 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 		t.Fatal("Open as draft did not open an unsaved copy with that run's result")
 	}
 	click("GET  List projects") // The saved one; its copy waits under Unsaved.
-	click("Request runs: Examples")
-	if a.requestDocument.historyTab != 1 {
-		t.Fatal("Examples did not switch the history column")
-	}
+	a.rightSidebar.open, a.rightSidebar.tab = true, rightExamples
+	tt.Frame()
 	click("Open example: Two projects")
 	if !tt.HasText("Example name") {
 		t.Fatal("choosing an example did not open it in the Examples tab")
@@ -5944,7 +5939,7 @@ func TestCommandPaletteBreakActionAndCaptureContext(t *testing.T) {
 	if !tt.HasText("Capture #") || !tt.HasText("GET /projects") {
 		t.Fatalf("the palette footer lost its capture context: %q", tt.Texts())
 	}
-	if !tt.HasText("Choose") || tt.HasText("Choose…") {
+	if !tt.HasText(locales.SelectHint()) || tt.HasText(locales.ChooseCommand()) {
 		t.Fatalf("the palette footer still reads like a menu item: %q", tt.Texts())
 	}
 	tt.Key(0, ui.KeyEscape)
@@ -6881,9 +6876,8 @@ func TestSendCancellationKeepsTheSentSnapshotAndDoesNotRetry(t *testing.T) {
 	if a.composeURL != upstream.URL+"/unsent" {
 		t.Fatal("cancelling overwrote in-flight edits")
 	}
-	if err := tt.Click("Open request runs"); err != nil {
-		t.Fatal(err)
-	}
+	a.openSendHistory(a.requestDocument)
+	tt.Frame()
 	if !tt.HasText("Cancelled") || !tt.HasText("Experiment #1") {
 		t.Fatal("a sourceless cancelled send was not retained in send history")
 	}
@@ -6909,9 +6903,8 @@ func TestSendCancellationKeepsTheSentSnapshotAndDoesNotRetry(t *testing.T) {
 		tt.Frame()
 		runtime.Gosched()
 	}
-	if err := tt.Click("Open request runs"); err != nil {
-		t.Fatal(err)
-	}
+	a.openSendHistory(a.requestDocument)
+	tt.Frame()
 	if _, found := tt.Find("Experiment #1"); found || !tt.HasText("Pre-request script failed") || hits.Load() != 1 {
 		t.Fatal("same URL mixed independent send histories")
 	}
@@ -7020,9 +7013,8 @@ func TestSendResultsSeparateFailuresAndLinkTheExactAttempt(t *testing.T) {
 			if tc.name == "network" && tt.HasText("502 · proxy response") || tc.name == "http" && !tt.HasText("502 Bad Gateway") {
 				t.Fatalf("response origin is ambiguous: %q", tt.Texts())
 			}
-			if err := tt.Click("Open request runs"); err != nil {
-				t.Fatal(err)
-			}
+			a.openSendHistory(a.requestDocument)
+			tt.Frame()
 			if !tt.HasText(tc.outcome) {
 				t.Fatal("history lost the outcome")
 			}

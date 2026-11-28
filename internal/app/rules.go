@@ -916,7 +916,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 							return uikit.Hint(c, e.bodyNote)
 						}
 						e.body.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
-						e.body.Theme = uikit.EditorTheme(t)
+						e.body.Theme = uikit.EditorThemeFor(t, e.body.Focused())
 						return ui.Box(c).Height(180).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
 							editor.View(c, e.body).Grow(1).FillWidth().FocusRing(true)
 						})

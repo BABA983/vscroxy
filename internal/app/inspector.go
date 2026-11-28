@@ -898,6 +898,7 @@ type responseSummary struct {
 	status                  int
 	timing                  uikit.Timing
 	stream                  bool // the messages are a view of their own
+	limited                 bool // the body shown is a preview of a larger one
 }
 
 // responseSummaryOf reads a capture's result.
@@ -1029,6 +1030,10 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 				detail = sum.detail
 			}
 			uikit.ResponseMeta(c, sum.duration, detail, sum.timing).Shrink(1).MinWidth(0).MaxWidth(260)
+		}
+		if sum.limited {
+			uikit.Tip(c, uikit.Caption(c, locales.PreviewLimited()).TextColor(t.TextMuted).Shrink(0),
+				locales.PreviewLimitedTo8Mib())
 		}
 		if tools.draw != nil {
 			tools.draw(&room)
@@ -1549,7 +1554,7 @@ func (a *app) rawSide(c *ui.Context, f flow, side int) {
 		}
 	})
 	a.rawEditor[side].Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
-	a.rawEditor[side].Theme = uikit.EditorTheme(t)
+	a.rawEditor[side].Theme = uikit.EditorThemeFor(t, a.rawEditor[side].Focused())
 	editor.View(c, a.rawEditor[side]).Grow(1)
 }
 

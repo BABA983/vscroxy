@@ -129,8 +129,7 @@ func TestBatchGScreenshots(t *testing.T) {
 					{Phase: "post-response", Kind: "log", Text: `{"id": 73, "name": "Demo project"}`},
 					{Phase: "post-response", Kind: "error", Text: "TypeError: cannot read properties of undefined (reading 'id')"},
 				}})
-			a.requestConsole.open = true
-			a.requestConsole.split = 62
+			a.bottom.open, a.bottom.tab = true, bottomConsole
 			for _, entry := range a.requestConsole.entries {
 				if entry.request {
 					a.requestConsole.expanded = map[int]bool{entry.id: true}

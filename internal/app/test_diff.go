@@ -42,7 +42,7 @@ func (a *app) testDiffModal(c *ui.Context, t *ui.Theme) {
 			})
 			if a.testDiff != nil {
 				a.testDiff.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
-				a.testDiff.Theme = uikit.EditorTheme(t)
+				a.testDiff.Theme = uikit.EditorThemeFor(t, false)
 				editor.DiffView(c, a.testDiff).Grow(1).MinHeight(0).FillWidth()
 				a.testDiffSplit = a.testDiff.SplitPercent
 			}

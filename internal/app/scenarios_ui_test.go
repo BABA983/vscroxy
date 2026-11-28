@@ -443,8 +443,13 @@ func TestMockingAnExampleOpensARuleThatAnswersWithIt(t *testing.T) {
 	a.requests[0].Examples = []request.Example{{ID: "e1", Name: "Empty", Status: 200, Headers: "Content-Type: application/json", Body: `{"projects":[]}`,
 		Request: request.ExampleRequest{Method: "GET", URL: "{{host}}/projects"}}}
 	a.globals = map[string]string{"host": "https://api.example.com"}
-	tt := ui.NewTester(a.view, 1600, 800) // room for the runs column
-	for _, label := range []string{"GET  List projects", "Request runs: Examples", "Open example: Empty", "Mock this example"} {
+	tt := ui.NewTester(a.view, 1600, 800)
+	if err := tt.Click("GET  List projects"); err != nil {
+		t.Fatal(err)
+	}
+	a.rightSidebar.open, a.rightSidebar.tab = true, rightExamples
+	tt.Frame()
+	for _, label := range []string{"Open example: Empty", "Mock this example"} {
 		if err := tt.Click(label); err != nil {
 			t.Fatal(label, err)
 		}

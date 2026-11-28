@@ -1021,7 +1021,7 @@ func (a *app) prettyBody(c *ui.Context, crumbs *jsonBreadcrumbs, key, body strin
 	}
 	view.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
 	view.SoftWrap = !a.bodyNoWrap[side]
-	view.Theme = uikit.EditorTheme(c.Theme())
+	view.Theme = uikit.EditorThemeFor(c.Theme(), view.Focused())
 	var provided jsonCrumbSource
 	if json != nil && json.ready && json.result.crumbRoot != nil {
 		provided = jsonCrumbSource{root: json.result.crumbRoot, text: json.result.crumbText}
@@ -1078,7 +1078,7 @@ func (a *app) codeBody(c *ui.Context, f flow, body string, side int, kind string
 		a.formattedCode[side] = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.FormattedBody()}
 	}
 	a.formattedCode[side].Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
-	a.formattedCode[side].Theme = uikit.EditorTheme(c.Theme())
+	a.formattedCode[side].Theme = uikit.EditorThemeFor(c.Theme(), a.formattedCode[side].Focused())
 	editor.View(c, a.formattedCode[side]).Grow(1)
 }
 
@@ -1113,7 +1113,7 @@ func (a *app) mergedBody(c *ui.Context, f flow, body string, side int) {
 		return
 	}
 	a.mergedText[side].Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
-	a.mergedText[side].Theme = uikit.EditorTheme(c.Theme())
+	a.mergedText[side].Theme = uikit.EditorThemeFor(c.Theme(), a.mergedText[side].Focused())
 	editor.View(c, a.mergedText[side]).Grow(1)
 }
 
