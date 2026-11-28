@@ -2589,13 +2589,15 @@ func TestHeaderValueColumnFitsACommonMediaType(t *testing.T) {
 }
 
 // The search field names the operators while it has room for the whole
-// sentence, and only what it searches when it does not. Without the mode
-// dropdown the field has 94 points more to spend, so it yields later.
+// sentence, and only what it searches when it does not. At 480 points the
+// field is about 100 points short of the sentence on every platform's text
+// measurement; 600 sat within a few points of the threshold and flipped with
+// Pango's narrower glyphs on Linux.
 func TestSearchPlaceholderYieldsToANarrowField(t *testing.T) {
 	for _, tc := range []struct {
 		width int
 		want  string
-	}{{1280, locales.SearchPlaceholder()}, {600, locales.SearchHostOrPath()}} {
+	}{{1280, locales.SearchPlaceholder()}, {480, locales.SearchHostOrPath()}} {
 		a := workspaceApp()
 		var got string
 		tt := ui.NewTester(func(c *ui.Context) {
